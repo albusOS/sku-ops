@@ -384,14 +384,14 @@ const Inventory = () => {
                   Vendor
                 </Label>
                 <Select
-                  value={form.vendor_id}
-                  onValueChange={(value) => setForm({ ...form, vendor_id: value })}
+                  value={form.vendor_id || "none"}
+                  onValueChange={(value) => setForm({ ...form, vendor_id: value === "none" ? "" : value })}
                 >
                   <SelectTrigger className="input-workshop mt-2" data-testid="product-vendor-select">
                     <SelectValue placeholder="Select vendor" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {vendors.map((vendor) => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
