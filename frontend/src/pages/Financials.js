@@ -258,24 +258,24 @@ const Financials = () => {
             <span className="text-sm text-slate-600 font-semibold uppercase">Filters:</span>
           </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
             <SelectTrigger className="w-[150px] input-workshop">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="unpaid">Unpaid</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="invoiced">Invoiced</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select value={entityFilter} onValueChange={setEntityFilter}>
+          <Select value={entityFilter || "all"} onValueChange={(v) => setEntityFilter(v === "all" ? "" : v)}>
             <SelectTrigger className="w-[180px] input-workshop">
               <SelectValue placeholder="All Entities" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Entities</SelectItem>
+              <SelectItem value="all">All Entities</SelectItem>
               {billingEntities.map((entity) => (
                 <SelectItem key={entity} value={entity}>
                   {entity}
