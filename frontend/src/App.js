@@ -10,10 +10,13 @@ import Vendors from "./pages/Vendors";
 import Departments from "./pages/Departments";
 import ReceiptImport from "./pages/ReceiptImport";
 import Reports from "./pages/Reports";
+import Contractors from "./pages/Contractors";
+import Financials from "./pages/Financials";
+import MyHistory from "./pages/MyHistory";
 import Layout from "./components/Layout";
 import "./App.css";
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
@@ -26,6 +29,10 @@ const ProtectedRoute = ({ children }) => {
   
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />;
   }
   
   return children;
@@ -47,11 +54,70 @@ function App() {
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/pos" element={<POS />} />
-                    <Route path="/inventory" element={<Inventory />} />
-                    <Route path="/vendors" element={<Vendors />} />
-                    <Route path="/departments" element={<Departments />} />
-                    <Route path="/import" element={<ReceiptImport />} />
-                    <Route path="/reports" element={<Reports />} />
+                    <Route 
+                      path="/inventory" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <Inventory />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/vendors" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <Vendors />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/departments" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <Departments />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/import" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <ReceiptImport />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/reports" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <Reports />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/contractors" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin"]}>
+                          <Contractors />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/financials" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin"]}>
+                          <Financials />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/my-history" 
+                      element={
+                        <ProtectedRoute allowedRoles={["contractor"]}>
+                          <MyHistory />
+                        </ProtectedRoute>
+                      } 
+                    />
                   </Routes>
                 </Layout>
               </ProtectedRoute>
