@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -15,6 +16,8 @@ import bcrypt
 import base64
 import json
 import re
+import csv
+import io
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -46,11 +49,25 @@ logger = logging.getLogger(__name__)
 
 # ==================== MODELS ====================
 
+# Roles: admin, warehouse_manager, contractor
+ROLES = ["admin", "warehouse_manager", "contractor"]
+
 class UserCreate(BaseModel):
     email: str
     password: str
     name: str
-    role: str = "employee"  # admin, manager, employee
+    role: str = "warehouse_manager"
+    # Contractor specific fields
+    company: Optional[str] = None  # e.g., "On Point", "Stone & Timber"
+    billing_entity: Optional[str] = None
+    phone: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    company: Optional[str] = None
+    billing_entity: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class UserLogin(BaseModel):
     email: str
@@ -61,12 +78,16 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
     name: str
-    role: str = "employee"
+    role: str = "warehouse_manager"
+    company: Optional[str] = None
+    billing_entity: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: bool = True
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class DepartmentCreate(BaseModel):
     name: str
-    code: str  # 3-letter code like LUM, PLU, ELE
+    code: str
     description: Optional[str] = ""
 
 class Department(BaseModel):
@@ -105,7 +126,7 @@ class ProductCreate(BaseModel):
     min_stock: int = 5
     department_id: str
     vendor_id: Optional[str] = None
-    original_sku: Optional[str] = None  # Original SKU from source store
+    original_sku: Optional[str] = None
     barcode: Optional[str] = None
 
 class ProductUpdate(BaseModel):
@@ -122,7 +143,7 @@ class ProductUpdate(BaseModel):
 class Product(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    sku: str  # Our internal SKU: DEPT-XXXXX
+    sku: str
     name: str
     description: str = ""
     price: float
@@ -138,32 +159,45 @@ class Product(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-class SaleItem(BaseModel):
+class WithdrawalItem(BaseModel):
     product_id: str
     sku: str
     name: str
     quantity: int
     price: float
+    cost: float = 0.0
     subtotal: float
 
-class SaleCreate(BaseModel):
-    items: List[SaleItem]
-    payment_method: str = "cash"  # cash, card
-    customer_name: Optional[str] = None
+class MaterialWithdrawalCreate(BaseModel):
+    items: List[WithdrawalItem]
+    job_id: str  # Free text job ID
+    service_address: str
     notes: Optional[str] = None
 
-class Sale(BaseModel):
+class MaterialWithdrawal(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    items: List[SaleItem]
+    items: List[WithdrawalItem]
+    job_id: str
+    service_address: str
+    notes: Optional[str] = None
+    # Financial tracking
     subtotal: float
     tax: float
     total: float
-    payment_method: str = "cash"
-    customer_name: Optional[str] = None
-    notes: Optional[str] = None
-    cashier_id: str
-    cashier_name: str = ""
+    cost_total: float  # Total cost for margin tracking
+    # Contractor info
+    contractor_id: str
+    contractor_name: str = ""
+    contractor_company: str = ""
+    billing_entity: str = ""
+    # Status
+    payment_status: str = "unpaid"  # unpaid, paid, invoiced
+    invoice_id: Optional[str] = None
+    paid_at: Optional[str] = None
+    # Audit
+    processed_by_id: str  # Warehouse manager who processed
+    processed_by_name: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class ExtractedProduct(BaseModel):
@@ -171,12 +205,6 @@ class ExtractedProduct(BaseModel):
     quantity: int = 1
     price: float
     original_sku: Optional[str] = None
-
-class ReceiptExtraction(BaseModel):
-    store_name: str
-    products: List[ExtractedProduct]
-    total: float
-    date: Optional[str] = None
 
 # ==================== AUTH HELPERS ====================
 
@@ -201,16 +229,24 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0, "password": 0})
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
+        if not user.get("is_active", True):
+            raise HTTPException(status_code=401, detail="User account is disabled")
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+def require_role(*roles):
+    async def role_checker(current_user: dict = Depends(get_current_user)):
+        if current_user.get("role") not in roles:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return current_user
+    return role_checker
+
 # ==================== SKU GENERATOR ====================
 
 async def generate_sku(department_code: str) -> str:
-    """Generate unique SKU in format: DEPT-XXXXX"""
     counter = await db.sku_counters.find_one_and_update(
         {"department_code": department_code},
         {"$inc": {"counter": 1}},
@@ -228,10 +264,16 @@ async def register(data: UserCreate):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    if data.role not in ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {ROLES}")
+    
     user = User(
         email=data.email,
         name=data.name,
-        role=data.role
+        role=data.role,
+        company=data.company,
+        billing_entity=data.billing_entity,
+        phone=data.phone
     )
     user_dict = user.model_dump()
     user_dict["password"] = hash_password(data.password)
@@ -246,6 +288,8 @@ async def login(data: UserLogin):
     user = await db.users.find_one({"email": data.email})
     if not user or not verify_password(data.password, user.get("password", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Account is disabled")
     
     token = create_token(user["id"], user["email"], user["role"])
     user_response = {k: v for k, v in user.items() if k not in ["_id", "password"]}
@@ -255,6 +299,60 @@ async def login(data: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
+# ==================== CONTRACTOR MANAGEMENT (Admin Only) ====================
+
+@api_router.get("/contractors")
+async def get_contractors(current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
+    contractors = await db.users.find(
+        {"role": "contractor"},
+        {"_id": 0, "password": 0}
+    ).to_list(1000)
+    return contractors
+
+@api_router.post("/contractors")
+async def create_contractor(data: UserCreate, current_user: dict = Depends(require_role("admin"))):
+    existing = await db.users.find_one({"email": data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    contractor = User(
+        email=data.email,
+        name=data.name,
+        role="contractor",
+        company=data.company or "Independent",
+        billing_entity=data.billing_entity or data.company or "Independent",
+        phone=data.phone
+    )
+    contractor_dict = contractor.model_dump()
+    contractor_dict["password"] = hash_password(data.password)
+    
+    await db.users.insert_one(contractor_dict)
+    
+    return {k: v for k, v in contractor_dict.items() if k != "password"}
+
+@api_router.put("/contractors/{contractor_id}")
+async def update_contractor(contractor_id: str, data: UserUpdate, current_user: dict = Depends(require_role("admin"))):
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    
+    result = await db.users.find_one_and_update(
+        {"id": contractor_id, "role": "contractor"},
+        {"$set": update_data},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Contractor not found")
+    
+    result.pop("_id", None)
+    result.pop("password", None)
+    return result
+
+@api_router.delete("/contractors/{contractor_id}")
+async def delete_contractor(contractor_id: str, current_user: dict = Depends(require_role("admin"))):
+    result = await db.users.delete_one({"id": contractor_id, "role": "contractor"})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Contractor not found")
+    return {"message": "Contractor deleted"}
+
 # ==================== DEPARTMENT ROUTES ====================
 
 @api_router.get("/departments", response_model=List[Department])
@@ -263,7 +361,7 @@ async def get_departments(current_user: dict = Depends(get_current_user)):
     return departments
 
 @api_router.post("/departments", response_model=Department)
-async def create_department(data: DepartmentCreate, current_user: dict = Depends(get_current_user)):
+async def create_department(data: DepartmentCreate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     existing = await db.departments.find_one({"code": data.code.upper()})
     if existing:
         raise HTTPException(status_code=400, detail="Department code already exists")
@@ -277,7 +375,7 @@ async def create_department(data: DepartmentCreate, current_user: dict = Depends
     return dept
 
 @api_router.put("/departments/{dept_id}", response_model=Department)
-async def update_department(dept_id: str, data: DepartmentCreate, current_user: dict = Depends(get_current_user)):
+async def update_department(dept_id: str, data: DepartmentCreate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     result = await db.departments.find_one_and_update(
         {"id": dept_id},
         {"$set": {"name": data.name, "description": data.description or ""}},
@@ -289,7 +387,7 @@ async def update_department(dept_id: str, data: DepartmentCreate, current_user: 
     return result
 
 @api_router.delete("/departments/{dept_id}")
-async def delete_department(dept_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_department(dept_id: str, current_user: dict = Depends(require_role("admin"))):
     product_count = await db.products.count_documents({"department_id": dept_id})
     if product_count > 0:
         raise HTTPException(status_code=400, detail="Cannot delete department with products")
@@ -302,18 +400,18 @@ async def delete_department(dept_id: str, current_user: dict = Depends(get_curre
 # ==================== VENDOR ROUTES ====================
 
 @api_router.get("/vendors", response_model=List[Vendor])
-async def get_vendors(current_user: dict = Depends(get_current_user)):
+async def get_vendors(current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     vendors = await db.vendors.find({}, {"_id": 0}).to_list(100)
     return vendors
 
 @api_router.post("/vendors", response_model=Vendor)
-async def create_vendor(data: VendorCreate, current_user: dict = Depends(get_current_user)):
+async def create_vendor(data: VendorCreate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     vendor = Vendor(**data.model_dump())
     await db.vendors.insert_one(vendor.model_dump())
     return vendor
 
 @api_router.put("/vendors/{vendor_id}", response_model=Vendor)
-async def update_vendor(vendor_id: str, data: VendorCreate, current_user: dict = Depends(get_current_user)):
+async def update_vendor(vendor_id: str, data: VendorCreate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     result = await db.vendors.find_one_and_update(
         {"id": vendor_id},
         {"$set": data.model_dump()},
@@ -325,7 +423,7 @@ async def update_vendor(vendor_id: str, data: VendorCreate, current_user: dict =
     return result
 
 @api_router.delete("/vendors/{vendor_id}")
-async def delete_vendor(vendor_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_vendor(vendor_id: str, current_user: dict = Depends(require_role("admin"))):
     result = await db.vendors.delete_one({"id": vendor_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Vendor not found")
@@ -363,7 +461,7 @@ async def get_product(product_id: str, current_user: dict = Depends(get_current_
     return product
 
 @api_router.post("/products", response_model=Product)
-async def create_product(data: ProductCreate, current_user: dict = Depends(get_current_user)):
+async def create_product(data: ProductCreate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     department = await db.departments.find_one({"id": data.department_id}, {"_id": 0})
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
@@ -393,17 +491,12 @@ async def create_product(data: ProductCreate, current_user: dict = Depends(get_c
     )
     
     await db.products.insert_one(product.model_dump())
-    
-    # Update department product count
-    await db.departments.update_one(
-        {"id": data.department_id},
-        {"$inc": {"product_count": 1}}
-    )
+    await db.departments.update_one({"id": data.department_id}, {"$inc": {"product_count": 1}})
     
     return product
 
 @api_router.put("/products/{product_id}", response_model=Product)
-async def update_product(product_id: str, data: ProductUpdate, current_user: dict = Depends(get_current_user)):
+async def update_product(product_id: str, data: ProductUpdate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     
@@ -430,42 +523,55 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: dic
     return result
 
 @api_router.delete("/products/{product_id}")
-async def delete_product(product_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_product(product_id: str, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     product = await db.products.find_one({"id": product_id})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
     await db.products.delete_one({"id": product_id})
-    
-    # Update department product count
-    await db.departments.update_one(
-        {"id": product["department_id"]},
-        {"$inc": {"product_count": -1}}
-    )
+    await db.departments.update_one({"id": product["department_id"]}, {"$inc": {"product_count": -1}})
     
     return {"message": "Product deleted"}
 
-# ==================== POS / SALES ROUTES ====================
+# ==================== MATERIAL WITHDRAWAL (POS) ====================
 
-@api_router.post("/sales", response_model=Sale)
-async def create_sale(data: SaleCreate, current_user: dict = Depends(get_current_user)):
+@api_router.post("/withdrawals", response_model=MaterialWithdrawal)
+async def create_withdrawal(data: MaterialWithdrawalCreate, current_user: dict = Depends(get_current_user)):
+    """Create a material withdrawal - Contractors withdraw materials charged to their account"""
+    
+    # For contractors, they are the one withdrawing
+    # For warehouse managers, they need to specify contractor
+    if current_user.get("role") == "contractor":
+        contractor = current_user
+    else:
+        # Warehouse manager processes for a contractor - contractor_id should be in request
+        # For now, warehouse manager can also process without contractor (walk-in edge case)
+        contractor = current_user
+    
     subtotal = sum(item.subtotal for item in data.items)
-    tax = round(subtotal * 0.08, 2)  # 8% tax
+    cost_total = sum(item.cost * item.quantity for item in data.items)
+    tax = round(subtotal * 0.08, 2)
     total = round(subtotal + tax, 2)
     
-    sale = Sale(
+    withdrawal = MaterialWithdrawal(
         items=data.items,
+        job_id=data.job_id,
+        service_address=data.service_address,
+        notes=data.notes,
         subtotal=subtotal,
         tax=tax,
         total=total,
-        payment_method=data.payment_method,
-        customer_name=data.customer_name,
-        notes=data.notes,
-        cashier_id=current_user["id"],
-        cashier_name=current_user.get("name", "")
+        cost_total=cost_total,
+        contractor_id=contractor["id"],
+        contractor_name=contractor.get("name", ""),
+        contractor_company=contractor.get("company", ""),
+        billing_entity=contractor.get("billing_entity", ""),
+        payment_status="unpaid",
+        processed_by_id=current_user["id"],
+        processed_by_name=current_user.get("name", "")
     )
     
-    await db.sales.insert_one(sale.model_dump())
+    await db.withdrawals.insert_one(withdrawal.model_dump())
     
     # Update product quantities
     for item in data.items:
@@ -474,13 +580,250 @@ async def create_sale(data: SaleCreate, current_user: dict = Depends(get_current
             {"$inc": {"quantity": -item.quantity}}
         )
     
-    return sale
+    return withdrawal
 
-@api_router.get("/sales", response_model=List[Sale])
-async def get_sales(
+@api_router.post("/withdrawals/for-contractor")
+async def create_withdrawal_for_contractor(
+    contractor_id: str,
+    data: MaterialWithdrawalCreate,
+    current_user: dict = Depends(require_role("admin", "warehouse_manager"))
+):
+    """Warehouse manager creates withdrawal on behalf of a contractor"""
+    contractor = await db.users.find_one({"id": contractor_id, "role": "contractor"}, {"_id": 0, "password": 0})
+    if not contractor:
+        raise HTTPException(status_code=404, detail="Contractor not found")
+    
+    subtotal = sum(item.subtotal for item in data.items)
+    cost_total = sum(item.cost * item.quantity for item in data.items)
+    tax = round(subtotal * 0.08, 2)
+    total = round(subtotal + tax, 2)
+    
+    withdrawal = MaterialWithdrawal(
+        items=data.items,
+        job_id=data.job_id,
+        service_address=data.service_address,
+        notes=data.notes,
+        subtotal=subtotal,
+        tax=tax,
+        total=total,
+        cost_total=cost_total,
+        contractor_id=contractor["id"],
+        contractor_name=contractor.get("name", ""),
+        contractor_company=contractor.get("company", ""),
+        billing_entity=contractor.get("billing_entity", ""),
+        payment_status="unpaid",
+        processed_by_id=current_user["id"],
+        processed_by_name=current_user.get("name", "")
+    )
+    
+    await db.withdrawals.insert_one(withdrawal.model_dump())
+    
+    for item in data.items:
+        await db.products.update_one(
+            {"id": item.product_id},
+            {"$inc": {"quantity": -item.quantity}}
+        )
+    
+    return withdrawal
+
+@api_router.get("/withdrawals")
+async def get_withdrawals(
+    contractor_id: Optional[str] = None,
+    payment_status: Optional[str] = None,
+    billing_entity: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    
+    # Contractors can only see their own withdrawals
+    if current_user.get("role") == "contractor":
+        query["contractor_id"] = current_user["id"]
+    elif contractor_id:
+        query["contractor_id"] = contractor_id
+    
+    if payment_status:
+        query["payment_status"] = payment_status
+    if billing_entity:
+        query["billing_entity"] = billing_entity
+    if start_date:
+        query["created_at"] = {"$gte": start_date}
+    if end_date:
+        if "created_at" in query:
+            query["created_at"]["$lte"] = end_date
+        else:
+            query["created_at"] = {"$lte": end_date}
+    
+    withdrawals = await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return withdrawals
+
+@api_router.get("/withdrawals/{withdrawal_id}")
+async def get_withdrawal(withdrawal_id: str, current_user: dict = Depends(get_current_user)):
+    withdrawal = await db.withdrawals.find_one({"id": withdrawal_id}, {"_id": 0})
+    if not withdrawal:
+        raise HTTPException(status_code=404, detail="Withdrawal not found")
+    
+    # Contractors can only view their own
+    if current_user.get("role") == "contractor" and withdrawal.get("contractor_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return withdrawal
+
+# ==================== FINANCIAL DASHBOARD (Admin) ====================
+
+@api_router.get("/financials/summary")
+async def get_financial_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(require_role("admin"))
+):
+    """Get financial summary for admin dashboard"""
+    query = {}
+    if start_date:
+        query["created_at"] = {"$gte": start_date}
+    if end_date:
+        if "created_at" in query:
+            query["created_at"]["$lte"] = end_date
+        else:
+            query["created_at"] = {"$lte": end_date}
+    
+    withdrawals = await db.withdrawals.find(query, {"_id": 0}).to_list(10000)
+    
+    # Calculate totals
+    total_unpaid = sum(w["total"] for w in withdrawals if w.get("payment_status") == "unpaid")
+    total_paid = sum(w["total"] for w in withdrawals if w.get("payment_status") == "paid")
+    total_invoiced = sum(w["total"] for w in withdrawals if w.get("payment_status") == "invoiced")
+    total_revenue = sum(w["total"] for w in withdrawals)
+    total_cost = sum(w.get("cost_total", 0) for w in withdrawals)
+    
+    # By billing entity
+    by_entity = {}
+    for w in withdrawals:
+        entity = w.get("billing_entity", "Unknown")
+        if entity not in by_entity:
+            by_entity[entity] = {"total": 0, "unpaid": 0, "paid": 0, "count": 0}
+        by_entity[entity]["total"] += w["total"]
+        by_entity[entity]["count"] += 1
+        if w.get("payment_status") == "unpaid":
+            by_entity[entity]["unpaid"] += w["total"]
+        elif w.get("payment_status") == "paid":
+            by_entity[entity]["paid"] += w["total"]
+    
+    # By contractor
+    by_contractor = {}
+    for w in withdrawals:
+        cid = w.get("contractor_id", "Unknown")
+        cname = w.get("contractor_name", "Unknown")
+        if cid not in by_contractor:
+            by_contractor[cid] = {"name": cname, "company": w.get("contractor_company", ""), "total": 0, "unpaid": 0, "count": 0}
+        by_contractor[cid]["total"] += w["total"]
+        by_contractor[cid]["count"] += 1
+        if w.get("payment_status") == "unpaid":
+            by_contractor[cid]["unpaid"] += w["total"]
+    
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "total_cost": round(total_cost, 2),
+        "gross_margin": round(total_revenue - total_cost, 2),
+        "total_unpaid": round(total_unpaid, 2),
+        "total_paid": round(total_paid, 2),
+        "total_invoiced": round(total_invoiced, 2),
+        "transaction_count": len(withdrawals),
+        "by_billing_entity": by_entity,
+        "by_contractor": list(by_contractor.values())
+    }
+
+@api_router.put("/withdrawals/{withdrawal_id}/mark-paid")
+async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(require_role("admin"))):
+    result = await db.withdrawals.find_one_and_update(
+        {"id": withdrawal_id},
+        {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Withdrawal not found")
+    result.pop("_id", None)
+    return result
+
+@api_router.put("/withdrawals/bulk-mark-paid")
+async def bulk_mark_paid(withdrawal_ids: List[str], current_user: dict = Depends(require_role("admin"))):
+    result = await db.withdrawals.update_many(
+        {"id": {"$in": withdrawal_ids}},
+        {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"updated": result.modified_count}
+
+@api_router.get("/financials/export")
+async def export_financials(
+    format: str = "csv",
+    payment_status: Optional[str] = None,
+    billing_entity: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(require_role("admin"))
+):
+    """Export financial data as CSV"""
+    query = {}
+    if payment_status:
+        query["payment_status"] = payment_status
+    if billing_entity:
+        query["billing_entity"] = billing_entity
+    if start_date:
+        query["created_at"] = {"$gte": start_date}
+    if end_date:
+        if "created_at" in query:
+            query["created_at"]["$lte"] = end_date
+        else:
+            query["created_at"] = {"$lte": end_date}
+    
+    withdrawals = await db.withdrawals.find(query, {"_id": 0}).sort("created_at", -1).to_list(10000)
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow([
+        "Transaction ID", "Date", "Contractor", "Company", "Billing Entity",
+        "Job ID", "Service Address", "Subtotal", "Tax", "Total",
+        "Cost", "Margin", "Payment Status", "Items"
+    ])
+    
+    for w in withdrawals:
+        items_str = "; ".join([f"{i['name']} x{i['quantity']}" for i in w.get("items", [])])
+        writer.writerow([
+            w.get("id", ""),
+            w.get("created_at", "")[:10],
+            w.get("contractor_name", ""),
+            w.get("contractor_company", ""),
+            w.get("billing_entity", ""),
+            w.get("job_id", ""),
+            w.get("service_address", ""),
+            w.get("subtotal", 0),
+            w.get("tax", 0),
+            w.get("total", 0),
+            w.get("cost_total", 0),
+            round(w.get("total", 0) - w.get("cost_total", 0), 2),
+            w.get("payment_status", ""),
+            items_str
+        ])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=financials_{datetime.now().strftime('%Y%m%d')}.csv"}
+    )
+
+# ==================== REPORTS ====================
+
+@api_router.get("/reports/sales")
+async def get_sales_report(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(require_role("admin", "warehouse_manager"))
 ):
     query = {}
     if start_date:
@@ -491,21 +834,127 @@ async def get_sales(
         else:
             query["created_at"] = {"$lte": end_date}
     
-    sales = await db.sales.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return sales
+    withdrawals = await db.withdrawals.find(query, {"_id": 0}).to_list(10000)
+    
+    total_revenue = sum(w.get("total", 0) for w in withdrawals)
+    total_tax = sum(w.get("tax", 0) for w in withdrawals)
+    total_transactions = len(withdrawals)
+    
+    # By payment status
+    by_status = {}
+    for w in withdrawals:
+        status = w.get("payment_status", "unknown")
+        by_status[status] = by_status.get(status, 0) + w.get("total", 0)
+    
+    # Top products
+    product_sales = {}
+    for w in withdrawals:
+        for item in w.get("items", []):
+            pid = item.get("product_id")
+            if pid:
+                if pid not in product_sales:
+                    product_sales[pid] = {"name": item.get("name"), "quantity": 0, "revenue": 0}
+                product_sales[pid]["quantity"] += item.get("quantity", 0)
+                product_sales[pid]["revenue"] += item.get("subtotal", 0)
+    
+    top_products = sorted(product_sales.values(), key=lambda x: x["revenue"], reverse=True)[:10]
+    
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "total_tax": round(total_tax, 2),
+        "total_transactions": total_transactions,
+        "average_transaction": round(total_revenue / total_transactions, 2) if total_transactions > 0 else 0,
+        "by_payment_status": by_status,
+        "top_products": top_products
+    }
 
-@api_router.get("/sales/{sale_id}", response_model=Sale)
-async def get_sale(sale_id: str, current_user: dict = Depends(get_current_user)):
-    sale = await db.sales.find_one({"id": sale_id}, {"_id": 0})
-    if not sale:
-        raise HTTPException(status_code=404, detail="Sale not found")
-    return sale
+@api_router.get("/reports/inventory")
+async def get_inventory_report(current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
+    products = await db.products.find({}, {"_id": 0}).to_list(10000)
+    
+    total_products = len(products)
+    total_value = sum(p.get("price", 0) * p.get("quantity", 0) for p in products)
+    total_cost = sum(p.get("cost", 0) * p.get("quantity", 0) for p in products)
+    low_stock = [p for p in products if p.get("quantity", 0) <= p.get("min_stock", 5)]
+    out_of_stock = [p for p in products if p.get("quantity", 0) == 0]
+    
+    by_department = {}
+    for p in products:
+        dept = p.get("department_name", "Unknown")
+        if dept not in by_department:
+            by_department[dept] = {"count": 0, "value": 0}
+        by_department[dept]["count"] += 1
+        by_department[dept]["value"] += p.get("price", 0) * p.get("quantity", 0)
+    
+    return {
+        "total_products": total_products,
+        "total_retail_value": round(total_value, 2),
+        "total_cost_value": round(total_cost, 2),
+        "potential_profit": round(total_value - total_cost, 2),
+        "low_stock_count": len(low_stock),
+        "out_of_stock_count": len(out_of_stock),
+        "low_stock_items": low_stock[:20],
+        "by_department": by_department
+    }
 
-# ==================== RECEIPT OCR ROUTES ====================
+# ==================== DASHBOARD ====================
+
+@api_router.get("/dashboard/stats")
+async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_str = today.isoformat()
+    
+    # For contractors, show their own stats
+    if current_user.get("role") == "contractor":
+        my_withdrawals = await db.withdrawals.find(
+            {"contractor_id": current_user["id"]},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(1000)
+        
+        total_spent = sum(w.get("total", 0) for w in my_withdrawals)
+        unpaid = sum(w.get("total", 0) for w in my_withdrawals if w.get("payment_status") == "unpaid")
+        
+        return {
+            "total_withdrawals": len(my_withdrawals),
+            "total_spent": round(total_spent, 2),
+            "unpaid_balance": round(unpaid, 2),
+            "recent_withdrawals": my_withdrawals[:5]
+        }
+    
+    # For warehouse manager / admin
+    today_withdrawals = await db.withdrawals.find({"created_at": {"$gte": today_str}}, {"_id": 0}).to_list(1000)
+    today_revenue = sum(w.get("total", 0) for w in today_withdrawals)
+    today_transactions = len(today_withdrawals)
+    
+    total_products = await db.products.count_documents({})
+    low_stock_products = await db.products.count_documents({"$expr": {"$lte": ["$quantity", "$min_stock"]}})
+    total_vendors = await db.vendors.count_documents({})
+    total_contractors = await db.users.count_documents({"role": "contractor"})
+    
+    # Unpaid totals
+    unpaid_total = 0
+    unpaid_withdrawals = await db.withdrawals.find({"payment_status": "unpaid"}, {"_id": 0}).to_list(10000)
+    unpaid_total = sum(w.get("total", 0) for w in unpaid_withdrawals)
+    
+    recent_withdrawals = await db.withdrawals.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
+    low_stock_items = await db.products.find({"$expr": {"$lte": ["$quantity", "$min_stock"]}}, {"_id": 0}).to_list(10)
+    
+    return {
+        "today_revenue": round(today_revenue, 2),
+        "today_transactions": today_transactions,
+        "total_products": total_products,
+        "low_stock_count": low_stock_products,
+        "total_vendors": total_vendors,
+        "total_contractors": total_contractors,
+        "unpaid_total": round(unpaid_total, 2),
+        "recent_withdrawals": recent_withdrawals,
+        "low_stock_alerts": low_stock_items
+    }
+
+# ==================== RECEIPT OCR ====================
 
 @api_router.post("/receipts/extract")
-async def extract_receipt(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
-    """Extract product information from uploaded receipt image using Gemini 3 Flash"""
+async def extract_receipt(file: UploadFile = File(...), current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     try:
         contents = await file.read()
         image_base64 = base64.b64encode(contents).decode('utf-8')
@@ -528,9 +977,7 @@ async def extract_receipt(file: UploadFile = File(...), current_user: dict = Dep
                 ],
                 "total": 99.99,
                 "date": "2024-01-15"
-            }
-            If you cannot determine a field, use reasonable defaults (quantity=1, date=null).
-            Extract all visible products with their prices. SKU may not always be visible."""
+            }"""
         ).with_model("gemini", "gemini-3-flash-preview")
         
         image_content = ImageContent(image_base64=image_base64)
@@ -541,7 +988,6 @@ async def extract_receipt(file: UploadFile = File(...), current_user: dict = Dep
         
         response = await chat.send_message(user_message)
         
-        # Try to extract JSON from the response
         json_match = re.search(r'\{[\s\S]*\}', response)
         if json_match:
             extracted_data = json.loads(json_match.group())
@@ -558,20 +1004,17 @@ async def extract_receipt(file: UploadFile = File(...), current_user: dict = Dep
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/vendors/{vendor_id}/import-pdf")
-async def import_vendor_pdf(vendor_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
-    """Extract product information from vendor invoice PDF using Gemini 3 Flash and auto-assign to departments"""
+async def import_vendor_pdf(vendor_id: str, file: UploadFile = File(...), current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     import tempfile
     temp_file_path = None
     
     try:
-        # Verify vendor exists
         vendor = await db.vendors.find_one({"id": vendor_id}, {"_id": 0})
         if not vendor:
             raise HTTPException(status_code=404, detail="Vendor not found")
         
         contents = await file.read()
         
-        # Save to temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
             temp_file.write(contents)
             temp_file_path = temp_file.name
@@ -582,65 +1025,33 @@ async def import_vendor_pdf(vendor_id: str, file: UploadFile = File(...), curren
         if not api_key:
             raise HTTPException(status_code=500, detail="LLM API key not configured")
         
-        # Get all departments for categorization
         departments = await db.departments.find({}, {"_id": 0}).to_list(100)
         dept_list = ", ".join([f"{d['name']} ({d['code']})" for d in departments])
         
         chat = LlmChat(
             api_key=api_key,
             session_id=f"vendor-pdf-{uuid.uuid4()}",
-            system_message=f"""You are an invoice/receipt parser for a hardware store. Extract product information from vendor invoices/receipts.
-            
-Available departments in our store: {dept_list}
-
-Return ONLY valid JSON in this exact format:
-{{
-    "store_name": "Vendor/Store Name from the document",
-    "products": [
-        {{
-            "name": "Full Product Name",
-            "description": "Brief description if available",
-            "quantity": 1,
-            "price": 9.99,
-            "cost": 7.99,
-            "original_sku": "SKU123",
-            "suggested_department": "PLU"
-        }}
-    ],
-    "total": 99.99,
-    "date": "2024-01-15"
-}}
-
-IMPORTANT RULES:
-1. Use the EFFECTIVE/FINAL price paid (after discounts), not the original price
-2. For cost, use 70% of price if not specified
-3. Match each product to the most appropriate department code from the list
-4. Extract ALL products from the document
-5. Include full product names with specifications
-6. SKU should be the original vendor SKU if visible"""
+            system_message=f"""You are an invoice/receipt parser for a hardware store.
+Available departments: {dept_list}
+Return ONLY valid JSON:
+{{"store_name": "...", "products": [{{"name": "...", "quantity": 1, "price": 9.99, "cost": 7.99, "original_sku": "...", "suggested_department": "PLU"}}], "total": 99.99, "date": "2024-01-15"}}
+Use EFFECTIVE price (after discounts). Match products to departments."""
         ).with_model("gemini", "gemini-3-flash-preview")
         
-        # Create file content for PDF using file path
-        file_content = FileContentWithMimeType(
-            file_path=temp_file_path,
-            mime_type="application/pdf"
-        )
-        
+        file_content = FileContentWithMimeType(file_path=temp_file_path, mime_type="application/pdf")
         user_message = UserMessage(
-            text="Extract all product information from this vendor invoice/receipt PDF. Match each product to the most appropriate department. Return only valid JSON.",
+            text="Extract all product information. Return only valid JSON.",
             file_contents=[file_content]
         )
         
         response = await chat.send_message(user_message)
         
-        # Parse the JSON response
         json_match = re.search(r'\{[\s\S]*\}', response)
         if json_match:
             extracted_data = json.loads(json_match.group())
         else:
             extracted_data = json.loads(response)
         
-        # Add vendor info to the response
         extracted_data["vendor_id"] = vendor_id
         extracted_data["vendor_name"] = vendor.get("name", "")
         
@@ -653,17 +1064,11 @@ IMPORTANT RULES:
         logger.error(f"PDF extraction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # Clean up temp file
         if temp_file_path and os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
 
 @api_router.post("/vendors/{vendor_id}/import-products")
-async def import_vendor_products(
-    vendor_id: str,
-    products: List[dict],
-    current_user: dict = Depends(get_current_user)
-):
-    """Import extracted products from vendor PDF into inventory"""
+async def import_vendor_products(vendor_id: str, products: List[dict], current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     vendor = await db.vendors.find_one({"id": vendor_id}, {"_id": 0})
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
@@ -673,22 +1078,20 @@ async def import_vendor_products(
     
     for item in products:
         try:
-            # Get department by code
             dept_code = item.get("suggested_department", "HDW")
             department = await db.departments.find_one({"code": dept_code}, {"_id": 0})
             
             if not department:
-                # Default to Hardware if department not found
                 department = await db.departments.find_one({"code": "HDW"}, {"_id": 0})
                 if not department:
-                    errors.append({"product": item.get("name"), "error": "No valid department found"})
+                    errors.append({"product": item.get("name"), "error": "No valid department"})
                     continue
             
             sku = await generate_sku(department["code"])
             
             product = Product(
                 sku=sku,
-                name=item.get("name", "Unknown Product"),
+                name=item.get("name", "Unknown"),
                 description=item.get("description", ""),
                 price=float(item.get("price", 0)),
                 cost=float(item.get("cost", 0)) or float(item.get("price", 0)) * 0.7,
@@ -703,36 +1106,16 @@ async def import_vendor_products(
             
             await db.products.insert_one(product.model_dump())
             imported.append(product)
-            
-            # Update department product count
-            await db.departments.update_one(
-                {"id": department["id"]},
-                {"$inc": {"product_count": 1}}
-            )
-            
-            # Update vendor product count
-            await db.vendors.update_one(
-                {"id": vendor_id},
-                {"$inc": {"product_count": 1}}
-            )
+            await db.departments.update_one({"id": department["id"]}, {"$inc": {"product_count": 1}})
+            await db.vendors.update_one({"id": vendor_id}, {"$inc": {"product_count": 1}})
             
         except Exception as e:
             errors.append({"product": item.get("name"), "error": str(e)})
     
-    return {
-        "imported": len(imported),
-        "errors": len(errors),
-        "products": imported,
-        "error_details": errors
-    }
+    return {"imported": len(imported), "errors": len(errors), "products": imported, "error_details": errors}
 
 @api_router.post("/receipts/import")
-async def import_receipt_products(
-    products: List[ExtractedProduct],
-    department_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Import extracted products into inventory with new SKUs"""
+async def import_receipt_products(products: List[ExtractedProduct], department_id: str, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     department = await db.departments.find_one({"id": department_id}, {"_id": 0})
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
@@ -744,7 +1127,7 @@ async def import_receipt_products(
             sku=sku,
             name=item.name,
             price=item.price,
-            cost=round(item.price * 0.7, 2),  # Estimate cost as 70% of price
+            cost=round(item.price * 0.7, 2),
             quantity=item.quantity,
             min_stock=5,
             department_id=department_id,
@@ -754,148 +1137,23 @@ async def import_receipt_products(
         await db.products.insert_one(product.model_dump())
         imported.append(product)
     
-    # Update department product count
-    await db.departments.update_one(
-        {"id": department_id},
-        {"$inc": {"product_count": len(imported)}}
-    )
+    await db.departments.update_one({"id": department_id}, {"$inc": {"product_count": len(imported)}})
     
     return {"imported": len(imported), "products": imported}
-
-# ==================== REPORTS ROUTES ====================
-
-@api_router.get("/reports/sales")
-async def get_sales_report(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
-):
-    query = {}
-    if start_date:
-        query["created_at"] = {"$gte": start_date}
-    if end_date:
-        if "created_at" in query:
-            query["created_at"]["$lte"] = end_date
-        else:
-            query["created_at"] = {"$lte": end_date}
-    
-    sales = await db.sales.find(query, {"_id": 0}).to_list(10000)
-    
-    total_revenue = sum(s.get("total", 0) for s in sales)
-    total_tax = sum(s.get("tax", 0) for s in sales)
-    total_transactions = len(sales)
-    
-    # Sales by payment method
-    by_payment = {}
-    for sale in sales:
-        method = sale.get("payment_method", "cash")
-        by_payment[method] = by_payment.get(method, 0) + sale.get("total", 0)
-    
-    # Top selling products
-    product_sales = {}
-    for sale in sales:
-        for item in sale.get("items", []):
-            pid = item.get("product_id")
-            if pid:
-                if pid not in product_sales:
-                    product_sales[pid] = {"name": item.get("name"), "quantity": 0, "revenue": 0}
-                product_sales[pid]["quantity"] += item.get("quantity", 0)
-                product_sales[pid]["revenue"] += item.get("subtotal", 0)
-    
-    top_products = sorted(product_sales.values(), key=lambda x: x["revenue"], reverse=True)[:10]
-    
-    return {
-        "total_revenue": round(total_revenue, 2),
-        "total_tax": round(total_tax, 2),
-        "total_transactions": total_transactions,
-        "average_transaction": round(total_revenue / total_transactions, 2) if total_transactions > 0 else 0,
-        "by_payment_method": by_payment,
-        "top_products": top_products
-    }
-
-@api_router.get("/reports/inventory")
-async def get_inventory_report(current_user: dict = Depends(get_current_user)):
-    products = await db.products.find({}, {"_id": 0}).to_list(10000)
-    
-    total_products = len(products)
-    total_value = sum(p.get("price", 0) * p.get("quantity", 0) for p in products)
-    total_cost = sum(p.get("cost", 0) * p.get("quantity", 0) for p in products)
-    low_stock = [p for p in products if p.get("quantity", 0) <= p.get("min_stock", 5)]
-    out_of_stock = [p for p in products if p.get("quantity", 0) == 0]
-    
-    # By department
-    by_department = {}
-    for p in products:
-        dept = p.get("department_name", "Unknown")
-        if dept not in by_department:
-            by_department[dept] = {"count": 0, "value": 0}
-        by_department[dept]["count"] += 1
-        by_department[dept]["value"] += p.get("price", 0) * p.get("quantity", 0)
-    
-    return {
-        "total_products": total_products,
-        "total_retail_value": round(total_value, 2),
-        "total_cost_value": round(total_cost, 2),
-        "potential_profit": round(total_value - total_cost, 2),
-        "low_stock_count": len(low_stock),
-        "out_of_stock_count": len(out_of_stock),
-        "low_stock_items": low_stock[:20],
-        "by_department": by_department
-    }
-
-# ==================== DASHBOARD ROUTES ====================
-
-@api_router.get("/dashboard/stats")
-async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
-    # Get today's date range
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_str = today.isoformat()
-    
-    # Today's sales
-    today_sales = await db.sales.find({"created_at": {"$gte": today_str}}, {"_id": 0}).to_list(1000)
-    today_revenue = sum(s.get("total", 0) for s in today_sales)
-    today_transactions = len(today_sales)
-    
-    # Total products and low stock
-    total_products = await db.products.count_documents({})
-    low_stock_products = await db.products.count_documents({"$expr": {"$lte": ["$quantity", "$min_stock"]}})
-    
-    # Total vendors
-    total_vendors = await db.vendors.count_documents({})
-    
-    # Recent sales
-    recent_sales = await db.sales.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
-    
-    # Low stock alerts
-    low_stock_items = await db.products.find(
-        {"$expr": {"$lte": ["$quantity", "$min_stock"]}},
-        {"_id": 0}
-    ).to_list(10)
-    
-    return {
-        "today_revenue": round(today_revenue, 2),
-        "today_transactions": today_transactions,
-        "total_products": total_products,
-        "low_stock_count": low_stock_products,
-        "total_vendors": total_vendors,
-        "recent_sales": recent_sales,
-        "low_stock_alerts": low_stock_items
-    }
 
 # ==================== SEED DATA ====================
 
 @api_router.post("/seed/departments")
 async def seed_departments():
-    """Seed standard hardware store departments"""
     standard_departments = [
-        {"name": "Lumber", "code": "LUM", "description": "Wood, plywood, boards, and lumber products"},
-        {"name": "Plumbing", "code": "PLU", "description": "Pipes, fittings, fixtures, and plumbing supplies"},
-        {"name": "Electrical", "code": "ELE", "description": "Wiring, outlets, switches, and electrical supplies"},
-        {"name": "Paint", "code": "PNT", "description": "Paint, stains, brushes, and painting supplies"},
-        {"name": "Tools", "code": "TOL", "description": "Hand tools, power tools, and accessories"},
-        {"name": "Hardware", "code": "HDW", "description": "Fasteners, hinges, locks, and general hardware"},
-        {"name": "Garden", "code": "GDN", "description": "Plants, soil, fertilizers, and garden supplies"},
-        {"name": "Appliances", "code": "APP", "description": "Home appliances and accessories"}
+        {"name": "Lumber", "code": "LUM", "description": "Wood, plywood, boards"},
+        {"name": "Plumbing", "code": "PLU", "description": "Pipes, fittings, fixtures"},
+        {"name": "Electrical", "code": "ELE", "description": "Wiring, outlets, switches"},
+        {"name": "Paint", "code": "PNT", "description": "Paint, stains, brushes"},
+        {"name": "Tools", "code": "TOL", "description": "Hand tools, power tools"},
+        {"name": "Hardware", "code": "HDW", "description": "Fasteners, hinges, locks"},
+        {"name": "Garden", "code": "GDN", "description": "Plants, soil, fertilizers"},
+        {"name": "Appliances", "code": "APP", "description": "Home appliances"}
     ]
     
     created = 0
@@ -908,13 +1166,12 @@ async def seed_departments():
     
     return {"message": f"Seeded {created} departments"}
 
-# ==================== MAIN SETUP ====================
+# ==================== MAIN ====================
 
 @api_router.get("/")
 async def root():
-    return {"message": "Hardware Store API"}
+    return {"message": "Supply Yard API - Material Management System"}
 
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
