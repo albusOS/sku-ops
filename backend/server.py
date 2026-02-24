@@ -652,6 +652,10 @@ IMPORTANT RULES:
     except Exception as e:
         logger.error(f"PDF extraction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Clean up temp file
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
 
 @api_router.post("/vendors/{vendor_id}/import-products")
 async def import_vendor_products(
