@@ -559,6 +559,167 @@ async def extract_receipt(file: UploadFile = File(...), current_user: dict = Dep
         logger.error(f"Receipt extraction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.post("/vendors/{vendor_id}/import-pdf")
+async def import_vendor_pdf(vendor_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+    """Extract product information from vendor invoice PDF using Gemini 3 Flash and auto-assign to departments"""
+    try:
+        # Verify vendor exists
+        vendor = await db.vendors.find_one({"id": vendor_id}, {"_id": 0})
+        if not vendor:
+            raise HTTPException(status_code=404, detail="Vendor not found")
+        
+        contents = await file.read()
+        pdf_base64 = base64.b64encode(contents).decode('utf-8')
+        
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
+        
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="LLM API key not configured")
+        
+        # Get all departments for categorization
+        departments = await db.departments.find({}, {"_id": 0}).to_list(100)
+        dept_list = ", ".join([f"{d['name']} ({d['code']})" for d in departments])
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"vendor-pdf-{uuid.uuid4()}",
+            system_message=f"""You are an invoice/receipt parser for a hardware store. Extract product information from vendor invoices/receipts.
+            
+Available departments in our store: {dept_list}
+
+Return ONLY valid JSON in this exact format:
+{{
+    "store_name": "Vendor/Store Name from the document",
+    "products": [
+        {{
+            "name": "Full Product Name",
+            "description": "Brief description if available",
+            "quantity": 1,
+            "price": 9.99,
+            "cost": 7.99,
+            "original_sku": "SKU123",
+            "suggested_department": "PLU"
+        }}
+    ],
+    "total": 99.99,
+    "date": "2024-01-15"
+}}
+
+IMPORTANT RULES:
+1. Use the EFFECTIVE/FINAL price paid (after discounts), not the original price
+2. For cost, use 70% of price if not specified
+3. Match each product to the most appropriate department code from the list
+4. Extract ALL products from the document
+5. Include full product names with specifications
+6. SKU should be the original vendor SKU if visible"""
+        ).with_model("gemini", "gemini-3-flash-preview")
+        
+        # Create file content for PDF
+        file_content = FileContentWithMimeType(
+            file_base64=pdf_base64,
+            mime_type="application/pdf"
+        )
+        
+        user_message = UserMessage(
+            text="Extract all product information from this vendor invoice/receipt PDF. Match each product to the most appropriate department. Return only valid JSON.",
+            file_contents=[file_content]
+        )
+        
+        response = await chat.send_message(user_message)
+        
+        # Parse the JSON response
+        import json
+        import re
+        
+        json_match = re.search(r'\{[\s\S]*\}', response)
+        if json_match:
+            extracted_data = json.loads(json_match.group())
+        else:
+            extracted_data = json.loads(response)
+        
+        # Add vendor info to the response
+        extracted_data["vendor_id"] = vendor_id
+        extracted_data["vendor_name"] = vendor.get("name", "")
+        
+        return extracted_data
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error: {e}")
+        raise HTTPException(status_code=422, detail="Could not parse PDF data")
+    except Exception as e:
+        logger.error(f"PDF extraction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/vendors/{vendor_id}/import-products")
+async def import_vendor_products(
+    vendor_id: str,
+    products: List[dict],
+    current_user: dict = Depends(get_current_user)
+):
+    """Import extracted products from vendor PDF into inventory"""
+    vendor = await db.vendors.find_one({"id": vendor_id}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    imported = []
+    errors = []
+    
+    for item in products:
+        try:
+            # Get department by code
+            dept_code = item.get("suggested_department", "HDW")
+            department = await db.departments.find_one({"code": dept_code}, {"_id": 0})
+            
+            if not department:
+                # Default to Hardware if department not found
+                department = await db.departments.find_one({"code": "HDW"}, {"_id": 0})
+                if not department:
+                    errors.append({"product": item.get("name"), "error": "No valid department found"})
+                    continue
+            
+            sku = await generate_sku(department["code"])
+            
+            product = Product(
+                sku=sku,
+                name=item.get("name", "Unknown Product"),
+                description=item.get("description", ""),
+                price=float(item.get("price", 0)),
+                cost=float(item.get("cost", 0)) or float(item.get("price", 0)) * 0.7,
+                quantity=int(item.get("quantity", 1)),
+                min_stock=5,
+                department_id=department["id"],
+                department_name=department["name"],
+                vendor_id=vendor_id,
+                vendor_name=vendor.get("name", ""),
+                original_sku=item.get("original_sku")
+            )
+            
+            await db.products.insert_one(product.model_dump())
+            imported.append(product)
+            
+            # Update department product count
+            await db.departments.update_one(
+                {"id": department["id"]},
+                {"$inc": {"product_count": 1}}
+            )
+            
+            # Update vendor product count
+            await db.vendors.update_one(
+                {"id": vendor_id},
+                {"$inc": {"product_count": 1}}
+            )
+            
+        except Exception as e:
+            errors.append({"product": item.get("name"), "error": str(e)})
+    
+    return {
+        "imported": len(imported),
+        "errors": len(errors),
+        "products": imported,
+        "error_details": errors
+    }
+
 @api_router.post("/receipts/import")
 async def import_receipt_products(
     products: List[ExtractedProduct],
