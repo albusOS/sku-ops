@@ -607,6 +607,47 @@ const POS = () => {
               />
             </div>
 
+            {/* Payment Method Selection */}
+            <div>
+              <Label className="text-slate-700 font-semibold uppercase text-sm tracking-wide mb-3 block">
+                Payment Method
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("pay_now")}
+                  className={`p-4 rounded-sm border-2 text-left transition-all ${
+                    paymentMethod === "pay_now"
+                      ? "border-orange-500 bg-orange-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                  data-testid="payment-method-pay-now"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <CreditCard className={`w-5 h-5 ${paymentMethod === "pay_now" ? "text-orange-500" : "text-slate-500"}`} />
+                    <span className="font-semibold text-slate-900">Pay Now</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Pay with company card via Stripe</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("charge")}
+                  className={`p-4 rounded-sm border-2 text-left transition-all ${
+                    paymentMethod === "charge"
+                      ? "border-orange-500 bg-orange-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                  data-testid="payment-method-charge"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Clock className={`w-5 h-5 ${paymentMethod === "charge" ? "text-orange-500" : "text-slate-500"}`} />
+                    <span className="font-semibold text-slate-900">Charge to Account</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Invoice later via Xero</p>
+                </button>
+              </div>
+            </div>
+
             {/* Summary */}
             <div className="bg-slate-50 p-4 rounded-sm border-2 border-slate-200">
               <div className="flex justify-between text-lg font-bold mb-2">
@@ -614,7 +655,9 @@ const POS = () => {
                 <span className="font-mono">${total.toFixed(2)}</span>
               </div>
               <p className="text-xs text-slate-500">
-                Charged to {isContractor ? user?.billing_entity || user?.company : "contractor"} account
+                {paymentMethod === "pay_now" 
+                  ? "Pay now via Stripe checkout" 
+                  : `Charged to ${isContractor ? user?.billing_entity || user?.company : "contractor"} account`}
               </p>
             </div>
           </div>
@@ -634,12 +677,32 @@ const POS = () => {
               className="flex-1 btn-primary h-12"
               data-testid="checkout-confirm-btn"
             >
-              <Check className="w-5 h-5 mr-2" />
-              {processing ? "Processing..." : "Confirm Withdrawal"}
+              {paymentMethod === "pay_now" ? (
+                <>
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  {processing ? "Processing..." : "Proceed to Payment"}
+                </>
+              ) : (
+                <>
+                  <Check className="w-5 h-5 mr-2" />
+                  {processing ? "Processing..." : "Confirm Withdrawal"}
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Payment Processing Overlay */}
+      {checkingPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid="payment-processing-overlay">
+          <div className="bg-white p-8 rounded-lg shadow-xl text-center">
+            <Loader2 className="w-12 h-12 animate-spin text-orange-500 mx-auto mb-4" />
+            <h3 className="font-heading font-bold text-xl mb-2">Verifying Payment</h3>
+            <p className="text-slate-600">Please wait while we confirm your payment...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
