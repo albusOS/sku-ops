@@ -1,35 +1,42 @@
-# SKU Central - Hardware Store Management System PRD
+# Supply Yard - Hardware Material Management System PRD
 
 ## Original Problem Statement
-Build a complete hardware storefront, POS, inventory management system multi-page app for inventory, vendor, and POS. It needs its own SKU system, departments, and alignment with stores like Home Depot, Lowes, etc.
+Build a complete hardware storefront, POS, and inventory management system with multi-tenancy support. The system needs its own SKU system, departments, and alignment with stores like Home Depot, Lowes, etc. Key use case: contractors withdraw materials and can either pay immediately (Stripe) or charge to their account for later invoicing.
 
-## User Choices
+## User Choices & Requirements
 - JWT-based custom auth (email/password)
-- Stripe integration (MOCKED for now)
+- Multi-tenancy with 3 roles: Admin, Warehouse Manager, Contractor
+- Stripe integration for "Pay Now" option at POS
+- "Charge to Account" option for later invoicing via Xero
 - Standard hardware departments + custom departments
 - Sales/inventory reports
 - Receipt upload with OCR using Gemini 3 Flash
+- Future: Xero integration, ServiceM8 job sync
 
 ## Architecture
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI + MongoDB
-- **Auth**: JWT-based authentication
+- **Auth**: JWT-based authentication with RBAC
 - **AI**: Gemini 3 Flash for receipt OCR
+- **Payments**: Stripe via emergentintegrations library
 
 ## User Personas
-1. **Store Owner/Admin**: Full access to all features, reports, and settings
-2. **Store Manager**: Access to POS, inventory, vendors, and reports
-3. **Employee/Cashier**: Access to POS and limited inventory viewing
+1. **Admin**: Full access - user management, financial dashboard, invoice exports
+2. **Warehouse Manager**: POS, inventory, vendors, receipt imports
+3. **Contractor**: Withdraw materials, view own history, pay or charge to account
 
 ## Core Requirements (Static)
 - [x] User authentication (register/login)
+- [x] Multi-tenancy with role-based access control
 - [x] Dashboard with sales overview and alerts
-- [x] POS system with cart and checkout
+- [x] POS (Material Withdrawal Terminal)
 - [x] Inventory management with SKU generation
 - [x] Vendor management
 - [x] Department management
 - [x] Receipt OCR import (Gemini 3 Flash)
 - [x] Sales and inventory reports
+- [x] Stripe "Pay Now" at POS
+- [x] "Charge to Account" for later invoicing
 
 ## SKU System
 Format: `DEPT-XXXXX` (e.g., LUM-00001, PLU-00002)
@@ -42,15 +49,28 @@ Format: `DEPT-XXXXX` (e.g., LUM-00001, PLU-00002)
 - GDN: Garden
 - APP: Appliances
 
-## What's Been Implemented (Feb 23, 2026)
-1. **Authentication**: JWT-based login/register with role support
-2. **Dashboard**: Real-time stats, recent sales, low stock alerts
-3. **POS**: Product search, cart management, checkout with cash/card
-4. **Inventory**: Full CRUD, SKU auto-generation, department filtering
-5. **Vendors**: Full CRUD with contact info
-6. **Departments**: 8 pre-seeded + custom department creation
-7. **Receipt Import**: Upload receipt → AI extraction → SKU conversion
-8. **Reports**: Sales analytics with charts, inventory reports
+## What's Been Implemented
+
+### Feb 24, 2026 - Stripe Payment Integration
+- **Pay Now** option at POS using Stripe checkout
+- Payment endpoints: `/api/payments/create-checkout`, `/api/payments/status/{session_id}`
+- Stripe webhook handler at `/api/webhook/stripe`
+- `payment_transactions` collection for tracking payments
+- Frontend payment polling after Stripe redirect
+- Both "Pay Now" and "Charge to Account" flows tested and working
+
+### Feb 23, 2026 - Multi-Tenancy & Core System
+1. **Authentication**: JWT-based login/register with 3 roles
+2. **Multi-Tenancy**: Admin, Warehouse Manager, Contractor roles with RBAC
+3. **Dashboard**: Role-specific stats and recent activity
+4. **POS**: Material Withdrawal Terminal with contractor selection
+5. **Inventory**: Full CRUD, SKU auto-generation, department filtering
+6. **Vendors**: Full CRUD with PDF receipt import
+7. **Departments**: 8 pre-seeded + custom department creation
+8. **Receipt Import**: Upload PDF → Gemini AI extraction → SKU conversion
+9. **Reports**: Sales analytics, inventory reports
+10. **Financials**: Admin dashboard for paid/unpaid tracking, CSV export
+11. **Contractor Management**: Admin can create/edit/deactivate contractors
 
 ## Prioritized Backlog
 
@@ -58,22 +78,35 @@ Format: `DEPT-XXXXX` (e.g., LUM-00001, PLU-00002)
 - [x] Core POS functionality
 - [x] Inventory CRUD with SKUs
 - [x] Basic authentication
+- [x] Multi-tenancy with RBAC
+- [x] Stripe "Pay Now" option
 
-### P1 (Important) - DONE
+### P1 (Important)
+- [ ] Xero integration for draft invoices
 - [x] Receipt OCR import
 - [x] Sales reports
 - [x] Low stock alerts
 
 ### P2 (Nice to Have)
+- [ ] ServiceM8 job sync (replace free-text Job ID with dropdown)
 - [ ] Barcode scanning integration
 - [ ] Purchase order management
-- [ ] Multi-store support
-- [ ] Employee shift management
 - [ ] Print receipts/invoices
 
 ## Next Tasks
-1. Add actual Stripe payment processing
-2. Implement barcode scanner support
-3. Add purchase order creation for vendors
-4. Multi-location/store support
-5. Export reports to PDF/Excel
+1. **Xero Integration** (P1): Generate draft invoices from unpaid "Charge to Account" transactions
+2. **ServiceM8 Integration** (P2): Sync job IDs for contractor dropdown selection
+3. Refactor server.py into modular APIRouters
+
+## Test Credentials
+- Admin: `admin@test.com` / `password123`
+- Contractor: `contractor@test.com` / `password123`
+
+## Key API Endpoints
+- Auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
+- Products: `/api/products` (GET, POST), `/api/products/{id}` (GET, PUT, DELETE)
+- Vendors: `/api/vendors`, `/api/vendors/{id}/import-pdf`, `/api/vendors/{id}/import-products`
+- Withdrawals: `/api/withdrawals`, `/api/withdrawals/for-contractor`
+- Payments: `/api/payments/create-checkout`, `/api/payments/status/{session_id}`
+- Financials: `/api/financials/summary`, `/api/financials/export`
+- Reports: `/api/reports/sales`, `/api/reports/inventory`
