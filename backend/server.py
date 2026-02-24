@@ -541,10 +541,6 @@ async def extract_receipt(file: UploadFile = File(...), current_user: dict = Dep
         
         response = await chat.send_message(user_message)
         
-        # Parse the JSON response
-        import json
-        import re
-        
         # Try to extract JSON from the response
         json_match = re.search(r'\{[\s\S]*\}', response)
         if json_match:
