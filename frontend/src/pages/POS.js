@@ -28,7 +28,11 @@ import {
   HardHat,
   MapPin,
   FileText,
+  CreditCard,
+  Clock,
+  Loader2,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
