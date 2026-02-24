@@ -38,6 +38,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const POS = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [contractors, setContractors] = useState([]);
@@ -53,8 +54,62 @@ const POS = () => {
   const [jobId, setJobId] = useState("");
   const [serviceAddress, setServiceAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("charge"); // "charge" or "pay_now"
+  const [checkingPayment, setCheckingPayment] = useState(false);
 
   const isContractor = user?.role === "contractor";
+
+  // Check for payment return from Stripe
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment");
+    const sessionId = searchParams.get("session_id");
+
+    if (paymentStatus === "success" && sessionId) {
+      setCheckingPayment(true);
+      pollPaymentStatus(sessionId);
+    } else if (paymentStatus === "cancelled") {
+      toast.error("Payment was cancelled");
+      // Clear params
+      setSearchParams({});
+    }
+  }, [searchParams]);
+
+  const pollPaymentStatus = async (sessionId, attempts = 0) => {
+    const maxAttempts = 5;
+    const pollInterval = 2000;
+
+    if (attempts >= maxAttempts) {
+      toast.error("Payment status check timed out. Please check your transaction history.");
+      setCheckingPayment(false);
+      setSearchParams({});
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API}/payments/status/${sessionId}`);
+      
+      if (response.data.payment_status === "paid") {
+        toast.success("Payment successful! Material withdrawal completed.");
+        setCheckingPayment(false);
+        setSearchParams({});
+        fetchProducts();
+        return;
+      } else if (response.data.status === "expired") {
+        toast.error("Payment session expired. Please try again.");
+        setCheckingPayment(false);
+        setSearchParams({});
+        return;
+      }
+
+      // Continue polling
+      setTimeout(() => pollPaymentStatus(sessionId, attempts + 1), pollInterval);
+    } catch (error) {
+      console.error("Error checking payment status:", error);
+      toast.error("Error checking payment status");
+      setCheckingPayment(false);
+      setSearchParams({});
+    }
+  };
 
   useEffect(() => {
     fetchData();
