@@ -10,22 +10,14 @@ import {
   AlertTriangle,
   Users,
   TrendingUp,
-  HardHat,
   Clock,
   ArrowRight,
   BarChart3,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { Card, Metric, SparkAreaChart, AreaChart, Tracker } from "@tremor/react";
 import { format } from "date-fns";
 import { API } from "@/lib/api";
+import { valueFormatter } from "@/lib/chartConfig";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -88,53 +80,22 @@ const Dashboard = () => {
 
         {/* Contractor Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card-workshop p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center">
-                <ShoppingCart className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-500 font-medium">
-              Total Withdrawals
-            </p>
-            <p className="text-2xl font-semibold text-slate-900 mt-1 tracking-tight">
-              {stats?.total_withdrawals || 0}
-            </p>
-          </div>
-
-          <div className="card-workshop p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-500 font-medium">Total Value</p>
-            <p className="text-2xl font-semibold text-emerald-600 mt-1 tracking-tight">
-              $
-              {(stats?.total_spent || 0).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
-            </p>
-          </div>
-
-          <div className="card-workshop p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
-                <Clock className="w-5 h-5 text-amber-600" />
-              </div>
-            </div>
-            <p className="text-sm text-slate-500 font-medium">Unpaid Balance</p>
-            <p className="text-2xl font-semibold text-amber-600 mt-1 tracking-tight">
-              $
-              {(stats?.unpaid_balance || 0).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
-            </p>
-          </div>
+          <Card className="card-workshop">
+            <Metric>{stats?.total_withdrawals || 0}</Metric>
+            <p className="text-sm text-slate-500 font-medium mt-1">Total Withdrawals</p>
+          </Card>
+          <Card className="card-workshop">
+            <Metric color="emerald">{valueFormatter(stats?.total_spent || 0)}</Metric>
+            <p className="text-sm text-slate-500 font-medium mt-1">Total Value</p>
+          </Card>
+          <Card className="card-workshop">
+            <Metric color="amber">{valueFormatter(stats?.unpaid_balance || 0)}</Metric>
+            <p className="text-sm text-slate-500 font-medium mt-1">Unpaid Balance</p>
+          </Card>
         </div>
 
         {/* Recent Withdrawals */}
-        <div className="card-elevated p-6">
+        <Card className="card-elevated p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">
             Recent Withdrawals
           </h2>
@@ -177,63 +138,66 @@ const Dashboard = () => {
               <p className="font-medium">No withdrawals yet</p>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     );
   }
 
   // Warehouse Manager / Admin Dashboard
-  const statCards = [
+  const revenueChartData = stats?.revenue_by_day?.length
+    ? stats.revenue_by_day.map((d) => ({
+        date: format(new Date(d.date), "MMM d"),
+        Revenue: d.revenue,
+      }))
+    : [];
+
+  const displayCards = [
     {
       label: "Today's Activity",
-      value: `$${(stats?.today_revenue || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: valueFormatter(stats?.today_revenue || 0),
       subtext: `${stats?.today_transactions || 0} withdrawals`,
-      icon: DollarSign,
-      color: "text-emerald-600",
-      bgColor: "bg-emerald-50",
+      color: "emerald",
+      hasSpark: true,
     },
     {
       label: "This Week",
-      value: `$${(stats?.week_revenue || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: valueFormatter(stats?.week_revenue || 0),
       subtext: "Last 7 days",
-      icon: TrendingUp,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      color: "blue",
+      hasSpark: true,
     },
     {
       label: "Total Products",
       value: stats?.total_products || 0,
-      icon: Package,
-      color: "text-slate-600",
-      bgColor: "bg-slate-100",
+      color: "slate",
+      adminOnly: false,
     },
     {
       label: "Low Stock Items",
       value: stats?.low_stock_count || 0,
-      icon: AlertTriangle,
-      color: "text-amber-600",
-      bgColor: "bg-amber-50",
+      color: "amber",
+      adminOnly: false,
     },
     {
       label: "Contractors",
       value: stats?.total_contractors || 0,
-      icon: HardHat,
-      color: "text-violet-600",
-      bgColor: "bg-violet-50",
+      color: "violet",
       adminOnly: true,
     },
     {
       label: "Total Vendors",
       value: stats?.total_vendors || 0,
-      icon: Users,
-      color: "text-slate-600",
-      bgColor: "bg-slate-100",
+      color: "slate",
+      adminOnly: false,
     },
-  ];
+  ].filter((card) => !card.adminOnly || isAdmin);
 
-  const displayCards = statCards.filter(
-    (card) => !card.adminOnly || isAdmin
-  );
+  const trackerData =
+    stats?.recent_withdrawals?.map((w, i) => ({
+      key: w.id || i,
+      color: w.payment_status === "paid" ? "emerald" : "amber",
+      tooltip: `${w.contractor_name || "Unknown"} · ${valueFormatter(w.total)} · ${w.payment_status}`,
+    })) || [];
 
   return (
     <div className="p-8" data-testid="dashboard-page">
@@ -275,95 +239,70 @@ const Dashboard = () => {
         data-testid="stats-grid"
       >
         {displayCards.map((stat, index) => (
-          <div
+          <Card
             key={index}
-            className="card-workshop p-6 animate-slide-in"
+            className="card-workshop animate-slide-in"
             style={{ animationDelay: `${index * 50}ms` }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div
-                className={`w-11 h-11 ${stat.bgColor} rounded-xl flex items-center justify-center`}
-              >
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-            </div>
-            <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
-            <p className="text-2xl font-semibold text-slate-900 mt-1 tracking-tight">
-              {stat.value}
-            </p>
-            {stat.subtext && (
-              <p className="text-xs text-slate-400 mt-2">{stat.subtext}</p>
+            {stat.hasSpark && revenueChartData.length > 0 ? (
+              <>
+                <Metric color={stat.color}>{stat.value}</Metric>
+                <p className="text-sm text-slate-500 font-medium mt-1">{stat.label}</p>
+                {stat.subtext && <p className="text-xs text-slate-400 mt-2">{stat.subtext}</p>}
+                <SparkAreaChart
+                  data={revenueChartData}
+                  index="date"
+                  categories={["Revenue"]}
+                  colors={[stat.color]}
+                  className="mt-4 h-12"
+                />
+              </>
+            ) : (
+              <>
+                <Metric color={stat.color}>{stat.value}</Metric>
+                <p className="text-sm text-slate-500 font-medium mt-1">{stat.label}</p>
+                {stat.subtext && <p className="text-xs text-slate-400 mt-2">{stat.subtext}</p>}
+              </>
             )}
-          </div>
+          </Card>
         ))}
       </div>
 
       {/* Revenue chart */}
-      {stats?.revenue_by_day?.length > 0 && (
-        <div className="card-workshop p-6 mb-6">
+      {revenueChartData.length > 0 && (
+        <Card className="card-workshop p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-slate-900">Revenue — Last 7 Days</h2>
             <Link to="/reports" className="text-sm text-slate-500 hover:text-orange-600 flex items-center gap-1">
               View reports <BarChart3 className="w-4 h-4" />
             </Link>
           </div>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.revenue_by_day.map((d) => ({ ...d, day: format(new Date(d.date), "EEE") }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip formatter={(v) => [`$${Number(v).toFixed(2)}`, "Revenue"]} />
-                <Bar dataKey="revenue" fill="#f97316" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          <AreaChart
+            data={revenueChartData}
+            index="date"
+            categories={["Revenue"]}
+            colors={["orange"]}
+            valueFormatter={valueFormatter}
+            showLegend={false}
+            className="h-48"
+          />
+        </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card-workshop p-6" data-testid="recent-sales-card">
+        <Card className="card-workshop p-6" data-testid="recent-sales-card">
           <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-200">
             <h2 className="text-lg font-semibold text-slate-900">Recent Withdrawals</h2>
             <Link to="/financials" className="text-sm text-slate-500 hover:text-orange-600 flex items-center gap-1">
               View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-
-          {stats?.recent_withdrawals?.length > 0 ? (
-            <div className="space-y-3">
-              {stats.recent_withdrawals.map((w, index) => (
-                <div
-                  key={w.id || index}
-                  className="flex items-center justify-between p-4 bg-slate-50/80 rounded-xl border border-slate-100"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <HardHat className="w-4 h-4 text-slate-400" />
-                      <span className="font-medium text-slate-800">
-                        {w.contractor_name || "Unknown"}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-500 mt-0.5">
-                      {w.items?.length || 0} items · Job: {w.job_id}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-slate-900">
-                      ${w.total?.toFixed(2)}
-                    </p>
-                    <span
-                      className={
-                        w.payment_status === "paid"
-                          ? "badge-success"
-                          : "badge-warning"
-                      }
-                    >
-                      {w.payment_status}
-                    </span>
-                  </div>
-                </div>
-              ))}
+          {trackerData.length > 0 ? (
+            <div className="space-y-4">
+              <Tracker data={trackerData} className="mt-2" />
+              <div className="text-xs text-slate-500 mt-3">
+                Hover over blocks for details · Green = paid, Amber = unpaid
+              </div>
             </div>
           ) : (
             <div className="text-center py-12 text-slate-400">
@@ -371,9 +310,9 @@ const Dashboard = () => {
               <p className="font-medium">No withdrawals yet</p>
             </div>
           )}
-        </div>
+        </Card>
 
-        <div className="card-workshop p-6" data-testid="low-stock-card">
+        <Card className="card-workshop p-6" data-testid="low-stock-card">
           <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-200">
             <h2 className="text-lg font-semibold text-slate-900">Low Stock Alerts</h2>
             <Link to="/inventory?low_stock=1" className="text-sm text-slate-500 hover:text-orange-600 flex items-center gap-1">
@@ -404,7 +343,7 @@ const Dashboard = () => {
               <p className="font-medium">All products well stocked</p>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

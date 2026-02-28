@@ -13,7 +13,9 @@ import {
   HardHat,
   DollarSign,
   History,
+  FileText,
 } from "lucide-react";
+import ChatAssistant from "./ChatAssistant";
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -42,7 +44,7 @@ const Layout = ({ children }) => {
         { path: "/inventory", icon: Package, label: "Inventory" },
         { path: "/vendors", icon: Users, label: "Vendors" },
         { path: "/departments", icon: Layers, label: "Departments" },
-        { path: "/import", icon: FileUp, label: "Receipt Import" },
+        { path: "/import", icon: FileUp, label: "Document Import" },
         { path: "/reports", icon: BarChart3, label: "Reports" },
       ];
     }
@@ -53,9 +55,10 @@ const Layout = ({ children }) => {
       { path: "/inventory", icon: Package, label: "Inventory" },
       { path: "/vendors", icon: Users, label: "Vendors" },
       { path: "/departments", icon: Layers, label: "Departments" },
-      { path: "/import", icon: FileUp, label: "Receipt Import" },
+      { path: "/import", icon: FileUp, label: "Document Import" },
       { path: "/contractors", icon: HardHat, label: "Contractors" },
       { path: "/financials", icon: DollarSign, label: "Financials" },
+      { path: "/invoices", icon: FileText, label: "Invoices" },
       { path: "/reports", icon: BarChart3, label: "Reports" },
     ];
   };
@@ -153,6 +156,8 @@ const Layout = ({ children }) => {
       >
         {children}
       </main>
+
+      <ChatAssistant />
     </div>
   );
 };

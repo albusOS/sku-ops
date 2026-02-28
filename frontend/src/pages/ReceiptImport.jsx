@@ -17,13 +17,14 @@ import {
   CheckCircle,
   XCircle,
   Package,
-  ArrowRight,
   Loader2,
   Trash2,
   Sparkles,
   FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { API } from "@/lib/api";
 
@@ -34,6 +35,8 @@ const ReceiptImport = () => {
   const [selectedVendor, setSelectedVendor] = useState("");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [createVendorIfMissing, setCreateVendorIfMissing] = useState(true);
+  const [vendorName, setVendorName] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
@@ -65,15 +68,22 @@ const ReceiptImport = () => {
     }
   };
 
+  const isImageOrPdf = (file) => {
+    if (!file) return false;
+    const t = file.type?.toLowerCase() || "";
+    const n = (file.name || "").toLowerCase();
+    return t.startsWith("image/") || t === "application/pdf" || n.endsWith(".pdf");
+  };
+
   const handleFileChange = (e) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (!selectedFile.type.startsWith("image/")) {
-        toast.error("Please select an image file");
+      if (!isImageOrPdf(selectedFile)) {
+        toast.error("Please select an image (JPG, PNG, WEBP) or PDF");
         return;
       }
       setFile(selectedFile);
-      setPreview(URL.createObjectURL(selectedFile));
+      setPreview(selectedFile.type?.startsWith("image/") ? URL.createObjectURL(selectedFile) : null);
       setExtractedData(null);
       setEditedProducts([]);
     }
@@ -83,12 +93,12 @@ const ReceiptImport = () => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0];
     if (droppedFile) {
-      if (!droppedFile.type.startsWith("image/")) {
-        toast.error("Please select an image file");
+      if (!isImageOrPdf(droppedFile)) {
+        toast.error("Please select an image (JPG, PNG, WEBP) or PDF");
         return;
       }
       setFile(droppedFile);
-      setPreview(URL.createObjectURL(droppedFile));
+      setPreview(droppedFile.type?.startsWith("image/") ? URL.createObjectURL(droppedFile) : null);
       setExtractedData(null);
       setEditedProducts([]);
     }
@@ -100,7 +110,7 @@ const ReceiptImport = () => {
 
   const extractReceipt = async () => {
     if (!file) {
-      toast.error("Please select a receipt image");
+      toast.error("Please select a document (image or PDF)");
       return;
     }
 
@@ -109,22 +119,26 @@ const ReceiptImport = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await axios.post(`${API}/receipts/extract`, formData, {
+      const response = await axios.post(`${API}/documents/parse`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
       setExtractedData(response.data);
+      setVendorName(response.data.vendor_name || "");
       setEditedProducts(
-        response.data.products.map((p, idx) => ({
+        (response.data.products || []).map((p, idx) => ({
           ...p,
           id: idx,
           selected: true,
+          quantity: p.quantity ?? 1,
+          ordered_qty: p.ordered_qty ?? p.quantity ?? 1,
+          delivered_qty: p.delivered_qty ?? p.quantity ?? 1,
         }))
       );
-      toast.success("Receipt extracted successfully!");
+      toast.success("Document extracted successfully!");
     } catch (error) {
       console.error("Extraction error:", error);
-      toast.error(error.response?.data?.detail || "Failed to extract receipt");
+      toast.error(error.response?.data?.detail || "Failed to extract document");
     } finally {
       setExtracting(false);
     }
@@ -149,21 +163,27 @@ const ReceiptImport = () => {
   };
 
   const importProducts = async () => {
-    if (!selectedDept) {
-      toast.error("Please select a department");
+    const vName = (vendorName || extractedData?.vendor_name || "").trim();
+    if (!vName) {
+      toast.error("Vendor name is required");
       return;
     }
 
     const productsToImport = editedProducts
       .filter((p) => p.selected)
-      .map(({ name, quantity, price, original_sku, base_unit, sell_uom, pack_qty }) => ({
-        name,
-        quantity: parseInt(quantity) || 1,
-        price: parseFloat(price) || 0,
-        original_sku,
-        base_unit: base_unit || undefined,
-        sell_uom: sell_uom || undefined,
-        pack_qty: pack_qty != null ? parseInt(pack_qty) : undefined,
+      .map((p) => ({
+        name: p.name,
+        quantity: parseInt(p.quantity) || 1,
+        ordered_qty: p.ordered_qty != null ? parseInt(p.ordered_qty) : parseInt(p.quantity) || 1,
+        delivered_qty: p.delivered_qty != null ? parseInt(p.delivered_qty) : parseInt(p.quantity) || 1,
+        price: parseFloat(p.price) || 0,
+        cost: p.cost != null ? parseFloat(p.cost) : undefined,
+        original_sku: p.original_sku,
+        base_unit: p.base_unit || undefined,
+        sell_uom: p.sell_uom || undefined,
+        pack_qty: p.pack_qty != null ? parseInt(p.pack_qty) : undefined,
+        suggested_department: p.suggested_department || undefined,
+        selected: true,
       }));
 
     if (productsToImport.length === 0) {
@@ -173,17 +193,26 @@ const ReceiptImport = () => {
 
     setImporting(true);
     try {
-      const response = await axios.post(
-        `${API}/receipts/import?department_id=${selectedDept}`,
-        productsToImport
-      );
+      const response = await axios.post(`${API}/documents/import`, {
+        vendor_name: vName,
+        create_vendor_if_missing: createVendorIfMissing,
+        department_id: selectedDept || null,
+        products: productsToImport,
+      });
 
-      toast.success(`Imported ${response.data.imported} products!`);
+      const created = response.data.imported || 0;
+      const matched = response.data.matched || 0;
+      const msg = matched > 0
+        ? `Imported ${created} new products, added to ${matched} existing${response.data.vendor_created ? " (new vendor)" : ""}!`
+        : `Imported ${created} products${response.data.vendor_created ? " (new vendor created)" : ""}!`;
+      toast.success(msg);
 
       setFile(null);
       setPreview(null);
       setExtractedData(null);
       setEditedProducts([]);
+      setVendorName("");
+      fetchVendors();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Failed to import products");
     } finally {
@@ -196,6 +225,7 @@ const ReceiptImport = () => {
     setPreview(null);
     setExtractedData(null);
     setEditedProducts([]);
+    setVendorName("");
   };
 
   const handleCsvFileChange = (e) => {
@@ -246,16 +276,16 @@ const ReceiptImport = () => {
           <span className="text-sm font-medium text-violet-700">AI-powered</span>
         </div>
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
-          Receipt Import
+          Document Import
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Upload receipts or bulk import from CSV
+          Upload receipts, invoices, or PDFs; bulk import from CSV
         </p>
       </div>
 
       <Tabs defaultValue="receipt" className="mt-4">
         <TabsList className="mb-4">
-          <TabsTrigger value="receipt">Receipt (AI)</TabsTrigger>
+          <TabsTrigger value="receipt">Document (AI)</TabsTrigger>
           <TabsTrigger value="csv">CSV Bulk Import</TabsTrigger>
         </TabsList>
 
@@ -270,10 +300,10 @@ const ReceiptImport = () => {
             <span className="w-7 h-7 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center text-sm font-bold">
               1
             </span>
-            Upload receipt
+            Upload document
           </h2>
 
-          {!preview ? (
+          {!file ? (
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -285,15 +315,15 @@ const ReceiptImport = () => {
                 <Upload className="w-7 h-7 text-violet-500" />
               </div>
               <p className="text-slate-600 font-medium">
-                Drop receipt image here or click to browse
+                Drop document here or click to browse
               </p>
               <p className="text-slate-400 text-sm mt-2">
-                Supports JPG, PNG, WEBP
+                Supports JPG, PNG, WEBP, PDF
               </p>
               <input
                 id="receipt-input"
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
                 onChange={handleFileChange}
                 className="hidden"
                 data-testid="receipt-file-input"
@@ -302,12 +332,20 @@ const ReceiptImport = () => {
           ) : (
             <div className="space-y-4">
               <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                <img
-                  src={preview}
-                  alt="Receipt preview"
-                  className="w-full max-h-[400px] object-contain bg-slate-50"
-                  data-testid="receipt-preview"
-                />
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt="Document preview"
+                    className="w-full max-h-[400px] object-contain bg-slate-50"
+                    data-testid="receipt-preview"
+                  />
+                ) : (
+                  <div className="w-full h-48 bg-slate-50 flex flex-col items-center justify-center gap-2">
+                    <FileText className="w-12 h-12 text-slate-400" />
+                    <span className="text-slate-600 font-medium">{file.name}</span>
+                    <span className="text-slate-400 text-sm">PDF document</span>
+                  </div>
+                )}
                 <button
                   onClick={clearAll}
                   className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-slate-600 rounded-xl hover:bg-red-50 hover:text-red-600 border border-slate-200 shadow-sm transition-colors"
@@ -318,7 +356,7 @@ const ReceiptImport = () => {
               </div>
 
               <div className="flex items-center gap-2 text-sm text-slate-500">
-                <FileImage className="w-4 h-4" />
+                {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                 <span>{file?.name}</span>
               </div>
 
@@ -331,7 +369,7 @@ const ReceiptImport = () => {
                 {extracting ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    AI extracting products…
+                    AI extracting…
                   </>
                 ) : (
                   <>
@@ -358,31 +396,43 @@ const ReceiptImport = () => {
               <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
                 <Package className="w-7 h-7 text-slate-400" />
               </div>
-              <p className="font-medium">Upload and extract a receipt to see products</p>
+              <p className="font-medium">Upload and extract a document to see products</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {extractedData.store_name && (
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200">
-                  <p className="text-xs text-slate-500 font-medium">Source store</p>
-                  <p className="font-semibold text-slate-900 mt-0.5">
-                    {extractedData.store_name}
-                  </p>
-                </div>
-              )}
+              <div>
+                <Label className="text-slate-600 font-medium text-sm">Vendor *</Label>
+                <Input
+                  value={vendorName}
+                  onChange={(e) => setVendorName(e.target.value)}
+                  className="input-field mt-2"
+                  placeholder="Vendor / store name"
+                  data-testid="vendor-name-input"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="create-vendor"
+                  checked={createVendorIfMissing}
+                  onCheckedChange={(c) => setCreateVendorIfMissing(c === true)}
+                />
+                <Label htmlFor="create-vendor" className="text-sm text-slate-600 cursor-pointer">
+                  Create vendor if missing
+                </Label>
+              </div>
 
               <div>
-                <Label className="text-slate-600 font-medium text-sm">
-                  Import to department *
-                </Label>
-                <Select value={selectedDept} onValueChange={setSelectedDept}>
+                <Label className="text-slate-600 font-medium text-sm">Department override (optional)</Label>
+                <Select value={selectedDept || "none"} onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}>
                   <SelectTrigger
                     className="input-field mt-2"
                     data-testid="import-dept-select"
                   >
-                    <SelectValue placeholder="Select department" />
+                    <SelectValue placeholder="Use suggested per product" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Use suggested per product</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name} ({dept.code})
@@ -434,13 +484,13 @@ const ReceiptImport = () => {
                         <div className="grid grid-cols-2 gap-2">
                           <Input
                             type="number"
-                            value={product.quantity}
+                            value={product.delivered_qty ?? product.quantity ?? 1}
                             onChange={(e) =>
-                              updateProduct(product.id, "quantity", e.target.value)
+                              updateProduct(product.id, "delivered_qty", e.target.value)
                             }
                             className="input-field h-10 text-sm"
-                            placeholder="Qty"
-                            data-testid={`product-qty-${product.id}`}
+                            placeholder="Delivered"
+                            data-testid={`product-delivered-${product.id}`}
                           />
                           <Input
                             type="number"
@@ -452,6 +502,26 @@ const ReceiptImport = () => {
                             className="input-field h-10 text-sm"
                             placeholder="Price"
                             data-testid={`product-price-${product.id}`}
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={product.cost ?? ""}
+                            onChange={(e) =>
+                              updateProduct(product.id, "cost", e.target.value ? parseFloat(e.target.value) : null)
+                            }
+                            className="input-field h-10 text-sm"
+                            placeholder="Cost"
+                            data-testid={`product-cost-${product.id}`}
+                          />
+                          <Input
+                            value={product.suggested_department ?? ""}
+                            onChange={(e) =>
+                              updateProduct(product.id, "suggested_department", e.target.value || null)
+                            }
+                            className="input-field h-10 text-sm"
+                            placeholder="Dept (PLU, HDW…)"
+                            data-testid={`product-dept-${product.id}`}
                           />
                         </div>
                         {product.original_sku && (
@@ -482,7 +552,7 @@ const ReceiptImport = () => {
 
               <Button
                 onClick={importProducts}
-                disabled={importing || !selectedDept}
+                disabled={importing || !(vendorName || "").trim()}
                 className="w-full btn-primary h-11"
                 data-testid="import-products-btn"
               >
@@ -627,8 +697,8 @@ const ReceiptImport = () => {
               1
             </span>
             <p>
-              Upload a receipt image from any hardware store (Home Depot, Lowes,
-              etc.)
+              Upload a receipt, invoice, or PDF from any hardware store (Home
+              Depot, Lowes, etc.)
             </p>
           </div>
           <div className="flex items-start gap-4">
@@ -636,8 +706,8 @@ const ReceiptImport = () => {
               2
             </span>
             <p>
-              <strong className="text-slate-700">AI extracts</strong> product
-              names, quantities, and prices automatically
+              <strong className="text-slate-700">AI extracts</strong> vendor,
+              items, UOM, costs, and quantities
             </p>
           </div>
           <div className="flex items-start gap-4">

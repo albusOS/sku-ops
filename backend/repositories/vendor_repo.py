@@ -29,6 +29,23 @@ async def get_by_id(vendor_id: str) -> Optional[dict]:
     return _row_to_dict(row)
 
 
+async def find_by_name(name: str) -> Optional[dict]:
+    """Case-insensitive lookup by vendor name."""
+    if not name or not name.strip():
+        return None
+    normalized = name.strip().lower()
+    conn = get_connection()
+    cursor = await conn.execute(
+        "SELECT id, name, contact_name, email, phone, address, product_count, created_at FROM vendors"
+    )
+    rows = await cursor.fetchall()
+    for row in rows:
+        d = _row_to_dict(row)
+        if d and d.get("name", "").strip().lower() == normalized:
+            return d
+    return None
+
+
 async def insert(vendor_dict: dict) -> None:
     conn = get_connection()
     await conn.execute(
@@ -92,6 +109,7 @@ async def increment_product_count(vendor_id: str, delta: int) -> None:
 class VendorRepo:
     list_all = staticmethod(list_all)
     get_by_id = staticmethod(get_by_id)
+    find_by_name = staticmethod(find_by_name)
     insert = staticmethod(insert)
     update = staticmethod(update)
     delete = staticmethod(delete)

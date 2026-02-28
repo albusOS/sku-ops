@@ -109,3 +109,7 @@ class ExtractedProduct(BaseModel):
     base_unit: Optional[str] = None
     sell_uom: Optional[str] = None
     pack_qty: Optional[int] = None
+    cost: Optional[float] = None
+    suggested_department: Optional[str] = None
+    ordered_qty: Optional[int] = None
+    delivered_qty: Optional[int] = None

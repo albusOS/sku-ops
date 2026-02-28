@@ -20,22 +20,10 @@ import {
   Download,
 } from "lucide-react";
 import { format } from "date-fns";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import { Card, Metric, DonutChart, BarList } from "@tremor/react";
 
 import { API } from "@/lib/api";
-
-const COLORS = ["#f97316", "#0f172a", "#15803d", "#3b82f6", "#8b5cf6", "#ec4899"];
+import { valueFormatter, CHART_COLORS } from "@/lib/chartConfig";
 
 const DATE_PRESETS = [
   { label: "Today", getValue: () => { const d = new Date(); return { from: d, to: d }; } },
@@ -240,121 +228,66 @@ const Reports = () => {
         <TabsContent value="sales" className="space-y-6" data-testid="sales-report-content">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-green-100 rounded-sm flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-green-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Total Revenue</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                ${(salesReport?.total_revenue || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded-sm flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-blue-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Transactions</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                {salesReport?.total_transactions || 0}
-              </p>
-            </div>
-
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-purple-100 rounded-sm flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-purple-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Avg Transaction</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                ${(salesReport?.average_transaction || 0).toFixed(2)}
-              </p>
-            </div>
-
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-orange-100 rounded-sm flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-orange-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Total Tax</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                ${(salesReport?.total_tax || 0).toFixed(2)}
-              </p>
-            </div>
+            <Card className="card-workshop">
+              <Metric color="emerald">{valueFormatter(salesReport?.total_revenue || 0)}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Total Revenue</p>
+            </Card>
+            <Card className="card-workshop">
+              <Metric color="blue">{salesReport?.total_transactions || 0}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Transactions</p>
+            </Card>
+            <Card className="card-workshop">
+              <Metric color="violet">{valueFormatter(salesReport?.average_transaction || 0)}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Avg Transaction</p>
+            </Card>
+            <Card className="card-workshop">
+              <Metric color="orange">{valueFormatter(salesReport?.total_tax || 0)}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Total Tax</p>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Payment Status Chart */}
-            <div className="card-workshop p-6">
+            {/* Payment Status - Donut Chart */}
+            <Card className="card-workshop p-6">
               <h3 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
                 Sales by Payment Status
               </h3>
               {paymentChartData.length > 0 ? (
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={paymentChartData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value }) => `${name}: $${value}`}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {paymentChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => `$${value}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+                <DonutChart
+                  data={paymentChartData}
+                  category="value"
+                  index="name"
+                  valueFormatter={valueFormatter}
+                  colors={CHART_COLORS}
+                  className="h-[300px]"
+                />
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-slate-400">
                   No sales data available
                 </div>
               )}
-            </div>
+            </Card>
 
-            {/* Top Products */}
-            <div className="card-workshop p-6">
+            {/* Top Products - BarList */}
+            <Card className="card-workshop p-6">
               <h3 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
                 Top Selling Products
               </h3>
               {salesReport?.top_products?.length > 0 ? (
-                <div className="space-y-3">
-                  {salesReport.top_products.slice(0, 5).map((product, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-slate-50 rounded-sm border border-slate-200"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 bg-orange-500 text-white rounded-sm flex items-center justify-center font-bold">
-                          {index + 1}
-                        </span>
-                        <span className="font-medium">{product.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-mono font-bold">${product.revenue.toFixed(2)}</p>
-                        <p className="text-xs text-slate-400">{product.quantity} sold</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <BarList
+                  data={salesReport.top_products.slice(0, 10).map((p) => ({
+                    name: p.name,
+                    value: p.revenue,
+                  }))}
+                  valueFormatter={valueFormatter}
+                  className="mt-2"
+                />
               ) : (
                 <div className="h-[250px] flex items-center justify-center text-slate-400">
                   No sales data available
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         </TabsContent>
 
@@ -362,82 +295,45 @@ const Reports = () => {
         <TabsContent value="inventory" className="space-y-6" data-testid="inventory-report-content">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded-sm flex items-center justify-center">
-                  <Package className="w-5 h-5 text-blue-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Total Products</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                {inventoryReport?.total_products || 0}
-              </p>
-            </div>
-
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-green-100 rounded-sm flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-green-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Retail Value</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                ${(inventoryReport?.total_retail_value || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-purple-100 rounded-sm flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-purple-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Potential Profit</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                ${(inventoryReport?.potential_profit || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-
-            <div className="card-workshop p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-orange-100 rounded-sm flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-orange-600" />
-                </div>
-                <span className="text-sm text-slate-500 uppercase tracking-wide">Low Stock Items</span>
-              </div>
-              <p className="text-3xl font-heading font-bold text-slate-900">
-                {inventoryReport?.low_stock_count || 0}
-              </p>
-            </div>
+            <Card className="card-workshop">
+              <Metric color="blue">{inventoryReport?.total_products || 0}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Total Products</p>
+            </Card>
+            <Card className="card-workshop">
+              <Metric color="emerald">{valueFormatter(inventoryReport?.total_retail_value || 0)}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Retail Value</p>
+            </Card>
+            <Card className="card-workshop">
+              <Metric color="violet">{valueFormatter(inventoryReport?.potential_profit || 0)}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Potential Profit</p>
+            </Card>
+            <Card className="card-workshop">
+              <Metric color="amber">{inventoryReport?.low_stock_count || 0}</Metric>
+              <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Low Stock Items</p>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Inventory by Department Chart */}
-            <div className="card-workshop p-6">
+            {/* Inventory by Department - BarList */}
+            <Card className="card-workshop p-6">
               <h3 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
                 Inventory Value by Department
               </h3>
               {departmentChartData.length > 0 ? (
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={departmentChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip formatter={(value) => `$${value}`} />
-                      <Bar dataKey="value" fill="#f97316" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <BarList
+                  data={departmentChartData.map((d) => ({ name: d.name, value: d.value }))}
+                  valueFormatter={valueFormatter}
+                  className="mt-2"
+                />
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-slate-400">
                   No inventory data available
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Low Stock Items */}
-            <div className="card-workshop p-6">
+            <Card className="card-workshop p-6">
               <h3 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
                 Low Stock Alert
               </h3>
@@ -467,7 +363,7 @@ const Reports = () => {
                   </div>
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

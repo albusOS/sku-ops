@@ -125,7 +125,8 @@ Format: `DEPT-XXXXX` (e.g., LUM-00001, PLU-00002)
 ## Key API Endpoints
 - Auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
 - Products: `/api/products` (GET, POST), `/api/products/{id}` (GET, PUT, DELETE)
-- Vendors: `/api/vendors`, `/api/vendors/{id}/import-pdf`, `/api/vendors/{id}/import-products`
+- Vendors: `/api/vendors`
+- Document Import: `/api/documents/parse`, `/api/documents/import`
 - Withdrawals: `/api/withdrawals`, `/api/withdrawals/for-contractor`
 - Payments: `/api/payments/create-checkout`, `/api/payments/status/{session_id}`
 - Financials: `/api/financials/summary`, `/api/financials/export`

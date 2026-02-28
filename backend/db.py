@@ -88,6 +88,9 @@ async def init_db() -> None:
         );
 
         CREATE INDEX IF NOT EXISTS idx_products_department ON products(department_id);
+        CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+        CREATE INDEX IF NOT EXISTS idx_products_vendor ON products(vendor_id);
+        CREATE INDEX IF NOT EXISTS idx_products_vendor_original_sku ON products(vendor_id, original_sku);
 
         CREATE TABLE IF NOT EXISTS withdrawals (
             id TEXT PRIMARY KEY,
@@ -156,6 +159,50 @@ async def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_transactions(product_id);
         CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_transactions(created_at);
         CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_transactions(product_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS invoices (
+            id TEXT PRIMARY KEY,
+            invoice_number TEXT UNIQUE NOT NULL,
+            billing_entity TEXT NOT NULL DEFAULT '',
+            contact_name TEXT NOT NULL DEFAULT '',
+            contact_email TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'draft',
+            subtotal REAL NOT NULL,
+            tax REAL NOT NULL,
+            total REAL NOT NULL,
+            notes TEXT,
+            xero_invoice_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS invoice_withdrawals (
+            invoice_id TEXT NOT NULL,
+            withdrawal_id TEXT NOT NULL,
+            PRIMARY KEY (invoice_id, withdrawal_id),
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+            FOREIGN KEY (withdrawal_id) REFERENCES withdrawals(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS invoice_line_items (
+            id TEXT PRIMARY KEY,
+            invoice_id TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            quantity REAL NOT NULL,
+            unit_price REAL NOT NULL,
+            amount REAL NOT NULL,
+            product_id TEXT,
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+        CREATE INDEX IF NOT EXISTS idx_invoices_billing ON invoices(billing_entity);
+        CREATE INDEX IF NOT EXISTS idx_invoice_line_items_invoice ON invoice_line_items(invoice_id);
+
+        CREATE TABLE IF NOT EXISTS invoice_counters (
+            key TEXT PRIMARY KEY,
+            counter INTEGER NOT NULL DEFAULT 0
+        );
     """)
     # Migration: add UOM columns to products if missing
     try:

@@ -12,6 +12,7 @@ import ReceiptImport from "./pages/ReceiptImport";
 import Reports from "./pages/Reports";
 import Contractors from "./pages/Contractors";
 import Financials from "./pages/Financials";
+import Invoices from "./pages/Invoices";
 import MyHistory from "./pages/MyHistory";
 import Layout from "./components/Layout";
 import "./App.css";
@@ -107,6 +108,14 @@ function App() {
                       element={
                         <ProtectedRoute allowedRoles={["admin"]}>
                           <Financials />
+                        </ProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/invoices" 
+                      element={
+                        <ProtectedRoute allowedRoles={["admin"]}>
+                          <Invoices />
                         </ProtectedRoute>
                       } 
                     />

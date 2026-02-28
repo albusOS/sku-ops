@@ -76,6 +76,21 @@ async def get_by_id(product_id: str, columns: Optional[str] = "*") -> Optional[d
     return _row_to_dict(row)
 
 
+async def find_by_original_sku_and_vendor(original_sku: str, vendor_id: str) -> Optional[dict]:
+    """Find existing product by vendor's SKU and vendor. For matching incoming orders to inventory."""
+    if not original_sku or not str(original_sku).strip() or not vendor_id:
+        return None
+    norm = str(original_sku).strip().lower()
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT * FROM products
+           WHERE vendor_id = ? AND TRIM(LOWER(COALESCE(original_sku, ''))) = ?""",
+        (vendor_id, norm),
+    )
+    row = await cursor.fetchone()
+    return _row_to_dict(row)
+
+
 async def insert(product_dict: dict) -> None:
     conn = get_connection()
     await conn.execute(
@@ -203,6 +218,7 @@ class ProductRepo:
     list_products = staticmethod(list_products)
     count_products = staticmethod(count_products)
     get_by_id = staticmethod(get_by_id)
+    find_by_original_sku_and_vendor = staticmethod(find_by_original_sku_and_vendor)
     insert = staticmethod(insert)
     update = staticmethod(update)
     delete = staticmethod(delete)

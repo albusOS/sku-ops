@@ -106,10 +106,12 @@ const Inventory = () => {
       setSkuPreview(null);
       return;
     }
-    axios.get(`${API}/sku/preview?department_id=${form.department_id}`)
+    const params = new URLSearchParams({ department_id: form.department_id });
+    if (form.name?.trim()) params.append("product_name", form.name.trim());
+    axios.get(`${API}/sku/preview?${params}`)
       .then(({ data }) => setSkuPreview(data.next_sku))
       .catch(() => setSkuPreview(null));
-  }, [dialogOpen, editingProduct, form.department_id]);
+  }, [dialogOpen, editingProduct, form.department_id, form.name]);
 
   const fetchData = async () => {
     try {

@@ -25,10 +25,14 @@ import {
   Filter,
   Building2,
   HardHat,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
+import { Card, Metric, DonutChart, BarList } from "@tremor/react";
 
 import { API } from "@/lib/api";
+import { valueFormatter, CHART_COLORS } from "@/lib/chartConfig";
+import { CreateInvoiceModal } from "../components/CreateInvoiceModal";
 
 const Financials = () => {
   const [summary, setSummary] = useState(null);
@@ -38,6 +42,7 @@ const Financials = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [entityFilter, setEntityFilter] = useState("");
   const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [createInvoiceModalOpen, setCreateInvoiceModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -125,13 +130,41 @@ const Financials = () => {
 
   const selectAllUnpaid = () => {
     const unpaidIds = withdrawals
-      .filter((w) => w.payment_status === "unpaid")
+      .filter((w) => w.payment_status === "unpaid" && !w.invoice_id)
       .map((w) => w.id);
     setSelectedIds(unpaidIds);
   };
 
+  const selectedUnpaidIds = selectedIds.filter((id) => {
+    const w = withdrawals.find((x) => x.id === id);
+    return w?.payment_status === "unpaid" && !w?.invoice_id;
+  });
+
+  const handleInvoiceCreated = () => {
+    setSelectedIds([]);
+    fetchData();
+  };
+
   // Get unique billing entities for filter
   const billingEntities = [...new Set(withdrawals.map((w) => w.billing_entity).filter(Boolean))];
+
+  const paymentDonutData = summary
+    ? [
+        { name: "Paid", value: summary.total_paid || 0 },
+        { name: "Unpaid", value: summary.total_unpaid || 0 },
+        { name: "Invoiced", value: summary.total_invoiced || 0 },
+      ].filter((d) => d.value > 0)
+    : [];
+
+  const contractorBarData = summary?.by_contractor
+    ? summary.by_contractor
+        .sort((a, b) => (b.total || 0) - (a.total || 0))
+        .slice(0, 10)
+        .map((c) => ({
+          name: c.name || c.company || "Unknown",
+          value: c.total || 0,
+        }))
+    : [];
 
   if (loading) {
     return (
@@ -168,58 +201,66 @@ const Financials = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" data-testid="summary-cards">
-        <div className="card-workshop p-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-red-100 rounded-sm flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-            </div>
-            <span className="text-sm text-slate-500 uppercase tracking-wide">Unpaid</span>
-          </div>
-          <p className="text-3xl font-heading font-bold text-red-600">
-            ${(summary?.total_unpaid || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </p>
-        </div>
+        <Card className="card-workshop">
+          <Metric color="rose">{valueFormatter(summary?.total_unpaid || 0)}</Metric>
+          <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Unpaid</p>
+        </Card>
+        <Card className="card-workshop">
+          <Metric color="emerald">{valueFormatter(summary?.total_paid || 0)}</Metric>
+          <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Paid</p>
+        </Card>
+        <Card className="card-workshop">
+          <Metric>{valueFormatter(summary?.total_revenue || 0)}</Metric>
+          <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Total Revenue</p>
+        </Card>
+        <Card className="card-workshop">
+          <Metric color="violet">{valueFormatter(summary?.gross_margin || 0)}</Metric>
+          <p className="text-sm text-slate-500 uppercase tracking-wide mt-1">Gross Margin</p>
+        </Card>
+      </div>
 
-        <div className="card-workshop p-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-green-100 rounded-sm flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-600" />
+      {/* Donut + BarList Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <Card className="card-workshop p-6">
+          <h2 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
+            Payment Status
+          </h2>
+          {paymentDonutData.length > 0 ? (
+            <DonutChart
+              data={paymentDonutData}
+              category="value"
+              index="name"
+              valueFormatter={valueFormatter}
+              colors={CHART_COLORS}
+              className="h-64"
+            />
+          ) : (
+            <div className="h-64 flex items-center justify-center text-slate-400">
+              No payment data
             </div>
-            <span className="text-sm text-slate-500 uppercase tracking-wide">Paid</span>
-          </div>
-          <p className="text-3xl font-heading font-bold text-green-600">
-            ${(summary?.total_paid || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-
-        <div className="card-workshop p-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-blue-100 rounded-sm flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-blue-600" />
+          )}
+        </Card>
+        <Card className="card-workshop p-6">
+          <h2 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
+            Top Contractors by Spend
+          </h2>
+          {contractorBarData.length > 0 ? (
+            <BarList
+              data={contractorBarData}
+              valueFormatter={valueFormatter}
+              className="mt-2"
+            />
+          ) : (
+            <div className="h-64 flex items-center justify-center text-slate-400">
+              No contractor data
             </div>
-            <span className="text-sm text-slate-500 uppercase tracking-wide">Total Revenue</span>
-          </div>
-          <p className="text-3xl font-heading font-bold text-slate-900">
-            ${(summary?.total_revenue || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-
-        <div className="card-workshop p-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-purple-100 rounded-sm flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-purple-600" />
-            </div>
-            <span className="text-sm text-slate-500 uppercase tracking-wide">Gross Margin</span>
-          </div>
-          <p className="text-3xl font-heading font-bold text-purple-600">
-            ${(summary?.gross_margin || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </p>
-        </div>
+          )}
+        </Card>
       </div>
 
       {/* By Entity Breakdown */}
       {summary?.by_billing_entity && Object.keys(summary.by_billing_entity).length > 0 && (
-        <div className="card-workshop p-6 mb-6">
+        <Card className="card-workshop p-6 mb-6">
           <h2 className="font-heading font-bold text-lg text-slate-900 uppercase tracking-wider mb-4">
             By Billing Entity
           </h2>
@@ -247,7 +288,7 @@ const Financials = () => {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Filters */}
@@ -341,6 +382,16 @@ const Financials = () => {
             >
               Clear Selection
             </Button>
+            {selectedUnpaidIds.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setCreateInvoiceModalOpen(true)}
+                className="btn-secondary"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Create Invoice ({selectedUnpaidIds.length})
+              </Button>
+            )}
             <Button
               onClick={handleBulkMarkPaid}
               className="btn-primary"
@@ -352,6 +403,13 @@ const Financials = () => {
           </div>
         </div>
       )}
+
+      <CreateInvoiceModal
+        open={createInvoiceModalOpen}
+        onOpenChange={setCreateInvoiceModalOpen}
+        onCreated={handleInvoiceCreated}
+        preselectedIds={selectedUnpaidIds}
+      />
 
       {/* Transactions Table */}
       <div className="card-workshop overflow-hidden" data-testid="transactions-table">
@@ -397,7 +455,8 @@ const Financials = () => {
                       type="checkbox"
                       checked={selectedIds.includes(w.id)}
                       onChange={() => toggleSelect(w.id)}
-                      className="w-4 h-4 rounded border-slate-300"
+                      disabled={!!w.invoice_id}
+                      className="w-4 h-4 rounded border-slate-300 disabled:opacity-50"
                     />
                   </td>
                   <td className="font-mono text-sm">

@@ -1,8 +1,17 @@
 import asyncio
+import os
+import tempfile
+from pathlib import Path
+
+# Load .env from backend/ before any other imports that use env vars
+_path = Path(__file__).resolve().parent
+if (_path / ".env").exists():
+    from dotenv import load_dotenv
+    load_dotenv(_path / ".env")
+
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Request, Form
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
-import os
 import logging
 import json
 import re
@@ -27,7 +36,7 @@ except ImportError:
     StripeCheckout = CheckoutSessionResponse = CheckoutStatusResponse = CheckoutSessionRequest = None
     HAS_EMERGENT_STRIPE = False
 
-from db import init_db, close_db
+from db import init_db, close_db, get_connection
 from repositories import (
     user_repo,
     department_repo,
@@ -36,6 +45,7 @@ from repositories import (
     withdrawal_repo,
     payment_repo,
     sku_repo,
+    invoice_repo,
 )
 from auth import (
     hash_password,
@@ -57,15 +67,18 @@ from models import (
     Product,
     ProductCreate,
     ProductUpdate,
-    ExtractedProduct,
     MaterialWithdrawal,
     MaterialWithdrawalCreate,
+    InvoiceCreate,
+    InvoiceUpdate,
 )
 from models.product import ALLOWED_BASE_UNITS
 from services.uom_classifier import classify_uom, classify_uom_batch
+from services.sku_slug import slug_from_name
 from services.inventory import (
     process_withdrawal_stock_changes,
     process_import_stock_changes,
+    process_receiving_stock_changes,
     get_stock_history,
     InsufficientStockError,
 )
@@ -83,16 +96,19 @@ logger = logging.getLogger(__name__)
 
 # ==================== SKU GENERATOR ====================
 
-SKU_FORMAT = "DEPT-XXXXX"  # 3-letter dept code + 5-digit sequence
+SKU_FORMAT = "DEPT-SLUG-XXXXX"  # dept + slug from product name + sequence
 
-async def generate_sku(department_code: str) -> str:
+async def generate_sku(department_code: str, product_name: Optional[str] = None) -> str:
+    """Generate SKU: DEPT-SLUG-00001. Slug derived from product name for readability."""
     number = await sku_repo.increment_and_get(department_code)
-    return f"{department_code}-{str(number).zfill(5)}"
+    slug = slug_from_name(product_name or "", max_len=6) if product_name else "ITM"
+    return f"{department_code}-{slug}-{str(number).zfill(6)}"
 
 
 @api_router.get("/sku/preview")
 async def get_sku_preview(
     department_id: str,
+    product_name: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """Preview the next SKU for a department (without consuming it)."""
@@ -101,22 +117,27 @@ async def get_sku_preview(
         raise HTTPException(status_code=404, detail="Department not found")
     code = department["code"]
     next_num = await sku_repo.get_next_number(code)
-    next_sku = f"{code}-{str(next_num).zfill(5)}"
-    return {"next_sku": next_sku, "department_code": code, "format": SKU_FORMAT}
+    slug = slug_from_name(product_name or "", max_len=6) if product_name else "ITM"
+    next_sku = f"{code}-{slug}-{str(next_num).zfill(6)}"
+    return {"next_sku": next_sku, "department_code": code, "format": SKU_FORMAT, "slug": slug}
 
 
 @api_router.get("/sku/overview")
-async def get_sku_overview(current_user: dict = Depends(get_current_user)):
+async def get_sku_overview(
+    product_name: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
     """SKU system overview: format, departments with next available SKU."""
     departments = await department_repo.list_all()
     counters = await sku_repo.get_all_counters()
+    slug = slug_from_name(product_name or "", max_len=6) if product_name else "ITM"
     depts_with_next = []
     for d in departments:
         code = d["code"]
         next_num = (counters.get(code, 0) + 1)
         depts_with_next.append({
             **d,
-            "next_sku": f"{code}-{str(next_num).zfill(5)}",
+            "next_sku": f"{code}-{slug}-{str(next_num).zfill(6)}",
         })
     return {"format": SKU_FORMAT, "departments": depts_with_next}
 
@@ -356,7 +377,7 @@ async def create_product(data: ProductCreate, current_user: dict = Depends(requi
         if vendor:
             vendor_name = vendor.get("name", "")
 
-    sku = await generate_sku(department["code"])
+    sku = await generate_sku(department["code"], data.name)
     barcode = (data.barcode or "").strip() or sku  # Default to SKU when barcode blank
 
     product = Product(
@@ -463,7 +484,15 @@ async def create_withdrawal(data: MaterialWithdrawalCreate, current_user: dict =
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
     await withdrawal_repo.insert(withdrawal.model_dump())
-    return withdrawal
+    # Auto-create invoice for Charge to Account withdrawals
+    try:
+        inv = await invoice_repo.create_from_withdrawals([withdrawal.id])
+        withdrawal_dict = withdrawal.model_dump()
+        withdrawal_dict["invoice_id"] = inv.get("id")
+        return withdrawal_dict
+    except ValueError:
+        pass
+    return withdrawal.model_dump()
 
 
 @api_router.post("/withdrawals/for-contractor")
@@ -511,7 +540,13 @@ async def create_withdrawal_for_contractor(
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
     await withdrawal_repo.insert(withdrawal.model_dump())
-    return withdrawal
+    # Auto-create invoice for Charge to Account withdrawals
+    try:
+        inv = await invoice_repo.create_from_withdrawals([withdrawal.id])
+        return {**withdrawal.model_dump(), "invoice_id": inv.get("id")}
+    except ValueError:
+        pass
+    return withdrawal.model_dump()
 
 
 @api_router.get("/withdrawals")
@@ -609,6 +644,7 @@ async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(
     result = await withdrawal_repo.mark_paid(withdrawal_id, paid_at)
     if not result:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
+    await invoice_repo.mark_paid_for_withdrawal(withdrawal_id)
     return result
 
 
@@ -616,6 +652,8 @@ async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(
 async def bulk_mark_paid(withdrawal_ids: List[str], current_user: dict = Depends(require_role("admin"))):
     paid_at = datetime.now(timezone.utc).isoformat()
     updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at)
+    for wid in withdrawal_ids:
+        await invoice_repo.mark_paid_for_withdrawal(wid)
     return {"updated": updated}
 
 @api_router.get("/financials/export")
@@ -673,6 +711,98 @@ async def export_financials(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=financials_{datetime.now().strftime('%Y%m%d')}.csv"}
     )
+
+# ==================== INVOICES ====================
+
+@api_router.get("/invoices")
+async def get_invoices(
+    status: Optional[str] = None,
+    billing_entity: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(require_role("admin")),
+):
+    """List invoices with optional filters."""
+    return await invoice_repo.list_invoices(
+        status=status,
+        billing_entity=billing_entity,
+        start_date=start_date,
+        end_date=end_date,
+        limit=1000,
+    )
+
+
+@api_router.get("/invoices/{invoice_id}")
+async def get_invoice(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
+    """Get invoice with line items and linked withdrawals."""
+    inv = await invoice_repo.get_by_id(invoice_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return inv
+
+
+@api_router.post("/invoices")
+async def create_invoice(
+    data: InvoiceCreate,
+    current_user: dict = Depends(require_role("admin")),
+):
+    """Create invoice from selected unpaid withdrawals. All must share same billing_entity."""
+    try:
+        inv = await invoice_repo.create_from_withdrawals(data.withdrawal_ids)
+        return inv
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.put("/invoices/{invoice_id}")
+async def update_invoice(
+    invoice_id: str,
+    data: InvoiceUpdate,
+    current_user: dict = Depends(require_role("admin")),
+):
+    """Update invoice fields and/or line items."""
+    inv = await invoice_repo.get_by_id(invoice_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    line_items_data = [i.model_dump() if hasattr(i, "model_dump") else i for i in (data.line_items or [])]
+    updated = await invoice_repo.update(
+        invoice_id,
+        billing_entity=data.billing_entity,
+        contact_name=data.contact_name,
+        contact_email=data.contact_email,
+        status=data.status,
+        notes=data.notes,
+        tax=data.tax,
+        line_items=line_items_data if data.line_items is not None else None,
+    )
+    return updated
+
+
+@api_router.delete("/invoices/{invoice_id}")
+async def delete_invoice(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
+    """Delete draft invoice and unlink withdrawals."""
+    try:
+        ok = await invoice_repo.delete_draft(invoice_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        return {"deleted": True}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.post("/invoices/{invoice_id}/sync-xero")
+async def sync_invoice_to_xero(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
+    """Stub for future Xero integration."""
+    inv = await invoice_repo.get_by_id(invoice_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return {
+        "message": "Xero integration coming soon",
+        "invoice_id": invoice_id,
+        "invoice_number": inv.get("invoice_number"),
+    }
+
 
 # ==================== REPORTS ====================
 
@@ -825,116 +955,234 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         "low_stock_alerts": low_stock_items
     }
 
-# ==================== RECEIPT OCR ====================
+# ==================== DOCUMENT IMPORT (Unified) ====================
 
-@api_router.post("/receipts/extract")
-async def extract_receipt(file: UploadFile = File(...), current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
+_DOCUMENT_PARSE_SYSTEM = """You are a document parser for a hardware store. Extract vendor/supplier name, document date, total, and line items from receipts, invoices, or packing slips.
+Per item include: name, quantity, ordered_qty, delivered_qty, price, cost, original_sku, base_unit, sell_uom, pack_qty, suggested_department.
+Allowed UOM: each, case, box, pack, bag, roll, kit, gallon, quart, pint, liter, pound, ounce, foot, meter, yard, sqft.
+Infer UOM from product names (e.g. "5 Gal Paint" -> base_unit gallon, pack_qty 5). Use EFFECTIVE price after discounts.
+When ordered/delivered unclear, set both to quantity. Use "each", "each", 1 for base_unit, sell_uom, pack_qty when unsure.
+Suggested department codes: PLU, ELE, PNT, LUM, TOL, HDW, GDN, APP.
+Return ONLY valid JSON: {"vendor_name": "...", "document_date": "YYYY-MM-DD", "total": N, "products": [{"name": "...", "quantity": 1, "ordered_qty": 1, "delivered_qty": 1, "price": 9.99, "cost": 7.99, "original_sku": "...", "base_unit": "each", "sell_uom": "each", "pack_qty": 1, "suggested_department": "HDW"}]}"""
+
+
+@api_router.post("/documents/parse")
+async def parse_document(file: UploadFile = File(...), current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
+    """Parse image or PDF document; extract vendor, items, UOM, costs, ordered/delivered."""
     try:
         contents = await file.read()
         if not os.environ.get("LLM_API_KEY"):
             raise HTTPException(status_code=500, detail="LLM API key not configured")
 
-        from services.llm import generate_with_image
+        content_type = (file.content_type or "").lower()
+        is_pdf = content_type == "application/pdf" or (file.filename or "").lower().endswith(".pdf")
 
-        system_msg = """You are a receipt parser for a hardware store. Extract product information from receipt images.
-Infer unit of measure from product names (e.g. "5 Gal Paint" -> base_unit gallon, pack_qty 5; "2x4x8" -> foot; "Nail Box" -> box).
-Allowed units: each, case, box, pack, bag, roll, kit, gallon, quart, pint, liter, pound, ounce, foot, meter, yard, sqft.
-Return ONLY valid JSON:
-{
-    "store_name": "Store Name",
-    "products": [
-        {"name": "Product Name", "quantity": 1, "price": 9.99, "original_sku": "SKU123", "base_unit": "gallon", "sell_uom": "gallon", "pack_qty": 5}
-    ],
-    "total": 99.99,
-    "date": "2024-01-15"
-}
-Always include base_unit, sell_uom, pack_qty for each product. Use "each" and 1 when unsure."""
-
-        response = await asyncio.to_thread(
-            generate_with_image,
-            "Extract all product information from this receipt. Return only valid JSON.",
-            contents,
-            mime_type=file.content_type or "image/jpeg",
-            system_instruction=system_msg,
-        )
-        if not response:
-            raise HTTPException(status_code=500, detail="LLM failed to process receipt")
-
-        json_match = re.search(r'\{[\s\S]*\}', response)
-        if json_match:
-            extracted_data = json.loads(json_match.group())
+        if is_pdf:
+            from services.llm import generate_with_pdf
+            temp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tf:
+                    tf.write(contents)
+                    temp_path = tf.name
+                response = await asyncio.to_thread(
+                    generate_with_pdf,
+                    "Extract all product and vendor information. Return only valid JSON.",
+                    temp_path,
+                    system_instruction=_DOCUMENT_PARSE_SYSTEM,
+                )
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    os.unlink(temp_path)
         else:
-            extracted_data = json.loads(response)
+            from services.llm import generate_with_image
+            mime = content_type or "image/jpeg"
+            if "image/" not in mime:
+                mime = "image/jpeg"
+            response = await asyncio.to_thread(
+                generate_with_image,
+                "Extract all product and vendor information. Return only valid JSON.",
+                contents,
+                mime_type=mime,
+                system_instruction=_DOCUMENT_PARSE_SYSTEM,
+            )
 
-        return extracted_data
-        
+        if not response:
+            raise HTTPException(status_code=500, detail="LLM failed to process document")
+
+        json_match = re.search(r"\{[\s\S]*\}", response)
+        extracted = json.loads(json_match.group()) if json_match else json.loads(response)
+
+        # Ensure products have ordered_qty/delivered_qty
+        for p in extracted.get("products", []):
+            qty = p.get("quantity", 1)
+            if "ordered_qty" not in p or p["ordered_qty"] is None:
+                p["ordered_qty"] = qty
+            if "delivered_qty" not in p or p["delivered_qty"] is None:
+                p["delivered_qty"] = qty
+
+        return extracted
     except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
-        raise HTTPException(status_code=422, detail="Could not parse receipt data")
+        logger.error(f"Document parse JSON error: {e}")
+        raise HTTPException(status_code=422, detail="Could not parse document data")
     except Exception as e:
-        logger.error(f"Receipt extraction error: {e}")
+        logger.error(f"Document parse error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@api_router.post("/vendors/{vendor_id}/import-pdf")
-async def import_vendor_pdf(vendor_id: str, file: UploadFile = File(...), current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    import tempfile
-    temp_file_path = None
 
-    try:
-        vendor = await vendor_repo.get_by_id(vendor_id)
-        if not vendor:
-            raise HTTPException(status_code=404, detail="Vendor not found")
+class ChatRequest(BaseModel):
+    message: str
+    messages: Optional[List[dict]] = None  # prior conversation [{role, content}]
 
-        contents = await file.read()
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            temp_file.write(contents)
-            temp_file_path = temp_file.name
+@api_router.post("/chat")
+async def chat_assistant(
+    data: ChatRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Chat with AI assistant that can search products, inventory stats, low stock, departments, vendors."""
+    from services.assistant import chat
+    messages = data.messages or []
+    result = await chat(messages, (data.message or "").strip())
+    return result
 
-        if not os.environ.get("LLM_API_KEY"):
-            raise HTTPException(status_code=500, detail="LLM API key not configured")
 
-        from services.llm import generate_with_pdf
+class DocumentImportRequest(BaseModel):
+    vendor_name: str
+    create_vendor_if_missing: bool = True
+    department_id: Optional[str] = None
+    products: List[dict]
 
-        departments = await department_repo.list_all()
-        dept_list = ", ".join([f"{d['name']} ({d['code']})" for d in departments])
-        system_msg = f"""You are an invoice/receipt parser for a hardware store.
-Available departments: {dept_list}
-Allowed UOM units: each, case, box, pack, bag, roll, kit, gallon, quart, pint, liter, pound, ounce, foot, meter, yard, sqft.
-Infer base_unit, sell_uom, pack_qty from product names (e.g. "5 Gal Paint" -> base_unit gallon, pack_qty 5).
-Return ONLY valid JSON:
-{{"store_name": "...", "products": [{{"name": "...", "quantity": 1, "price": 9.99, "cost": 7.99, "original_sku": "...", "suggested_department": "PLU", "base_unit": "gallon", "sell_uom": "gallon", "pack_qty": 5}}], "total": 99.99, "date": "2024-01-15"}}
-Use EFFECTIVE price (after discounts). Match products to departments. Always include base_unit, sell_uom, pack_qty (use "each", "each", 1 when unsure)."""
 
-        response = await asyncio.to_thread(
-            generate_with_pdf,
-            "Extract all product information. Return only valid JSON.",
-            temp_file_path,
-            system_instruction=system_msg,
-        )
-        if not response:
-            raise HTTPException(status_code=500, detail="LLM failed to process PDF")
+@api_router.post("/documents/import")
+async def import_document(
+    data: DocumentImportRequest,
+    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+):
+    """Import parsed products; create or match vendor."""
+    vendor_name = (data.vendor_name or "").strip()
+    if not vendor_name:
+        raise HTTPException(status_code=400, detail="Vendor name is required")
 
-        json_match = re.search(r'\{[\s\S]*\}', response)
-        if json_match:
-            extracted_data = json.loads(json_match.group())
-        else:
-            extracted_data = json.loads(response)
+    vendor = await vendor_repo.find_by_name(vendor_name)
+    if not vendor:
+        if not data.create_vendor_if_missing:
+            raise HTTPException(status_code=400, detail=f"Vendor '{vendor_name}' not found. Enable 'Create vendor if missing' or add vendor first.")
+        vendor_id = uuid.uuid4().hex
+        now = datetime.now(timezone.utc).isoformat()
+        await vendor_repo.insert({
+            "id": vendor_id,
+            "name": vendor_name,
+            "contact_name": "",
+            "email": "",
+            "phone": "",
+            "address": "",
+            "product_count": 0,
+            "created_at": now,
+        })
+        vendor = {"id": vendor_id, "name": vendor_name}
+        vendor_created = True
+    else:
+        vendor_id = vendor["id"]
+        vendor_created = False
 
-        extracted_data["vendor_id"] = vendor_id
-        extracted_data["vendor_name"] = vendor.get("name", "")
+    departments = await department_repo.list_all()
+    default_dept = await department_repo.get_by_code("HDW") or (departments[0] if departments else None)
+    dept_by_id = {d["id"]: d for d in departments}
+    dept_by_code = {d["code"].upper(): d for d in departments}
 
-        return extracted_data
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
-        raise HTTPException(status_code=422, detail="Could not parse PDF data")
-    except Exception as e:
-        logger.error(f"PDF extraction error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
+    selected = [p for p in data.products if p.get("selected", True)]
+    needs_uom = [p for p in selected if (p.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS or (p.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS]
+    if needs_uom:
+        await classify_uom_batch(needs_uom)
+
+    imported = []
+    matched = []
+    errors = []
+    for item in selected:
+        try:
+            delivered = item.get("delivered_qty")
+            if delivered is None:
+                delivered = item.get("quantity", 1)
+            delivered = max(0, int(delivered))
+
+            # Match existing: ordered -> delivered -> add to inventory (align SKU/classifications with existing)
+            existing = None
+            if item.get("original_sku") and vendor_id:
+                existing = await product_repo.find_by_original_sku_and_vendor(
+                    str(item.get("original_sku")).strip(), vendor_id
+                )
+            if existing:
+                await process_receiving_stock_changes(
+                    product_id=existing["id"],
+                    sku=existing["sku"],
+                    product_name=existing["name"],
+                    quantity=delivered,
+                    user_id=current_user["id"],
+                    user_name=current_user.get("name", ""),
+                    reference_id=None,
+                )
+                updated = await product_repo.get_by_id(existing["id"])
+                matched.append(updated)
+                continue
+
+            # No match: create new product with parsed classifications
+            dept = None
+            if data.department_id and data.department_id in dept_by_id:
+                dept = dept_by_id[data.department_id]
+            if not dept:
+                code = (item.get("suggested_department") or "HDW").upper()
+                dept = dept_by_code.get(code) or default_dept
+            if not dept:
+                errors.append({"product": item.get("name"), "error": "No valid department"})
+                continue
+
+            sku = await generate_sku(dept["code"], item.get("name", "Unknown"))
+            bu, su, pq = _resolve_uom(item)
+            cost_val = float(item.get("cost") or 0) or float(item.get("price", 0)) * 0.7
+
+            product = Product(
+                sku=sku,
+                name=item.get("name", "Unknown"),
+                description=item.get("description", ""),
+                price=float(item.get("price", 0)),
+                cost=round(cost_val, 2),
+                quantity=delivered,
+                min_stock=5,
+                department_id=dept["id"],
+                department_name=dept["name"],
+                vendor_id=vendor_id,
+                vendor_name=vendor.get("name", ""),
+                original_sku=item.get("original_sku"),
+                base_unit=bu,
+                sell_uom=su,
+                pack_qty=pq,
+            )
+            await product_repo.insert(product.model_dump())
+            await process_import_stock_changes(
+                product_id=product.id,
+                sku=product.sku,
+                product_name=product.name,
+                quantity=product.quantity,
+                user_id=current_user["id"],
+                user_name=current_user.get("name", ""),
+            )
+            imported.append(product)
+            await department_repo.increment_product_count(dept["id"], 1)
+            await vendor_repo.increment_product_count(vendor_id, 1)
+        except Exception as e:
+            errors.append({"product": item.get("name"), "error": str(e)})
+
+    return {
+        "vendor_id": vendor_id,
+        "vendor_created": vendor_created,
+        "imported": len(imported),
+        "matched": len(matched),
+        "errors": len(errors),
+        "products": imported,
+        "matched_products": matched,
+        "error_details": errors,
+    }
+
 
 def _resolve_uom(item: dict) -> Tuple[str, str, int]:
     """Resolve base_unit, sell_uom, pack_qty from item, validating against allowed units."""
@@ -948,124 +1196,6 @@ def _resolve_uom(item: dict) -> Tuple[str, str, int]:
     bu = bu if bu in ALLOWED_BASE_UNITS else "each"
     su = su if su in ALLOWED_BASE_UNITS else "each"
     return bu, su, pq
-
-
-@api_router.post("/vendors/{vendor_id}/import-products")
-async def import_vendor_products(vendor_id: str, products: List[dict], current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    vendor = await vendor_repo.get_by_id(vendor_id)
-    if not vendor:
-        raise HTTPException(status_code=404, detail="Vendor not found")
-
-    # Classify UOM for products missing valid base_unit/sell_uom
-    needs_uom = [p for p in products if (p.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS or (p.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS]
-    if needs_uom:
-        await classify_uom_batch(needs_uom)
-
-    imported = []
-    errors = []
-
-    for item in products:
-        try:
-            dept_code = item.get("suggested_department", "HDW")
-            department = await department_repo.get_by_code(dept_code)
-            
-            if not department:
-                department = await department_repo.get_by_code("HDW")
-                if not department:
-                    errors.append({"product": item.get("name"), "error": "No valid department"})
-                    continue
-            
-            sku = await generate_sku(department["code"])
-            bu, su, pq = _resolve_uom(item)
-
-            product = Product(
-                sku=sku,
-                name=item.get("name", "Unknown"),
-                description=item.get("description", ""),
-                price=float(item.get("price", 0)),
-                cost=float(item.get("cost", 0)) or float(item.get("price", 0)) * 0.7,
-                quantity=int(item.get("quantity", 1)),
-                min_stock=5,
-                department_id=department["id"],
-                department_name=department["name"],
-                vendor_id=vendor_id,
-                vendor_name=vendor.get("name", ""),
-                original_sku=item.get("original_sku"),
-                base_unit=bu,
-                sell_uom=su,
-                pack_qty=pq,
-            )
-            
-            await product_repo.insert(product.model_dump())
-            await process_import_stock_changes(
-                product_id=product.id,
-                sku=product.sku,
-                product_name=product.name,
-                quantity=product.quantity,
-                user_id=current_user["id"],
-                user_name=current_user.get("name", ""),
-            )
-            imported.append(product)
-            await department_repo.increment_product_count(department["id"], 1)
-            await vendor_repo.increment_product_count(vendor_id, 1)
-
-        except Exception as e:
-            errors.append({"product": item.get("name"), "error": str(e)})
-
-    return {
-        "imported": len(imported),
-        "errors": len(errors),
-        "products": imported,
-        "error_details": errors,
-    }
-
-@api_router.post("/receipts/import")
-async def import_receipt_products(
-    products: List[ExtractedProduct],
-    department_id: str,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
-):
-    department = await department_repo.get_by_id(department_id)
-    if not department:
-        raise HTTPException(status_code=400, detail="Department not found")
-
-    # Convert to dicts for UOM classification; classify any missing/invalid UOM
-    items = [{"name": p.name, "base_unit": p.base_unit, "sell_uom": p.sell_uom, "pack_qty": p.pack_qty, **p.model_dump()} for p in products]
-    needs_uom = [i for i in items if (i.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS or (i.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS]
-    if needs_uom:
-        await classify_uom_batch(needs_uom)
-
-    imported = []
-    for item in items:
-        sku = await generate_sku(department["code"])
-        bu, su, pq = _resolve_uom(item)
-        product = Product(
-            sku=sku,
-            name=item["name"],
-            price=float(item["price"]),
-            cost=round(float(item["price"]) * 0.7, 2),
-            quantity=int(item.get("quantity", 1)),
-            min_stock=5,
-            department_id=department_id,
-            department_name=department["name"],
-            original_sku=item.get("original_sku"),
-            base_unit=bu,
-            sell_uom=su,
-            pack_qty=pq,
-        )
-        await product_repo.insert(product.model_dump())
-        await process_import_stock_changes(
-            product_id=product.id,
-            sku=product.sku,
-            product_name=product.name,
-            quantity=product.quantity,
-            user_id=current_user["id"],
-            user_name=current_user.get("name", ""),
-        )
-        imported.append(product)
-
-    await department_repo.increment_product_count(department_id, len(imported))
-    return {"imported": len(imported), "products": imported}
 
 
 # Keyword hints for auto-department from product name (Supply Yard style)
@@ -1288,7 +1418,7 @@ async def import_products_csv(
                 if suggested_code:
                     dept = dept_by_code.get(suggested_code) or department
 
-            sku = await generate_sku(dept["code"])
+            sku = await generate_sku(dept["code"], item["name"])
             barcode = item.get("barcode") or sku  # Use SKU as barcode when CSV has none
             bu, su, pq = _infer_uom(item["name"])
 
@@ -1438,6 +1568,7 @@ async def get_payment_status(session_id: str, request: Request, current_user: di
             await payment_repo.update_status(session_id, "paid", "complete", paid_at)
             if payment.get("withdrawal_id"):
                 await withdrawal_repo.mark_paid(payment["withdrawal_id"], paid_at)
+                await invoice_repo.mark_paid_for_withdrawal(payment["withdrawal_id"])
         elif status.status == "expired":
             await payment_repo.update_status(session_id, "expired", "expired")
         
@@ -1482,7 +1613,8 @@ async def stripe_webhook(request: Request):
                 await payment_repo.update_status(session_id, "paid", "complete", paid_at)
                 if payment.get("withdrawal_id"):
                     await withdrawal_repo.mark_paid(payment["withdrawal_id"], paid_at)
-        
+                    await invoice_repo.mark_paid_for_withdrawal(payment["withdrawal_id"])
+
         return {"received": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -1549,10 +1681,11 @@ async def seed_demo_inventory() -> None:
                 if not dept:
                     dept = all_depts[0]
 
-                sku = await generate_sku(dept["code"])
+                sku = await generate_sku(dept["code"], item["name"])
                 barcode = item.get("barcode") or sku
                 bu, su, pq = _infer_uom(item["name"])
 
+                # Company's own inventory – no vendor (vendor = who we buy FROM)
                 product = Product(
                     sku=sku,
                     name=item["name"],
@@ -1594,6 +1727,26 @@ async def seed_demo_inventory() -> None:
 async def seed_departments():
     await _seed_standard_departments()
     return {"message": "Departments ready"}
+
+
+@api_router.post("/seed/reset-inventory")
+async def reset_and_reseed_inventory(current_user: dict = Depends(require_role("admin"))):
+    """Reset products and stock, then re-run demo seed. For assessment with fresh data."""
+    conn = get_connection()
+    try:
+        await conn.execute("DELETE FROM stock_transactions")
+        await conn.execute("DELETE FROM products")
+        await conn.execute("DELETE FROM sku_counters")
+        await conn.execute("UPDATE departments SET product_count = 0")
+        await conn.execute("UPDATE vendors SET product_count = 0")
+        await conn.commit()
+        logger.info("Inventory reset complete")
+        await seed_demo_inventory()
+        count = await product_repo.count_all()
+        return {"message": f"Inventory reset and reseeded with {count} products"}
+    except Exception as e:
+        logger.error(f"Reset inventory failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== MAIN ====================
 

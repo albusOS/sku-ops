@@ -7,6 +7,7 @@ from .withdrawal_repo import withdrawal_repo
 from .payment_repo import payment_repo
 from .sku_repo import sku_repo
 from .stock_repo import stock_repo
+from .invoice_repo import invoice_repo
 
 __all__ = [
     "user_repo",
@@ -17,4 +18,5 @@ __all__ = [
     "payment_repo",
     "sku_repo",
     "stock_repo",
+    "invoice_repo",
 ]

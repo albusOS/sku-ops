@@ -64,6 +64,8 @@ chainlit.md
 # Data and databases
 agenthub/agents/youtube/db
 data/
+backend/data/*.db
+backend/data/*.db-*
 
 # Archive files and large assets
 **/*.zip
@@ -77,21 +79,8 @@ data/
 # Build caches
 .cache/
 
-# Mobile development
-android-sdk/ frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/1.pack
-frontend/node_modules/.cache/default-development/4.pack
--e 
-# Environment files
-*.env
-*.env.*
+# Environment files (never commit secrets)
+.env
+.env.*
 backend/.env
-frontend/node_modules/.cache/default-development/5.pack
-frontend/node_modules/.cache/default-development/7.pack
-frontend/node_modules/.cache/default-development/2.pack
-frontend/node_modules/.cache/default-development/3.pack
--e 
-# Environment files
-*.env
-*.env.*
+frontend/.env
