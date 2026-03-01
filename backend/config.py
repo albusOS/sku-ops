@@ -90,6 +90,9 @@ DEMO_USER_PASSWORD = _demo_password()
 # Seed on startup: always in dev/test; in staging/prod only if demo creds configured
 seed_on_startup = is_development or is_test or bool(DEMO_USER_EMAIL)
 
+# Reset endpoint: dev/test/demo only. Set ALLOW_RESET=true to enable in staging/prod.
+ALLOW_RESET = is_development or is_test or os.environ.get("ALLOW_RESET", "").lower() == "true"
+
 # LLM - optional. Prefer Ollama (free, local, open-source) when configured; else Gemini (cloud).
 # Ollama: install from ollama.com, run `ollama pull llama3.2` and `ollama pull llama3.2-vision`
 # In development: auto-enable Ollama (try localhost:11434). Set OLLAMA_BASE_URL="" to disable.

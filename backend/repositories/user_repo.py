@@ -17,7 +17,7 @@ def _row_to_dict(row) -> dict:
 async def get_by_id(user_id: str) -> Optional[dict]:
     conn = get_connection()
     cursor = await conn.execute(
-        "SELECT id, email, name, role, company, billing_entity, phone, is_active, created_at FROM users WHERE id = ?",
+        "SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at FROM users WHERE id = ?",
         (user_id,),
     )
     row = await cursor.fetchone()
@@ -35,9 +35,10 @@ async def get_by_email(email: str) -> Optional[dict]:
 
 async def insert(user_dict: dict) -> None:
     conn = get_connection()
+    org_id = user_dict.get("organization_id") or "default"
+    cols = "id, email, password, name, role, company, billing_entity, phone, is_active, organization_id, created_at"
     await conn.execute(
-        """INSERT INTO users (id, email, password, name, role, company, billing_entity, phone, is_active, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        f"""INSERT INTO users ({cols}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             user_dict["id"],
             user_dict["email"],
@@ -48,6 +49,7 @@ async def insert(user_dict: dict) -> None:
             user_dict.get("billing_entity") or "",
             user_dict.get("phone") or "",
             1 if user_dict.get("is_active", True) else 0,
+            org_id,
             user_dict.get("created_at", ""),
         ),
     )
@@ -84,19 +86,25 @@ async def update(user_id: str, updates: dict) -> Optional[dict]:
     return await get_by_id(user_id)
 
 
-async def list_contractors() -> list:
+async def list_contractors(organization_id: Optional[str] = None) -> list:
     conn = get_connection()
+    org_id = organization_id or "default"
     cursor = await conn.execute(
-        """SELECT id, email, name, role, company, billing_entity, phone, is_active, created_at
-           FROM users WHERE role = 'contractor'"""
+        """SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at
+           FROM users WHERE role = 'contractor' AND (organization_id = ? OR organization_id IS NULL)""",
+        (org_id,),
     )
     rows = await cursor.fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-async def count_contractors() -> int:
+async def count_contractors(organization_id: Optional[str] = None) -> int:
     conn = get_connection()
-    cursor = await conn.execute("SELECT COUNT(*) FROM users WHERE role = 'contractor'")
+    org_id = organization_id or "default"
+    cursor = await conn.execute(
+        "SELECT COUNT(*) FROM users WHERE role = 'contractor' AND (organization_id = ? OR organization_id IS NULL)",
+        (org_id,),
+    )
     row = await cursor.fetchone()
     return row[0] if row else 0
 

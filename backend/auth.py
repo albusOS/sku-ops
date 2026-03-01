@@ -20,11 +20,12 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_token(user_id: str, email: str, role: str) -> str:
+def create_token(user_id: str, email: str, role: str, organization_id: str = "default") -> str:
     payload = {
         "user_id": user_id,
         "email": email,
         "role": role,
+        "organization_id": organization_id or "default",
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -42,6 +43,9 @@ async def get_current_user(
             raise HTTPException(status_code=401, detail="User not found")
         if not user.get("is_active", True):
             raise HTTPException(status_code=401, detail="User account is disabled")
+        # Ensure organization_id from user record (source of truth)
+        org_id = user.get("organization_id") or payload.get("organization_id") or "default"
+        user["organization_id"] = org_id
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")

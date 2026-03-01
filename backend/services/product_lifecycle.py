@@ -34,17 +34,19 @@ async def create_product(
     pack_qty: int = 1,
     user_id: Optional[str] = None,
     user_name: str = "",
+    organization_id: Optional[str] = None,
 ) -> Product:
     """
     Create a product with SKU generation, product_count updates, and stock ledger.
     All operations run in a single transaction.
     Caller must resolve department and vendor before calling.
     """
-    department = await department_repo.get_by_id(department_id)
+    org_id = organization_id or "default"
+    department = await department_repo.get_by_id(department_id, org_id)
     if not department:
         raise ResourceNotFoundError("Department", department_id)
 
-    sku = await generate_sku(department["code"], name)
+    sku = await generate_sku(department["code"], name, org_id)
     barcode_val = (barcode or "").strip() or sku
 
     # Validate UPC/EAN if value looks numeric
@@ -55,8 +57,8 @@ async def create_product(
                 barcode_val,
                 "Invalid UPC (12 digits) or EAN-13 (13 digits) check digit",
             )
-    # Check uniqueness
-    existing = await product_repo.find_by_barcode(barcode_val)
+    # Check uniqueness (org-scoped)
+    existing = await product_repo.find_by_barcode(barcode_val, organization_id=org_id)
     if existing:
         raise DuplicateBarcodeError(barcode_val, existing.get("name", "Unknown"))
 
@@ -79,8 +81,10 @@ async def create_product(
         pack_qty=pack_qty,
     )
 
+    prod_dict = product.model_dump()
+    prod_dict["organization_id"] = org_id
     async with transaction() as conn:
-        await product_repo.insert(product.model_dump(), conn=conn)
+        await product_repo.insert(prod_dict, conn=conn)
         await department_repo.increment_product_count(department_id, 1, conn=conn)
         if vendor_id:
             await vendor_repo.increment_product_count(vendor_id, 1, conn=conn)
@@ -92,6 +96,7 @@ async def create_product(
                 quantity=quantity,
                 user_id=user_id,
                 user_name=user_name,
+                organization_id=org_id,
                 conn=conn,
             )
 
@@ -128,21 +133,23 @@ async def update_product(
                         update_data["barcode"],
                         "Invalid UPC (12 digits) or EAN-13 (13 digits) check digit",
                     )
+            org_id = product.get("organization_id") or "default"
             existing = await product_repo.find_by_barcode(
-                update_data["barcode"], exclude_product_id=product_id
+                update_data["barcode"], exclude_product_id=product_id, organization_id=org_id
             )
             if existing:
                 raise DuplicateBarcodeError(
                     update_data["barcode"], existing.get("name", "Unknown")
                 )
 
+    org_id = product.get("organization_id") or "default"
     if "department_id" in update_data:
-        department = await department_repo.get_by_id(update_data["department_id"])
+        department = await department_repo.get_by_id(update_data["department_id"], org_id)
         if department:
             update_data["department_name"] = department["name"]
     if "vendor_id" in update_data:
         if update_data["vendor_id"]:
-            vendor = await vendor_repo.get_by_id(update_data["vendor_id"])
+            vendor = await vendor_repo.get_by_id(update_data["vendor_id"], org_id)
             update_data["vendor_name"] = vendor.get("name", "") if vendor else ""
         else:
             update_data["vendor_name"] = ""

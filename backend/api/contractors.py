@@ -10,7 +10,8 @@ router = APIRouter(prefix="/contractors", tags=["contractors"])
 
 @router.get("")
 async def get_contractors(current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    return await user_repo.list_contractors()
+    org_id = current_user.get("organization_id") or "default"
+    return await user_repo.list_contractors(org_id)
 
 
 @router.post("")
@@ -29,6 +30,7 @@ async def create_contractor(data: UserCreate, current_user: dict = Depends(requi
     )
     contractor_dict = contractor.model_dump()
     contractor_dict["password"] = hash_password(data.password)
+    contractor_dict["organization_id"] = current_user.get("organization_id") or "default"
 
     await user_repo.insert(contractor_dict)
 

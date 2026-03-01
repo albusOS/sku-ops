@@ -19,6 +19,11 @@ from .withdrawal import (
     MaterialWithdrawalCreate,
     WithdrawalItem,
 )
+from .material_request import (
+    MaterialRequest,
+    MaterialRequestCreate,
+    MaterialRequestProcess,
+)
 from .stock import StockTransaction, StockTransactionType
 from .invoice import Invoice, InvoiceLineItem, InvoiceCreate, InvoiceUpdate, InvoiceWithDetails
 
@@ -39,6 +44,9 @@ __all__ = [
     "MaterialWithdrawal",
     "MaterialWithdrawalCreate",
     "WithdrawalItem",
+    "MaterialRequest",
+    "MaterialRequestCreate",
+    "MaterialRequestProcess",
     "StockTransaction",
     "StockTransactionType",
     "Invoice",

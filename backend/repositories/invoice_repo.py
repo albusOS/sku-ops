@@ -26,16 +26,20 @@ def _line_item_row_to_dict(row) -> Optional[dict]:
     return d
 
 
-async def _next_invoice_number(conn=None) -> str:
-    """Generate next invoice number: INV-00001, INV-00002, etc."""
+async def _next_invoice_number(organization_id: Optional[str] = None, conn=None) -> str:
+    """Generate next invoice number: INV-00001, INV-00002, etc. Org-scoped counter."""
     in_transaction = conn is not None
     conn = conn or get_connection()
+    org_id = organization_id or "default"
+    key = f"{org_id}|inv"
     await conn.execute(
-        """INSERT INTO invoice_counters (key, counter) VALUES ('inv', 1)
+        """INSERT INTO invoice_counters (key, counter) VALUES (?, 1)
            ON CONFLICT(key) DO UPDATE SET counter = counter + 1""",
+        (key,),
     )
     cursor = await conn.execute(
-        "SELECT counter FROM invoice_counters WHERE key = 'inv'",
+        "SELECT counter FROM invoice_counters WHERE key = ?",
+        (key,),
     )
     row = await cursor.fetchone()
     if not in_transaction:
@@ -46,13 +50,14 @@ async def _next_invoice_number(conn=None) -> str:
 
 async def insert(invoice_dict: dict) -> dict:
     conn = get_connection()
+    org_id = invoice_dict.get("organization_id") or "default"
     invoice_id = invoice_dict.get("id") or str(uuid4())
-    invoice_number = invoice_dict.get("invoice_number") or await _next_invoice_number()
+    invoice_number = invoice_dict.get("invoice_number") or await _next_invoice_number(org_id)
     now = datetime.now(timezone.utc).isoformat()
     await conn.execute(
         """INSERT INTO invoices (id, invoice_number, billing_entity, contact_name, contact_email,
-           status, subtotal, tax, total, notes, xero_invoice_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           status, subtotal, tax, total, notes, xero_invoice_id, organization_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             invoice_id,
             invoice_number,
@@ -65,6 +70,7 @@ async def insert(invoice_dict: dict) -> dict:
             float(invoice_dict.get("total", 0)),
             invoice_dict.get("notes"),
             invoice_dict.get("xero_invoice_id"),
+            org_id,
             invoice_dict.get("created_at") or now,
             invoice_dict.get("updated_at") or now,
         ),
@@ -73,12 +79,18 @@ async def insert(invoice_dict: dict) -> dict:
     return await get_by_id(invoice_id)
 
 
-async def get_by_id(invoice_id: str) -> Optional[dict]:
+async def get_by_id(invoice_id: str, organization_id: Optional[str] = None) -> Optional[dict]:
     conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT * FROM invoices WHERE id = ?",
-        (invoice_id,),
-    )
+    if organization_id:
+        cursor = await conn.execute(
+            "SELECT * FROM invoices WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)",
+            (invoice_id, organization_id),
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT * FROM invoices WHERE id = ?",
+            (invoice_id,),
+        )
     row = await cursor.fetchone()
     if not row:
         return None
@@ -109,10 +121,12 @@ async def list_invoices(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 1000,
+    organization_id: Optional[str] = None,
 ) -> list:
     conn = get_connection()
-    query = "SELECT * FROM invoices WHERE 1=1"
-    params: list = []
+    org_id = organization_id or "default"
+    query = "SELECT * FROM invoices WHERE (organization_id = ? OR organization_id IS NULL)"
+    params: list = [org_id]
     if status:
         query += " AND status = ?"
         params.append(status)
@@ -223,6 +237,13 @@ async def update(
                 params,
             )
 
+    # Cascade: when invoice marked paid, update all linked withdrawals
+    if status == "paid":
+        await conn.execute(
+            "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE invoice_id = ?",
+            (now, invoice_id),
+        )
+
     await conn.commit()
     return await get_by_id(invoice_id)
 
@@ -306,7 +327,7 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list) -> Optional[dic
             (invoice_id, wid),
         )
         await conn.execute(
-            "UPDATE withdrawals SET invoice_id = ? WHERE id = ?",
+            "UPDATE withdrawals SET invoice_id = ?, payment_status = 'invoiced' WHERE id = ?",
             (invoice_id, wid),
         )
 
@@ -340,19 +361,20 @@ async def create_from_withdrawals(withdrawal_ids: list, conn=None) -> dict:
         contact_name = w.get("contractor_name") or w.get("contractor_company") or ""
         withdrawals.append(w)
 
+    org_id = withdrawals[0].get("organization_id") or "default"
     inv_id = str(uuid4())
     total_subtotal = 0.0
     total_tax = 0.0
     in_transaction = conn is not None
     conn = conn or get_connection()
     now = datetime.now(timezone.utc).isoformat()
-    invoice_number = await _next_invoice_number(conn)
+    invoice_number = await _next_invoice_number(org_id, conn)
 
     await conn.execute(
         """INSERT INTO invoices (id, invoice_number, billing_entity, contact_name, contact_email,
-           status, subtotal, tax, total, notes, xero_invoice_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (inv_id, invoice_number, billing_entity or "", contact_name, contact_email or "", "draft", 0, 0, 0, None, None, now, now),
+           status, subtotal, tax, total, notes, xero_invoice_id, organization_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (inv_id, invoice_number, billing_entity or "", contact_name, contact_email or "", "draft", 0, 0, 0, None, None, org_id, now, now),
     )
 
     for w in withdrawals:
@@ -388,7 +410,7 @@ async def create_from_withdrawals(withdrawal_ids: list, conn=None) -> dict:
             (inv_id, wid),
         )
         await conn.execute(
-            "UPDATE withdrawals SET invoice_id = ? WHERE id = ?",
+            "UPDATE withdrawals SET invoice_id = ?, payment_status = 'invoiced' WHERE id = ?",
             (inv_id, wid),
         )
 
@@ -425,7 +447,7 @@ async def delete_draft(invoice_id: str) -> bool:
 
     for wid in inv.get("withdrawal_ids", []):
         await conn.execute(
-            "UPDATE withdrawals SET invoice_id = NULL WHERE id = ?",
+            "UPDATE withdrawals SET invoice_id = NULL, payment_status = 'unpaid' WHERE id = ?",
             (wid,),
         )
     await conn.execute("DELETE FROM invoice_withdrawals WHERE invoice_id = ?", (invoice_id,))

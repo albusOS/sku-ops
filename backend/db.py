@@ -1,5 +1,4 @@
 """Database connection and configuration - SQLite with aiosqlite."""
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -202,6 +201,32 @@ async def init_db() -> None:
             key TEXT PRIMARY KEY,
             counter INTEGER NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS organizations (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS material_requests (
+            id TEXT PRIMARY KEY,
+            contractor_id TEXT NOT NULL,
+            contractor_name TEXT NOT NULL DEFAULT '',
+            items TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            withdrawal_id TEXT,
+            job_id TEXT,
+            service_address TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            processed_at TEXT,
+            processed_by_id TEXT,
+            organization_id TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_material_requests_contractor ON material_requests(contractor_id);
+        CREATE INDEX IF NOT EXISTS idx_material_requests_status ON material_requests(status);
+        CREATE INDEX IF NOT EXISTS idx_material_requests_org ON material_requests(organization_id);
     """)
     # Migration: add UOM columns to products if missing
     try:
@@ -252,6 +277,68 @@ async def init_db() -> None:
         )
         await _conn.commit()
     except Exception:
+        pass
+
+    # Migration: multi-tenant - add organization_id to all tables
+    _org_tables = [
+        "users", "departments", "vendors", "products", "withdrawals",
+        "invoices", "payment_transactions", "stock_transactions"
+    ]
+    for t in _org_tables:
+        try:
+            await _conn.execute(f"ALTER TABLE {t} ADD COLUMN organization_id TEXT")
+            await _conn.commit()
+        except Exception:
+            pass
+    # Create default org and backfill
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        await _conn.execute(
+            "INSERT OR IGNORE INTO organizations (id, name, slug, created_at) VALUES ('default', 'Default', 'default', ?)",
+            (now,),
+        )
+        for t in _org_tables:
+            await _conn.execute(f"UPDATE {t} SET organization_id = 'default' WHERE organization_id IS NULL")
+        await _conn.commit()
+    except Exception:
+        pass
+    # Add org indexes
+    for t in _org_tables:
+        try:
+            await _conn.execute(f"CREATE INDEX IF NOT EXISTS idx_{t}_org ON {t}(organization_id)")
+            await _conn.commit()
+        except Exception:
+            pass
+
+    # Migration: departments - drop global code UNIQUE, add UNIQUE(organization_id, code)
+    try:
+        await _conn.execute("PRAGMA foreign_keys=OFF")
+        await _conn.execute("DROP TABLE IF EXISTS departments_new")
+        await _conn.execute("""
+            CREATE TABLE departments_new (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                code TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                product_count INTEGER NOT NULL DEFAULT 0,
+                organization_id TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(organization_id, code)
+            )
+        """)
+        await _conn.execute("""
+            INSERT INTO departments_new (id, name, code, description, product_count, organization_id, created_at)
+            SELECT id, name, code, description, product_count, COALESCE(organization_id, 'default'), created_at
+            FROM departments
+        """)
+        await _conn.execute("DROP TABLE departments")
+        await _conn.execute("ALTER TABLE departments_new RENAME TO departments")
+        await _conn.execute("CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id)")
+        await _conn.execute("PRAGMA foreign_keys=ON")
+        await _conn.commit()
+    except Exception:
+        await _conn.execute("PRAGMA foreign_keys=ON")
         pass
 
 

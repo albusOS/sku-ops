@@ -8,7 +8,7 @@ from db import get_connection
 _PRODUCT_COLUMNS = frozenset({
     "id", "sku", "name", "description", "price", "cost", "quantity", "min_stock",
     "department_id", "department_name", "vendor_id", "vendor_name", "original_sku",
-    "barcode", "base_unit", "sell_uom", "pack_qty", "created_at", "updated_at",
+    "barcode", "base_unit", "sell_uom", "pack_qty", "organization_id", "created_at", "updated_at",
 })
 
 
@@ -29,10 +29,12 @@ async def list_products(
     low_stock: bool = False,
     limit: Optional[int] = None,
     offset: int = 0,
+    organization_id: Optional[str] = None,
 ) -> list:
     conn = get_connection()
-    base = "SELECT * FROM products WHERE 1=1"
-    params: list = []
+    org_id = organization_id or "default"
+    base = "SELECT * FROM products WHERE (organization_id = ? OR organization_id IS NULL)"
+    params: list = [org_id]
     if department_id:
         base += " AND department_id = ?"
         params.append(department_id)
@@ -55,10 +57,12 @@ async def count_products(
     department_id: Optional[str] = None,
     search: Optional[str] = None,
     low_stock: bool = False,
+    organization_id: Optional[str] = None,
 ) -> int:
     conn = get_connection()
-    query = "SELECT COUNT(*) FROM products WHERE 1=1"
-    params: list = []
+    org_id = organization_id or "default"
+    query = "SELECT COUNT(*) FROM products WHERE (organization_id = ? OR organization_id IS NULL)"
+    params: list = [org_id]
     if department_id:
         query += " AND department_id = ?"
         params.append(department_id)
@@ -84,13 +88,19 @@ def _sanitize_columns(columns: str) -> str:
     return ", ".join(parts)
 
 
-async def get_by_id(product_id: str, columns: Optional[str] = "*", conn=None) -> Optional[dict]:
+async def get_by_id(product_id: str, columns: Optional[str] = "*", organization_id: Optional[str] = None, conn=None) -> Optional[dict]:
     conn = conn or get_connection()
     sel = _sanitize_columns(columns or "*")
-    cursor = await conn.execute(
-        f"SELECT {sel} FROM products WHERE id = ?",
-        (product_id,),
-    )
+    if organization_id:
+        cursor = await conn.execute(
+            f"SELECT {sel} FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)",
+            (product_id, organization_id),
+        )
+    else:
+        cursor = await conn.execute(
+            f"SELECT {sel} FROM products WHERE id = ?",
+            (product_id,),
+        )
     row = await cursor.fetchone()
     return _row_to_dict(row)
 
@@ -108,20 +118,21 @@ async def list_by_vendor(vendor_id: str, limit: int = 200) -> list:
     return [_row_to_dict(r) for r in rows]
 
 
-async def find_by_barcode(barcode: str, exclude_product_id: Optional[str] = None, conn=None) -> Optional[dict]:
+async def find_by_barcode(barcode: str, exclude_product_id: Optional[str] = None, organization_id: Optional[str] = None, conn=None) -> Optional[dict]:
     """Find product by barcode. Optionally exclude a product (for update uniqueness check)."""
     if not barcode or not str(barcode).strip():
         return None
     c = conn or get_connection()
+    org_id = organization_id or "default"
     if exclude_product_id:
         cursor = await c.execute(
-            "SELECT * FROM products WHERE barcode = ? AND id != ?",
-            (barcode.strip(), exclude_product_id),
+            "SELECT * FROM products WHERE barcode = ? AND id != ? AND (organization_id = ? OR organization_id IS NULL)",
+            (barcode.strip(), exclude_product_id, org_id),
         )
     else:
         cursor = await c.execute(
-            "SELECT * FROM products WHERE barcode = ?",
-            (barcode.strip(),),
+            "SELECT * FROM products WHERE barcode = ? AND (organization_id = ? OR organization_id IS NULL)",
+            (barcode.strip(), org_id),
         )
     row = await cursor.fetchone()
     return _row_to_dict(row)
@@ -145,11 +156,12 @@ async def find_by_original_sku_and_vendor(original_sku: str, vendor_id: str) -> 
 async def insert(product_dict: dict, conn=None) -> None:
     in_transaction = conn is not None
     conn = conn or get_connection()
+    org_id = product_dict.get("organization_id") or "default"
     await conn.execute(
         """INSERT INTO products (id, sku, name, description, price, cost, quantity, min_stock,
            department_id, department_name, vendor_id, vendor_name, original_sku, barcode,
-           base_unit, sell_uom, pack_qty, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           base_unit, sell_uom, pack_qty, organization_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             product_dict["id"],
             product_dict["sku"],
@@ -168,6 +180,7 @@ async def insert(product_dict: dict, conn=None) -> None:
             product_dict.get("base_unit", "each"),
             product_dict.get("sell_uom", "each"),
             product_dict.get("pack_qty", 1),
+            org_id,
             product_dict.get("created_at", ""),
             product_dict.get("updated_at", ""),
         ),
@@ -268,25 +281,34 @@ async def atomic_adjust(product_id: str, quantity_delta: int, updated_at: str) -
     return await get_by_id(product_id)
 
 
-async def count_all() -> int:
+async def count_all(organization_id: Optional[str] = None) -> int:
     conn = get_connection()
-    cursor = await conn.execute("SELECT COUNT(*) FROM products")
-    row = await cursor.fetchone()
-    return row[0] if row else 0
-
-
-async def count_low_stock() -> int:
-    conn = get_connection()
-    cursor = await conn.execute("SELECT COUNT(*) FROM products WHERE quantity <= min_stock")
-    row = await cursor.fetchone()
-    return row[0] if row else 0
-
-
-async def list_low_stock(limit: int = 10) -> list:
-    conn = get_connection()
+    org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT * FROM products WHERE quantity <= min_stock ORDER BY quantity LIMIT ?",
-        (limit,),
+        "SELECT COUNT(*) FROM products WHERE organization_id = ? OR organization_id IS NULL",
+        (org_id,),
+    )
+    row = await cursor.fetchone()
+    return row[0] if row else 0
+
+
+async def count_low_stock(organization_id: Optional[str] = None) -> int:
+    conn = get_connection()
+    org_id = organization_id or "default"
+    cursor = await conn.execute(
+        "SELECT COUNT(*) FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL)",
+        (org_id,),
+    )
+    row = await cursor.fetchone()
+    return row[0] if row else 0
+
+
+async def list_low_stock(limit: int = 10, organization_id: Optional[str] = None) -> list:
+    conn = get_connection()
+    org_id = organization_id or "default"
+    cursor = await conn.execute(
+        "SELECT * FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL) ORDER BY quantity LIMIT ?",
+        (org_id, limit),
     )
     rows = await cursor.fetchall()
     return [_row_to_dict(r) for r in rows]

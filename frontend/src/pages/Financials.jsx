@@ -30,6 +30,7 @@ import {
 import { format } from "date-fns";
 import { Card, Metric, DonutChart, BarList } from "@tremor/react";
 
+import { Link } from "react-router-dom";
 import { API } from "@/lib/api";
 import { valueFormatter, CHART_COLORS } from "@/lib/chartConfig";
 import { CreateInvoiceModal } from "../components/CreateInvoiceModal";
@@ -481,6 +482,13 @@ const Financials = () => {
                   <td>
                     {w.payment_status === "paid" ? (
                       <span className="badge-success">Paid</span>
+                    ) : w.payment_status === "invoiced" && w.invoice_id ? (
+                      <Link
+                        to="/invoices"
+                        className="bg-blue-600 text-white px-2 py-1 rounded-sm text-xs font-bold uppercase hover:bg-blue-700 hover:underline"
+                      >
+                        Invoiced
+                      </Link>
                     ) : w.payment_status === "invoiced" ? (
                       <span className="bg-blue-600 text-white px-2 py-1 rounded-sm text-xs font-bold uppercase">
                         Invoiced

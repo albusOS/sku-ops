@@ -10,30 +10,42 @@ def _row_to_dict(row) -> Optional[dict]:
     return dict(row) if hasattr(row, "keys") else {}
 
 
-async def list_all() -> list:
+async def list_all(organization_id: Optional[str] = None) -> list:
     conn = get_connection()
+    org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT id, name, code, description, product_count, created_at FROM departments"
+        """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
+           WHERE organization_id = ? OR organization_id IS NULL""",
+        (org_id,),
     )
     rows = await cursor.fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-async def get_by_id(dept_id: str) -> Optional[dict]:
+async def get_by_id(dept_id: str, organization_id: Optional[str] = None) -> Optional[dict]:
     conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT id, name, code, description, product_count, created_at FROM departments WHERE id = ?",
-        (dept_id,),
-    )
+    if organization_id:
+        cursor = await conn.execute(
+            """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
+               WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)""",
+            (dept_id, organization_id),
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT id, name, code, description, product_count, organization_id, created_at FROM departments WHERE id = ?",
+            (dept_id,),
+        )
     row = await cursor.fetchone()
     return _row_to_dict(row)
 
 
-async def get_by_code(code: str) -> Optional[dict]:
+async def get_by_code(code: str, organization_id: Optional[str] = None) -> Optional[dict]:
     conn = get_connection()
+    org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT id, name, code, description, product_count, created_at FROM departments WHERE code = ?",
-        (code.upper(),),
+        """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
+           WHERE code = ? AND (organization_id = ? OR organization_id IS NULL)""",
+        (code.upper(), org_id),
     )
     row = await cursor.fetchone()
     return _row_to_dict(row)
@@ -41,15 +53,17 @@ async def get_by_code(code: str) -> Optional[dict]:
 
 async def insert(dept_dict: dict) -> None:
     conn = get_connection()
+    org_id = dept_dict.get("organization_id") or "default"
     await conn.execute(
-        """INSERT INTO departments (id, name, code, description, product_count, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO departments (id, name, code, description, product_count, organization_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             dept_dict["id"],
             dept_dict["name"],
             dept_dict["code"].upper(),
             dept_dict.get("description", ""),
             dept_dict.get("product_count", 0),
+            org_id,
             dept_dict.get("created_at", ""),
         ),
     )

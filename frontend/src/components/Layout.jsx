@@ -14,6 +14,7 @@ import {
   DollarSign,
   History,
   FileText,
+  ClipboardList,
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
 
@@ -32,7 +33,7 @@ const Layout = ({ children }) => {
     if (role === "contractor") {
       return [
         { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-        { path: "/pos", icon: ShoppingCart, label: "Withdraw Materials" },
+        { path: "/request-materials", icon: ShoppingCart, label: "Request Materials" },
         { path: "/my-history", icon: History, label: "My History" },
       ];
     }
@@ -41,6 +42,7 @@ const Layout = ({ children }) => {
       return [
         { path: "/", icon: LayoutDashboard, label: "Dashboard" },
         { path: "/pos", icon: ShoppingCart, label: "Material Terminal" },
+        { path: "/pending-requests", icon: ClipboardList, label: "Pending Requests" },
         { path: "/inventory", icon: Package, label: "Inventory" },
         { path: "/vendors", icon: Users, label: "Vendors" },
         { path: "/departments", icon: Layers, label: "Departments" },
@@ -52,6 +54,7 @@ const Layout = ({ children }) => {
     return [
       { path: "/", icon: LayoutDashboard, label: "Dashboard" },
       { path: "/pos", icon: ShoppingCart, label: "Material Terminal" },
+      { path: "/pending-requests", icon: ClipboardList, label: "Pending Requests" },
       { path: "/inventory", icon: Package, label: "Inventory" },
       { path: "/vendors", icon: Users, label: "Vendors" },
       { path: "/departments", icon: Layers, label: "Departments" },

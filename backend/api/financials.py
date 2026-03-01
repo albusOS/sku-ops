@@ -20,8 +20,9 @@ async def get_financial_summary(
     current_user: dict = Depends(require_role("admin")),
 ):
     """Get financial summary for admin dashboard"""
+    org_id = current_user.get("organization_id") or "default"
     withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=start_date, end_date=end_date, limit=10000
+        start_date=start_date, end_date=end_date, limit=10000, organization_id=org_id
     )
 
     total_unpaid = sum(w["total"] for w in withdrawals if w.get("payment_status") == "unpaid")
@@ -76,12 +77,14 @@ async def export_financials(
     current_user: dict = Depends(require_role("admin")),
 ):
     """Export financial data as CSV"""
+    org_id = current_user.get("organization_id") or "default"
     withdrawals = await withdrawal_repo.list_withdrawals(
         payment_status=payment_status,
         billing_entity=billing_entity,
         start_date=start_date,
         end_date=end_date,
         limit=10000,
+        organization_id=org_id,
     )
 
     output = io.StringIO()

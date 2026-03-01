@@ -46,7 +46,7 @@ const Inventory = () => {
   const [products, setProducts] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [vendors, setVendors] = useState([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [filterDept, setFilterDept] = useState("");
   const [filterLowStock, setFilterLowStock] = useState(searchParams.get("low_stock") === "1");
   const [loading, setLoading] = useState(true);
@@ -87,6 +87,11 @@ const Inventory = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const q = searchParams.get("search");
+    if (q != null && q !== search) setSearch(q);
+  }, [searchParams]);
 
   useEffect(() => {
     setPage(0);

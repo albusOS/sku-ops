@@ -25,9 +25,12 @@ async def create_withdrawal_for_contractor(
     current_user: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Warehouse manager creates withdrawal on behalf of a contractor"""
+    org_id = current_user.get("organization_id") or "default"
     contractor = await user_repo.get_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
+    if contractor.get("organization_id") and contractor.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Contractor belongs to different organization")
     return await do_create_withdrawal(data, contractor, current_user)
 
 
@@ -40,6 +43,7 @@ async def get_withdrawals(
     end_date: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
+    org_id = current_user.get("organization_id") or "default"
     cid = current_user["id"] if current_user.get("role") == "contractor" else contractor_id
     return await withdrawal_repo.list_withdrawals(
         contractor_id=cid,
@@ -48,12 +52,14 @@ async def get_withdrawals(
         start_date=start_date,
         end_date=end_date,
         limit=1000,
+        organization_id=org_id,
     )
 
 
 @router.get("/{withdrawal_id}")
 async def get_withdrawal(withdrawal_id: str, current_user: dict = Depends(get_current_user)):
-    withdrawal = await withdrawal_repo.get_by_id(withdrawal_id)
+    org_id = current_user.get("organization_id") or "default"
+    withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
 

@@ -14,6 +14,8 @@ import Contractors from "./pages/Contractors";
 import Financials from "./pages/Financials";
 import Invoices from "./pages/Invoices";
 import MyHistory from "./pages/MyHistory";
+import RequestMaterials from "./pages/RequestMaterials";
+import PendingRequests from "./pages/PendingRequests";
 import Layout from "./components/Layout";
 import "./App.css";
 
@@ -54,7 +56,30 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
-                    <Route path="/pos" element={<POS />} />
+                    <Route
+                      path="/pos"
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <POS />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/request-materials"
+                      element={
+                        <ProtectedRoute allowedRoles={["contractor"]}>
+                          <RequestMaterials />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/pending-requests"
+                      element={
+                        <ProtectedRoute allowedRoles={["admin", "warehouse_manager"]}>
+                          <PendingRequests />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route 
                       path="/inventory" 
                       element={

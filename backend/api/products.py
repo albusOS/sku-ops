@@ -28,26 +28,40 @@ async def get_products(
     offset: int = 0,
     current_user: dict = Depends(get_current_user),
 ):
+    org_id = current_user.get("organization_id") or "default"
     items = await product_repo.list_products(
         department_id=department_id,
         search=search,
         low_stock=low_stock,
         limit=limit,
         offset=offset,
+        organization_id=org_id,
     )
     if limit is not None:
         total = await product_repo.count_products(
             department_id=department_id,
             search=search,
             low_stock=low_stock,
+            organization_id=org_id,
         )
         return {"items": items, "total": total}
     return items
 
 
+@router.get("/by-barcode")
+async def get_product_by_barcode(barcode: str, current_user: dict = Depends(get_current_user)):
+    """Look up product by barcode (for POS/request scan)."""
+    org_id = current_user.get("organization_id") or "default"
+    product = await product_repo.find_by_barcode(barcode.strip(), organization_id=org_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
 @router.get("/{product_id}", response_model=Product)
 async def get_product(product_id: str, current_user: dict = Depends(get_current_user)):
-    product = await product_repo.get_by_id(product_id)
+    org_id = current_user.get("organization_id") or "default"
+    product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
@@ -60,7 +74,8 @@ async def get_product_stock_history(
     current_user: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Get stock transaction history for a product (stock ledger)."""
-    product = await product_repo.get_by_id(product_id)
+    org_id = current_user.get("organization_id") or "default"
+    product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     history = await get_stock_history(product_id=product_id, limit=limit)
@@ -76,13 +91,14 @@ async def suggest_uom(data: SuggestUomRequest, current_user: dict = Depends(requ
 
 @router.post("", response_model=Product)
 async def create_product(data: ProductCreate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    department = await department_repo.get_by_id(data.department_id)
+    org_id = current_user.get("organization_id") or "default"
+    department = await department_repo.get_by_id(data.department_id, org_id)
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
 
     vendor_name = ""
     if data.vendor_id:
-        vendor = await vendor_repo.get_by_id(data.vendor_id)
+        vendor = await vendor_repo.get_by_id(data.vendor_id, org_id)
         if vendor:
             vendor_name = vendor.get("name", "")
 
@@ -105,6 +121,7 @@ async def create_product(data: ProductCreate, current_user: dict = Depends(requi
             pack_qty=getattr(data, "pack_qty", 1),
             user_id=current_user["id"],
             user_name=current_user.get("name", ""),
+            organization_id=org_id,
         )
         return product
     except DuplicateBarcodeError as e:
@@ -115,7 +132,8 @@ async def create_product(data: ProductCreate, current_user: dict = Depends(requi
 
 @router.put("/{product_id}", response_model=Product)
 async def update_product(product_id: str, data: ProductUpdate, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    product = await product_repo.get_by_id(product_id)
+    org_id = current_user.get("organization_id") or "default"
+    product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -133,7 +151,8 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: dic
 
 @router.delete("/{product_id}")
 async def delete_product(product_id: str, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    product = await product_repo.get_by_id(product_id)
+    org_id = current_user.get("organization_id") or "default"
+    product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -152,7 +171,8 @@ async def import_products_csv(
     current_user: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Bulk import products from a Supply Yard-style CSV."""
-    department = await department_repo.get_by_id(department_id)
+    org_id = current_user.get("organization_id") or "default"
+    department = await department_repo.get_by_id(department_id, org_id)
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
 
@@ -170,11 +190,11 @@ async def import_products_csv(
 
     vendor_name = ""
     if vendor_id:
-        vendor = await vendor_repo.get_by_id(vendor_id)
+        vendor = await vendor_repo.get_by_id(vendor_id, org_id)
         if vendor:
             vendor_name = vendor.get("name", "")
 
-    all_depts = await department_repo.list_all()
+    all_depts = await department_repo.list_all(org_id)
     dept_cache = {department["code"]: department, department["id"]: department}
     dept_by_code = {d["code"]: d for d in all_depts}
     for d in all_depts:
@@ -231,6 +251,7 @@ async def import_products_csv(
                 pack_qty=pq,
                 user_id=current_user["id"],
                 user_name=current_user.get("name", ""),
+                organization_id=org_id,
             )
             imported.append({"id": product.id, "sku": product.sku, "name": product.name, "quantity": product.quantity})
         except Exception as e:

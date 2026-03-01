@@ -1,6 +1,6 @@
-# Getting Started with Create React App
+# SKU-Ops Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React app for supply yard material management. Built with [Vite](https://vitejs.dev/).
 
 ## Available Scripts
 
@@ -8,7 +8,7 @@ In the project directory, you can run:
 
 ### `npm run dev`
 
-Runs the app in development mode. Open [http://localhost:3000](http://localhost:3000). API requests are proxied to the backend.
+Runs the app in development mode. Open [http://localhost:3000](http://localhost:3000). Proxies API requests to the backend.
 
 ### `npm run build`
 
@@ -32,9 +32,8 @@ You don't have to ever use `eject`. The curated feature set is suitable for smal
 
 ## Learn More
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+- [Vite documentation](https://vitejs.dev/)
+- [React documentation](https://react.dev/)
 
 ### Code Splitting
 

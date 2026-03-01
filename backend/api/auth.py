@@ -27,11 +27,13 @@ async def register(data: UserCreate):
     )
     user_dict = user.model_dump()
     user_dict["password"] = hash_password(data.password)
+    user_dict["organization_id"] = data.organization_id or "default"
 
     await user_repo.insert(user_dict)
 
-    token = create_token(user.id, user.email, user.role)
-    return {"token": token, "user": user.model_dump()}
+    org_id = user_dict.get("organization_id") or "default"
+    token = create_token(user.id, user.email, user.role, org_id)
+    return {"token": token, "user": {**user.model_dump(), "organization_id": org_id}}
 
 
 @router.post("/login")
@@ -42,8 +44,10 @@ async def login(data: UserLogin):
     if not user.get("is_active", True):
         raise HTTPException(status_code=401, detail="Account is disabled")
 
-    token = create_token(user["id"], user["email"], user["role"])
+    org_id = user.get("organization_id") or "default"
+    token = create_token(user["id"], user["email"], user["role"], org_id)
     user_response = {k: v for k, v in user.items() if k not in ["password"]}
+    user_response["organization_id"] = org_id
     return {"token": token, "user": user_response}
 
 

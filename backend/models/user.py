@@ -16,6 +16,7 @@ class UserCreate(BaseModel):
     company: Optional[str] = None
     billing_entity: Optional[str] = None
     phone: Optional[str] = None
+    organization_id: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -41,4 +42,5 @@ class User(BaseModel):
     billing_entity: Optional[str] = None
     phone: Optional[str] = None
     is_active: bool = True
+    organization_id: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

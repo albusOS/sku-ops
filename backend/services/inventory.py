@@ -27,6 +27,7 @@ async def _record_stock_transaction(
     user_name: str,
     reference_id: Optional[str] = None,
     reason: Optional[str] = None,
+    organization_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Append an immutable transaction to the stock ledger."""
@@ -45,7 +46,9 @@ async def _record_stock_transaction(
         user_id=user_id,
         user_name=user_name,
     )
-    await stock_repo.insert_transaction(tx.model_dump(), conn=conn)
+    tx_dict = tx.model_dump()
+    tx_dict["organization_id"] = organization_id or "default"
+    await stock_repo.insert_transaction(tx_dict, conn=conn)
 
 
 async def process_withdrawal_stock_changes(
@@ -53,6 +56,7 @@ async def process_withdrawal_stock_changes(
     withdrawal_id: str,
     user_id: str,
     user_name: str,
+    organization_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """
@@ -88,6 +92,7 @@ async def process_withdrawal_stock_changes(
                 user_id=user_id,
                 user_name=user_name,
                 reference_id=withdrawal_id,
+                organization_id=organization_id,
                 conn=conn,
             )
             completed.append((item.product_id, item.quantity))
@@ -135,6 +140,7 @@ async def process_import_stock_changes(
     quantity: int,
     user_id: str,
     user_name: str,
+    organization_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Record stock added via bulk import (new product creation - no delta from existing)."""
@@ -147,6 +153,7 @@ async def process_import_stock_changes(
         transaction_type=StockTransactionType.IMPORT,
         user_id=user_id,
         user_name=user_name,
+        organization_id=organization_id,
         conn=conn,
     )
 

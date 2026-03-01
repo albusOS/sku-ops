@@ -10,6 +10,7 @@ import {
   DollarSign,
   Clock,
   CheckCircle,
+  Send,
 } from "lucide-react";
 
 import { API } from "@/lib/api";
@@ -17,19 +18,24 @@ import { API } from "@/lib/api";
 const MyHistory = () => {
   const { user } = useAuth();
   const [withdrawals, setWithdrawals] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
-    fetchWithdrawals();
+    fetchData();
   }, []);
 
-  const fetchWithdrawals = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API}/withdrawals`);
-      setWithdrawals(response.data);
+      const [wdRes, reqRes] = await Promise.all([
+        axios.get(`${API}/withdrawals`),
+        axios.get(`${API}/material-requests`),
+      ]);
+      setWithdrawals(wdRes.data);
+      setRequests((reqRes.data || []).filter((r) => r.status === "pending"));
     } catch (error) {
-      console.error("Error fetching withdrawals:", error);
+      console.error("Error fetching history:", error);
       toast.error("Failed to load history");
     } finally {
       setLoading(false);
@@ -40,6 +46,9 @@ const MyHistory = () => {
   const totalSpent = withdrawals.reduce((sum, w) => sum + w.total, 0);
   const totalUnpaid = withdrawals
     .filter((w) => w.payment_status === "unpaid")
+    .reduce((sum, w) => sum + w.total, 0);
+  const totalInvoiced = withdrawals
+    .filter((w) => w.payment_status === "invoiced")
     .reduce((sum, w) => sum + w.total, 0);
 
   if (loading) {
@@ -65,7 +74,7 @@ const MyHistory = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="card-workshop p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-blue-100 rounded-sm flex items-center justify-center">
@@ -107,16 +116,67 @@ const MyHistory = () => {
             ${totalUnpaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
         </div>
+        <div className="card-workshop p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-blue-100 rounded-sm flex items-center justify-center">
+              <FileText className="w-5 h-5 text-blue-600" />
+            </div>
+            <span className="text-sm text-slate-500 uppercase tracking-wide">
+              Invoiced
+            </span>
+          </div>
+          <p className="text-3xl font-heading font-bold text-blue-600">
+            ${totalInvoiced.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+          </p>
+        </div>
       </div>
+
+      {/* Pending Requests */}
+      {requests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending Requests</h2>
+          <div className="space-y-3">
+            {requests.map((r) => {
+              const itemCount = (r.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+              const subtotal = (r.items || []).reduce((s, i) => s + (i.subtotal || 0), 0);
+              const total = (subtotal * 1.08).toFixed(2);
+              return (
+                <div
+                  key={r.id}
+                  className="card-workshop p-4 flex items-center justify-between"
+                  data-testid={`pending-request-${r.id}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-sm bg-amber-100 flex items-center justify-center">
+                      <Send className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">Request submitted — pending pickup</p>
+                      <p className="text-sm text-slate-500">
+                        {itemCount} items · ${total} · {new Date(r.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Withdrawals List */}
       <div className="space-y-4" data-testid="withdrawals-list">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Withdrawals</h2>
         {withdrawals.length === 0 ? (
           <div className="card-workshop p-12 text-center">
             <Package className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-            <p className="text-slate-500 font-medium">No withdrawals yet</p>
+            <p className="text-slate-500 font-medium">
+              {requests.length > 0 ? "No withdrawals yet" : "No withdrawals yet"}
+            </p>
             <p className="text-slate-400 text-sm">
-              Your material withdrawals will appear here
+              {requests.length > 0
+                ? "Once staff processes your request, it will appear here"
+                : "Submit a material request and staff will process it at pickup"}
             </p>
           </div>
         ) : (
@@ -136,11 +196,15 @@ const MyHistory = () => {
                     className={`w-12 h-12 rounded-sm flex items-center justify-center ${
                       w.payment_status === "paid"
                         ? "bg-green-100"
+                        : w.payment_status === "invoiced"
+                        ? "bg-blue-100"
                         : "bg-orange-100"
                     }`}
                   >
                     {w.payment_status === "paid" ? (
                       <CheckCircle className="w-6 h-6 text-green-600" />
+                    ) : w.payment_status === "invoiced" ? (
+                      <FileText className="w-6 h-6 text-blue-600" />
                     ) : (
                       <Clock className="w-6 h-6 text-orange-600" />
                     )}
@@ -152,6 +216,10 @@ const MyHistory = () => {
                       </span>
                       {w.payment_status === "paid" ? (
                         <span className="badge-success">Paid</span>
+                      ) : w.payment_status === "invoiced" ? (
+                        <span className="bg-blue-600 text-white px-2 py-0.5 rounded-sm text-xs font-bold uppercase">
+                          Invoiced
+                        </span>
                       ) : (
                         <span className="badge-warning">Unpaid</span>
                       )}

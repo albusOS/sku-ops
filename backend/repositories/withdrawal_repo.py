@@ -17,12 +17,13 @@ def _row_to_dict(row) -> Optional[dict]:
 async def insert(withdrawal_dict: dict, conn=None) -> None:
     in_transaction = conn is not None
     conn = conn or get_connection()
+    org_id = withdrawal_dict.get("organization_id") or "default"
     items_json = json.dumps([i if isinstance(i, dict) else i.model_dump() for i in withdrawal_dict["items"]])
     await conn.execute(
         """INSERT INTO withdrawals (id, items, job_id, service_address, notes, subtotal, tax, total, cost_total,
            contractor_id, contractor_name, contractor_company, billing_entity, payment_status, invoice_id, paid_at,
-           processed_by_id, processed_by_name, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           processed_by_id, processed_by_name, organization_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             withdrawal_dict["id"],
             items_json,
@@ -42,6 +43,7 @@ async def insert(withdrawal_dict: dict, conn=None) -> None:
             withdrawal_dict.get("paid_at"),
             withdrawal_dict["processed_by_id"],
             withdrawal_dict.get("processed_by_name", ""),
+            org_id,
             withdrawal_dict.get("created_at", ""),
         ),
     )
@@ -56,10 +58,13 @@ async def list_withdrawals(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 10000,
+    offset: int = 0,
+    organization_id: Optional[str] = None,
 ) -> list:
     conn = get_connection()
-    query = "SELECT * FROM withdrawals WHERE 1=1"
-    params: list = []
+    org_id = organization_id or "default"
+    query = "SELECT * FROM withdrawals WHERE (organization_id = ? OR organization_id IS NULL)"
+    params: list = [org_id]
     if contractor_id:
         query += " AND contractor_id = ?"
         params.append(contractor_id)
@@ -75,19 +80,25 @@ async def list_withdrawals(
     if end_date:
         query += " AND created_at <= ?"
         params.append(end_date)
-    query += " ORDER BY created_at DESC LIMIT ?"
-    params.append(limit)
+    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
     cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-async def get_by_id(withdrawal_id: str) -> Optional[dict]:
+async def get_by_id(withdrawal_id: str, organization_id: Optional[str] = None) -> Optional[dict]:
     conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT * FROM withdrawals WHERE id = ?",
-        (withdrawal_id,),
-    )
+    if organization_id:
+        cursor = await conn.execute(
+            "SELECT * FROM withdrawals WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)",
+            (withdrawal_id, organization_id),
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT * FROM withdrawals WHERE id = ?",
+            (withdrawal_id,),
+        )
     row = await cursor.fetchone()
     return _row_to_dict(row)
 

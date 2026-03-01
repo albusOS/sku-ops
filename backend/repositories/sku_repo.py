@@ -1,39 +1,53 @@
 """SKU counter repository."""
+from typing import Optional
+
 from db import get_connection
 
 
-async def get_next_number(department_code: str) -> int:
+def _counter_key(organization_id: Optional[str], department_code: str) -> str:
+    """Composite key for org-scoped SKU counters. Backward compat: use plain code if no org."""
+    org = organization_id or "default"
+    code = (department_code or "").strip().upper()
+    return f"{org}|{code}"
+
+
+async def get_next_number(department_code: str, organization_id: Optional[str] = None) -> int:
     """Return the next counter value without incrementing (for preview)."""
     conn = get_connection()
+    key = _counter_key(organization_id, department_code)
     cursor = await conn.execute(
         "SELECT counter FROM sku_counters WHERE department_code = ?",
-        (department_code.upper(),),
+        (key,),
     )
     row = await cursor.fetchone()
     return (row[0] + 1) if row else 1
 
 
-async def get_all_counters() -> dict:
-    """Return {department_code: counter} for all departments with counters."""
+async def get_all_counters(organization_id: Optional[str] = None) -> dict:
+    """Return {department_code: counter} for org's departments with counters."""
     conn = get_connection()
+    prefix = f"{organization_id or 'default'}|"
     cursor = await conn.execute(
-        "SELECT department_code, counter FROM sku_counters"
+        "SELECT department_code, counter FROM sku_counters WHERE department_code LIKE ?",
+        (f"{prefix}%",),
     )
     rows = await cursor.fetchall()
-    return {row[0]: row[1] for row in rows} if rows else {}
+    # Strip org prefix for backward compat
+    return {row[0].split("|", 1)[-1]: row[1] for row in rows} if rows else {}
 
 
-async def increment_and_get(department_code: str) -> int:
+async def increment_and_get(department_code: str, organization_id: Optional[str] = None) -> int:
     code = (department_code or "").strip().upper()
+    key = _counter_key(organization_id, code)
     conn = get_connection()
     await conn.execute(
         """INSERT INTO sku_counters (department_code, counter) VALUES (?, 1)
            ON CONFLICT(department_code) DO UPDATE SET counter = counter + 1""",
-        (code,),
+        (key,),
     )
     cursor = await conn.execute(
         "SELECT counter FROM sku_counters WHERE department_code = ?",
-        (code,),
+        (key,),
     )
     row = await cursor.fetchone()
     await conn.commit()

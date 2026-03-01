@@ -13,6 +13,7 @@ import { Label } from "./ui/label";
 import { FileText, Trash2, Plus, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { API } from "@/lib/api";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -342,19 +343,20 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
               )}
             </div>
 
-            {/* Linked withdrawals */}
+            {/* Linked withdrawals - link to Financials */}
             {invoice?.withdrawal_ids?.length > 0 && (
               <div>
                 <Label className="text-xs uppercase text-slate-500">Linked Withdrawals</Label>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-2 items-center">
                   {invoice.withdrawal_ids.map((wid) => (
-                    <span
+                    <Link
                       key={wid}
-                      className="px-2 py-1 bg-slate-100 rounded font-mono text-xs"
-                      title={wid}
+                      to="/financials"
+                      className="px-2 py-1 bg-slate-100 rounded font-mono text-xs hover:bg-slate-200 hover:underline"
+                      title={`View in Financials: ${wid}`}
                     >
                       {wid.slice(0, 8)}…
-                    </span>
+                    </Link>
                   ))}
                 </div>
               </div>

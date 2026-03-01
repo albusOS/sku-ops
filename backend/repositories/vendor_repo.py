@@ -10,33 +10,46 @@ def _row_to_dict(row) -> Optional[dict]:
     return dict(row) if hasattr(row, "keys") else {}
 
 
-async def list_all() -> list:
+async def list_all(organization_id: Optional[str] = None) -> list:
     conn = get_connection()
+    org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT id, name, contact_name, email, phone, address, product_count, created_at FROM vendors"
+        """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
+           WHERE organization_id = ? OR organization_id IS NULL""",
+        (org_id,),
     )
     rows = await cursor.fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-async def get_by_id(vendor_id: str) -> Optional[dict]:
+async def get_by_id(vendor_id: str, organization_id: Optional[str] = None) -> Optional[dict]:
     conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT id, name, contact_name, email, phone, address, product_count, created_at FROM vendors WHERE id = ?",
-        (vendor_id,),
-    )
+    if organization_id:
+        cursor = await conn.execute(
+            """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
+               WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)""",
+            (vendor_id, organization_id),
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors WHERE id = ?",
+            (vendor_id,),
+        )
     row = await cursor.fetchone()
     return _row_to_dict(row)
 
 
-async def find_by_name(name: str) -> Optional[dict]:
+async def find_by_name(name: str, organization_id: Optional[str] = None) -> Optional[dict]:
     """Case-insensitive lookup by vendor name."""
     if not name or not name.strip():
         return None
     normalized = name.strip().lower()
     conn = get_connection()
+    org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT id, name, contact_name, email, phone, address, product_count, created_at FROM vendors"
+        """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
+           WHERE organization_id = ? OR organization_id IS NULL""",
+        (org_id,),
     )
     rows = await cursor.fetchall()
     for row in rows:
@@ -48,9 +61,10 @@ async def find_by_name(name: str) -> Optional[dict]:
 
 async def insert(vendor_dict: dict) -> None:
     conn = get_connection()
+    org_id = vendor_dict.get("organization_id") or "default"
     await conn.execute(
-        """INSERT INTO vendors (id, name, contact_name, email, phone, address, product_count, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO vendors (id, name, contact_name, email, phone, address, product_count, organization_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             vendor_dict["id"],
             vendor_dict["name"],
@@ -59,6 +73,7 @@ async def insert(vendor_dict: dict) -> None:
             vendor_dict.get("phone", ""),
             vendor_dict.get("address", ""),
             vendor_dict.get("product_count", 0),
+            org_id,
             vendor_dict.get("created_at", ""),
         ),
     )
@@ -97,9 +112,15 @@ async def delete(vendor_id: str) -> int:
     return cursor.rowcount
 
 
-async def count() -> int:
+async def count(organization_id: Optional[str] = None) -> int:
     conn = get_connection()
-    cursor = await conn.execute("SELECT COUNT(*) FROM vendors")
+    if organization_id:
+        cursor = await conn.execute(
+            "SELECT COUNT(*) FROM vendors WHERE organization_id = ? OR organization_id IS NULL",
+            (organization_id,),
+        )
+    else:
+        cursor = await conn.execute("SELECT COUNT(*) FROM vendors")
     row = await cursor.fetchone()
     return row[0] if row else 0
 

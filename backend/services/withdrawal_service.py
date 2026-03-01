@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 
-from db import transaction
+from db import get_connection, transaction
 from models import MaterialWithdrawal, MaterialWithdrawalCreate
 from repositories import invoice_repo, withdrawal_repo
 from domain.exceptions import InsufficientStockError
@@ -16,10 +16,12 @@ async def create_withdrawal(
     data: MaterialWithdrawalCreate,
     contractor: dict,
     current_user: dict,
+    conn=None,
 ) -> dict:
     """
     Create a material withdrawal with atomic stock decrement and optional invoice.
     Returns withdrawal dict with optional invoice_id.
+    If conn is provided, runs inside that transaction (no commit).
     """
     subtotal = sum(item.subtotal for item in data.items)
     cost_total = sum(item.cost * item.quantity for item in data.items)
@@ -44,25 +46,33 @@ async def create_withdrawal(
         processed_by_name=current_user.get("name", ""),
     )
 
-    async with transaction() as conn:
+    async def _do_create(tx_conn):
         try:
             await process_withdrawal_stock_changes(
                 items=data.items,
                 withdrawal_id=withdrawal.id,
                 user_id=current_user["id"],
                 user_name=current_user.get("name", ""),
-                conn=conn,
+                organization_id=current_user.get("organization_id") or "default",
+                conn=tx_conn,
             )
         except InsufficientStockError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        await withdrawal_repo.insert(withdrawal.model_dump(), conn=conn)
+        w_dict = withdrawal.model_dump()
+        w_dict["organization_id"] = current_user.get("organization_id") or "default"
+        await withdrawal_repo.insert(w_dict, conn=tx_conn)
 
         try:
-            inv = await invoice_repo.create_from_withdrawals([withdrawal.id], conn=conn)
+            inv = await invoice_repo.create_from_withdrawals([withdrawal.id], conn=tx_conn)
             result = withdrawal.model_dump()
             result["invoice_id"] = inv.get("id")
             return result
         except ValueError:
             pass
-    return withdrawal.model_dump()
+        return withdrawal.model_dump()
+
+    if conn is not None:
+        return await _do_create(conn)
+    async with transaction() as tx_conn:
+        return await _do_create(tx_conn)

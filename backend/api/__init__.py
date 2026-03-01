@@ -19,6 +19,7 @@ from .sku import router as sku_router
 from .vendors import router as vendors_router
 from .webhooks import router as webhooks_router
 from .withdrawals import router as withdrawals_router
+from .material_requests import router as material_requests_router
 from .seed import router as seed_router
 
 api_router = APIRouter(prefix="/api")
@@ -33,6 +34,7 @@ api_router.include_router(departments_router)
 api_router.include_router(vendors_router)
 api_router.include_router(products_router)
 api_router.include_router(withdrawals_router)
+api_router.include_router(material_requests_router)
 api_router.include_router(financials_router)
 api_router.include_router(invoices_router)
 api_router.include_router(reports_router)

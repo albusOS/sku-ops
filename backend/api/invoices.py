@@ -19,19 +19,22 @@ async def get_invoices(
     current_user: dict = Depends(require_role("admin")),
 ):
     """List invoices with optional filters."""
+    org_id = current_user.get("organization_id") or "default"
     return await invoice_repo.list_invoices(
         status=status,
         billing_entity=billing_entity,
         start_date=start_date,
         end_date=end_date,
         limit=1000,
+        organization_id=org_id,
     )
 
 
 @router.get("/{invoice_id}")
 async def get_invoice(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
     """Get invoice with line items and linked withdrawals."""
-    inv = await invoice_repo.get_by_id(invoice_id)
+    org_id = current_user.get("organization_id") or "default"
+    inv = await invoice_repo.get_by_id(invoice_id, org_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return inv
@@ -57,7 +60,8 @@ async def update_invoice(
     current_user: dict = Depends(require_role("admin")),
 ):
     """Update invoice fields and/or line items."""
-    inv = await invoice_repo.get_by_id(invoice_id)
+    org_id = current_user.get("organization_id") or "default"
+    inv = await invoice_repo.get_by_id(invoice_id, org_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
@@ -90,7 +94,8 @@ async def delete_invoice(invoice_id: str, current_user: dict = Depends(require_r
 @router.post("/{invoice_id}/sync-xero")
 async def sync_invoice_to_xero(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
     """Stub for future Xero integration."""
-    inv = await invoice_repo.get_by_id(invoice_id)
+    org_id = current_user.get("organization_id") or "default"
+    inv = await invoice_repo.get_by_id(invoice_id, org_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return {

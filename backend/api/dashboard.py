@@ -1,9 +1,8 @@
 """Dashboard stats routes."""
 from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, Depends, HTTPException
 
-from fastapi import APIRouter, Depends
-
-from auth import get_current_user
+from auth import get_current_user, require_role
 from repositories import product_repo, user_repo, vendor_repo, withdrawal_repo
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -14,9 +13,10 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_str = today.isoformat()
 
+    org_id = current_user.get("organization_id") or "default"
     if current_user.get("role") == "contractor":
         my_withdrawals = await withdrawal_repo.list_withdrawals(
-            contractor_id=current_user["id"], limit=1000
+            contractor_id=current_user["id"], limit=1000, organization_id=org_id
         )
 
         total_spent = sum(w.get("total", 0) for w in my_withdrawals)
@@ -30,7 +30,7 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         }
 
     today_withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=today_str, limit=1000
+        start_date=today_str, limit=1000, organization_id=org_id
     )
     today_revenue = sum(w.get("total", 0) for w in today_withdrawals)
     today_transactions = len(today_withdrawals)
@@ -38,22 +38,22 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     week_start = (datetime.now(timezone.utc) - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
     week_start_str = week_start.isoformat()
     week_withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=week_start_str, limit=10000
+        start_date=week_start_str, limit=10000, organization_id=org_id
     )
     week_revenue = sum(w.get("total", 0) for w in week_withdrawals)
 
-    total_products = await product_repo.count_all()
-    low_stock_products = await product_repo.count_low_stock()
-    total_vendors = await vendor_repo.count()
-    total_contractors = await user_repo.count_contractors()
+    total_products = await product_repo.count_all(org_id)
+    low_stock_products = await product_repo.count_low_stock(org_id)
+    total_vendors = await vendor_repo.count(org_id)
+    total_contractors = await user_repo.count_contractors(org_id)
 
     unpaid_withdrawals = await withdrawal_repo.list_withdrawals(
-        payment_status="unpaid", limit=10000
+        payment_status="unpaid", limit=10000, organization_id=org_id
     )
     unpaid_total = sum(w.get("total", 0) for w in unpaid_withdrawals)
 
-    recent_withdrawals = await withdrawal_repo.list_withdrawals(limit=5)
-    low_stock_items = await product_repo.list_low_stock(10)
+    recent_withdrawals = await withdrawal_repo.list_withdrawals(limit=5, organization_id=org_id)
+    low_stock_items = await product_repo.list_low_stock(10, org_id)
 
     revenue_by_day = {}
     for i in range(7):
@@ -79,3 +79,45 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         "recent_withdrawals": recent_withdrawals,
         "low_stock_alerts": low_stock_items,
     }
+
+
+@router.get("/transactions")
+async def get_dashboard_transactions(
+    limit: int = 20,
+    offset: int = 0,
+    time_range: str = "24h",
+    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+):
+    """Paginated transactions for the dashboard terminal. time_range: today | 24h | 7d | all."""
+    org_id = current_user.get("organization_id") or "default"
+    now = datetime.now(timezone.utc)
+
+    if time_range == "today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = start.isoformat()
+        end_date = None
+    elif time_range == "24h":
+        start = now - timedelta(hours=24)
+        start_date = start.isoformat()
+        end_date = None
+    elif time_range == "7d":
+        start = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = start.isoformat()
+        end_date = None
+    elif time_range == "all":
+        start_date = None
+        end_date = None
+    else:
+        raise HTTPException(status_code=400, detail="time_range must be today, 24h, 7d, or all")
+
+    fetch_limit = limit + 1
+    rows = await withdrawal_repo.list_withdrawals(
+        start_date=start_date,
+        end_date=end_date,
+        limit=fetch_limit,
+        offset=offset,
+        organization_id=org_id,
+    )
+    has_more = len(rows) > limit
+    withdrawals = rows[:limit]
+    return {"withdrawals": withdrawals, "has_more": has_more}
