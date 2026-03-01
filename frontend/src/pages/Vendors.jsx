@@ -24,6 +24,7 @@ import {
 import { EmptyState } from "../components/EmptyState";
 
 import { API } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const Vendors = () => {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ const Vendors = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, vendor: null });
 
   const [form, setForm] = useState({
     name: "",
@@ -120,15 +122,20 @@ const Vendors = () => {
     }
   };
 
-  const handleDelete = async (vendor) => {
-    if (!window.confirm(`Delete vendor "${vendor.name}"?`)) return;
+  const handleDeleteClick = (vendor) => {
+    setDeleteConfirm({ open: true, vendor });
+  };
 
+  const handleDeleteConfirm = async () => {
+    const { vendor } = deleteConfirm;
+    if (!vendor) return;
     try {
       await axios.delete(`${API}/vendors/${vendor.id}`);
       toast.success("Vendor deleted");
       fetchVendors();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Failed to delete vendor");
+      throw error;
     }
   };
 
@@ -209,7 +216,7 @@ const Vendors = () => {
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(vendor)}
+                    onClick={() => handleDeleteClick(vendor)}
                     className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors"
                     data-testid={`delete-vendor-${vendor.id}`}
                   >
@@ -355,6 +362,17 @@ const Vendors = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
+        title="Delete vendor"
+        description={deleteConfirm.vendor ? `Delete "${deleteConfirm.vendor.name}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="danger"
+      />
     </div>
   );
 };

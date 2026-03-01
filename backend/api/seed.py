@@ -4,6 +4,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 
 from auth import hash_password, require_role
+from config import DEMO_USER_EMAIL as MOCK_USER_EMAIL, DEMO_USER_PASSWORD as MOCK_USER_PASSWORD
 from db import get_connection
 from models import Department, User
 from repositories import department_repo, product_repo, user_repo
@@ -15,9 +16,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/seed", tags=["seed"])
-
-MOCK_USER_EMAIL = "admin@demo.local"
-MOCK_USER_PASSWORD = "demo123"
 DEMO_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "SY Inventory - Sheet1 (1).csv")
 DEMO_PRODUCT_LIMIT = 2000
 
@@ -41,6 +39,8 @@ async def seed_standard_departments() -> None:
 
 async def seed_demo_inventory() -> None:
     """Seed ~150 products from CSV on first run for full demo experience."""
+    if not MOCK_USER_EMAIL:
+        return
     try:
         count = await product_repo.count_all()
         if count > 0:
@@ -109,6 +109,8 @@ async def seed_demo_inventory() -> None:
 
 async def seed_mock_user():
     """Create a demo admin user if none exists."""
+    if not MOCK_USER_EMAIL:
+        return
     try:
         existing = await user_repo.get_by_email(MOCK_USER_EMAIL)
         if not existing:
@@ -126,7 +128,7 @@ async def seed_mock_user():
 
 
 @router.post("/departments")
-async def seed_departments():
+async def seed_departments(current_user: dict = Depends(require_role("admin"))):
     await seed_standard_departments()
     return {"message": "Departments ready"}
 

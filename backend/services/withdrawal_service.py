@@ -8,7 +8,8 @@ from fastapi import HTTPException
 from db import transaction
 from models import MaterialWithdrawal, MaterialWithdrawalCreate
 from repositories import invoice_repo, withdrawal_repo
-from services.inventory import process_withdrawal_stock_changes, InsufficientStockError
+from domain.exceptions import InsufficientStockError
+from services.inventory import process_withdrawal_stock_changes
 
 
 async def create_withdrawal(

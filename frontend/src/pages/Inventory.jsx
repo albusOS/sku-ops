@@ -32,6 +32,7 @@ import {
 import { StockHistoryModal } from "../components/StockHistoryModal";
 import { BarcodeLabelsModal } from "../components/BarcodeLabelsModal";
 import { ProductDetailModal } from "../components/ProductDetailModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 import { API } from "@/lib/api";
 
@@ -62,6 +63,7 @@ const Inventory = () => {
   const [labelsModalOpen, setLabelsModalOpen] = useState(false);
   const [labelsProducts, setLabelsProducts] = useState([]);
   const [detailProduct, setDetailProduct] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, product: null });
   const [skuPreview, setSkuPreview] = useState(null);
   const [page, setPage] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
@@ -255,15 +257,21 @@ const Inventory = () => {
     }
   };
 
-  const handleDelete = async (product) => {
-    if (!window.confirm(`Delete "${product.name}"?`)) return;
+  const handleDeleteClick = (product) => {
+    setDetailProduct(null);
+    setDeleteConfirm({ open: true, product });
+  };
 
+  const handleDeleteConfirm = async () => {
+    const { product } = deleteConfirm;
+    if (!product) return;
     try {
       await axios.delete(`${API}/products/${product.id}`);
       toast.success("Product deleted");
       fetchProducts();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Failed to delete product");
+      throw error;
     }
   };
 
@@ -357,7 +365,7 @@ const Inventory = () => {
           setAdjustDelta("");
           setAdjustReason("correction");
         }}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
         onPrintLabels={(prods) => {
           setLabelsProducts(prods);
           setLabelsModalOpen(true);
@@ -836,6 +844,17 @@ const Inventory = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
+        title="Delete product"
+        description={deleteConfirm.product ? `Delete "${deleteConfirm.product.name}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="danger"
+      />
     </div>
   );
 };

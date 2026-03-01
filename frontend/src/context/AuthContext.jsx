@@ -1,13 +1,43 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
+const isAuthEndpoint = (url) => {
+  if (!url) return false;
+  return url.includes("/auth/login") || url.includes("/auth/register");
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
+  const logoutRef = useRef(null);
+
+  useEffect(() => {
+    logoutRef.current = () => {
+      localStorage.removeItem("token");
+      delete axios.defaults.headers.common["Authorization"];
+      setToken(null);
+      setUser(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (res) => res,
+      (error) => {
+        if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
+          logoutRef.current?.();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
+
+  const logout = () => logoutRef.current?.();
 
   useEffect(() => {
     if (token) {
@@ -48,13 +78,6 @@ export const AuthProvider = ({ children }) => {
     setToken(newToken);
     setUser(userData);
     return userData;
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    delete axios.defaults.headers.common["Authorization"];
-    setToken(null);
-    setUser(null);
   };
 
   return (

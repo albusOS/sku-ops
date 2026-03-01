@@ -2,17 +2,11 @@
 Supply Yard API - Material Management System.
 Main entry point: composes FastAPI app with routers from api package.
 """
-import os
-from pathlib import Path
+from contextlib import asynccontextmanager
 
-# Load .env from backend/ before any other imports
-_path = Path(__file__).resolve().parent
-if (_path / ".env").exists():
-    from dotenv import load_dotenv
-
-    load_dotenv(_path / ".env")
-
+from config import CORS_ORIGINS, cors_warn_in_deployed
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 import logging
@@ -28,43 +22,40 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize DB and seed data on startup; close DB on shutdown."""
+    if cors_warn_in_deployed:
+        logger.warning("CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for staging/production.")
+    await init_db()
+    logger.info("Database initialized")
+    for seed_fn in (seed_mock_user, seed_standard_departments, seed_demo_inventory):
+        try:
+            await seed_fn()
+        except Exception as e:
+            logger.warning(f"Seed {seed_fn.__name__}: {e}")
+    yield
+    await close_db()
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(api_router)
 
 
 @app.exception_handler(ResourceNotFoundError)
 async def resource_not_found_handler(request, exc: ResourceNotFoundError):
-    from fastapi.responses import JSONResponse
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
 @app.exception_handler(InsufficientStockError)
 async def insufficient_stock_handler(request, exc: InsufficientStockError):
-    from fastapi.responses import JSONResponse
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=CORS_ORIGINS.split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def startup():
-    """Initialize SQLite database and seed data on startup."""
-    try:
-        await init_db()
-        logger.info("Database initialized")
-        await seed_mock_user()
-        await seed_standard_departments()
-        await seed_demo_inventory()
-    except Exception as e:
-        logger.warning(f"Database init: {e}")
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    await close_db()

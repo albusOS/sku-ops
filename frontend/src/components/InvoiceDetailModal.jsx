@@ -14,6 +14,7 @@ import { FileText, Trash2, Plus, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { API } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 function StatusBadge({ status }) {
   const styles = {
@@ -35,6 +36,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const [form, setForm] = useState({
     billing_entity: "",
@@ -129,8 +131,11 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Delete this draft invoice? Withdrawals will be unlinked.")) return;
+  const handleDeleteClick = () => {
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
     try {
       await axios.delete(`${API}/invoices/${invoiceId}`);
       toast.success("Invoice deleted");
@@ -138,6 +143,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
       onOpenChange(false);
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to delete");
+      throw err;
     }
   };
 
@@ -156,6 +162,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
   if (!invoice && !loading) return null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -378,7 +385,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
               <Button
                 variant="outline"
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
@@ -399,5 +406,16 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
         </div>
       </DialogContent>
     </Dialog>
+    <ConfirmDialog
+      open={deleteConfirmOpen}
+      onOpenChange={setDeleteConfirmOpen}
+      title="Delete draft invoice"
+      description="Delete this draft invoice? Withdrawals will be unlinked."
+      confirmLabel="Delete"
+      cancelLabel="Cancel"
+      onConfirm={handleDeleteConfirm}
+      variant="danger"
+    />
+    </>
   );
 }

@@ -3,11 +3,20 @@ import os
 
 import pytest
 import pytest_asyncio
+from starlette.testclient import TestClient
 
-# Use in-memory SQLite for tests (set before any db imports)
+# Test environment: set before any app/config imports
+os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["PAYMENT_ADAPTER"] = "stub"
 os.environ["JWT_SECRET"] = "test-secret-key-for-pytest"
+
+
+@pytest.fixture
+def client():
+    """HTTP client for in-process API tests (no network)."""
+    from server import app
+    return TestClient(app)
 
 
 @pytest_asyncio.fixture
@@ -23,6 +32,10 @@ async def db():
     await conn.execute(
         """INSERT OR REPLACE INTO users (id, email, password, name, role, is_active, created_at)
            VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', 1, datetime('now'))"""
+    )
+    await conn.execute(
+        """INSERT OR REPLACE INTO users (id, email, password, name, role, company, billing_entity, is_active, created_at)
+           VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User', 'contractor', 'ACME', 'ACME Inc', 1, datetime('now'))"""
     )
     await conn.commit()
     yield

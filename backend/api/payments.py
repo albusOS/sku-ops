@@ -1,4 +1,5 @@
 """Payment routes - uses PaymentGateway port (Stripe or stub adapter)."""
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -10,8 +11,6 @@ from auth import get_current_user
 from repositories import invoice_repo, payment_repo, withdrawal_repo
 
 from .schemas import CreatePaymentRequest
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,8 @@ async def create_payment_checkout(data: CreatePaymentRequest, request: Request, 
     success_url = f"{origin}/pos?payment=success&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/pos?payment=cancelled"
 
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url}api/webhook/stripe"
+    base = str(request.base_url).rstrip("/")
+    webhook_url = f"{base}/api/webhook/stripe"
     gateway = get_payment_gateway(webhook_url=webhook_url)
 
     amount = float(withdrawal.get("total", 0))
@@ -81,8 +80,8 @@ async def create_payment_checkout(data: CreatePaymentRequest, request: Request, 
 @router.get("/status/{session_id}")
 async def get_payment_status(session_id: str, request: Request, current_user: dict = Depends(get_current_user)):
     """Check the status of a payment session and update records."""
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url}api/webhook/stripe"
+    base = str(request.base_url).rstrip("/")
+    webhook_url = f"{base}/api/webhook/stripe"
     gateway = get_payment_gateway(webhook_url=webhook_url)
 
     try:

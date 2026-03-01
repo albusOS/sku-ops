@@ -1,5 +1,6 @@
 """Webhook routes - uses PaymentGateway port (Stripe or stub)."""
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
 
@@ -17,8 +18,8 @@ async def stripe_webhook(request: Request):
     try:
         body = await request.body()
         signature = request.headers.get("Stripe-Signature")
-        host_url = str(request.base_url)
-        webhook_url = f"{host_url}api/webhook/stripe"
+        base = str(request.base_url).rstrip("/")
+        webhook_url = f"{base}/api/webhook/stripe"
         gateway = get_payment_gateway(webhook_url=webhook_url)
 
         webhook_response = await gateway.handle_webhook(body, signature)
@@ -28,8 +29,6 @@ async def stripe_webhook(request: Request):
             payment = await payment_repo.get_by_session_id(session_id)
 
             if payment and payment.get("payment_status") != "paid":
-                from datetime import datetime, timezone
-
                 paid_at = datetime.now(timezone.utc).isoformat()
                 await payment_repo.update_status(session_id, "paid", "complete", paid_at)
                 if payment.get("withdrawal_id"):
@@ -39,5 +38,5 @@ async def stripe_webhook(request: Request):
         return {"received": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
-        return {"received": True, "error": str(e)}
+        raise
 

@@ -1,25 +1,22 @@
-"""Factory for payment gateway. Uses PAYMENT_ADAPTER env (stub|stripe) or falls back to stripe when configured."""
-import os
-
+"""Factory for payment gateway. Uses config (env-aware) for adapter selection."""
 from adapters.stub_payment import StubPaymentAdapter
+
+from config import STRIPE_API_KEY, payment_adapter
 
 
 def get_payment_gateway(webhook_url: str = ""):
     """
     Return the active payment gateway.
-    - PAYMENT_ADAPTER=stub -> StubPaymentAdapter (dev/tests)
-    - PAYMENT_ADAPTER=stripe or unset + STRIPE_API_KEY set -> StripePaymentAdapter
-    - Otherwise -> StubPaymentAdapter (safe fallback)
+    - test/ENV=test: always stub
+    - dev: stub unless STRIPE_API_KEY set
+    - staging/production: stripe when configured, else stub
     """
-    adapter = os.environ.get("PAYMENT_ADAPTER", "").lower().strip()
-    stripe_key = os.environ.get("STRIPE_API_KEY", "").strip()
-
-    if adapter == "stub":
+    if payment_adapter == "stub":
         return StubPaymentAdapter()
-    if stripe_key and (adapter == "stripe" or not adapter):
+    if STRIPE_API_KEY:
         try:
             from adapters.stripe_payment import StripePaymentAdapter
-            return StripePaymentAdapter(api_key=stripe_key, webhook_url=webhook_url)
+            return StripePaymentAdapter(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
         except ImportError:
             pass
     return StubPaymentAdapter()

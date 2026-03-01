@@ -27,6 +27,7 @@ async def test_insufficient_stock_raises(db):
             quantity=5,
             price=10.0,
             cost=5.0,
+            subtotal=50.0,
         )
     ]
 

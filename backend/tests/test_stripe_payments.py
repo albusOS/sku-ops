@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Stripe Payment Integration Tests for Hardware POS System
-Tests the payment flow: withdrawal creation, Stripe checkout, and payment status
+Stripe Payment Integration Tests.
+
+- TestAuthorizationChecks: Runs in-process via TestClient (no network). Always runs.
+- Other classes: E2E tests against live server. Skip unless RUN_E2E=1.
 """
 
 import pytest
@@ -9,14 +11,13 @@ import requests
 import os
 import uuid
 
-# Get the backend URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
-if not BASE_URL:
-    BASE_URL = "https://hardware-pos-stripe.preview.emergentagent.com"
+# E2E tests require explicit opt-in to avoid hitting remote when it's down
+RUN_E2E = os.environ.get("RUN_E2E", "").lower() in ("1", "true", "yes")
 
-API_URL = f"{BASE_URL}/api"
+# Backend URL: config provides env-aware default; override with E2E_BACKEND_URL or REACT_APP_BACKEND_URL
+from config import E2E_BACKEND_URL
+API_URL = f"{E2E_BACKEND_URL.rstrip('/')}/api"
 
-# Test credentials
 CONTRACTOR_CREDS = {"email": "contractor@test.com", "password": "password123"}
 ADMIN_CREDS = {"email": "admin@test.com", "password": "password123"}
 
@@ -62,6 +63,7 @@ def test_product(contractor_token):
     pytest.skip("No products available for testing")
 
 
+@pytest.mark.skipif(not RUN_E2E, reason="E2E: set RUN_E2E=1 to run against live server")
 class TestWithdrawalCreation:
     """Test withdrawal creation for both 'Charge to Account' and 'Pay Now' flows"""
 
@@ -115,6 +117,7 @@ class TestWithdrawalCreation:
         print(f"✓ Found {len(data)} withdrawals for contractor")
 
 
+@pytest.mark.skipif(not RUN_E2E, reason="E2E: set RUN_E2E=1 to run against live server")
 class TestStripePaymentEndpoints:
     """Test Stripe payment integration endpoints"""
 
@@ -269,6 +272,7 @@ class TestStripePaymentEndpoints:
         print("✓ Payment endpoint correctly rejects already paid withdrawal")
 
 
+@pytest.mark.skipif(not RUN_E2E, reason="E2E: set RUN_E2E=1 to run against live server")
 class TestPaymentMethodToggle:
     """Test that payment method selection affects checkout flow correctly"""
 
@@ -305,6 +309,7 @@ class TestPaymentMethodToggle:
         print("✓ Charge to Account flow works correctly - withdrawal logged as unpaid")
 
 
+@pytest.mark.skipif(not RUN_E2E, reason="E2E: set RUN_E2E=1 to run against live server")
 class TestAdminPaymentFeatures:
     """Test admin-specific payment features"""
 
@@ -361,25 +366,20 @@ class TestAdminPaymentFeatures:
 
 
 class TestAuthorizationChecks:
-    """Test that payment endpoints have proper authorization"""
+    """Test that payment endpoints require authentication. Uses in-process TestClient."""
 
-    def test_payment_requires_auth(self):
-        """Test that payment endpoints require authentication"""
-        # No auth header
-        response = requests.post(f"{API_URL}/payments/create-checkout", json={
+    def test_payment_requires_auth(self, client):
+        """Payment create-checkout requires authentication."""
+        response = client.post("/api/payments/create-checkout", json={
             "withdrawal_id": "test",
-            "origin_url": "https://test.com"
+            "origin_url": "https://test.com",
         })
-        
         assert response.status_code in [401, 403], f"Expected 401/403 without auth, got {response.status_code}"
-        print("✓ Payment endpoint requires authentication")
 
-    def test_status_requires_auth(self):
-        """Test that status endpoint requires authentication"""
-        response = requests.get(f"{API_URL}/payments/status/test-session")
-        
+    def test_status_requires_auth(self, client):
+        """Payment status endpoint requires authentication."""
+        response = client.get("/api/payments/status/test-session")
         assert response.status_code in [401, 403], f"Expected 401/403 without auth, got {response.status_code}"
-        print("✓ Status endpoint requires authentication")
 
 
 if __name__ == "__main__":

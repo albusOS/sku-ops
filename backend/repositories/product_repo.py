@@ -4,6 +4,13 @@ from typing import Optional
 
 from db import get_connection
 
+# Whitelist for get_by_id(columns=) to prevent SQL injection
+_PRODUCT_COLUMNS = frozenset({
+    "id", "sku", "name", "description", "price", "cost", "quantity", "min_stock",
+    "department_id", "department_name", "vendor_id", "vendor_name", "original_sku",
+    "barcode", "base_unit", "sell_uom", "pack_qty", "created_at", "updated_at",
+})
+
 
 def _row_to_dict(row) -> Optional[dict]:
     if row is None:
@@ -66,10 +73,22 @@ async def count_products(
     return row[0] if row else 0
 
 
+def _sanitize_columns(columns: str) -> str:
+    """Return validated column list for SELECT. Raises ValueError if invalid."""
+    if columns == "*":
+        return "*"
+    parts = [p.strip() for p in columns.split(",") if p.strip()]
+    invalid = [p for p in parts if p not in _PRODUCT_COLUMNS]
+    if invalid:
+        raise ValueError(f"Invalid product columns: {invalid}")
+    return ", ".join(parts)
+
+
 async def get_by_id(product_id: str, columns: Optional[str] = "*", conn=None) -> Optional[dict]:
     conn = conn or get_connection()
+    sel = _sanitize_columns(columns or "*")
     cursor = await conn.execute(
-        f"SELECT {columns} FROM products WHERE id = ?",
+        f"SELECT {sel} FROM products WHERE id = ?",
         (product_id,),
     )
     row = await cursor.fetchone()

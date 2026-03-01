@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { API } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const Contractors = () => {
   const [contractors, setContractors] = useState([]);
@@ -31,6 +32,7 @@ const Contractors = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingContractor, setEditingContractor] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, contractor: null });
 
   const [form, setForm] = useState({
     name: "",
@@ -120,15 +122,20 @@ const Contractors = () => {
     }
   };
 
-  const handleDelete = async (contractor) => {
-    if (!window.confirm(`Delete contractor "${contractor.name}"?`)) return;
+  const handleDeleteClick = (contractor) => {
+    setDeleteConfirm({ open: true, contractor });
+  };
 
+  const handleDeleteConfirm = async () => {
+    const { contractor } = deleteConfirm;
+    if (!contractor) return;
     try {
       await axios.delete(`${API}/contractors/${contractor.id}`);
       toast.success("Contractor deleted");
       fetchContractors();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Failed to delete contractor");
+      throw error;
     }
   };
 
@@ -225,7 +232,7 @@ const Contractors = () => {
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(contractor)}
+                    onClick={() => handleDeleteClick(contractor)}
                     className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors"
                     data-testid={`delete-contractor-${contractor.id}`}
                   >
@@ -388,6 +395,17 @@ const Contractors = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
+        title="Delete contractor"
+        description={deleteConfirm.contractor ? `Delete "${deleteConfirm.contractor.name}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="danger"
+      />
     </div>
   );
 };

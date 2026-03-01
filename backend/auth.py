@@ -1,5 +1,4 @@
 """Authentication helpers and dependencies."""
-import os
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
@@ -7,11 +6,8 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from config import JWT_ALGORITHM, JWT_EXPIRATION_HOURS, JWT_SECRET
 from repositories.user_repo import user_repo
-
-JWT_SECRET = os.environ.get("JWT_SECRET", "hardware-store-secret-key")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24
 
 security = HTTPBearer()
 

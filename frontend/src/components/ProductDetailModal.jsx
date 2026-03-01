@@ -95,7 +95,6 @@ export function ProductDetailModal({
   };
 
   const handleDelete = () => {
-    if (!window.confirm(`Delete "${product?.name}"?`)) return;
     onDelete?.(product);
     onOpenChange(false);
   };

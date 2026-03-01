@@ -4,12 +4,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import aiosqlite
-from dotenv import load_dotenv
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / ".env")
-
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/sku_ops.db")
+from config import DATABASE_URL
 # Extract path from sqlite:///path or use as-is if plain path
 _db_path = DATABASE_URL.replace("sqlite:///", "").lstrip("/") if "://" in DATABASE_URL else DATABASE_URL
 
@@ -17,6 +13,8 @@ _conn: aiosqlite.Connection | None = None
 
 
 def _get_db_path() -> str:
+    if _db_path == ":memory:":
+        return ":memory:"
     path = Path(_db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     return str(path.resolve())

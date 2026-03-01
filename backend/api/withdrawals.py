@@ -1,11 +1,12 @@
 """Material withdrawal (POS) routes."""
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from auth import get_current_user, require_role
 from models import MaterialWithdrawal, MaterialWithdrawalCreate
-from repositories import user_repo, withdrawal_repo
+from repositories import invoice_repo, user_repo, withdrawal_repo
 from services.withdrawal_service import create_withdrawal as do_create_withdrawal
 
 router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
@@ -14,8 +15,7 @@ router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
 @router.post("", response_model=MaterialWithdrawal)
 async def create_withdrawal(data: MaterialWithdrawalCreate, current_user: dict = Depends(get_current_user)):
     """Create a material withdrawal - Contractors withdraw materials charged to their account"""
-    contractor = current_user if current_user.get("role") == "contractor" else current_user
-    return await do_create_withdrawal(data, contractor, current_user)
+    return await do_create_withdrawal(data, current_user, current_user)
 
 
 @router.post("/for-contractor")
@@ -65,8 +65,6 @@ async def get_withdrawal(withdrawal_id: str, current_user: dict = Depends(get_cu
 
 @router.put("/{withdrawal_id}/mark-paid")
 async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(require_role("admin"))):
-    from datetime import datetime, timezone
-
     paid_at = datetime.now(timezone.utc).isoformat()
     result = await withdrawal_repo.mark_paid(withdrawal_id, paid_at)
     if not result:
@@ -77,8 +75,6 @@ async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(
 
 @router.put("/bulk-mark-paid")
 async def bulk_mark_paid(withdrawal_ids: List[str] = Body(...), current_user: dict = Depends(require_role("admin"))):
-    from datetime import datetime, timezone
-
     paid_at = datetime.now(timezone.utc).isoformat()
     updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at)
     for wid in withdrawal_ids:

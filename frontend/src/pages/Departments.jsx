@@ -13,6 +13,7 @@ import {
 import { Plus, Edit2, Trash2, Layers, Package } from "lucide-react";
 
 import { API } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const Departments = () => {
   const [departments, setDepartments] = useState([]);
@@ -21,6 +22,7 @@ const Departments = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dept: null });
 
   const [form, setForm] = useState({
     name: "",
@@ -99,15 +101,20 @@ const Departments = () => {
     }
   };
 
-  const handleDelete = async (dept) => {
-    if (!window.confirm(`Delete department "${dept.name}"?`)) return;
+  const handleDeleteClick = (dept) => {
+    setDeleteConfirm({ open: true, dept });
+  };
 
+  const handleDeleteConfirm = async () => {
+    const { dept } = deleteConfirm;
+    if (!dept) return;
     try {
       await axios.delete(`${API}/departments/${dept.id}`);
       toast.success("Department deleted");
       fetchDepartments();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Failed to delete department");
+      throw error;
     }
   };
 
@@ -196,7 +203,7 @@ const Departments = () => {
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(dept)}
+                    onClick={() => handleDeleteClick(dept)}
                     className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors"
                     data-testid={`delete-dept-${dept.code}`}
                   >
@@ -307,6 +314,17 @@ const Departments = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
+        title="Delete department"
+        description={deleteConfirm.dept ? `Delete "${deleteConfirm.dept.name}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="danger"
+      />
     </div>
   );
 };

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from .auth import router as auth_router
 from .chat import router as chat_router
+from .health import router as health_router
 from .contractors import router as contractors_router
 from .dashboard import router as dashboard_router
 from .departments import router as departments_router
@@ -24,6 +25,7 @@ api_router = APIRouter(prefix="/api")
 
 # Include all routers
 api_router.include_router(auth_router)
+api_router.include_router(health_router)
 api_router.include_router(sku_router)
 api_router.include_router(chat_router)
 api_router.include_router(contractors_router)
