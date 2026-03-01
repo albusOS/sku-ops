@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import axios from "axios";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -9,116 +8,15 @@ import {
   ShoppingCart,
   Package,
   AlertTriangle,
-  Users,
-  TrendingUp,
-  Clock,
   ArrowRight,
   BarChart3,
 } from "lucide-react";
 import { Card, Metric, SparkAreaChart, AreaChart, Tracker } from "@tremor/react";
 import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
 import { API } from "@/lib/api";
 import { valueFormatter } from "@/lib/chartConfig";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
-
-function TransactionsVirtualList({ rows, parentRef, setStockHistoryProduct }) {
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: (i) => (rows[i]?.type === "header" ? 44 : 36),
-    overscan: 5,
-  });
-  return (
-    <div
-      style={{
-        height: `${rowVirtualizer.getTotalSize()}px`,
-        width: "100%",
-        position: "relative",
-      }}
-    >
-      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-        const row = rows[virtualRow.index];
-        if (!row) return null;
-        if (row.type === "header") {
-          const w = row.withdrawal;
-          return (
-            <div
-              key={row.key}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-              className="flex items-center justify-between px-4 py-2 hover:bg-slate-100/80 border-b border-slate-100"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-slate-500 shrink-0 text-xs">
-                  {format(new Date(w.created_at), "MMM d HH:mm")}
-                </span>
-                <span className="text-slate-700 truncate">{w.contractor_name || "—"}</span>
-                <span className="text-slate-500 text-xs">Job: {w.job_id || "—"}</span>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-slate-900 font-semibold">${(w.total || 0).toFixed(2)}</span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded ${
-                    w.payment_status === "paid"
-                      ? "bg-emerald-500/15 text-emerald-700"
-                      : w.payment_status === "invoiced"
-                      ? "bg-blue-500/15 text-blue-700"
-                      : "bg-amber-500/15 text-amber-700"
-                  }`}
-                >
-                  {w.payment_status}
-                </span>
-              </div>
-            </div>
-          );
-        }
-        const { item } = row;
-        return (
-          <div
-            key={row.key}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualRow.start}px)`,
-            }}
-            className="flex items-center justify-between px-4 py-1.5 pl-8 text-xs text-slate-600 bg-slate-50/60 group"
-          >
-            <button
-              type="button"
-              onClick={() => item.product_id && setStockHistoryProduct({ id: item.product_id, sku: item.sku, name: item.name })}
-              className="truncate text-left hover:text-emerald-600 transition-colors flex-1 min-w-0"
-              title="View stock history"
-            >
-              {item.name || item.sku}
-            </button>
-            <span className="shrink-0 flex items-center gap-2">
-              <span>
-                {item.quantity} × ${(item.price || 0).toFixed(2)} = ${(item.subtotal || 0).toFixed(2)}
-              </span>
-              {item.product_id && (
-                <Link
-                  to={`/inventory?search=${encodeURIComponent(item.sku || "")}`}
-                  className="text-slate-500 hover:text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="View in Inventory"
-                >
-                  ↗
-                </Link>
-              )}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+import { RecentTransactions } from "@/components/RecentTransactions";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -129,14 +27,6 @@ const Dashboard = () => {
   const isAdmin = user?.role === "admin";
   const showTransactionsTerminal = isAdmin || user?.role === "warehouse_manager";
   const [stockHistoryProduct, setStockHistoryProduct] = useState(null);
-  const [transactions, setTransactions] = useState([]);
-  const [transactionsLoading, setTransactionsLoading] = useState(false);
-  const [transactionsOffset, setTransactionsOffset] = useState(0);
-  const [timeRange, setTimeRange] = useState("24h");
-  const [hasMore, setHasMore] = useState(false);
-  const transactionsScrollRef = useRef(null);
-  const transactionsRef = useRef([]);
-  transactionsRef.current = transactions;
 
   useEffect(() => {
     fetchStats();
@@ -144,31 +34,6 @@ const Dashboard = () => {
       seedDepartments();
     }
   }, []);
-
-  const fetchTransactions = useCallback(
-    async (reset = true) => {
-      if (!showTransactionsTerminal) return;
-      setTransactionsLoading(true);
-      try {
-        const offset = reset ? 0 : transactionsRef.current.length;
-        const res = await axios.get(
-          `${API}/dashboard/transactions?limit=20&offset=${offset}&time_range=${timeRange}`
-        );
-        const next = res.data.withdrawals || [];
-        setHasMore(res.data.has_more ?? false);
-        setTransactions((prev) => (reset ? next : [...prev, ...next]));
-      } catch (err) {
-        toast.error("Failed to load transactions");
-      } finally {
-        setTransactionsLoading(false);
-      }
-    },
-    [showTransactionsTerminal, timeRange]
-  );
-
-  useEffect(() => {
-    if (showTransactionsTerminal) fetchTransactions(true);
-  }, [showTransactionsTerminal, timeRange]);
 
   const seedDepartments = async () => {
     try {
@@ -328,11 +193,6 @@ const Dashboard = () => {
     },
   ].filter((card) => !card.adminOnly || isAdmin);
 
-  const transactionRows = transactions.flatMap((w) => [
-    { type: "header", withdrawal: w, key: w.id },
-    ...(w.items || []).map((item, j) => ({ type: "item", withdrawal: w, item, key: `${w.id}-${j}` })),
-  ]);
-
   const trackerData =
     stats?.recent_withdrawals?.map((w, i) => ({
       key: w.id || i,
@@ -351,28 +211,38 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {isAdmin && stats?.unpaid_total > 0 && (
-        <Link to="/financials">
-          <div className="card-workshop p-5 mb-6 border-rose-200 bg-rose-50/50 hover:border-rose-300 cursor-pointer transition-colors">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-rose-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-rose-800">Outstanding Balance</p>
-                  <p className="text-sm text-rose-600">Unpaid contractor withdrawals — View all</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <p className="text-xl font-semibold text-rose-600">
-                  ${(stats?.unpaid_total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </p>
-                <ArrowRight className="w-5 h-5 text-rose-500" />
-              </div>
-            </div>
+      {(stats?.low_stock_count > 0 || (isAdmin && stats?.unpaid_total > 0)) && (
+        <div className="mb-6">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Needs Attention
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {stats?.low_stock_count > 0 && (
+              <Link
+                to="/inventory?low_stock=1"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 hover:border-amber-400 transition-colors group"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-semibold text-amber-800">
+                  {stats.low_stock_count} items low on stock
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
+            {isAdmin && stats?.unpaid_total > 0 && (
+              <Link
+                to="/financials"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 hover:border-rose-400 transition-colors group"
+              >
+                <DollarSign className="w-4 h-4 text-rose-500" />
+                <span className="text-sm font-semibold text-rose-800">
+                  ${(stats.unpaid_total).toLocaleString("en-US", { minimumFractionDigits: 2 })} unpaid balance
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
           </div>
-        </Link>
+        </div>
       )}
 
       <div
@@ -431,67 +301,7 @@ const Dashboard = () => {
       )}
 
       {showTransactionsTerminal && (
-        <Card className="card-workshop p-6 mb-6" data-testid="recent-transactions-terminal">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
-            <h2 className="text-lg font-semibold text-slate-900">Recent Transactions</h2>
-            <Link to="/financials" className="text-sm text-slate-500 hover:text-orange-600 flex items-center gap-1">
-              View all <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            {["today", "24h", "7d", "all"].map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setTimeRange(r)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  timeRange === r
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {r === "today" ? "Today" : r === "24h" ? "24h" : r === "7d" ? "7 days" : "All"}
-              </button>
-            ))}
-          </div>
-          {transactionsLoading && transactions.length === 0 ? (
-            <div className="rounded-xl bg-slate-50/80 border border-slate-200 p-8 text-center text-slate-500 text-sm">
-              Loading…
-            </div>
-          ) : transactions.length === 0 ? (
-            <div className="rounded-xl bg-slate-50/80 border border-slate-200 p-8 text-center text-slate-500 text-sm">
-              No transactions
-            </div>
-          ) : (
-            <>
-              <div
-                ref={transactionsScrollRef}
-                className="rounded-xl bg-slate-50/80 border border-slate-200 text-sm overflow-y-auto"
-                style={{ height: 320 }}
-              >
-                <div className="p-3 text-slate-500 text-xs border-b border-slate-200">
-                  # withdrawals (itemized) · Click item for stock history · ↗ = Inventory
-                </div>
-                <TransactionsVirtualList
-                  rows={transactionRows}
-                  parentRef={transactionsScrollRef}
-                  setStockHistoryProduct={setStockHistoryProduct}
-                />
-              </div>
-              {hasMore && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 w-full"
-                  onClick={() => fetchTransactions(false)}
-                  disabled={transactionsLoading}
-                >
-                  {transactionsLoading ? "Loading…" : "Load more"}
-                </Button>
-              )}
-            </>
-          )}
-        </Card>
+        <RecentTransactions onProductStockHistory={setStockHistoryProduct} />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

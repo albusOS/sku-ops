@@ -281,13 +281,13 @@ const ReceiptImport = () => {
       <div className="mb-8">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 mb-4">
           <Package className="w-4 h-4 text-slate-600" />
-          <span className="text-sm font-medium text-slate-700">Document import</span>
+          <span className="text-sm font-medium text-slate-700">Inventory</span>
         </div>
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
-          Document Import
+          Receive Inventory
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Upload receipts, invoices, or PDFs (free OCR); bulk import from CSV
+          Upload a delivery receipt or vendor invoice to add products to stock; or bulk import from CSV
         </p>
       </div>
 

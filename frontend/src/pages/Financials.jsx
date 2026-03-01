@@ -188,6 +188,12 @@ const Financials = () => {
           <p className="text-slate-600 mt-1">Track payments, invoicing, and exports</p>
         </div>
         <div className="flex gap-3">
+          <Link to="/invoices">
+            <Button variant="outline" className="btn-secondary h-12">
+              <FileText className="w-5 h-5 mr-2" />
+              Invoices
+            </Button>
+          </Link>
           <Button
             onClick={handleExport}
             variant="outline"

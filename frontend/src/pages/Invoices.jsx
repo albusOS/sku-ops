@@ -9,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { FileText, Plus, Filter, Send } from "lucide-react";
+import { FileText, Plus, Filter, Send, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { CreateInvoiceModal } from "../components/CreateInvoiceModal";
 import { InvoiceDetailModal } from "../components/InvoiceDetailModal";
@@ -83,12 +84,18 @@ const Invoices = () => {
 
   return (
     <div className="p-8" data-testid="invoices-page">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="font-heading font-bold text-3xl text-slate-900 uppercase tracking-wider">
             Invoices
           </h1>
-          <p className="text-slate-600 mt-1">View and edit invoice records</p>
+          <Link
+            to="/financials"
+            className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-orange-600 mt-1 transition-colors"
+          >
+            Withdrawals &amp; payments
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
         <Button
           onClick={() => setCreateModalOpen(true)}
@@ -99,6 +106,36 @@ const Invoices = () => {
           Create Invoice
         </Button>
       </div>
+
+      {/* Invoice status summary */}
+      {invoices.length > 0 && (() => {
+        const draft = invoices.filter((i) => i.status === "draft");
+        const sent = invoices.filter((i) => i.status === "sent");
+        const paid = invoices.filter((i) => i.status === "paid");
+        const sumOf = (arr) => arr.reduce((s, i) => s + (i.total ?? 0), 0);
+        return (
+          <div className="flex flex-wrap gap-3 mb-6">
+            {draft.length > 0 && (
+              <div className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-sm">
+                <span className="font-semibold text-slate-700">{draft.length} draft</span>
+                <span className="text-slate-400 ml-1">· ${sumOf(draft).toFixed(2)}</span>
+              </div>
+            )}
+            {sent.length > 0 && (
+              <div className="px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-sm">
+                <span className="font-semibold text-blue-700">{sent.length} sent</span>
+                <span className="text-blue-400 ml-1">· ${sumOf(sent).toFixed(2)}</span>
+              </div>
+            )}
+            {paid.length > 0 && (
+              <div className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-sm">
+                <span className="font-semibold text-emerald-700">{paid.length} paid</span>
+                <span className="text-emerald-400 ml-1">· ${sumOf(paid).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Filters */}
       <div className="card-workshop p-4 mb-6">

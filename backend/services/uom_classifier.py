@@ -125,6 +125,12 @@ Products:
 Infer base_unit, sell_uom, pack_qty from the name. Examples: "5 Gal Paint" -> gallon/gallon/5; "2x4x8 Stud" -> foot/foot/8; "PEX 1/2 100ft" -> foot/foot/100; "Screw Box" -> box/box/1; "Wire 12/2" -> foot/foot/1; "Drywall 4x8" -> sqft/sqft/1; "Concrete 80lb" -> pound/pound/1; "Duct Tape" -> roll/roll/1. Use "each" only when name suggests a single item (faucet, fixture).
 Return ONLY a JSON array, one object per product in same order: [{{"base_unit":"...","sell_uom":"...","pack_qty":1}}, ...]"""
 
+    def _rule_fallback(p: dict) -> None:
+        bu, su, pq = rule_infer_uom(p.get("name", ""))
+        p["base_unit"] = bu
+        p["sell_uom"] = su
+        p["pack_qty"] = pq
+
     try:
         response = await asyncio.to_thread(
             generate_text,
@@ -136,10 +142,19 @@ Return ONLY a JSON array, one object per product in same order: [{{"base_unit":"
             if json_match:
                 results = json.loads(json_match.group())
                 for i, p in enumerate(products):
-                    r = results[i] if i < len(results) else {}
-                    p["base_unit"] = _normalize_unit(r.get("base_unit"))
-                    p["sell_uom"] = _normalize_unit(r.get("sell_uom", r.get("base_unit")))
-                    p["pack_qty"] = _normalize_pack_qty(r.get("pack_qty"))
+                    r = results[i] if i < len(results) else None
+                    if r and isinstance(r, dict):
+                        p["base_unit"] = _normalize_unit(r.get("base_unit"))
+                        p["sell_uom"] = _normalize_unit(r.get("sell_uom", r.get("base_unit")))
+                        p["pack_qty"] = _normalize_pack_qty(r.get("pack_qty"))
+                    else:
+                        # LLM returned fewer results than products — use rules for the gap
+                        _rule_fallback(p)
+                return products
     except Exception as e:
-        logger.warning(f"Batch UOM classification failed: {e}")
+        logger.warning(f"Batch UOM classification failed, falling back to rules: {e}")
+
+    # LLM unavailable or failed — rule-based fallback for every item
+    for p in products:
+        _rule_fallback(p)
     return products

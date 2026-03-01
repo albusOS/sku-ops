@@ -12,6 +12,7 @@ class SuggestUomRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     messages: Optional[List[dict]] = None  # prior conversation [{role, content}]
+    history: Optional[List[dict]] = None  # full Gemini history including tool turns (from prior response)
 
 
 class DocumentImportRequest(BaseModel):

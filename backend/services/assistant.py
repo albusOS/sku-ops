@@ -6,23 +6,39 @@ import asyncio
 import json
 import logging
 
-from config import LLM_API_KEY, LLM_AVAILABLE, LLM_SETUP_URL
+from config import GEMINI_AVAILABLE, GEMINI_MODEL, LLM_API_KEY, LLM_SETUP_URL
 from db import get_connection
 
 logger = logging.getLogger(__name__)
 
+# Chat assistant requires Gemini (uses its function-calling API directly).
+# Document parsing, enrichment, and UOM classification support Ollama too via llm.py.
 LLM_NOT_CONFIGURED_MSG = (
-    "AI assistant is not configured. Add LLM_API_KEY to backend/.env. "
+    "Chat assistant requires a Gemini API key. Add LLM_API_KEY to backend/.env. "
     f"Get a free key at {LLM_SETUP_URL}"
 )
 
-GEMINI_MODEL = "gemini-1.5-flash"
 MAX_ACT_LOOPS = 8  # Prevent runaway tool loops
 
-SYSTEM_PROMPT = """You are a helpful AI assistant for a hardware store inventory system (SKU-Ops).
-You can search products, check inventory stats, list low-stock items, departments, and vendors.
-Be concise. Use tools when needed to answer questions. If asked about stock, products, or data, use the appropriate tool.
-Format numbers and lists clearly. When showing product lists, include SKU, name, quantity, and min_stock if relevant."""
+SYSTEM_PROMPT = """You are an inventory assistant for SKU-Ops, a hardware store management system.
+
+TOOLS — use them whenever the user asks about inventory data:
+- search_products(query, limit): find products by name, SKU, or barcode
+- get_inventory_stats(): total product count, quantity, cost value, and low-stock count
+- list_low_stock(limit): products at or below their reorder point
+- list_departments(): all departments with product counts
+- list_vendors(): all vendors with product counts
+
+WHEN TO USE EACH TOOL:
+- "do we have nails / find X / search for Y" → search_products
+- "how many products / what's our inventory value / overall stats" → get_inventory_stats
+- "what's low stock / what needs reordering / running low" → list_low_stock
+- "list departments / what departments exist" → list_departments
+- "list vendors / who are our suppliers" → list_vendors
+
+OUTPUT FORMAT when listing products: SKU | Name | Qty on Hand | Min Stock
+Never make up inventory data — always use a tool to retrieve it.
+Be concise. If no results match, say so clearly."""
 
 TOOL_DECLARATIONS = [
     {
@@ -128,58 +144,90 @@ async def execute_tool(name: str, args: dict) -> str:
 
 def _build_tools():
     """Build Gemini Tool from declarations."""
-    import google.generativeai as genai
     from google.generativeai.types import Tool, FunctionDeclaration
 
-    decls = []
-    for d in TOOL_DECLARATIONS:
-        decls.append(FunctionDeclaration(
+    decls = [
+        FunctionDeclaration(
             name=d["name"],
             description=d.get("description", ""),
             parameters=d.get("parameters", {}),
-        ))
+        )
+        for d in TOOL_DECLARATIONS
+    ]
     return [Tool(function_declarations=decls)]
 
 
-async def chat(messages: list[dict], user_message: str) -> dict:
+def _serialize_history(history) -> list[dict]:
+    """Serialize Gemini chat history to JSON-safe dicts (preserves tool call/response turns)."""
+    result = []
+    for content in history:
+        parts = []
+        for part in content.parts:
+            if hasattr(part, "function_call") and part.function_call and part.function_call.name:
+                parts.append({
+                    "function_call": {
+                        "name": part.function_call.name,
+                        "args": dict(part.function_call.args) if part.function_call.args else {},
+                    }
+                })
+            elif hasattr(part, "function_response") and part.function_response and part.function_response.name:
+                parts.append({
+                    "function_response": {
+                        "name": part.function_response.name,
+                        "response": dict(part.function_response.response) if part.function_response.response else {},
+                    }
+                })
+            elif hasattr(part, "text") and part.text:
+                parts.append({"text": part.text})
+        if parts:
+            result.append({"role": content.role, "parts": parts})
+    return result
+
+
+async def chat(messages: list[dict], user_message: str, history: list[dict] | None = None) -> dict:
     """
     ReAct loop: send to Gemini with tools, execute any function_call, feed result back, repeat.
-    Returns { "response": "...", "tool_calls": [...] }.
+    Returns { "response": "...", "tool_calls": [...], "history": [...] }.
+    history: full Gemini history from prior response (preserves tool call/response turns).
     """
-    if not LLM_AVAILABLE:
-        return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": []}
+    if not GEMINI_AVAILABLE:
+        return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": []}
 
     try:
         import google.generativeai as genai
         genai.configure(api_key=LLM_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=SYSTEM_PROMPT)
         tools = _build_tools()
+        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=SYSTEM_PROMPT, tools=tools)
     except Exception as e:
         logger.warning(f"Assistant init: {e}")
-        return {"response": f"Could not initialize AI: {e}", "tool_calls": []}
+        return {"response": f"Could not initialize AI: {e}", "tool_calls": [], "history": []}
 
-    # Build conversation history for Gemini (prior turns only; we send user_message next)
-    prior_history = []
-    for m in messages:
-        role = "user" if m.get("role") == "user" else "model"
-        text = (m.get("content") or "").strip()
-        if text:
-            prior_history.append({"role": role, "parts": [text]})
+    # Prefer the full serialized history (includes tool turns) over text-only reconstruction.
+    # Fall back to text reconstruction when history is not yet available (first turn).
+    if history:
+        prior_history = history
+    else:
+        prior_history = []
+        for m in messages:
+            role = "user" if m.get("role") == "user" else "model"
+            text = (m.get("content") or "").strip()
+            if text:
+                prior_history.append({"role": role, "parts": [{"text": text}]})
 
     tool_calls_made = []
 
     chat = model.start_chat(history=prior_history, enable_automatic_function_calling=False)
     to_send = user_message
 
-    for loop in range(MAX_ACT_LOOPS):
+    for _ in range(MAX_ACT_LOOPS):
         try:
             response = await asyncio.to_thread(chat.send_message, to_send)
         except Exception as e:
             logger.warning(f"Assistant generate: {e}")
-            return {"response": f"AI error: {e}", "tool_calls": tool_calls_made}
+            return {"response": f"AI error: {e}", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
 
         if not response or not response.candidates:
-            return {"response": "No response from AI.", "tool_calls": tool_calls_made}
+            return {"response": "No response from AI.", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
 
         parts = response.candidates[0].content.parts if response.candidates[0].content else []
         function_call = None
@@ -194,8 +242,8 @@ async def chat(messages: list[dict], user_message: str) -> dict:
                 break
 
         if function_call:
-            name = getattr(function_call, "name", None) or getattr(function_call, "get", lambda k: None)("name")
-            args = getattr(function_call, "args", None) or getattr(function_call, "get", lambda k: {})("args") or {}
+            name = getattr(function_call, "name", None) or getattr(function_call, "get", lambda _: None)("name")
+            args = getattr(function_call, "args", None) or getattr(function_call, "get", lambda _: {})("args") or {}
             if hasattr(args, "items"):
                 args = dict(args)
             else:
@@ -211,7 +259,8 @@ async def chat(messages: list[dict], user_message: str) -> dict:
                 resp_struct.update({"result": result})
                 fr = FunctionResponse(name=name, response=resp_struct)
                 to_send = Part(function_response=fr)
-            except Exception:
+            except Exception as proto_err:
+                logger.debug(f"Protobuf FunctionResponse failed, using dict fallback: {proto_err}")
                 to_send = {"function_response": {"name": name, "response": {"result": result}}}
             continue
 
@@ -219,6 +268,6 @@ async def chat(messages: list[dict], user_message: str) -> dict:
         final = text_part or (response.text if response else "")
         if not final and hasattr(response, "text"):
             final = str(response.text) if response.text else ""
-        return {"response": final or "I couldn't generate a response.", "tool_calls": tool_calls_made}
+        return {"response": final or "I couldn't generate a response.", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
 
-    return {"response": "Reached maximum reasoning steps. Try a simpler question.", "tool_calls": tool_calls_made}
+    return {"response": "Reached maximum reasoning steps. Try a simpler question.", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}

@@ -1,16 +1,15 @@
-"""Document parse/import and chat assistant routes."""
+"""Document parse/import routes."""
 import asyncio
 import json
 import logging
 import os
 import re
 import tempfile
-from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from auth import get_current_user, require_role
-from config import LLM_AVAILABLE, LLM_SETUP_URL
+from auth import require_role
+from config import GEMINI_AVAILABLE, LLM_SETUP_URL
 from services.document_import_service import import_document as do_import_document
 
 from .schemas import DocumentImportRequest
@@ -19,55 +18,54 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-# Retry on rate limit: wait then retry (Gemini free tier ~60 req/min)
 _PARSE_MAX_RETRIES = 2
-_PARSE_RETRY_DELAYS = (5, 15)  # seconds
+_PARSE_RETRY_DELAYS = (5, 15)  # seconds on rate limit
 
-_DOCUMENT_PARSE_SYSTEM = """You are a document parser for a hardware store. Extract vendor/supplier name, document date, total, and line items from receipts, invoices, or packing slips.
-Per item include: name, quantity, ordered_qty, delivered_qty, price, cost, original_sku, base_unit, sell_uom, pack_qty, suggested_department.
+_DOCUMENT_PARSE_SYSTEM = """You are a document parser for a hardware store. Extract vendor name, date, total, and line items from receipts, invoices, or packing slips.
 
-IMPORTANT - Infer UOM from product names; do NOT default everything to "each". Allowed UOM: each, case, box, pack, bag, roll, kit, gallon, quart, pint, liter, pound, ounce, foot, meter, yard, sqft.
-Examples: "5 Gal Paint" -> gallon/gallon/5; "2x4x8 Stud" -> foot/foot/8; "1/2 PEX Pipe 100ft" -> foot/foot/100; "Screw Box 100" -> box/box/1; "Wire 12/2 250ft" -> foot/foot/250; "Drywall 4x8" -> sqft/sqft/1; "Caulk Tube" -> each/each/1; "Concrete 80lb" -> pound/pound/1; "Duct Tape" -> roll/roll/1.
-Use "each" only for single items like faucets, light fixtures, or when the name gives no UOM clue.
+OUTPUT: return ONLY a single valid JSON object, no other text:
+{"vendor_name": "...", "document_date": "YYYY-MM-DD", "total": 0.0, "products": [...]}
 
-Use EFFECTIVE price after discounts. When ordered/delivered unclear, set both to quantity.
-Suggested department codes: PLU, ELE, PNT, LUM, TOL, HDW, GDN, APP.
-Return ONLY valid JSON: {"vendor_name": "...", "document_date": "YYYY-MM-DD", "total": N, "products": [{"name": "...", "quantity": 1, "ordered_qty": 1, "delivered_qty": 1, "price": 9.99, "cost": 7.99, "original_sku": "...", "base_unit": "gallon", "sell_uom": "gallon", "pack_qty": 5, "suggested_department": "PNT"}]}"""
+Per product:
+{"name": "...", "quantity": 1, "ordered_qty": 1, "delivered_qty": 1, "price": 0.0, "cost": 0.0,
+ "original_sku": null, "base_unit": "each", "sell_uom": "each", "pack_qty": 1, "suggested_department": "HDW"}
+
+UOM RULES — do NOT default everything to "each":
+Allowed: each, case, box, pack, bag, roll, kit, gallon, quart, pint, liter, pound, ounce, foot, meter, yard, sqft
+
+Infer from explicit quantity+unit in name first, then from category keywords:
+- "5 Gal Paint" → gallon/gallon/5 | PNT
+- "2x4x8 Stud" → foot/foot/8 | LUM
+- "1/2 PEX Pipe 100ft" → foot/foot/100 | PLU
+- "Screw Box 100ct" → box/box/1 | HDW
+- "Wire 12/2 250ft" → foot/foot/250 | ELE
+- "Drywall 4x8 Sheet" → sqft/sqft/32 | LUM
+- "Concrete 80lb Bag" → pound/pound/80 | HDW
+- "Duct Tape Roll" → roll/roll/1 | HDW
+- "Ball Valve 1/2" → each/each/1 | PLU
+- "Caulk Tube" → each/each/1 | PNT
+Use "each" only when no unit or quantity is inferable from the name.
+
+Departments: PLU=plumbing, ELE=electrical, PNT=paint, LUM=lumber, TOL=tools, HDW=hardware, GDN=garden, APP=appliances.
+Use effective price after discounts. When ordered/delivered qty unclear, set both equal to quantity."""
 
 
 @router.post("/parse")
 async def parse_document(
     file: UploadFile = File(...),
-    use_ai: bool = False,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    _: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
-    """
-    Parse image or PDF document; extract vendor, items, UOM, costs.
-    By default uses free OCR (Tesseract). Set use_ai=true to use Gemini when LLM_API_KEY is configured.
-    """
+    """Parse image or PDF with Gemini. Requires LLM_API_KEY."""
+    if not GEMINI_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI not configured. Add LLM_API_KEY to backend/.env — get a free key at {LLM_SETUP_URL}",
+        )
+
     try:
         contents = await file.read()
         content_type = (file.content_type or "").lower()
         filename = file.filename or ""
-
-        # Free path: OCR (no API key)
-        if not use_ai or not LLM_AVAILABLE:
-            from services.ocr_parse import extract_from_document
-            extracted = await asyncio.to_thread(
-                extract_from_document,
-                contents,
-                content_type=content_type,
-                filename=filename,
-            )
-            for p in extracted.get("products", []):
-                qty = p.get("quantity", 1)
-                if "ordered_qty" not in p or p["ordered_qty"] is None:
-                    p["ordered_qty"] = qty
-                if "delivered_qty" not in p or p["delivered_qty"] is None:
-                    p["delivered_qty"] = qty
-            return extracted
-
-        # AI path: Gemini (requires LLM_API_KEY)
         is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
 
         def _do_parse():
@@ -87,13 +85,9 @@ async def parse_document(
                         os.unlink(temp_path)
             else:
                 from services.llm import generate_with_image
-                mime = content_type or "image/jpeg"
-                if "image/" not in mime:
-                    mime = "image/jpeg"
                 return generate_with_image(
                     "Extract all product and vendor information. Return only valid JSON.",
                     contents,
-                    mime_type=mime,
                     system_instruction=_DOCUMENT_PARSE_SYSTEM,
                 )
 
@@ -105,13 +99,13 @@ async def parse_document(
             except ValueError as e:
                 if "rate limit" in str(e).lower() and attempt < _PARSE_MAX_RETRIES:
                     delay = _PARSE_RETRY_DELAYS[attempt]
-                    logger.info(f"Rate limit hit, retrying in {delay}s (attempt {attempt + 1}/{_PARSE_MAX_RETRIES + 1})")
+                    logger.info(f"Rate limit, retrying in {delay}s (attempt {attempt + 1})")
                     await asyncio.sleep(delay)
                 else:
                     raise
 
         if not response or not str(response).strip():
-            raise HTTPException(status_code=500, detail="LLM returned no content. The document may be unreadable or blocked.")
+            raise HTTPException(status_code=500, detail="Gemini returned no content. The document may be unreadable or blocked.")
 
         json_match = re.search(r"\{[\s\S]*\}", response)
         extracted = json.loads(json_match.group()) if json_match else json.loads(response)

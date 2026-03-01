@@ -3,9 +3,18 @@ import axios from "axios";
 import { MessageCircle, X, Send } from "lucide-react";
 import { API } from "@/lib/api";
 
+const STORAGE_KEY = "sku-ops:chat";
+
 const ChatAssistant = () => {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.messages ?? []; }
+    catch { return []; }
+  });
+  const [geminiHistory, setGeminiHistory] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.history ?? null; }
+    catch { return null; }
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [aiAvailable, setAiAvailable] = useState(null);
@@ -15,6 +24,11 @@ const ChatAssistant = () => {
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, history: geminiHistory })); }
+    catch {}
+  }, [messages, geminiHistory]);
 
   useEffect(() => {
     if (open && aiAvailable === null) {
@@ -42,7 +56,9 @@ const ChatAssistant = () => {
       const { data } = await axios.post(`${API}/chat`, {
         message: text,
         messages: prior,
+        history: geminiHistory,
       });
+      if (data.history?.length) setGeminiHistory(data.history);
       setMessages((m) => [...m, { role: "model", content: data.response || "No response." }]);
     } catch (err) {
       setMessages((m) => [

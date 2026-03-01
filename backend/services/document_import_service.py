@@ -65,6 +65,12 @@ async def import_document(
     vendor_products = await product_repo.list_by_vendor(vendor_id)
     selected = await enrich_for_import(selected, vendor_products, dept_codes)
 
+    enrichment_warnings = [
+        {"product": item.get("name", "Unknown"), "warning": item.pop("enrichment_warning")}
+        for item in selected
+        if item.get("enrichment_warning")
+    ]
+
     for item in selected:
         suggested = (item.get("suggested_department") or "HDW").upper()
         if not suggested or suggested == "HDW" or suggested not in dept_by_code:
@@ -90,7 +96,7 @@ async def import_document(
     imported = []
     matched = []
     errors = []
-    warnings = []
+    warnings = list(enrichment_warnings)
     for item in selected:
         try:
             delivered = item.get("delivered_qty")

@@ -6,7 +6,7 @@ import {
   Package,
   Users,
   Layers,
-  FileUp,
+  Truck,
   BarChart3,
   LogOut,
   Wrench,
@@ -27,46 +27,59 @@ const Layout = ({ children }) => {
     navigate("/login");
   };
 
-  const getNavItems = () => {
+  const getNavGroups = () => {
     const role = user?.role;
 
     if (role === "contractor") {
       return [
-        { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-        { path: "/request-materials", icon: ShoppingCart, label: "Request Materials" },
-        { path: "/my-history", icon: History, label: "My History" },
+        {
+          items: [
+            { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+            { path: "/request-materials", icon: ShoppingCart, label: "Request Materials" },
+            { path: "/my-history", icon: History, label: "My History" },
+          ],
+        },
       ];
     }
 
+    const operationsItems = [
+      { path: "/pos", icon: ShoppingCart, label: "Issue Materials" },
+      { path: "/pending-requests", icon: ClipboardList, label: "Pending Requests" },
+      { path: "/contractors", icon: HardHat, label: "Contractors" },
+    ];
+
+    const inventoryItems = [
+      { path: "/inventory", icon: Package, label: "Inventory" },
+      { path: "/vendors", icon: Users, label: "Vendors" },
+      { path: "/departments", icon: Layers, label: "Departments" },
+      { path: "/import", icon: Truck, label: "Receive Inventory" },
+    ];
+
     if (role === "warehouse_manager") {
       return [
-        { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-        { path: "/pos", icon: ShoppingCart, label: "Material Terminal" },
-        { path: "/pending-requests", icon: ClipboardList, label: "Pending Requests" },
-        { path: "/inventory", icon: Package, label: "Inventory" },
-        { path: "/vendors", icon: Users, label: "Vendors" },
-        { path: "/departments", icon: Layers, label: "Departments" },
-        { path: "/import", icon: FileUp, label: "Document Import" },
-        { path: "/reports", icon: BarChart3, label: "Reports" },
+        { items: [{ path: "/", icon: LayoutDashboard, label: "Dashboard" }] },
+        { section: "Operations", items: operationsItems },
+        { section: "Inventory", items: inventoryItems },
+        { items: [{ path: "/reports", icon: BarChart3, label: "Reports" }] },
       ];
     }
 
     return [
-      { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-      { path: "/pos", icon: ShoppingCart, label: "Material Terminal" },
-      { path: "/pending-requests", icon: ClipboardList, label: "Pending Requests" },
-      { path: "/inventory", icon: Package, label: "Inventory" },
-      { path: "/vendors", icon: Users, label: "Vendors" },
-      { path: "/departments", icon: Layers, label: "Departments" },
-      { path: "/import", icon: FileUp, label: "Document Import" },
-      { path: "/contractors", icon: HardHat, label: "Contractors" },
-      { path: "/financials", icon: DollarSign, label: "Financials" },
-      { path: "/invoices", icon: FileText, label: "Invoices" },
-      { path: "/reports", icon: BarChart3, label: "Reports" },
+      { items: [{ path: "/", icon: LayoutDashboard, label: "Dashboard" }] },
+      { section: "Operations", items: operationsItems },
+      { section: "Inventory", items: inventoryItems },
+      {
+        section: "Finance",
+        items: [
+          { path: "/financials", icon: DollarSign, label: "Financials" },
+          { path: "/invoices", icon: FileText, label: "Invoices" },
+        ],
+      },
+      { items: [{ path: "/reports", icon: BarChart3, label: "Reports" }] },
     ];
   };
 
-  const navItems = getNavItems();
+  const navGroups = getNavGroups();
 
   const getRoleBadge = () => {
     const role = user?.role;
@@ -105,18 +118,29 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 space-y-0.5" data-testid="sidebar-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/"}
-              className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
-              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-            >
-              <item.icon className="w-5 h-5 shrink-0" />
-              <span className="font-medium text-sm">{item.label}</span>
-            </NavLink>
+        <nav className="flex-1 py-4 px-3 overflow-y-auto" data-testid="sidebar-nav">
+          {navGroups.map((group, gi) => (
+            <div key={gi} className={gi > 0 ? "mt-4" : ""}>
+              {group.section && (
+                <p className="px-3 mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {group.section}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === "/"}
+                    className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <item.icon className="w-5 h-5 shrink-0" />
+                    <span className="font-medium text-sm">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 

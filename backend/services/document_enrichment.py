@@ -83,4 +83,6 @@ Return ONLY the JSON array, no other text."""
                         item["original_sku"] = str(orig).strip()
     except Exception as e:
         logger.warning(f"Document enrichment failed: {e}")
+        for item in items:
+            item.setdefault("enrichment_warning", "Auto-classification unavailable — verify department and SKU matching")
     return items

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 
 from auth import get_current_user
-from config import GEMINI_AVAILABLE, LLM_AVAILABLE, LLM_SETUP_URL, OLLAMA_ENABLED
+from config import GEMINI_AVAILABLE, LLM_SETUP_URL
 
 from .schemas import ChatRequest
 
@@ -12,11 +12,10 @@ router = APIRouter(tags=["chat"])
 @router.get("/chat/status")
 async def chat_status(current_user: dict = Depends(get_current_user)):
     """Return whether AI assistant is configured. Frontend can show setup prompt when false."""
-    provider = "ollama" if OLLAMA_ENABLED else ("gemini" if GEMINI_AVAILABLE else None)
     return {
-        "available": LLM_AVAILABLE,
-        "provider": provider,
-        "setup_url": LLM_SETUP_URL if not LLM_AVAILABLE and GEMINI_AVAILABLE else None,
+        "available": GEMINI_AVAILABLE,
+        "provider": "gemini" if GEMINI_AVAILABLE else None,
+        "setup_url": LLM_SETUP_URL if not GEMINI_AVAILABLE else None,
     }
 
 
@@ -29,5 +28,5 @@ async def chat_assistant(
     from services.assistant import chat
 
     messages = data.messages or []
-    result = await chat(messages, (data.message or "").strip())
+    result = await chat(messages, (data.message or "").strip(), history=data.history)
     return result
