@@ -25,7 +25,7 @@ from .material_request import (
     MaterialRequestProcess,
 )
 from .stock import StockTransaction, StockTransactionType
-from .invoice import Invoice, InvoiceLineItem, InvoiceCreate, InvoiceUpdate, InvoiceWithDetails
+from .invoice import Invoice, InvoiceLineItem, InvoiceCreate, InvoiceUpdate, InvoiceWithDetails, InvoiceSyncXeroBulk
 
 __all__ = [
     "ROLES",
@@ -54,4 +54,5 @@ __all__ = [
     "InvoiceCreate",
     "InvoiceUpdate",
     "InvoiceWithDetails",
+    "InvoiceSyncXeroBulk",
 ]

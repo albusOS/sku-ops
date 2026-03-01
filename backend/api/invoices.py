@@ -4,10 +4,38 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from auth import require_role
-from models import InvoiceCreate, InvoiceUpdate
+from models import InvoiceCreate, InvoiceUpdate, InvoiceSyncXeroBulk
 from repositories import invoice_repo
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+
+@router.post("/sync-xero-bulk")
+async def sync_invoices_to_xero_bulk(
+    data: InvoiceSyncXeroBulk,
+    current_user: dict = Depends(require_role("admin")),
+):
+    """Bulk sync selected invoices to Xero. Stub for future Xero integration."""
+    org_id = current_user.get("organization_id") or "default"
+    results = []
+    errors = []
+    for inv_id in data.invoice_ids:
+        inv = await invoice_repo.get_by_id(inv_id, org_id)
+        if not inv:
+            errors.append({"invoice_id": inv_id, "error": "Invoice not found"})
+            continue
+        # Stub: would call Xero API here
+        results.append({
+            "invoice_id": inv_id,
+            "invoice_number": inv.get("invoice_number"),
+            "message": "Xero integration coming soon",
+        })
+    return {
+        "synced": len(results),
+        "errors": errors,
+        "results": results,
+        "message": f"Bulk Xero sync: {len(results)} queued, {len(errors)} failed",
+    }
 
 
 @router.get("")

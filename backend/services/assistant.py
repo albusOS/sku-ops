@@ -1,24 +1,23 @@
 """
 Chat AI assistant with tools and ReAct reasoning loops.
-Uses Gemini 1.5 Flash (free tier). Tools: search products, inventory stats, low stock, departments, vendors.
+Uses Anthropic Claude. Tools: search products, inventory stats, low stock, departments, vendors.
 """
 import asyncio
 import json
 import logging
+from typing import Any
 
-from config import GEMINI_AVAILABLE, GEMINI_MODEL, LLM_API_KEY, LLM_SETUP_URL
+from config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY, ANTHROPIC_FAST_MODEL, LLM_SETUP_URL
 from db import get_connection
 
 logger = logging.getLogger(__name__)
 
-# Chat assistant requires Gemini (uses its function-calling API directly).
-# Document parsing, enrichment, and UOM classification support Ollama too via llm.py.
 LLM_NOT_CONFIGURED_MSG = (
-    "Chat assistant requires a Gemini API key. Add LLM_API_KEY to backend/.env. "
-    f"Get a free key at {LLM_SETUP_URL}"
+    "Chat assistant requires an Anthropic API key. Add ANTHROPIC_API_KEY to backend/.env. "
+    f"Get a key at {LLM_SETUP_URL}"
 )
 
-MAX_ACT_LOOPS = 8  # Prevent runaway tool loops
+MAX_ACT_LOOPS = 8
 
 SYSTEM_PROMPT = """You are an inventory assistant for SKU-Ops, a hardware store management system.
 
@@ -80,6 +79,50 @@ TOOL_DECLARATIONS = [
     },
 ]
 
+# Anthropic tool schema format
+TOOL_SCHEMAS = [
+    {
+        "name": d["name"],
+        "description": d.get("description", ""),
+        "input_schema": d.get("parameters", {"type": "object", "properties": {}}),
+    }
+    for d in TOOL_DECLARATIONS
+]
+
+
+def _get_client():
+    """Return configured Anthropic client, or None if not available."""
+    if not ANTHROPIC_AVAILABLE:
+        return None
+    try:
+        import anthropic
+        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    except ImportError:
+        logger.warning("anthropic package not installed")
+        return None
+
+
+def _serialize_content(content: Any) -> Any:
+    """Convert Anthropic SDK content blocks to JSON-serializable form."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return [
+            block.model_dump() if hasattr(block, "model_dump") else block
+            for block in content
+        ]
+    if hasattr(content, "model_dump"):
+        return content.model_dump()
+    return str(content)
+
+
+def _serialize_conversation(conversation: list) -> list:
+    """Ensure full conversation is JSON-serializable for returning to frontend."""
+    return [
+        {"role": msg["role"], "content": _serialize_content(msg["content"])}
+        for msg in conversation
+    ]
+
 
 async def execute_tool(name: str, args: dict) -> str:
     """Execute a tool and return JSON string result."""
@@ -88,10 +131,8 @@ async def execute_tool(name: str, args: dict) -> str:
     try:
         if name == "search_products":
             query = (args.get("query") or "").strip()
-            limit = int(args.get("limit") or 20)
-            limit = min(limit, 50)
+            limit = min(int(args.get("limit") or 20), 50)
             items = await product_repo.list_products(search=query, limit=limit)
-            # Simplify for LLM
             out = [{"sku": p.get("sku"), "name": p.get("name"), "quantity": p.get("quantity"), "min_stock": p.get("min_stock"), "department": p.get("department_name")} for p in items]
             return json.dumps({"count": len(out), "products": out[:limit]})
 
@@ -105,16 +146,10 @@ async def execute_tool(name: str, args: dict) -> str:
             total_value = round(float(row[1] or 0), 2)
             cur = await conn.execute("SELECT COUNT(*) FROM products WHERE quantity <= min_stock")
             low_count = (await cur.fetchone())[0]
-            return json.dumps({
-                "total_products": total_products,
-                "total_quantity": total_qty,
-                "total_cost_value": total_value,
-                "low_stock_count": low_count,
-            })
+            return json.dumps({"total_products": total_products, "total_quantity": total_qty, "total_cost_value": total_value, "low_stock_count": low_count})
 
         if name == "list_low_stock":
-            limit = int(args.get("limit") or 20)
-            limit = min(limit, 50)
+            limit = min(int(args.get("limit") or 20), 50)
             items = await product_repo.list_low_stock(limit=limit)
             out = [{"sku": p.get("sku"), "name": p.get("name"), "quantity": p.get("quantity"), "min_stock": p.get("min_stock")} for p in items]
             return json.dumps({"count": len(out), "products": out})
@@ -142,132 +177,90 @@ async def execute_tool(name: str, args: dict) -> str:
         return json.dumps({"error": str(e)})
 
 
-def _build_tools():
-    """Build Gemini Tool from declarations."""
-    from google.generativeai.types import Tool, FunctionDeclaration
-
-    decls = [
-        FunctionDeclaration(
-            name=d["name"],
-            description=d.get("description", ""),
-            parameters=d.get("parameters", {}),
-        )
-        for d in TOOL_DECLARATIONS
-    ]
-    return [Tool(function_declarations=decls)]
-
-
-def _serialize_history(history) -> list[dict]:
-    """Serialize Gemini chat history to JSON-safe dicts (preserves tool call/response turns)."""
-    result = []
-    for content in history:
-        parts = []
-        for part in content.parts:
-            if hasattr(part, "function_call") and part.function_call and part.function_call.name:
-                parts.append({
-                    "function_call": {
-                        "name": part.function_call.name,
-                        "args": dict(part.function_call.args) if part.function_call.args else {},
-                    }
-                })
-            elif hasattr(part, "function_response") and part.function_response and part.function_response.name:
-                parts.append({
-                    "function_response": {
-                        "name": part.function_response.name,
-                        "response": dict(part.function_response.response) if part.function_response.response else {},
-                    }
-                })
-            elif hasattr(part, "text") and part.text:
-                parts.append({"text": part.text})
-        if parts:
-            result.append({"role": content.role, "parts": parts})
-    return result
-
-
 async def chat(messages: list[dict], user_message: str, history: list[dict] | None = None) -> dict:
     """
-    ReAct loop: send to Gemini with tools, execute any function_call, feed result back, repeat.
+    ReAct loop: send to Claude with tools, execute any tool_use blocks, feed results back, repeat.
     Returns { "response": "...", "tool_calls": [...], "history": [...] }.
-    history: full Gemini history from prior response (preserves tool call/response turns).
+    history: full Anthropic-format message list from prior response (preserves tool call/result turns).
     """
-    if not GEMINI_AVAILABLE:
+    if not ANTHROPIC_AVAILABLE:
         return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": []}
 
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=LLM_API_KEY)
-        tools = _build_tools()
-        model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=SYSTEM_PROMPT, tools=tools)
-    except Exception as e:
-        logger.warning(f"Assistant init: {e}")
-        return {"response": f"Could not initialize AI: {e}", "tool_calls": [], "history": []}
+    client = _get_client()
+    if not client:
+        return {"response": "Could not initialize AI client.", "tool_calls": [], "history": []}
 
-    # Prefer the full serialized history (includes tool turns) over text-only reconstruction.
-    # Fall back to text reconstruction when history is not yet available (first turn).
+    # Use full history from previous turn when available (fixes multi-turn tool context).
+    # Fall back to text-only reconstruction for the first turn.
     if history:
-        prior_history = history
+        conversation = list(history)
     else:
-        prior_history = []
+        conversation = []
         for m in messages:
-            role = "user" if m.get("role") == "user" else "model"
+            role = "user" if m.get("role") == "user" else "assistant"
             text = (m.get("content") or "").strip()
             if text:
-                prior_history.append({"role": role, "parts": [{"text": text}]})
+                conversation.append({"role": role, "content": text})
+
+    conversation.append({"role": "user", "content": user_message})
 
     tool_calls_made = []
 
-    chat = model.start_chat(history=prior_history, enable_automatic_function_calling=False)
-    to_send = user_message
-
     for _ in range(MAX_ACT_LOOPS):
         try:
-            response = await asyncio.to_thread(chat.send_message, to_send)
+            response = await asyncio.to_thread(
+                client.messages.create,
+                model=ANTHROPIC_FAST_MODEL,
+                system=SYSTEM_PROMPT,
+                messages=conversation,
+                tools=TOOL_SCHEMAS,
+                max_tokens=4096,
+            )
         except Exception as e:
             logger.warning(f"Assistant generate: {e}")
-            return {"response": f"AI error: {e}", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
+            return {"response": f"AI error: {e}", "tool_calls": tool_calls_made, "history": _serialize_conversation(conversation)}
 
-        if not response or not response.candidates:
-            return {"response": "No response from AI.", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
+        if response.stop_reason == "tool_use":
+            # Append assistant turn (with tool_use blocks) to history
+            conversation.append({
+                "role": "assistant",
+                "content": [b.model_dump() for b in response.content],
+            })
 
-        parts = response.candidates[0].content.parts if response.candidates[0].content else []
-        function_call = None
-        text_part = None
+            # Execute all tool calls in parallel
+            tool_results = []
+            tool_tasks = []
+            tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
+            for block in tool_use_blocks:
+                args = dict(block.input) if block.input else {}
+                tool_tasks.append((block.id, block.name, args, execute_tool(block.name, args)))
 
-        for p in parts:
-            if hasattr(p, "function_call") and p.function_call:
-                function_call = p.function_call
-                break
-            if hasattr(p, "text") and p.text:
-                text_part = p.text
-                break
+            for tool_use_id, name, args, coro in tool_tasks:
+                result = await coro
+                tool_calls_made.append({"tool": name, "args": args})
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_use_id,
+                    "content": result,
+                })
 
-        if function_call:
-            name = getattr(function_call, "name", None) or getattr(function_call, "get", lambda _: None)("name")
-            args = getattr(function_call, "args", None) or getattr(function_call, "get", lambda _: {})("args") or {}
-            if hasattr(args, "items"):
-                args = dict(args)
-            else:
-                args = {}
-            result = await execute_tool(name, args)
-            tool_calls_made.append({"tool": name, "args": args})
-
-            # Send function response as next user turn
-            from google.generativeai.protos import Part, FunctionResponse
-            from google.protobuf import struct_pb2
-            try:
-                resp_struct = struct_pb2.Struct()
-                resp_struct.update({"result": result})
-                fr = FunctionResponse(name=name, response=resp_struct)
-                to_send = Part(function_response=fr)
-            except Exception as proto_err:
-                logger.debug(f"Protobuf FunctionResponse failed, using dict fallback: {proto_err}")
-                to_send = {"function_response": {"name": name, "response": {"result": result}}}
+            conversation.append({"role": "user", "content": tool_results})
             continue
 
-        # Text response - we're done
-        final = text_part or (response.text if response else "")
-        if not final and hasattr(response, "text"):
-            final = str(response.text) if response.text else ""
-        return {"response": final or "I couldn't generate a response.", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
+        # end_turn — extract text
+        text = next(
+            (b.text for b in response.content if hasattr(b, "text") and b.text),
+            "I couldn't generate a response.",
+        )
+        conversation.append({"role": "assistant", "content": text})
+        return {
+            "response": text,
+            "tool_calls": tool_calls_made,
+            "history": _serialize_conversation(conversation),
+        }
 
-    return {"response": "Reached maximum reasoning steps. Try a simpler question.", "tool_calls": tool_calls_made, "history": _serialize_history(chat.history)}
+    return {
+        "response": "Reached maximum reasoning steps. Try a simpler question.",
+        "tool_calls": tool_calls_made,
+        "history": _serialize_conversation(conversation),
+    }

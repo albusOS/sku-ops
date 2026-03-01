@@ -1,62 +1,57 @@
 """
-LLM client: Google Gemini. Set LLM_API_KEY to enable.
+LLM client: Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
 """
-import io
+import base64
 import logging
 from typing import Optional
 
-from config import GEMINI_AVAILABLE, GEMINI_MODEL, LLM_API_KEY
+from config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL
 
 logger = logging.getLogger(__name__)
 
 
-def _get_model(system_instruction: Optional[str] = None):
-    """Return configured GenerativeModel, or None if not configured."""
-    if not GEMINI_AVAILABLE:
+def _get_client():
+    """Return configured Anthropic client, or None if not configured."""
+    if not ANTHROPIC_AVAILABLE:
         return None
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=LLM_API_KEY)
-        try:
-            if system_instruction:
-                return genai.GenerativeModel(GEMINI_MODEL, system_instruction=system_instruction)
-            return genai.GenerativeModel(GEMINI_MODEL)
-        except TypeError:
-            return genai.GenerativeModel(GEMINI_MODEL)
+        import anthropic
+        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     except ImportError:
-        logger.warning("google-generativeai not installed")
+        logger.warning("anthropic package not installed. Run: pip install anthropic")
         return None
 
 
-def _extract_text(response) -> str:
-    """Extract text from Gemini response. Raises ValueError on blocked/empty."""
-    if not response:
-        raise ValueError("No response from model")
-    text = getattr(response, "text", None)
-    if text and str(text).strip():
-        return str(text)
-    prompt_feedback = getattr(response, "prompt_feedback", None)
-    if prompt_feedback and getattr(prompt_feedback, "block_reason", None):
-        raise ValueError(f"Content blocked: {prompt_feedback.block_reason}")
-    candidates = getattr(response, "candidates", None) or []
-    for c in candidates:
-        parts = getattr(c, "content", None) and getattr(c.content, "parts", None) or []
-        for p in parts:
-            if hasattr(p, "text") and p.text:
-                return p.text
-    raise ValueError("Model returned no extractable text")
+def _detect_media_type(image_bytes: bytes) -> str:
+    """Detect image media type from bytes header."""
+    if image_bytes[:4] == b"\x89PNG":
+        return "image/png"
+    if image_bytes[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if image_bytes[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/jpeg"
 
 
 def generate_text(prompt: str, system_instruction: Optional[str] = None) -> Optional[str]:
-    """Generate text. Returns None if Gemini is not configured."""
-    model = _get_model(system_instruction)
-    if not model:
+    """Generate text. Returns None if Anthropic is not configured."""
+    client = _get_client()
+    if not client:
         return None
     try:
-        response = model.generate_content(prompt)
-        return _extract_text(response)
+        kwargs = {
+            "model": ANTHROPIC_FAST_MODEL,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system_instruction:
+            kwargs["system"] = system_instruction
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
     except Exception as e:
-        logger.warning(f"Gemini generate_text failed: {e}")
+        logger.warning(f"Anthropic generate_text failed: {e}")
         return None
 
 
@@ -66,20 +61,42 @@ def generate_with_image(
     system_instruction: Optional[str] = None,
 ) -> str:
     """Generate from image. Raises ValueError on failure or if not configured."""
-    model = _get_model(system_instruction)
-    if not model:
-        raise ValueError(f"LLM not configured. Set LLM_API_KEY. Get a free key at https://aistudio.google.com/app/apikey")
-    import PIL.Image
-    img = PIL.Image.open(io.BytesIO(image_bytes))
+    client = _get_client()
+    if not client:
+        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
+    media_type = _detect_media_type(image_bytes)
+    image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
     try:
-        response = model.generate_content([prompt, img])
-        return _extract_text(response)
+        kwargs = {
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 4096,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        }
+        if system_instruction:
+            kwargs["system"] = system_instruction
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
     except Exception as e:
         err = str(e).lower()
-        if "quota" in err or "rate" in err or "429" in err:
-            raise ValueError("Gemini rate limit hit. Try again in a minute.") from e
-        if "invalid" in err and "key" in err:
-            raise ValueError("Invalid LLM_API_KEY. Check backend/.env") from e
+        if "rate" in err or "429" in err or "overloaded" in err:
+            raise ValueError("Anthropic rate limit hit. Try again in a minute.") from e
+        if "authentication" in err or "api_key" in err:
+            raise ValueError("Invalid ANTHROPIC_API_KEY. Check backend/.env") from e
         raise
 
 
@@ -88,18 +105,41 @@ def generate_with_pdf(
     pdf_path: str,
     system_instruction: Optional[str] = None,
 ) -> str:
-    """Generate from PDF via Gemini native PDF support. Raises ValueError on failure."""
-    model = _get_model(system_instruction)
-    if not model:
-        raise ValueError(f"LLM not configured. Set LLM_API_KEY. Get a free key at https://aistudio.google.com/app/apikey")
+    """Generate from PDF via Anthropic native PDF support. Raises ValueError on failure."""
+    client = _get_client()
+    if not client:
+        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
+    with open(pdf_path, "rb") as f:
+        pdf_data = base64.standard_b64encode(f.read()).decode("utf-8")
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=LLM_API_KEY)
-        pdf_file = genai.upload_file(path=pdf_path, mime_type="application/pdf")
-        response = model.generate_content([prompt, pdf_file])
-        return _extract_text(response)
+        kwargs = {
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 4096,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_data,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        }
+        if system_instruction:
+            kwargs["system"] = system_instruction
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
     except Exception as e:
         err = str(e).lower()
-        if "quota" in err or "rate" in err or "429" in err:
-            raise ValueError("Gemini rate limit hit. Try again in a minute.") from e
+        if "rate" in err or "429" in err or "overloaded" in err:
+            raise ValueError("Anthropic rate limit hit. Try again in a minute.") from e
+        if "authentication" in err or "api_key" in err:
+            raise ValueError("Invalid ANTHROPIC_API_KEY. Check backend/.env") from e
         raise

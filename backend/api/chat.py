@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 
 from auth import get_current_user
-from config import GEMINI_AVAILABLE, LLM_SETUP_URL
+from config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 
 from .schemas import ChatRequest
 
@@ -13,9 +13,9 @@ router = APIRouter(tags=["chat"])
 async def chat_status(current_user: dict = Depends(get_current_user)):
     """Return whether AI assistant is configured. Frontend can show setup prompt when false."""
     return {
-        "available": GEMINI_AVAILABLE,
-        "provider": "gemini" if GEMINI_AVAILABLE else None,
-        "setup_url": LLM_SETUP_URL if not GEMINI_AVAILABLE else None,
+        "available": ANTHROPIC_AVAILABLE,
+        "provider": "anthropic" if ANTHROPIC_AVAILABLE else None,
+        "setup_url": LLM_SETUP_URL if not ANTHROPIC_AVAILABLE else None,
     }
 
 

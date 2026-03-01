@@ -1,6 +1,6 @@
 """
 UOM classification for hardware/building-supply products.
-Uses Google Gemini when LLM_API_KEY is set; otherwise falls back to rule-based infer_uom.
+Uses Anthropic Claude when ANTHROPIC_API_KEY is set; otherwise falls back to rule-based infer_uom.
 """
 from typing import List, Optional
 import asyncio

@@ -1,6 +1,6 @@
 """
 LLM enrichment for document import: department classification and product alignment.
-When LLM_API_KEY is set, enriches extracted items with suggested_department and original_sku
+When ANTHROPIC_API_KEY is set, enriches extracted items with suggested_department and original_sku
 to match existing vendor products.
 """
 import asyncio

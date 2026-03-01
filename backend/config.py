@@ -93,12 +93,15 @@ seed_on_startup = is_development or is_test or bool(DEMO_USER_EMAIL)
 # Reset endpoint: dev/test/demo only. Set ALLOW_RESET=true to enable in staging/prod.
 ALLOW_RESET = is_development or is_test or os.environ.get("ALLOW_RESET", "").lower() == "true"
 
-# AI - Gemini (Google). Set LLM_API_KEY to enable. Free tier: ~60 req/min.
-LLM_API_KEY = os.environ.get("LLM_API_KEY", "").strip()
-GEMINI_AVAILABLE = bool(LLM_API_KEY)
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash").strip() or "gemini-2.0-flash"
-LLM_SETUP_URL = "https://aistudio.google.com/app/apikey"
-LLM_AVAILABLE = GEMINI_AVAILABLE  # alias used by enrichment/uom services
+# AI - Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
+# Vision/PDF document parsing — Sonnet balances accuracy with cost for financial docs
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+# Simple text tasks (UOM classification, dept enrichment, chat) — Haiku is sufficient and cheap
+ANTHROPIC_FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+LLM_SETUP_URL = "https://console.anthropic.com/"
+LLM_AVAILABLE = ANTHROPIC_AVAILABLE  # alias used by enrichment/uom services
 
 # E2E / live tests: backend URL to hit. Set REACT_APP_BACKEND_URL or E2E_BACKEND_URL.
 def _e2e_backend_url() -> str:

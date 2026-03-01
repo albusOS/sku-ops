@@ -22,6 +22,11 @@ class InvoiceCreate(BaseModel):
     withdrawal_ids: List[str]
 
 
+class InvoiceSyncXeroBulk(BaseModel):
+    """Payload for bulk sync to Xero."""
+    invoice_ids: List[str]
+
+
 class InvoiceUpdate(BaseModel):
     """Payload for updating invoice."""
     billing_entity: Optional[str] = None

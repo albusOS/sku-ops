@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { FileText, Plus, Filter, Send, ArrowRight } from "lucide-react";
+import { FileText, Plus, Filter, Send, ArrowRight, CheckSquare, Square } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { CreateInvoiceModal } from "../components/CreateInvoiceModal";
@@ -24,6 +24,8 @@ const Invoices = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailInvoiceId, setDetailInvoiceId] = useState(null);
   const [sendingXero, setSendingXero] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [sendingBulkXero, setSendingBulkXero] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
@@ -69,6 +71,40 @@ const Invoices = () => {
       toast.error("Failed to send to Xero");
     } finally {
       setSendingXero(null);
+    }
+  };
+
+  const toggleSelect = (id, e) => {
+    e?.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size >= invoices.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(invoices.map((i) => i.id)));
+    }
+  };
+
+  const handleBulkSendToXero = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setSendingBulkXero(true);
+    try {
+      const res = await axios.post(`${API}/invoices/sync-xero-bulk`, { invoice_ids: ids });
+      toast.info(res.data?.message || `${res.data?.synced ?? 0} queued for Xero`);
+      setSelectedIds(new Set());
+      fetchInvoices();
+    } catch (err) {
+      toast.error("Failed to bulk send to Xero");
+    } finally {
+      setSendingBulkXero(false);
     }
   };
 
@@ -183,11 +219,47 @@ const Invoices = () => {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="card-workshop p-4 mb-4 flex items-center justify-between bg-blue-50 border-blue-200">
+          <span className="font-semibold text-slate-700">
+            {selectedIds.size} invoice{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              Clear
+            </Button>
+            <Button
+              onClick={handleBulkSendToXero}
+              disabled={sendingBulkXero}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {sendingBulkXero ? "Sending…" : `Send ${selectedIds.size} to Xero`}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Invoice list */}
       <div className="card-workshop overflow-hidden">
         <table className="w-full table-workshop">
           <thead>
             <tr>
+              <th className="w-10">
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                  aria-label="Select all"
+                >
+                  {selectedIds.size >= invoices.length && invoices.length > 0 ? (
+                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <Square className="w-5 h-5" />
+                  )}
+                </button>
+              </th>
               <th>Invoice #</th>
               <th>Billing Entity</th>
               <th>Total</th>
@@ -200,7 +272,7 @@ const Invoices = () => {
           <tbody>
             {invoices.length === 0 ? (
               <tr>
-                <td colSpan="7" className="text-center py-12 text-slate-400">
+                <td colSpan="8" className="text-center py-12 text-slate-400">
                   No invoices yet. Invoices are auto-created when withdrawals are made.
                 </td>
               </tr>
@@ -208,9 +280,16 @@ const Invoices = () => {
               invoices.map((inv) => (
                 <tr
                   key={inv.id}
-                  className="cursor-pointer hover:bg-slate-50"
+                  className={`cursor-pointer hover:bg-slate-50 ${selectedIds.has(inv.id) ? "bg-blue-50/50" : ""}`}
                   onClick={() => setDetailInvoiceId(inv.id)}
                 >
+                  <td onClick={(e) => toggleSelect(inv.id, e)}>
+                    {selectedIds.has(inv.id) ? (
+                      <CheckSquare className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-slate-300" />
+                    )}
+                  </td>
                   <td className="font-mono font-medium">{inv.invoice_number}</td>
                   <td>{inv.billing_entity || "—"}</td>
                   <td className="font-mono font-bold">${(inv.total ?? 0).toFixed(2)}</td>

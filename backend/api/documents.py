@@ -9,7 +9,7 @@ import tempfile
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from auth import require_role
-from config import GEMINI_AVAILABLE, LLM_SETUP_URL
+from config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from services.document_import_service import import_document as do_import_document
 
 from .schemas import DocumentImportRequest
@@ -53,19 +53,40 @@ Use effective price after discounts. When ordered/delivered qty unclear, set bot
 @router.post("/parse")
 async def parse_document(
     file: UploadFile = File(...),
+    use_ai: bool = False,
     _: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
-    """Parse image or PDF with Gemini. Requires LLM_API_KEY."""
-    if not GEMINI_AVAILABLE:
+    """Parse image or PDF. use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR."""
+    contents = await file.read()
+    content_type = (file.content_type or "").lower()
+    filename = file.filename or ""
+
+    if not use_ai:
+        try:
+            from services.ocr_parse import extract_from_document
+            extracted = await asyncio.to_thread(
+                extract_from_document, contents, content_type, filename
+            )
+            for p in extracted.get("products", []):
+                qty = p.get("quantity", 1)
+                if "ordered_qty" not in p or p["ordered_qty"] is None:
+                    p["ordered_qty"] = qty
+                if "delivered_qty" not in p or p["delivered_qty"] is None:
+                    p["delivered_qty"] = qty
+            return extracted
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"OCR parse error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    if not ANTHROPIC_AVAILABLE:
         raise HTTPException(
             status_code=503,
-            detail=f"AI not configured. Add LLM_API_KEY to backend/.env — get a free key at {LLM_SETUP_URL}",
+            detail=f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {LLM_SETUP_URL}",
         )
 
     try:
-        contents = await file.read()
-        content_type = (file.content_type or "").lower()
-        filename = file.filename or ""
         is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
 
         def _do_parse():

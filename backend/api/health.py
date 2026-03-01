@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from config import GEMINI_AVAILABLE, GEMINI_MODEL, LLM_SETUP_URL
+from config import ANTHROPIC_AVAILABLE, ANTHROPIC_MODEL, LLM_SETUP_URL
 from db import get_connection
 
 router = APIRouter(tags=["health"])
@@ -30,13 +30,13 @@ async def ready():
 
 @router.get("/health/ai")
 async def ai_health():
-    """AI availability probe. Returns 200 if Gemini is configured, 503 otherwise."""
-    if not GEMINI_AVAILABLE:
+    """AI availability probe. Returns 200 if Anthropic is configured, 503 otherwise."""
+    if not ANTHROPIC_AVAILABLE:
         return JSONResponse(
             status_code=503,
             content={
                 "status": "unavailable",
-                "detail": f"LLM_API_KEY not set. Get a free Gemini key at {LLM_SETUP_URL}",
+                "detail": f"ANTHROPIC_API_KEY not set. Get a key at {LLM_SETUP_URL}",
             },
         )
-    return {"status": "ok", "provider": "gemini", "model": GEMINI_MODEL}
+    return {"status": "ok", "provider": "anthropic", "model": ANTHROPIC_MODEL}
