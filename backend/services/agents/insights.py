@@ -6,9 +6,16 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
-from config import ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL, AGENT_THINKING_BUDGET
+from pydantic_ai import Agent, RunContext
+
+from config import (
+    ANTHROPIC_MODEL,
+    ANTHROPIC_FAST_MODEL,
+    AGENT_THINKING_BUDGET,
+    DEFAULT_DEEP_THINKING_BUDGET,
+)
 from db import get_connection
-from services.agents.base import run_agent, _build_conversation
+from services.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
 
@@ -49,58 +56,78 @@ REASONING — think before acting:
 5. Always state the time period for any trend or ranking — "top products over 30 days" not just "top products"
 6. For stockout forecasts, prioritise critical (≤3 days) over high (≤7 days) — tell the user what needs action today"""
 
-TOOL_SCHEMAS = [
-    {
-        "name": "get_top_products",
-        "description": "Top products ranked by units withdrawn or revenue generated over the last N days.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {"type": "integer", "description": "Lookback window in days", "default": 30},
-                "by": {"type": "string", "description": "'volume' (units) or 'revenue' (dollars)", "default": "revenue"},
-                "limit": {"type": "integer", "description": "Max results", "default": 10},
-            },
-        },
-    },
-    {
-        "name": "get_department_activity",
-        "description": "Stock movement summary for a department over the last N days (withdrawals, receiving, net change).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "dept_code": {"type": "string", "description": "Department code (e.g. PLU, ELE, HDW)"},
-                "days": {"type": "integer", "description": "Lookback window in days", "default": 30},
-            },
-            "required": ["dept_code"],
-        },
-    },
-    {
-        "name": "forecast_stockout",
-        "description": "Products predicted to run out soonest based on recent withdrawal velocity. Returns days-until-zero estimates.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Max products to return", "default": 15},
-            },
-        },
-    },
-]
+_agent = Agent(
+    f"anthropic:{ANTHROPIC_FAST_MODEL}",
+    deps_type=AgentDeps,
+    system_prompt=SYSTEM_PROMPT,
+)
 
 
-async def execute_tool(name: str, args: dict, ctx: dict) -> str:
-    org_id = ctx.get("org_id", "default")
+@_agent.tool
+async def get_top_products(ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10) -> str:
+    """Top products ranked by units withdrawn or revenue generated over the last N days. by: 'volume' or 'revenue'."""
+    return await _get_top_products({"days": days, "by": by, "limit": limit}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_department_activity(ctx: RunContext[AgentDeps], dept_code: str, days: int = 30) -> str:
+    """Stock movement summary for a department over the last N days (withdrawals, receiving, net change)."""
+    return await _get_department_activity({"dept_code": dept_code, "days": days}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
+    """Products predicted to run out soonest based on recent withdrawal velocity. Returns days-until-zero estimates."""
+    return await _forecast_stockout({"limit": limit}, ctx.deps.org_id)
+
+
+async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
+    from config import ANTHROPIC_AVAILABLE
+    if not ANTHROPIC_AVAILABLE:
+        return {"response": "Insights agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "insights"}
+
+    from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost
+
+    deep = mode == "deep"
+    model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
+    thinking_budget = (
+        (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
+    )
+    msg_history = build_message_history(history)
+    model_settings = {}
+    if thinking_budget > 0:
+        model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+
     try:
-        if name == "get_top_products":
-            return await _get_top_products(args, org_id)
-        if name == "get_department_activity":
-            return await _get_department_activity(args, org_id)
-        if name == "forecast_stockout":
-            return await _forecast_stockout(args, org_id)
-        return json.dumps({"error": f"Unknown tool: {name}"})
+        result = await _agent.run(
+            user_message,
+            message_history=msg_history,
+            deps=deps,
+            model=f"anthropic:{model_id}",
+            model_settings=model_settings or None,
+        )
     except Exception as e:
-        logger.warning(f"InsightsAgent tool {name} error: {e}")
-        return json.dumps({"error": str(e)})
+        if model_settings:
+            logger.warning(f"InsightsAgent thinking error, retrying without thinking: {e}")
+            result = await _agent.run(
+                user_message, message_history=msg_history, deps=deps, model=f"anthropic:{model_id}"
+            )
+        else:
+            raise
 
+    usage = result.usage()
+    cost = calc_cost(model_id, usage)
+    return {
+        "response": result.output,
+        "tool_calls": extract_tool_calls(result.all_messages()),
+        "thinking": [],
+        "history": extract_text_history(result.all_messages()),
+        "usage": {"cost_usd": cost, "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "model": model_id},
+        "agent": "insights",
+    }
+
+
+# ── DB query implementations (unchanged) ────────────────────────────────────
 
 async def _get_top_products(args: dict, org_id: str) -> str:
     from repositories import withdrawal_repo
@@ -110,11 +137,7 @@ async def _get_top_products(args: dict, org_id: str) -> str:
         by = "revenue"
     limit = min(int(args.get("limit") or 10), 50)
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=since,
-        limit=10000,
-        organization_id=org_id,
-    )
+    withdrawals = await withdrawal_repo.list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     product_map: dict[str, dict] = {}
     for w in withdrawals:
         for item in (w.get("items") or []):
@@ -130,12 +153,7 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     ranked = sorted(product_map.values(), key=lambda x: x[sort_key], reverse=True)[:limit]
     for r in ranked:
         r["total_revenue"] = round(r["total_revenue"], 2)
-    return json.dumps({
-        "period_days": days,
-        "ranked_by": by,
-        "count": len(ranked),
-        "products": ranked,
-    })
+    return json.dumps({"period_days": days, "ranked_by": by, "count": len(ranked), "products": ranked})
 
 
 async def _get_department_activity(args: dict, org_id: str) -> str:
@@ -143,7 +161,6 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     conn = get_connection()
-    # Get department products
     cur = await conn.execute(
         """SELECT p.id, p.sku, p.name, p.quantity, p.min_stock
            FROM products p
@@ -157,7 +174,6 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
         return json.dumps({"error": f"Department '{dept_code}' not found or has no products"})
     product_ids = [p["id"] for p in products]
     placeholders = ",".join("?" * len(product_ids))
-    # Stock transaction summary
     cur = await conn.execute(
         f"""SELECT
               transaction_type,
@@ -170,10 +186,7 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
     )
     type_summary: dict[str, dict] = {}
     for row in await cur.fetchall():
-        type_summary[row["transaction_type"]] = {
-            "transactions": row["txn_count"],
-            "units": int(row["total_units"]),
-        }
+        type_summary[row["transaction_type"]] = {"transactions": row["txn_count"], "units": int(row["total_units"])}
     withdrawals = type_summary.get("WITHDRAWAL", {"transactions": 0, "units": 0})
     receiving = type_summary.get("RECEIVING", {"transactions": 0, "units": 0})
     imports = type_summary.get("IMPORT", {"transactions": 0, "units": 0})
@@ -194,7 +207,6 @@ async def _forecast_stockout(args: dict, org_id: str) -> str:
     limit = min(int(args.get("limit") or 15), 50)
     since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     conn = get_connection()
-    # All products with quantity > 0 (zero-stock already known)
     cur = await conn.execute(
         """SELECT id, sku, name, quantity, min_stock, department_name
            FROM products
@@ -222,7 +234,7 @@ async def _forecast_stockout(args: dict, org_id: str) -> str:
         total_used = velocity_map.get(p["id"], 0)
         avg_daily = total_used / 30
         if avg_daily <= 0:
-            continue  # not moving → not a stockout risk
+            continue
         days_until_zero = round(p["quantity"] / avg_daily, 1)
         forecast.append({
             "sku": p["sku"],
@@ -236,30 +248,3 @@ async def _forecast_stockout(args: dict, org_id: str) -> str:
         })
     forecast.sort(key=lambda x: x["days_until_stockout"])
     return json.dumps({"count": len(forecast), "forecast": forecast[:limit]})
-
-
-async def chat(
-    messages: list[dict],
-    user_message: str,
-    history: list[dict] | None,
-    ctx: dict,
-) -> dict:
-    from config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY
-    if not ANTHROPIC_AVAILABLE:
-        return {"response": "Insights agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": []}
-    import anthropic
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    thinking_budget = AGENT_THINKING_BUDGET
-    model = ANTHROPIC_MODEL if thinking_budget > 0 else ANTHROPIC_FAST_MODEL
-    conversation = _build_conversation(messages, history, user_message)
-    result = await run_agent(
-        client, model, SYSTEM_PROMPT, TOOL_SCHEMAS, execute_tool, conversation, ctx,
-        thinking_budget=thinking_budget,
-    )
-    return {
-        "response": result["response"],
-        "tool_calls": result["tool_calls"],
-        "thinking": result.get("thinking", []),
-        "history": result["conversation"],
-        "agent": "insights",
-    }

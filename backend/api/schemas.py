@@ -1,5 +1,5 @@
 """API request/response schemas."""
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -11,8 +11,9 @@ class SuggestUomRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    messages: Optional[List[dict]] = None  # prior conversation [{role, content}]
-    history: Optional[List[dict]] = None  # full Gemini history including tool turns (from prior response)
+    session_id: Optional[str] = None  # omit to start a new session
+    mode: Literal["fast", "deep"] = "fast"
+    agent_type: Literal["general", "inventory", "ops", "finance", "insights"] = "general"
 
 
 class DocumentImportRequest(BaseModel):

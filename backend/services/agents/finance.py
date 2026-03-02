@@ -1,13 +1,20 @@
 """
 FinanceAgent: invoices, payments, outstanding balances, revenue, P&L.
-Tools: get_invoice_summary, get_outstanding_balances, get_revenue_summary, get_pl_summary.
+Tools: get_invoice_summary, get_outstanding_balances, get_revenue_summary, get_pl_summary, get_top_products.
 """
 import json
 import logging
 from datetime import datetime, timezone, timedelta
 
-from config import ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL, AGENT_THINKING_BUDGET
-from services.agents.base import run_agent, _build_conversation
+from pydantic_ai import Agent, RunContext
+
+from config import (
+    ANTHROPIC_MODEL,
+    ANTHROPIC_FAST_MODEL,
+    AGENT_THINKING_BUDGET,
+    DEFAULT_DEEP_THINKING_BUDGET,
+)
+from services.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
 
@@ -54,78 +61,94 @@ REASONING — think before acting:
 5. Distinguish between revenue (what was billed) and cash received (payment_status=paid)
 6. Present margins as percentages, not just raw dollar differences — context matters"""
 
-TOOL_SCHEMAS = [
-    {
-        "name": "get_invoice_summary",
-        "description": "Invoice counts and totals grouped by status (draft, sent, paid).",
-        "input_schema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "get_outstanding_balances",
-        "description": "Unpaid withdrawal balances grouped by billing entity/contractor. Shows who owes money.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Max entities to return", "default": 20},
-            },
-        },
-    },
-    {
-        "name": "get_revenue_summary",
-        "description": "Revenue summary for the last N days: total revenue, tax collected, transaction count.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {"type": "integer", "description": "Lookback window in days", "default": 30},
-            },
-        },
-    },
-    {
-        "name": "get_pl_summary",
-        "description": "Profit & loss for the last N days: revenue, cost of goods sold, gross profit and margin.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {"type": "integer", "description": "Lookback window in days", "default": 30},
-            },
-        },
-    },
-    {
-        "name": "get_top_products",
-        "description": "Top products ranked by revenue over the last N days. Use for weekly/periodic sales reports.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {"type": "integer", "description": "Lookback window in days", "default": 7},
-                "limit": {"type": "integer", "description": "Max products to return", "default": 10},
-            },
-        },
-    },
-]
+_agent = Agent(
+    f"anthropic:{ANTHROPIC_FAST_MODEL}",
+    deps_type=AgentDeps,
+    system_prompt=SYSTEM_PROMPT,
+)
 
 
-async def execute_tool(name: str, args: dict, ctx: dict) -> str:
-    org_id = ctx.get("org_id", "default")
+@_agent.tool
+async def get_invoice_summary(ctx: RunContext[AgentDeps]) -> str:
+    """Invoice counts and totals grouped by status (draft, sent, paid)."""
+    return await _get_invoice_summary(ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_outstanding_balances(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
+    """Unpaid withdrawal balances grouped by billing entity/contractor. Shows who owes money."""
+    return await _get_outstanding_balances({"limit": limit}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_revenue_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
+    """Revenue summary for the last N days: total revenue, tax collected, transaction count."""
+    return await _get_revenue_summary({"days": days}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_pl_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
+    """Profit & loss for the last N days: revenue, cost of goods sold, gross profit and margin."""
+    return await _get_pl_summary({"days": days}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_top_products(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 10) -> str:
+    """Top products ranked by revenue over the last N days. Use for weekly/periodic sales reports."""
+    return await _get_top_products({"days": days, "limit": limit}, ctx.deps.org_id)
+
+
+async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
+    from config import ANTHROPIC_AVAILABLE
+    if not ANTHROPIC_AVAILABLE:
+        return {"response": "Finance agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "finance"}
+
+    from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost
+
+    deep = mode == "deep"
+    model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
+    thinking_budget = (
+        (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
+    )
+    msg_history = build_message_history(history)
+    model_settings = {}
+    if thinking_budget > 0:
+        model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+
     try:
-        if name == "get_invoice_summary":
-            return await _get_invoice_summary(org_id)
-        if name == "get_outstanding_balances":
-            return await _get_outstanding_balances(args, org_id)
-        if name == "get_revenue_summary":
-            return await _get_revenue_summary(args, org_id)
-        if name == "get_pl_summary":
-            return await _get_pl_summary(args, org_id)
-        if name == "get_top_products":
-            return await _get_top_products(args, org_id)
-        return json.dumps({"error": f"Unknown tool: {name}"})
+        result = await _agent.run(
+            user_message,
+            message_history=msg_history,
+            deps=deps,
+            model=f"anthropic:{model_id}",
+            model_settings=model_settings or None,
+        )
     except Exception as e:
-        logger.warning(f"FinanceAgent tool {name} error: {e}")
-        return json.dumps({"error": str(e)})
+        if model_settings:
+            logger.warning(f"FinanceAgent thinking error, retrying without thinking: {e}")
+            result = await _agent.run(
+                user_message, message_history=msg_history, deps=deps, model=f"anthropic:{model_id}"
+            )
+        else:
+            raise
 
+    usage = result.usage()
+    cost = calc_cost(model_id, usage)
+    return {
+        "response": result.output,
+        "tool_calls": extract_tool_calls(result.all_messages()),
+        "thinking": [],
+        "history": extract_text_history(result.all_messages()),
+        "usage": {"cost_usd": cost, "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "model": model_id},
+        "agent": "finance",
+    }
+
+
+# ── DB query implementations (unchanged) ────────────────────────────────────
 
 async def _get_invoice_summary(org_id: str) -> str:
     from repositories import invoice_repo
-    invoices = await invoice_repo.list_invoices(limit=10000, org_id=org_id)
+    invoices = await invoice_repo.list_invoices(limit=10000, organization_id=org_id)
     summary: dict[str, dict] = {}
     for inv in invoices:
         status = inv.get("status", "unknown")
@@ -136,21 +159,13 @@ async def _get_invoice_summary(org_id: str) -> str:
     for s in summary.values():
         s["total"] = round(s["total"], 2)
     grand_total = round(sum(inv.get("total", 0) for inv in invoices), 2)
-    return json.dumps({
-        "total_invoices": len(invoices),
-        "grand_total": grand_total,
-        "by_status": summary,
-    })
+    return json.dumps({"total_invoices": len(invoices), "grand_total": grand_total, "by_status": summary})
 
 
 async def _get_outstanding_balances(args: dict, org_id: str) -> str:
     from repositories import withdrawal_repo
     limit = min(int(args.get("limit") or 20), 100)
-    withdrawals = await withdrawal_repo.list_withdrawals(
-        payment_status="unpaid",
-        limit=10000,
-        organization_id=org_id,
-    )
+    withdrawals = await withdrawal_repo.list_withdrawals(payment_status="unpaid", limit=10000, organization_id=org_id)
     entity_map: dict[str, dict] = {}
     for w in withdrawals:
         entity = w.get("billing_entity") or w.get("contractor_name") or "Unknown"
@@ -169,22 +184,14 @@ async def _get_outstanding_balances(args: dict, org_id: str) -> str:
         for entity, data in sorted_entities[:limit]
     ]
     total_outstanding = sum(w.get("total", 0) for w in withdrawals)
-    return json.dumps({
-        "total_outstanding": round(total_outstanding, 2),
-        "entity_count": len(entity_map),
-        "balances": out,
-    })
+    return json.dumps({"total_outstanding": round(total_outstanding, 2), "entity_count": len(entity_map), "balances": out})
 
 
 async def _get_revenue_summary(args: dict, org_id: str) -> str:
     from repositories import withdrawal_repo
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=since,
-        limit=10000,
-        organization_id=org_id,
-    )
+    withdrawals = await withdrawal_repo.list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     total_revenue = sum(w.get("total", 0) for w in withdrawals)
     total_tax = sum(w.get("tax", 0) for w in withdrawals)
     paid = sum(w.get("total", 0) for w in withdrawals if w.get("payment_status") == "paid")
@@ -206,11 +213,7 @@ async def _get_pl_summary(args: dict, org_id: str) -> str:
     from repositories import withdrawal_repo
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=since,
-        limit=10000,
-        organization_id=org_id,
-    )
+    withdrawals = await withdrawal_repo.list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     total_revenue = sum(w.get("total", 0) for w in withdrawals)
     total_cost = sum(w.get("cost_total", 0) for w in withdrawals)
     gross_profit = total_revenue - total_cost
@@ -230,11 +233,7 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     days = min(int(args.get("days") or 7), 365)
     limit = min(int(args.get("limit") or 10), 50)
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    withdrawals = await withdrawal_repo.list_withdrawals(
-        start_date=since,
-        limit=10000,
-        organization_id=org_id,
-    )
+    withdrawals = await withdrawal_repo.list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     product_map: dict[str, dict] = {}
     for w in withdrawals:
         for item in (w.get("items") or []):
@@ -249,35 +248,4 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     ranked = sorted(product_map.values(), key=lambda x: x["total_revenue"], reverse=True)[:limit]
     for r in ranked:
         r["total_revenue"] = round(r["total_revenue"], 2)
-    return json.dumps({
-        "period_days": days,
-        "count": len(ranked),
-        "products": ranked,
-    })
-
-
-async def chat(
-    messages: list[dict],
-    user_message: str,
-    history: list[dict] | None,
-    ctx: dict,
-) -> dict:
-    from config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY
-    if not ANTHROPIC_AVAILABLE:
-        return {"response": "Finance agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": []}
-    import anthropic
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    thinking_budget = AGENT_THINKING_BUDGET
-    model = ANTHROPIC_MODEL if thinking_budget > 0 else ANTHROPIC_FAST_MODEL
-    conversation = _build_conversation(messages, history, user_message)
-    result = await run_agent(
-        client, model, SYSTEM_PROMPT, TOOL_SCHEMAS, execute_tool, conversation, ctx,
-        thinking_budget=thinking_budget,
-    )
-    return {
-        "response": result["response"],
-        "tool_calls": result["tool_calls"],
-        "thinking": result.get("thinking", []),
-        "history": result["conversation"],
-        "agent": "finance",
-    }
+    return json.dumps({"period_days": days, "count": len(ranked), "products": ranked})

@@ -1,16 +1,23 @@
 """
 InventoryAgent: product search, stock levels, reorders, departments, vendors.
-Tools: search_products, get_product_details, get_inventory_stats,
+Tools: search_products, search_semantic, get_product_details, get_inventory_stats,
        list_low_stock, list_departments, list_vendors,
-       get_usage_velocity, get_reorder_suggestions, search_semantic.
+       get_usage_velocity, get_reorder_suggestions, get_department_health, get_slow_movers.
 """
 import json
 import logging
 from datetime import datetime, timezone, timedelta
 
-from config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL, AGENT_THINKING_BUDGET
+from pydantic_ai import Agent, RunContext
+
+from config import (
+    ANTHROPIC_MODEL,
+    ANTHROPIC_FAST_MODEL,
+    AGENT_THINKING_BUDGET,
+    DEFAULT_DEEP_THINKING_BUDGET,
+)
 from db import get_connection
-from services.agents.base import run_agent, _build_conversation
+from services.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
 
@@ -81,138 +88,126 @@ REASONING — think before acting:
 5. If search_products finds nothing, always try search_semantic before concluding unavailable
 6. Never stop early with partial data when a follow-up tool call would give a complete answer"""
 
-TOOL_SCHEMAS = [
-    {
-        "name": "search_products",
-        "description": "Search products by name, SKU, or barcode. Returns matching products with SKU, name, quantity, min_stock, department.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search term"},
-                "limit": {"type": "integer", "description": "Max results", "default": 20},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "search_semantic",
-        "description": "Semantic/concept search for products. Use when exact search fails or query is descriptive (e.g. 'something for fixing pipes', 'waterproof coating').",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Descriptive search query"},
-                "limit": {"type": "integer", "description": "Max results", "default": 10},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "get_product_details",
-        "description": "Get full details for one product by SKU: price, cost, vendor, UOM, barcode, reorder point.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "sku": {"type": "string", "description": "Product SKU (e.g. PLU-ITM-000001)"},
-            },
-            "required": ["sku"],
-        },
-    },
-    {
-        "name": "get_inventory_stats",
-        "description": "Catalogue summary: total_skus (distinct product lines), total_cost_value (sum of quantity*cost), low_stock_count, out_of_stock_count. Does NOT return a meaningful total unit count — products have different units (each, gallon, box, etc.).",
-        "input_schema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "list_low_stock",
-        "description": "List products at or below their reorder point (quantity <= min_stock).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Max products to return", "default": 20},
-            },
-        },
-    },
-    {
-        "name": "list_departments",
-        "description": "List all departments with product counts and next SKU.",
-        "input_schema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "list_vendors",
-        "description": "List all vendors with product counts.",
-        "input_schema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "get_usage_velocity",
-        "description": "How fast a product moves: total and average daily withdrawals over the last N days.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "sku": {"type": "string", "description": "Product SKU"},
-                "days": {"type": "integer", "description": "Lookback window in days", "default": 30},
-            },
-            "required": ["sku"],
-        },
-    },
-    {
-        "name": "get_reorder_suggestions",
-        "description": "Priority reorder list: low-stock products ranked by urgency (days until stockout based on usage velocity).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Max suggestions", "default": 20},
-            },
-        },
-    },
-    {
-        "name": "get_department_health",
-        "description": "Per-department breakdown showing healthy, low-stock, and out-of-stock product counts. Use for department-level stock health analysis.",
-        "input_schema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "get_slow_movers",
-        "description": "Products with stock on hand but very low or zero withdrawal activity — dead or slow-moving stock tying up inventory.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "limit": {"type": "integer", "description": "Max products to return", "default": 20},
-                "days": {"type": "integer", "description": "Lookback window for withdrawal activity", "default": 30},
-            },
-        },
-    },
-]
+_agent = Agent(
+    f"anthropic:{ANTHROPIC_FAST_MODEL}",
+    deps_type=AgentDeps,
+    system_prompt=SYSTEM_PROMPT,
+)
 
 
-async def execute_tool(name: str, args: dict, ctx: dict) -> str:
-    org_id = ctx.get("org_id", "default")
+@_agent.tool
+async def search_products(ctx: RunContext[AgentDeps], query: str, limit: int = 20) -> str:
+    """Search products by name, SKU, or barcode. Returns matching products with SKU, name, quantity, min_stock, department."""
+    return await _search_products({"query": query, "limit": limit}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def search_semantic(ctx: RunContext[AgentDeps], query: str, limit: int = 10) -> str:
+    """Semantic/concept search for products. Use when exact search fails or query is descriptive (e.g. 'something for fixing pipes', 'waterproof coating')."""
+    return await _search_semantic({"query": query, "limit": limit}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_product_details(ctx: RunContext[AgentDeps], sku: str) -> str:
+    """Get full details for one product by SKU: price, cost, vendor, UOM, barcode, reorder point."""
+    return await _get_product_details({"sku": sku}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_inventory_stats(ctx: RunContext[AgentDeps]) -> str:
+    """Catalogue summary: total_skus (distinct product lines), total_cost_value, low_stock_count, out_of_stock_count. Does NOT return a meaningful total unit count — products have different units."""
+    return await _get_inventory_stats(ctx.deps.org_id)
+
+
+@_agent.tool
+async def list_low_stock(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
+    """List products at or below their reorder point (quantity <= min_stock)."""
+    return await _list_low_stock({"limit": limit}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def list_departments(ctx: RunContext[AgentDeps]) -> str:
+    """List all departments with product counts and next SKU."""
+    return await _list_departments(ctx.deps.org_id)
+
+
+@_agent.tool
+async def list_vendors(ctx: RunContext[AgentDeps]) -> str:
+    """List all vendors with product counts."""
+    return await _list_vendors(ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_usage_velocity(ctx: RunContext[AgentDeps], sku: str, days: int = 30) -> str:
+    """How fast a product moves: total and average daily withdrawals over the last N days."""
+    return await _get_usage_velocity({"sku": sku, "days": days}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_reorder_suggestions(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
+    """Priority reorder list: low-stock products ranked by urgency (days until stockout based on usage velocity)."""
+    return await _get_reorder_suggestions({"limit": limit}, ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_department_health(ctx: RunContext[AgentDeps]) -> str:
+    """Per-department breakdown showing healthy, low-stock, and out-of-stock product counts."""
+    return await _get_department_health(ctx.deps.org_id)
+
+
+@_agent.tool
+async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int = 30) -> str:
+    """Products with stock on hand but very low or zero withdrawal activity — dead or slow-moving stock tying up inventory."""
+    return await _get_slow_movers({"limit": limit, "days": days}, ctx.deps.org_id)
+
+
+async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
+    from config import ANTHROPIC_AVAILABLE
+    if not ANTHROPIC_AVAILABLE:
+        return {"response": "Inventory agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "inventory"}
+
+    from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost
+
+    deep = mode == "deep"
+    model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
+    thinking_budget = (
+        (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
+    )
+    msg_history = build_message_history(history)
+    model_settings = {}
+    if thinking_budget > 0:
+        model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+
     try:
-        if name == "search_products":
-            return await _search_products(args, org_id)
-        if name == "search_semantic":
-            return await _search_semantic(args, org_id)
-        if name == "get_product_details":
-            return await _get_product_details(args, org_id)
-        if name == "get_inventory_stats":
-            return await _get_inventory_stats(org_id)
-        if name == "list_low_stock":
-            return await _list_low_stock(args, org_id)
-        if name == "list_departments":
-            return await _list_departments(org_id)
-        if name == "list_vendors":
-            return await _list_vendors(org_id)
-        if name == "get_usage_velocity":
-            return await _get_usage_velocity(args, org_id)
-        if name == "get_reorder_suggestions":
-            return await _get_reorder_suggestions(args, org_id)
-        if name == "get_department_health":
-            return await _get_department_health(org_id)
-        if name == "get_slow_movers":
-            return await _get_slow_movers(args, org_id)
-        return json.dumps({"error": f"Unknown tool: {name}"})
+        result = await _agent.run(
+            user_message,
+            message_history=msg_history,
+            deps=deps,
+            model=f"anthropic:{model_id}",
+            model_settings=model_settings or None,
+        )
     except Exception as e:
-        logger.warning(f"InventoryAgent tool {name} error: {e}")
-        return json.dumps({"error": str(e)})
+        if model_settings:
+            logger.warning(f"InventoryAgent thinking error, retrying without thinking: {e}")
+            result = await _agent.run(
+                user_message, message_history=msg_history, deps=deps, model=f"anthropic:{model_id}"
+            )
+        else:
+            raise
 
+    usage = result.usage()
+    cost = calc_cost(model_id, usage)
+    return {
+        "response": result.output,
+        "tool_calls": extract_tool_calls(result.all_messages()),
+        "thinking": [],
+        "history": extract_text_history(result.all_messages()),
+        "usage": {"cost_usd": cost, "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "model": model_id},
+        "agent": "inventory",
+    }
+
+
+# ── DB query implementations (unchanged) ────────────────────────────────────
 
 async def _search_products(args: dict, org_id: str) -> str:
     from repositories import product_repo
@@ -254,7 +249,6 @@ async def _search_semantic(args: dict, org_id: str) -> str:
 
 
 async def _get_product_details(args: dict, org_id: str) -> str:
-    from repositories import product_repo
     sku = (args.get("sku") or "").strip().upper()
     conn = get_connection()
     cur = await conn.execute(
@@ -362,7 +356,6 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     conn = get_connection()
-    # Find product
     cur = await conn.execute(
         "SELECT id, name, quantity, sell_uom FROM products WHERE UPPER(sku) = ? AND (organization_id = ? OR organization_id IS NULL)",
         (sku, org_id),
@@ -371,7 +364,6 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
     if not row:
         return json.dumps({"error": f"Product '{sku}' not found"})
     product_id, product_name, current_qty, sell_uom = row["id"], row["name"], row["quantity"], row["sell_uom"] or "each"
-    # Sum withdrawals (negative deltas)
     cur = await conn.execute(
         """SELECT COUNT(*) as txn_count, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
            FROM stock_transactions
@@ -404,7 +396,6 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
     low_stock = await product_repo.list_low_stock(limit=100, org_id=org_id)
     if not low_stock:
         return json.dumps({"count": 0, "suggestions": []})
-    # Fetch 30-day velocity for each low-stock product
     product_ids = [p["id"] for p in low_stock]
     placeholders = ",".join("?" * len(product_ids))
     cur = await conn.execute(
@@ -433,7 +424,6 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
                        else "high" if days_until_zero is not None and days_until_zero <= 7
                        else "medium",
         })
-    # Sort: zero-stock first, then by days_until_zero ascending
     suggestions.sort(key=lambda x: (
         x["days_until_stockout"] is None,
         x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
@@ -496,29 +486,3 @@ async def _get_slow_movers(args: dict, org_id: str) -> str:
         for r in rows
     ]
     return json.dumps({"period_days": days, "count": len(out), "slow_movers": out})
-
-
-async def chat(
-    messages: list[dict],
-    user_message: str,
-    history: list[dict] | None,
-    ctx: dict,
-) -> dict:
-    if not ANTHROPIC_AVAILABLE:
-        return {"response": "Inventory agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": []}
-    import anthropic  # noqa: PLC0415
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    thinking_budget = AGENT_THINKING_BUDGET
-    model = ANTHROPIC_MODEL if thinking_budget > 0 else ANTHROPIC_FAST_MODEL
-    conversation = _build_conversation(messages, history, user_message)
-    result = await run_agent(
-        client, model, SYSTEM_PROMPT, TOOL_SCHEMAS, execute_tool, conversation, ctx,
-        thinking_budget=thinking_budget,
-    )
-    return {
-        "response": result["response"],
-        "tool_calls": result["tool_calls"],
-        "thinking": result.get("thinking", []),
-        "history": result["conversation"],
-        "agent": "inventory",
-    }
