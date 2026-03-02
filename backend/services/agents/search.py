@@ -31,7 +31,7 @@ class ProductSearchIndex:
             return
 
         from repositories import product_repo
-        products = await product_repo.list_products(limit=10000, org_id=org_id)
+        products = await product_repo.list_products(limit=10000, organization_id=org_id)
         if not products:
             self._products = []
             self._bm25 = None

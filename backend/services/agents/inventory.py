@@ -213,7 +213,7 @@ async def _search_products(args: dict, org_id: str) -> str:
     from repositories import product_repo
     query = (args.get("query") or "").strip()
     limit = min(int(args.get("limit") or 20), 50)
-    items = await product_repo.list_products(search=query, limit=limit, org_id=org_id)
+    items = await product_repo.list_products(search=query, limit=limit, organization_id=org_id)
     out = [
         {
             "sku": p.get("sku"),

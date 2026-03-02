@@ -4,7 +4,10 @@
       "Bash(python -m pytest tests/ -x -q)",
       "Bash(python -c \"import anthropic; print\\(anthropic.__version__\\)\")",
       "Bash(npm install react-markdown remark-gfm)",
-      "WebFetch(domain:ai.pydantic.dev)"
+      "WebFetch(domain:ai.pydantic.dev)",
+      "Bash(python -c \"from services.agents import general\")",
+      "Bash(python -c \"from services.agents import inventory, ops, finance, insights\")",
+      "Bash(python -c \":*)"
     ]
   }
 }
