@@ -1,4 +1,7 @@
 """Shared utilities for all specialist agents."""
+import asyncio
+import logging
+
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -6,6 +9,49 @@ from pydantic_ai.messages import (
     ToolCallPart,
     UserPromptPart,
 )
+
+logger = logging.getLogger(__name__)
+
+AGENT_TIMEOUT_SECONDS = 45
+
+
+async def run_agent(
+    agent,
+    user_message: str,
+    *,
+    msg_history,
+    deps,
+    model_id: str,
+    model_settings: dict | None,
+    timeout_seconds: int = AGENT_TIMEOUT_SECONDS,
+    agent_name: str = "agent",
+):
+    """Run a PydanticAI agent with timeout and thinking-retry.
+
+    Raises RuntimeError on timeout. Re-raises other exceptions after optionally
+    retrying without thinking settings (to recover from thinking-budget errors).
+    """
+    async def _run(settings):
+        return await agent.run(
+            user_message,
+            message_history=msg_history,
+            deps=deps,
+            model=f"anthropic:{model_id}",
+            model_settings=settings or None,
+        )
+
+    try:
+        return await asyncio.wait_for(_run(model_settings), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        raise RuntimeError(f"{agent_name} timed out after {timeout_seconds}s")
+    except Exception as e:
+        if model_settings:
+            logger.warning(f"{agent_name} error with thinking settings, retrying without: {e}")
+            try:
+                return await asyncio.wait_for(_run(None), timeout=timeout_seconds)
+            except asyncio.TimeoutError:
+                raise RuntimeError(f"{agent_name} timed out on retry after {timeout_seconds}s")
+        raise
 
 # Pricing per million tokens (USD)
 _MODEL_PRICING: dict[str, dict[str, float]] = {

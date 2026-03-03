@@ -9,7 +9,10 @@
       "Bash(python -c \"from services.agents import inventory, ops, finance, insights\")",
       "Bash(python -c \":*)",
       "Bash(python -m pytest tests/test_llm_anthropic.py -q)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Read(//Users/nooz/projects/**)",
+      "Read(//Users/nooz/products/cortex/**)",
+      "Read(//Users/nooz/products/**)"
     ]
   }
 }

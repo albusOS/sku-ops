@@ -86,34 +86,26 @@ async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mo
     if not ANTHROPIC_AVAILABLE:
         return {"response": "Insights agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "insights"}
 
-    from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost
+    from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost, run_agent
 
     deep = mode == "deep"
     model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
-    thinking_budget = (
-        (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
-    )
+    thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
     msg_history = build_message_history(history)
-    model_settings = {}
+    model_settings: dict = {}
     if thinking_budget > 0:
         model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
 
     try:
-        result = await _agent.run(
-            user_message,
-            message_history=msg_history,
-            deps=deps,
-            model=f"anthropic:{model_id}",
-            model_settings=model_settings or None,
+        result = await run_agent(
+            _agent, user_message,
+            msg_history=msg_history, deps=deps,
+            model_id=model_id, model_settings=model_settings or None,
+            agent_name="InsightsAgent",
         )
     except Exception as e:
-        if model_settings:
-            logger.warning(f"InsightsAgent thinking error, retrying without thinking: {e}")
-            result = await _agent.run(
-                user_message, message_history=msg_history, deps=deps, model=f"anthropic:{model_id}"
-            )
-        else:
-            raise
+        logger.error(f"InsightsAgent failed: {e}")
+        return {"response": "I ran into an issue. Please try again in a moment.", "tool_calls": [], "history": history or [], "thinking": [], "agent": "insights"}
 
     usage = result.usage()
     cost = calc_cost(model_id, usage)

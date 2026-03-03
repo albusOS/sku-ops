@@ -18,6 +18,7 @@ from services.agents.agent_utils import (
     extract_text_history,
     extract_tool_calls,
     calc_cost,
+    run_agent,
 )
 
 # Import tool implementations from specialist agents
@@ -44,8 +45,9 @@ from services.agents.insights import (
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a general-purpose assistant for SKU-Ops, a hardware store management system.
-You have access to tools across inventory, operations, finance, and insights.
+SYSTEM_PROMPT = """You are the **dashboard assistant** for SKU-Ops, a hardware store management system.
+You answer cross-domain questions from the main dashboard — inventory health, revenue, outstanding balances, pending requests, and stockout risk.
+For deep specialist work (e.g. searching a specific product, drilling into a job, analysing a department), tell the user which page to navigate to (Inventory, Operations, Financials, Reports).
 
 TOOLS:
 Inventory:
@@ -187,21 +189,15 @@ async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mo
         model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
 
     try:
-        result = await _agent.run(
-            user_message,
-            message_history=msg_history,
-            deps=deps,
-            model=f"anthropic:{model_id}",
-            model_settings=model_settings or None,
+        result = await run_agent(
+            _agent, user_message,
+            msg_history=msg_history, deps=deps,
+            model_id=model_id, model_settings=model_settings or None,
+            agent_name="GeneralAgent",
         )
     except Exception as e:
-        if model_settings:
-            logger.warning(f"GeneralAgent thinking error, retrying without thinking: {e}")
-            result = await _agent.run(
-                user_message, message_history=msg_history, deps=deps, model=f"anthropic:{model_id}"
-            )
-        else:
-            raise
+        logger.error(f"GeneralAgent failed: {e}")
+        return {"response": "I ran into an issue. Please try again in a moment.", "tool_calls": [], "history": history or [], "thinking": [], "agent": "general"}
 
     usage = result.usage()
     cost = calc_cost(model_id, usage)

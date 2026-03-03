@@ -13,6 +13,7 @@ _AGENT_MODULES = {
     "finance":   "services.agents.finance",
     "insights":  "services.agents.insights",
     "general":   "services.agents.general",
+    "dashboard": "services.agents.general",  # alias for general (dashboard assistant)
 }
 
 

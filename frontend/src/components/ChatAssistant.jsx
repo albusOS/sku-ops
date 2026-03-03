@@ -9,7 +9,7 @@ import { API } from "@/lib/api";
 const STORAGE_KEY = "sku-ops:chat:v3";
 
 const AGENT_META = {
-  general:   { label: "General",    cls: "bg-amber-50 text-amber-700 border border-amber-200" },
+  general:   { label: "Dashboard",  cls: "bg-amber-50 text-amber-700 border border-amber-200" },
   inventory: { label: "Inventory",  cls: "bg-blue-50 text-blue-700 border border-blue-200" },
   ops:       { label: "Operations", cls: "bg-orange-50 text-orange-700 border border-orange-200" },
   finance:   { label: "Finance",    cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
