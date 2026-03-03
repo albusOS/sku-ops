@@ -306,8 +306,8 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
             amt = round(qty * price, 2)
             total_subtotal += amt
             await conn.execute(
-                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid4()),
                     invoice_id,
@@ -317,6 +317,7 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
                     amt,
                     float(item.get("cost", 0)),
                     item.get("product_id"),
+                    w.get("job_id"),
                 ),
             )
         total_tax += w.get("tax", 0)
@@ -390,8 +391,8 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
             amt = round(qty * price, 2)
             total_subtotal += amt
             await conn.execute(
-                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid4()),
                     inv_id,
@@ -401,6 +402,7 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
                     amt,
                     float(item.get("cost", 0)),
                     item.get("product_id"),
+                    w.get("job_id"),
                 ),
             )
         total_tax += w.get("tax", 0)
