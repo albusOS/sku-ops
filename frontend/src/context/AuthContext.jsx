@@ -11,13 +11,13 @@ const isAuthEndpoint = (url) => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [token, setToken] = useState(sessionStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
   const logoutRef = useRef(null);
 
   useEffect(() => {
     logoutRef.current = () => {
-      localStorage.removeItem("token");
+      sessionStorage.removeItem("token");
       delete axios.defaults.headers.common["Authorization"];
       setToken(null);
       setUser(null);
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { token: newToken, user: userData } = response.data;
-    localStorage.setItem("token", newToken);
+    sessionStorage.setItem("token", newToken);
     axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     setToken(newToken);
     setUser(userData);
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (email, password, name) => {
     const response = await axios.post(`${API}/auth/register`, { email, password, name });
     const { token: newToken, user: userData } = response.data;
-    localStorage.setItem("token", newToken);
+    sessionStorage.setItem("token", newToken);
     axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     setToken(newToken);
     setUser(userData);
