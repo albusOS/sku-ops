@@ -11,7 +11,6 @@ from pydantic_ai import Agent, RunContext
 
 from config import (
     ANTHROPIC_MODEL,
-    ANTHROPIC_FAST_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
@@ -58,7 +57,7 @@ REASONING — think before acting:
    dumping raw rows — give the user insight, not just data"""
 
 _agent = Agent(
-    f"anthropic:{ANTHROPIC_FAST_MODEL}",
+    f"anthropic:{ANTHROPIC_MODEL}",
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )
@@ -94,7 +93,7 @@ async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mo
         return {"response": "Ops agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "ops"}
 
     deep = mode == "deep"
-    model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
+    model_id = ANTHROPIC_MODEL
     thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
     msg_history = build_message_history(history)
     model_settings: dict = {}

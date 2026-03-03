@@ -12,7 +12,6 @@ from pydantic_ai import Agent, RunContext
 
 from config import (
     ANTHROPIC_MODEL,
-    ANTHROPIC_FAST_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
@@ -90,7 +89,7 @@ REASONING — think before acting:
 6. Never stop early with partial data when a follow-up tool call would give a complete answer"""
 
 _agent = Agent(
-    f"anthropic:{ANTHROPIC_FAST_MODEL}",
+    f"anthropic:{ANTHROPIC_MODEL}",
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )
@@ -168,7 +167,7 @@ async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mo
         return {"response": "Inventory agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "inventory"}
 
     deep = mode == "deep"
-    model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
+    model_id = ANTHROPIC_MODEL
     thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
     msg_history = build_message_history(history)
     model_settings: dict = {}
@@ -220,11 +219,17 @@ async def _search_products(args: dict, org_id: str) -> str:
 
 
 async def _search_semantic(args: dict, org_id: str) -> str:
+    from config import OPENAI_API_KEY
     from services.agents.search import get_index
     query = (args.get("query") or "").strip()
     limit = min(int(args.get("limit") or 10), 30)
     index = await get_index(org_id)
-    results = index.search(query, limit=limit)
+    if OPENAI_API_KEY and index._embeddings is not None:
+        results = await index.search_semantic(query, limit=limit, api_key=OPENAI_API_KEY)
+        method = "embedding"
+    else:
+        results = index.search_bm25(query, limit=limit)
+        method = "bm25"
     out = [
         {
             "sku": p.get("sku"),
@@ -236,7 +241,7 @@ async def _search_semantic(args: dict, org_id: str) -> str:
         }
         for p in results
     ]
-    return json.dumps({"count": len(out), "products": out, "method": "bm25"})
+    return json.dumps({"count": len(out), "products": out, "method": method})
 
 
 async def _get_product_details(args: dict, org_id: str) -> str:
@@ -302,7 +307,7 @@ async def _get_inventory_stats(org_id: str) -> str:
 async def _list_low_stock(args: dict, org_id: str) -> str:
     from repositories import product_repo
     limit = min(int(args.get("limit") or 20), 50)
-    items = await product_repo.list_low_stock(limit=limit, org_id=org_id)
+    items = await product_repo.list_low_stock(limit=limit, organization_id=org_id)
     out = [
         {
             "sku": p.get("sku"),
@@ -385,7 +390,7 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
     limit = min(int(args.get("limit") or 20), 50)
     since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     conn = get_connection()
-    low_stock = await product_repo.list_low_stock(limit=100, org_id=org_id)
+    low_stock = await product_repo.list_low_stock(limit=100, organization_id=org_id)
     if not low_stock:
         return json.dumps({"count": 0, "suggestions": []})
     product_ids = [p["id"] for p in low_stock]

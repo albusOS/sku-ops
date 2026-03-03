@@ -10,7 +10,6 @@ from pydantic_ai import Agent, RunContext
 
 from config import (
     ANTHROPIC_MODEL,
-    ANTHROPIC_FAST_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
@@ -57,7 +56,7 @@ REASONING — think before acting:
 6. For stockout forecasts, prioritise critical (≤3 days) over high (≤7 days) — tell the user what needs action today"""
 
 _agent = Agent(
-    f"anthropic:{ANTHROPIC_FAST_MODEL}",
+    f"anthropic:{ANTHROPIC_MODEL}",
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )
@@ -89,7 +88,7 @@ async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mo
     from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost, run_agent
 
     deep = mode == "deep"
-    model_id = ANTHROPIC_MODEL if deep else ANTHROPIC_FAST_MODEL
+    model_id = ANTHROPIC_MODEL
     thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
     msg_history = build_message_history(history)
     model_settings: dict = {}

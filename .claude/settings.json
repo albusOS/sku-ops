@@ -12,7 +12,16 @@
       "Bash(python3 -c \":*)",
       "Read(//Users/nooz/projects/**)",
       "Read(//Users/nooz/products/cortex/**)",
-      "Read(//Users/nooz/products/**)"
+      "Read(//Users/nooz/products/**)",
+      "Bash(uv pip install openai)",
+      "Bash(python -c \"import yaml; print\\(''yaml ok''\\)\")",
+      "Bash(python -c \"import ast, sys:*)",
+      "Bash(uv run pytest tests/ -x -q)",
+      "Bash(uv run pytest tests/ --ignore=tests/test_barcode_validation.py -x -q)",
+      "Bash(uv run pytest tests/test_llm_anthropic.py tests/test_withdrawal_service.py tests/test_invoice_repo.py tests/test_product_lifecycle.py -q)",
+      "Bash(uv run pytest tests/test_llm_anthropic.py -q)",
+      "Bash(uv run --directory backend pytest backend/tests/test_llm_anthropic.py -q)",
+      "Bash(uv run --directory . python -m pytest tests/test_llm_anthropic.py -q)"
     ]
   }
 }

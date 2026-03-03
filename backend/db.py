@@ -395,6 +395,28 @@ async def init_db() -> None:
     except Exception:
         pass
 
+    # Migration: cross-session memory artifacts
+    try:
+        await _conn.executescript("""
+            CREATE TABLE IF NOT EXISTS memory_artifacts (
+                id TEXT PRIMARY KEY,
+                org_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'entity_fact',
+                subject TEXT NOT NULL DEFAULT 'general',
+                content TEXT NOT NULL DEFAULT '',
+                tags TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                expires_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_memory_user ON memory_artifacts(org_id, user_id, expires_at);
+            CREATE INDEX IF NOT EXISTS idx_memory_session ON memory_artifacts(session_id);
+        """)
+        await _conn.commit()
+    except Exception:
+        pass
+
 
 def get_connection() -> aiosqlite.Connection:
     """Return the shared database connection. Must call init_db() first."""

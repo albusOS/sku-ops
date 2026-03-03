@@ -25,6 +25,7 @@ jq>=1.6.0
 typer>=0.9.0
 pydantic-ai[anthropic]>=0.0.60
 rank-bm25>=0.2.2
+openai>=1.40.0
 google-generativeai>=0.8.0
 Pillow>=10.0.0
 pytesseract>=0.3.10

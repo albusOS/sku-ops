@@ -96,10 +96,16 @@ ALLOW_RESET = is_development or is_test or os.environ.get("ALLOW_RESET", "").low
 # AI - Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
-# Vision/PDF document parsing — Sonnet balances accuracy with cost for financial docs
+# Primary model for all agents and document parsing
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
-# Simple text tasks (UOM classification, dept enrichment, chat) — Haiku is sufficient and cheap
+# Fast/cheap model for simple text tasks (UOM classification, dept enrichment)
 ANTHROPIC_FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+# Fallback model when Sonnet is overloaded — only used after retries exhausted
+ANTHROPIC_OPUS_MODEL = os.environ.get("ANTHROPIC_OPUS_MODEL", "claude-opus-4-6").strip() or "claude-opus-4-6"
+
+# OpenAI — used for product semantic search embeddings (text-embedding-3-small)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_AVAILABLE = bool(OPENAI_API_KEY)
 LLM_SETUP_URL = "https://console.anthropic.com/"
 LLM_AVAILABLE = ANTHROPIC_AVAILABLE  # alias used by enrichment/uom services
 # Extended thinking for chat agents. 0 = off (uses Haiku). >0 = budget in tokens (switches to Sonnet).
