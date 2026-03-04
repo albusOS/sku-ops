@@ -5,7 +5,7 @@ import base64
 import logging
 from typing import Optional
 
-from config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL
 
 logger = logging.getLogger(__name__)
 

@@ -9,12 +9,12 @@ from datetime import datetime, timezone, timedelta
 
 from pydantic_ai import Agent, RunContext
 
-from config import (
+from shared.infrastructure.config import (
     AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from services.agents.deps import AgentDeps
 from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost, run_agent
 
@@ -88,7 +88,7 @@ async def list_pending_material_requests(ctx: RunContext[AgentDeps], limit: int 
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
-    from config import ANTHROPIC_AVAILABLE
+    from shared.infrastructure.config import ANTHROPIC_AVAILABLE
     if not ANTHROPIC_AVAILABLE:
         return {"response": "Ops agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "ops"}
 

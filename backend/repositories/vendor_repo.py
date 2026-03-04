@@ -1,7 +1,7 @@
 """Vendor repository."""
 from typing import Optional
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 
 
 def _row_to_dict(row) -> Optional[dict]:

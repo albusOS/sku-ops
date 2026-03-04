@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 
 from auth import require_role
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from repositories import product_repo, withdrawal_repo
 
 router = APIRouter(prefix="/reports", tags=["reports"])

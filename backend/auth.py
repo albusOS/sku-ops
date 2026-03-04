@@ -6,7 +6,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from config import JWT_ALGORITHM, JWT_EXPIRATION_HOURS, JWT_SECRET
+from shared.infrastructure.config import JWT_ALGORITHM, JWT_EXPIRATION_HOURS, JWT_SECRET
 from repositories.user_repo import user_repo
 
 security = HTTPBearer()

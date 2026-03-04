@@ -2,10 +2,10 @@
 import pytest
 import pytest_asyncio
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from repositories import department_repo, product_repo
 from services.product_lifecycle import create_product, update_product, delete_product
-from domain.exceptions import DuplicateBarcodeError, InvalidBarcodeError, ResourceNotFoundError
+from shared.domain.exceptions import DuplicateBarcodeError, InvalidBarcodeError, ResourceNotFoundError
 
 
 @pytest.mark.asyncio

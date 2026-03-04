@@ -114,7 +114,7 @@ class TestMemoryExtract:
 
         history = [{"role": r, "content": f"msg {i}"} for i, r in enumerate(["user", "assistant"] * 3)]
         with patch("services.agents.memory_extract.ANTHROPIC_API_KEY", "", create=True):
-            with patch("config.ANTHROPIC_API_KEY", ""):
+            with patch("shared.infrastructure.config.ANTHROPIC_API_KEY", ""):
                 await extract_and_save("default", "user-1", "sess-nokey", history)
         # No crash, no artifacts
         from services.agents.memory_store import recall
@@ -134,8 +134,8 @@ class TestMemoryExtract:
         mock_client = MagicMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-        with patch("config.ANTHROPIC_API_KEY", "fake-key"), \
-             patch("config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
+        with patch("shared.infrastructure.config.ANTHROPIC_API_KEY", "fake-key"), \
+             patch("shared.infrastructure.config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
              patch("anthropic.AsyncAnthropic", return_value=mock_client):
             await extract_and_save("default", "user-1", "sess-ok", history)
 
@@ -159,8 +159,8 @@ class TestMemoryExtract:
         mock_client = MagicMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-        with patch("config.ANTHROPIC_API_KEY", "fake-key"), \
-             patch("config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
+        with patch("shared.infrastructure.config.ANTHROPIC_API_KEY", "fake-key"), \
+             patch("shared.infrastructure.config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
              patch("anthropic.AsyncAnthropic", return_value=mock_client):
             await extract_and_save("default", "user-1", "sess-fence", history)
 
@@ -177,8 +177,8 @@ class TestMemoryExtract:
         mock_client = MagicMock()
         mock_client.messages.create = AsyncMock(side_effect=RuntimeError("network down"))
 
-        with patch("config.ANTHROPIC_API_KEY", "fake-key"), \
-             patch("config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
+        with patch("shared.infrastructure.config.ANTHROPIC_API_KEY", "fake-key"), \
+             patch("shared.infrastructure.config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
              patch("anthropic.AsyncAnthropic", return_value=mock_client):
             # Must not raise
             await extract_and_save("default", "user-1", "sess-err", history)
@@ -194,7 +194,7 @@ class TestMemoryExtract:
         mock_client = MagicMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-        with patch("config.ANTHROPIC_API_KEY", "fake-key"), \
-             patch("config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
+        with patch("shared.infrastructure.config.ANTHROPIC_API_KEY", "fake-key"), \
+             patch("shared.infrastructure.config.ANTHROPIC_MODEL", "claude-sonnet-4-6"), \
              patch("anthropic.AsyncAnthropic", return_value=mock_client):
             await extract_and_save("default", "user-1", "sess-bad-json", history)

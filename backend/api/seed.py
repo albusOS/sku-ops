@@ -6,8 +6,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 
 from auth import hash_password, require_role
-from config import ALLOW_RESET, DEMO_USER_EMAIL as MOCK_USER_EMAIL, DEMO_USER_PASSWORD as MOCK_USER_PASSWORD
-from db import get_connection
+from shared.infrastructure.config import ALLOW_RESET, DEMO_USER_EMAIL as MOCK_USER_EMAIL, DEMO_USER_PASSWORD as MOCK_USER_PASSWORD
+from shared.infrastructure.database import get_connection
 from models import Department, User
 from repositories import department_repo, organization_repo, product_repo, user_repo
 from services.document_import import infer_uom, parse_csv_products, suggest_department

@@ -2,8 +2,8 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from config import ANTHROPIC_AVAILABLE, ANTHROPIC_MODEL, LLM_SETUP_URL
-from db import get_connection
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, ANTHROPIC_MODEL, LLM_SETUP_URL
+from shared.infrastructure.database import get_connection
 
 router = APIRouter(tags=["health"])
 

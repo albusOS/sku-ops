@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Import after conftest sets ENV
-from config import (
+from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
     ANTHROPIC_API_KEY,
     ANTHROPIC_FAST_MODEL,

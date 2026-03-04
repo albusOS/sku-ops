@@ -1,7 +1,7 @@
 """Tests for inventory service and withdrawal stock changes."""
 import pytest
 
-from domain.exceptions import InsufficientStockError
+from shared.domain.exceptions import InsufficientStockError
 from models.withdrawal import WithdrawalItem
 from services.inventory import process_withdrawal_stock_changes
 from services.product_lifecycle import create_product

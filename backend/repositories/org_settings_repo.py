@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from models.org_settings import OrgSettings
 
 

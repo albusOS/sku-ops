@@ -31,10 +31,7 @@ def _ean13_check_digit(first_12: str) -> int:
 
 
 def validate_upc(value: str) -> bool:
-    """
-    Validate UPC-A (12 digits) including check digit.
-    Returns True if valid.
-    """
+    """Validate UPC-A (12 digits) including check digit. Returns True if valid."""
     if not value or not isinstance(value, str):
         return False
     s = value.strip()
@@ -45,10 +42,7 @@ def validate_upc(value: str) -> bool:
 
 
 def validate_ean13(value: str) -> bool:
-    """
-    Validate EAN-13 (13 digits) including check digit.
-    Returns True if valid.
-    """
+    """Validate EAN-13 (13 digits) including check digit. Returns True if valid."""
     if not value or not isinstance(value, str):
         return False
     s = value.strip()
@@ -59,14 +53,12 @@ def validate_ean13(value: str) -> bool:
 
 
 def validate_barcode(value: str) -> tuple[bool, str | None]:
-    """
-    Validate barcode and return (valid, format).
+    """Validate barcode and return (valid, format).
+
     - 12 digits + valid UPC check digit → (True, "UPC")
     - 13 digits + valid EAN-13 check digit → (True, "EAN13")
     - Alphanumeric (SKU, internal codes) → (True, "CODE128") — no check digit required
-    - Invalid (wrong length, bad check digit for numeric) → (False, None)
-
-    If value looks like UPC/EAN (12 or 13 digits) but check digit fails, returns (False, None).
+    - Invalid → (False, None)
     """
     if not value or not isinstance(value, str):
         return False, None
@@ -76,15 +68,10 @@ def validate_barcode(value: str) -> tuple[bool, str | None]:
 
     if s.isdigit():
         if len(s) == 12:
-            if validate_upc(s):
-                return True, "UPC"
-            return False, None
+            return (True, "UPC") if validate_upc(s) else (False, None)
         if len(s) == 13:
-            if validate_ean13(s):
-                return True, "EAN13"
-            return False, None
-        # Other numeric lengths (11, 10, etc.) - not valid UPC/EAN
+            return (True, "EAN13") if validate_ean13(s) else (False, None)
         return False, None
 
-    # Alphanumeric - e.g. SKU like LUM-PIPE-000001
+    # Alphanumeric — e.g. SKU like LUM-PIPE-000001
     return True, "CODE128"

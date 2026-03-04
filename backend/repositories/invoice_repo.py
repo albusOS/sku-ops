@@ -4,7 +4,7 @@ from typing import Optional
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 
 
 def _invoice_row_to_dict(row) -> Optional[dict]:

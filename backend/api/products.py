@@ -5,8 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from auth import get_current_user, require_role
-from domain.barcode import validate_barcode
-from domain.exceptions import DuplicateBarcodeError, InvalidBarcodeError, ResourceNotFoundError
+from catalog.domain.barcode import validate_barcode
+from shared.domain.exceptions import DuplicateBarcodeError, InvalidBarcodeError, ResourceNotFoundError
 from models import Product, ProductCreate, ProductUpdate
 from repositories import department_repo, product_repo, vendor_repo
 from services.inventory import get_stock_history

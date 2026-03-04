@@ -7,9 +7,9 @@ Uses transactions to ensure product_count and stock ledger stay in sync.
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from db import transaction
-from domain.barcode import validate_barcode
-from domain.exceptions import DuplicateBarcodeError, InvalidBarcodeError, ResourceNotFoundError
+from shared.infrastructure.database import transaction
+from catalog.domain.barcode import validate_barcode
+from shared.domain.exceptions import DuplicateBarcodeError, InvalidBarcodeError, ResourceNotFoundError
 from models import Product
 from repositories import department_repo, product_repo, vendor_repo
 from services.inventory import process_import_stock_changes

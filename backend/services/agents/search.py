@@ -51,7 +51,7 @@ class ProductSearchIndex:
 
         self._products = products
 
-        from config import OPENAI_API_KEY
+        from shared.infrastructure.config import OPENAI_API_KEY
         if OPENAI_API_KEY:
             await self._build_embeddings(products, OPENAI_API_KEY)
         else:

@@ -8,7 +8,7 @@ import json
 import re
 import logging
 
-from config import LLM_AVAILABLE
+from shared.infrastructure.config import LLM_AVAILABLE
 from services.document_import import infer_uom as rule_infer_uom
 from services.llm import generate_text
 

@@ -15,7 +15,7 @@ import uuid
 RUN_E2E = os.environ.get("RUN_E2E", "").lower() in ("1", "true", "yes")
 
 # Backend URL: config provides env-aware default; override with E2E_BACKEND_URL or REACT_APP_BACKEND_URL
-from config import E2E_BACKEND_URL
+from shared.infrastructure.config import E2E_BACKEND_URL
 API_URL = f"{E2E_BACKEND_URL.rstrip('/')}/api"
 
 CONTRACTOR_CREDS = {"email": "contractor@test.com", "password": "password123"}

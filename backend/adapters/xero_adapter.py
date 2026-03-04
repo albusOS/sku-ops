@@ -35,7 +35,7 @@ class XeroAdapter:
             return True
 
     async def refresh_token(self, settings: OrgSettings) -> OrgSettings:
-        from config import XERO_CLIENT_ID, XERO_CLIENT_SECRET
+        from shared.infrastructure.config import XERO_CLIENT_ID, XERO_CLIENT_SECRET
         from repositories.org_settings_repo import upsert_org_settings
 
         resp = requests.post(

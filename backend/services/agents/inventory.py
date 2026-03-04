@@ -10,12 +10,12 @@ from datetime import datetime, timezone, timedelta
 
 from pydantic_ai import Agent, RunContext
 
-from config import (
+from shared.infrastructure.config import (
     AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from services.agents.deps import AgentDeps
 from services.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost, run_agent
 
@@ -162,7 +162,7 @@ async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
-    from config import ANTHROPIC_AVAILABLE
+    from shared.infrastructure.config import ANTHROPIC_AVAILABLE
     if not ANTHROPIC_AVAILABLE:
         return {"response": "Inventory agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "inventory"}
 
@@ -218,7 +218,7 @@ async def _search_products(args: dict, org_id: str) -> str:
 
 
 async def _search_semantic(args: dict, org_id: str) -> str:
-    from config import OPENAI_API_KEY
+    from shared.infrastructure.config import OPENAI_API_KEY
     from services.agents.search import get_index
     query = (args.get("query") or "").strip()
     limit = min(int(args.get("limit") or 10), 30)

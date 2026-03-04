@@ -1,7 +1,7 @@
 """Product repository."""
 from typing import Optional
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 
 # Whitelist for get_by_id(columns=) to prevent SQL injection
 _PRODUCT_COLUMNS = frozenset({

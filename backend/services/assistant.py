@@ -1,5 +1,5 @@
 """Chat assistant entrypoint. Dispatches directly to the appropriate specialist agent."""
-from config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from services.agents.deps import AgentDeps
 
 LLM_NOT_CONFIGURED_MSG = (

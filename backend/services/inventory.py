@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
 
-from domain.exceptions import InsufficientStockError
+from shared.domain.exceptions import InsufficientStockError
 from models.stock import StockTransaction, StockTransactionType
 from models.withdrawal import WithdrawalItem
 from repositories.product_repo import product_repo

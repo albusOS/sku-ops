@@ -6,7 +6,7 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
-from config import (
+from shared.infrastructure.config import (
     AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
@@ -175,7 +175,7 @@ async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
-    from config import ANTHROPIC_AVAILABLE
+    from shared.infrastructure.config import ANTHROPIC_AVAILABLE
     if not ANTHROPIC_AVAILABLE:
         return {"response": "Assistant requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "general"}
 

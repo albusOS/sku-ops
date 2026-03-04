@@ -110,7 +110,7 @@ async def run_agent(
     - model_error (thinking budget etc.)       → drop thinking settings, retry immediately
     - auth / validation                        → fail immediately, no retry
     """
-    from config import AGENT_PRIMARY_MODEL
+    from shared.infrastructure.config import AGENT_PRIMARY_MODEL
 
     active_settings = model_settings
 

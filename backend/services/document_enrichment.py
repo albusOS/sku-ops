@@ -9,7 +9,7 @@ import re
 import logging
 from typing import List
 
-from config import LLM_AVAILABLE
+from shared.infrastructure.config import LLM_AVAILABLE
 
 logger = logging.getLogger(__name__)
 

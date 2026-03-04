@@ -39,7 +39,7 @@ async def extract_and_save(
         return
     try:
         import anthropic
-        from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+        from shared.infrastructure.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
         if not ANTHROPIC_API_KEY:
             return
 

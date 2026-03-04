@@ -4,15 +4,15 @@ Main entry point: composes FastAPI app with routers from api package.
 """
 from contextlib import asynccontextmanager
 
-from config import CORS_ORIGINS, cors_warn_in_deployed
+from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 import logging
 
-from db import init_db, close_db
-from domain.exceptions import InsufficientStockError, ResourceNotFoundError
+from shared.infrastructure.database import init_db, close_db
+from shared.domain.exceptions import InsufficientStockError, ResourceNotFoundError
 from api import api_router
 from api.seed import seed_mock_user, seed_standard_departments
 

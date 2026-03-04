@@ -1,7 +1,7 @@
 """SKU counter repository."""
 from typing import Optional
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 
 
 def _counter_key(organization_id: Optional[str], department_code: str) -> str:

@@ -9,7 +9,7 @@ import logging
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 
 logger = logging.getLogger(__name__)
 

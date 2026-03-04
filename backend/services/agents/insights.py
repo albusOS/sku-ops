@@ -8,12 +8,12 @@ from datetime import datetime, timezone, timedelta
 
 from pydantic_ai import Agent, RunContext
 
-from config import (
+from shared.infrastructure.config import (
     AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from services.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast") -> dict:
-    from config import ANTHROPIC_AVAILABLE
+    from shared.infrastructure.config import ANTHROPIC_AVAILABLE
     if not ANTHROPIC_AVAILABLE:
         return {"response": "Insights agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "insights"}
 

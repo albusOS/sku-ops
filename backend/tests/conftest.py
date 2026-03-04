@@ -10,6 +10,9 @@ os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["PAYMENT_ADAPTER"] = "stub"
 os.environ["JWT_SECRET"] = "test-secret-key-for-pytest"
+# Provide a dummy key so pydantic-ai can instantiate Agent at import time.
+# Tests that exercise LLM paths mock the actual API calls.
+os.environ.setdefault("ANTHROPIC_API_KEY", "test-dummy-key-not-real")
 
 
 @pytest.fixture
@@ -22,7 +25,7 @@ def client():
 @pytest_asyncio.fixture
 async def db():
     """Initialize in-memory DB, seed minimal data. Cleanup on teardown."""
-    from db import init_db, close_db, get_connection
+    from shared.infrastructure.database import init_db, close_db, get_connection
     await init_db()
     conn = get_connection()
     await conn.execute(

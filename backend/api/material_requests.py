@@ -8,7 +8,7 @@ from auth import get_current_user, require_role
 from models import MaterialRequestCreate, MaterialRequestProcess, MaterialWithdrawalCreate, WithdrawalItem
 from repositories import material_request_repo, user_repo, withdrawal_repo
 from services.withdrawal_service import create_withdrawal as do_create_withdrawal
-from db import transaction
+from shared.infrastructure.database import transaction
 
 router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 

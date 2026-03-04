@@ -1,7 +1,7 @@
 """Factory for payment gateway. Uses config (env-aware) for adapter selection."""
 from adapters.stub_payment import StubPaymentAdapter
 
-from config import STRIPE_API_KEY, payment_adapter
+from shared.infrastructure.config import STRIPE_API_KEY, payment_adapter
 
 
 def get_payment_gateway(webhook_url: str = ""):

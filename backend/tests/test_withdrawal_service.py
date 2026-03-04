@@ -2,7 +2,7 @@
 import pytest
 import pytest_asyncio
 
-from db import get_connection
+from shared.infrastructure.database import get_connection
 from fastapi import HTTPException
 from models import MaterialWithdrawalCreate, WithdrawalItem
 from repositories import product_repo, stock_repo, withdrawal_repo
