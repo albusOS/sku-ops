@@ -15,6 +15,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from assistant.agents.model_registry import calc_cost, get_model_name
+from assistant.agents.contracts import AgentConfig, AgentResult, UsageInfo
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,37 @@ AGENT_TIMEOUT_SECONDS = 45
 _MAX_RETRIES = 5
 _BASE_DELAY = 1.0   # seconds
 _MAX_DELAY = 30.0   # seconds
+
+
+# ── Config-driven model settings ──────────────────────────────────────────────
+
+def build_model_settings(config: AgentConfig | None, mode: str = "fast") -> dict | None:
+    """Build PydanticAI model_settings from an AgentConfig.
+
+    Extracts the thinking-budget boilerplate that was duplicated in every agent.
+    Returns None if no special settings are needed.
+    """
+    from shared.infrastructure.config import AGENT_THINKING_BUDGET, DEFAULT_DEEP_THINKING_BUDGET
+
+    deep = mode == "deep"
+    if config:
+        budget = config.thinking_budget if config.thinking_budget > 0 else 0
+    else:
+        budget = 0
+
+    if deep and budget == 0:
+        budget = AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET
+
+    if budget > 0:
+        return {"anthropic_thinking": {"type": "enabled", "budget_tokens": budget}}
+    return None
+
+
+def get_agent_timeout(config: AgentConfig | None) -> int:
+    """Return timeout seconds from config or global default."""
+    if config and config.retry.timeout_seconds:
+        return config.retry.timeout_seconds
+    return AGENT_TIMEOUT_SECONDS
 
 
 # ── Error classification ─────────────────────────────────────────────────────
@@ -101,6 +133,7 @@ async def run_agent(
     model_settings: dict | None = None,
     timeout_seconds: int = AGENT_TIMEOUT_SECONDS,
     agent_name: str = "agent",
+    agent_label: str = "",
     session_id: str = "",
     mode: str = "fast",
 ):
@@ -109,6 +142,14 @@ async def run_agent(
     Every invocation (success or failure) is logged to the agent_runs table
     via fire-and-forget background task.
     """
+    from shared.infrastructure.logging_config import trace_id_var, agent_name_var, operation_var
+
+    trace_id = getattr(deps, "trace_id", "")
+    if trace_id:
+        trace_id_var.set(trace_id)
+    agent_name_var.set(agent_name)
+    operation_var.set("agent_run")
+
     active_settings = model_settings
     t0 = time.monotonic()
     attempts = 0
@@ -133,6 +174,7 @@ async def run_agent(
             duration_ms = int((time.monotonic() - t0) * 1000)
             _log_success(
                 result, user_message=user_message, agent_name=agent_name,
+                agent_label=agent_label,
                 session_id=session_id, org_id=getattr(deps, "org_id", ""),
                 user_id=getattr(deps, "user_id", ""),
                 mode=mode, duration_ms=duration_ms, attempts=attempts,
@@ -149,6 +191,7 @@ async def run_agent(
             logger.error(f"{agent_name} non-retriable {kind} on attempt {attempt + 1}: {last_exc}")
             _log_failure(
                 user_message=user_message, agent_name=agent_name,
+                agent_label=agent_label,
                 session_id=session_id, org_id=getattr(deps, "org_id", ""),
                 user_id=getattr(deps, "user_id", ""),
                 mode=mode, duration_ms=int((time.monotonic() - t0) * 1000),
@@ -169,6 +212,7 @@ async def run_agent(
 
     _log_failure(
         user_message=user_message, agent_name=agent_name,
+        agent_label=agent_label,
         session_id=session_id, org_id=getattr(deps, "org_id", ""),
         user_id=getattr(deps, "user_id", ""),
         mode=mode, duration_ms=int((time.monotonic() - t0) * 1000),
@@ -180,10 +224,10 @@ async def run_agent(
 
 # ── Run logging (fire-and-forget) ────────────────────────────────────────────
 
-def _log_success(result, *, user_message, agent_name, session_id, org_id, user_id, mode, duration_ms, attempts):
+def _log_success(result, *, user_message, agent_name, agent_label="", session_id, org_id, user_id, mode, duration_ms, attempts):
     usage = result.usage()
-    model_key = f"agent:{agent_name.lower().replace('agent', '').strip(':')}" if agent_name else "agent:general"
-    model_name = get_model_name(model_key) if model_key in ("agent:inventory", "agent:ops", "agent:finance", "agent:insights", "agent:general") else get_model_name("agent:general")
+    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "general"
+    model_name = get_model_name(f"agent:{label}")
     cost = calc_cost(model_name, usage)
     tool_calls = extract_tool_calls_detailed(result.all_messages())
     response_text = result.output if isinstance(result.output, str) else str(result.output)
@@ -205,8 +249,9 @@ def _log_success(result, *, user_message, agent_name, session_id, org_id, user_i
     asyncio.create_task(_write())
 
 
-def _log_failure(*, user_message, agent_name, session_id, org_id, user_id, mode, duration_ms, attempts, error, error_kind):
-    model_name = get_model_name("agent:general")
+def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id, user_id, mode, duration_ms, attempts, error, error_kind):
+    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "general"
+    model_name = get_model_name(f"agent:{label}")
 
     async def _write():
         try:
@@ -239,6 +284,7 @@ async def run_agent_with_reflection(
     session_id: str = "",
     mode: str = "fast",
     history: list[dict] | None = None,
+    config: AgentConfig | None = None,
 ):
     """Run an agent, validate the response, re-run if needed.
 
@@ -257,12 +303,15 @@ async def run_agent_with_reflection(
             "agent": agent_label,
         }
 
+    timeout = get_agent_timeout(config)
+
     try:
         result = await run_agent(
             agent, user_message,
             msg_history=msg_history, deps=deps,
             model_settings=model_settings,
-            agent_name=agent_name,
+            timeout_seconds=timeout,
+            agent_name=agent_name, agent_label=agent_label,
             session_id=session_id, mode=mode,
         )
     except Exception as e:
@@ -291,33 +340,48 @@ async def run_agent_with_reflection(
                 agent, enhanced_message,
                 msg_history=msg_history, deps=deps,
                 model_settings=model_settings,
+                timeout_seconds=timeout,
                 agent_name=f"{agent_name}:reflect",
+                agent_label=agent_label,
                 session_id=session_id, mode=mode,
             )
         except Exception as e:
             logger.warning(f"{agent_name} validation re-run failed, using original: {e}")
 
+    response_text = result.output if isinstance(result.output, str) else str(result.output)
     model_name = get_model_name(f"agent:{agent_label}")
     usage = result.usage()
     cost = calc_cost(model_name, usage)
-    return {
-        "response": result.output,
-        "tool_calls": extract_tool_calls(result.all_messages()),
-        "thinking": [],
-        "history": extract_text_history(result.all_messages()),
-        "usage": {
-            "cost_usd": cost,
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
-            "model": model_name,
-        },
-        "agent": agent_label,
-        "validation": {
-            "passed": validation.passed,
-            "failures": validation.failures,
-            "scores": validation.scores,
-        },
+
+    tool_calls_final = extract_tool_calls(result.all_messages())
+    tool_calls_det = extract_tool_calls_detailed(result.all_messages())
+    text_history = extract_text_history(result.all_messages())
+    validation_dict = {
+        "passed": validation.passed,
+        "failures": validation.failures,
+        "scores": validation.scores,
     }
+
+    agent_result = AgentResult(
+        agent=agent_label,
+        response=response_text,
+        tool_calls=tool_calls_final,
+        tool_calls_detailed=tool_calls_det,
+        history=text_history,
+        usage=UsageInfo(
+            cost_usd=cost,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            model=model_name,
+        ),
+        validation=validation_dict,
+    )
+
+    # Return legacy dict for backward compatibility; callers migrating to
+    # the new system can use agent_result.to_dict() or access ._agent_result.
+    result_dict = agent_result.to_dict()
+    result_dict["_agent_result"] = agent_result
+    return result_dict
 
 
 # ── History helpers ───────────────────────────────────────────────────────────

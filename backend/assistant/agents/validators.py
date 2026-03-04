@@ -132,6 +132,45 @@ def validate_response(
         else:
             scores["uom_compliance"] = 1.0
 
+    # ── 6. Domain mismatch: response doesn't address the question domain ─
+    _DOMAIN_SIGNALS = {
+        "inventory": ("product", "stock", "sku", "reorder", "department", "vendor"),
+        "ops": ("withdrawal", "contractor", "job", "material request"),
+        "finance": ("revenue", "invoice", "payment", "balance", "margin", "p&l"),
+        "insights": ("trend", "forecast", "top", "velocity", "analytics"),
+    }
+    if tool_calls:
+        tool_names = {tc.get("tool", "") for tc in tool_calls}
+        question_domains = set()
+        for domain, signals in _DOMAIN_SIGNALS.items():
+            if any(s in m for s in signals):
+                question_domains.add(domain)
+        if question_domains:
+            tool_domains = set()
+            inv_tools = {"search_products", "search_semantic", "get_product_details",
+                         "get_inventory_stats", "list_low_stock", "list_departments",
+                         "list_vendors", "get_usage_velocity", "get_reorder_suggestions",
+                         "get_department_health", "get_slow_movers"}
+            ops_tools = {"get_contractor_history", "get_job_materials",
+                         "list_recent_withdrawals", "list_pending_material_requests"}
+            fin_tools = {"get_invoice_summary", "get_outstanding_balances",
+                         "get_revenue_summary", "get_pl_summary"}
+            ins_tools = {"get_top_products", "get_department_activity", "forecast_stockout"}
+            for t in tool_names:
+                if t in inv_tools:
+                    tool_domains.add("inventory")
+                elif t in ops_tools:
+                    tool_domains.add("ops")
+                elif t in fin_tools:
+                    tool_domains.add("finance")
+                elif t in ins_tools:
+                    tool_domains.add("insights")
+            if question_domains and tool_domains and not (question_domains & tool_domains):
+                failures.append("domain_mismatch")
+                scores["domain_match"] = 0.0
+            else:
+                scores["domain_match"] = 1.0
+
     # ── Decide whether to re-run ──────────────────────────────────────────
     should_rerun = False
     rerun_hint = ""

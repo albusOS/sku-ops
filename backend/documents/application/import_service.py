@@ -7,23 +7,36 @@ from typing import Optional
 
 from fastapi import HTTPException
 
-from catalog.domain.product import ALLOWED_BASE_UNITS
-from catalog.application.queries import (
-    list_departments, get_department_by_code, find_vendor_by_name, insert_vendor,
-    list_products_by_vendor, get_product_by_id, find_product_by_original_sku_and_vendor,
-    find_product_by_name_and_vendor, update_product,
-)
+from dataclasses import dataclass
+from typing import Any, Callable, Awaitable
+
+from shared.domain.value_objects import ALLOWED_BASE_UNITS
 from documents.application.import_parser import infer_uom, resolve_uom, suggest_department
 from documents.application.enrichment_service import enrich_for_import
-from inventory.application.inventory_service import process_receiving_stock_changes
-from catalog.domain.barcode import validate_barcode
-from catalog.application.product_lifecycle import create_product as lifecycle_create
-from inventory.application.uom_classifier import classify_uom_batch
+
+
+@dataclass
+class ImportDeps:
+    """Cross-domain dependencies injected by the API layer."""
+    list_departments: Callable[..., Awaitable[list]]
+    get_department_by_code: Callable[..., Awaitable[Any]]
+    find_vendor_by_name: Callable[..., Awaitable[Any]]
+    insert_vendor: Callable[..., Awaitable[None]]
+    list_products_by_vendor: Callable[..., Awaitable[list]]
+    get_product_by_id: Callable[..., Awaitable[Any]]
+    find_product_by_sku_and_vendor: Callable[..., Awaitable[Any]]
+    find_product_by_name_and_vendor: Callable[..., Awaitable[Any]]
+    update_product: Callable[..., Awaitable[None]]
+    validate_barcode: Callable[..., Any]
+    create_product: Callable[..., Awaitable[Any]]
+    process_receiving_stock_changes: Callable[..., Awaitable[None]]
+    classify_uom_batch: Callable[..., Awaitable[list]]
 
 
 async def import_document(
     vendor_name: str,
     products: list,
+    deps: ImportDeps,
     department_id: Optional[str] = None,
     create_vendor_if_missing: bool = True,
     current_user: dict = None,
@@ -36,13 +49,13 @@ async def import_document(
     if not vendor_name:
         raise HTTPException(status_code=400, detail="Vendor name is required")
 
-    vendor = await find_vendor_by_name(vendor_name)
+    vendor = await deps.find_vendor_by_name(vendor_name)
     if not vendor:
         if not create_vendor_if_missing:
             raise HTTPException(status_code=400, detail=f"Vendor '{vendor_name}' not found. Enable 'Create vendor if missing' or add vendor first.")
         vendor_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
-        await insert_vendor({
+        await deps.insert_vendor({
             "id": vendor_id,
             "name": vendor_name,
             "contact_name": "",
@@ -58,8 +71,8 @@ async def import_document(
         vendor_id = vendor["id"]
         vendor_created = False
 
-    departments = await list_departments()
-    default_dept = await get_department_by_code("HDW") or (departments[0] if departments else None)
+    departments = await deps.list_departments()
+    default_dept = await deps.get_department_by_code("HDW") or (departments[0] if departments else None)
     dept_by_id = {d["id"]: d for d in departments}
     dept_by_code = {d["code"].upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
@@ -73,7 +86,7 @@ async def import_document(
 
     enrichment_warnings = []
     if ocr_items:
-        vendor_products = await list_products_by_vendor(vendor_id)
+        vendor_products = await deps.list_products_by_vendor(vendor_id)
         ocr_items = await enrich_for_import(ocr_items, vendor_products, dept_codes)
         enrichment_warnings = [
             {"product": item.get("name", "Unknown"), "warning": item.pop("enrichment_warning")}
@@ -111,7 +124,7 @@ async def import_document(
         )
     ]
     if needs_uom:
-        await classify_uom_batch(needs_uom)
+        await deps.classify_uom_batch(needs_uom)
 
     org_id = (current_user or {}).get("organization_id") or "default"
     imported = []
@@ -128,18 +141,18 @@ async def import_document(
             # 3-tier matching: explicit product_id → vendor SKU → name
             existing = None
             if item.get("product_id"):
-                existing = await get_product_by_id(item["product_id"], organization_id=org_id)
+                existing = await deps.get_product_by_id(item["product_id"], organization_id=org_id)
             if not existing and item.get("original_sku") and vendor_id:
-                existing = await find_product_by_original_sku_and_vendor(
+                existing = await deps.find_product_by_sku_and_vendor(
                     str(item["original_sku"]).strip(), vendor_id, organization_id=org_id
                 )
             if not existing and item.get("name") and vendor_id:
-                existing = await find_product_by_name_and_vendor(
+                existing = await deps.find_product_by_name_and_vendor(
                     item["name"], vendor_id, organization_id=org_id
                 )
 
             if existing:
-                await process_receiving_stock_changes(
+                await deps.process_receiving_stock_changes(
                     product_id=existing["id"],
                     sku=existing["sku"],
                     product_name=existing["name"],
@@ -150,8 +163,8 @@ async def import_document(
                 )
                 # Backfill original_sku so future imports match on SKU, not name
                 if item.get("original_sku") and not existing.get("original_sku"):
-                    await update_product(existing["id"], {"original_sku": item["original_sku"]})
-                updated = await get_product_by_id(existing["id"])
+                    await deps.update_product(existing["id"], {"original_sku": item["original_sku"]})
+                updated = await deps.get_product_by_id(existing["id"])
                 matched.append(updated)
                 continue
 
@@ -174,7 +187,7 @@ async def import_document(
             if barcode_val and str(barcode_val).strip():
                 barcode_val = str(barcode_val).strip()
                 if barcode_val.isdigit():
-                    valid, _ = validate_barcode(barcode_val)
+                    valid, _ = deps.validate_barcode(barcode_val)
                     if not valid:
                         warnings.append({
                             "product": item.get("name", "Unknown"),
@@ -184,7 +197,7 @@ async def import_document(
             else:
                 barcode_val = None
 
-            product = await lifecycle_create(
+            product = await deps.create_product(
                 department_id=dept["id"],
                 department_name=dept["name"],
                 name=item.get("name", "Unknown"),

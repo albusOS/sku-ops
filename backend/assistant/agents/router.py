@@ -20,10 +20,11 @@ from shared.infrastructure.config import (
     OPENROUTER_AVAILABLE,
 )
 from assistant.agents.model_registry import get_model_name
+from assistant.agents.contracts import Complexity, RouteDecision
 
 logger = logging.getLogger(__name__)
 
-_VALID_AGENTS = {"inventory", "ops", "finance", "insights", "general"}
+_VALID_AGENTS = {"inventory", "ops", "finance", "insights", "general", "coordinator"}
 
 _AGENT_LABELS = {
     "inventory": "Inventory",
@@ -390,3 +391,106 @@ def merge_responses(question: str, results: list[dict]) -> dict:
         "agent": "+".join(agents_used),
         "routed_to": agents_used,
     }
+
+
+# ── Complexity classifier ─────────────────────────────────────────────────────
+# Runs *before* routing to steer each query to the cheapest viable execution path.
+
+_TRIVIAL_SIGNALS = frozenset((
+    "hi", "hello", "hey", "thanks", "thank you", "help", "ok", "okay",
+    "sure", "yes", "no", "bye", "goodbye", "good morning", "good afternoon",
+))
+
+_INTERDEPENDENT_PAIRS = frozenset((
+    frozenset({"inventory", "finance"}),
+    frozenset({"inventory", "insights"}),
+    frozenset({"ops", "finance"}),
+))
+
+
+def classify_complexity(message: str) -> Complexity:
+    """Determine query complexity — no LLM call, instant.
+
+    TRIVIAL:     greetings, help, thanks
+    STRUCTURED:  matches a known DAG template
+    SIMPLE:      single-domain, clear intent
+    COMPLEX:     multi-domain, ambiguous, or needs coordination
+    """
+    m = message.lower().strip()
+
+    if len(m) < 20 and any(w in m for w in _TRIVIAL_SIGNALS):
+        return Complexity.TRIVIAL
+
+    from assistant.agents.dag import match_plan
+    if match_plan(message) is not None:
+        return Complexity.STRUCTURED
+
+    result = _heuristic_route(message)
+    if result is None:
+        return Complexity.SIMPLE
+
+    if len(result.agents) > 1:
+        return Complexity.COMPLEX
+
+    if result.agents == ["general"]:
+        if any(w in m for w in ("overview", "summary", "dashboard", "how's")):
+            return Complexity.STRUCTURED if match_plan(message) else Complexity.COMPLEX
+        return Complexity.TRIVIAL
+
+    return Complexity.SIMPLE
+
+
+async def route(message: str, history: list[dict] | None = None) -> RouteDecision:
+    """Full routing pipeline: complexity classification + agent selection + strategy.
+
+    Returns a RouteDecision that the orchestrator dispatches on.
+    """
+    complexity = classify_complexity(message)
+
+    if complexity == Complexity.TRIVIAL:
+        return RouteDecision(
+            primary="coordinator",
+            strategy="single",
+            complexity=complexity,
+            confidence=1.0,
+            method="complexity",
+        )
+
+    if complexity == Complexity.STRUCTURED:
+        from assistant.agents.dag import match_plan
+        plan = match_plan(message)
+        return RouteDecision(
+            primary="dag",
+            strategy="dag",
+            complexity=complexity,
+            confidence=1.0,
+            method="complexity",
+            dag_template=plan.template_name if plan else None,
+        )
+
+    agents = await classify(message, history)
+
+    if len(agents) == 1:
+        agent = agents[0]
+        if agent == "general":
+            agent = "coordinator"
+        return RouteDecision(
+            primary=agent,
+            strategy="single",
+            complexity=complexity,
+            confidence=0.85,
+            method="heuristic",
+        )
+
+    agent_set = frozenset(agents[:2])
+    is_interdependent = agent_set in _INTERDEPENDENT_PAIRS
+    strategy = "coordinate" if is_interdependent else "parallel"
+
+    return RouteDecision(
+        primary=agents[0],
+        supporting=agents[1:],
+        strategy=strategy,
+        complexity=Complexity.COMPLEX,
+        confidence=0.75,
+        method="heuristic",
+    )

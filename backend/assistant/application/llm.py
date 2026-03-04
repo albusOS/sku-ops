@@ -1,17 +1,33 @@
-"""
-LLM client: Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
+"""LLM client for non-agent uses (OCR, UOM classification, enrichment).
+
+Uses the LLM infrastructure adapter when available, falls back to direct
+Anthropic SDK construction for backward compatibility.
 """
 import base64
 import logging
 from typing import Optional
 
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_FAST_MODEL
+from shared.infrastructure.config import (
+    ANTHROPIC_AVAILABLE,
+    ANTHROPIC_API_KEY,
+    ANTHROPIC_MODEL,
+    ANTHROPIC_FAST_MODEL,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def _get_client():
-    """Return configured Anthropic client, or None if not configured."""
+    """Return configured Anthropic client, preferring the infrastructure adapter."""
+    try:
+        from assistant.infrastructure.llm import get_provider
+        provider = get_provider()
+        client = provider.get_raw_client()
+        if client is not None:
+            return client
+    except RuntimeError:
+        pass
+
     if not ANTHROPIC_AVAILABLE:
         return None
     try:

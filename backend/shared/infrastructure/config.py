@@ -12,11 +12,23 @@ When ENV is unset, defaults to development.
 import os
 from pathlib import Path
 
-# Load .env early (before other modules read env)
-_ROOT = Path(__file__).resolve().parent
-if (_ROOT / ".env").exists():
+# Project root = backend/ (walk up from this file to find it)
+def _find_backend_root() -> Path:
+    """Locate the backend root by finding the directory containing server.py."""
+    d = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (d / "server.py").exists():
+            return d
+        d = d.parent
+    return Path.cwd()
+
+PROJECT_ROOT = _find_backend_root()
+
+# Load .env from the backend root (where developers and docs expect it)
+_env_file = PROJECT_ROOT / ".env"
+if _env_file.exists():
     from dotenv import load_dotenv
-    load_dotenv(_ROOT / ".env")
+    load_dotenv(_env_file)
 
 _ENV = os.environ.get("ENV", "development").lower().strip()
 
@@ -52,7 +64,6 @@ def _resolve_jwt_secret() -> str:
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", "15"))
-JWT_EXPIRATION_HOURS = 24  # kept for backward compat; prefer ACCESS_EXPIRATION_MINUTES
 REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "30"))
 
 # CORS — strict enforcement in deployed environments
@@ -136,7 +147,7 @@ def _load_agent_model() -> str:
         return env_override
     try:
         import yaml
-        _yaml_path = _ROOT / "models.yaml"
+        _yaml_path = PROJECT_ROOT / "models.yaml"
         if _yaml_path.exists():
             data = yaml.safe_load(_yaml_path.read_text()) or {}
             model = (data.get("primary") or "").strip()
@@ -162,17 +173,3 @@ SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
 XERO_CLIENT_ID = os.environ.get("XERO_CLIENT_ID", "").strip()
 XERO_CLIENT_SECRET = os.environ.get("XERO_CLIENT_SECRET", "").strip()
 XERO_REDIRECT_URI = os.environ.get("XERO_REDIRECT_URI", "").strip()
-
-# E2E / live tests: backend URL to hit. Set REACT_APP_BACKEND_URL or E2E_BACKEND_URL.
-def _e2e_backend_url() -> str:
-    url = (
-        os.environ.get("E2E_BACKEND_URL")
-        or os.environ.get("REACT_APP_BACKEND_URL", "")
-    ).rstrip("/")
-    if url:
-        return url
-    if is_development:
-        return "http://localhost:8000"
-    return "http://localhost:8000"  # require E2E_BACKEND_URL or REACT_APP_BACKEND_URL when deployed
-
-E2E_BACKEND_URL = _e2e_backend_url()

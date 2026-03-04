@@ -14,18 +14,25 @@ import os
 import sys
 from contextvars import ContextVar
 
-from pythonjsonlogger import jsonlogger
+try:
+    from pythonjsonlogger.json import JsonFormatter as _BaseJsonFormatter
+except ImportError:
+    from pythonjsonlogger import jsonlogger
+    _BaseJsonFormatter = jsonlogger.JsonFormatter
 
-# ── Context vars (set by request_id middleware) ───────────────────────────────
+# ── Context vars (set by request_id middleware and agent orchestration) ────────
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 user_id_var: ContextVar[str] = ContextVar("user_id", default="")
 org_id_var: ContextVar[str] = ContextVar("org_id", default="")
+trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
+agent_name_var: ContextVar[str] = ContextVar("agent_name", default="")
+operation_var: ContextVar[str] = ContextVar("operation", default="")
 
 
 # ── Custom JSON formatter ─────────────────────────────────────────────────────
 
-class ContextJsonFormatter(jsonlogger.JsonFormatter):
+class ContextJsonFormatter(_BaseJsonFormatter):
     """Injects request context into every JSON log line."""
 
     def add_fields(self, log_record: dict, record: logging.LogRecord, message_dict: dict) -> None:
@@ -41,6 +48,15 @@ class ContextJsonFormatter(jsonlogger.JsonFormatter):
         oid = org_id_var.get("")
         if oid:
             log_record["org_id"] = oid
+        tid = trace_id_var.get("")
+        if tid:
+            log_record["trace_id"] = tid
+        agent = agent_name_var.get("")
+        if agent:
+            log_record["agent_name"] = agent
+        op = operation_var.get("")
+        if op:
+            log_record["operation"] = op
 
 
 # ── Pretty formatter for development ─────────────────────────────────────────
@@ -60,7 +76,16 @@ class DevFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         color = self.COLORS.get(record.levelname, "")
         rid = request_id_var.get("")
-        prefix = f"[{rid[:8]}] " if rid else ""
+        tid = trace_id_var.get("")
+        agent = agent_name_var.get("")
+        parts = []
+        if rid:
+            parts.append(rid[:8])
+        if tid:
+            parts.append(f"t:{tid}")
+        if agent:
+            parts.append(agent)
+        prefix = f"[{' '.join(parts)}] " if parts else ""
         msg = super().format(record)
         return f"{color}{prefix}{msg}{self.RESET}"
 

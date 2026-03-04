@@ -59,8 +59,10 @@ def _agent_color(name: str) -> str:
         "OpsAgent": "yellow",
         "FinanceAgent": "magenta",
         "InsightsAgent": "blue",
+        "CoordinatorAgent": "red",
     }
-    return colors.get(name, "white")
+    base = name.split(":")[0]
+    return colors.get(base, "white")
 
 
 def _build_stats_panel(stats: dict) -> Panel:

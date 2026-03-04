@@ -29,8 +29,9 @@ async def _save_oauth_state(state: str, org_id: str) -> None:
     conn = get_connection()
     now = datetime.now(timezone.utc).isoformat()
     await conn.execute(
-        """INSERT OR REPLACE INTO oauth_states (state, org_id, created_at) VALUES (?, ?, ?)""",
-        (state, org_id, now),
+        """INSERT INTO oauth_states (state, org_id, created_at) VALUES (?, ?, ?)
+           ON CONFLICT(state) DO UPDATE SET org_id = ?, created_at = ?""",
+        (state, org_id, now, org_id, now),
     )
     await conn.commit()
 

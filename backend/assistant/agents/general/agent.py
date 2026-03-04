@@ -1,24 +1,20 @@
-"""
-GeneralAgent: cross-domain assistant for the dashboard.
+"""GeneralAgent: cross-domain assistant for the dashboard.
 Covers inventory, ops, finance, and insights with a curated tool set.
 """
 import logging
 
 from pydantic_ai import Agent, RunContext
 
-from shared.infrastructure.config import (
-    AGENT_THINKING_BUDGET,
-    DEFAULT_DEEP_THINKING_BUDGET,
-)
+from assistant.agents.contracts import load_agent_config
 from assistant.agents.deps import AgentDeps
 from assistant.agents.model_registry import get_model
 from assistant.agents.agent_utils import (
+    build_model_settings,
     build_message_history,
     run_agent_with_reflection,
 )
 from assistant.agents.tokens import budget_tool_result
 
-# Import tool implementations from specialist agents
 from assistant.agents.inventory import (
     _search_products,
     _get_inventory_stats,
@@ -41,6 +37,8 @@ from assistant.agents.insights import (
 )
 
 logger = logging.getLogger(__name__)
+
+_config = load_agent_config("general")
 
 SYSTEM_PROMPT = """You are the **dashboard assistant** for SKU-Ops, a hardware store management system.
 You answer cross-domain questions from the main dashboard — inventory health, revenue, outstanding balances, pending requests, and stockout risk.
@@ -173,16 +171,13 @@ async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:
-    deep = mode == "deep"
-    thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
-    model_settings: dict = {}
-    if thinking_budget > 0:
-        model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+    model_settings = build_model_settings(_config, mode)
 
     return await run_agent_with_reflection(
         _agent, user_message,
         msg_history=build_message_history(history), deps=deps,
-        model_settings=model_settings or None,
+        model_settings=model_settings,
         agent_name="GeneralAgent", agent_label="general",
         session_id=session_id, mode=mode, history=history,
+        config=_config,
     )

@@ -10,7 +10,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from identity.application.auth_service import require_role
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
-from documents.application.import_service import import_document as do_import_document
+from documents.application.import_service import import_document as do_import_document, ImportDeps
+from catalog.application.queries import (
+    list_departments, get_department_by_code, find_vendor_by_name, insert_vendor,
+    list_products_by_vendor, get_product_by_id, find_product_by_original_sku_and_vendor,
+    find_product_by_name_and_vendor, update_product,
+)
+from catalog.domain.barcode import validate_barcode
+from catalog.application.product_lifecycle import create_product as lifecycle_create
+from inventory.application.inventory_service import process_receiving_stock_changes
+from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
+from documents.application.import_parser import infer_uom as rule_infer_uom
+from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
 
 from documents.domain.document import DocumentImportRequest
 
@@ -185,15 +196,40 @@ async def parse_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def _wired_classify_uom_batch(products):
+    """Wire LLM + rule-based deps into the UOM classifier."""
+    gen_text = None
+    if _LLM_AVAILABLE:
+        from assistant.application.llm import generate_text
+        gen_text = generate_text
+    return await _classify_uom_batch(products, generate_text=gen_text, rule_infer=rule_infer_uom)
+
+
 @router.post("/import")
 async def import_document(
     data: DocumentImportRequest,
     current_user: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Import parsed products; create or match vendor."""
+    deps = ImportDeps(
+        list_departments=list_departments,
+        get_department_by_code=get_department_by_code,
+        find_vendor_by_name=find_vendor_by_name,
+        insert_vendor=insert_vendor,
+        list_products_by_vendor=list_products_by_vendor,
+        get_product_by_id=get_product_by_id,
+        find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
+        find_product_by_name_and_vendor=find_product_by_name_and_vendor,
+        update_product=update_product,
+        validate_barcode=validate_barcode,
+        create_product=lambda **kw: lifecycle_create(**kw, on_stock_import=process_receiving_stock_changes),
+        process_receiving_stock_changes=process_receiving_stock_changes,
+        classify_uom_batch=_wired_classify_uom_batch,
+    )
     return await do_import_document(
         vendor_name=data.vendor_name,
         products=data.products,
+        deps=deps,
         department_id=data.department_id,
         create_vendor_if_missing=data.create_vendor_if_missing,
         current_user=current_user,

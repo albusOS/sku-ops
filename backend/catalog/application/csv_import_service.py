@@ -1,11 +1,15 @@
 """Catalog CSV import service — extracts CSV import business logic from the API layer."""
 from typing import Optional
 
+from typing import Callable, Awaitable, Optional
+
 from catalog.domain.barcode import validate_barcode
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.vendor_repo import vendor_repo
 from catalog.application.product_lifecycle import create_product as lifecycle_create
 from documents.application.import_parser import infer_uom, parse_csv_products, suggest_department
+
+StockImportFn = Optional[Callable[..., Awaitable[None]]]
 
 
 async def import_csv(
@@ -15,6 +19,8 @@ async def import_csv(
     user_id: str,
     user_name: str,
     organization_id: str,
+    *,
+    on_stock_import: StockImportFn = None,
 ) -> dict:
     """
     Parse CSV content and import products. Returns summary dict with
@@ -92,6 +98,7 @@ async def import_csv(
                 user_id=user_id,
                 user_name=user_name,
                 organization_id=organization_id,
+                on_stock_import=on_stock_import,
             )
             imported.append({"id": product.id, "sku": product.sku, "name": product.name, "quantity": product.quantity})
         except Exception as e:

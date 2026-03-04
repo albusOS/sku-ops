@@ -1,111 +1,13 @@
-"""
-OpsAgent: contractors, withdrawals, jobs, material requests.
-Tools: get_contractor_history, get_job_materials, list_recent_withdrawals,
-       list_pending_material_requests.
-"""
+"""Ops agent helper functions — DB query implementations for operations data."""
 import json
 import logging
 from datetime import datetime, timezone, timedelta
 
-from pydantic_ai import Agent, RunContext
-
-from shared.infrastructure.config import (
-    AGENT_THINKING_BUDGET,
-    DEFAULT_DEEP_THINKING_BUDGET,
-)
 from shared.infrastructure.database import get_connection
-from assistant.agents.deps import AgentDeps
-from assistant.agents.model_registry import get_model
-from assistant.agents.agent_utils import build_message_history, run_agent_with_reflection
-from assistant.agents.tokens import budget_tool_result
 from operations.application.queries import list_withdrawals
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an operations specialist for SKU-Ops, a hardware store management system.
-
-TOOLS — use them when the user asks about field operations, contractors, or jobs:
-- get_contractor_history(name, limit): withdrawal history for a specific contractor
-- get_job_materials(job_id): all materials pulled for a specific job
-- list_recent_withdrawals(days, limit): recent material withdrawals across all jobs
-- list_pending_material_requests(limit): material requests awaiting approval
-
-WHEN TO USE EACH TOOL:
-- "what has [contractor] taken / history for [name]" → get_contractor_history
-- "what was pulled for job [ID] / job materials" → get_job_materials
-- "recent withdrawals / last week's activity / what's been pulled lately" → list_recent_withdrawals
-- "pending requests / awaiting approval / material requests" → list_pending_material_requests
-
-FORMAT — respond in GitHub-flavored markdown:
-- For withdrawal lists, use a markdown table with a separator row:
-
-| Date | Contractor | Job | Total | Status |
-|------|-----------|-----|-------|--------|
-| 2026-03-01 | John Smith | JOB-123 | $150.00 | unpaid |
-
-- Use **bold** for key names, unpaid totals, and anything needing attention
-- Use bullet lists for summaries; save tables for 3+ row datasets
-- Lead with the pattern ("**3 of 5 jobs unpaid, $420 outstanding**") before listing rows
-
-Never make up operational data — always use a tool.
-Amounts in dollars rounded to 2 decimal places.
-
-REASONING — think before acting:
-1. Identify what the question is really asking — contractor profile? single job? recent trends?
-2. If a question has multiple parts, call independent tools together in the same turn
-3. After results, assess completeness — if a contractor has many jobs, note the pattern, not just raw rows
-4. For vague names (e.g. "John"), use partial matching and clarify if multiple contractors match
-5. Summarise patterns in results (total spend, most active job, payment status spread) rather than
-   dumping raw rows — give the user insight, not just data"""
-
-_agent = Agent(
-    get_model("agent:ops"),
-    deps_type=AgentDeps,
-    system_prompt=SYSTEM_PROMPT,
-)
-
-
-@_agent.tool
-async def get_contractor_history(ctx: RunContext[AgentDeps], name: str, limit: int = 20) -> str:
-    """Withdrawal history for a contractor (by name). Shows jobs, materials pulled, amounts."""
-    return budget_tool_result(await _get_contractor_history({"name": name, "limit": limit}, ctx.deps.org_id))
-
-
-@_agent.tool
-async def get_job_materials(ctx: RunContext[AgentDeps], job_id: str) -> str:
-    """All materials pulled for a specific job ID. Shows each item, quantity, cost."""
-    return budget_tool_result(await _get_job_materials({"job_id": job_id}, ctx.deps.org_id))
-
-
-@_agent.tool
-async def list_recent_withdrawals(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20) -> str:
-    """Recent material withdrawals across all jobs. Filter by last N days."""
-    return budget_tool_result(await _list_recent_withdrawals({"days": days, "limit": limit}, ctx.deps.org_id))
-
-
-@_agent.tool
-async def list_pending_material_requests(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-    """Material requests from contractors that are awaiting approval."""
-    return budget_tool_result(await _list_pending_material_requests({"limit": limit}, ctx.deps.org_id))
-
-
-async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:
-    deep = mode == "deep"
-    thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
-    model_settings: dict = {}
-    if thinking_budget > 0:
-        model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
-
-    return await run_agent_with_reflection(
-        _agent, user_message,
-        msg_history=build_message_history(history), deps=deps,
-        model_settings=model_settings or None,
-        agent_name="OpsAgent", agent_label="ops",
-        session_id=session_id, mode=mode, history=history,
-    )
-
-
-# ── DB query implementations (unchanged) ────────────────────────────────────
 
 async def _get_contractor_history(args: dict, org_id: str) -> str:
     name = (args.get("name") or "").strip()

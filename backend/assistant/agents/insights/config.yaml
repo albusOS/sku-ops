@@ -1,0 +1,40 @@
+id: insights
+description: "Trends, top products, velocity, stockout forecasting, analytics"
+tier: standard
+
+domains:
+  - analytics
+  - trends
+  - forecasting
+  - velocity
+  - top_products
+  - slow_movers
+
+can_delegate_to:
+  - inventory
+
+tools:
+  - get_top_products
+  - get_department_activity
+  - forecast_stockout
+
+thinking_budget: 0
+max_output_tokens: 4000
+temperature: 0.0
+
+retry:
+  max_retries: 3
+  timeout_seconds: 45
+  backoff_base: 1.0
+
+canonical_queries:
+  - "top selling products"
+  - "best sellers this month"
+  - "stockout forecast"
+  - "what products are running out"
+  - "sales trend over time"
+  - "department activity report"
+  - "usage velocity for lumber"
+  - "which products move fastest"
+  - "analytics overview"
+  - "slow mover analysis"

@@ -1,0 +1,51 @@
+id: general
+description: "Cross-domain dashboard assistant — inventory, ops, finance, insights overview"
+tier: standard
+
+domains:
+  - general
+  - dashboard
+  - overview
+  - summary
+  - cross-domain
+
+can_delegate_to:
+  - inventory
+  - ops
+  - finance
+  - insights
+
+tools:
+  - search_products
+  - get_inventory_stats
+  - list_low_stock
+  - get_reorder_suggestions
+  - get_department_health
+  - list_recent_withdrawals
+  - list_pending_material_requests
+  - get_revenue_summary
+  - get_outstanding_balances
+  - get_pl_summary
+  - get_top_products
+  - forecast_stockout
+
+thinking_budget: 0
+max_output_tokens: 4000
+temperature: 0.0
+
+retry:
+  max_retries: 3
+  timeout_seconds: 45
+  backoff_base: 1.0
+
+canonical_queries:
+  - "hi"
+  - "hello"
+  - "help"
+  - "what can you do"
+  - "how's the business doing"
+  - "give me an overview"
+  - "dashboard summary"
+  - "thanks"
+  - "good morning"
+  - "what should I focus on today"

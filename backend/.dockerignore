@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
+data/
+tests/
+.pytest_cache/
+*.db
+*.db-*
+uv.lock
+.git/
+.gitignore

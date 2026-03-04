@@ -1,0 +1,76 @@
+# Model catalog — pricing, capabilities, and tier assignments.
+#
+# Tiers define cost/quality bands. Agents reference a tier, not a specific model,
+# so swapping the model behind a tier is a single edit here.
+#
+# Pricing is per-million tokens (USD), sourced from OpenRouter / provider pricing pages.
+
+tiers:
+  cheap:
+    description: "Minimal cost — routing, synthesis, trivial queries"
+    max_output_tokens: 1000
+    default_model: meta-llama/llama-3.3-70b-instruct
+
+  fast:
+    description: "Low cost — simple single-domain queries"
+    max_output_tokens: 2000
+    default_model: anthropic/claude-haiku-4-5
+
+  standard:
+    description: "Balanced — specialist agent work"
+    max_output_tokens: 4000
+    default_model: anthropic/claude-sonnet-4-6
+
+  premium:
+    description: "High quality — deep analysis, extended thinking, coordination"
+    max_output_tokens: 8000
+    default_model: anthropic/claude-sonnet-4-6
+
+models:
+  anthropic/claude-sonnet-4-6:
+    tier: standard
+    input_price_per_m: 3.00
+    output_price_per_m: 15.00
+    max_context: 200000
+    supports_thinking: true
+    supports_vision: true
+
+  anthropic/claude-haiku-4-5:
+    tier: fast
+    input_price_per_m: 0.80
+    output_price_per_m: 4.00
+    max_context: 200000
+    supports_thinking: false
+    supports_vision: true
+
+  anthropic/claude-opus-4-6:
+    tier: premium
+    input_price_per_m: 15.00
+    output_price_per_m: 75.00
+    max_context: 200000
+    supports_thinking: true
+    supports_vision: true
+
+  meta-llama/llama-3.3-70b-instruct:
+    tier: cheap
+    input_price_per_m: 0.39
+    output_price_per_m: 0.39
+    max_context: 128000
+    supports_thinking: false
+    supports_vision: false
+
+  google/gemini-2.0-flash-001:
+    tier: cheap
+    input_price_per_m: 0.10
+    output_price_per_m: 0.40
+    max_context: 1000000
+    supports_thinking: false
+    supports_vision: true
+
+  mistralai/mistral-small-24b-instruct-2501:
+    tier: cheap
+    input_price_per_m: 0.14
+    output_price_per_m: 0.14
+    max_context: 32000
+    supports_thinking: false
+    supports_vision: false

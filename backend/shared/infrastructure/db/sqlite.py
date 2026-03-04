@@ -7,6 +7,8 @@ from typing import AsyncIterator
 
 import aiosqlite
 
+from shared.infrastructure.db.protocol import DictRow
+
 
 # ── Cursor wrapper ────────────────────────────────────────────────────────────
 
@@ -20,13 +22,13 @@ class SqliteCursor:
     def rowcount(self) -> int:
         return self._cursor.rowcount
 
-    async def fetchone(self) -> dict | None:
+    async def fetchone(self) -> DictRow | None:
         row = await self._cursor.fetchone()
-        return dict(row) if row is not None else None
+        return DictRow(dict(row)) if row is not None else None
 
-    async def fetchall(self) -> list[dict]:
+    async def fetchall(self) -> list[DictRow]:
         rows = await self._cursor.fetchall()
-        return [dict(r) for r in rows]
+        return [DictRow(dict(r)) for r in rows]
 
 
 # ── Connection wrapper ────────────────────────────────────────────────────────

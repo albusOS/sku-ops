@@ -9,7 +9,19 @@ from catalog.infrastructure.product_repo import product_repo
 from inventory.infrastructure.stock_repo import stock_repo
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from catalog.application.product_lifecycle import create_product
-from operations.application.withdrawal_service import create_withdrawal
+from catalog.application.queries import list_products
+from inventory.application.inventory_service import process_import_stock_changes, process_withdrawal_stock_changes
+from finance.application.invoice_service import create_invoice_from_withdrawals
+from operations.application.withdrawal_service import create_withdrawal as _create_withdrawal
+
+
+async def create_withdrawal(data, contractor, current_user):
+    return await _create_withdrawal(
+        data, contractor, current_user,
+        list_products=list_products,
+        process_stock_changes=process_withdrawal_stock_changes,
+        create_invoice=create_invoice_from_withdrawals,
+    )
 
 
 @pytest.mark.asyncio
@@ -24,6 +36,7 @@ async def test_create_withdrawal_success(db):
         cost=5.0,
         user_id="user-1",
         user_name="Test",
+        on_stock_import=process_import_stock_changes,
     )
 
     items = [
@@ -74,6 +87,7 @@ async def test_create_withdrawal_insufficient_stock_raises(db):
         price=10.0,
         user_id="user-1",
         user_name="Test",
+        on_stock_import=process_import_stock_changes,
     )
 
     items = [
@@ -119,6 +133,7 @@ async def test_create_withdrawal_stock_transaction_recorded(db):
         price=8.0,
         user_id="user-1",
         user_name="Test",
+        on_stock_import=process_import_stock_changes,
     )
 
     items = [

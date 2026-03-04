@@ -12,6 +12,8 @@ from catalog.infrastructure.vendor_repo import vendor_repo
 from catalog.application.product_lifecycle import create_product as lifecycle_create, delete_product as lifecycle_delete, update_product as lifecycle_update
 from catalog.application.csv_import_service import import_csv
 from inventory.application.uom_classifier import classify_uom
+from inventory.application.inventory_service import process_import_stock_changes
+from shared.infrastructure.config import LLM_AVAILABLE
 
 from catalog.api.schemas import SuggestUomRequest
 
@@ -69,7 +71,11 @@ async def get_product(product_id: str, current_user: dict = Depends(get_current_
 @router.post("/suggest-uom")
 async def suggest_uom(data: SuggestUomRequest, current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
-    result = await classify_uom(data.name, data.description)
+    gen_text = None
+    if LLM_AVAILABLE:
+        from assistant.application.llm import generate_text
+        gen_text = generate_text
+    result = await classify_uom(data.name, data.description, generate_text=gen_text)
     return result
 
 
@@ -106,6 +112,7 @@ async def create_product(data: ProductCreate, current_user: dict = Depends(requi
             user_id=current_user["id"],
             user_name=current_user.get("name", ""),
             organization_id=org_id,
+            on_stock_import=process_import_stock_changes,
         )
         return product
     except DuplicateBarcodeError as e:
@@ -169,6 +176,7 @@ async def import_products_csv(
             user_id=current_user["id"],
             user_name=current_user.get("name", ""),
             organization_id=org_id,
+            on_stock_import=process_import_stock_changes,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

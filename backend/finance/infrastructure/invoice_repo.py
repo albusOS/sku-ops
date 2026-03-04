@@ -3,13 +3,25 @@ from typing import Optional
 from uuid import uuid4
 from datetime import datetime, timezone
 
+from typing import Callable, Awaitable
+
 from shared.infrastructure.database import get_connection
-from operations.application.queries import get_withdrawal_by_id
+
+# Injected at module level by the API layer to avoid circular import with operations
+_withdrawal_getter: Optional[Callable[..., Awaitable[Optional[dict]]]] = None
+
+
+def set_withdrawal_getter(fn: Callable[..., Awaitable[Optional[dict]]]) -> None:
+    """Wire the withdrawal query function (called once at startup)."""
+    global _withdrawal_getter
+    _withdrawal_getter = fn
 
 
 async def _get_withdrawal(wid: str, org_id: str) -> Optional[dict]:
-    """Fetch a withdrawal via the operations application layer."""
-    return await get_withdrawal_by_id(wid, organization_id=org_id)
+    """Fetch a withdrawal via the injected operations query."""
+    if _withdrawal_getter is None:
+        raise RuntimeError("withdrawal_getter not wired — call set_withdrawal_getter at startup")
+    return await _withdrawal_getter(wid, organization_id=org_id)
 
 
 def _invoice_row_to_dict(row) -> Optional[dict]:

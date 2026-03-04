@@ -1,5 +1,5 @@
 """Authentication routes."""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from identity.application.auth_service import (
@@ -11,6 +11,8 @@ from identity.application.auth_service import (
 from identity.domain.user import ROLES, User, UserCreate, UserLogin
 from identity.infrastructure.user_repo import user_repo
 from identity.infrastructure.refresh_token_repo import refresh_token_repo
+from shared.infrastructure.middleware.audit import audit_log
+from shared.infrastructure.middleware.rate_limit import auth_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -24,7 +26,8 @@ class LogoutRequest(BaseModel):
 
 
 @router.post("/register")
-async def register(data: UserCreate):
+@auth_limit
+async def register(data: UserCreate, request: Request):
     existing = await user_repo.get_by_email(data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -49,6 +52,7 @@ async def register(data: UserCreate):
     org_id = user_dict.get("organization_id") or "default"
     token = create_token(user.id, user.email, user.role, org_id)
     raw_refresh, _ = await refresh_token_repo.create(user.id)
+    await audit_log(user_id=user.id, action="auth.register", resource_type="user", resource_id=user.id, request=request, org_id=org_id)
     return {
         "token": token,
         "refresh_token": raw_refresh,
@@ -57,7 +61,8 @@ async def register(data: UserCreate):
 
 
 @router.post("/login")
-async def login(data: UserLogin):
+@auth_limit
+async def login(data: UserLogin, request: Request):
     user = await user_repo.get_by_email(data.email)
     if not user or not verify_password(data.password, user.get("password", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -69,11 +74,13 @@ async def login(data: UserLogin):
     raw_refresh, _ = await refresh_token_repo.create(user["id"])
     user_response = {k: v for k, v in user.items() if k not in ["password"]}
     user_response["organization_id"] = org_id
+    await audit_log(user_id=user["id"], action="auth.login", resource_type="user", resource_id=user["id"], request=request, org_id=org_id)
     return {"token": token, "refresh_token": raw_refresh, "user": user_response}
 
 
 @router.post("/refresh")
-async def refresh(data: RefreshRequest):
+@auth_limit
+async def refresh(data: RefreshRequest, request: Request):
     """Exchange a valid refresh token for a new access + refresh token pair (rotation)."""
     result = await refresh_token_repo.validate_and_rotate(data.refresh_token)
     if not result:
@@ -92,7 +99,8 @@ async def refresh(data: RefreshRequest):
 
 
 @router.post("/logout")
-async def logout(data: LogoutRequest):
+@auth_limit
+async def logout(data: LogoutRequest, request: Request):
     """Revoke the refresh token."""
     await refresh_token_repo.revoke(data.refresh_token)
     return {"detail": "Logged out"}

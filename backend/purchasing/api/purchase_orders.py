@@ -11,9 +11,49 @@ from purchasing.application.purchase_order_service import (
     create_purchase_order,
     mark_delivery_received,
     receive_po_items,
+    PurchasingDeps,
 )
+from catalog.application.queries import (
+    list_departments, get_department_by_code, find_vendor_by_name, insert_vendor,
+    list_products_by_vendor, get_product_by_id, find_product_by_original_sku_and_vendor,
+    find_product_by_name_and_vendor, update_product,
+)
+from catalog.application.product_lifecycle import create_product as lifecycle_create
+from inventory.application.inventory_service import process_receiving_stock_changes
+from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
+from documents.application.import_parser import infer_uom, suggest_department
+from documents.application.enrichment_service import enrich_for_import
+from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
 
 logger = logging.getLogger(__name__)
+
+
+async def _wired_classify_uom_batch(products):
+    gen_text = None
+    if _LLM_AVAILABLE:
+        from assistant.application.llm import generate_text
+        gen_text = generate_text
+    return await _classify_uom_batch(products, generate_text=gen_text, rule_infer=infer_uom)
+
+
+def _build_deps() -> PurchasingDeps:
+    return PurchasingDeps(
+        list_departments=list_departments,
+        get_department_by_code=get_department_by_code,
+        find_vendor_by_name=find_vendor_by_name,
+        insert_vendor=insert_vendor,
+        list_products_by_vendor=list_products_by_vendor,
+        get_product_by_id=get_product_by_id,
+        find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
+        find_product_by_name_and_vendor=find_product_by_name_and_vendor,
+        update_product=update_product,
+        create_product=lambda **kw: lifecycle_create(**kw, on_stock_import=process_receiving_stock_changes),
+        process_receiving_stock_changes=process_receiving_stock_changes,
+        classify_uom_batch=_wired_classify_uom_batch,
+        infer_uom=infer_uom,
+        suggest_department=suggest_department,
+        enrich_for_import=enrich_for_import,
+    )
 
 router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 
@@ -27,6 +67,7 @@ async def create_po(
     return await create_purchase_order(
         vendor_name=data.vendor_name,
         products=data.products,
+        deps=_build_deps(),
         document_date=data.document_date,
         total=data.total,
         department_id=data.department_id,
@@ -90,6 +131,7 @@ async def receive_items(
     result = await receive_po_items(
         po_id=po_id,
         item_updates=data.items,
+        deps=_build_deps(),
         current_user=current_user,
     )
     if result.get("cost_total", 0) > 0:

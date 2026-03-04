@@ -5,7 +5,7 @@ All product creation (API, CSV import, document import) flows through this servi
 Uses transactions to ensure product_count and stock ledger stay in sync.
 """
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Awaitable, Optional
 
 from shared.infrastructure.database import transaction
 from catalog.domain.barcode import validate_barcode
@@ -14,8 +14,9 @@ from catalog.domain.product import Product
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.product_repo import product_repo
 from catalog.infrastructure.vendor_repo import vendor_repo
-from inventory.application.inventory_service import process_import_stock_changes
 from catalog.application.sku_service import generate_sku
+
+StockChangesFn = Optional[Callable[..., Awaitable[None]]]
 
 
 async def create_product(
@@ -37,6 +38,8 @@ async def create_product(
     user_id: Optional[str] = None,
     user_name: str = "",
     organization_id: Optional[str] = None,
+    *,
+    on_stock_import: StockChangesFn = None,
 ) -> Product:
     """
     Create a product with SKU generation, product_count updates, and stock ledger.
@@ -90,8 +93,8 @@ async def create_product(
         await department_repo.increment_product_count(department_id, 1, conn=conn)
         if vendor_id:
             await vendor_repo.increment_product_count(vendor_id, 1, conn=conn)
-        if quantity > 0 and user_id:
-            await process_import_stock_changes(
+        if quantity > 0 and user_id and on_stock_import:
+            await on_stock_import(
                 product_id=product.id,
                 sku=product.sku,
                 product_name=product.name,

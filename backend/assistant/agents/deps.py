@@ -1,5 +1,11 @@
 """Shared dependency type injected into all agent tool calls."""
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from assistant.agents.contracts import AgentConfig, TurnState
 
 
 @dataclass
@@ -7,3 +13,6 @@ class AgentDeps:
     org_id: str
     user_id: str
     user_name: str
+    config: AgentConfig | None = None
+    turn_state: TurnState | None = None
+    trace_id: str = field(default="")

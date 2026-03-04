@@ -1,23 +1,28 @@
 """
 Withdrawal service: encapsulates creation of material withdrawals with transaction.
 """
-from typing import Optional
+from typing import Callable, Awaitable, Optional
 
 from fastapi import HTTPException
 
-from shared.infrastructure.database import get_connection, transaction
+from shared.infrastructure.database import transaction
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
-from finance.application.invoice_service import create_invoice_from_withdrawals
-from catalog.application.queries import list_products
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from shared.domain.exceptions import InsufficientStockError
-from inventory.application.inventory_service import process_withdrawal_stock_changes
+
+CreateInvoiceFn = Optional[Callable[..., Awaitable[dict]]]
+ListProductsFn = Callable[..., Awaitable[list]]
+StockChangesFn = Callable[..., Awaitable[None]]
 
 
 async def create_withdrawal(
     data: MaterialWithdrawalCreate,
     contractor: dict,
     current_user: dict,
+    *,
+    list_products: ListProductsFn,
+    process_stock_changes: StockChangesFn,
+    create_invoice: CreateInvoiceFn = None,
     conn=None,
 ) -> dict:
     """
@@ -61,7 +66,7 @@ async def create_withdrawal(
 
     async def _do_create(tx_conn):
         try:
-            await process_withdrawal_stock_changes(
+            await process_stock_changes(
                 items=data.items,
                 withdrawal_id=withdrawal.id,
                 user_id=current_user["id"],
@@ -76,13 +81,14 @@ async def create_withdrawal(
         w_dict["organization_id"] = current_user.get("organization_id") or "default"
         await withdrawal_repo.insert(w_dict, conn=tx_conn)
 
-        try:
-            inv = await create_invoice_from_withdrawals([withdrawal.id], conn=tx_conn)
-            result = withdrawal.model_dump()
-            result["invoice_id"] = inv.get("id")
-            return result
-        except ValueError:
-            pass
+        if create_invoice:
+            try:
+                inv = await create_invoice(withdrawal_ids=[withdrawal.id], conn=tx_conn)
+                result = withdrawal.model_dump()
+                result["invoice_id"] = inv.get("id")
+                return result
+            except ValueError:
+                pass
         return withdrawal.model_dump()
 
     if conn is not None:

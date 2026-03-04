@@ -1,0 +1,54 @@
+id: inventory
+description: "Product search, stock levels, reorders, departments, vendors, SKUs, barcodes"
+tier: standard
+
+domains:
+  - inventory
+  - stock
+  - products
+  - departments
+  - vendors
+  - sku
+  - barcode
+  - reorder
+
+can_delegate_to:
+  - insights
+
+tools:
+  - search_products
+  - search_semantic
+  - get_product_details
+  - get_inventory_stats
+  - list_low_stock
+  - list_departments
+  - list_vendors
+  - get_usage_velocity
+  - get_reorder_suggestions
+  - get_department_health
+  - get_slow_movers
+
+thinking_budget: 0
+max_output_tokens: 4000
+temperature: 0.0
+
+retry:
+  max_retries: 3
+  timeout_seconds: 45
+  backoff_base: 1.0
+
+canonical_queries:
+  - "do we have PVC pipes"
+  - "search for copper fittings"
+  - "find product by SKU"
+  - "low stock items"
+  - "what products need reordering"
+  - "department health breakdown"
+  - "show me slow movers"
+  - "what's our inventory worth"
+  - "out of stock products"
+  - "how many SKUs do we have"
+  - "list all departments"
+  - "who are our vendors"
+  - "barcode lookup"
+  - "product details for PLU-001"

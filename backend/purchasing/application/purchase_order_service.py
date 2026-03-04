@@ -8,12 +8,10 @@ from typing import Optional
 
 from fastapi import HTTPException
 
-from catalog.domain.product import ALLOWED_BASE_UNITS
-from catalog.application.queries import (
-    list_departments, get_department_by_code, find_vendor_by_name, insert_vendor,
-    list_products_by_vendor, get_product_by_id, find_product_by_original_sku_and_vendor,
-    find_product_by_name_and_vendor, update_product,
-)
+from dataclasses import dataclass
+from typing import Any, Callable, Awaitable, Tuple
+
+from shared.domain.value_objects import ALLOWED_BASE_UNITS
 from purchasing.infrastructure.po_repo import (
     create_po as _create_po,
     create_po_items,
@@ -22,16 +20,32 @@ from purchasing.infrastructure.po_repo import (
     update_po_item,
     update_po_status,
 )
-from documents.application.import_parser import infer_uom, suggest_department
-from documents.application.enrichment_service import enrich_for_import
-from inventory.application.inventory_service import process_receiving_stock_changes
-from catalog.application.product_lifecycle import create_product as lifecycle_create
-from inventory.application.uom_classifier import classify_uom_batch
+
+
+@dataclass
+class PurchasingDeps:
+    """Cross-domain dependencies injected by the API layer."""
+    list_departments: Callable[..., Awaitable[list]]
+    get_department_by_code: Callable[..., Awaitable[Any]]
+    find_vendor_by_name: Callable[..., Awaitable[Any]]
+    insert_vendor: Callable[..., Awaitable[None]]
+    list_products_by_vendor: Callable[..., Awaitable[list]]
+    get_product_by_id: Callable[..., Awaitable[Any]]
+    find_product_by_sku_and_vendor: Callable[..., Awaitable[Any]]
+    find_product_by_name_and_vendor: Callable[..., Awaitable[Any]]
+    update_product: Callable[..., Awaitable[None]]
+    create_product: Callable[..., Awaitable[Any]]
+    process_receiving_stock_changes: Callable[..., Awaitable[None]]
+    classify_uom_batch: Callable[..., Awaitable[list]]
+    infer_uom: Callable[[str], Tuple[str, str, int]]
+    suggest_department: Callable[..., Any]
+    enrich_for_import: Callable[..., Awaitable[list]]
 
 
 async def create_purchase_order(
     vendor_name: str,
     products: list,
+    deps: PurchasingDeps,
     document_date: Optional[str] = None,
     total: Optional[float] = None,
     department_id: Optional[str] = None,
@@ -48,7 +62,7 @@ async def create_purchase_order(
 
     org_id = (current_user or {}).get("organization_id") or "default"
 
-    vendor = await find_vendor_by_name(vendor_name, org_id)
+    vendor = await deps.find_vendor_by_name(vendor_name, org_id)
     if not vendor:
         if not create_vendor_if_missing:
             raise HTTPException(
@@ -57,7 +71,7 @@ async def create_purchase_order(
             )
         vendor_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
-        await insert_vendor({
+        await deps.insert_vendor({
             "id": vendor_id,
             "name": vendor_name,
             "contact_name": "",
@@ -74,7 +88,7 @@ async def create_purchase_order(
         vendor_id = vendor["id"]
         vendor_created = False
 
-    departments = await list_departments()
+    departments = await deps.list_departments()
     dept_by_id = {d["id"]: d for d in departments}
     dept_by_code = {d["code"].upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
@@ -92,8 +106,8 @@ async def create_purchase_order(
     ocr_items = [p for p in selected if not p.get("_ai_parsed")]
 
     if ocr_items:
-        vendor_products = await list_products_by_vendor(vendor_id)
-        ocr_items = await enrich_for_import(ocr_items, vendor_products, dept_codes)
+        vendor_products = await deps.list_products_by_vendor(vendor_id)
+        ocr_items = await deps.enrich_for_import(ocr_items, vendor_products, dept_codes)
     for item in selected:
         item.pop("enrichment_warning", None)
 
@@ -106,7 +120,7 @@ async def create_purchase_order(
         else:
             suggested = (item.get("suggested_department") or "HDW").upper()
             if not suggested or suggested == "HDW" or suggested not in dept_by_code:
-                rule_dept = suggest_department(item.get("name", "") or "", dept_by_code)
+                rule_dept = deps.suggest_department(item.get("name", "") or "", dept_by_code)
                 if rule_dept:
                     item["suggested_department"] = rule_dept
 
@@ -115,7 +129,7 @@ async def create_purchase_order(
         bu = (item.get("base_unit") or "each").lower()
         su = (item.get("sell_uom") or "each").lower()
         if bu == "each" and su == "each":
-            inferred_bu, inferred_su, inferred_pq = infer_uom(item.get("name", "") or "")
+            inferred_bu, inferred_su, inferred_pq = deps.infer_uom(item.get("name", "") or "")
             if inferred_bu != "each":
                 item["base_unit"] = inferred_bu
                 item["sell_uom"] = inferred_su
@@ -131,7 +145,7 @@ async def create_purchase_order(
         )
     ]
     if needs_uom:
-        await classify_uom_batch(needs_uom)
+        await deps.classify_uom_batch(needs_uom)
 
     po_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc).isoformat()
@@ -241,6 +255,7 @@ async def mark_delivery_received(
 async def receive_po_items(
     po_id: str,
     item_updates: list,  # [{"id": item_id, "delivered_qty": qty}]
+    deps: PurchasingDeps,
     current_user: dict = None,
 ) -> dict:
     """
@@ -253,8 +268,8 @@ async def receive_po_items(
         raise HTTPException(status_code=404, detail="Purchase order not found")
 
     vendor_id = po.get("vendor_id")
-    departments = await list_departments()
-    default_dept = await get_department_by_code("HDW") or (departments[0] if departments else None)
+    departments = await deps.list_departments()
+    default_dept = await deps.get_department_by_code("HDW") or (departments[0] if departments else None)
     dept_by_code = {d["code"].upper(): d for d in departments}
 
     all_items = await get_po_items(po_id)
@@ -286,18 +301,18 @@ async def receive_po_items(
             # 3-tier matching: explicit product_id → vendor SKU → name
             existing = None
             if item.get("product_id"):
-                existing = await get_product_by_id(item["product_id"], organization_id=org_id)
+                existing = await deps.get_product_by_id(item["product_id"], organization_id=org_id)
             if not existing and item.get("original_sku") and vendor_id:
-                existing = await find_product_by_original_sku_and_vendor(
+                existing = await deps.find_product_by_sku_and_vendor(
                     str(item["original_sku"]).strip(), vendor_id, organization_id=org_id
                 )
             if not existing and item.get("name") and vendor_id:
-                existing = await find_product_by_name_and_vendor(
+                existing = await deps.find_product_by_name_and_vendor(
                     item["name"], vendor_id, organization_id=org_id
                 )
 
             if existing:
-                await process_receiving_stock_changes(
+                await deps.process_receiving_stock_changes(
                     product_id=existing["id"],
                     sku=existing["sku"],
                     product_name=existing["name"],
@@ -308,9 +323,9 @@ async def receive_po_items(
                 )
                 # Backfill original_sku on product so future imports match on SKU, not name
                 if item.get("original_sku") and not existing.get("original_sku"):
-                    await update_product(existing["id"], {"original_sku": item["original_sku"]})
+                    await deps.update_product(existing["id"], {"original_sku": item["original_sku"]})
                 await update_po_item(item_id, status="arrived", product_id=existing["id"], delivered_qty=delivered)
-                updated = await get_product_by_id(existing["id"])
+                updated = await deps.get_product_by_id(existing["id"])
                 matched.append(updated)
             else:
                 dept = dept_by_code.get((item.get("suggested_department") or "HDW").upper()) or default_dept
@@ -319,7 +334,7 @@ async def receive_po_items(
                     continue
 
                 cost_val = float(item.get("cost") or 0) or float(item.get("price") or 0) * 0.7
-                product = await lifecycle_create(
+                product = await deps.create_product(
                     department_id=dept["id"],
                     department_name=dept["name"],
                     name=item.get("name", "Unknown"),

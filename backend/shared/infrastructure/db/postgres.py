@@ -8,6 +8,8 @@ from typing import AsyncIterator
 
 import asyncpg
 
+from shared.infrastructure.db.protocol import DictRow
+
 
 # ── Placeholder conversion ────────────────────────────────────────────────────
 
@@ -28,12 +30,11 @@ def _convert_placeholders(sql: str) -> str:
 
 def _convert_sql(sql: str) -> str:
     """Full SQL dialect conversion: placeholders + syntax sugar."""
+    had_or_ignore = "INSERT OR IGNORE" in sql
     converted = _convert_placeholders(sql)
     converted = converted.replace("INSERT OR IGNORE", "INSERT")
     converted = converted.replace("INSERT OR REPLACE", "INSERT")
-    if "INSERT OR IGNORE" not in sql and "ON CONFLICT" not in converted:
-        pass
-    if "INSERT OR IGNORE" in sql and "ON CONFLICT" not in converted:
+    if had_or_ignore and "ON CONFLICT" not in converted:
         converted = re.sub(
             r"(VALUES\s*\([^)]+\))",
             r"\1 ON CONFLICT DO NOTHING",
@@ -58,13 +59,13 @@ class PgCursor:
             return int(parts[-1])
         return len(self._rows)
 
-    async def fetchone(self) -> dict | None:
+    async def fetchone(self) -> DictRow | None:
         if not self._rows:
             return None
-        return dict(self._rows[0])
+        return DictRow(dict(self._rows[0]))
 
-    async def fetchall(self) -> list[dict]:
-        return [dict(r) for r in self._rows]
+    async def fetchall(self) -> list[DictRow]:
+        return [DictRow(dict(r)) for r in self._rows]
 
 
 # ── Pool proxy (auto-acquire per statement) ───────────────────────────────────
@@ -102,12 +103,18 @@ class PgPoolProxy:
 # ── Transaction proxy (holds single connection) ──────────────────────────────
 
 class PgTransactionProxy:
-    """Used inside ``transaction()`` context — single connection, explicit commit."""
-    __slots__ = ("_conn", "_tx")
+    """Used inside ``transaction()`` context — single connection, explicit commit.
 
-    def __init__(self, conn: asyncpg.Connection, tx: asyncpg.connection.transaction.Transaction):
+    commit() and rollback() are intentional no-ops here; the context manager in
+    PostgresBackend.transaction() owns the transaction lifecycle.  This avoids
+    double-commit errors when application code calls ``await conn.commit()``
+    inside the ``async with transaction()`` block (matching SQLite's lenient
+    commit semantics).
+    """
+    __slots__ = ("_conn",)
+
+    def __init__(self, conn: asyncpg.Connection):
         self._conn = conn
-        self._tx = tx
 
     async def execute(self, sql: str, params: tuple | list = ()) -> PgCursor:
         converted = _convert_sql(sql)
@@ -123,10 +130,10 @@ class PgTransactionProxy:
         await self._conn.executemany(converted, params_list)
 
     async def commit(self) -> None:
-        await self._tx.commit()
+        pass
 
     async def rollback(self) -> None:
-        await self._tx.rollback()
+        pass
 
 
 # ── Backend lifecycle ─────────────────────────────────────────────────────────
@@ -158,9 +165,8 @@ class PostgresBackend:
         async with self._pool.acquire() as conn:
             tx = conn.transaction()
             await tx.start()
-            proxy = PgTransactionProxy(conn, tx)
             try:
-                yield proxy
+                yield PgTransactionProxy(conn)
                 await tx.commit()
             except Exception:
                 await tx.rollback()

@@ -84,5 +84,11 @@ backend/:memory:*
 # Environment files (never commit secrets)
 .env
 .env.*
+!.env.example
 backend/.env
 frontend/.env
+
+# Test artifacts and temp files
+test_temp.txt
+test_write.txt
+test_reports/
