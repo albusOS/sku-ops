@@ -20,7 +20,7 @@ from catalog.api.vendors import router as vendors_router
 from .webhooks import router as webhooks_router
 from operations.api.withdrawals import router as withdrawals_router
 from operations.api.material_requests import router as material_requests_router
-from .purchase_orders import router as purchase_orders_router
+from purchasing.api.purchase_orders import router as purchase_orders_router
 from identity.api.seed import router as seed_router
 from identity.api.settings import router as settings_router
 from .xero_auth import router as xero_auth_router

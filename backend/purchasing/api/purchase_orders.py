@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from identity.application.auth_service import require_role
-from repositories.po_repo import get_po, get_po_items, list_pos
-from services.purchase_order_service import (
+from purchasing.infrastructure.po_repo import get_po, get_po_items, list_pos
+from purchasing.application.purchase_order_service import (
     create_purchase_order,
     mark_delivery_received,
     receive_po_items,

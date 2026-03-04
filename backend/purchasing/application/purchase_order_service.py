@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from catalog.domain.product import ALLOWED_BASE_UNITS
 from repositories import department_repo, product_repo, vendor_repo
-from repositories.po_repo import (
+from purchasing.infrastructure.po_repo import (
     create_po as _create_po,
     create_po_items,
     get_po,
