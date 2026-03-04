@@ -2,7 +2,7 @@
 import pytest
 
 from shared.domain.exceptions import InsufficientStockError
-from models.withdrawal import WithdrawalItem
+from operations.domain.withdrawal import WithdrawalItem
 from inventory.application.inventory_service import process_withdrawal_stock_changes
 from catalog.application.product_lifecycle import create_product
 

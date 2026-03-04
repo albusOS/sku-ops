@@ -259,7 +259,7 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
     conn = get_connection()
     org_id = organization_id or "default"
 
-    from repositories.withdrawal_repo import withdrawal_repo
+    from operations.infrastructure.withdrawal_repo import withdrawal_repo
 
     withdrawals = []
     billing_entity = None
@@ -344,7 +344,7 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
 
 async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optional[str] = None, conn=None) -> dict:
     """Create new invoice from unpaid withdrawals. All must share same billing_entity."""
-    from repositories.withdrawal_repo import withdrawal_repo
+    from operations.infrastructure.withdrawal_repo import withdrawal_repo
 
     if not withdrawal_ids:
         raise ValueError("At least one withdrawal required")

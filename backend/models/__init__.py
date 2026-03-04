@@ -14,12 +14,12 @@ from catalog.domain.product import (
     ProductUpdate,
     ExtractedProduct,
 )
-from .withdrawal import (
+from operations.domain.withdrawal import (
     MaterialWithdrawal,
     MaterialWithdrawalCreate,
     WithdrawalItem,
 )
-from .material_request import (
+from operations.domain.material_request import (
     MaterialRequest,
     MaterialRequestCreate,
     MaterialRequestProcess,

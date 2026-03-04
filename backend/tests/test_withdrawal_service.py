@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from models import MaterialWithdrawalCreate, WithdrawalItem
 from repositories import product_repo, stock_repo, withdrawal_repo
 from catalog.application.product_lifecycle import create_product
-from services.withdrawal_service import create_withdrawal
+from operations.application.withdrawal_service import create_withdrawal
 
 
 @pytest.mark.asyncio

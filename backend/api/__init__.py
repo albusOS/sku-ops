@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from identity.api.auth import router as auth_router
 from .chat import router as chat_router
 from .health import router as health_router
-from .contractors import router as contractors_router
+from operations.api.contractors import router as contractors_router
 from .dashboard import router as dashboard_router
 from catalog.api.departments import router as departments_router
 from .documents import router as documents_router
@@ -18,8 +18,8 @@ from .reports import router as reports_router
 from catalog.api.sku import router as sku_router
 from catalog.api.vendors import router as vendors_router
 from .webhooks import router as webhooks_router
-from .withdrawals import router as withdrawals_router
-from .material_requests import router as material_requests_router
+from operations.api.withdrawals import router as withdrawals_router
+from operations.api.material_requests import router as material_requests_router
 from .purchase_orders import router as purchase_orders_router
 from identity.api.seed import router as seed_router
 from identity.api.settings import router as settings_router
