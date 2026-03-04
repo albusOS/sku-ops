@@ -1,0 +1,73 @@
+# Inventory agent eval dataset
+
+- id: inv-001
+  input: "do we have PVC pipes?"
+  expected_tools: [search_products]
+  assertions:
+    - tool_called: search_products
+    - response_contains: ["PVC"]
+    - max_output_tokens: 800
+
+- id: inv-002
+  input: "full inventory analysis"
+  expected_tools: [get_inventory_stats, get_department_health, get_reorder_suggestions, get_slow_movers]
+  assertions:
+    - min_tools_called: 3
+    - max_output_tokens: 2500
+
+- id: inv-003
+  input: "what products are low on stock?"
+  expected_tools: [list_low_stock]
+  assertions:
+    - tool_called: list_low_stock
+    - max_output_tokens: 1200
+
+- id: inv-004
+  input: "tell me about SKU PLU-001"
+  expected_tools: [get_product_details]
+  assertions:
+    - tool_called: get_product_details
+    - max_output_tokens: 600
+
+- id: inv-005
+  input: "how many products do we carry?"
+  expected_tools: [get_inventory_stats]
+  assertions:
+    - tool_called: get_inventory_stats
+    - no_bare_units: true
+    - max_output_tokens: 500
+
+- id: inv-006
+  input: "list all departments"
+  expected_tools: [list_departments]
+  assertions:
+    - tool_called: list_departments
+    - max_output_tokens: 800
+
+- id: inv-007
+  input: "what should we reorder first?"
+  expected_tools: [get_reorder_suggestions]
+  assertions:
+    - tool_called: get_reorder_suggestions
+    - max_output_tokens: 1500
+
+- id: inv-008
+  input: "department health report"
+  expected_tools: [get_department_health]
+  assertions:
+    - tool_called: get_department_health
+    - max_output_tokens: 1000
+
+- id: inv-009
+  input: "show me slow movers"
+  expected_tools: [get_slow_movers]
+  assertions:
+    - tool_called: get_slow_movers
+    - max_output_tokens: 1200
+
+- id: inv-010
+  input: "how fast does PLU-001 move?"
+  expected_tools: [get_usage_velocity]
+  assertions:
+    - tool_called: get_usage_velocity
+    - max_output_tokens: 500

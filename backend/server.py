@@ -4,22 +4,26 @@ Main entry point: composes FastAPI app with routers from api package.
 """
 from contextlib import asynccontextmanager
 
-from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
+from shared.infrastructure.logging_config import setup_logging
+
+setup_logging()
+
 import logging
 
+from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed, is_deployed, is_test
 from shared.infrastructure.database import init_db, close_db
 from shared.domain.exceptions import InsufficientStockError, ResourceNotFoundError
+from shared.infrastructure.middleware.request_id import RequestIDMiddleware
+from shared.infrastructure.middleware.security_headers import SecurityHeadersMiddleware
+from shared.infrastructure.middleware.rate_limit import setup_rate_limiting
+from shared.infrastructure.metrics import setup_sentry, setup_prometheus
 from api import api_router
 from identity.api.seed import seed_mock_user, seed_standard_departments
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -47,6 +51,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(api_router)
 
+setup_sentry()
+setup_prometheus(app)
+
+# ── Exception handlers ────────────────────────────────────────────────────────
 
 @app.exception_handler(ResourceNotFoundError)
 async def resource_not_found_handler(request, exc: ResourceNotFoundError):
@@ -57,6 +65,9 @@ async def resource_not_found_handler(request, exc: ResourceNotFoundError):
 async def insufficient_stock_handler(request, exc: InsufficientStockError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
+
+# ── Middleware (outermost first → executes first on request) ──────────────────
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -64,3 +75,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)
+
+if not is_test:
+    setup_rate_limiting(app)

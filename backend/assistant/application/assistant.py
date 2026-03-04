@@ -1,21 +1,21 @@
 """Chat assistant entrypoint. Routes to specialist agents via intelligent classification.
 
 Routing modes:
-- "auto" (default): Haiku classifier picks the best agent(s), supports multi-agent fan-out
+- "auto" (default): deterministic router (heuristic + embedding + LLM fallback)
 - Explicit agent_type ("inventory", "ops", etc.): bypasses router, dispatches directly
 """
 import asyncio
 import importlib
 import logging
 
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, LLM_SETUP_URL
 from assistant.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
 
 LLM_NOT_CONFIGURED_MSG = (
-    "Chat assistant requires an Anthropic API key. Add ANTHROPIC_API_KEY to backend/.env. "
-    f"Get a key at {LLM_SETUP_URL}"
+    "Chat assistant requires an API key. Set OPENROUTER_API_KEY (preferred) or "
+    f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {LLM_SETUP_URL}"
 )
 
 _AGENT_MODULES = {
@@ -42,7 +42,7 @@ async def chat(
     When agent_type="auto", the router classifies the message and may dispatch
     to multiple agents in parallel for cross-domain questions.
     """
-    if not ANTHROPIC_AVAILABLE:
+    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": [], "agent": None}
 
     ctx = ctx or {}
@@ -97,4 +97,4 @@ async def _routed_dispatch(
             }
 
     results = await asyncio.gather(*[_run_one(a) for a in agents])
-    return await merge_responses(user_message, list(results))
+    return merge_responses(user_message, list(results))

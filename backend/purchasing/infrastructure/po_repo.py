@@ -77,7 +77,7 @@ async def get_po(po_id: str, org_id: str) -> Optional[dict]:
 async def get_po_items(po_id: str) -> list:
     conn = get_connection()
     cursor = await conn.execute(
-        "SELECT * FROM purchase_order_items WHERE po_id = ? ORDER BY rowid",
+        "SELECT * FROM purchase_order_items WHERE po_id = ? ORDER BY id",
         (po_id,),
     )
     rows = await cursor.fetchall()

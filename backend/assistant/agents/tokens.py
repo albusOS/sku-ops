@@ -1,0 +1,201 @@
+"""Token counting and budget management via tiktoken.
+
+Uses cl100k_base encoding as an approximation for both Anthropic and
+OpenRouter models.  Not exact, but close enough for budget decisions.
+"""
+import json
+import logging
+from typing import Any
+
+import tiktoken
+
+logger = logging.getLogger(__name__)
+
+_enc = tiktoken.get_encoding("cl100k_base")
+
+
+def count_tokens(text: str) -> int:
+    """Return approximate token count for a string."""
+    if not text:
+        return 0
+    return len(_enc.encode(text))
+
+
+# ── Tool result budgeting ─────────────────────────────────────────────────────
+# Fields to drop first when trimming (low information density)
+_LOW_VALUE_FIELDS = frozenset((
+    "_note", "method", "sell_uom", "base_unit", "pack_qty",
+    "original_sku", "barcode",
+))
+
+# JSON keys that typically contain list items
+_LIST_KEYS = (
+    "products", "forecast", "suggestions", "slow_movers",
+    "withdrawals", "balances", "pending_requests", "departments",
+    "vendors", "items",
+)
+
+
+def budget_tool_result(raw_json: str, max_tokens: int = 500) -> str:
+    """Truncate a tool's JSON output if it exceeds *max_tokens*.
+
+    Strategy (applied in order until under budget):
+    1. Drop low-value fields from each item in lists
+    2. Trim the list to fewer items (keep first N)
+    3. Hard character-level truncation as last resort
+    """
+    tokens = count_tokens(raw_json)
+    if tokens <= max_tokens:
+        return raw_json
+
+    try:
+        data = json.loads(raw_json)
+    except (json.JSONDecodeError, TypeError):
+        return raw_json[:max_tokens * 4]  # ~4 chars per token fallback
+
+    # Phase 1: drop low-value fields from list items
+    for key in _LIST_KEYS:
+        items = data.get(key)
+        if isinstance(items, list):
+            data[key] = [
+                {k: v for k, v in item.items() if k not in _LOW_VALUE_FIELDS}
+                if isinstance(item, dict) else item
+                for item in items
+            ]
+
+    trimmed = json.dumps(data, separators=(",", ":"))
+    if count_tokens(trimmed) <= max_tokens:
+        return trimmed
+
+    # Phase 2: reduce list length
+    for key in _LIST_KEYS:
+        items = data.get(key)
+        if isinstance(items, list) and len(items) > 3:
+            original_count = len(items)
+            while len(items) > 3 and count_tokens(json.dumps(data, separators=(",", ":"))) > max_tokens:
+                items.pop()
+            data[key] = items
+            data[f"_{key}_truncated"] = f"{len(items)}/{original_count} shown"
+
+    trimmed = json.dumps(data, separators=(",", ":"))
+    if count_tokens(trimmed) <= max_tokens:
+        return trimmed
+
+    # Phase 3: hard truncation
+    chars = max_tokens * 3
+    return trimmed[:chars] + '..."}'
+
+
+def estimate_turn_tokens(
+    system_prompt: str,
+    history: list[dict] | None,
+    user_message: str,
+) -> dict[str, int]:
+    """Pre-flight estimate of input tokens for an agent turn."""
+    sys_tokens = count_tokens(system_prompt)
+    msg_tokens = count_tokens(user_message)
+    hist_tokens = 0
+    if history:
+        hist_tokens = sum(count_tokens(h.get("content", "")) for h in history)
+    overhead = 50  # framing tokens (role markers, separators)
+    return {
+        "system": sys_tokens,
+        "history": hist_tokens,
+        "user_message": msg_tokens,
+        "overhead": overhead,
+        "total_estimate": sys_tokens + hist_tokens + msg_tokens + overhead,
+    }
+
+
+# ── History compression ───────────────────────────────────────────────────────
+
+def compress_history(
+    history: list[dict] | None,
+    max_tokens: int = 1500,
+) -> list[dict] | None:
+    """Trim conversation history to fit within *max_tokens*.
+
+    Keeps the most recent turns and drops oldest first.
+    For embedding-based relevance filtering, see compress_history_semantic().
+    """
+    if not history:
+        return history
+    if len(history) <= 4:
+        return history
+
+    total = sum(count_tokens(h.get("content", "")) for h in history)
+    if total <= max_tokens:
+        return history
+
+    # Always keep the last 2 turns
+    kept = list(history[-2:])
+    budget_remaining = max_tokens - sum(count_tokens(h.get("content", "")) for h in kept)
+
+    # Add older turns from most-recent backward until budget exhausted
+    for h in reversed(history[:-2]):
+        t = count_tokens(h.get("content", ""))
+        if budget_remaining - t < 0:
+            break
+        kept.insert(0, h)
+        budget_remaining -= t
+
+    return kept
+
+
+async def compress_history_semantic(
+    current_query: str,
+    history: list[dict] | None,
+    max_tokens: int = 1500,
+    api_key: str = "",
+) -> list[dict] | None:
+    """Keep only history turns semantically relevant to the current query.
+
+    Uses OpenAI embeddings for relevance scoring.  Falls back to recency-based
+    compression if embeddings are unavailable.
+    """
+    import numpy as np
+
+    if not history or len(history) <= 4:
+        return history
+
+    total = sum(count_tokens(h.get("content", "")) for h in history)
+    if total <= max_tokens:
+        return history
+
+    if not api_key:
+        return compress_history(history, max_tokens)
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+
+        texts = [current_query] + [h.get("content", "") for h in history]
+        resp = await client.embeddings.create(
+            model="text-embedding-3-small", input=texts,
+        )
+        query_vec = np.array(resp.data[0].embedding, dtype=np.float32)
+        hist_vecs = np.array(
+            [resp.data[i + 1].embedding for i in range(len(history))],
+            dtype=np.float32,
+        )
+        scores = hist_vecs @ query_vec
+
+        # Always keep last 2 turns
+        keep_indices: set[int] = set(range(max(0, len(history) - 2), len(history)))
+        token_count = sum(count_tokens(history[i].get("content", "")) for i in keep_indices)
+
+        # Add most-relevant turns until budget full
+        for idx in np.argsort(scores)[::-1]:
+            idx = int(idx)
+            if idx in keep_indices:
+                continue
+            entry_tokens = count_tokens(history[idx].get("content", ""))
+            if token_count + entry_tokens > max_tokens:
+                continue
+            keep_indices.add(idx)
+            token_count += entry_tokens
+
+        return [history[i] for i in sorted(keep_indices)]
+    except Exception as e:
+        logger.debug(f"Semantic history compression failed, using recency: {e}")
+        return compress_history(history, max_tokens)

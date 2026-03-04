@@ -1,0 +1,36 @@
+# Operations agent eval dataset
+
+- id: ops-001
+  input: "what has john smith taken?"
+  expected_tools: [get_contractor_history]
+  assertions:
+    - tool_called: get_contractor_history
+    - max_output_tokens: 1000
+
+- id: ops-002
+  input: "pending material requests"
+  expected_tools: [list_pending_material_requests]
+  assertions:
+    - tool_called: list_pending_material_requests
+    - max_output_tokens: 800
+
+- id: ops-003
+  input: "recent withdrawals this week"
+  expected_tools: [list_recent_withdrawals]
+  assertions:
+    - tool_called: list_recent_withdrawals
+    - max_output_tokens: 1000
+
+- id: ops-004
+  input: "materials for job JOB-445"
+  expected_tools: [get_job_materials]
+  assertions:
+    - tool_called: get_job_materials
+    - max_output_tokens: 800
+
+- id: ops-005
+  input: "how many withdrawals happened in the last 30 days?"
+  expected_tools: [list_recent_withdrawals]
+  assertions:
+    - tool_called: list_recent_withdrawals
+    - max_output_tokens: 1000

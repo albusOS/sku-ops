@@ -1,11 +1,26 @@
 """Authentication routes."""
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 
-from identity.application.auth_service import hash_password, verify_password, create_token, get_current_user
+from identity.application.auth_service import (
+    hash_password,
+    verify_password,
+    create_token,
+    get_current_user,
+)
 from identity.domain.user import ROLES, User, UserCreate, UserLogin
 from identity.infrastructure.user_repo import user_repo
+from identity.infrastructure.refresh_token_repo import refresh_token_repo
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 
 @router.post("/register")
@@ -33,7 +48,12 @@ async def register(data: UserCreate):
 
     org_id = user_dict.get("organization_id") or "default"
     token = create_token(user.id, user.email, user.role, org_id)
-    return {"token": token, "user": {**user.model_dump(), "organization_id": org_id}}
+    raw_refresh, _ = await refresh_token_repo.create(user.id)
+    return {
+        "token": token,
+        "refresh_token": raw_refresh,
+        "user": {**user.model_dump(), "organization_id": org_id},
+    }
 
 
 @router.post("/login")
@@ -46,9 +66,36 @@ async def login(data: UserLogin):
 
     org_id = user.get("organization_id") or "default"
     token = create_token(user["id"], user["email"], user["role"], org_id)
+    raw_refresh, _ = await refresh_token_repo.create(user["id"])
     user_response = {k: v for k, v in user.items() if k not in ["password"]}
     user_response["organization_id"] = org_id
-    return {"token": token, "user": user_response}
+    return {"token": token, "refresh_token": raw_refresh, "user": user_response}
+
+
+@router.post("/refresh")
+async def refresh(data: RefreshRequest):
+    """Exchange a valid refresh token for a new access + refresh token pair (rotation)."""
+    result = await refresh_token_repo.validate_and_rotate(data.refresh_token)
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user = await user_repo.get_by_id(result["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    if not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Account is disabled")
+
+    org_id = user.get("organization_id") or "default"
+    token = create_token(user["id"], user["email"], user["role"], org_id)
+    new_refresh, _ = await refresh_token_repo.create(user["id"])
+    return {"token": token, "refresh_token": new_refresh}
+
+
+@router.post("/logout")
+async def logout(data: LogoutRequest):
+    """Revoke the refresh token."""
+    await refresh_token_repo.revoke(data.refresh_token)
+    return {"detail": "Logged out"}
 
 
 @router.get("/me")

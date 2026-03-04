@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 
 from identity.application.auth_service import require_role
 from shared.infrastructure.database import get_connection
+from shared.infrastructure.db.sql_compat import date_group_expr
 from catalog.application.queries import list_products
 from operations.application.queries import list_withdrawals
 
@@ -103,10 +104,7 @@ async def get_trends_report(
 ):
     org_id = current_user.get("organization_id") or "default"
 
-    period_expr = {
-        "week": "strftime('%Y-W%W', created_at)",
-        "month": "strftime('%Y-%m', created_at)",
-    }.get(group_by, "strftime('%Y-%m-%d', created_at)")
+    period_expr = date_group_expr("created_at", group_by)
 
     query = f"""
         SELECT {period_expr} AS period,

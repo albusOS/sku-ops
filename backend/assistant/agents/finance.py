@@ -9,12 +9,13 @@ from datetime import datetime, timezone, timedelta
 from pydantic_ai import Agent, RunContext
 
 from shared.infrastructure.config import (
-    AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
 from assistant.agents.deps import AgentDeps
+from assistant.agents.model_registry import get_model
 from assistant.agents.agent_utils import build_message_history, run_agent_with_reflection
+from assistant.agents.tokens import budget_tool_result
 from finance.application.invoice_service import list_invoices
 from operations.application.queries import list_withdrawals
 
@@ -64,7 +65,7 @@ REASONING — think before acting:
 6. Present margins as percentages, not just raw dollar differences — context matters"""
 
 _agent = Agent(
-    AGENT_PRIMARY_MODEL,
+    get_model("agent:finance"),
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )
@@ -73,31 +74,31 @@ _agent = Agent(
 @_agent.tool
 async def get_invoice_summary(ctx: RunContext[AgentDeps]) -> str:
     """Invoice counts and totals grouped by status (draft, sent, paid)."""
-    return await _get_invoice_summary(ctx.deps.org_id)
+    return budget_tool_result(await _get_invoice_summary(ctx.deps.org_id), max_tokens=300)
 
 
 @_agent.tool
 async def get_outstanding_balances(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Unpaid withdrawal balances grouped by billing entity/contractor. Shows who owes money."""
-    return await _get_outstanding_balances({"limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _get_outstanding_balances({"limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def get_revenue_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
     """Revenue summary for the last N days: total revenue, tax collected, transaction count."""
-    return await _get_revenue_summary({"days": days}, ctx.deps.org_id)
+    return budget_tool_result(await _get_revenue_summary({"days": days}, ctx.deps.org_id), max_tokens=300)
 
 
 @_agent.tool
 async def get_pl_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
     """Profit & loss for the last N days: revenue, cost of goods sold, gross profit and margin."""
-    return await _get_pl_summary({"days": days}, ctx.deps.org_id)
+    return budget_tool_result(await _get_pl_summary({"days": days}, ctx.deps.org_id), max_tokens=300)
 
 
 @_agent.tool
 async def get_top_products(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 10) -> str:
     """Top products ranked by revenue over the last N days. Use for weekly/periodic sales reports."""
-    return await _get_top_products({"days": days, "limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _get_top_products({"days": days, "limit": limit}, ctx.deps.org_id))
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:

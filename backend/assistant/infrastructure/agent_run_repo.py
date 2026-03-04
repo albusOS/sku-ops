@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from shared.infrastructure.database import get_connection
+from shared.infrastructure.db.sql_compat import date_extract, time_ago_expr
 
 
 async def log_agent_run(
@@ -59,8 +60,9 @@ async def list_runs(
     limit: int = 50,
 ) -> list[dict]:
     conn = get_connection()
-    clauses = ["created_at >= datetime('now', ?)"]
-    params: list = [f"-{minutes} minutes"]
+    since_expr, since_params = time_ago_expr("created_at", minutes=minutes)
+    clauses = [since_expr]
+    params: list = list(since_params)
 
     if agent_name:
         clauses.append("agent_name = ?")
@@ -78,13 +80,12 @@ async def list_runs(
         f"SELECT * FROM agent_runs WHERE {where} ORDER BY created_at DESC LIMIT ?",
         params,
     )
-    return [dict(r) for r in await cur.fetchall()]
+    return await cur.fetchall()
 
 
 async def get_stats(*, hours: int = 24) -> dict:
     conn = get_connection()
-    since_clause = "created_at >= datetime('now', ?)"
-    params = [f"-{hours} hours"]
+    since_expr, since_params = time_ago_expr("created_at", hours=hours)
 
     cur = await conn.execute(
         f"""SELECT
@@ -97,12 +98,12 @@ async def get_stats(*, hours: int = 24) -> dict:
                 MAX(duration_ms) as max_duration_ms,
                 SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as errors
             FROM agent_runs
-            WHERE {since_clause}
+            WHERE {since_expr}
             GROUP BY agent_name
             ORDER BY runs DESC""",
-        params,
+        list(since_params),
     )
-    by_agent = [dict(r) for r in await cur.fetchall()]
+    by_agent = await cur.fetchall()
 
     cur = await conn.execute(
         f"""SELECT
@@ -113,18 +114,18 @@ async def get_stats(*, hours: int = 24) -> dict:
                 AVG(duration_ms) as avg_duration_ms,
                 SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as total_errors
             FROM agent_runs
-            WHERE {since_clause}""",
-        params,
+            WHERE {since_expr}""",
+        list(since_params),
     )
-    totals = dict(await cur.fetchone())
+    totals = await cur.fetchone()
 
     cur = await conn.execute(
         f"""SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost
-            FROM agent_runs WHERE {since_clause}
+            FROM agent_runs WHERE {since_expr}
             GROUP BY model ORDER BY cost DESC""",
-        params,
+        list(since_params),
     )
-    by_model = [dict(r) for r in await cur.fetchall()]
+    by_model = await cur.fetchall()
 
     return {
         "period_hours": hours,
@@ -140,7 +141,7 @@ async def get_session_trace(session_id: str) -> list[dict]:
         "SELECT * FROM agent_runs WHERE session_id = ? ORDER BY created_at ASC",
         (session_id,),
     )
-    rows = [dict(r) for r in await cur.fetchall()]
+    rows = await cur.fetchall()
     for r in rows:
         if isinstance(r.get("tool_calls"), str):
             r["tool_calls"] = json.loads(r["tool_calls"])
@@ -149,21 +150,21 @@ async def get_session_trace(session_id: str) -> list[dict]:
 
 async def get_cost_breakdown(*, days: int = 7, group_by: str = "agent") -> list[dict]:
     conn = get_connection()
-    since_clause = "created_at >= datetime('now', ?)"
-    params = [f"-{days} days"]
+    since_expr, since_params = time_ago_expr("created_at", days=days)
+    day_expr = date_extract("created_at")
 
     col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(group_by, "agent_name")
     cur = await conn.execute(
         f"""SELECT {col} as group_key,
-                DATE(created_at) as day,
+                {day_expr} as day,
                 COUNT(*) as runs,
                 SUM(input_tokens) as input_tokens,
                 SUM(output_tokens) as output_tokens,
                 SUM(cost_usd) as cost
             FROM agent_runs
-            WHERE {since_clause}
-            GROUP BY {col}, DATE(created_at)
+            WHERE {since_expr}
+            GROUP BY {col}, {day_expr}
             ORDER BY day DESC, cost DESC""",
-        params,
+        list(since_params),
     )
-    return [dict(r) for r in await cur.fetchall()]
+    return await cur.fetchall()

@@ -27,8 +27,17 @@ typer>=0.9.0
 pydantic-ai[anthropic]>=0.0.60
 rank-bm25>=0.2.2
 openai>=1.40.0
+tiktoken>=0.7.0
+PyYAML>=6.0
 google-generativeai>=0.8.0
 Pillow>=10.0.0
 pytesseract>=0.3.10
 pypdf>=4.0.0
 pdf2image>=1.17.0
+
+# ── Production hardening ──
+asyncpg>=0.29.0
+slowapi>=0.1.9
+python-json-logger>=2.0.7
+prometheus-client>=0.20.0
+sentry-sdk[fastapi]>=1.40.0

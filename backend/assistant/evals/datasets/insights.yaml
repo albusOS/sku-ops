@@ -1,0 +1,36 @@
+# Insights agent eval dataset
+
+- id: ins-001
+  input: "top selling products this month"
+  expected_tools: [get_top_products]
+  assertions:
+    - tool_called: get_top_products
+    - max_output_tokens: 1000
+
+- id: ins-002
+  input: "stockout forecast"
+  expected_tools: [forecast_stockout]
+  assertions:
+    - tool_called: forecast_stockout
+    - max_output_tokens: 1200
+
+- id: ins-003
+  input: "how is the plumbing department doing?"
+  expected_tools: [get_department_activity]
+  assertions:
+    - tool_called: get_department_activity
+    - max_output_tokens: 800
+
+- id: ins-004
+  input: "what products are running out soon?"
+  expected_tools: [forecast_stockout]
+  assertions:
+    - tool_called: forecast_stockout
+    - max_output_tokens: 1200
+
+- id: ins-005
+  input: "top products by volume over 7 days"
+  expected_tools: [get_top_products]
+  assertions:
+    - tool_called: get_top_products
+    - max_output_tokens: 1000

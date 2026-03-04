@@ -1,0 +1,43 @@
+# Finance agent eval dataset
+
+- id: fin-001
+  input: "what's our revenue this week?"
+  expected_tools: [get_revenue_summary]
+  assertions:
+    - tool_called: get_revenue_summary
+    - max_output_tokens: 600
+
+- id: fin-002
+  input: "who owes us money?"
+  expected_tools: [get_outstanding_balances]
+  assertions:
+    - tool_called: get_outstanding_balances
+    - max_output_tokens: 800
+
+- id: fin-003
+  input: "profit and loss report"
+  expected_tools: [get_pl_summary]
+  assertions:
+    - tool_called: get_pl_summary
+    - max_output_tokens: 600
+
+- id: fin-004
+  input: "weekly sales report"
+  expected_tools: [get_revenue_summary, get_pl_summary, get_top_products, get_outstanding_balances]
+  assertions:
+    - min_tools_called: 3
+    - max_output_tokens: 2500
+
+- id: fin-005
+  input: "invoice summary"
+  expected_tools: [get_invoice_summary]
+  assertions:
+    - tool_called: get_invoice_summary
+    - max_output_tokens: 500
+
+- id: fin-006
+  input: "how much have we collected this month?"
+  expected_tools: [get_revenue_summary]
+  assertions:
+    - tool_called: get_revenue_summary
+    - max_output_tokens: 600

@@ -4,39 +4,60 @@ Each migration is an async function. The runner:
 1. Creates schema_migrations table on first run.
 2. Detects existing fully-migrated databases and fast-forwards history.
 3. Applies pending migrations in order, recording each on success.
+
+Dual-dialect: SQLite migrations 001-013 use aiosqlite internals. PostgreSQL
+gets the full schema from pg_schema.py in one shot. Migration 014+ is written
+to work with the Connection protocol (both backends).
 """
 import logging
 from datetime import datetime, timezone
 
-import aiosqlite
-
 logger = logging.getLogger(__name__)
 
-# ── helpers ──────────────────────────────────────────────────────────────────
 
-async def _column_exists(conn: aiosqlite.Connection, table: str, column: str) -> bool:
-    cursor = await conn.execute(f"PRAGMA table_info({table})")
-    rows = await cursor.fetchall()
-    return any(row[1] == column for row in rows)
+# ── dialect-aware helpers ─────────────────────────────────────────────────────
 
-
-async def _table_exists(conn: aiosqlite.Connection, table: str) -> bool:
-    cursor = await conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
-    )
-    return await cursor.fetchone() is not None
-
-
-async def _index_exists(conn: aiosqlite.Connection, index: str) -> bool:
-    cursor = await conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='index' AND name=?", (index,)
-    )
-    return await cursor.fetchone() is not None
+async def _column_exists(conn, table: str, column: str, *, dialect: str = "sqlite") -> bool:
+    if dialect == "sqlite":
+        cursor = await conn.execute(f"PRAGMA table_info({table})")
+        rows = await cursor.fetchall()
+        return any((r[1] if isinstance(r, (tuple, list)) else r.get("name")) == column for r in rows)
+    else:
+        cursor = await conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+            (table, column),
+        )
+        return (await cursor.fetchone()) is not None
 
 
-# ── migrations ────────────────────────────────────────────────────────────────
+async def _table_exists(conn, table: str, *, dialect: str = "sqlite") -> bool:
+    if dialect == "sqlite":
+        cursor = await conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_name = ?", (table,)
+        )
+    return (await cursor.fetchone()) is not None
 
-async def _001_initial_schema(conn: aiosqlite.Connection) -> None:
+
+async def _index_exists(conn, index: str, *, dialect: str = "sqlite") -> bool:
+    if dialect == "sqlite":
+        cursor = await conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?", (index,)
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT indexname FROM pg_indexes WHERE indexname = ?", (index,)
+        )
+    return (await cursor.fetchone()) is not None
+
+
+# ── SQLite migrations (001-013) ──────────────────────────────────────────────
+# These use executescript and PRAGMA; they ONLY run on the SQLite backend.
+
+async def _sqlite_001_initial_schema(conn) -> None:
     await conn.executescript("""
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -282,7 +303,7 @@ async def _001_initial_schema(conn: aiosqlite.Connection) -> None:
     """)
 
 
-async def _002_vendor_barcode(conn: aiosqlite.Connection) -> None:
+async def _sqlite_002_vendor_barcode(conn) -> None:
     if not await _column_exists(conn, "products", "vendor_barcode"):
         await conn.execute("ALTER TABLE products ADD COLUMN vendor_barcode TEXT")
     if not await _index_exists(conn, "idx_products_vendor_barcode"):
@@ -293,7 +314,7 @@ async def _002_vendor_barcode(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _003_uom_columns(conn: aiosqlite.Connection) -> None:
+async def _sqlite_003_uom_columns(conn) -> None:
     for col, definition in [
         ("base_unit", "TEXT NOT NULL DEFAULT 'each'"),
         ("sell_uom", "TEXT NOT NULL DEFAULT 'each'"),
@@ -304,14 +325,13 @@ async def _003_uom_columns(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _004_sku_uniqueness(conn: aiosqlite.Connection) -> None:
+async def _sqlite_004_sku_uniqueness(conn) -> None:
     await conn.execute("DROP INDEX IF EXISTS idx_products_sku")
     await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku)")
     await conn.commit()
 
 
-async def _005_barcode_uniqueness(conn: aiosqlite.Connection) -> None:
-    # Deduplicate: for each duplicate barcode, set barcode = sku on all but the earliest row.
+async def _sqlite_005_barcode_uniqueness(conn) -> None:
     cursor = await conn.execute("""
         SELECT barcode FROM products
         WHERE barcode IS NOT NULL AND TRIM(barcode) != ''
@@ -337,7 +357,7 @@ async def _005_barcode_uniqueness(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _006_multi_tenant(conn: aiosqlite.Connection) -> None:
+async def _sqlite_006_multi_tenant(conn) -> None:
     org_tables = [
         "users", "departments", "vendors", "products", "withdrawals",
         "invoices", "payment_transactions", "stock_transactions",
@@ -367,15 +387,13 @@ async def _006_multi_tenant(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _007_departments_org_unique(conn: aiosqlite.Connection) -> None:
-    # Rebuild departments table: replace global UNIQUE(code) with UNIQUE(organization_id, code).
-    # Guard: check if constraint already correct by inspecting the table schema.
+async def _sqlite_007_departments_org_unique(conn) -> None:
     cursor = await conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='departments'"
     )
     row = await cursor.fetchone()
-    if row and "UNIQUE(organization_id, code)" in row[0]:
-        return  # already migrated
+    if row and "UNIQUE(organization_id, code)" in (row[0] if isinstance(row, (tuple, list)) else row.get("sql", "")):
+        return
 
     await conn.execute("PRAGMA foreign_keys=OFF")
     await conn.execute("DROP TABLE IF EXISTS departments_new")
@@ -403,13 +421,13 @@ async def _007_departments_org_unique(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _008_po_status_rename(conn: aiosqlite.Connection) -> None:
+async def _sqlite_008_po_status_rename(conn) -> None:
     await conn.execute("UPDATE purchase_order_items SET status = 'ordered' WHERE status = 'pending'")
     await conn.execute("UPDATE purchase_orders SET status = 'ordered' WHERE status = 'pending'")
     await conn.commit()
 
 
-async def _009_invoice_line_items(conn: aiosqlite.Connection) -> None:
+async def _sqlite_009_invoice_line_items(conn) -> None:
     if not await _column_exists(conn, "invoice_line_items", "cost"):
         await conn.execute(
             "ALTER TABLE invoice_line_items ADD COLUMN cost REAL NOT NULL DEFAULT 0"
@@ -419,7 +437,7 @@ async def _009_invoice_line_items(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _010_org_settings(conn: aiosqlite.Connection) -> None:
+async def _sqlite_010_org_settings(conn) -> None:
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS org_settings (
             organization_id TEXT PRIMARY KEY,
@@ -446,7 +464,7 @@ async def _010_org_settings(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _011_memory_artifacts(conn: aiosqlite.Connection) -> None:
+async def _sqlite_011_memory_artifacts(conn) -> None:
     await conn.executescript("""
         CREATE TABLE IF NOT EXISTS memory_artifacts (
             id TEXT PRIMARY KEY,
@@ -466,7 +484,7 @@ async def _011_memory_artifacts(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _012_oauth_states(conn: aiosqlite.Connection) -> None:
+async def _sqlite_012_oauth_states(conn) -> None:
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS oauth_states (
             state TEXT PRIMARY KEY,
@@ -477,7 +495,7 @@ async def _012_oauth_states(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _013_agent_runs(conn: aiosqlite.Connection) -> None:
+async def _sqlite_013_agent_runs(conn) -> None:
     await conn.executescript("""
         CREATE TABLE IF NOT EXISTS agent_runs (
             id TEXT PRIMARY KEY,
@@ -509,26 +527,92 @@ async def _013_agent_runs(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-# ── registry ──────────────────────────────────────────────────────────────────
+# ── Common migrations (014+) — work on both dialects via Connection protocol ─
 
-_MIGRATIONS: list[tuple[str, object]] = [
-    ("001_initial_schema", _001_initial_schema),
-    ("002_vendor_barcode", _002_vendor_barcode),
-    ("003_uom_columns", _003_uom_columns),
-    ("004_sku_uniqueness", _004_sku_uniqueness),
-    ("005_barcode_uniqueness", _005_barcode_uniqueness),
-    ("006_multi_tenant", _006_multi_tenant),
-    ("007_departments_org_unique", _007_departments_org_unique),
-    ("008_po_status_rename", _008_po_status_rename),
-    ("009_invoice_line_items", _009_invoice_line_items),
-    ("010_org_settings", _010_org_settings),
-    ("011_memory_artifacts", _011_memory_artifacts),
-    ("012_oauth_states", _012_oauth_states),
-    ("013_agent_runs", _013_agent_runs),
+async def _014_refresh_tokens_and_audit(conn, *, dialect: str = "sqlite") -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at TEXT NOT NULL,
+            revoked INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+    """)
+    await conn.commit()
+
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash)"
+    )
+    await conn.commit()
+
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            action TEXT NOT NULL,
+            resource_type TEXT,
+            resource_id TEXT,
+            details TEXT,
+            ip_address TEXT,
+            organization_id TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+    await conn.commit()
+
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(organization_id, created_at)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at)"
+    )
+    await conn.commit()
+
+
+# ── Migration registries ─────────────────────────────────────────────────────
+
+_SQLITE_MIGRATIONS: list[tuple[str, object]] = [
+    ("001_initial_schema", _sqlite_001_initial_schema),
+    ("002_vendor_barcode", _sqlite_002_vendor_barcode),
+    ("003_uom_columns", _sqlite_003_uom_columns),
+    ("004_sku_uniqueness", _sqlite_004_sku_uniqueness),
+    ("005_barcode_uniqueness", _sqlite_005_barcode_uniqueness),
+    ("006_multi_tenant", _sqlite_006_multi_tenant),
+    ("007_departments_org_unique", _sqlite_007_departments_org_unique),
+    ("008_po_status_rename", _sqlite_008_po_status_rename),
+    ("009_invoice_line_items", _sqlite_009_invoice_line_items),
+    ("010_org_settings", _sqlite_010_org_settings),
+    ("011_memory_artifacts", _sqlite_011_memory_artifacts),
+    ("012_oauth_states", _sqlite_012_oauth_states),
+    ("013_agent_runs", _sqlite_013_agent_runs),
+]
+
+_COMMON_MIGRATIONS: list[tuple[str, object]] = [
+    ("014_refresh_tokens_and_audit", _014_refresh_tokens_and_audit),
 ]
 
 
-async def _ensure_tracking_table(conn: aiosqlite.Connection) -> None:
+# ── PostgreSQL full-schema bootstrap ──────────────────────────────────────────
+
+async def _pg_bootstrap_schema(conn) -> None:
+    """Create the full schema on a fresh PostgreSQL database (equivalent to migrations 001-013)."""
+    from shared.infrastructure.migrations.pg_schema import PG_FULL_SCHEMA
+    for stmt in PG_FULL_SCHEMA:
+        await conn.execute(stmt)
+    await conn.commit()
+
+
+# ── Runner ────────────────────────────────────────────────────────────────────
+
+async def _ensure_tracking_table(conn) -> None:
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
             version TEXT PRIMARY KEY,
@@ -538,25 +622,21 @@ async def _ensure_tracking_table(conn: aiosqlite.Connection) -> None:
     await conn.commit()
 
 
-async def _bootstrap_existing_db(conn: aiosqlite.Connection, versions: list[str]) -> bool:
-    """Fast-forward migration history for DBs that existed before the runner was introduced.
-
-    Detects a fully-migrated existing DB by checking for memory_artifacts (the last migration).
-    Marks all migrations as applied without re-running them.
-    """
+async def _bootstrap_existing_db(conn, versions: list[str], *, dialect: str) -> bool:
+    """Fast-forward migration history for DBs that existed before the runner was introduced."""
     cursor = await conn.execute("SELECT COUNT(*) FROM schema_migrations")
-    count = (await cursor.fetchone())[0]
+    row = await cursor.fetchone()
+    count = row[0] if isinstance(row, (tuple, list)) else list(row.values())[0]
     if count > 0:
-        return False  # already has history — normal path
+        return False
 
-    if not await _table_exists(conn, "memory_artifacts"):
-        return False  # fresh DB — run all migrations normally
+    if not await _table_exists(conn, "memory_artifacts", dialect=dialect):
+        return False
 
-    # Existing fully-migrated DB with no history yet — fast-forward.
     now = datetime.now(timezone.utc).isoformat()
     for version in versions:
         await conn.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (version, now),
         )
     await conn.commit()
@@ -564,21 +644,50 @@ async def _bootstrap_existing_db(conn: aiosqlite.Connection, versions: list[str]
     return True
 
 
-async def run_migrations(conn: aiosqlite.Connection) -> None:
-    """Apply all pending migrations in order."""
+async def run_migrations(backend) -> None:
+    """Apply all pending migrations in order. Accepts a DatabaseBackend."""
+    dialect = backend.dialect
+    conn = backend.connection()
+
     await _ensure_tracking_table(conn)
 
-    all_versions = [v for v, _ in _MIGRATIONS]
-    await _bootstrap_existing_db(conn, all_versions)
+    if dialect == "sqlite":
+        migrations = _SQLITE_MIGRATIONS + _COMMON_MIGRATIONS
+    else:
+        migrations = _COMMON_MIGRATIONS
+
+    all_versions = [v for v, _ in migrations]
+
+    # For PostgreSQL on a fresh DB, bootstrap the full schema first
+    if dialect == "postgresql":
+        sqlite_versions = [v for v, _ in _SQLITE_MIGRATIONS]
+        if not await _table_exists(conn, "users", dialect=dialect):
+            logger.info("Fresh PostgreSQL database — creating full schema")
+            await _pg_bootstrap_schema(conn)
+            now = datetime.now(timezone.utc).isoformat()
+            for version in sqlite_versions:
+                await conn.execute(
+                    "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                    (version, now),
+                )
+            await conn.commit()
+        else:
+            await _bootstrap_existing_db(conn, sqlite_versions, dialect=dialect)
+    else:
+        await _bootstrap_existing_db(conn, [v for v, _ in _SQLITE_MIGRATIONS], dialect=dialect)
 
     cursor = await conn.execute("SELECT version FROM schema_migrations")
-    applied = {row[0] for row in await cursor.fetchall()}
+    applied = {row[0] if isinstance(row, (tuple, list)) else row.get("version") for row in await cursor.fetchall()}
 
-    for version, migrate_fn in _MIGRATIONS:
+    for version, migrate_fn in migrations:
         if version in applied:
             continue
         logger.info("Applying migration %s", version)
-        await migrate_fn(conn)
+        if version.startswith("0") and dialect == "sqlite":
+            # SQLite-specific migrations get the raw SQLite connection wrapper
+            await migrate_fn(conn)
+        else:
+            await migrate_fn(conn, dialect=dialect)
         await conn.execute(
             "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (version, datetime.now(timezone.utc).isoformat()),

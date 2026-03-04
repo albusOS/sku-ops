@@ -1,0 +1,103 @@
+# Router classification eval dataset
+# Tests that messages are routed to the correct agent(s)
+
+- id: route-001
+  input: "do we have PVC pipes?"
+  expected_agents: [inventory]
+
+- id: route-002
+  input: "search for copper fittings"
+  expected_agents: [inventory]
+
+- id: route-003
+  input: "low stock items"
+  expected_agents: [inventory]
+
+- id: route-004
+  input: "what products need reordering"
+  expected_agents: [inventory]
+
+- id: route-005
+  input: "department health breakdown"
+  expected_agents: [inventory]
+
+- id: route-006
+  input: "what has john smith taken"
+  expected_agents: [ops]
+
+- id: route-007
+  input: "pending material requests"
+  expected_agents: [ops]
+
+- id: route-008
+  input: "recent withdrawals this week"
+  expected_agents: [ops]
+
+- id: route-009
+  input: "what's our revenue this week?"
+  expected_agents: [finance]
+
+- id: route-010
+  input: "who owes us money"
+  expected_agents: [finance]
+
+- id: route-011
+  input: "profit and loss report"
+  expected_agents: [finance]
+
+- id: route-012
+  input: "top selling products"
+  expected_agents: [insights]
+
+- id: route-013
+  input: "stockout forecast"
+  expected_agents: [insights]
+
+- id: route-014
+  input: "hi"
+  expected_agents: [general]
+
+- id: route-015
+  input: "hello, how are you?"
+  expected_agents: [general]
+
+- id: route-016
+  input: "help"
+  expected_agents: [general]
+
+- id: route-017
+  input: "how's the business doing?"
+  expected_agents: [general]
+
+- id: route-018
+  input: "give me an overview"
+  expected_agents: [general]
+
+# Cross-domain queries
+- id: route-019
+  input: "show me low stock items and who owes us"
+  expected_agents: [inventory, finance]
+
+- id: route-020
+  input: "what products are running out and what's our margin?"
+  expected_agents: [insights, finance]
+
+- id: route-021
+  input: "outstanding balance and pending material requests"
+  expected_agents: [finance, ops]
+
+- id: route-022
+  input: "invoice summary"
+  expected_agents: [finance]
+
+- id: route-023
+  input: "slow movers in inventory"
+  expected_agents: [inventory]
+
+- id: route-024
+  input: "barcode lookup 123456"
+  expected_agents: [inventory]
+
+- id: route-025
+  input: "materials for job JOB-445"
+  expected_agents: [ops]

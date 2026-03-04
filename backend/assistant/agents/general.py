@@ -7,15 +7,16 @@ import logging
 from pydantic_ai import Agent, RunContext
 
 from shared.infrastructure.config import (
-    AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
 )
 from assistant.agents.deps import AgentDeps
+from assistant.agents.model_registry import get_model
 from assistant.agents.agent_utils import (
     build_message_history,
     run_agent_with_reflection,
 )
+from assistant.agents.tokens import budget_tool_result
 
 # Import tool implementations from specialist agents
 from assistant.agents.inventory import (
@@ -93,7 +94,7 @@ RULES:
 - After tool results, assess if you have enough to answer — call more tools if not"""
 
 _agent = Agent(
-    AGENT_PRIMARY_MODEL,
+    get_model("agent:general"),
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )
@@ -102,73 +103,73 @@ _agent = Agent(
 @_agent.tool
 async def search_products(ctx: RunContext[AgentDeps], query: str, limit: int = 20) -> str:
     """Search products by name, SKU, or barcode."""
-    return await _search_products({"query": query, "limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _search_products({"query": query, "limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def get_inventory_stats(ctx: RunContext[AgentDeps]) -> str:
     """Catalogue summary: SKU count, cost value, low/out-of-stock counts."""
-    return await _get_inventory_stats(ctx.deps.org_id)
+    return budget_tool_result(await _get_inventory_stats(ctx.deps.org_id), max_tokens=300)
 
 
 @_agent.tool
 async def list_low_stock(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Products at or below their reorder point."""
-    return await _list_low_stock({"limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _list_low_stock({"limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def get_reorder_suggestions(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Priority reorder list ranked by urgency (days until stockout)."""
-    return await _get_reorder_suggestions({"limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _get_reorder_suggestions({"limit": limit}, ctx.deps.org_id), max_tokens=600)
 
 
 @_agent.tool
 async def get_department_health(ctx: RunContext[AgentDeps]) -> str:
     """Per-department breakdown: healthy, low-stock, and out-of-stock product counts."""
-    return await _get_department_health(ctx.deps.org_id)
+    return budget_tool_result(await _get_department_health(ctx.deps.org_id))
 
 
 @_agent.tool
 async def list_recent_withdrawals(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20) -> str:
     """Recent material withdrawals across all jobs."""
-    return await _list_recent_withdrawals({"days": days, "limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _list_recent_withdrawals({"days": days, "limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def list_pending_material_requests(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Material requests from contractors awaiting approval."""
-    return await _list_pending_material_requests({"limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _list_pending_material_requests({"limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def get_revenue_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
     """Revenue summary: total revenue, tax, transaction count for last N days."""
-    return await _get_revenue_summary({"days": days}, ctx.deps.org_id)
+    return budget_tool_result(await _get_revenue_summary({"days": days}, ctx.deps.org_id), max_tokens=300)
 
 
 @_agent.tool
 async def get_outstanding_balances(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Unpaid balances grouped by billing entity — who owes money."""
-    return await _get_outstanding_balances({"limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _get_outstanding_balances({"limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def get_pl_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
     """Profit & loss: revenue, cost of goods, gross profit and margin."""
-    return await _get_pl_summary({"days": days}, ctx.deps.org_id)
+    return budget_tool_result(await _get_pl_summary({"days": days}, ctx.deps.org_id), max_tokens=300)
 
 
 @_agent.tool
 async def get_top_products(ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10) -> str:
     """Top products ranked by units or revenue over the last N days."""
-    return await _get_top_products({"days": days, "by": by, "limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _get_top_products({"days": days, "by": by, "limit": limit}, ctx.deps.org_id))
 
 
 @_agent.tool
 async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
     """Products predicted to run out soonest based on withdrawal velocity."""
-    return await _forecast_stockout({"limit": limit}, ctx.deps.org_id)
+    return budget_tool_result(await _forecast_stockout({"limit": limit}, ctx.deps.org_id), max_tokens=600)
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:

@@ -6,7 +6,12 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from shared.infrastructure.config import JWT_ALGORITHM, JWT_EXPIRATION_HOURS, JWT_SECRET
+from shared.infrastructure.config import (
+    JWT_ACCESS_EXPIRATION_MINUTES,
+    JWT_ALGORITHM,
+    JWT_SECRET,
+)
+from shared.infrastructure.logging_config import org_id_var, user_id_var
 from identity.infrastructure.user_repo import user_repo
 
 security = HTTPBearer()
@@ -26,7 +31,7 @@ def create_token(user_id: str, email: str, role: str, organization_id: str = "de
         "email": email,
         "role": role,
         "organization_id": organization_id or "default",
-        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_ACCESS_EXPIRATION_MINUTES),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -43,9 +48,11 @@ async def get_current_user(
             raise HTTPException(status_code=401, detail="User not found")
         if not user.get("is_active", True):
             raise HTTPException(status_code=401, detail="User account is disabled")
-        # Ensure organization_id from user record (source of truth)
         org_id = user.get("organization_id") or payload.get("organization_id") or "default"
         user["organization_id"] = org_id
+        # Populate logging context for structured logs
+        user_id_var.set(user.get("id", ""))
+        org_id_var.set(org_id)
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")

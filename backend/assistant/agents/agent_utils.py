@@ -14,7 +14,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from shared.infrastructure.config import AGENT_PRIMARY_MODEL
+from assistant.agents.model_registry import calc_cost, get_model_name
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,6 @@ async def run_agent(
                 user_message,
                 message_history=msg_history,
                 deps=deps,
-                model=AGENT_PRIMARY_MODEL,
                 model_settings=settings or None,
             ),
             timeout=timeout_seconds,
@@ -183,7 +182,9 @@ async def run_agent(
 
 def _log_success(result, *, user_message, agent_name, session_id, org_id, user_id, mode, duration_ms, attempts):
     usage = result.usage()
-    cost = calc_cost(AGENT_PRIMARY_MODEL, usage)
+    model_key = f"agent:{agent_name.lower().replace('agent', '').strip(':')}" if agent_name else "agent:general"
+    model_name = get_model_name(model_key) if model_key in ("agent:inventory", "agent:ops", "agent:finance", "agent:insights", "agent:general") else get_model_name("agent:general")
+    cost = calc_cost(model_name, usage)
     tool_calls = extract_tool_calls_detailed(result.all_messages())
     response_text = result.output if isinstance(result.output, str) else str(result.output)
 
@@ -192,7 +193,7 @@ def _log_success(result, *, user_message, agent_name, session_id, org_id, user_i
             from assistant.infrastructure.agent_run_repo import log_agent_run
             await log_agent_run(
                 session_id=session_id, org_id=org_id, user_id=user_id,
-                agent_name=agent_name, model=AGENT_PRIMARY_MODEL, mode=mode,
+                agent_name=agent_name, model=model_name, mode=mode,
                 user_message=user_message, response_text=response_text,
                 tool_calls=tool_calls,
                 input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
@@ -205,12 +206,14 @@ def _log_success(result, *, user_message, agent_name, session_id, org_id, user_i
 
 
 def _log_failure(*, user_message, agent_name, session_id, org_id, user_id, mode, duration_ms, attempts, error, error_kind):
+    model_name = get_model_name("agent:general")
+
     async def _write():
         try:
             from assistant.infrastructure.agent_run_repo import log_agent_run
             await log_agent_run(
                 session_id=session_id, org_id=org_id, user_id=user_id,
-                agent_name=agent_name, model=AGENT_PRIMARY_MODEL, mode=mode,
+                agent_name=agent_name, model=model_name, mode=mode,
                 user_message=user_message, response_text="",
                 tool_calls=[], input_tokens=0, output_tokens=0,
                 cost_usd=0.0, duration_ms=duration_ms, attempts=attempts,
@@ -237,19 +240,19 @@ async def run_agent_with_reflection(
     mode: str = "fast",
     history: list[dict] | None = None,
 ):
-    """Run an agent, reflect on the response, re-run if incomplete. Returns the final response dict.
+    """Run an agent, validate the response, re-run if needed.
 
-    This is the standard run cycle shared by all specialist agents:
+    Standard run cycle shared by all specialist agents:
     1. Run the agent with tools
-    2. Reflect on response quality (cheap Haiku check)
-    3. If incomplete, re-run with reflection feedback in context
+    2. Validate response with deterministic checks (structured validators)
+    3. If a critical check fails, re-run with targeted feedback
     4. Package the result dict
     """
-    from shared.infrastructure.config import ANTHROPIC_AVAILABLE, AGENT_PRIMARY_MODEL
+    from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE
 
-    if not ANTHROPIC_AVAILABLE:
+    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return {
-            "response": f"{agent_name} requires ANTHROPIC_API_KEY.",
+            "response": f"{agent_name} requires ANTHROPIC_API_KEY or OPENROUTER_API_KEY.",
             "tool_calls": [], "history": [], "thinking": [],
             "agent": agent_label,
         }
@@ -272,15 +275,17 @@ async def run_agent_with_reflection(
 
     response_text = result.output if isinstance(result.output, str) else str(result.output)
     tool_calls_list = extract_tool_calls(result.all_messages())
+    tool_calls_detailed = extract_tool_calls_detailed(result.all_messages())
 
-    # Reflection: check if response is complete, re-run once if not
-    feedback = await reflect_on_response(user_message, response_text, tool_calls_list)
-    if feedback:
+    # Structured validation (deterministic — no LLM call)
+    from assistant.agents.validators import validate_response
+    validation = validate_response(user_message, response_text, tool_calls_list, tool_calls_detailed)
+
+    if not validation.passed and validation.should_rerun:
         try:
             enhanced_message = (
                 f"{user_message}\n\n"
-                f"[Additional context: A review of your initial response noted: {feedback}. "
-                f"Please address this in your answer.]"
+                f"[Additional context: {validation.rerun_hint}]"
             )
             result = await run_agent(
                 agent, enhanced_message,
@@ -290,10 +295,11 @@ async def run_agent_with_reflection(
                 session_id=session_id, mode=mode,
             )
         except Exception as e:
-            logger.warning(f"{agent_name} reflection re-run failed, using original: {e}")
+            logger.warning(f"{agent_name} validation re-run failed, using original: {e}")
 
+    model_name = get_model_name(f"agent:{agent_label}")
     usage = result.usage()
-    cost = calc_cost(AGENT_PRIMARY_MODEL, usage)
+    cost = calc_cost(model_name, usage)
     return {
         "response": result.output,
         "tool_calls": extract_tool_calls(result.all_messages()),
@@ -303,28 +309,15 @@ async def run_agent_with_reflection(
             "cost_usd": cost,
             "input_tokens": usage.input_tokens,
             "output_tokens": usage.output_tokens,
-            "model": AGENT_PRIMARY_MODEL,
+            "model": model_name,
         },
         "agent": agent_label,
+        "validation": {
+            "passed": validation.passed,
+            "failures": validation.failures,
+            "scores": validation.scores,
+        },
     }
-
-
-# ── Pricing ───────────────────────────────────────────────────────────────────
-
-_MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-haiku-4-5":  {"input": 0.80,  "output": 4.00},
-    "claude-sonnet-4-6": {"input": 3.00,  "output": 15.00},
-    "claude-opus-4-6":   {"input": 15.00, "output": 75.00},
-}
-
-
-def calc_cost(model: str, usage) -> float:
-    model = model.split(":", 1)[-1]
-    key = next((k for k in _MODEL_PRICING if model.startswith(k)), None)
-    if not key:
-        return 0.0
-    p = _MODEL_PRICING[key]
-    return round((usage.input_tokens * p["input"] + usage.output_tokens * p["output"]) / 1_000_000, 6)
 
 
 # ── History helpers ───────────────────────────────────────────────────────────
@@ -371,78 +364,6 @@ def extract_tool_calls(messages) -> list[dict]:
                 if isinstance(part, ToolCallPart):
                     out.append({"tool": part.tool_name})
     return out
-
-
-async def reflect_on_response(
-    user_message: str,
-    response_text: str,
-    tool_calls: list[dict],
-) -> str | None:
-    """Check if an agent response is complete. Returns feedback string if incomplete, None if good.
-
-    Uses Haiku for a fast/cheap quality check (~$0.0003). Only called for
-    substantive queries (not greetings or simple navigation).
-    """
-    if not response_text or len(response_text) < 20:
-        return None
-
-    # Skip reflection for trivial messages
-    m = user_message.lower().strip()
-    if len(m) < 10 or any(w in m for w in ("hi", "hello", "hey", "thanks", "help")):
-        return None
-
-    # Skip if no tools were called — agent probably gave a text-only answer
-    if not tool_calls:
-        return None
-
-    try:
-        import anthropic
-        from shared.infrastructure.config import ANTHROPIC_API_KEY, ANTHROPIC_FAST_MODEL
-
-        tools_summary = ", ".join(tc.get("tool", "?") for tc in tool_calls)
-
-        client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-        resp = await asyncio.wait_for(
-            client.messages.create(
-                model=ANTHROPIC_FAST_MODEL,
-                max_tokens=150,
-                system=(
-                    "You evaluate whether an AI assistant's response fully answers the user's question. "
-                    "Return ONLY valid JSON.\n"
-                    '{"complete": true} if the response adequately answers the question.\n'
-                    '{"complete": false, "feedback": "..."} if critical information is missing.\n'
-                    "Only flag genuinely missing data — not style, format, or minor gaps."
-                ),
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"Question: {user_message}\n\n"
-                        f"Tools called: {tools_summary}\n\n"
-                        f"Response:\n{response_text[:1500]}"
-                    ),
-                }],
-            ),
-            timeout=8,
-        )
-
-        text = resp.content[0].text.strip()
-        if "```" in text:
-            text = text.split("```")[1].strip()
-            if text.startswith("json"):
-                text = text[4:].strip()
-        data = json.loads(text)
-
-        if data.get("complete", True):
-            return None
-        feedback = data.get("feedback", "")
-        if feedback:
-            logger.info(f"Reflection found gaps: {feedback}")
-            return feedback
-        return None
-
-    except Exception as e:
-        logger.debug(f"Reflection check failed (non-critical): {e}")
-        return None
 
 
 def extract_tool_calls_detailed(messages) -> list[dict]:

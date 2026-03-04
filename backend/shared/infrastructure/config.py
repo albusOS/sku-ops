@@ -51,12 +51,31 @@ def _resolve_jwt_secret() -> str:
 
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24
+JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", "15"))
+JWT_EXPIRATION_HOURS = 24  # kept for backward compat; prefer ACCESS_EXPIRATION_MINUTES
+REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "30"))
 
-# CORS
+# CORS — strict enforcement in deployed environments
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 cors_is_permissive = CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
 cors_warn_in_deployed = is_deployed and cors_is_permissive
+
+def _enforce_cors() -> None:
+    if is_production and cors_is_permissive:
+        raise RuntimeError(
+            "CORS_ORIGINS must not be '*' in production. "
+            "Set CORS_ORIGINS=https://your-domain.com"
+        )
+    if is_staging and cors_is_permissive:
+        raise RuntimeError(
+            "CORS_ORIGINS must not be '*' in staging. "
+            "Set CORS_ORIGINS to your staging domain(s)."
+        )
+
+_enforce_cors()
+
+# Sentry (optional — set SENTRY_DSN to enable)
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 
 # Payment
 PAYMENT_ADAPTER = os.environ.get("PAYMENT_ADAPTER", "").lower().strip()
@@ -103,6 +122,11 @@ ANTHROPIC_FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5"
 # OpenAI — used for product semantic search embeddings (text-embedding-3-small)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 OPENAI_AVAILABLE = bool(OPENAI_API_KEY)
+
+# OpenRouter — unified model gateway for all agent LLM calls
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
+OPENROUTER_AVAILABLE = bool(OPENROUTER_API_KEY)
 
 # ── Agent model — single source of truth ─────────────────────────────────────
 # Priority: env AGENT_PRIMARY_MODEL > models.yaml > built-in default
