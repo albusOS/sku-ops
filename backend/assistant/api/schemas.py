@@ -4,6 +4,6 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     message: str
-    session_id: Optional[str] = None  # omit to start a new session
+    session_id: Optional[str] = None
     mode: Literal["fast", "deep"] = "fast"
-    agent_type: Literal["general", "inventory", "ops", "finance", "insights"] = "general"
+    agent_type: Literal["auto", "general", "inventory", "ops", "finance", "insights"] = "auto"

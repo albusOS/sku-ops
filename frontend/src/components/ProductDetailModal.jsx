@@ -72,7 +72,7 @@ export function ProductDetailModal({
     if (!open || !product?.id) return;
     setHistoryLoading(true);
     axios
-      .get(`${API}/products/${product.id}/stock-history`)
+      .get(`${API}/stock/${product.id}/history`)
       .then((res) => setRecentHistory((res.data.history || []).slice(0, 5)))
       .catch(() => setRecentHistory([]))
       .finally(() => setHistoryLoading(false));

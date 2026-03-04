@@ -222,6 +222,93 @@ def _log_failure(*, user_message, agent_name, session_id, org_id, user_id, mode,
     asyncio.create_task(_write())
 
 
+# ── Full agent run with reflection ────────────────────────────────────────────
+
+async def run_agent_with_reflection(
+    agent,
+    user_message: str,
+    *,
+    msg_history,
+    deps,
+    model_settings: dict | None = None,
+    agent_name: str = "agent",
+    agent_label: str = "general",
+    session_id: str = "",
+    mode: str = "fast",
+    history: list[dict] | None = None,
+):
+    """Run an agent, reflect on the response, re-run if incomplete. Returns the final response dict.
+
+    This is the standard run cycle shared by all specialist agents:
+    1. Run the agent with tools
+    2. Reflect on response quality (cheap Haiku check)
+    3. If incomplete, re-run with reflection feedback in context
+    4. Package the result dict
+    """
+    from shared.infrastructure.config import ANTHROPIC_AVAILABLE, AGENT_PRIMARY_MODEL
+
+    if not ANTHROPIC_AVAILABLE:
+        return {
+            "response": f"{agent_name} requires ANTHROPIC_API_KEY.",
+            "tool_calls": [], "history": [], "thinking": [],
+            "agent": agent_label,
+        }
+
+    try:
+        result = await run_agent(
+            agent, user_message,
+            msg_history=msg_history, deps=deps,
+            model_settings=model_settings,
+            agent_name=agent_name,
+            session_id=session_id, mode=mode,
+        )
+    except Exception as e:
+        logger.error(f"{agent_name} failed: {e}")
+        return {
+            "response": "I ran into an issue. Please try again in a moment.",
+            "tool_calls": [], "history": history or [], "thinking": [],
+            "agent": agent_label,
+        }
+
+    response_text = result.output if isinstance(result.output, str) else str(result.output)
+    tool_calls_list = extract_tool_calls(result.all_messages())
+
+    # Reflection: check if response is complete, re-run once if not
+    feedback = await reflect_on_response(user_message, response_text, tool_calls_list)
+    if feedback:
+        try:
+            enhanced_message = (
+                f"{user_message}\n\n"
+                f"[Additional context: A review of your initial response noted: {feedback}. "
+                f"Please address this in your answer.]"
+            )
+            result = await run_agent(
+                agent, enhanced_message,
+                msg_history=msg_history, deps=deps,
+                model_settings=model_settings,
+                agent_name=f"{agent_name}:reflect",
+                session_id=session_id, mode=mode,
+            )
+        except Exception as e:
+            logger.warning(f"{agent_name} reflection re-run failed, using original: {e}")
+
+    usage = result.usage()
+    cost = calc_cost(AGENT_PRIMARY_MODEL, usage)
+    return {
+        "response": result.output,
+        "tool_calls": extract_tool_calls(result.all_messages()),
+        "thinking": [],
+        "history": extract_text_history(result.all_messages()),
+        "usage": {
+            "cost_usd": cost,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "model": AGENT_PRIMARY_MODEL,
+        },
+        "agent": agent_label,
+    }
+
+
 # ── Pricing ───────────────────────────────────────────────────────────────────
 
 _MODEL_PRICING: dict[str, dict[str, float]] = {
@@ -284,6 +371,78 @@ def extract_tool_calls(messages) -> list[dict]:
                 if isinstance(part, ToolCallPart):
                     out.append({"tool": part.tool_name})
     return out
+
+
+async def reflect_on_response(
+    user_message: str,
+    response_text: str,
+    tool_calls: list[dict],
+) -> str | None:
+    """Check if an agent response is complete. Returns feedback string if incomplete, None if good.
+
+    Uses Haiku for a fast/cheap quality check (~$0.0003). Only called for
+    substantive queries (not greetings or simple navigation).
+    """
+    if not response_text or len(response_text) < 20:
+        return None
+
+    # Skip reflection for trivial messages
+    m = user_message.lower().strip()
+    if len(m) < 10 or any(w in m for w in ("hi", "hello", "hey", "thanks", "help")):
+        return None
+
+    # Skip if no tools were called — agent probably gave a text-only answer
+    if not tool_calls:
+        return None
+
+    try:
+        import anthropic
+        from shared.infrastructure.config import ANTHROPIC_API_KEY, ANTHROPIC_FAST_MODEL
+
+        tools_summary = ", ".join(tc.get("tool", "?") for tc in tool_calls)
+
+        client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+        resp = await asyncio.wait_for(
+            client.messages.create(
+                model=ANTHROPIC_FAST_MODEL,
+                max_tokens=150,
+                system=(
+                    "You evaluate whether an AI assistant's response fully answers the user's question. "
+                    "Return ONLY valid JSON.\n"
+                    '{"complete": true} if the response adequately answers the question.\n'
+                    '{"complete": false, "feedback": "..."} if critical information is missing.\n'
+                    "Only flag genuinely missing data — not style, format, or minor gaps."
+                ),
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Question: {user_message}\n\n"
+                        f"Tools called: {tools_summary}\n\n"
+                        f"Response:\n{response_text[:1500]}"
+                    ),
+                }],
+            ),
+            timeout=8,
+        )
+
+        text = resp.content[0].text.strip()
+        if "```" in text:
+            text = text.split("```")[1].strip()
+            if text.startswith("json"):
+                text = text[4:].strip()
+        data = json.loads(text)
+
+        if data.get("complete", True):
+            return None
+        feedback = data.get("feedback", "")
+        if feedback:
+            logger.info(f"Reflection found gaps: {feedback}")
+            return feedback
+        return None
+
+    except Exception as e:
+        logger.debug(f"Reflection check failed (non-critical): {e}")
+        return None
 
 
 def extract_tool_calls_detailed(messages) -> list[dict]:

@@ -24,11 +24,11 @@ from purchasing.api.purchase_orders import router as purchase_orders_router
 from identity.api.seed import router as seed_router
 from identity.api.settings import router as settings_router
 from finance.api.xero_auth import router as xero_auth_router
+from inventory.api.stock import router as stock_router
 from assistant.api.monitoring import router as monitoring_router
 
 api_router = APIRouter(prefix="/api")
 
-# Include all routers
 api_router.include_router(auth_router)
 api_router.include_router(health_router)
 api_router.include_router(sku_router)
@@ -38,6 +38,7 @@ api_router.include_router(contractors_router)
 api_router.include_router(departments_router)
 api_router.include_router(vendors_router)
 api_router.include_router(products_router)
+api_router.include_router(stock_router)
 api_router.include_router(withdrawals_router)
 api_router.include_router(material_requests_router)
 api_router.include_router(purchase_orders_router)

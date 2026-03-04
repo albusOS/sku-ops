@@ -22,9 +22,9 @@ const api = {
     create: (data) => axios.post(`${API}/products`, data).then((r) => r.data),
     update: (id, data) => axios.put(`${API}/products/${id}`, data).then((r) => r.data),
     delete: (id) => axios.delete(`${API}/products/${id}`),
-    adjust: (id, data) => axios.post(`${API}/products/${id}/adjust`, data).then((r) => r.data),
+    adjust: (id, data) => axios.post(`${API}/stock/${id}/adjust`, data).then((r) => r.data),
     suggestUom: (data) => axios.post(`${API}/products/suggest-uom`, data).then((r) => r.data),
-    stockHistory: (id) => axios.get(`${API}/products/${id}/stock-history`).then((r) => r.data),
+    stockHistory: (id) => axios.get(`${API}/stock/${id}/history`).then((r) => r.data),
   },
 
   // ── SKU ───────────────────────────────────────────────────────────────

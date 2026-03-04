@@ -12,10 +12,9 @@ from shared.infrastructure.config import (
     AGENT_PRIMARY_MODEL,
     AGENT_THINKING_BUDGET,
     DEFAULT_DEEP_THINKING_BUDGET,
-    ANTHROPIC_AVAILABLE,
 )
 from assistant.agents.deps import AgentDeps
-from assistant.agents.agent_utils import build_message_history, extract_text_history, extract_tool_calls, calc_cost, run_agent
+from assistant.agents.agent_utils import build_message_history, run_agent_with_reflection
 from finance.application.invoice_service import list_invoices
 from operations.application.queries import list_withdrawals
 
@@ -102,38 +101,19 @@ async def get_top_products(ctx: RunContext[AgentDeps], days: int = 7, limit: int
 
 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:
-    if not ANTHROPIC_AVAILABLE:
-        return {"response": "Finance agent requires ANTHROPIC_API_KEY.", "tool_calls": [], "history": [], "thinking": [], "agent": "finance"}
-
     deep = mode == "deep"
     thinking_budget = (AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET) if deep else 0
-    msg_history = build_message_history(history)
     model_settings: dict = {}
     if thinking_budget > 0:
         model_settings["anthropic_thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
 
-    try:
-        result = await run_agent(
-            _agent, user_message,
-            msg_history=msg_history, deps=deps,
-            model_settings=model_settings or None,
-            agent_name="FinanceAgent",
-            session_id=session_id, mode=mode,
-        )
-    except Exception as e:
-        logger.error(f"FinanceAgent failed: {e}")
-        return {"response": "I ran into an issue. Please try again in a moment.", "tool_calls": [], "history": history or [], "thinking": [], "agent": "finance"}
-
-    usage = result.usage()
-    cost = calc_cost(AGENT_PRIMARY_MODEL, usage)
-    return {
-        "response": result.output,
-        "tool_calls": extract_tool_calls(result.all_messages()),
-        "thinking": [],
-        "history": extract_text_history(result.all_messages()),
-        "usage": {"cost_usd": cost, "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "model": AGENT_PRIMARY_MODEL},
-        "agent": "finance",
-    }
+    return await run_agent_with_reflection(
+        _agent, user_message,
+        msg_history=build_message_history(history), deps=deps,
+        model_settings=model_settings or None,
+        agent_name="FinanceAgent", agent_label="finance",
+        session_id=session_id, mode=mode, history=history,
+    )
 
 
 # ── DB query implementations (unchanged) ────────────────────────────────────

@@ -27,7 +27,7 @@ export function StockHistoryModal({ product, open, onOpenChange }) {
     if (!open || !product?.id) return;
     setLoading(true);
     axios
-      .get(`${API}/products/${product.id}/stock-history`)
+      .get(`${API}/stock/${product.id}/history`)
       .then((res) => setHistory(res.data.history || []))
       .catch(() => setHistory([]))
       .finally(() => setLoading(false));
