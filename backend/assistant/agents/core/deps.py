@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from assistant.agents.contracts import AgentConfig, TurnState
+    from assistant.agents.core.contracts import AgentConfig, TurnState
 
 
 @dataclass

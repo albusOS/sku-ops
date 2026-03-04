@@ -6,7 +6,8 @@ No LLM calls.  Fully unit-testable.
 import re
 from dataclasses import dataclass, field
 
-from assistant.agents.tokens import count_tokens
+from assistant.agents.core.tokens import count_tokens
+from assistant.agents.core.validators import _extract_numbers, _numbers_from_tool_results
 
 
 @dataclass
@@ -103,13 +104,11 @@ def assert_no_bare_units(response: str) -> AssertionResult:
 
 def assert_no_ungrounded_numbers(response: str, tool_results: list[dict]) -> AssertionResult:
     """Check that numbers in the response can be traced back to tool results."""
-    resp_nums = set(re.findall(r"\b\d[\d,]*\.?\d*\b", response))
+    resp_nums = _extract_numbers(response)
     if not resp_nums:
         return AssertionResult(name="no_ungrounded_numbers", passed=True)
 
-    tool_text = " ".join(tc.get("result_preview", "") for tc in tool_results)
-    tool_nums = set(re.findall(r"\b\d[\d,]*\.?\d*\b", tool_text))
-
+    tool_nums = _numbers_from_tool_results(tool_results)
     if not tool_nums:
         return AssertionResult(name="no_ungrounded_numbers", passed=True, detail="no tool numbers to compare")
 

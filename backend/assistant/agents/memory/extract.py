@@ -6,6 +6,10 @@ logged as warnings and silently discarded so they never affect the user.
 import json
 import logging
 
+import anthropic
+from shared.infrastructure.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from assistant.agents.memory.store import save
+
 logger = logging.getLogger(__name__)
 
 _EXTRACT_SYSTEM = """\
@@ -38,12 +42,9 @@ async def extract_and_save(
     if not history or len(history) < 4:
         return
     try:
-        import anthropic
-        from shared.infrastructure.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
         if not ANTHROPIC_API_KEY:
             return
 
-        # Format last 20 messages (10 pairs), truncating long turns
         turns = []
         for h in history[-20:]:
             role = (h.get("role") or "user").upper()
@@ -62,13 +63,11 @@ async def extract_and_save(
         )
         raw = (response.content[0].text or "").strip()
 
-        # Strip markdown code fences if model wrapped the JSON
         if raw.startswith("```"):
             raw = raw.split("```")[1].lstrip("json").strip()
 
         artifacts = json.loads(raw)
         if isinstance(artifacts, list) and artifacts:
-            from assistant.agents.memory_store import save
             await save(org_id, user_id, session_id, artifacts)
 
     except Exception as e:

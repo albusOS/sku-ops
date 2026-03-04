@@ -6,4 +6,4 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     mode: Literal["fast", "deep"] = "fast"
-    agent_type: Literal["auto", "general", "inventory", "ops", "finance", "insights"] = "auto"
+    agent_type: Literal["auto", "inventory", "ops", "finance"] = "auto"

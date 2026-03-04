@@ -128,3 +128,13 @@ async def _list_pending_material_requests(args: dict, org_id: str) -> str:
             "requested_at": (r["created_at"] or "")[:16],
         })
     return json.dumps({"count": len(out), "pending_requests": out})
+
+
+# ── Registry ──────────────────────────────────────────────────────────────────
+
+from assistant.agents.tools.registry import register as _reg
+
+_reg("get_contractor_history",        "ops", _get_contractor_history,        lookup_key="contractor_history")
+_reg("get_job_materials",             "ops", _get_job_materials,             lookup_key="job_materials")
+_reg("list_recent_withdrawals",       "ops", _list_recent_withdrawals)
+_reg("list_pending_material_requests","ops", _list_pending_material_requests,lookup_key="pending_requests")

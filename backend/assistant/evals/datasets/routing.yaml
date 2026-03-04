@@ -1,103 +1,150 @@
-# Router classification eval dataset
-# Tests that messages are routed to the correct agent(s)
+# Routing eval dataset — tests 4-path dispatch
+# expected_path: "trivial" | "lookup" | "report" | "inventory" | "ops" | "finance"
+
+# ── Trivial path ──────────────────────────────────────────────────────────────
 
 - id: route-001
-  input: "do we have PVC pipes?"
-  expected_agents: [inventory]
+  input: "hi"
+  expected_path: trivial
 
 - id: route-002
-  input: "search for copper fittings"
-  expected_agents: [inventory]
+  input: "hello, how are you?"
+  expected_path: trivial
 
 - id: route-003
-  input: "low stock items"
-  expected_agents: [inventory]
+  input: "help"
+  expected_path: trivial
 
 - id: route-004
-  input: "what products need reordering"
-  expected_agents: [inventory]
+  input: "thanks"
+  expected_path: trivial
 
 - id: route-005
-  input: "department health breakdown"
-  expected_agents: [inventory]
+  input: "goodbye"
+  expected_path: trivial
 
-- id: route-006
-  input: "what has john smith taken"
-  expected_agents: [ops]
-
-- id: route-007
-  input: "pending material requests"
-  expected_agents: [ops]
-
-- id: route-008
-  input: "recent withdrawals this week"
-  expected_agents: [ops]
-
-- id: route-009
-  input: "what's our revenue this week?"
-  expected_agents: [finance]
+# ── Lookup path (zero-LLM, single tool + template) ───────────────────────────
 
 - id: route-010
-  input: "who owes us money"
-  expected_agents: [finance]
+  input: "do we have PVC pipes?"
+  expected_path: lookup
 
 - id: route-011
-  input: "profit and loss report"
-  expected_agents: [finance]
+  input: "search for copper fittings"
+  expected_path: lookup
 
 - id: route-012
-  input: "top selling products"
-  expected_agents: [insights]
+  input: "low stock items"
+  expected_path: lookup
 
 - id: route-013
-  input: "stockout forecast"
-  expected_agents: [insights]
+  input: "how many products do we have?"
+  expected_path: lookup
 
 - id: route-014
-  input: "hi"
-  expected_agents: [general]
+  input: "list departments"
+  expected_path: lookup
 
 - id: route-015
-  input: "hello, how are you?"
-  expected_agents: [general]
+  input: "who are our vendors"
+  expected_path: lookup
 
 - id: route-016
-  input: "help"
-  expected_agents: [general]
+  input: "pending material requests"
+  expected_path: lookup
 
 - id: route-017
-  input: "how's the business doing?"
-  expected_agents: [general]
+  input: "who owes us money"
+  expected_path: lookup
 
-- id: route-018
-  input: "give me an overview"
-  expected_agents: [general]
-
-# Cross-domain queries
-- id: route-019
-  input: "show me low stock items and who owes us"
-  expected_agents: [inventory, finance]
+# ── Report path (DAG + synthesis) ─────────────────────────────────────────────
 
 - id: route-020
-  input: "what products are running out and what's our margin?"
-  expected_agents: [insights, finance]
+  input: "give me a full inventory overview"
+  expected_path: report
 
 - id: route-021
-  input: "outstanding balance and pending material requests"
-  expected_agents: [finance, ops]
+  input: "weekly sales report"
+  expected_path: report
 
 - id: route-022
-  input: "invoice summary"
-  expected_agents: [finance]
+  input: "how's the business doing?"
+  expected_path: report
 
 - id: route-023
-  input: "slow movers in inventory"
-  expected_agents: [inventory]
+  input: "what's going to run out? stockout forecast"
+  expected_path: report
 
 - id: route-024
-  input: "barcode lookup 123456"
-  expected_agents: [inventory]
+  input: "what needs my attention today?"
+  expected_path: report
 
 - id: route-025
+  input: "finance overview"
+  expected_path: report
+
+- id: route-026
+  input: "what should we reorder?"
+  expected_path: report
+
+- id: route-027
+  input: "give me a dashboard summary"
+  expected_path: report
+
+# ── Reasoning path (specialist agents) ────────────────────────────────────────
+
+- id: route-030
+  input: "what products need reordering and why?"
+  expected_path: report
+
+- id: route-031
+  input: "department health breakdown"
+  expected_path: inventory
+
+- id: route-032
+  input: "slow movers in inventory"
+  expected_path: inventory
+
+- id: route-033
+  input: "barcode lookup 123456"
+  expected_path: inventory
+
+- id: route-034
+  input: "top selling products this month"
+  expected_path: inventory
+
+- id: route-035
+  input: "stockout forecast for next week"
+  expected_path: report
+
+- id: route-036
+  input: "what has john smith taken this month?"
+  expected_path: ops
+
+- id: route-037
+  input: "recent withdrawals this week"
+  expected_path: ops
+
+- id: route-038
   input: "materials for job JOB-445"
-  expected_agents: [ops]
+  expected_path: ops
+
+- id: route-039
+  input: "what's our revenue this week?"
+  expected_path: finance
+
+- id: route-040
+  input: "profit and loss report for last month"
+  expected_path: report
+
+- id: route-041
+  input: "invoice summary"
+  expected_path: finance
+
+- id: route-042
+  input: "who has the highest outstanding balance?"
+  expected_path: finance
+
+- id: route-043
+  input: "compare our margins this month vs last month"
+  expected_path: finance

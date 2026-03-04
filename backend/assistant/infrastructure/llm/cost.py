@@ -98,6 +98,4 @@ def recommend_tier(
         return "cheap"
     if is_complex:
         return "standard"
-    if estimated_input_tokens > 50_000:
-        return "premium"
     return "standard"

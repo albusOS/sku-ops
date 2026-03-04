@@ -1,23 +1,31 @@
-"""Chat assistant entrypoint — orchestrates routing, dispatch, and coordination.
+"""Chat assistant entrypoint — 4-path dispatch.
 
-Routing modes:
-- "auto" (default): complexity classification → dispatch strategy
-  - TRIVIAL: canned response or cheap model
-  - STRUCTURED: DAG fast path (no LLM orchestration)
-  - SIMPLE: single specialist agent
-  - COMPLEX: coordinator or parallel fan-out
-- Explicit agent_type ("inventory", "ops", etc.): bypasses router, dispatches directly
+Execution paths (cheapest first):
+1. Trivial  → canned response ($0)
+2. Lookup   → pattern-match to single tool + template ($0)
+3. Report   → DAG parallel tools + cheap synthesis ($0.001)
+4. Reasoning → specialist agent with tools ($0.003-$0.015)
+
+mode="deep" skips lookup/report shortcuts, goes straight to Sonnet agent.
 """
 import asyncio
 import importlib
+import json
 import logging
-import uuid
+
+from pydantic_ai import Agent as SynthAgent
 
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, LLM_SETUP_URL
-from assistant.agents.deps import AgentDeps
-from assistant.agents.contracts import (
-    AgentResult, Complexity, RouteDecision, TurnState, UsageInfo,
-)
+from assistant.infrastructure.llm.catalog import resolve_tier_model
+from assistant.infrastructure.llm import get_model
+from assistant.agents.core.deps import AgentDeps
+from assistant.agents.core.contracts import AgentResult, UsageInfo
+from assistant.agents.routing.router import is_trivial, classify_domain
+from assistant.agents.routing.lookups import try_lookup
+from assistant.agents.routing.dag import match_report, execute_plan
+from assistant.agents.tools.registry import run_tool
+from assistant.agents.memory.store import recall
+from assistant.agents.memory.extract import extract_and_save
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +35,9 @@ LLM_NOT_CONFIGURED_MSG = (
 )
 
 _AGENT_MODULES = {
-    "inventory":   "assistant.agents.inventory",
-    "ops":         "assistant.agents.ops",
-    "finance":     "assistant.agents.finance",
-    "insights":    "assistant.agents.insights",
-    "general":     "assistant.agents.general",
-    "dashboard":   "assistant.agents.general",
-    "coordinator": "assistant.agents.coordinator",
+    "inventory": "assistant.agents.inventory",
+    "ops":       "assistant.agents.ops",
+    "finance":   "assistant.agents.finance",
 }
 
 
@@ -45,7 +49,7 @@ async def chat(
     agent_type: str = "auto",
     session_id: str = "",
 ) -> dict:
-    """Dispatch user message to the appropriate specialist agent(s)."""
+    """Dispatch user message to the cheapest correct execution path."""
     if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": [], "agent": None}
 
@@ -56,12 +60,38 @@ async def chat(
         user_name=ctx.get("user_name", ""),
     )
 
-    if agent_type == "auto":
-        return await _orchestrate(user_message, history, deps, mode, session_id)
+    if agent_type != "auto":
+        agent_name = agent_type if agent_type in _AGENT_MODULES else "inventory"
+        return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
 
-    module_path = _AGENT_MODULES.get(agent_type, _AGENT_MODULES["general"])
-    agent_module = importlib.import_module(module_path)
-    return await agent_module.run(user_message, history=history, deps=deps, mode=mode, session_id=session_id)
+    if mode == "deep":
+        agent_name = classify_domain(user_message)
+        return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
+
+    # ── Path 1: Trivial ───────────────────────────────────────────────────
+    if is_trivial(user_message):
+        logger.info("dispatch → trivial")
+        return _trivial_response(user_message)
+
+    # ── Path 2: Lookup (zero LLM) ────────────────────────────────────────
+    lookup_result = await try_lookup(user_message, deps.org_id)
+    if lookup_result:
+        logger.info("dispatch → lookup")
+        result = AgentResult(agent="lookup", response=lookup_result)
+        d = result.to_dict()
+        d["routed_to"] = ["lookup"]
+        return d
+
+    # ── Path 3: Report (DAG + cheap synthesis) ────────────────────────────
+    report_plan = match_report(user_message)
+    if report_plan:
+        logger.info(f"dispatch → report ({report_plan.template_name})")
+        return await _dag_dispatch(user_message, report_plan, deps, session_id)
+
+    # ── Path 4: Reasoning (specialist agent) ──────────────────────────────
+    agent_name = classify_domain(user_message)
+    logger.info(f"dispatch → reasoning ({agent_name})")
+    return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
 
 
 # ── Trivial response (no LLM) ────────────────────────────────────────────────
@@ -78,12 +108,13 @@ _TRIVIAL_RESPONSES = {
     "goodbye": "Goodbye! Come back anytime.",
     "good morning": "Good morning! What can I help you with today?",
     "good afternoon": "Good afternoon! What can I help you with today?",
+    "help": "I can help with **inventory** (products, stock, reorders), **operations** (withdrawals, contractors, jobs), and **finance** (revenue, invoices, P&L). What would you like to know?",
 }
 
 
-def _trivial_response(turn: TurnState) -> dict:
+def _trivial_response(user_message: str) -> dict:
     """Return a canned response for trivial queries — zero LLM cost."""
-    m = turn.query.lower().strip()
+    m = user_message.lower().strip()
     for trigger, response in _TRIVIAL_RESPONSES.items():
         if trigger in m:
             result = AgentResult(agent="system", response=response)
@@ -93,36 +124,27 @@ def _trivial_response(turn: TurnState) -> dict:
 
     result = AgentResult(
         agent="system",
-        response="Hello! I can help with inventory, operations, finances, and insights. What would you like to know?",
+        response="Hello! I can help with inventory, operations, and finances. What would you like to know?",
     )
     d = result.to_dict()
     d["routed_to"] = ["trivial"]
     return d
 
 
-# ── DAG fast path ─────────────────────────────────────────────────────────────
+# ── DAG report dispatch ───────────────────────────────────────────────────────
 
-async def _dag_dispatch(turn: TurnState, deps: AgentDeps) -> dict:
+async def _dag_dispatch(user_message: str, plan, deps: AgentDeps, session_id: str) -> dict:
     """Execute a structured DAG plan — parallel tool calls, cheap LLM synthesis."""
-    from assistant.agents.dag import match_plan, execute_plan
-
-    plan = match_plan(turn.query)
-    if not plan:
-        return await _single_dispatch("general", turn.query, None, deps, "fast", turn.session_id)
-
-    tool_runner = _build_tool_runner(deps.org_id)
-    dag_result = await execute_plan(plan, tool_runner, deps.org_id)
+    dag_result = await execute_plan(plan, run_tool, deps.org_id)
 
     synth_node = plan.synthesis_node
     if synth_node and synth_node.id in dag_result.node_results:
-        import json
         synth_data = dag_result.node_results[synth_node.id]
         try:
             sections = json.loads(synth_data)
         except (json.JSONDecodeError, TypeError):
             sections = {"data": synth_data}
-
-        response = await _synthesize_dag_results(turn.query, sections)
+        response = await _synthesize_dag_results(user_message, sections)
     else:
         parts = [f"**{k}**: {v}" for k, v in dag_result.node_results.items() if k != "synth"]
         response = "\n\n".join(parts)
@@ -140,16 +162,11 @@ async def _dag_dispatch(turn: TurnState, deps: AgentDeps) -> dict:
 
 async def _synthesize_dag_results(query: str, sections: dict) -> str:
     """Use a cheap LLM to synthesize DAG tool results into a coherent answer."""
-    import json
     try:
-        from assistant.infrastructure.llm.catalog import resolve_tier_model
-        from assistant.infrastructure.llm import get_model
-
         model_id = resolve_tier_model("cheap")
         if not model_id:
             return _format_dag_sections(sections)
 
-        from pydantic_ai import Agent as SynthAgent
         synth = SynthAgent(
             get_model(model_id),
             system_prompt=(
@@ -176,52 +193,9 @@ def _format_dag_sections(sections: dict) -> str:
     return "\n\n---\n\n".join(parts) if parts else "No data available."
 
 
-def _build_tool_runner(org_id: str):
-    """Map tool name strings to the actual DB-query helper functions."""
-    from assistant.agents.inventory import (
-        _search_products, _get_inventory_stats, _list_low_stock,
-        _get_reorder_suggestions, _get_department_health, _get_slow_movers,
-    )
-    from assistant.agents.ops import (
-        _list_recent_withdrawals, _list_pending_material_requests,
-    )
-    from assistant.agents.finance import (
-        _get_revenue_summary, _get_outstanding_balances, _get_pl_summary,
-        _get_top_products as _fin_top_products,
-    )
-    from assistant.agents.insights import (
-        _get_top_products, _forecast_stockout,
-    )
+# ── Agent dispatch ────────────────────────────────────────────────────────────
 
-    tool_map = {
-        "search_products":             lambda args, oid: _search_products(args, oid),
-        "get_inventory_stats":         lambda args, oid: _get_inventory_stats(oid),
-        "list_low_stock":              lambda args, oid: _list_low_stock(args, oid),
-        "get_reorder_suggestions":     lambda args, oid: _get_reorder_suggestions(args, oid),
-        "get_department_health":       lambda args, oid: _get_department_health(oid),
-        "get_slow_movers":             lambda args, oid: _get_slow_movers(args, oid),
-        "list_recent_withdrawals":     lambda args, oid: _list_recent_withdrawals(args, oid),
-        "list_pending_material_requests": lambda args, oid: _list_pending_material_requests(args, oid),
-        "get_revenue_summary":         lambda args, oid: _get_revenue_summary(args, oid),
-        "get_outstanding_balances":    lambda args, oid: _get_outstanding_balances(args, oid),
-        "get_pl_summary":              lambda args, oid: _get_pl_summary(args, oid),
-        "get_top_products":            lambda args, oid: _get_top_products(args, oid),
-        "forecast_stockout":           lambda args, oid: _forecast_stockout(args, oid),
-    }
-
-    async def runner(tool_name: str, args: dict, oid: str) -> str:
-        fn = tool_map.get(tool_name)
-        if not fn:
-            return f'{{"error": "unknown tool: {tool_name}"}}'
-        result = await fn(args, oid)
-        return result if isinstance(result, str) else str(result)
-
-    return runner
-
-
-# ── Single agent dispatch ─────────────────────────────────────────────────────
-
-async def _single_dispatch(
+async def _run_agent(
     agent_name: str,
     user_message: str,
     history: list[dict] | None,
@@ -229,8 +203,8 @@ async def _single_dispatch(
     mode: str,
     session_id: str,
 ) -> dict:
-    """Dispatch to a single agent by name."""
-    module_path = _AGENT_MODULES.get(agent_name, _AGENT_MODULES["general"])
+    """Dispatch to a single specialist agent by name."""
+    module_path = _AGENT_MODULES.get(agent_name, _AGENT_MODULES["inventory"])
     agent_module = importlib.import_module(module_path)
     result = await agent_module.run(
         user_message, history=history, deps=deps, mode=mode, session_id=session_id,
@@ -239,145 +213,17 @@ async def _single_dispatch(
     return result
 
 
-# ── Parallel fan-out ──────────────────────────────────────────────────────────
+# ── Memory facade (keeps agent imports out of the API layer) ──────────────────
 
-async def _parallel_dispatch(
-    agents: list[str],
-    user_message: str,
-    history: list[dict] | None,
-    deps: AgentDeps,
-    mode: str,
-    session_id: str,
-) -> dict:
-    """Run multiple agents in parallel and merge their results."""
-    from assistant.agents.router import merge_responses
-
-    async def _run_one(agent_name: str) -> dict:
-        try:
-            return await _single_dispatch(agent_name, user_message, history, deps, mode, session_id)
-        except Exception as e:
-            logger.error(f"Fan-out agent {agent_name} failed: {e}")
-            return {
-                "response": f"The {agent_name} agent encountered an issue.",
-                "tool_calls": [], "history": history or [], "thinking": [],
-                "agent": agent_name,
-                "usage": {"cost_usd": 0, "input_tokens": 0, "output_tokens": 0},
-            }
-
-    results = await asyncio.gather(*[_run_one(a) for a in agents])
-    return merge_responses(user_message, list(results))
+async def recall_memory(org_id: str, user_id: str) -> str:
+    """Return formatted memory context for session injection. Empty string if none."""
+    return await recall(org_id=org_id, user_id=user_id)
 
 
-# ── Orchestration loop ────────────────────────────────────────────────────────
-
-async def _orchestrate(
-    user_message: str,
-    history: list[dict] | None,
-    deps: AgentDeps,
-    mode: str,
-    session_id: str,
-) -> dict:
-    """Full orchestration: classify complexity → route → dispatch → validate → maybe re-route."""
-    from assistant.agents.router import route, classify_complexity
-    from shared.infrastructure.config import SESSION_COST_CAP
-
-    trace_id = str(uuid.uuid4())[:8]
-    complexity = classify_complexity(user_message)
-
-    turn = TurnState(
-        trace_id=trace_id,
-        query=user_message,
-        session_id=session_id,
-        complexity=complexity,
-    )
-    deps.turn_state = turn
-    deps.trace_id = trace_id
-
-    # Fast paths: no routing needed
-    if complexity == Complexity.TRIVIAL:
-        logger.info(f"[{trace_id}] trivial → canned response")
-        return _trivial_response(turn)
-
-    if complexity == Complexity.STRUCTURED:
-        logger.info(f"[{trace_id}] structured → DAG fast path")
-        return await _dag_dispatch(turn, deps)
-
-    # Full routing for SIMPLE and COMPLEX
-    decision = await route(user_message, history)
-    turn.route = decision
-    logger.info(
-        f"[{trace_id}] {complexity.value} → {decision.strategy} "
-        f"primary={decision.primary} supporting={decision.supporting}"
-    )
-
-    result = await _dispatch_decision(decision, user_message, history, deps, mode, session_id)
-
-    # Check for handoff requests from the agent result
-    agent_result = result.get("_agent_result")
-    if (
-        agent_result
-        and isinstance(agent_result, AgentResult)
-        and agent_result.needs_handoff
-        and turn.iteration < turn.max_iterations
-    ):
-        handoff = agent_result.needs_handoff
-        turn.handoff_chain.append(handoff.source_agent)
-        turn.iteration += 1
-        logger.info(
-            f"[{trace_id}] handoff: {handoff.source_agent} → {handoff.target_agent} "
-            f"reason={handoff.reason}"
-        )
-        context_msg = user_message
-        if handoff.partial_result:
-            context_msg = (
-                f"{user_message}\n\n"
-                f"[Context from {handoff.source_agent}: {handoff.partial_result}]"
-            )
-        result = await _single_dispatch(
-            handoff.target_agent, context_msg, history, deps, mode, session_id,
-        )
-
-    # Validation-triggered re-routing
-    validation = result.get("validation", {})
-    if (
-        validation
-        and not validation.get("passed", True)
-        and turn.iteration < turn.max_iterations
-    ):
-        failures = validation.get("failures", [])
-        if "domain_mismatch" in failures:
-            turn.iteration += 1
-            logger.info(f"[{trace_id}] re-routing due to domain_mismatch")
-            decision = await route(user_message, history)
-            result = await _dispatch_decision(
-                decision, user_message, history, deps, mode, session_id,
-            )
-
-    return result
-
-
-async def _dispatch_decision(
-    decision: RouteDecision,
-    user_message: str,
-    history: list[dict] | None,
-    deps: AgentDeps,
-    mode: str,
-    session_id: str,
-) -> dict:
-    """Dispatch based on a RouteDecision's strategy."""
-    if decision.strategy == "dag":
-        turn = deps.turn_state or TurnState(
-            trace_id="", query=user_message, session_id=session_id,
-            complexity=Complexity.STRUCTURED,
-        )
-        return await _dag_dispatch(turn, deps)
-
-    if decision.strategy == "parallel":
-        agents = [decision.primary] + decision.supporting
-        return await _parallel_dispatch(agents, user_message, history, deps, mode, session_id)
-
-    if decision.strategy == "coordinate":
-        return await _single_dispatch("coordinator", user_message, history, deps, mode, session_id)
-
-    # default: single agent
-    return await _single_dispatch(decision.primary, user_message, history, deps, mode, session_id)
+def schedule_memory_extraction(
+    org_id: str, user_id: str, session_id: str, history: list[dict],
+) -> None:
+    """Fire-and-forget background task to extract memory artifacts from conversation."""
+    asyncio.create_task(extract_and_save(
+        org_id=org_id, user_id=user_id, session_id=session_id, history=history,
+    ))

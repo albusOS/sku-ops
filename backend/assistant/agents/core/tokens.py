@@ -116,7 +116,6 @@ def compress_history(
     """Trim conversation history to fit within *max_tokens*.
 
     Keeps the most recent turns and drops oldest first.
-    For embedding-based relevance filtering, see compress_history_semantic().
     """
     if not history:
         return history
@@ -140,62 +139,3 @@ def compress_history(
         budget_remaining -= t
 
     return kept
-
-
-async def compress_history_semantic(
-    current_query: str,
-    history: list[dict] | None,
-    max_tokens: int = 1500,
-    api_key: str = "",
-) -> list[dict] | None:
-    """Keep only history turns semantically relevant to the current query.
-
-    Uses OpenAI embeddings for relevance scoring.  Falls back to recency-based
-    compression if embeddings are unavailable.
-    """
-    import numpy as np
-
-    if not history or len(history) <= 4:
-        return history
-
-    total = sum(count_tokens(h.get("content", "")) for h in history)
-    if total <= max_tokens:
-        return history
-
-    if not api_key:
-        return compress_history(history, max_tokens)
-
-    try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key)
-
-        texts = [current_query] + [h.get("content", "") for h in history]
-        resp = await client.embeddings.create(
-            model="text-embedding-3-small", input=texts,
-        )
-        query_vec = np.array(resp.data[0].embedding, dtype=np.float32)
-        hist_vecs = np.array(
-            [resp.data[i + 1].embedding for i in range(len(history))],
-            dtype=np.float32,
-        )
-        scores = hist_vecs @ query_vec
-
-        # Always keep last 2 turns
-        keep_indices: set[int] = set(range(max(0, len(history) - 2), len(history)))
-        token_count = sum(count_tokens(history[i].get("content", "")) for i in keep_indices)
-
-        # Add most-relevant turns until budget full
-        for idx in np.argsort(scores)[::-1]:
-            idx = int(idx)
-            if idx in keep_indices:
-                continue
-            entry_tokens = count_tokens(history[idx].get("content", ""))
-            if token_count + entry_tokens > max_tokens:
-                continue
-            keep_indices.add(idx)
-            token_count += entry_tokens
-
-        return [history[i] for i in sorted(keep_indices)]
-    except Exception as e:
-        logger.debug(f"Semantic history compression failed, using recency: {e}")
-        return compress_history(history, max_tokens)

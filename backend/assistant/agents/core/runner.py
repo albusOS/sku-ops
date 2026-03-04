@@ -1,21 +1,21 @@
-"""Shared utilities for all specialist agents."""
+"""Agent execution — run loop with retry/backoff, error classification, and run logging."""
 import asyncio
-import json
 import logging
 import random
 import time
 from enum import Enum
 
-from pydantic_ai.messages import (
-    ModelRequest,
-    ModelResponse,
-    TextPart,
-    ToolCallPart,
-    ToolReturnPart,
-    UserPromptPart,
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE
+from shared.infrastructure.logging_config import trace_id_var, agent_name_var, operation_var
+from assistant.infrastructure.agent_run_repo import log_agent_run
+from assistant.agents.core.model_registry import calc_cost, get_model_name
+from assistant.agents.core.contracts import AgentConfig, AgentResult, UsageInfo
+from assistant.agents.core.validators import validate_response
+from assistant.agents.core.messages import (
+    extract_text_history,
+    extract_tool_calls,
+    extract_tool_calls_detailed,
 )
-from assistant.agents.model_registry import calc_cost, get_model_name
-from assistant.agents.contracts import AgentConfig, AgentResult, UsageInfo
 
 logger = logging.getLogger(__name__)
 
@@ -30,22 +30,9 @@ _MAX_DELAY = 30.0   # seconds
 def build_model_settings(config: AgentConfig | None, mode: str = "fast") -> dict | None:
     """Build PydanticAI model_settings from an AgentConfig.
 
-    Extracts the thinking-budget boilerplate that was duplicated in every agent.
-    Returns None if no special settings are needed.
+    Returns None — no special settings needed in the simplified architecture.
+    Deep mode uses a different model via model_registry, not thinking budget.
     """
-    from shared.infrastructure.config import AGENT_THINKING_BUDGET, DEFAULT_DEEP_THINKING_BUDGET
-
-    deep = mode == "deep"
-    if config:
-        budget = config.thinking_budget if config.thinking_budget > 0 else 0
-    else:
-        budget = 0
-
-    if deep and budget == 0:
-        budget = AGENT_THINKING_BUDGET or DEFAULT_DEEP_THINKING_BUDGET
-
-    if budget > 0:
-        return {"anthropic_thinking": {"type": "enabled", "budget_tokens": budget}}
     return None
 
 
@@ -59,14 +46,14 @@ def get_agent_timeout(config: AgentConfig | None) -> int:
 # ── Error classification ─────────────────────────────────────────────────────
 
 class _ErrorKind(str, Enum):
-    RATE_LIMIT  = "rate_limit"   # 429 — retriable, backoff, honour Retry-After
-    TIMEOUT     = "timeout"      # network or wait_for timeout — retriable
-    NETWORK     = "network"      # connection errors — retriable
-    SERVER      = "server"       # 500/503/overload — retriable
-    MODEL_ERROR = "model_error"  # thinking budget, bad model_settings — drop settings + retry
-    AUTH        = "auth"         # 401/403 — NOT retriable
-    VALIDATION  = "validation"   # 400 — NOT retriable
-    UNKNOWN     = "unknown"      # NOT retriable
+    RATE_LIMIT  = "rate_limit"
+    TIMEOUT     = "timeout"
+    NETWORK     = "network"
+    SERVER      = "server"
+    MODEL_ERROR = "model_error"
+    AUTH        = "auth"
+    VALIDATION  = "validation"
+    UNKNOWN     = "unknown"
 
 
 def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
@@ -113,7 +100,7 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
 
 
 async def _backoff(attempt: int, retry_after: float | None) -> None:
-    """Exponential backoff with ±25% jitter. Honours Retry-After when present."""
+    """Exponential backoff with jitter. Honours Retry-After when present."""
     if retry_after is not None:
         delay = min(retry_after, _MAX_DELAY)
     else:
@@ -142,8 +129,6 @@ async def run_agent(
     Every invocation (success or failure) is logged to the agent_runs table
     via fire-and-forget background task.
     """
-    from shared.infrastructure.logging_config import trace_id_var, agent_name_var, operation_var
-
     trace_id = getattr(deps, "trace_id", "")
     if trace_id:
         trace_id_var.set(trace_id)
@@ -226,7 +211,7 @@ async def run_agent(
 
 def _log_success(result, *, user_message, agent_name, agent_label="", session_id, org_id, user_id, mode, duration_ms, attempts):
     usage = result.usage()
-    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "general"
+    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     model_name = get_model_name(f"agent:{label}")
     cost = calc_cost(model_name, usage)
     tool_calls = extract_tool_calls_detailed(result.all_messages())
@@ -234,7 +219,6 @@ def _log_success(result, *, user_message, agent_name, agent_label="", session_id
 
     async def _write():
         try:
-            from assistant.infrastructure.agent_run_repo import log_agent_run
             await log_agent_run(
                 session_id=session_id, org_id=org_id, user_id=user_id,
                 agent_name=agent_name, model=model_name, mode=mode,
@@ -250,12 +234,11 @@ def _log_success(result, *, user_message, agent_name, agent_label="", session_id
 
 
 def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id, user_id, mode, duration_ms, attempts, error, error_kind):
-    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "general"
+    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     model_name = get_model_name(f"agent:{label}")
 
     async def _write():
         try:
-            from assistant.infrastructure.agent_run_repo import log_agent_run
             await log_agent_run(
                 session_id=session_id, org_id=org_id, user_id=user_id,
                 agent_name=agent_name, model=model_name, mode=mode,
@@ -270,9 +253,9 @@ def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id
     asyncio.create_task(_write())
 
 
-# ── Full agent run with reflection ────────────────────────────────────────────
+# ── Specialist runner (no reflection re-run) ──────────────────────────────────
 
-async def run_agent_with_reflection(
+async def run_specialist(
     agent,
     user_message: str,
     *,
@@ -280,22 +263,19 @@ async def run_agent_with_reflection(
     deps,
     model_settings: dict | None = None,
     agent_name: str = "agent",
-    agent_label: str = "general",
+    agent_label: str = "inventory",
     session_id: str = "",
     mode: str = "fast",
     history: list[dict] | None = None,
     config: AgentConfig | None = None,
 ):
-    """Run an agent, validate the response, re-run if needed.
+    """Run an agent, validate for logging only (no re-run), package result.
 
-    Standard run cycle shared by all specialist agents:
-    1. Run the agent with tools
-    2. Validate response with deterministic checks (structured validators)
-    3. If a critical check fails, re-run with targeted feedback
-    4. Package the result dict
+    Standard run cycle for all specialist agents:
+    1. Run the agent with tools (with retry/backoff)
+    2. Run validators for quality scoring (logged, not acted on)
+    3. Package the result dict
     """
-    from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE
-
     if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return {
             "response": f"{agent_name} requires ANTHROPIC_API_KEY or OPENROUTER_API_KEY.",
@@ -323,32 +303,6 @@ async def run_agent_with_reflection(
         }
 
     response_text = result.output if isinstance(result.output, str) else str(result.output)
-    tool_calls_list = extract_tool_calls(result.all_messages())
-    tool_calls_detailed = extract_tool_calls_detailed(result.all_messages())
-
-    # Structured validation (deterministic — no LLM call)
-    from assistant.agents.validators import validate_response
-    validation = validate_response(user_message, response_text, tool_calls_list, tool_calls_detailed)
-
-    if not validation.passed and validation.should_rerun:
-        try:
-            enhanced_message = (
-                f"{user_message}\n\n"
-                f"[Additional context: {validation.rerun_hint}]"
-            )
-            result = await run_agent(
-                agent, enhanced_message,
-                msg_history=msg_history, deps=deps,
-                model_settings=model_settings,
-                timeout_seconds=timeout,
-                agent_name=f"{agent_name}:reflect",
-                agent_label=agent_label,
-                session_id=session_id, mode=mode,
-            )
-        except Exception as e:
-            logger.warning(f"{agent_name} validation re-run failed, using original: {e}")
-
-    response_text = result.output if isinstance(result.output, str) else str(result.output)
     model_name = get_model_name(f"agent:{agent_label}")
     usage = result.usage()
     cost = calc_cost(model_name, usage)
@@ -356,6 +310,8 @@ async def run_agent_with_reflection(
     tool_calls_final = extract_tool_calls(result.all_messages())
     tool_calls_det = extract_tool_calls_detailed(result.all_messages())
     text_history = extract_text_history(result.all_messages())
+
+    validation = validate_response(user_message, response_text, tool_calls_final, tool_calls_det)
     validation_dict = {
         "passed": validation.passed,
         "failures": validation.failures,
@@ -377,85 +333,4 @@ async def run_agent_with_reflection(
         validation=validation_dict,
     )
 
-    # Return legacy dict for backward compatibility; callers migrating to
-    # the new system can use agent_result.to_dict() or access ._agent_result.
-    result_dict = agent_result.to_dict()
-    result_dict["_agent_result"] = agent_result
-    return result_dict
-
-
-# ── History helpers ───────────────────────────────────────────────────────────
-
-def build_message_history(history: list[dict] | None) -> list | None:
-    """Convert text-only {role, content} pairs → PydanticAI ModelMessage list."""
-    if not history:
-        return None
-    messages = []
-    for h in history:
-        content = (h.get("content") or "").strip()
-        if not content:
-            continue
-        if h.get("role") == "user":
-            messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
-        else:
-            messages.append(ModelResponse(parts=[TextPart(content=content)], model_name=None))
-    return messages or None
-
-
-def extract_text_history(messages) -> list[dict]:
-    """Extract text-only turns from PydanticAI all_messages() for session storage."""
-    out = []
-    for msg in messages:
-        if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, UserPromptPart):
-                    text = part.content if isinstance(part.content, str) else ""
-                    if text:
-                        out.append({"role": "user", "content": text})
-        elif isinstance(msg, ModelResponse):
-            for part in msg.parts:
-                if isinstance(part, TextPart) and part.content:
-                    out.append({"role": "assistant", "content": part.content})
-    return out
-
-
-def extract_tool_calls(messages) -> list[dict]:
-    """Extract tool call names only (lightweight, for API response)."""
-    out = []
-    for msg in messages:
-        if isinstance(msg, ModelResponse):
-            for part in msg.parts:
-                if isinstance(part, ToolCallPart):
-                    out.append({"tool": part.tool_name})
-    return out
-
-
-def extract_tool_calls_detailed(messages) -> list[dict]:
-    """Extract tool calls with arguments and return values for monitoring."""
-    # Build a map of tool_call_id → return value from subsequent ModelRequests
-    return_map: dict[str, str] = {}
-    for msg in messages:
-        if isinstance(msg, ModelRequest):
-            for part in msg.parts:
-                if isinstance(part, ToolReturnPart):
-                    ret = part.content if isinstance(part.content, str) else str(part.content)
-                    return_map[part.tool_call_id] = ret[:500]
-
-    out = []
-    for msg in messages:
-        if isinstance(msg, ModelResponse):
-            for part in msg.parts:
-                if isinstance(part, ToolCallPart):
-                    args_raw = part.args
-                    if isinstance(args_raw, str):
-                        try:
-                            args_raw = json.loads(args_raw)
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-                    entry = {
-                        "tool": part.tool_name,
-                        "args": args_raw,
-                        "result_preview": return_map.get(part.tool_call_id, ""),
-                    }
-                    out.append(entry)
-    return out
+    return agent_result.to_dict()

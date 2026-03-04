@@ -107,3 +107,14 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     for r in ranked:
         r["total_revenue"] = round(r["total_revenue"], 2)
     return json.dumps({"period_days": days, "count": len(ranked), "products": ranked})
+
+
+# ── Registry ──────────────────────────────────────────────────────────────────
+
+from assistant.agents.tools.registry import register as _reg
+
+_reg("get_invoice_summary",    "finance", _get_invoice_summary,    takes_args=False)
+_reg("get_outstanding_balances","finance", _get_outstanding_balances,lookup_key="outstanding")
+_reg("get_revenue_summary",    "finance", _get_revenue_summary)
+_reg("get_pl_summary",         "finance", _get_pl_summary)
+_reg("get_top_products_fin",   "finance", _get_top_products)

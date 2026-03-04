@@ -18,12 +18,20 @@ from pathlib import Path
 
 import yaml
 
+from shared.infrastructure.database import init_db
+from assistant.agents.tools.registry import init_tools
+from assistant.agents.routing.router import is_trivial, classify_domain
+from assistant.agents.routing.lookups import try_lookup
+from assistant.agents.routing.dag import match_report
+from assistant.application.assistant import chat
+from assistant.evals.scorer import score_case
+
 logger = logging.getLogger(__name__)
 
 _DATASETS_DIR = Path(__file__).parent / "datasets"
 _REPORTS_DIR = Path(__file__).parent / "reports"
 
-_AVAILABLE_SUITES = ("routing", "inventory", "ops", "finance", "insights")
+_AVAILABLE_SUITES = ("routing", "inventory", "ops", "finance")
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
@@ -72,20 +80,35 @@ def load_dataset(suite: str) -> list[dict]:
 # ── Routing eval ──────────────────────────────────────────────────────────────
 
 async def _eval_routing_case(case: dict) -> EvalCaseResult:
-    """Run a single routing classification test (no agent execution needed)."""
-    from assistant.agents.router import classify
-    from assistant.evals.scorer import assert_routed_to
+    """Run a single routing classification test against the new 4-path dispatch.
 
+    expected_path: "trivial" | "lookup" | "report" | "inventory" | "ops" | "finance"
+    """
     t0 = time.monotonic()
     try:
-        actual = await classify(case["input"])
-        latency = int((time.monotonic() - t0) * 1000)
+        message = case["input"]
+        expected = case.get("expected_path", case.get("expected_agents", ["inventory"])[0])
 
-        result = assert_routed_to(case["expected_agents"], actual)
+        if is_trivial(message):
+            actual = "trivial"
+        elif await try_lookup(message, "default") is not None:
+            actual = "lookup"
+        elif match_report(message) is not None:
+            actual = "report"
+        else:
+            actual = classify_domain(message)
+
+        latency = int((time.monotonic() - t0) * 1000)
+        passed = actual == expected
+
         return EvalCaseResult(
             case_id=case["id"],
-            passed=result.passed,
-            assertions=[{"name": result.name, "passed": result.passed, "detail": result.detail}],
+            passed=passed,
+            assertions=[{
+                "name": f"expected_path:{expected}",
+                "passed": passed,
+                "detail": f"got {actual}" if not passed else "",
+            }],
             latency_ms=latency,
         )
     except Exception as e:
@@ -96,9 +119,6 @@ async def _eval_routing_case(case: dict) -> EvalCaseResult:
 
 async def _eval_agent_case(case: dict, agent_type: str, model_override: str | None = None) -> EvalCaseResult:
     """Run a single agent test case through the full chat pipeline."""
-    from assistant.application.assistant import chat
-    from assistant.evals.scorer import score_case
-
     t0 = time.monotonic()
     try:
         result = await chat(
@@ -206,6 +226,9 @@ async def _main():
     parser.add_argument("--save", action="store_true", help="Save report to JSON")
     args = parser.parse_args()
 
+    await init_db()
+    init_tools()
+
     suites = list(_AVAILABLE_SUITES) if args.suite == "all" else [args.suite]
 
     if args.compare:
@@ -232,7 +255,6 @@ async def _main():
 
 
 def main():
-    # Ensure backend is importable
     backend_dir = str(Path(__file__).resolve().parent.parent.parent)
     if backend_dir not in sys.path:
         sys.path.insert(0, backend_dir)

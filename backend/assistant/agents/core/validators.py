@@ -3,10 +3,11 @@
 Replaces the Haiku-based reflect_on_response with fast, testable assertions
 that check tool coverage, data grounding, format compliance, and token efficiency.
 """
-import json
 import logging
 import re
 from dataclasses import dataclass, field
+
+from assistant.agents.tools.registry import all_tools
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +17,6 @@ class ValidationResult:
     passed: bool
     failures: list[str] = field(default_factory=list)
     scores: dict[str, float] = field(default_factory=dict)
-    should_rerun: bool = False
-    rerun_hint: str = ""
 
 
 # ── Words that signal a data question (expect tool calls) ────────────────────
@@ -36,6 +35,28 @@ _TRIVIAL_SIGNALS = frozenset((
 ))
 
 _NUMBER_RE = re.compile(r"\b\d[\d,]*\.?\d*\b")
+
+_domain_tool_cache: dict[str, set[str]] | None = None
+
+
+def _get_domain_tool_sets() -> dict[str, set[str]]:
+    """Derive domain-to-tool-name mapping from the tool registry.
+
+    Returns e.g. {"inventory": {"search_products", ...}, "ops": {...}, ...}.
+    Inventory tools also appear under "inventory_analytics" for overlap detection.
+    """
+    global _domain_tool_cache
+    if _domain_tool_cache is not None:
+        return _domain_tool_cache
+
+    mapping: dict[str, set[str]] = {}
+    for entry in all_tools().values():
+        mapping.setdefault(entry.domain, set()).add(entry.name)
+    mapping.setdefault("inventory_analytics", set()).update(
+        mapping.get("inventory", set())
+    )
+    _domain_tool_cache = mapping
+    return mapping
 
 
 def _is_data_question(msg: str) -> bool:
@@ -137,7 +158,7 @@ def validate_response(
         "inventory": ("product", "stock", "sku", "reorder", "department", "vendor"),
         "ops": ("withdrawal", "contractor", "job", "material request"),
         "finance": ("revenue", "invoice", "payment", "balance", "margin", "p&l"),
-        "insights": ("trend", "forecast", "top", "velocity", "analytics"),
+        "inventory_analytics": ("trend", "forecast", "top", "velocity", "analytics"),
     }
     if tool_calls:
         tool_names = {tc.get("tool", "") for tc in tool_calls}
@@ -147,53 +168,20 @@ def validate_response(
                 question_domains.add(domain)
         if question_domains:
             tool_domains = set()
-            inv_tools = {"search_products", "search_semantic", "get_product_details",
-                         "get_inventory_stats", "list_low_stock", "list_departments",
-                         "list_vendors", "get_usage_velocity", "get_reorder_suggestions",
-                         "get_department_health", "get_slow_movers"}
-            ops_tools = {"get_contractor_history", "get_job_materials",
-                         "list_recent_withdrawals", "list_pending_material_requests"}
-            fin_tools = {"get_invoice_summary", "get_outstanding_balances",
-                         "get_revenue_summary", "get_pl_summary"}
-            ins_tools = {"get_top_products", "get_department_activity", "forecast_stockout"}
+            domain_tool_sets = _get_domain_tool_sets()
             for t in tool_names:
-                if t in inv_tools:
-                    tool_domains.add("inventory")
-                elif t in ops_tools:
-                    tool_domains.add("ops")
-                elif t in fin_tools:
-                    tool_domains.add("finance")
-                elif t in ins_tools:
-                    tool_domains.add("insights")
+                for domain_name, tool_set in domain_tool_sets.items():
+                    if t in tool_set:
+                        tool_domains.add(domain_name)
             if question_domains and tool_domains and not (question_domains & tool_domains):
                 failures.append("domain_mismatch")
                 scores["domain_match"] = 0.0
             else:
                 scores["domain_match"] = 1.0
 
-    # ── Decide whether to re-run ──────────────────────────────────────────
-    should_rerun = False
-    rerun_hint = ""
-
-    if "no_tools_called" in failures:
-        should_rerun = True
-        rerun_hint = (
-            "Your initial response did not use any tools. This question requires "
-            "data from the database. Please use the appropriate tool(s) to fetch "
-            "real data before answering."
-        )
-    elif any(f.startswith("ungrounded_numbers") for f in failures):
-        should_rerun = True
-        rerun_hint = (
-            "Some numbers in your response could not be verified against tool results. "
-            "Please only use data returned by your tools — do not estimate or fabricate numbers."
-        )
-
     passed = len(failures) == 0
     return ValidationResult(
         passed=passed,
         failures=failures,
         scores=scores,
-        should_rerun=should_rerun,
-        rerun_hint=rerun_hint,
     )

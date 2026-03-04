@@ -1,30 +1,21 @@
 # Model catalog — pricing, capabilities, and tier assignments.
 #
-# Tiers define cost/quality bands. Agents reference a tier, not a specific model,
-# so swapping the model behind a tier is a single edit here.
+# Two tiers:
+#   cheap    — synthesis, report formatting (Llama/Gemini Flash)
+#   standard — agent work (Haiku default, Sonnet for deep)
 #
 # Pricing is per-million tokens (USD), sourced from OpenRouter / provider pricing pages.
 
 tiers:
   cheap:
-    description: "Minimal cost — routing, synthesis, trivial queries"
+    description: "Minimal cost — synthesis, report formatting"
     max_output_tokens: 1000
     default_model: meta-llama/llama-3.3-70b-instruct
 
-  fast:
-    description: "Low cost — simple single-domain queries"
-    max_output_tokens: 2000
-    default_model: anthropic/claude-haiku-4-5
-
   standard:
-    description: "Balanced — specialist agent work"
+    description: "Agent work — Haiku default, Sonnet for deep"
     max_output_tokens: 4000
-    default_model: anthropic/claude-sonnet-4-6
-
-  premium:
-    description: "High quality — deep analysis, extended thinking, coordination"
-    max_output_tokens: 8000
-    default_model: anthropic/claude-sonnet-4-6
+    default_model: anthropic/claude-haiku-4-5
 
 models:
   anthropic/claude-sonnet-4-6:
@@ -36,7 +27,7 @@ models:
     supports_vision: true
 
   anthropic/claude-haiku-4-5:
-    tier: fast
+    tier: standard
     input_price_per_m: 0.80
     output_price_per_m: 4.00
     max_context: 200000
@@ -44,7 +35,7 @@ models:
     supports_vision: true
 
   anthropic/claude-opus-4-6:
-    tier: premium
+    tier: standard
     input_price_per_m: 15.00
     output_price_per_m: 75.00
     max_context: 200000

@@ -1,5 +1,4 @@
 """Chat assistant route."""
-import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -7,10 +6,8 @@ from fastapi import APIRouter, Depends
 from identity.application.auth_service import get_current_user
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL, SESSION_COST_CAP
 from assistant.api.schemas import ChatRequest
-from assistant.application.assistant import chat
+from assistant.application.assistant import chat, recall_memory, schedule_memory_extraction
 from assistant.application import session_store
-from assistant.agents.memory_store import recall
-from assistant.agents.memory_extract import extract_and_save
 
 router = APIRouter(tags=["chat"])
 
@@ -30,12 +27,12 @@ async def clear_session(session_id: str, current_user: dict = Depends(get_curren
     """Clear a chat session's history. Triggers background memory extraction first."""
     history = session_store.get_or_create(session_id)
     if len(history) >= 4:
-        asyncio.create_task(extract_and_save(
+        schedule_memory_extraction(
             org_id=current_user.get("organization_id", "default"),
             user_id=current_user.get("id", ""),
             session_id=session_id,
             history=history,
-        ))
+        )
     session_store.clear(session_id)
 
 
@@ -44,7 +41,7 @@ async def chat_assistant(
     data: ChatRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Chat with AI assistant. Routes to specialist agents: inventory, ops, finance, insights."""
+    """Chat with AI assistant. Routes to specialist agents: inventory, ops, finance."""
     session_id = data.session_id or str(uuid.uuid4())
     org_id = current_user.get("organization_id", "default")
     user_id = current_user.get("id", "")
@@ -65,7 +62,7 @@ async def chat_assistant(
 
     # Inject memory context at the start of fresh sessions only
     if not history:
-        memory_ctx = await recall(org_id=org_id, user_id=user_id)
+        memory_ctx = await recall_memory(org_id=org_id, user_id=user_id)
         if memory_ctx:
             history = [
                 {"role": "user", "content": memory_ctx},
@@ -86,18 +83,27 @@ async def chat_assistant(
         session_id=session_id,
     )
 
-    new_history = result.pop("history", [])
+    agent_history = result.pop("history", [])
     turn_cost = result.get("usage", {}).get("cost_usd", 0.0)
+
+    # Specialist agents return full updated history; shortcut paths (trivial,
+    # lookup, DAG) return [] because they don't manage conversation state.
+    # In that case, preserve the existing session and append the new turn.
+    if agent_history:
+        new_history = agent_history
+    else:
+        new_history = list(history or [])
+        new_history.append({"role": "user", "content": (data.message or "").strip()})
+        new_history.append({"role": "assistant", "content": result.get("response", "")})
+
     session_store.update(session_id, new_history, cost_usd=turn_cost)
 
     # Background memory extraction every 4 turns (8 messages = 4 user+assistant pairs)
-    if new_history and len(new_history) % 8 == 0:
-        asyncio.create_task(extract_and_save(
-            org_id=org_id,
-            user_id=user_id,
-            session_id=session_id,
-            history=new_history,
-        ))
+    if len(new_history) % 8 == 0:
+        schedule_memory_extraction(
+            org_id=org_id, user_id=user_id,
+            session_id=session_id, history=new_history,
+        )
 
     result["session_id"] = session_id
     result["usage"] = {**result.get("usage", {}), "session_cost_usd": session_store.get_cost(session_id)}

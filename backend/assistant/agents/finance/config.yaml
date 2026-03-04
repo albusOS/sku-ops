@@ -1,6 +1,5 @@
 id: finance
 description: "Revenue, invoices, payments, P&L, outstanding balances, margins"
-tier: standard
 
 domains:
   - finance
@@ -11,8 +10,6 @@ domains:
   - margins
   - profit
 
-can_delegate_to: []
-
 tools:
   - get_invoice_summary
   - get_outstanding_balances
@@ -20,7 +17,6 @@ tools:
   - get_pl_summary
   - get_top_products
 
-thinking_budget: 0
 max_output_tokens: 4000
 temperature: 0.0
 
@@ -28,16 +24,3 @@ retry:
   max_retries: 3
   timeout_seconds: 45
   backoff_base: 1.0
-
-canonical_queries:
-  - "what's our revenue this week"
-  - "who owes us money"
-  - "outstanding balances"
-  - "invoice summary"
-  - "profit and loss report"
-  - "gross margin this month"
-  - "weekly sales report"
-  - "how much have we collected"
-  - "unpaid accounts"
-  - "send invoice to customer"
-  - "payment status breakdown"

@@ -3,15 +3,12 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
-from assistant.agents.contracts import load_agent_config
-from assistant.agents.deps import AgentDeps
-from assistant.agents.model_registry import get_model
-from assistant.agents.agent_utils import (
-    build_model_settings,
-    build_message_history,
-    run_agent_with_reflection,
-)
-from assistant.agents.tokens import budget_tool_result
+from assistant.agents.core.config import load_agent_config
+from assistant.agents.core.deps import AgentDeps
+from assistant.agents.core.model_registry import get_model
+from assistant.agents.core.runner import build_model_settings, run_specialist
+from assistant.agents.core.messages import build_message_history
+from assistant.agents.core.tokens import budget_tool_result
 from .tools import (
     _get_contractor_history,
     _get_job_materials,
@@ -95,7 +92,7 @@ async def list_pending_material_requests(ctx: RunContext[AgentDeps], limit: int 
 async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:
     model_settings = build_model_settings(_config, mode)
 
-    return await run_agent_with_reflection(
+    return await run_specialist(
         _agent, user_message,
         msg_history=build_message_history(history), deps=deps,
         model_settings=model_settings,

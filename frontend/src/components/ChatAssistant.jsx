@@ -9,24 +9,23 @@ import { API } from "@/lib/api";
 const STORAGE_KEY = "sku-ops:chat:v3";
 
 const AGENT_META = {
-  general:   { label: "Dashboard",  cls: "bg-amber-50 text-amber-700 border border-amber-200" },
   inventory: { label: "Inventory",  cls: "bg-blue-50 text-blue-700 border border-blue-200" },
   ops:       { label: "Operations", cls: "bg-orange-50 text-orange-700 border border-orange-200" },
   finance:   { label: "Finance",    cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  insights:  { label: "Insights",   cls: "bg-purple-50 text-purple-700 border border-purple-200" },
+  system:    { label: "Assistant",  cls: "bg-amber-50 text-amber-700 border border-amber-200" },
+  lookup:    { label: "Quick Look", cls: "bg-slate-50 text-slate-700 border border-slate-200" },
+  dag:       { label: "Report",     cls: "bg-purple-50 text-purple-700 border border-purple-200" },
 };
 
 function agentTypeFromPath(pathname) {
-  if (pathname === "/" || pathname.startsWith("/dashboard")) return "general";
   if (["/inventory", "/vendors", "/departments", "/import", "/purchase-orders"].some((p) => pathname.startsWith(p))) return "inventory";
   if (["/pos", "/pending-requests", "/contractors"].some((p) => pathname.startsWith(p))) return "ops";
   if (["/financials", "/invoices"].some((p) => pathname.startsWith(p))) return "finance";
-  if (pathname.startsWith("/reports")) return "insights";
-  return "general";
+  return "auto";
 }
 
 const AGENT_SUGGESTIONS = {
-  general: [
+  auto: [
     { label: "Store overview", prompt: "Give me a full store overview: inventory health, this week's revenue, outstanding balances, and stockout risks" },
     { label: "Weekly summary", prompt: "Write a weekly summary covering sales, top products, outstanding payments, and any low stock alerts" },
     { label: "What needs attention?", prompt: "What needs my attention today? Any critical stock, pending requests, or outstanding invoices?" },
@@ -50,20 +49,13 @@ const AGENT_SUGGESTIONS = {
     { label: "This month's P&L", prompt: "Show me the profit and loss for the last 30 days including gross margin" },
     { label: "Weekly sales report", prompt: "Write a weekly sales report covering revenue, top-selling products, and outstanding balances" },
   ],
-  insights: [
-    { label: "Top products", prompt: "What are the top 10 products by revenue over the last 30 days?" },
-    { label: "Stockout forecast", prompt: "Which items are at risk of stocking out in the next 2 weeks based on usage velocity?" },
-    { label: "Department trends", prompt: "Which departments are most active and which are underperforming?" },
-    { label: "Usage velocity", prompt: "What are the fastest-moving products right now?" },
-  ],
 };
 
 const AGENT_PLACEHOLDER = {
-  general:   "Ask about inventory, finance, operations, or trends…",
+  auto:      "Ask about inventory, finance, operations, or trends…",
   inventory: "Ask about products, stock levels, reorders…",
   ops:       "Ask about withdrawals, contractors, material requests…",
   finance:   "Ask about invoices, revenue, P&L, balances…",
-  insights:  "Ask about trends, top products, stockout risks…",
 };
 
 const mdComponents = {
@@ -154,7 +146,7 @@ function AgentBubble({ msg, thinkingOpen, onToggleThinking }) {
 export default function ChatAssistant() {
   const location = useLocation();
   const agentType = agentTypeFromPath(location.pathname);
-  const agentMeta = AGENT_META[agentType];
+  const agentMeta = AGENT_META[agentType] || { label: "Assistant", cls: "bg-amber-50 text-amber-700 border border-amber-200" };
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
@@ -260,7 +252,7 @@ export default function ChatAssistant() {
     });
   };
 
-  const suggestions = AGENT_SUGGESTIONS[agentType] || AGENT_SUGGESTIONS.general;
+  const suggestions = AGENT_SUGGESTIONS[agentType] || AGENT_SUGGESTIONS.auto;
 
   return (
     <>

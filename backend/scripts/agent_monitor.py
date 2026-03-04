@@ -54,12 +54,9 @@ def _format_tokens(inp: int, out: int) -> str:
 
 def _agent_color(name: str) -> str:
     colors = {
-        "GeneralAgent": "cyan",
         "InventoryAgent": "green",
         "OpsAgent": "yellow",
         "FinanceAgent": "magenta",
-        "InsightsAgent": "blue",
-        "CoordinatorAgent": "red",
     }
     base = name.split(":")[0]
     return colors.get(base, "white")
@@ -190,22 +187,25 @@ async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
 
 
 async def _run(interval: int, minutes: int, limit: int, once: bool):
-    from shared.infrastructure.database import init_db
+    from shared.infrastructure.database import init_db, close_db
     await init_db()
 
-    if once:
-        stats, runs = await _fetch_data(minutes, limit)
-        console.print(_build_display(stats, runs))
-        return
+    try:
+        if once:
+            stats, runs = await _fetch_data(minutes, limit)
+            console.print(_build_display(stats, runs))
+            return
 
-    with Live(console=console, refresh_per_second=1, screen=True) as live:
-        while True:
-            try:
-                stats, runs = await _fetch_data(minutes, limit)
-                live.update(_build_display(stats, runs))
-            except Exception as e:
-                live.update(Panel(f"Error fetching data: {e}", style="red"))
-            await asyncio.sleep(interval)
+        with Live(console=console, refresh_per_second=1, screen=True) as live:
+            while True:
+                try:
+                    stats, runs = await _fetch_data(minutes, limit)
+                    live.update(_build_display(stats, runs))
+                except Exception as e:
+                    live.update(Panel(f"Error fetching data: {e}", style="red"))
+                await asyncio.sleep(interval)
+    finally:
+        await close_db()
 
 
 def main():

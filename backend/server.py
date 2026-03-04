@@ -37,6 +37,9 @@ async def lifespan(app: FastAPI):
     from assistant.infrastructure.llm import init_llm
     init_llm()
     logger.info("LLM provider initialized")
+    from assistant.agents.tools.registry import init_tools
+    init_tools()
+    logger.info("Tool registry initialized")
     from finance.infrastructure.invoice_repo import set_withdrawal_getter
     from operations.application.queries import get_withdrawal_by_id
     set_withdrawal_getter(get_withdrawal_by_id)
@@ -47,7 +50,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Seed {seed_fn.__name__}: {e}")
     try:
-        from assistant.agents.search import get_index
+        from assistant.agents.tools.search import get_index
         await get_index("default")
     except Exception as e:
         logger.warning(f"BM25 index warm-up skipped: {e}")

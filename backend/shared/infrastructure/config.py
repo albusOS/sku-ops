@@ -160,11 +160,6 @@ def _load_agent_model() -> str:
 AGENT_PRIMARY_MODEL: str = _load_agent_model()
 LLM_SETUP_URL = "https://console.anthropic.com/"
 LLM_AVAILABLE = ANTHROPIC_AVAILABLE  # alias used by enrichment/uom services
-# Extended thinking for chat agents. 0 = off (uses Haiku). >0 = budget in tokens (switches to Sonnet).
-# Reasonable range: 5000–16000. Set in .env as AGENT_THINKING_BUDGET=8000.
-AGENT_THINKING_BUDGET = int(os.environ.get("AGENT_THINKING_BUDGET", "0"))
-# Default thinking budget when mode=deep and AGENT_THINKING_BUDGET not set
-DEFAULT_DEEP_THINKING_BUDGET = 8000
 # Per-session AI spend cap in USD. 0 = unlimited. Set SESSION_COST_CAP=2.00 in .env.
 SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
 
