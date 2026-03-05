@@ -47,7 +47,9 @@ TABLES: list[str] = [
         amount REAL NOT NULL,
         cost REAL NOT NULL DEFAULT 0,
         product_id TEXT,
-        job_id TEXT
+        job_id TEXT,
+        unit TEXT NOT NULL DEFAULT 'each',
+        sell_cost REAL NOT NULL DEFAULT 0
     )""",
 
     """CREATE TABLE IF NOT EXISTS invoice_counters (
@@ -82,7 +84,9 @@ TABLES: list[str] = [
         unit_price REAL NOT NULL,
         amount REAL NOT NULL,
         cost REAL NOT NULL DEFAULT 0,
-        product_id TEXT
+        product_id TEXT,
+        unit TEXT NOT NULL DEFAULT 'each',
+        sell_cost REAL NOT NULL DEFAULT 0
     )""",
 
     """CREATE TABLE IF NOT EXISTS payments (
@@ -112,6 +116,9 @@ TABLES: list[str] = [
         journal_id TEXT,
         account TEXT NOT NULL,
         amount REAL NOT NULL,
+        quantity REAL,
+        unit TEXT,
+        unit_cost REAL,
         department TEXT,
         job_id TEXT,
         billing_entity TEXT,

@@ -88,6 +88,36 @@ def are_compatible(unit_a: str, unit_b: str) -> bool:
     return fa is not None and fa == fb
 
 
+def cost_per_sell_unit(
+    cost_per_base: float,
+    base_unit: str,
+    sell_uom: str,
+    pack_qty: int = 1,
+) -> float:
+    """Return the cost expressed per sell-unit (pack_qty × sell_uom).
+
+    All costs are stored at the base_unit level.  A sell-unit may differ
+    both in the physical unit (e.g. base=inch, sell=foot) and in pack size
+    (pack_qty=12 means one sell-unit = 12 feet).
+
+    Examples:
+        cost_per_sell_unit(1.00, "foot", "foot", 1)  → 1.00
+        cost_per_sell_unit(1.00, "inch", "foot", 1)  → 12.00   (1 foot = 12 inches)
+        cost_per_sell_unit(1.00, "each", "each", 12) → 12.00   (1 case of 12)
+    """
+    pack_qty = max(pack_qty, 1)
+    base_unit = (base_unit or "each").lower()
+    sell_uom = (sell_uom or "each").lower()
+    if base_unit == sell_uom and pack_qty == 1:
+        return cost_per_base
+    base_per_sell = (
+        convert_quantity(1, sell_uom, base_unit)
+        if are_compatible(base_unit, sell_uom)
+        else 1.0
+    )
+    return round(cost_per_base * base_per_sell * pack_qty, 6)
+
+
 def compute_sell_fields(
     price: float,
     cost: float,

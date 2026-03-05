@@ -75,7 +75,9 @@ TABLES: list[str] = [
         cost REAL NOT NULL DEFAULT 0,
         unit TEXT NOT NULL DEFAULT 'each',
         amount REAL NOT NULL DEFAULT 0,
-        cost_total REAL NOT NULL DEFAULT 0
+        cost_total REAL NOT NULL DEFAULT 0,
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        sell_cost REAL NOT NULL DEFAULT 0
     )""",
 
     """CREATE TABLE IF NOT EXISTS return_items (
@@ -89,7 +91,9 @@ TABLES: list[str] = [
         cost REAL NOT NULL DEFAULT 0,
         unit TEXT NOT NULL DEFAULT 'each',
         amount REAL NOT NULL DEFAULT 0,
-        cost_total REAL NOT NULL DEFAULT 0
+        cost_total REAL NOT NULL DEFAULT 0,
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        sell_cost REAL NOT NULL DEFAULT 0
     )""",
 ]
 

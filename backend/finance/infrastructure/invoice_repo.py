@@ -32,14 +32,9 @@ def _invoice_row_to_dict(row) -> dict:
 
 def _line_item_row_to_dict(row) -> dict:
     d = dict(row)
-    if "quantity" in d:
-        d["quantity"] = float(d["quantity"])
-    if "unit_price" in d:
-        d["unit_price"] = float(d["unit_price"])
-    if "amount" in d:
-        d["amount"] = float(d["amount"])
-    if "cost" in d:
-        d["cost"] = float(d["cost"])
+    for col in ("quantity", "unit_price", "amount", "cost", "sell_cost"):
+        if col in d and d[col] is not None:
+            d[col] = float(d[col])
     return d
 
 
@@ -221,9 +216,11 @@ async def update(
         for item in line_items:
             amt = round(float(item.get("quantity", 1)) * float(item.get("unit_price", 0)), 2)
             item_id = item.get("id") or str(uuid4())
+            cost_val = float(item.get("cost", 0))
             await conn.execute(
-                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO invoice_line_items
+                   (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id, unit, sell_cost)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     item_id,
                     invoice_id,
@@ -231,9 +228,11 @@ async def update(
                     float(item.get("quantity", 1)),
                     float(item.get("unit_price", 0)),
                     amt,
-                    float(item.get("cost", 0)),
+                    cost_val,
                     item.get("product_id"),
                     item.get("job_id"),
+                    item.get("unit") or "each",
+                    float(item.get("sell_cost") or cost_val),
                 ),
             )
             subtotal += amt
@@ -364,9 +363,11 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
             price = item.get("unit_price") or item.get("price") or 0
             amt = round(qty * float(price), 2)
             total_subtotal += amt
+            cost_val = float(item.get("cost", 0))
             await conn.execute(
-                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO invoice_line_items
+                   (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id, unit, sell_cost)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid4()),
                     invoice_id,
@@ -374,9 +375,11 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
                     qty,
                     float(price),
                     amt,
-                    float(item.get("cost", 0)),
+                    cost_val,
                     item.get("product_id"),
                     w.get("job_id"),
+                    item.get("unit") or "each",
+                    float(item.get("sell_cost") or cost_val),
                 ),
             )
         total_tax += w.get("tax", 0)
@@ -457,9 +460,11 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
             price = item.get("unit_price") or item.get("price") or 0
             amt = round(qty * float(price), 2)
             total_subtotal += amt
+            cost_val = float(item.get("cost", 0))
             await conn.execute(
-                """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO invoice_line_items
+                   (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id, unit, sell_cost)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid4()),
                     inv_id,
@@ -467,9 +472,11 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
                     qty,
                     float(price),
                     amt,
-                    float(item.get("cost", 0)),
+                    cost_val,
                     item.get("product_id"),
                     w.get("job_id"),
+                    item.get("unit") or "each",
+                    float(item.get("sell_cost") or cost_val),
                 ),
             )
         total_tax += w.get("tax", 0)

@@ -37,6 +37,8 @@ class LineItem(BaseModel):
     )
     cost: float = 0.0
     unit: str = "each"
+    sell_uom: str = "each"
+    sell_cost: float = 0.0
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -4,7 +4,7 @@ from typing import Callable, Awaitable, Optional
 from kernel.types import CurrentUser
 from shared.infrastructure.database import transaction
 from inventory.domain.stock import StockDecrement
-from catalog.domain.units import are_compatible, convert_quantity
+from catalog.domain.units import are_compatible, convert_quantity, cost_per_sell_unit
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from operations.infrastructure.withdrawal_repo import withdrawal_repo as _default_withdrawal_repo
 from operations.ports.withdrawal_repo_port import WithdrawalRepoPort
@@ -60,6 +60,8 @@ async def create_withdrawal(
         p = product_map.get(item.product_id, {})
         base_unit = (p.get("base_unit") or "each").lower()
         req_unit = (item.unit or base_unit).lower()
+        sell_uom = (p.get("sell_uom") or base_unit).lower()
+        pack_qty = int(p.get("pack_qty") or 1)
 
         updates: dict = {}
         if item.cost == 0.0 and p.get("cost", 0):
@@ -72,8 +74,13 @@ async def create_withdrawal(
         elif item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
             updates["unit_price"] = _convert_price_per_unit(p.get("price", item.unit_price), base_unit, req_unit)
 
-        if updates:
-            item = item.model_copy(update=updates)
+        # Sell-unit normalized cost: always derived from the canonical base_unit cost
+        updates["sell_uom"] = sell_uom
+        updates["sell_cost"] = cost_per_sell_unit(
+            float(p.get("cost") or 0), base_unit, sell_uom, pack_qty
+        )
+
+        item = item.model_copy(update=updates)
         enriched_items.append(item)
     data = data.model_copy(update={"items": enriched_items})
 
@@ -121,9 +128,16 @@ async def create_withdrawal(
         await withdrawal_repo.insert(withdrawal, conn=tx_conn)
 
         ledger_items = [
-            {"product_id": i.product_id, "quantity": i.quantity,
-             "unit_price": i.unit_price, "cost": i.cost,
-             "department_name": dept_map.get(i.product_id)}
+            {
+                "product_id": i.product_id,
+                "quantity": i.quantity,
+                "unit": i.unit or "each",
+                "unit_price": i.unit_price,
+                "cost": i.cost,
+                "sell_uom": i.sell_uom,
+                "sell_cost": i.sell_cost,
+                "department_name": dept_map.get(i.product_id),
+            }
             for i in data.items
         ]
         await _record_ledger(

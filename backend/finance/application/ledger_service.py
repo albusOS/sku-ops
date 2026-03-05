@@ -27,20 +27,26 @@ async def _check_fiscal_period(organization_id: str) -> None:
 
 
 def _extract_item(item) -> tuple:
-    """Normalize a line item (dict or pydantic model) into (qty, unit_price, cost, dept, product_id)."""
+    """Normalize a line item into (qty, unit, unit_price, cost, sell_cost, sell_uom, dept, product_id)."""
     if isinstance(item, dict):
         qty = item.get("quantity", 0)
+        unit = item.get("unit") or "each"
         unit_price = item.get("unit_price") or item.get("price", 0)
         cost = item.get("cost", 0)
+        sell_cost = item.get("sell_cost") or cost
+        sell_uom = item.get("sell_uom") or unit
         dept = item.get("department_name")
         pid = item.get("product_id")
     else:
         qty = item.quantity
+        unit = getattr(item, "unit", "each") or "each"
         unit_price = item.unit_price
         cost = item.cost
+        sell_cost = getattr(item, "sell_cost", None) or cost
+        sell_uom = getattr(item, "sell_uom", None) or unit
         dept = getattr(item, "department_name", None)
         pid = item.product_id
-    return qty, unit_price, cost, dept, pid
+    return qty, unit, unit_price, cost, sell_cost, sell_uom, dept, pid
 
 
 async def _record_sale_event(
@@ -76,20 +82,23 @@ async def _record_sale_event(
     entries: List[FinancialEntry] = []
 
     for item in items:
-        qty, unit_price, cost, dept, pid = _extract_item(item)
+        qty, unit, unit_price, cost, sell_cost, sell_uom, dept, pid = _extract_item(item)
         entries.append(FinancialEntry(
             account=Account.REVENUE,
             amount=round_money(sign * unit_price * qty),
+            quantity=qty, unit=unit, unit_cost=unit_price,
             department=dept, product_id=pid, **common,
         ))
         entries.append(FinancialEntry(
             account=Account.COGS,
-            amount=round_money(sign * cost * qty),
+            amount=round_money(sign * sell_cost * qty),
+            quantity=qty, unit=sell_uom, unit_cost=sell_cost,
             department=dept, product_id=pid, **common,
         ))
         entries.append(FinancialEntry(
             account=Account.INVENTORY,
-            amount=round_money(-sign * cost * qty),
+            amount=round_money(-sign * sell_cost * qty),
+            quantity=qty, unit=sell_uom, unit_cost=sell_cost,
             department=dept, product_id=pid, **common,
         ))
 
@@ -177,10 +186,12 @@ async def record_po_receipt(
         if amount == 0:
             continue
 
+        base_unit = item.get("base_unit") or "each"
         dept = item.get("department") or item.get("suggested_department")
         pid = item.get("product_id")
         entries.append(FinancialEntry(
             account=Account.INVENTORY, amount=amount,
+            quantity=delivered, unit=base_unit, unit_cost=cost,
             journal_id=journal_id,
             department=dept, vendor_name=vendor_name, product_id=pid,
             performed_by_user_id=performed_by_user_id,
@@ -188,6 +199,7 @@ async def record_po_receipt(
         ))
         entries.append(FinancialEntry(
             account=Account.ACCOUNTS_PAYABLE, amount=amount,
+            quantity=delivered, unit=base_unit, unit_cost=cost,
             journal_id=journal_id,
             department=dept, vendor_name=vendor_name, product_id=pid,
             performed_by_user_id=performed_by_user_id,

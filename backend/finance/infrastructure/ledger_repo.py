@@ -26,12 +26,14 @@ async def insert_entries(entries: List[FinancialEntry], conn=None) -> None:
     for e in entries:
         await c.execute(
             """INSERT INTO financial_ledger
-               (id, journal_id, account, amount, department, job_id, billing_entity,
+               (id, journal_id, account, amount, quantity, unit, unit_cost,
+                department, job_id, billing_entity,
                 contractor_id, vendor_name, product_id, performed_by_user_id,
                 reference_type, reference_id, organization_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 e.id, e.journal_id, e.account.value, round_money(e.amount),
+                e.quantity, e.unit, e.unit_cost,
                 e.department, e.job_id, e.billing_entity,
                 e.contractor_id, e.vendor_name, e.product_id,
                 e.performed_by_user_id,

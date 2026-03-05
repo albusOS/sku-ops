@@ -149,32 +149,77 @@ class XeroAdapter:
             xero_journal_id=journal_id,
         )
 
-    async def _post_cogs_journal(
-        self, invoice: dict, settings: OrgSettings, xero_invoice_id: Optional[str],
+    def _build_cogs_journal_lines(
+        self,
+        invoice: dict,
+        settings: OrgSettings,
+        xero_invoice_id: Optional[str],
         first_job_id: Optional[str] = None,
-        client: Optional[httpx.AsyncClient] = None,
-    ) -> Optional[str]:
+    ) -> tuple[list, float]:
+        """Return (journal_lines, cost_total) for a per-line itemized COGS journal.
+
+        Each invoice line item gets its own COGS debit and inventory credit pair,
+        using sell_cost when available (sell-unit normalized) and falling back to cost.
+        All lines share the same tracking category if configured.
+        """
         line_items = invoice.get("line_items", [])
-        cost_total = sum(
-            float(li.get("cost", 0)) * float(li.get("quantity", 1))
-            for li in line_items
-        )
-        if cost_total <= 0:
-            return None
+        invoice_number = invoice.get("invoice_number", "")
 
         tracking: list = []
         if settings.xero_tracking_category_id and first_job_id:
             tracking = [{"TrackingCategoryID": settings.xero_tracking_category_id, "Name": first_job_id}]
 
+        journal_lines: list = []
+        cost_total = 0.0
+        for li in line_items:
+            qty = float(li.get("quantity", 1))
+            # Prefer sell_cost (sell-unit normalized); fall back to legacy cost field
+            unit_cost = float(li.get("sell_cost") or li.get("cost") or 0)
+            line_cost = round(unit_cost * qty, 2)
+            if line_cost <= 0:
+                continue
+            cost_total += line_cost
+
+            description = li.get("description") or li.get("name") or ""
+            unit = li.get("unit") or li.get("sell_uom") or "each"
+            line_narration = (
+                f"{description} — {qty} {unit} @ {unit_cost:.4f} "
+                f"[INV {invoice_number}]"
+            ).strip(" —")
+
+            cogs_line: dict = {
+                "AccountCode": settings.xero_cogs_account_code,
+                "Description": line_narration,
+                "LineAmount": line_cost,
+            }
+            inv_line: dict = {
+                "AccountCode": settings.xero_inventory_account_code,
+                "Description": line_narration,
+                "LineAmount": -line_cost,
+            }
+            if tracking:
+                cogs_line["Tracking"] = tracking
+                inv_line["Tracking"] = tracking
+            journal_lines.append(cogs_line)
+            journal_lines.append(inv_line)
+
+        return journal_lines, round(cost_total, 2)
+
+    async def _post_cogs_journal(
+        self, invoice: dict, settings: OrgSettings, xero_invoice_id: Optional[str],
+        first_job_id: Optional[str] = None,
+        client: Optional[httpx.AsyncClient] = None,
+    ) -> Optional[str]:
+        journal_lines, cost_total = self._build_cogs_journal_lines(
+            invoice, settings, xero_invoice_id, first_job_id
+        )
+        if cost_total <= 0:
+            return None
+
         narration = f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
-        cogs_line: dict = {"AccountCode": settings.xero_cogs_account_code, "Description": narration, "LineAmount": cost_total}
-        inv_line: dict = {"AccountCode": settings.xero_inventory_account_code, "Description": narration, "LineAmount": -cost_total}
-        if tracking:
-            cogs_line["Tracking"] = tracking
-            inv_line["Tracking"] = tracking
         journal = {
             "Narration": narration,
-            "JournalLines": [cogs_line, inv_line],
+            "JournalLines": journal_lines,
         }
         if client is not None:
             resp = await client.put(

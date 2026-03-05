@@ -36,6 +36,9 @@ class FinancialEntry(Entity):
     journal_id: Optional[str] = None
     account: Account
     amount: float
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    unit_cost: Optional[float] = None
     department: Optional[str] = None
     job_id: Optional[str] = None
     billing_entity: Optional[str] = None
