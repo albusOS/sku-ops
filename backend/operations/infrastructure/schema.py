@@ -9,6 +9,7 @@ TABLES: list[str] = [
         notes TEXT,
         subtotal REAL NOT NULL,
         tax REAL NOT NULL,
+        tax_rate REAL NOT NULL DEFAULT 0.0,
         total REAL NOT NULL,
         cost_total REAL NOT NULL,
         contractor_id TEXT NOT NULL,
@@ -61,6 +62,33 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS withdrawal_items (
+        id TEXT PRIMARY KEY,
+        withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
+        product_id TEXT NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL DEFAULT 0,
+        cost REAL NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each',
+        amount REAL NOT NULL DEFAULT 0,
+        cost_total REAL NOT NULL DEFAULT 0
+    )""",
+
+    """CREATE TABLE IF NOT EXISTS return_items (
+        id TEXT PRIMARY KEY,
+        return_id TEXT NOT NULL REFERENCES returns(id),
+        product_id TEXT NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL DEFAULT 0,
+        cost REAL NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each',
+        amount REAL NOT NULL DEFAULT 0,
+        cost_total REAL NOT NULL DEFAULT 0
+    )""",
 ]
 
 INDEXES: list[str] = [
@@ -76,4 +104,8 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_returns_contractor ON returns(contractor_id)",
     "CREATE INDEX IF NOT EXISTS idx_returns_org ON returns(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_withdrawal_items_wid ON withdrawal_items(withdrawal_id)",
+    "CREATE INDEX IF NOT EXISTS idx_withdrawal_items_product ON withdrawal_items(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_return_items_rid ON return_items(return_id)",
+    "CREATE INDEX IF NOT EXISTS idx_return_items_product ON return_items(product_id)",
 ]

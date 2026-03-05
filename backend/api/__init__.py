@@ -4,6 +4,7 @@ API package - aggregates all routers for the main app.
 from fastapi import APIRouter
 
 from identity.api.auth import router as auth_router
+from identity.api.audit import router as audit_router
 from assistant.api.chat import router as chat_router
 from reports.api.health import router as health_router
 from operations.api.contractors import router as contractors_router
@@ -30,6 +31,7 @@ from assistant.api.monitoring import router as monitoring_router
 api_router = APIRouter(prefix="/api")
 
 api_router.include_router(auth_router)
+api_router.include_router(audit_router)
 api_router.include_router(health_router)
 api_router.include_router(sku_router)
 api_router.include_router(chat_router)

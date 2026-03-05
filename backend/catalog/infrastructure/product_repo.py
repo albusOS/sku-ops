@@ -1,4 +1,5 @@
 """Product repository."""
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 from catalog.domain.product import Product
@@ -33,7 +34,7 @@ async def list_products(
 ) -> list:
     conn = get_connection()
     org_id = organization_id or "default"
-    base = "SELECT * FROM products WHERE (organization_id = ? OR organization_id IS NULL)"
+    base = "SELECT * FROM products WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL"
     params: list = [org_id]
     if department_id:
         base += " AND department_id = ?"
@@ -61,7 +62,7 @@ async def count_products(
 ) -> int:
     conn = get_connection()
     org_id = organization_id or "default"
-    query = "SELECT COUNT(*) FROM products WHERE (organization_id = ? OR organization_id IS NULL)"
+    query = "SELECT COUNT(*) FROM products WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL"
     params: list = [org_id]
     if department_id:
         query += " AND department_id = ?"
@@ -93,12 +94,12 @@ async def get_by_id(product_id: str, columns: Optional[str] = "*", organization_
     sel = _sanitize_columns(columns or "*")
     if organization_id:
         cursor = await conn.execute(
-            f"SELECT {sel} FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)",
+            f"SELECT {sel} FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
             (product_id, organization_id),
         )
     else:
         cursor = await conn.execute(
-            f"SELECT {sel} FROM products WHERE id = ?",
+            f"SELECT {sel} FROM products WHERE id = ? AND deleted_at IS NULL",
             (product_id,),
         )
     row = await cursor.fetchone()
@@ -127,12 +128,12 @@ async def find_by_barcode(barcode: str, exclude_product_id: Optional[str] = None
     org_id = organization_id or "default"
     if exclude_product_id:
         cursor = await c.execute(
-            "SELECT * FROM products WHERE (barcode = ? OR sku = ? OR vendor_barcode = ?) AND id != ? AND (organization_id = ? OR organization_id IS NULL)",
+            "SELECT * FROM products WHERE (barcode = ? OR sku = ? OR vendor_barcode = ?) AND id != ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
             (b, b, b, exclude_product_id, org_id),
         )
     else:
         cursor = await c.execute(
-            "SELECT * FROM products WHERE (barcode = ? OR sku = ? OR vendor_barcode = ?) AND (organization_id = ? OR organization_id IS NULL)",
+            "SELECT * FROM products WHERE (barcode = ? OR sku = ? OR vendor_barcode = ?) AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
             (b, b, b, org_id),
         )
     row = await cursor.fetchone()
@@ -151,7 +152,7 @@ async def find_by_original_sku_and_vendor(
     cursor = await conn.execute(
         """SELECT * FROM products
            WHERE vendor_id = ? AND TRIM(LOWER(COALESCE(original_sku, ''))) = ?
-           AND (organization_id = ? OR organization_id IS NULL)""",
+           AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (vendor_id, norm, org_id),
     )
     row = await cursor.fetchone()
@@ -171,7 +172,7 @@ async def find_by_name_and_vendor(
     cursor = await conn.execute(
         """SELECT * FROM products
            WHERE vendor_id = ? AND TRIM(LOWER(name)) = ?
-           AND (organization_id = ? OR organization_id IS NULL)""",
+           AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (vendor_id, norm, org_id),
     )
     row = await cursor.fetchone()
@@ -246,7 +247,11 @@ async def update(product_id: str, updates: dict, conn=None) -> Optional[dict]:
 async def delete(product_id: str, conn=None) -> int:
     in_transaction = conn is not None
     conn = conn or get_connection()
-    cursor = await conn.execute("DELETE FROM products WHERE id = ?", (product_id,))
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await conn.execute(
+        "UPDATE products SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
+        (now, product_id),
+    )
     if not in_transaction:
         await conn.commit()
     return cursor.rowcount
@@ -314,7 +319,7 @@ async def count_all(organization_id: Optional[str] = None) -> int:
     conn = get_connection()
     org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM products WHERE organization_id = ? OR organization_id IS NULL",
+        "SELECT COUNT(*) FROM products WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
         (org_id,),
     )
     row = await cursor.fetchone()
@@ -325,7 +330,7 @@ async def count_low_stock(organization_id: Optional[str] = None) -> int:
     conn = get_connection()
     org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL)",
+        "SELECT COUNT(*) FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
         (org_id,),
     )
     row = await cursor.fetchone()
@@ -336,7 +341,7 @@ async def list_low_stock(limit: int = 10, organization_id: Optional[str] = None)
     conn = get_connection()
     org_id = organization_id or "default"
     cursor = await conn.execute(
-        "SELECT * FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL) ORDER BY quantity LIMIT ?",
+        "SELECT * FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY quantity LIMIT ?",
         (org_id, limit),
     )
     rows = await cursor.fetchall()

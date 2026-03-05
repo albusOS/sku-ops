@@ -2,11 +2,12 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from kernel.errors import ResourceNotFoundError
 from kernel.types import CurrentUser
 from identity.application.auth_service import require_role
+from shared.infrastructure.middleware.audit import audit_log
 from purchasing.domain.purchase_order import (
     CreatePORequest,
     MarkDeliveryRequest,
@@ -67,10 +68,11 @@ router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 @router.post("")
 async def create_po(
     data: CreatePORequest,
+    request: Request,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Save reviewed receipt items as a pending purchase order (no inventory update)."""
-    return await create_purchase_order(
+    result = await create_purchase_order(
         vendor_name=data.vendor_name,
         products=data.products,
         deps=_build_deps(),
@@ -80,6 +82,13 @@ async def create_po(
         department_id=data.department_id,
         create_vendor_if_missing=data.create_vendor_if_missing,
     )
+    await audit_log(
+        user_id=current_user.id, action="po.create",
+        resource_type="purchase_order", resource_id=result.get("id"),
+        details={"vendor": data.vendor_name, "item_count": len(data.products)},
+        request=request, org_id=current_user.organization_id,
+    )
+    return result
 
 
 @router.get("")
@@ -131,6 +140,7 @@ async def mark_delivery(
 async def receive_items(
     po_id: str,
     data: ReceiveItemsRequest,
+    request: Request,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Mark selected items as arrived and update inventory stock."""
@@ -140,10 +150,17 @@ async def receive_items(
         deps=_build_deps(),
         current_user=current_user,
     )
+    org_id = current_user.organization_id
+    await audit_log(
+        user_id=current_user.id, action="po.receive",
+        resource_type="purchase_order", resource_id=po_id,
+        details={"received": result.get("received", 0), "matched": result.get("matched", 0),
+                  "cost_total": result.get("cost_total", 0)},
+        request=request, org_id=org_id,
+    )
     if result.get("cost_total", 0) > 0:
         from finance.adapters.invoicing_factory import get_invoicing_gateway
         from identity.application.org_service import get_org_settings
-        org_id = current_user.organization_id
         try:
             settings = await get_org_settings(org_id)
             gateway = get_invoicing_gateway(settings)

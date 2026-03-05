@@ -124,6 +124,7 @@ async def create_withdrawal(
             billing_entity=withdrawal.billing_entity,
             contractor_id=withdrawal.contractor_id,
             organization_id=org_id,
+            performed_by_user_id=current_user.id,
             conn=tx_conn,
         )
 

@@ -1,4 +1,5 @@
 """Vendor repository."""
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 from catalog.domain.vendor import Vendor
@@ -16,7 +17,7 @@ async def list_all(organization_id: Optional[str] = None) -> list:
     org_id = organization_id or "default"
     cursor = await conn.execute(
         """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
-           WHERE organization_id = ? OR organization_id IS NULL""",
+           WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (org_id,),
     )
     rows = await cursor.fetchall()
@@ -28,12 +29,12 @@ async def get_by_id(vendor_id: str, organization_id: Optional[str] = None) -> Op
     if organization_id:
         cursor = await conn.execute(
             """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
-               WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)""",
+               WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
             (vendor_id, organization_id),
         )
     else:
         cursor = await conn.execute(
-            "SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors WHERE id = ?",
+            "SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors WHERE id = ? AND deleted_at IS NULL",
             (vendor_id,),
         )
     row = await cursor.fetchone()
@@ -49,7 +50,7 @@ async def find_by_name(name: str, organization_id: Optional[str] = None) -> Opti
     org_id = organization_id or "default"
     cursor = await conn.execute(
         """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
-           WHERE TRIM(LOWER(name)) = ? AND (organization_id = ? OR organization_id IS NULL)""",
+           WHERE TRIM(LOWER(name)) = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (normalized, org_id),
     )
     row = await cursor.fetchone()
@@ -105,7 +106,11 @@ async def update(vendor_id: str, vendor_dict: dict, conn=None) -> Optional[dict]
 
 async def delete(vendor_id: str) -> int:
     conn = get_connection()
-    cursor = await conn.execute("DELETE FROM vendors WHERE id = ?", (vendor_id,))
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await conn.execute(
+        "UPDATE vendors SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
+        (now, vendor_id),
+    )
     await conn.commit()
     return cursor.rowcount
 
@@ -114,11 +119,11 @@ async def count(organization_id: Optional[str] = None) -> int:
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
-            "SELECT COUNT(*) FROM vendors WHERE organization_id = ? OR organization_id IS NULL",
+            "SELECT COUNT(*) FROM vendors WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
             (organization_id,),
         )
     else:
-        cursor = await conn.execute("SELECT COUNT(*) FROM vendors")
+        cursor = await conn.execute("SELECT COUNT(*) FROM vendors WHERE deleted_at IS NULL")
     row = await cursor.fetchone()
     return row[0] if row else 0
 

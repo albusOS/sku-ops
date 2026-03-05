@@ -1,6 +1,7 @@
 """Withdrawal repository."""
 import json
 from typing import Optional, Union
+from uuid import uuid4
 
 from operations.domain.withdrawal import MaterialWithdrawal
 from shared.infrastructure.database import get_connection
@@ -22,10 +23,10 @@ async def insert(withdrawal: Union[MaterialWithdrawal, dict], conn=None) -> None
     org_id = withdrawal_dict.get("organization_id") or "default"
     items_json = json.dumps([i if isinstance(i, dict) else i.model_dump() for i in withdrawal_dict["items"]])
     await conn.execute(
-        """INSERT INTO withdrawals (id, items, job_id, service_address, notes, subtotal, tax, total, cost_total,
+        """INSERT INTO withdrawals (id, items, job_id, service_address, notes, subtotal, tax, tax_rate, total, cost_total,
            contractor_id, contractor_name, contractor_company, billing_entity, payment_status, invoice_id, paid_at,
            processed_by_id, processed_by_name, organization_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             withdrawal_dict["id"],
             items_json,
@@ -34,6 +35,7 @@ async def insert(withdrawal: Union[MaterialWithdrawal, dict], conn=None) -> None
             withdrawal_dict.get("notes"),
             withdrawal_dict["subtotal"],
             withdrawal_dict["tax"],
+            withdrawal_dict.get("tax_rate", 0),
             withdrawal_dict["total"],
             withdrawal_dict["cost_total"],
             withdrawal_dict["contractor_id"],
@@ -49,6 +51,22 @@ async def insert(withdrawal: Union[MaterialWithdrawal, dict], conn=None) -> None
             withdrawal_dict.get("created_at", ""),
         ),
     )
+    # Write normalized items
+    for item in withdrawal_dict["items"]:
+        i = item if isinstance(item, dict) else (item.model_dump() if hasattr(item, "model_dump") else item)
+        qty = float(i.get("quantity", 0))
+        price = float(i.get("unit_price") or i.get("price") or 0)
+        cost = float(i.get("cost", 0))
+        await conn.execute(
+            """INSERT INTO withdrawal_items
+               (id, withdrawal_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (str(uuid4()), withdrawal_dict["id"],
+             i.get("product_id", ""), i.get("sku", ""), i.get("name", ""),
+             qty, price, cost, i.get("unit", "each"),
+             round(qty * price, 2), round(qty * cost, 2)),
+        )
+
     if not in_transaction:
         await conn.commit()
 

@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 function StatusBadge({ status }) {
   const styles = {
     draft: "bg-slate-200 text-slate-700",
+    approved: "bg-amber-100 text-amber-700",
     sent: "bg-blue-100 text-blue-700",
     paid: "bg-green-100 text-green-700",
   };
@@ -45,7 +46,13 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
     contact_email: "",
     notes: "",
     tax: 0,
+    tax_rate: 0,
     status: "draft",
+    invoice_date: "",
+    due_date: "",
+    payment_terms: "net_30",
+    billing_address: "",
+    po_reference: "",
   });
   const [lineItems, setLineItems] = useState([]);
 
@@ -66,7 +73,13 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
         contact_email: res.data.contact_email || "",
         notes: res.data.notes || "",
         tax: res.data.tax ?? 0,
+        tax_rate: res.data.tax_rate ?? 0,
         status: res.data.status || "draft",
+        invoice_date: res.data.invoice_date ? res.data.invoice_date.slice(0, 10) : "",
+        due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : "",
+        payment_terms: res.data.payment_terms || "net_30",
+        billing_address: res.data.billing_address || "",
+        po_reference: res.data.po_reference || "",
       });
       setLineItems(res.data.line_items || []);
     } catch (err) {
@@ -118,7 +131,13 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
         contact_email: form.contact_email,
         notes: form.notes,
         tax: parseFloat(form.tax) || 0,
+        tax_rate: parseFloat(form.tax_rate) || 0,
         status: form.status,
+        invoice_date: form.invoice_date || undefined,
+        due_date: form.due_date || undefined,
+        payment_terms: form.payment_terms || undefined,
+        billing_address: form.billing_address || undefined,
+        po_reference: form.po_reference || undefined,
         line_items: items,
       });
       toast.success("Invoice saved");
@@ -158,7 +177,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
   };
 
   const { subtotal, total } = recalcTotals(lineItems, form.tax);
-  const canEdit = invoice?.status === "draft";
+  const canEdit = invoice?.status === "draft" || invoice?.status === "approved";
 
   if (!invoice && !loading) return null;
 
@@ -178,6 +197,36 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
           <div className="py-8 text-center text-slate-500">Loading…</div>
         ) : (
           <div className="flex-1 overflow-auto space-y-6">
+            {/* Invoice Details */}
+            <div>
+              <Label className="text-xs uppercase text-slate-500">Invoice Details</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+                <div>
+                  <label className="text-xs text-slate-500">Invoice Date</label>
+                  <Input type="date" value={form.invoice_date} onChange={(e) => setForm((f) => ({ ...f, invoice_date: e.target.value }))} disabled={!canEdit} className="mt-0.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Due Date</label>
+                  <Input type="date" value={form.due_date} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} disabled={!canEdit} className="mt-0.5" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Payment Terms</label>
+                  <select value={form.payment_terms} onChange={(e) => setForm((f) => ({ ...f, payment_terms: e.target.value }))} disabled={!canEdit} className="mt-0.5 block w-full rounded border border-slate-300 px-3 py-2 text-sm">
+                    <option value="due_on_receipt">Due on Receipt</option>
+                    <option value="net_15">Net 15</option>
+                    <option value="net_30">Net 30</option>
+                    <option value="net_45">Net 45</option>
+                    <option value="net_60">Net 60</option>
+                    <option value="net_90">Net 90</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">PO Reference</label>
+                  <Input value={form.po_reference} onChange={(e) => setForm((f) => ({ ...f, po_reference: e.target.value }))} disabled={!canEdit} className="mt-0.5" placeholder="Contractor PO #" />
+                </div>
+              </div>
+            </div>
+
             {/* Bill to */}
             <div>
               <Label className="text-xs uppercase text-slate-500">Bill To</Label>
@@ -208,6 +257,16 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
                     onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
                     disabled={!canEdit}
                     className="mt-0.5"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Billing Address</label>
+                  <Input
+                    value={form.billing_address}
+                    onChange={(e) => setForm((f) => ({ ...f, billing_address: e.target.value }))}
+                    disabled={!canEdit}
+                    className="mt-0.5"
+                    placeholder="Street, City, State ZIP"
                   />
                 </div>
               </div>
@@ -301,22 +360,26 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
 
             {/* Totals */}
             <div className="flex justify-end">
-              <div className="w-64 space-y-1">
+              <div className="w-72 space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Subtotal</span>
                   <span className="font-mono">${subtotal.toFixed(2)}</span>
                 </div>
+                <div className="flex justify-between text-sm items-center gap-2">
+                  <span className="text-slate-500">Tax Rate</span>
+                  {canEdit ? (
+                    <div className="flex items-center gap-1">
+                      <Input type="number" min={0} max={100} step={0.1} value={((parseFloat(form.tax_rate) || 0) * 100).toFixed(1)} onChange={(e) => { const rate = (parseFloat(e.target.value) || 0) / 100; const taxAmt = Math.round(subtotal * rate * 100) / 100; setForm((f) => ({ ...f, tax_rate: rate, tax: taxAmt })); }} className="w-20 h-8 text-right" />
+                      <span className="text-xs text-slate-400">%</span>
+                    </div>
+                  ) : (
+                    <span className="font-mono">{((parseFloat(form.tax_rate) || 0) * 100).toFixed(1)}%</span>
+                  )}
+                </div>
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-slate-500">Tax</span>
                   {canEdit ? (
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={form.tax}
-                      onChange={(e) => setForm((f) => ({ ...f, tax: e.target.value }))}
-                      className="w-24 h-8 text-right"
-                    />
+                    <Input type="number" min={0} step={0.01} value={form.tax} onChange={(e) => setForm((f) => ({ ...f, tax: e.target.value }))} className="w-24 h-8 text-right" />
                   ) : (
                     <span className="font-mono">${(parseFloat(form.tax) || 0).toFixed(2)}</span>
                   )}
@@ -325,6 +388,18 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
                   <span>Total</span>
                   <span className="font-mono">${total.toFixed(2)}</span>
                 </div>
+                {(invoice?.amount_credited ?? 0) > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Credits Applied</span>
+                      <span className="font-mono">-${(invoice.amount_credited ?? 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold">
+                      <span>Balance Due</span>
+                      <span className="font-mono">${(total - (invoice.amount_credited ?? 0)).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -362,7 +437,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
               </div>
             )}
 
-            {/* Status (for draft, allow changing to sent) */}
+            {/* Status */}
             {canEdit && (
               <div>
                 <Label className="text-xs uppercase text-slate-500">Status</Label>
@@ -372,6 +447,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
                   className="mt-1 block w-40 rounded border border-slate-300 px-3 py-2 text-sm"
                 >
                   <option value="draft">Draft</option>
+                  <option value="approved">Approved</option>
                   <option value="sent">Sent</option>
                   <option value="paid">Paid</option>
                 </select>

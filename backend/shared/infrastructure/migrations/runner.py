@@ -755,12 +755,196 @@ async def _018_financial_ledger(conn, *, dialect: str = "sqlite") -> None:
     await conn.commit()
 
 
+async def _019_audit_soft_deletes(conn, *, dialect: str = "sqlite") -> None:
+    """Add performed_by_user_id to financial_ledger and deleted_at to catalog/invoice tables."""
+    if not await _column_exists(conn, "financial_ledger", "performed_by_user_id", dialect=dialect):
+        await conn.execute(
+            "ALTER TABLE financial_ledger ADD COLUMN performed_by_user_id TEXT"
+        )
+    for table in ("products", "vendors", "departments", "invoices"):
+        if not await _column_exists(conn, table, "deleted_at", dialect=dialect):
+            await conn.execute(f"ALTER TABLE {table} ADD COLUMN deleted_at TEXT")
+    await conn.commit()
+
+
+async def _020_accounting_standards(conn, *, dialect: str = "sqlite") -> None:
+    """Accounting standards overhaul — invoice fields, tax rate, normalized items,
+    journal grouping, credit note application, approval workflow, fiscal periods."""
+
+    # ── Phase 1: Invoice compliance fields ────────────────────────────────
+    for col, definition in [
+        ("invoice_date", "TEXT"),
+        ("due_date", "TEXT"),
+        ("payment_terms", "TEXT NOT NULL DEFAULT 'net_30'"),
+        ("billing_address", "TEXT NOT NULL DEFAULT ''"),
+        ("po_reference", "TEXT NOT NULL DEFAULT ''"),
+        ("currency", "TEXT NOT NULL DEFAULT 'USD'"),
+    ]:
+        if not await _column_exists(conn, "invoices", col, dialect=dialect):
+            await conn.execute(f"ALTER TABLE invoices ADD COLUMN {col} {definition}")
+
+    # Backfill invoice_date from created_at
+    await conn.execute("UPDATE invoices SET invoice_date = created_at WHERE invoice_date IS NULL")
+    # Backfill due_date = invoice_date + 30 days
+    if dialect == "sqlite":
+        await conn.execute("""
+            UPDATE invoices SET due_date = datetime(COALESCE(invoice_date, created_at), '+30 days')
+            WHERE due_date IS NULL
+        """)
+    await conn.commit()
+
+    # Index on due_date
+    if not await _index_exists(conn, "idx_invoices_due_date", dialect=dialect):
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date)")
+        await conn.commit()
+
+    # ── Phase 2: Tax rate tracking ────────────────────────────────────────
+    if not await _column_exists(conn, "invoices", "tax_rate", dialect=dialect):
+        await conn.execute("ALTER TABLE invoices ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0.0")
+    if not await _column_exists(conn, "withdrawals", "tax_rate", dialect=dialect):
+        await conn.execute("ALTER TABLE withdrawals ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0.0")
+    await conn.commit()
+
+    # ── Phase 3: Normalized withdrawal & return items ─────────────────────
+    if not await _table_exists(conn, "withdrawal_items", dialect=dialect):
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS withdrawal_items (
+                id TEXT PRIMARY KEY,
+                withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
+                product_id TEXT NOT NULL,
+                sku TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL DEFAULT '',
+                quantity REAL NOT NULL,
+                unit_price REAL NOT NULL DEFAULT 0,
+                cost REAL NOT NULL DEFAULT 0,
+                unit TEXT NOT NULL DEFAULT 'each',
+                amount REAL NOT NULL DEFAULT 0,
+                cost_total REAL NOT NULL DEFAULT 0
+            )
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_withdrawal_items_wid ON withdrawal_items(withdrawal_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_withdrawal_items_product ON withdrawal_items(product_id)")
+        await conn.commit()
+
+        # Backfill from JSON
+        import json as _json
+        from uuid import uuid4 as _uuid4
+        cursor = await conn.execute("SELECT id, items FROM withdrawals WHERE items IS NOT NULL AND items != ''")
+        rows = await cursor.fetchall()
+        for row in rows:
+            wid = row[0] if isinstance(row, (tuple, list)) else row["id"]
+            raw = row[1] if isinstance(row, (tuple, list)) else row["items"]
+            try:
+                items = _json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                continue
+            for item in items:
+                qty = float(item.get("quantity", 0))
+                price = float(item.get("unit_price") or item.get("price") or 0)
+                cost = float(item.get("cost", 0))
+                await conn.execute(
+                    """INSERT OR IGNORE INTO withdrawal_items
+                       (id, withdrawal_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (str(_uuid4()), wid,
+                     item.get("product_id", ""), item.get("sku", ""), item.get("name", ""),
+                     qty, price, cost, item.get("unit", "each"),
+                     round(qty * price, 2), round(qty * cost, 2)),
+                )
+        await conn.commit()
+
+    if not await _table_exists(conn, "return_items", dialect=dialect):
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS return_items (
+                id TEXT PRIMARY KEY,
+                return_id TEXT NOT NULL REFERENCES returns(id),
+                product_id TEXT NOT NULL,
+                sku TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL DEFAULT '',
+                quantity REAL NOT NULL,
+                unit_price REAL NOT NULL DEFAULT 0,
+                cost REAL NOT NULL DEFAULT 0,
+                unit TEXT NOT NULL DEFAULT 'each',
+                amount REAL NOT NULL DEFAULT 0,
+                cost_total REAL NOT NULL DEFAULT 0
+            )
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_return_items_rid ON return_items(return_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_return_items_product ON return_items(product_id)")
+        await conn.commit()
+
+        import json as _json
+        from uuid import uuid4 as _uuid4
+        cursor = await conn.execute("SELECT id, items FROM returns WHERE items IS NOT NULL AND items != ''")
+        rows = await cursor.fetchall()
+        for row in rows:
+            rid = row[0] if isinstance(row, (tuple, list)) else row["id"]
+            raw = row[1] if isinstance(row, (tuple, list)) else row["items"]
+            try:
+                items = _json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                continue
+            for item in items:
+                qty = float(item.get("quantity", 0))
+                price = float(item.get("unit_price") or item.get("price") or 0)
+                cost = float(item.get("cost", 0))
+                await conn.execute(
+                    """INSERT OR IGNORE INTO return_items
+                       (id, return_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (str(_uuid4()), rid,
+                     item.get("product_id", ""), item.get("sku", ""), item.get("name", ""),
+                     qty, price, cost, item.get("unit", "each"),
+                     round(qty * price, 2), round(qty * cost, 2)),
+                )
+        await conn.commit()
+
+    # ── Phase 4: Ledger journal grouping ──────────────────────────────────
+    if not await _column_exists(conn, "financial_ledger", "journal_id", dialect=dialect):
+        await conn.execute("ALTER TABLE financial_ledger ADD COLUMN journal_id TEXT")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_fl_journal ON financial_ledger(journal_id)")
+        await conn.commit()
+
+    # ── Phase 6: Credit note application → amount_credited on invoices ────
+    if not await _column_exists(conn, "invoices", "amount_credited", dialect=dialect):
+        await conn.execute("ALTER TABLE invoices ADD COLUMN amount_credited REAL NOT NULL DEFAULT 0")
+        await conn.commit()
+
+    # ── Phase 8: Approval workflow & fiscal periods ───────────────────────
+    for col, definition in [
+        ("approved_by_id", "TEXT"),
+        ("approved_at", "TEXT"),
+    ]:
+        if not await _column_exists(conn, "invoices", col, dialect=dialect):
+            await conn.execute(f"ALTER TABLE invoices ADD COLUMN {col} {definition}")
+
+    if not await _table_exists(conn, "fiscal_periods", dialect=dialect):
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS fiscal_periods (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                closed_by_id TEXT,
+                closed_at TEXT,
+                organization_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status)")
+
+    await conn.commit()
+
+
 _COMMON_MIGRATIONS: list[tuple[str, MigrationFn]] = [
     ("014_refresh_tokens_and_audit", _014_refresh_tokens_and_audit),
     ("015_decimal_quantities_and_stock_unit", _015_decimal_quantities_and_stock_unit),
     ("016_returns_and_credit_notes", _016_returns_and_credit_notes),
     ("017_po_updated_at", _017_po_updated_at),
     ("018_financial_ledger", _018_financial_ledger),
+    ("019_audit_soft_deletes", _019_audit_soft_deletes),
+    ("020_accounting_standards", _020_accounting_standards),
 ]
 
 

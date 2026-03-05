@@ -1,9 +1,10 @@
 """Department CRUD routes."""
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from identity.application.auth_service import get_current_user, require_role
+from shared.infrastructure.middleware.audit import audit_log
 from kernel.types import CurrentUser
 from catalog.domain.department import Department, DepartmentCreate
 from catalog.infrastructure.department_repo import department_repo
@@ -45,7 +46,7 @@ async def update_department(dept_id: str, data: DepartmentCreate, current_user: 
 
 
 @router.delete("/{dept_id}")
-async def delete_department(dept_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+async def delete_department(dept_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
     org_id = current_user.organization_id
     existing = await department_repo.get_by_id(dept_id, org_id)
     if not existing:
@@ -57,4 +58,10 @@ async def delete_department(dept_id: str, current_user: CurrentUser = Depends(re
     deleted = await department_repo.delete(dept_id)
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Department not found")
+    await audit_log(
+        user_id=current_user.id, action="department.delete",
+        resource_type="department", resource_id=dept_id,
+        details={"name": existing.get("name"), "code": existing.get("code")},
+        request=request, org_id=org_id,
+    )
     return {"message": "Department deleted"}

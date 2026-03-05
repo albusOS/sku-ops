@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from kernel.types import CurrentUser
 from identity.application.auth_service import get_current_user, require_role
@@ -15,6 +15,7 @@ from catalog.application.queries import list_products
 from inventory.application.inventory_service import process_withdrawal_stock_changes
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from operations.application.withdrawal_service import create_withdrawal as _do_create_withdrawal
+from shared.infrastructure.middleware.audit import audit_log
 
 
 async def do_create_withdrawal(data, contractor, current_user: CurrentUser):
@@ -31,16 +32,24 @@ router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
 
 
 @router.post("", response_model=MaterialWithdrawal)
-async def create_withdrawal(data: MaterialWithdrawalCreate, current_user: CurrentUser = Depends(get_current_user)):
+async def create_withdrawal(data: MaterialWithdrawalCreate, request: Request, current_user: CurrentUser = Depends(get_current_user)):
     """Create a material withdrawal - Contractors withdraw materials charged to their account"""
     contractor = current_user.model_dump()
-    return await do_create_withdrawal(data, contractor, current_user)
+    result = await do_create_withdrawal(data, contractor, current_user)
+    await audit_log(
+        user_id=current_user.id, action="withdrawal.create",
+        resource_type="withdrawal", resource_id=result.get("id"),
+        details={"total": result.get("total"), "job_id": data.job_id},
+        request=request, org_id=current_user.organization_id,
+    )
+    return result
 
 
 @router.post("/for-contractor")
 async def create_withdrawal_for_contractor(
     contractor_id: str,
     data: MaterialWithdrawalCreate,
+    request: Request,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Warehouse manager creates withdrawal on behalf of a contractor"""
@@ -50,7 +59,14 @@ async def create_withdrawal_for_contractor(
         raise HTTPException(status_code=404, detail="Contractor not found")
     if contractor.get("organization_id") and contractor.get("organization_id") != org_id:
         raise HTTPException(status_code=403, detail="Contractor belongs to different organization")
-    return await do_create_withdrawal(data, contractor, current_user)
+    result = await do_create_withdrawal(data, contractor, current_user)
+    await audit_log(
+        user_id=current_user.id, action="withdrawal.create_for_contractor",
+        resource_type="withdrawal", resource_id=result.get("id"),
+        details={"contractor_id": contractor_id, "total": result.get("total")},
+        request=request, org_id=org_id,
+    )
+    return result
 
 
 @router.get("")
@@ -89,7 +105,7 @@ async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends
 
 
 @router.put("/{withdrawal_id}/mark-paid")
-async def mark_withdrawal_paid(withdrawal_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
     org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
@@ -103,12 +119,19 @@ async def mark_withdrawal_paid(withdrawal_id: str, current_user: CurrentUser = D
         billing_entity=withdrawal.get("billing_entity", ""),
         contractor_id=withdrawal.get("contractor_id", ""),
         organization_id=org_id,
+        performed_by_user_id=current_user.id,
+    )
+    await audit_log(
+        user_id=current_user.id, action="payment.mark_paid",
+        resource_type="withdrawal", resource_id=withdrawal_id,
+        details={"total": withdrawal.get("total")},
+        request=request, org_id=org_id,
     )
     return result
 
 
 @router.put("/bulk-mark-paid")
-async def bulk_mark_paid(withdrawal_ids: List[str] = Body(...), current_user: CurrentUser = Depends(require_role("admin"))):
+async def bulk_mark_paid(request: Request, withdrawal_ids: List[str] = Body(...), current_user: CurrentUser = Depends(require_role("admin"))):
     org_id = current_user.organization_id
     paid_at = datetime.now(timezone.utc).isoformat()
     updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at, organization_id=org_id)
@@ -122,5 +145,12 @@ async def bulk_mark_paid(withdrawal_ids: List[str] = Body(...), current_user: Cu
                 billing_entity=w.get("billing_entity", ""),
                 contractor_id=w.get("contractor_id", ""),
                 organization_id=org_id,
+                performed_by_user_id=current_user.id,
             )
+    await audit_log(
+        user_id=current_user.id, action="payment.bulk_mark_paid",
+        resource_type="withdrawal", resource_id=None,
+        details={"withdrawal_ids": withdrawal_ids, "count": len(withdrawal_ids)},
+        request=request, org_id=org_id,
+    )
     return {"updated": updated}

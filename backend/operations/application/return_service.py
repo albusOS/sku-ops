@@ -124,6 +124,7 @@ async def create_return(
             billing_entity=ret.billing_entity,
             contractor_id=ret.contractor_id,
             organization_id=org_id,
+            performed_by_user_id=current_user.id,
             conn=conn,
         )
 

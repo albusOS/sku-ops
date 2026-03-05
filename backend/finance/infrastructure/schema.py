@@ -10,12 +10,23 @@ TABLES: list[str] = [
         status TEXT NOT NULL DEFAULT 'draft',
         subtotal REAL NOT NULL,
         tax REAL NOT NULL,
+        tax_rate REAL NOT NULL DEFAULT 0.0,
         total REAL NOT NULL,
+        amount_credited REAL NOT NULL DEFAULT 0,
         notes TEXT,
+        invoice_date TEXT,
+        due_date TEXT,
+        payment_terms TEXT NOT NULL DEFAULT 'net_30',
+        billing_address TEXT NOT NULL DEFAULT '',
+        po_reference TEXT NOT NULL DEFAULT '',
+        currency TEXT NOT NULL DEFAULT 'USD',
+        approved_by_id TEXT,
+        approved_at TEXT,
         xero_invoice_id TEXT,
         organization_id TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
     )""",
 
     """CREATE TABLE IF NOT EXISTS invoice_withdrawals (
@@ -71,6 +82,7 @@ TABLES: list[str] = [
 
     """CREATE TABLE IF NOT EXISTS financial_ledger (
         id TEXT PRIMARY KEY,
+        journal_id TEXT,
         account TEXT NOT NULL,
         amount REAL NOT NULL,
         department TEXT,
@@ -79,6 +91,7 @@ TABLES: list[str] = [
         contractor_id TEXT,
         vendor_name TEXT,
         product_id TEXT,
+        performed_by_user_id TEXT,
         reference_type TEXT NOT NULL,
         reference_id TEXT NOT NULL,
         organization_id TEXT,
@@ -102,4 +115,6 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_fl_dept ON financial_ledger(department, account)",
     "CREATE INDEX IF NOT EXISTS idx_fl_job ON financial_ledger(job_id, account)",
     "CREATE INDEX IF NOT EXISTS idx_fl_entity ON financial_ledger(billing_entity, account)",
+    "CREATE INDEX IF NOT EXISTS idx_fl_journal ON financial_ledger(journal_id)",
+    "CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date)",
 ]

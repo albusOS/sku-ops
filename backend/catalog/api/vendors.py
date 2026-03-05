@@ -1,12 +1,13 @@
 """Vendor CRUD routes."""
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from identity.application.auth_service import require_role
 from kernel.types import CurrentUser
 from catalog.domain.vendor import Vendor, VendorCreate
 from catalog.infrastructure.vendor_repo import vendor_repo
+from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/vendors", tags=["vendors"])
 
@@ -38,7 +39,7 @@ async def update_vendor(vendor_id: str, data: VendorCreate, current_user: Curren
 
 
 @router.delete("/{vendor_id}")
-async def delete_vendor(vendor_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+async def delete_vendor(vendor_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
     org_id = current_user.organization_id
     existing = await vendor_repo.get_by_id(vendor_id, org_id)
     if not existing:
@@ -46,4 +47,10 @@ async def delete_vendor(vendor_id: str, current_user: CurrentUser = Depends(requ
     deleted = await vendor_repo.delete(vendor_id)
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Vendor not found")
+    await audit_log(
+        user_id=current_user.id, action="vendor.delete",
+        resource_type="vendor", resource_id=vendor_id,
+        details={"name": existing.get("name")},
+        request=request, org_id=org_id,
+    )
     return {"message": "Vendor deleted"}

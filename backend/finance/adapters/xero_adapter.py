@@ -97,8 +97,15 @@ class XeroAdapter:
             "Contact": {"Name": invoice.get("billing_entity", "")},
             "InvoiceNumber": invoice.get("invoice_number", ""),
             "Status": _xero_status(invoice.get("status", "draft")),
+            "CurrencyCode": invoice.get("currency", "USD"),
             "LineItems": xero_line_items,
         }
+        if invoice.get("due_date"):
+            xero_invoice["DueDate"] = invoice["due_date"][:10]
+        if invoice.get("invoice_date"):
+            xero_invoice["Date"] = invoice["invoice_date"][:10]
+        if invoice.get("po_reference"):
+            xero_invoice["Reference"] = invoice["po_reference"]
         if not settings.xero_tax_type:
             xero_invoice["SubTotal"] = invoice.get("subtotal", 0)
             xero_invoice["TotalTax"] = invoice.get("tax", 0)

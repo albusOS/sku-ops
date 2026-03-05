@@ -362,6 +362,7 @@ async def receive_po_items(
             items=ledger_items,
             vendor_name=po.get("vendor_name", ""),
             organization_id=org_id,
+            performed_by_user_id=current_user.id,
         )
 
     new_status = await _recompute_po_status(po_id, po, current_user, repo)

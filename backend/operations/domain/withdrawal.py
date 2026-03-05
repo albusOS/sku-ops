@@ -26,6 +26,7 @@ class MaterialWithdrawal(Entity):
     notes: Optional[str] = None
     subtotal: float
     tax: float
+    tax_rate: float = 0.0
     total: float
     cost_total: float
     contractor_id: str
@@ -40,6 +41,7 @@ class MaterialWithdrawal(Entity):
 
     def compute_totals(self, tax_rate: float = 0.10) -> None:
         """Calculate subtotal, tax, total, and cost_total from line items."""
+        self.tax_rate = tax_rate
         self.subtotal = sum(i.subtotal for i in self.items)
         self.cost_total = sum(i.cost_total for i in self.items)
         self.tax = round(self.subtotal * tax_rate, 2)

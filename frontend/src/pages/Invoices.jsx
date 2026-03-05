@@ -60,7 +60,7 @@ const Invoices = () => {
   const toggleSelectAll = () => setSelectedIds(selectedIds.size >= invoices.length ? new Set() : new Set(invoices.map((i) => i.id)));
 
   const statusSummary = useMemo(() => {
-    const groups = { draft: [], sent: [], paid: [] };
+    const groups = { draft: [], approved: [], sent: [], paid: [] };
     invoices.forEach((i) => groups[i.status]?.push(i));
     return Object.entries(groups).filter(([, arr]) => arr.length > 0).map(([status, arr]) => ({
       status, count: arr.length, total: arr.reduce((s, i) => s + (i.total ?? 0), 0),
@@ -85,7 +85,7 @@ const Invoices = () => {
       {statusSummary.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-6">
           {statusSummary.map(({ status, count, total }) => {
-            const cls = { draft: "bg-slate-50 border-slate-200 text-slate-700", sent: "bg-blue-50 border-blue-200 text-blue-700", paid: "bg-emerald-50 border-emerald-200 text-emerald-700" }[status];
+            const cls = { draft: "bg-slate-50 border-slate-200 text-slate-700", approved: "bg-amber-50 border-amber-200 text-amber-700", sent: "bg-blue-50 border-blue-200 text-blue-700", paid: "bg-emerald-50 border-emerald-200 text-emerald-700" }[status];
             return <div key={status} className={`px-3 py-1.5 rounded-lg border text-xs ${cls}`}><span className="font-semibold">{count} {status}</span><span className="opacity-60 ml-1">· ${total.toFixed(2)}</span></div>;
           })}
         </div>
@@ -99,6 +99,7 @@ const Invoices = () => {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
             </SelectContent>
@@ -134,12 +135,13 @@ const Invoices = () => {
               <th className="text-right text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 px-3 py-2.5">Total</th>
               <th className="text-left text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 px-3 py-2.5">Status</th>
               <th className="text-left text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 px-3 py-2.5">Date</th>
+              <th className="text-left text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 px-3 py-2.5">Due</th>
               <th className="text-right text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 px-3 py-2.5">Wds</th>
               <th className="w-[140px] px-3 py-2.5" />
             </tr></thead>
             <tbody className="divide-y divide-slate-50">
               {invoices.length === 0 ? (
-                <tr><td colSpan="8" className="text-center py-12 text-slate-400 text-sm">No invoices yet</td></tr>
+                <tr><td colSpan="9" className="text-center py-12 text-slate-400 text-sm">No invoices yet</td></tr>
               ) : invoices.map((inv) => (
                 <tr key={inv.id} className={`cursor-pointer hover:bg-slate-50/60 transition-colors ${selectedIds.has(inv.id) ? "bg-blue-50/40" : ""}`} onClick={() => setDetailInvoiceId(inv.id)}>
                   <td className="px-3 py-2.5" onClick={(e) => toggleSelect(inv.id, e)}>{selectedIds.has(inv.id) ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4 text-slate-300" />}</td>
@@ -147,7 +149,8 @@ const Invoices = () => {
                   <td className="px-3 py-2.5 text-slate-600">{inv.billing_entity || "—"}</td>
                   <td className="px-3 py-2.5 text-right font-semibold tabular-nums">${(inv.total ?? 0).toFixed(2)}</td>
                   <td className="px-3 py-2.5"><StatusBadge status={inv.status} /></td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500">{inv.created_at ? format(new Date(inv.created_at), "MMM d, yyyy") : "—"}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs text-slate-500">{inv.invoice_date ? format(new Date(inv.invoice_date), "MMM d, yyyy") : inv.created_at ? format(new Date(inv.created_at), "MMM d, yyyy") : "—"}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs">{inv.due_date ? <span className={inv.status !== "paid" && new Date(inv.due_date) < new Date() ? "text-red-600 font-semibold" : "text-slate-500"}>{format(new Date(inv.due_date), "MMM d, yyyy")}</span> : "—"}</td>
                   <td className="px-3 py-2.5 text-right font-mono text-slate-500">{inv.withdrawal_count ?? 0}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1 justify-end">

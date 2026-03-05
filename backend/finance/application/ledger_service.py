@@ -3,8 +3,12 @@
 Each public function corresponds to one financial event. The entries it
 creates are the system of record for all reports. If an entry is wrong,
 you write a correcting entry (never delete).
+
+Every event produces a set of entries grouped under a single journal_id
+so the transaction can be verified as balanced.
 """
 from typing import List, Optional
+from uuid import uuid4
 
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
 from finance.infrastructure.ledger_repo import entries_exist, insert_entries
@@ -38,11 +42,24 @@ async def _record_sale_event(
     billing_entity: str,
     contractor_id: str,
     organization_id: str,
+    performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
-    """Shared logic for withdrawals (+1) and returns (-1)."""
+    """Shared logic for withdrawals (+1) and returns (-1).
+
+    Entries per item: REVENUE, COGS, INVENTORY (decrease on sale, increase on return).
+    Entries per event: TAX_COLLECTED, ACCOUNTS_RECEIVABLE.
+    All entries share one journal_id.
+    """
     if await entries_exist(reference_type.value, reference_id, conn=conn):
         return
+    journal_id = str(uuid4())
+    common = dict(
+        journal_id=journal_id,
+        job_id=job_id, billing_entity=billing_entity, contractor_id=contractor_id,
+        performed_by_user_id=performed_by_user_id,
+        reference_type=reference_type, reference_id=reference_id, organization_id=organization_id,
+    )
     entries: List[FinancialEntry] = []
 
     for item in items:
@@ -50,29 +67,26 @@ async def _record_sale_event(
         entries.append(FinancialEntry(
             account=Account.REVENUE,
             amount=round(sign * unit_price * qty, 2),
-            department=dept, product_id=pid,
-            job_id=job_id, billing_entity=billing_entity, contractor_id=contractor_id,
-            reference_type=reference_type, reference_id=reference_id, organization_id=organization_id,
+            department=dept, product_id=pid, **common,
         ))
         entries.append(FinancialEntry(
             account=Account.COGS,
             amount=round(sign * cost * qty, 2),
-            department=dept, product_id=pid,
-            job_id=job_id, billing_entity=billing_entity, contractor_id=contractor_id,
-            reference_type=reference_type, reference_id=reference_id, organization_id=organization_id,
+            department=dept, product_id=pid, **common,
+        ))
+        entries.append(FinancialEntry(
+            account=Account.INVENTORY,
+            amount=round(-sign * cost * qty, 2),
+            department=dept, product_id=pid, **common,
         ))
 
     entries.append(FinancialEntry(
         account=Account.TAX_COLLECTED,
-        amount=round(sign * tax, 2),
-        job_id=job_id, billing_entity=billing_entity, contractor_id=contractor_id,
-        reference_type=reference_type, reference_id=reference_id, organization_id=organization_id,
+        amount=round(sign * tax, 2), **common,
     ))
     entries.append(FinancialEntry(
         account=Account.ACCOUNTS_RECEIVABLE,
-        amount=round(sign * total, 2),
-        job_id=job_id, billing_entity=billing_entity, contractor_id=contractor_id,
-        reference_type=reference_type, reference_id=reference_id, organization_id=organization_id,
+        amount=round(sign * total, 2), **common,
     ))
 
     await insert_entries(entries, conn=conn)
@@ -87,6 +101,7 @@ async def record_withdrawal(
     billing_entity: str,
     contractor_id: str,
     organization_id: str,
+    performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Write ledger entries for a new material withdrawal."""
@@ -97,6 +112,7 @@ async def record_withdrawal(
         items=items, tax=tax, total=total,
         job_id=job_id, billing_entity=billing_entity,
         contractor_id=contractor_id, organization_id=organization_id,
+        performed_by_user_id=performed_by_user_id,
         conn=conn,
     )
 
@@ -110,6 +126,7 @@ async def record_return(
     billing_entity: str,
     contractor_id: str,
     organization_id: str,
+    performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Write reversing entries for a material return."""
@@ -120,6 +137,7 @@ async def record_return(
         items=items, tax=tax, total=total,
         job_id=job_id, billing_entity=billing_entity,
         contractor_id=contractor_id, organization_id=organization_id,
+        performed_by_user_id=performed_by_user_id,
         conn=conn,
     )
 
@@ -129,11 +147,13 @@ async def record_po_receipt(
     items: list,
     vendor_name: str,
     organization_id: str,
+    performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Write inventory + AP entries for each received PO line item."""
     if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id, conn=conn):
         return
+    journal_id = str(uuid4())
     entries: List[FinancialEntry] = []
 
     for item in items:
@@ -147,12 +167,16 @@ async def record_po_receipt(
         pid = item.get("product_id")
         entries.append(FinancialEntry(
             account=Account.INVENTORY, amount=amount,
+            journal_id=journal_id,
             department=dept, vendor_name=vendor_name, product_id=pid,
+            performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.PO_RECEIPT, reference_id=po_id, organization_id=organization_id,
         ))
         entries.append(FinancialEntry(
             account=Account.ACCOUNTS_PAYABLE, amount=amount,
+            journal_id=journal_id,
             department=dept, vendor_name=vendor_name, product_id=pid,
+            performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.PO_RECEIPT, reference_id=po_id, organization_id=organization_id,
         ))
 
@@ -167,6 +191,7 @@ async def record_adjustment(
     quantity_delta: float,
     department: Optional[str],
     organization_id: str,
+    performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Write inventory + shrinkage entries for a stock count adjustment.
@@ -185,11 +210,13 @@ async def record_adjustment(
         FinancialEntry(
             account=Account.INVENTORY, amount=sign * amount,
             department=department, product_id=product_id,
+            performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.ADJUSTMENT, reference_id=adjustment_ref_id, organization_id=organization_id,
         ),
         FinancialEntry(
             account=Account.SHRINKAGE, amount=-sign * amount,
             department=department, product_id=product_id,
+            performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.ADJUSTMENT, reference_id=adjustment_ref_id, organization_id=organization_id,
         ),
     ]
@@ -202,6 +229,7 @@ async def record_payment(
     billing_entity: str,
     contractor_id: str,
     organization_id: str,
+    performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
     """Write AR reduction when a withdrawal is marked paid."""
@@ -213,6 +241,7 @@ async def record_payment(
             amount=-round(amount, 2),
             billing_entity=billing_entity,
             contractor_id=contractor_id,
+            performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.PAYMENT,
             reference_id=withdrawal_id,
             organization_id=organization_id,

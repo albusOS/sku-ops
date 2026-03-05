@@ -1,9 +1,10 @@
 """Product CRUD routes."""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from identity.application.auth_service import get_current_user, require_role
+from shared.infrastructure.middleware.audit import audit_log
 from kernel.errors import ResourceNotFoundError
 from kernel.types import CurrentUser
 from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
@@ -176,7 +177,7 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Cur
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def delete_product(product_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
@@ -186,5 +187,11 @@ async def delete_product(product_id: str, current_user: CurrentUser = Depends(re
         await lifecycle_delete(product_id)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    await audit_log(
+        user_id=current_user.id, action="product.delete",
+        resource_type="product", resource_id=product_id,
+        details={"sku": product.get("sku"), "name": product.get("name")},
+        request=request, org_id=org_id,
+    )
     return {"message": "Product deleted"}
 

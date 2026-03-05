@@ -249,4 +249,5 @@ async def process_adjustment_stock_changes(
         quantity_delta=quantity_delta,
         department=product.get("department_name"),
         organization_id=product.get("organization_id", "default"),
+        performed_by_user_id=user_id,
     )

@@ -26,14 +26,15 @@ async def insert_entries(entries: List[FinancialEntry], conn=None) -> None:
     for e in entries:
         await c.execute(
             """INSERT INTO financial_ledger
-               (id, account, amount, department, job_id, billing_entity,
-                contractor_id, vendor_name, product_id,
+               (id, journal_id, account, amount, department, job_id, billing_entity,
+                contractor_id, vendor_name, product_id, performed_by_user_id,
                 reference_type, reference_id, organization_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                e.id, e.account.value, round(e.amount, 2),
+                e.id, e.journal_id, e.account.value, round(e.amount, 2),
                 e.department, e.job_id, e.billing_entity,
                 e.contractor_id, e.vendor_name, e.product_id,
+                e.performed_by_user_id,
                 e.reference_type.value, e.reference_id,
                 e.organization_id, e.created_at,
             ),
@@ -296,23 +297,31 @@ async def trend_series(
 async def ar_aging(
     org_id: str,
 ) -> list[dict]:
-    """AR aging buckets by billing entity: current (0-30), 31-60, 61-90, 90+."""
+    """AR aging buckets by billing entity based on invoice due_date.
+
+    Joins through invoice_withdrawals to get the due_date from the invoice.
+    Falls back to created_at + 30 days for entries without a linked invoice.
+    """
     conn = get_connection()
     cursor = await conn.execute(
-        """SELECT billing_entity,
-                  ROUND(SUM(amount), 2) AS total_ar,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(created_at) <= 30 THEN amount ELSE 0 END), 2) AS current_0_30,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(created_at) > 30
-                                  AND julianday('now') - julianday(created_at) <= 60 THEN amount ELSE 0 END), 2) AS overdue_31_60,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(created_at) > 60
-                                  AND julianday('now') - julianday(created_at) <= 90 THEN amount ELSE 0 END), 2) AS overdue_61_90,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(created_at) > 90 THEN amount ELSE 0 END), 2) AS overdue_90_plus
-           FROM financial_ledger
-           WHERE organization_id = ?
-             AND account = 'accounts_receivable'
-             AND billing_entity IS NOT NULL
-           GROUP BY billing_entity
-           HAVING ROUND(SUM(amount), 2) != 0""",
+        """SELECT fl.billing_entity,
+                  ROUND(SUM(fl.amount), 2) AS total_ar,
+                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 0 THEN fl.amount ELSE 0 END), 2) AS current_not_due,
+                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 0
+                                  AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 30 THEN fl.amount ELSE 0 END), 2) AS overdue_1_30,
+                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 30
+                                  AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 60 THEN fl.amount ELSE 0 END), 2) AS overdue_31_60,
+                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 60
+                                  AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 90 THEN fl.amount ELSE 0 END), 2) AS overdue_61_90,
+                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 90 THEN fl.amount ELSE 0 END), 2) AS overdue_90_plus
+           FROM financial_ledger fl
+           LEFT JOIN invoice_withdrawals iw ON fl.reference_id = iw.withdrawal_id AND fl.reference_type = 'withdrawal'
+           LEFT JOIN invoices inv ON iw.invoice_id = inv.id
+           WHERE fl.organization_id = ?
+             AND fl.account = 'accounts_receivable'
+             AND fl.billing_entity IS NOT NULL
+           GROUP BY fl.billing_entity
+           HAVING ROUND(SUM(fl.amount), 2) != 0""",
         (org_id,),
     )
     return [dict(r) for r in await cursor.fetchall()]
@@ -393,6 +402,30 @@ async def purchase_spend(
     )
     row = await cursor.fetchone()
     return row[0] if row else 0.0
+
+
+async def get_journal(journal_id: str) -> list[dict]:
+    """Return all entries for a single journal transaction."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        "SELECT * FROM financial_ledger WHERE journal_id = ? ORDER BY id",
+        (journal_id,),
+    )
+    return [dict(r) for r in await cursor.fetchall()]
+
+
+async def trial_balance(org_id: str) -> dict[str, float]:
+    """Sum all entries by account — should produce balanced totals."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT account, ROUND(SUM(amount), 2) AS balance
+           FROM financial_ledger
+           WHERE organization_id = ?
+           GROUP BY account
+           ORDER BY account""",
+        (org_id,),
+    )
+    return {row[0]: row[1] for row in await cursor.fetchall()}
 
 
 async def reference_counts(

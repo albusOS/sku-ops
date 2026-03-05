@@ -3,7 +3,7 @@ from typing import Optional, Union
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from finance.domain.invoice import Invoice
+from finance.domain.invoice import Invoice, compute_due_date
 
 from typing import Callable, Awaitable
 
@@ -72,10 +72,16 @@ async def insert(invoice: Union[Invoice, dict]) -> Optional[dict]:
     invoice_id = invoice_dict.get("id") or str(uuid4())
     invoice_number = invoice_dict.get("invoice_number") or await _next_invoice_number(org_id)
     now = datetime.now(timezone.utc).isoformat()
+    inv_date = invoice_dict.get("invoice_date") or now
+    payment_terms = invoice_dict.get("payment_terms") or "net_30"
+    due_date = invoice_dict.get("due_date") or compute_due_date(inv_date, payment_terms)
     await conn.execute(
         """INSERT INTO invoices (id, invoice_number, billing_entity, contact_name, contact_email,
-           status, subtotal, tax, total, notes, xero_invoice_id, organization_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           status, subtotal, tax, tax_rate, total, amount_credited, notes,
+           invoice_date, due_date, payment_terms, billing_address, po_reference, currency,
+           approved_by_id, approved_at,
+           xero_invoice_id, organization_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             invoice_id,
             invoice_number,
@@ -85,8 +91,18 @@ async def insert(invoice: Union[Invoice, dict]) -> Optional[dict]:
             invoice_dict.get("status", "draft"),
             float(invoice_dict.get("subtotal", 0)),
             float(invoice_dict.get("tax", 0)),
+            float(invoice_dict.get("tax_rate", 0)),
             float(invoice_dict.get("total", 0)),
+            float(invoice_dict.get("amount_credited", 0)),
             invoice_dict.get("notes"),
+            inv_date,
+            due_date,
+            payment_terms,
+            invoice_dict.get("billing_address", ""),
+            invoice_dict.get("po_reference", ""),
+            invoice_dict.get("currency", "USD"),
+            invoice_dict.get("approved_by_id"),
+            invoice_dict.get("approved_at"),
             invoice_dict.get("xero_invoice_id"),
             org_id,
             invoice_dict.get("created_at") or now,
@@ -101,12 +117,12 @@ async def get_by_id(invoice_id: str, organization_id: Optional[str] = None) -> O
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
-            "SELECT * FROM invoices WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)",
+            "SELECT * FROM invoices WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
             (invoice_id, organization_id),
         )
     else:
         cursor = await conn.execute(
-            "SELECT * FROM invoices WHERE id = ?",
+            "SELECT * FROM invoices WHERE id = ? AND deleted_at IS NULL",
             (invoice_id,),
         )
     row = await cursor.fetchone()
@@ -143,7 +159,7 @@ async def list_invoices(
 ) -> list:
     conn = get_connection()
     org_id = organization_id or "default"
-    query = "SELECT * FROM invoices WHERE (organization_id = ? OR organization_id IS NULL)"
+    query = "SELECT * FROM invoices WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL"
     params: list = [org_id]
     if status:
         query += " AND status = ?"
@@ -184,6 +200,12 @@ async def update(
     status: Optional[str] = None,
     notes: Optional[str] = None,
     tax: Optional[float] = None,
+    tax_rate: Optional[float] = None,
+    invoice_date: Optional[str] = None,
+    due_date: Optional[str] = None,
+    payment_terms: Optional[str] = None,
+    billing_address: Optional[str] = None,
+    po_reference: Optional[str] = None,
     line_items: Optional[list] = None,
 ) -> Optional[dict]:
     conn = get_connection()
@@ -223,7 +245,7 @@ async def update(
         )
     else:
         updates: list[str] = []
-        params: list[str | float] = []
+        params: list = []
         if billing_entity is not None:
             updates.append("billing_entity = ?")
             params.append(billing_entity)
@@ -246,6 +268,28 @@ async def update(
             params.append(tax)
             updates.append("total = ?")
             params.append(total)
+        if tax_rate is not None:
+            updates.append("tax_rate = ?")
+            params.append(tax_rate)
+        if invoice_date is not None:
+            updates.append("invoice_date = ?")
+            params.append(invoice_date)
+        if due_date is not None:
+            updates.append("due_date = ?")
+            params.append(due_date)
+        elif payment_terms is not None:
+            inv_date = invoice_date or inv.get("invoice_date") or inv.get("created_at")
+            updates.append("due_date = ?")
+            params.append(compute_due_date(inv_date, payment_terms))
+        if payment_terms is not None:
+            updates.append("payment_terms = ?")
+            params.append(payment_terms)
+        if billing_address is not None:
+            updates.append("billing_address = ?")
+            params.append(billing_address)
+        if po_reference is not None:
+            updates.append("po_reference = ?")
+            params.append(po_reference)
         if updates:
             updates.append("updated_at = ?")
             params.append(now)
@@ -255,7 +299,6 @@ async def update(
                 params,
             )
 
-    # Cascade: when invoice marked paid, update all linked withdrawals
     if status == "paid":
         await conn.execute(
             "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE invoice_id = ?",
@@ -385,12 +428,22 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
     conn = conn or get_connection()
     now = datetime.now(timezone.utc).isoformat()
     invoice_number = await _next_invoice_number(org_id, conn)
+    payment_terms = "net_30"
+    due_date = compute_due_date(now, payment_terms)
+    first_tax_rate = withdrawals[0].get("tax_rate", 0) if withdrawals else 0
 
     await conn.execute(
         """INSERT INTO invoices (id, invoice_number, billing_entity, contact_name, contact_email,
-           status, subtotal, tax, total, notes, xero_invoice_id, organization_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (inv_id, invoice_number, billing_entity or "", contact_name, contact_email or "", "draft", 0, 0, 0, None, None, org_id, now, now),
+           status, subtotal, tax, tax_rate, total, amount_credited, notes,
+           invoice_date, due_date, payment_terms, billing_address, po_reference, currency,
+           approved_by_id, approved_at,
+           xero_invoice_id, organization_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (inv_id, invoice_number, billing_entity or "", contact_name, contact_email or "", "draft",
+         0, 0, first_tax_rate, 0, 0, None,
+         now, due_date, payment_terms, "", "", "USD",
+         None, None,
+         None, org_id, now, now),
     )
 
     for w in withdrawals:
@@ -465,7 +518,7 @@ async def set_xero_invoice_id(invoice_id: str, xero_invoice_id: str) -> None:
 
 
 async def delete_draft(invoice_id: str) -> bool:
-    """Delete draft invoice and unlink withdrawals."""
+    """Soft-delete draft invoice and unlink withdrawals."""
     conn = get_connection()
     inv = await get_by_id(invoice_id)
     if not inv:
@@ -473,14 +526,17 @@ async def delete_draft(invoice_id: str) -> bool:
     if inv.get("status") != "draft":
         raise ValueError("Can only delete draft invoices")
 
+    now = datetime.now(timezone.utc).isoformat()
     for wid in inv.get("withdrawal_ids", []):
         await conn.execute(
             "UPDATE withdrawals SET invoice_id = NULL, payment_status = 'unpaid' WHERE id = ?",
             (wid,),
         )
     await conn.execute("DELETE FROM invoice_withdrawals WHERE invoice_id = ?", (invoice_id,))
-    await conn.execute("DELETE FROM invoice_line_items WHERE invoice_id = ?", (invoice_id,))
-    await conn.execute("DELETE FROM invoices WHERE id = ?", (invoice_id,))
+    await conn.execute(
+        "UPDATE invoices SET status = 'deleted', deleted_at = ?, updated_at = ? WHERE id = ?",
+        (now, now, invoice_id),
+    )
     await conn.commit()
     return True
 

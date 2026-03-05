@@ -1,4 +1,5 @@
 """Department repository."""
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 from catalog.domain.department import Department
@@ -16,7 +17,7 @@ async def list_all(organization_id: Optional[str] = None) -> list:
     org_id = organization_id or "default"
     cursor = await conn.execute(
         """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
-           WHERE organization_id = ? OR organization_id IS NULL""",
+           WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (org_id,),
     )
     rows = await cursor.fetchall()
@@ -28,12 +29,12 @@ async def get_by_id(dept_id: str, organization_id: Optional[str] = None) -> Opti
     if organization_id:
         cursor = await conn.execute(
             """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
-               WHERE id = ? AND (organization_id = ? OR organization_id IS NULL)""",
+               WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
             (dept_id, organization_id),
         )
     else:
         cursor = await conn.execute(
-            "SELECT id, name, code, description, product_count, organization_id, created_at FROM departments WHERE id = ?",
+            "SELECT id, name, code, description, product_count, organization_id, created_at FROM departments WHERE id = ? AND deleted_at IS NULL",
             (dept_id,),
         )
     row = await cursor.fetchone()
@@ -45,7 +46,7 @@ async def get_by_code(code: str, organization_id: Optional[str] = None) -> Optio
     org_id = organization_id or "default"
     cursor = await conn.execute(
         """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
-           WHERE code = ? AND (organization_id = ? OR organization_id IS NULL)""",
+           WHERE code = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (code.upper(), org_id),
     )
     row = await cursor.fetchone()
@@ -101,7 +102,11 @@ async def count_products_by_department(dept_id: str) -> int:
 
 async def delete(dept_id: str) -> int:
     conn = get_connection()
-    cursor = await conn.execute("DELETE FROM departments WHERE id = ?", (dept_id,))
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await conn.execute(
+        "UPDATE departments SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
+        (now, dept_id),
+    )
     await conn.commit()
     return cursor.rowcount
 

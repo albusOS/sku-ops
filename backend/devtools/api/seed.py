@@ -119,6 +119,7 @@ async def backfill_ledger(current_user=Depends(require_role("admin"))):
             tax=w.get("tax", 0), total=w.get("total", 0),
             job_id=w.get("job_id", ""), billing_entity=w.get("billing_entity", ""),
             contractor_id=w.get("contractor_id", ""), organization_id=org_id,
+            performed_by_user_id=w.get("processed_by_id"),
         )
         if w.get("payment_status") == "paid":
             await record_payment(
@@ -126,6 +127,7 @@ async def backfill_ledger(current_user=Depends(require_role("admin"))):
                 billing_entity=w.get("billing_entity", ""),
                 contractor_id=w.get("contractor_id", ""),
                 organization_id=org_id,
+                performed_by_user_id=w.get("processed_by_id"),
             )
 
     returns = await list_returns(limit=100000, organization_id=org_id)
@@ -139,10 +141,12 @@ async def backfill_ledger(current_user=Depends(require_role("admin"))):
             tax=r.get("tax", 0), total=r.get("total", 0),
             job_id=r.get("job_id", ""), billing_entity=r.get("billing_entity", ""),
             contractor_id=r.get("contractor_id", ""), organization_id=org_id,
+            performed_by_user_id=r.get("processed_by_id"),
         )
 
     cursor = await conn.execute(
-        """SELECT po.id, po.vendor_name, poi.cost, poi.delivered_qty, poi.product_id, poi.suggested_department
+        """SELECT po.id, po.vendor_name, po.received_by_id,
+                  poi.cost, poi.delivered_qty, poi.product_id, poi.suggested_department
            FROM purchase_orders po
            JOIN purchase_order_items poi ON po.id = poi.po_id
            WHERE po.organization_id = ? AND poi.status = 'arrived'""",
@@ -151,20 +155,23 @@ async def backfill_ledger(current_user=Depends(require_role("admin"))):
     po_rows = await cursor.fetchall()
     po_items: dict[str, list] = {}
     po_vendors: dict[str, str] = {}
+    po_receivers: dict[str, str] = {}
     for row in po_rows:
         r = dict(row)
         po_id = r["id"]
         po_vendors[po_id] = r["vendor_name"]
+        po_receivers[po_id] = r.get("received_by_id") or ""
         po_items.setdefault(po_id, []).append(r)
     for po_id, items in po_items.items():
         await record_po_receipt(
             po_id=po_id, items=items,
             vendor_name=po_vendors.get(po_id, ""),
             organization_id=org_id,
+            performed_by_user_id=po_receivers.get(po_id) or None,
         )
 
     cursor = await conn.execute(
-        """SELECT product_id, quantity_delta, reason
+        """SELECT product_id, quantity_delta, reason, user_id
            FROM stock_transactions
            WHERE (organization_id = ? OR organization_id IS NULL)
              AND transaction_type = 'adjustment'""",
@@ -180,6 +187,7 @@ async def backfill_ledger(current_user=Depends(require_role("admin"))):
             quantity_delta=r["quantity_delta"],
             department=dept_map.get(pid),
             organization_id=org_id,
+            performed_by_user_id=r.get("user_id"),
         )
 
     total_entries = 0

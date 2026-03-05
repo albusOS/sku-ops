@@ -1,6 +1,6 @@
 """Stock history and adjustment routes - inventory bounded context."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from identity.application.auth_service import require_role
@@ -10,6 +10,7 @@ from inventory.application.inventory_service import (
     get_stock_history,
     process_adjustment_stock_changes,
 )
+from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 
@@ -37,6 +38,7 @@ async def get_product_stock_history(
 async def adjust_stock(
     product_id: str,
     data: AdjustStockRequest,
+    request: Request,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     try:
@@ -49,4 +51,10 @@ async def adjust_stock(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    await audit_log(
+        user_id=current_user.id, action="stock.adjust",
+        resource_type="product", resource_id=product_id,
+        details={"quantity_delta": data.quantity_delta, "reason": data.reason},
+        request=request, org_id=current_user.organization_id,
+    )
     return {"message": "Stock adjusted"}

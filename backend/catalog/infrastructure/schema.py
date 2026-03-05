@@ -9,6 +9,7 @@ TABLES: list[str] = [
         product_count INTEGER NOT NULL DEFAULT 0,
         organization_id TEXT,
         created_at TEXT NOT NULL,
+        deleted_at TEXT,
         UNIQUE(organization_id, code)
     )""",
 
@@ -21,7 +22,8 @@ TABLES: list[str] = [
         address TEXT NOT NULL DEFAULT '',
         product_count INTEGER NOT NULL DEFAULT 0,
         organization_id TEXT,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        deleted_at TEXT
     )""",
 
     """CREATE TABLE IF NOT EXISTS products (
@@ -45,7 +47,8 @@ TABLES: list[str] = [
         pack_qty INTEGER NOT NULL DEFAULT 1,
         organization_id TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
     )""",
 
     """CREATE TABLE IF NOT EXISTS sku_counters (

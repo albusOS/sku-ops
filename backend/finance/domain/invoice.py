@@ -1,4 +1,5 @@
 """Invoice models."""
+from datetime import datetime, timedelta, timezone
 from typing import ClassVar, List, Optional
 from uuid import uuid4
 
@@ -6,6 +7,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from kernel.entity import AuditedEntity
 from kernel.types import LineItem
+
+PAYMENT_TERMS_DAYS: dict[str, int] = {
+    "due_on_receipt": 0,
+    "net_15": 15,
+    "net_30": 30,
+    "net_45": 45,
+    "net_60": 60,
+    "net_90": 90,
+}
+
+
+def compute_due_date(invoice_date: str, payment_terms: str) -> str:
+    """Return ISO due-date string from invoice_date + payment_terms."""
+    days = PAYMENT_TERMS_DAYS.get(payment_terms, 30)
+    dt = datetime.fromisoformat(invoice_date)
+    due = dt + timedelta(days=days)
+    return due.isoformat()
 
 
 class InvoiceLineItem(BaseModel):
@@ -74,6 +92,12 @@ class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     tax: Optional[float] = None
+    tax_rate: Optional[float] = None
+    invoice_date: Optional[str] = None
+    due_date: Optional[str] = None
+    payment_terms: Optional[str] = None
+    billing_address: Optional[str] = None
+    po_reference: Optional[str] = None
     line_items: Optional[List[InvoiceLineItem]] = None
 
 
@@ -85,18 +109,33 @@ class Invoice(AuditedEntity):
     status: str = "draft"
     subtotal: float = 0.0
     tax: float = 0.0
+    tax_rate: float = 0.0
     total: float = 0.0
+    amount_credited: float = 0.0
     notes: Optional[str] = None
+    invoice_date: Optional[str] = None
+    due_date: Optional[str] = None
+    payment_terms: str = "net_30"
+    billing_address: str = ""
+    po_reference: str = ""
+    currency: str = "USD"
+    approved_by_id: Optional[str] = None
+    approved_at: Optional[str] = None
     xero_invoice_id: Optional[str] = None
 
     ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
-        "draft": {"sent", "paid"},
+        "draft": {"approved", "sent", "paid"},
+        "approved": {"sent", "paid"},
         "sent": {"paid"},
         "paid": set(),
     }
 
     def can_transition_to(self, target: str) -> bool:
         return target in self.ALLOWED_TRANSITIONS.get(self.status, set())
+
+    @property
+    def balance_due(self) -> float:
+        return round(self.total - self.amount_credited, 2)
 
 
 class InvoiceWithDetails(Invoice):

@@ -66,6 +66,18 @@ TABLES: list[str] = [
         organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
+
+    """CREATE TABLE IF NOT EXISTS fiscal_periods (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        closed_by_id TEXT,
+        closed_at TEXT,
+        organization_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
 ]
 
 INDEXES: list[str] = [
@@ -75,6 +87,7 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(organization_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status)",
 ]
 
 SEED: list[str] = [
