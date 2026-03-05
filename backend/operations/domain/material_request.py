@@ -15,8 +15,8 @@ class MaterialRequestCreate(BaseModel):
 
 
 class MaterialRequestProcess(BaseModel):
-    job_id: str
-    service_address: str
+    job_id: Optional[str] = None
+    service_address: Optional[str] = None
     notes: Optional[str] = None
 
 

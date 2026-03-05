@@ -102,10 +102,17 @@ async def process_material_request(
     if contractor.get("organization_id") and contractor.get("organization_id") != org_id:
         raise HTTPException(status_code=403, detail="Contractor belongs to different organization")
 
+    job_id = (data.job_id or req.get("job_id") or "").strip()
+    service_address = (data.service_address or req.get("service_address") or "").strip()
+    if not job_id:
+        raise HTTPException(status_code=400, detail="Job ID is required")
+    if not service_address:
+        raise HTTPException(status_code=400, detail="Service address is required")
+
     withdrawal_data = MaterialWithdrawalCreate(
         items=[WithdrawalItem(**i) for i in req["items"]],
-        job_id=data.job_id.strip(),
-        service_address=data.service_address.strip(),
+        job_id=job_id,
+        service_address=service_address,
         notes=data.notes,
     )
 

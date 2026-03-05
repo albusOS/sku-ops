@@ -168,7 +168,7 @@ async def create_purchase_order(
 
     po_items: List[PurchaseOrderItem] = []
     for item in selected_dicts:
-        cost_val = float(item.get("cost") or 0) or float(item.get("price") or 0) * 0.7
+        cost_val = _resolve_po_item_cost(item)
         po_items.append(PurchaseOrderItem(
             po_id=po.id,
             name=item.get("name", "Unknown"),
@@ -299,7 +299,7 @@ async def receive_po_items(
                 if item.get("original_sku") and not existing.get("original_sku"):
                     product_updates["original_sku"] = item["original_sku"]
 
-                po_item_cost = float(item.get("cost") or 0) or float(item.get("unit_price") or item.get("price") or 0) * 0.7
+                po_item_cost = _resolve_po_item_cost(item)
                 old_qty = float(existing.get("quantity", 0))
                 old_cost = float(existing.get("cost", 0))
                 if (old_qty + delivered) > 0:
@@ -319,7 +319,7 @@ async def receive_po_items(
                     errors.append({"item": item.get("name"), "error": "No valid department"})
                     continue
 
-                cost_val = float(item.get("cost") or 0) or float(item.get("unit_price") or item.get("price") or 0) * 0.7
+                cost_val = _resolve_po_item_cost(item)
                 product = await deps.create_product(
                     department_id=dept["id"],
                     department_name=dept["name"],
@@ -344,7 +344,7 @@ async def receive_po_items(
                 await repo.update_po_item(item_id, POItemStatus.ARRIVED, product_id=product.id, delivered_qty=delivered)
                 received.append(product)
 
-            item_cost = float(item.get("cost") or 0)
+            item_cost = _resolve_po_item_cost(item)
             cost_total += item_cost * delivered
             dept_code = (item.get("suggested_department") or "HDW").upper()
             ledger_items.append({
@@ -377,6 +377,15 @@ async def receive_po_items(
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
+
+def _resolve_po_item_cost(item: dict) -> float:
+    """Derive item cost from cost field, falling back to 70% of unit_price/price."""
+    cost = float(item.get("cost") or 0)
+    if cost == 0:
+        price = float(item.get("unit_price") or item.get("price") or 0)
+        cost = round(price * 0.7, 4) if price else 0
+    return cost
+
 
 async def _match_product(item: dict, vendor_id: str, org_id: str, deps: PurchasingDeps):
     """3-tier matching: explicit product_id → vendor SKU → name."""
