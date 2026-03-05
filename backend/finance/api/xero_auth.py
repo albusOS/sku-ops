@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
 from identity.application.auth_service import require_role
+from kernel.types import CurrentUser
 from shared.infrastructure.config import XERO_CLIENT_ID, XERO_CLIENT_SECRET, XERO_REDIRECT_URI
 from shared.infrastructure.database import get_connection
 from identity.application.org_service import (
@@ -56,10 +57,10 @@ def _require_xero_configured():
 
 
 @router.get("/connect")
-async def xero_connect(current_user: dict = Depends(require_role("admin"))):
+async def xero_connect(current_user: CurrentUser = Depends(require_role("admin"))):
     """Initiate Xero OAuth 2.0 Authorization Code flow. Redirects to Xero consent page."""
     _require_xero_configured()
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     state = secrets.token_urlsafe(32)
     await _save_oauth_state(state, org_id)
 
@@ -117,9 +118,9 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
 
 
 @router.get("/tenants")
-async def list_xero_tenants(current_user: dict = Depends(require_role("admin"))):
+async def list_xero_tenants(current_user: CurrentUser = Depends(require_role("admin"))):
     """List Xero organisations the connected token can access. Use to select tenant_id."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
     if not settings.xero_access_token:
         raise HTTPException(status_code=400, detail="Xero not connected for this org")
@@ -135,10 +136,10 @@ async def list_xero_tenants(current_user: dict = Depends(require_role("admin")))
 @router.post("/select-tenant")
 async def select_xero_tenant(
     tenant_id: str,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Save the chosen Xero tenant (organisation) ID for this org."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
     if not settings.xero_access_token:
         raise HTTPException(status_code=400, detail="Xero not connected for this org")
@@ -148,17 +149,17 @@ async def select_xero_tenant(
 
 
 @router.post("/disconnect")
-async def xero_disconnect(current_user: dict = Depends(require_role("admin"))):
+async def xero_disconnect(current_user: CurrentUser = Depends(require_role("admin"))):
     """Remove Xero OAuth tokens for this org."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     await clear_xero_tokens(org_id)
     return {"disconnected": True}
 
 
 @router.get("/tracking-categories")
-async def list_tracking_categories(current_user: dict = Depends(require_role("admin"))):
+async def list_tracking_categories(current_user: CurrentUser = Depends(require_role("admin"))):
     """List Xero tracking categories for the connected org."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
     if not settings.xero_access_token:
         raise HTTPException(status_code=400, detail="Xero not connected for this org")
@@ -174,10 +175,10 @@ async def list_tracking_categories(current_user: dict = Depends(require_role("ad
 @router.post("/select-tracking-category")
 async def select_tracking_category(
     tracking_category_id: str,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Save the chosen Xero tracking category ID for job_id tagging on invoice lines."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
     updated = settings.model_copy(update={"xero_tracking_category_id": tracking_category_id})
     saved = await upsert_org_settings(updated)

@@ -22,7 +22,6 @@ from shared.infrastructure.middleware.security_headers import SecurityHeadersMid
 from shared.infrastructure.middleware.rate_limit import setup_rate_limiting
 from shared.infrastructure.metrics import setup_sentry, setup_prometheus
 from api import api_router
-from scripts.seed import seed_mock_user, seed_standard_departments
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +43,6 @@ async def lifespan(app: FastAPI):
     from operations.application.queries import get_withdrawal_by_id
     set_withdrawal_getter(get_withdrawal_by_id)
     logger.info("Cross-domain DI wired")
-    for seed_fn in (seed_mock_user, seed_standard_departments):
-        try:
-            await seed_fn()
-        except Exception as e:
-            logger.warning(f"Seed {seed_fn.__name__}: {e}")
     try:
         from assistant.agents.tools.search import get_index
         await get_index("default")

@@ -24,7 +24,7 @@ from inventory.application.inventory_service import process_import_stock_changes
 
 logger = logging.getLogger(__name__)
 
-DEMO_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "identity", "data", "SY Inventory - Sheet1 (1).csv")
+DEMO_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "SY Inventory - Sheet1 (1).csv")
 DEMO_PRODUCT_LIMIT = 2000
 DEMO_PRODUCT_PER_ORG = 80
 

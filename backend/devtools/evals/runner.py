@@ -1,10 +1,10 @@
 """Eval runner — loads datasets, runs test cases, collects scores.
 
 Usage:
-    python -m assistant.evals.runner --suite routing
-    python -m assistant.evals.runner --suite inventory --model anthropic/claude-haiku-4-5
-    python -m assistant.evals.runner --suite all
-    python -m assistant.evals.runner --suite all --compare "anthropic/claude-sonnet-4-6,anthropic/claude-haiku-4-5"
+    python -m devtools.evals.runner --suite routing
+    python -m devtools.evals.runner --suite inventory --model anthropic/claude-haiku-4-5
+    python -m devtools.evals.runner --suite all
+    python -m devtools.evals.runner --suite all --compare "anthropic/claude-sonnet-4-6,anthropic/claude-haiku-4-5"
 """
 import argparse
 import asyncio
@@ -24,7 +24,7 @@ from assistant.agents.routing.router import is_trivial, classify_domain
 from assistant.agents.routing.lookups import try_lookup
 from assistant.agents.routing.dag import match_report
 from assistant.application.assistant import chat
-from assistant.evals.scorer import score_case
+from devtools.evals.scorer import score_case
 
 logger = logging.getLogger(__name__)
 

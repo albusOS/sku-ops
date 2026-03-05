@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 
 from identity.application.auth_service import hash_password, require_role
+from kernel.types import CurrentUser
 from identity.domain.user import User, UserCreate, UserUpdate
 from identity.application.user_service import (
     get_user_by_id,
@@ -16,13 +17,13 @@ router = APIRouter(prefix="/contractors", tags=["contractors"])
 
 
 @router.get("")
-async def get_contractors(current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    org_id = current_user.get("organization_id") or "default"
+async def get_contractors(current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+    org_id = current_user.organization_id
     return await list_contractors(org_id)
 
 
 @router.post("")
-async def create_contractor(data: UserCreate, current_user: dict = Depends(require_role("admin"))):
+async def create_contractor(data: UserCreate, current_user: CurrentUser = Depends(require_role("admin"))):
     existing = await get_user_by_email(data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -37,7 +38,7 @@ async def create_contractor(data: UserCreate, current_user: dict = Depends(requi
     )
     contractor_dict = contractor.model_dump()
     contractor_dict["password"] = hash_password(data.password)
-    contractor_dict["organization_id"] = current_user.get("organization_id") or "default"
+    contractor_dict["organization_id"] = current_user.organization_id
 
     await insert_user(contractor_dict)
 
@@ -45,8 +46,8 @@ async def create_contractor(data: UserCreate, current_user: dict = Depends(requi
 
 
 @router.put("/{contractor_id}")
-async def update_contractor(contractor_id: str, data: UserUpdate, current_user: dict = Depends(require_role("admin"))):
-    org_id = current_user.get("organization_id") or "default"
+async def update_contractor(contractor_id: str, data: UserUpdate, current_user: CurrentUser = Depends(require_role("admin"))):
+    org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
@@ -59,8 +60,8 @@ async def update_contractor(contractor_id: str, data: UserUpdate, current_user: 
 
 
 @router.delete("/{contractor_id}")
-async def delete_contractor(contractor_id: str, current_user: dict = Depends(require_role("admin"))):
-    org_id = current_user.get("organization_id") or "default"
+async def delete_contractor(contractor_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+    org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")

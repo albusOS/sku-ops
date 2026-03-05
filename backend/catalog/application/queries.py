@@ -95,8 +95,8 @@ async def increment_product_quantity(product_id: str, quantity: int, updated_at:
     return await _prod_repo.increment_quantity(product_id, quantity, updated_at, conn=conn)
 
 
-async def add_product_quantity(product_id: str, quantity: int, updated_at: str) -> Optional[dict]:
-    return await _prod_repo.add_quantity(product_id, quantity, updated_at)
+async def add_product_quantity(product_id: str, quantity: int, updated_at: str, conn=None) -> Optional[dict]:
+    return await _prod_repo.add_quantity(product_id, quantity, updated_at, conn=conn)
 
 
 async def atomic_adjust_product(product_id: str, quantity_delta: int, updated_at: str) -> Optional[dict]:

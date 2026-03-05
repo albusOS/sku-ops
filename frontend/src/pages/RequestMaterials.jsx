@@ -92,7 +92,7 @@ const RequestMaterials = () => {
             ? {
                 ...item,
                 quantity: item.quantity + 1,
-                subtotal: (item.quantity + 1) * item.price,
+                subtotal: (item.quantity + 1) * item.unit_price,
               }
             : item
         )
@@ -104,7 +104,7 @@ const RequestMaterials = () => {
           product_id: product.id,
           sku: product.sku,
           name: product.name,
-          price: product.price,
+          unit_price: product.price,
           quantity: 1,
           subtotal: product.price,
           max_quantity: product.quantity,
@@ -149,7 +149,7 @@ const RequestMaterials = () => {
             return {
               ...item,
               quantity: newQty,
-              subtotal: newQty * item.price,
+              subtotal: newQty * item.unit_price,
             };
           }
           return item;
@@ -178,12 +178,12 @@ const RequestMaterials = () => {
     setProcessing(true);
     try {
       const payload = {
-        items: cart.map(({ product_id, sku, name, quantity, price, subtotal, unit }) => ({
+        items: cart.map(({ product_id, sku, name, quantity, unit_price, subtotal, unit }) => ({
           product_id,
           sku,
           name,
           quantity,
-          price,
+          unit_price,
           cost: 0,
           subtotal,
           unit: unit || "each",

@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 
 from identity.application.auth_service import get_current_user, require_role
+from kernel.types import CurrentUser
 from catalog.application.queries import count_all_products, count_low_stock, list_low_stock, count_vendors
 from identity.application.user_service import count_contractors
 from operations.application.queries import list_withdrawals
@@ -11,14 +12,14 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/stats")
-async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
+async def get_dashboard_stats(current_user: CurrentUser = Depends(get_current_user)):
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_str = today.isoformat()
 
-    org_id = current_user.get("organization_id") or "default"
-    if current_user.get("role") == "contractor":
+    org_id = current_user.organization_id
+    if current_user.role == "contractor":
         my_withdrawals = await list_withdrawals(
-            contractor_id=current_user["id"], limit=1000, organization_id=org_id
+            contractor_id=current_user.id, limit=1000, organization_id=org_id
         )
 
         total_spent = sum(w.get("total", 0) for w in my_withdrawals)
@@ -88,10 +89,10 @@ async def get_dashboard_transactions(
     limit: int = 20,
     offset: int = 0,
     time_range: str = "24h",
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Paginated transactions for the dashboard terminal. time_range: today | 24h | 7d | all."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     now = datetime.now(timezone.utc)
 
     if time_range == "today":

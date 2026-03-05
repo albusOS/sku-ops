@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from identity.application.auth_service import require_role
+from kernel.types import CurrentUser
 from operations.application.queries import list_withdrawals
 
 router = APIRouter(prefix="/financials", tags=["financials"])
@@ -17,10 +18,10 @@ router = APIRouter(prefix="/financials", tags=["financials"])
 async def get_financial_summary(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Get financial summary for admin dashboard"""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     withdrawals = await list_withdrawals(
         start_date=start_date, end_date=end_date, limit=10000, organization_id=org_id
     )
@@ -74,10 +75,10 @@ async def export_financials(
     billing_entity: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Export financial data as CSV"""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     withdrawals = await list_withdrawals(
         payment_status=payment_status,
         billing_entity=billing_entity,

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from kernel.types import CurrentUser
 from identity.application.auth_service import get_current_user, require_role
 from operations.domain.material_request import MaterialRequestCreate, MaterialRequestProcess
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
@@ -17,7 +18,7 @@ from inventory.application.inventory_service import process_withdrawal_stock_cha
 from shared.infrastructure.database import transaction
 
 
-async def do_create_withdrawal(data, contractor, current_user, conn=None):
+async def do_create_withdrawal(data, contractor, current_user: CurrentUser, conn=None):
     return await _do_create_withdrawal(
         data, contractor, current_user,
         list_products=list_products,
@@ -30,20 +31,20 @@ router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 
 @router.post("")
-async def create_material_request(data: MaterialRequestCreate, current_user: dict = Depends(get_current_user)):
+async def create_material_request(data: MaterialRequestCreate, current_user: CurrentUser = Depends(get_current_user)):
     """Contractor creates a material request (pick list). Staff will process it into a withdrawal."""
-    if current_user.get("role") != "contractor":
+    if current_user.role != "contractor":
         raise HTTPException(status_code=403, detail="Only contractors can create material requests")
 
     if not data.items:
         raise HTTPException(status_code=400, detail="At least one item is required")
 
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     request_id = str(uuid4())
     request_dict = {
         "id": request_id,
-        "contractor_id": current_user["id"],
-        "contractor_name": current_user.get("name", ""),
+        "contractor_id": current_user.id,
+        "contractor_name": current_user.name,
         "items": [i.model_dump() if hasattr(i, "model_dump") else i for i in data.items],
         "status": "pending",
         "job_id": data.job_id,
@@ -58,14 +59,14 @@ async def create_material_request(data: MaterialRequestCreate, current_user: dic
 
 
 @router.get("")
-async def list_material_requests(current_user: dict = Depends(get_current_user)):
+async def list_material_requests(current_user: CurrentUser = Depends(get_current_user)):
     """Contractors see own requests; admin/WM see all pending."""
-    org_id = current_user.get("organization_id") or "default"
-    role = current_user.get("role")
+    org_id = current_user.organization_id
+    role = current_user.role
 
     if role == "contractor":
         return await material_request_repo.list_by_contractor(
-            contractor_id=current_user["id"], organization_id=org_id
+            contractor_id=current_user.id, organization_id=org_id
         )
     if role in ("admin", "warehouse_manager"):
         return await material_request_repo.list_pending(organization_id=org_id)
@@ -73,13 +74,13 @@ async def list_material_requests(current_user: dict = Depends(get_current_user))
 
 
 @router.get("/{request_id}")
-async def get_material_request(request_id: str, current_user: dict = Depends(get_current_user)):
-    org_id = current_user.get("organization_id") or "default"
+async def get_material_request(request_id: str, current_user: CurrentUser = Depends(get_current_user)):
+    org_id = current_user.organization_id
     req = await material_request_repo.get_by_id(request_id, org_id)
     if not req:
         raise HTTPException(status_code=404, detail="Material request not found")
 
-    if current_user.get("role") == "contractor" and req.get("contractor_id") != current_user["id"]:
+    if current_user.role == "contractor" and req.get("contractor_id") != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     return req
 
@@ -88,10 +89,10 @@ async def get_material_request(request_id: str, current_user: dict = Depends(get
 async def process_material_request(
     request_id: str,
     data: MaterialRequestProcess,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Convert a pending material request into a withdrawal. Staff supplies job_id and service_address."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     req = await material_request_repo.get_by_id(request_id, org_id)
     if not req:
         raise HTTPException(status_code=404, detail="Material request not found")
@@ -116,7 +117,7 @@ async def process_material_request(
         await material_request_repo.mark_processed(
             request_id=request_id,
             withdrawal_id=withdrawal["id"],
-            processed_by_id=current_user["id"],
+            processed_by_id=current_user.id,
             processed_at=datetime.now(timezone.utc).isoformat(),
             conn=conn,
         )

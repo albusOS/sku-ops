@@ -25,8 +25,6 @@ const STATUS_LABEL = {
   ordered: "Ordered",
   partial: "Partial",
   received: "Received",
-  // legacy alias
-  pending: "Ordered",
 };
 
 export default function PurchaseOrders() {

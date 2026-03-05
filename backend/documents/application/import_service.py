@@ -1,18 +1,17 @@
-"""
-Document import service: vendor lookup/create, product match/create, inventory updates.
-"""
+"""Document import service: vendor lookup/create, product match/create, inventory updates."""
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import HTTPException
-
 from dataclasses import dataclass
 from typing import Any, Callable, Awaitable
 
+from kernel.errors import ResourceNotFoundError
+from kernel.types import CurrentUser
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from documents.application.import_parser import infer_uom, resolve_uom, suggest_department
 from documents.application.enrichment_service import enrich_for_import
+from purchasing.domain.purchase_order import POItemCreate
 
 
 @dataclass
@@ -35,24 +34,23 @@ class ImportDeps:
 
 async def import_document(
     vendor_name: str,
-    products: list,
+    products: list[POItemCreate],
     deps: ImportDeps,
+    current_user: CurrentUser,
     department_id: Optional[str] = None,
     create_vendor_if_missing: bool = True,
-    current_user: dict = None,
 ) -> dict:
-    """
-    Import parsed products; create or match vendor, add/receive inventory.
-    Returns summary with imported, matched, errors.
-    """
+    """Import parsed products; create or match vendor, add/receive inventory."""
     vendor_name = (vendor_name or "").strip()
     if not vendor_name:
-        raise HTTPException(status_code=400, detail="Vendor name is required")
+        raise ValueError("Vendor name is required")
 
-    vendor = await deps.find_vendor_by_name(vendor_name)
+    org_id = current_user.organization_id
+
+    vendor = await deps.find_vendor_by_name(vendor_name, org_id)
     if not vendor:
         if not create_vendor_if_missing:
-            raise HTTPException(status_code=400, detail=f"Vendor '{vendor_name}' not found. Enable 'Create vendor if missing' or add vendor first.")
+            raise ResourceNotFoundError("Vendor", vendor_name)
         vendor_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
         await deps.insert_vendor({
@@ -64,6 +62,7 @@ async def import_document(
             "address": "",
             "product_count": 0,
             "created_at": now,
+            "organization_id": org_id,
         })
         vendor = {"id": vendor_id, "name": vendor_name}
         vendor_created = True
@@ -77,12 +76,11 @@ async def import_document(
     dept_by_code = {d["code"].upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
 
-    selected = [p for p in products if p.get("selected", True)]
+    selected = [p for p in products if p.selected]
+    selected_dicts = [p.model_dump() for p in selected]
 
-    # AI-parsed items already have dept/UOM/SKU from the document-aware parse LLM.
-    # Running a second (blind) LLM enrichment on them degrades quality — skip it.
-    ai_parsed_items = [p for p in selected if p.get("_ai_parsed")]
-    ocr_items = [p for p in selected if not p.get("_ai_parsed")]
+    ai_parsed_items = [d for d in selected_dicts if d.get("ai_parsed")]
+    ocr_items = [d for d in selected_dicts if not d.get("ai_parsed")]
 
     enrichment_warnings = []
     if ocr_items:
@@ -94,17 +92,16 @@ async def import_document(
             if item.get("enrichment_warning")
         ]
 
-    selected = ai_parsed_items + ocr_items
+    selected_dicts = ai_parsed_items + ocr_items
 
-    for item in selected:
+    for item in selected_dicts:
         suggested = (item.get("suggested_department") or "HDW").upper()
         if not suggested or suggested == "HDW" or suggested not in dept_by_code:
             rule_dept = suggest_department(item.get("name", "") or "", dept_by_code)
             if rule_dept:
                 item["suggested_department"] = rule_dept
 
-    # Rule-based UOM upgrade: only for items where UOM is still "each" (OCR items / missed)
-    for item in selected:
+    for item in selected_dicts:
         bu = (item.get("base_unit") or "each").lower()
         su = (item.get("sell_uom") or "each").lower()
         if bu == "each" and su == "each":
@@ -114,31 +111,28 @@ async def import_document(
                 item["sell_uom"] = inferred_su
                 item["pack_qty"] = inferred_pq
 
-    # LLM UOM classifier: only for OCR items with invalid/missing UOM (AI parse already classified)
     needs_uom = [
-        p for p in selected
-        if not p.get("_ai_parsed")
+        d for d in selected_dicts
+        if not d.get("ai_parsed")
         and (
-            (p.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS
-            or (p.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS
+            (d.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS
+            or (d.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS
         )
     ]
     if needs_uom:
         await deps.classify_uom_batch(needs_uom)
 
-    org_id = (current_user or {}).get("organization_id") or "default"
     imported = []
     matched = []
     errors = []
     warnings = list(enrichment_warnings)
-    for item in selected:
+    for item in selected_dicts:
         try:
             delivered = item.get("delivered_qty")
             if delivered is None:
                 delivered = item.get("quantity", 1)
             delivered = max(0, int(delivered))
 
-            # 3-tier matching: explicit product_id → vendor SKU → name
             existing = None
             if item.get("product_id"):
                 existing = await deps.get_product_by_id(item["product_id"], organization_id=org_id)
@@ -157,11 +151,11 @@ async def import_document(
                     sku=existing["sku"],
                     product_name=existing["name"],
                     quantity=delivered,
-                    user_id=current_user["id"],
-                    user_name=current_user.get("name", ""),
+                    user_id=current_user.id,
+                    user_name=current_user.name,
                     reference_id=None,
+                    organization_id=org_id,
                 )
-                # Backfill original_sku so future imports match on SKU, not name
                 if item.get("original_sku") and not existing.get("original_sku"):
                     await deps.update_product(existing["id"], {"original_sku": item["original_sku"]})
                 updated = await deps.get_product_by_id(existing["id"])
@@ -180,7 +174,6 @@ async def import_document(
 
             bu, su, pq = resolve_uom(item)
             cost_val = float(item.get("cost") or 0) or float(item.get("price", 0)) * 0.7
-            # Default sell price = cost × 1.4 if no explicit price provided; editable in Inventory
             price_val = float(item.get("price") or 0) or (round(cost_val * 1.4, 2) if cost_val > 0 else 0.0)
 
             barcode_val = item.get("barcode")
@@ -213,8 +206,9 @@ async def import_document(
                 base_unit=bu,
                 sell_uom=su,
                 pack_qty=pq,
-                user_id=current_user["id"],
-                user_name=current_user.get("name", ""),
+                user_id=current_user.id,
+                user_name=current_user.name,
+                organization_id=org_id,
             )
             imported.append(product)
         except Exception as e:

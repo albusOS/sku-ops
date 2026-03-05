@@ -114,15 +114,3 @@ class Product(AuditedEntity):
         return "medium"
 
 
-class ExtractedProduct(BaseModel):
-    name: str
-    quantity: int = 1
-    price: float
-    original_sku: Optional[str] = None
-    base_unit: Optional[str] = None
-    sell_uom: Optional[str] = None
-    pack_qty: Optional[int] = None
-    cost: Optional[float] = None
-    suggested_department: Optional[str] = None
-    ordered_qty: Optional[int] = None
-    delivered_qty: Optional[int] = None

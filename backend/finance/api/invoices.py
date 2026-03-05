@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from identity.application.auth_service import require_role
+from kernel.types import CurrentUser
 from finance.domain.invoice import InvoiceCreate, InvoiceUpdate, InvoiceSyncXeroBulk
 from finance.infrastructure.invoice_repo import invoice_repo
 from finance.application.invoice_service import sync_invoice
@@ -14,10 +15,10 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 @router.post("/sync-xero-bulk")
 async def sync_invoices_to_xero_bulk(
     data: InvoiceSyncXeroBulk,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Bulk sync selected invoices to Xero."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     results = [await sync_invoice(inv_id, org_id) for inv_id in data.invoice_ids]
     successes = [r for r in results if r.get("success")]
     errors = [r for r in results if not r.get("success")]
@@ -35,10 +36,10 @@ async def get_invoices(
     billing_entity: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """List invoices with optional filters."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     return await invoice_repo.list_invoices(
         status=status,
         billing_entity=billing_entity,
@@ -50,9 +51,9 @@ async def get_invoices(
 
 
 @router.get("/{invoice_id}")
-async def get_invoice(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
+async def get_invoice(invoice_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
     """Get invoice with line items and linked withdrawals."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -62,10 +63,10 @@ async def get_invoice(invoice_id: str, current_user: dict = Depends(require_role
 @router.post("")
 async def create_invoice(
     data: InvoiceCreate,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Create invoice from selected unpaid withdrawals. All must share same billing_entity."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     try:
         inv = await invoice_repo.create_from_withdrawals(data.withdrawal_ids, organization_id=org_id)
         return inv
@@ -77,10 +78,10 @@ async def create_invoice(
 async def update_invoice(
     invoice_id: str,
     data: InvoiceUpdate,
-    current_user: dict = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),
 ):
     """Update invoice fields and/or line items."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -100,7 +101,7 @@ async def update_invoice(
 
 
 @router.delete("/{invoice_id}")
-async def delete_invoice(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
+async def delete_invoice(invoice_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
     """Delete draft invoice and unlink withdrawals."""
     try:
         ok = await invoice_repo.delete_draft(invoice_id)
@@ -112,9 +113,9 @@ async def delete_invoice(invoice_id: str, current_user: dict = Depends(require_r
 
 
 @router.post("/{invoice_id}/sync-xero")
-async def sync_invoice_to_xero(invoice_id: str, current_user: dict = Depends(require_role("admin"))):
+async def sync_invoice_to_xero(invoice_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
     """Sync a single invoice to Xero. Posts invoice + COGS journal."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     result = await sync_invoice(invoice_id, org_id)
     if result.get("error") and not result.get("success"):
         status_code = 404 if result["error"] == "Invoice not found" else 502

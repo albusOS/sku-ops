@@ -99,7 +99,7 @@ const IssueMaterials = () => {
       }
       setItems(items.map((i) =>
         i.product_id === product.id
-          ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
+          ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.unit_price }
           : i
       ));
     } else {
@@ -107,7 +107,7 @@ const IssueMaterials = () => {
         product_id: product.id,
         sku: product.sku,
         name: product.name,
-        price: product.price,
+        unit_price: product.price,
         cost: product.cost || 0,
         quantity: 1,
         subtotal: product.price,
@@ -130,7 +130,7 @@ const IssueMaterials = () => {
           toast.error("Not enough stock");
           return item;
         }
-        return { ...item, quantity: newQty, subtotal: newQty * item.price };
+        return { ...item, quantity: newQty, subtotal: newQty * item.unit_price };
       }).filter(Boolean)
     );
   };
@@ -165,8 +165,8 @@ const IssueMaterials = () => {
     setProcessing(true);
     try {
       const withdrawalData = {
-        items: items.map(({ product_id, sku, name, quantity, price, cost, subtotal, unit }) => ({
-          product_id, sku, name, quantity, price, cost, subtotal, unit: unit || "each",
+        items: items.map(({ product_id, sku, name, quantity, unit_price, cost, subtotal, unit }) => ({
+          product_id, sku, name, quantity, unit_price, cost, subtotal, unit: unit || "each",
         })),
         job_id: jobId.trim(),
         service_address: serviceAddress.trim(),
@@ -353,7 +353,7 @@ const IssueMaterials = () => {
                 <div className="flex-1 min-w-0">
                   <p className="font-mono text-xs text-slate-400">{item.sku}</p>
                   <p className="font-semibold text-slate-900 truncate">{item.name}</p>
-                  <p className="text-xs text-slate-400">${item.price.toFixed(2)} / {item.unit}</p>
+                  <p className="text-xs text-slate-400">${item.unit_price.toFixed(2)} / {item.unit}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button

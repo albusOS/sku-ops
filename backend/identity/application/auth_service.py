@@ -6,6 +6,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from kernel.types import CurrentUser
 from shared.infrastructure.config import (
     JWT_ACCESS_EXPIRATION_MINUTES,
     JWT_ALGORITHM,
@@ -38,7 +39,7 @@ def create_token(user_id: str, email: str, role: str, organization_id: str = "de
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-):
+) -> CurrentUser:
     try:
         payload = jwt.decode(
             credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM]
@@ -50,10 +51,9 @@ async def get_current_user(
             raise HTTPException(status_code=401, detail="User account is disabled")
         org_id = user.get("organization_id") or payload.get("organization_id") or "default"
         user["organization_id"] = org_id
-        # Populate logging context for structured logs
         user_id_var.set(user.get("id", ""))
         org_id_var.set(org_id)
-        return user
+        return CurrentUser(**user)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
@@ -61,8 +61,8 @@ async def get_current_user(
 
 
 def require_role(*roles):
-    async def role_checker(current_user: dict = Depends(get_current_user)):
-        if current_user.get("role") not in roles:
+    async def role_checker(current_user: CurrentUser = Depends(get_current_user)):
+        if current_user.role not in roles:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return current_user
 

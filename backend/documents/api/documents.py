@@ -9,6 +9,7 @@ import tempfile
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from identity.application.auth_service import require_role
+from kernel.types import CurrentUser
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from documents.application.import_service import import_document as do_import_document, ImportDeps
 from catalog.application.queries import (
@@ -40,7 +41,7 @@ _DOCUMENT_PARSE_SYSTEM = load_prompt(__file__, "document_parse_prompt.md")
 async def parse_document(
     file: UploadFile = File(...),
     use_ai: bool = False,
-    _: dict = Depends(require_role("admin", "warehouse_manager")),
+    _: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Parse image or PDF. use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR."""
     contents = await file.read()
@@ -155,7 +156,7 @@ async def _wired_classify_uom_batch(products):
 @router.post("/import")
 async def import_document(
     data: DocumentImportRequest,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Import parsed products; create or match vendor."""
     deps = ImportDeps(

@@ -278,14 +278,16 @@ async def increment_quantity(product_id: str, quantity: int, updated_at: str, co
         await conn.commit()
 
 
-async def add_quantity(product_id: str, quantity: int, updated_at: str) -> Optional[dict]:
+async def add_quantity(product_id: str, quantity: int, updated_at: str, conn=None) -> Optional[dict]:
     """Add quantity (receiving) and return updated row."""
-    conn = get_connection()
+    in_transaction = conn is not None
+    conn = conn or get_connection()
     await conn.execute(
         "UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?",
         (quantity, updated_at, product_id),
     )
-    await conn.commit()
+    if not in_transaction:
+        await conn.commit()
     return await get_by_id(product_id)
 
 

@@ -3,6 +3,7 @@ import pytest
 import pytest_asyncio
 
 from shared.infrastructure.database import get_connection
+from kernel.types import CurrentUser
 from inventory.domain.errors import InsufficientStockError
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
 from catalog.infrastructure.product_repo import product_repo
@@ -15,7 +16,13 @@ from finance.application.invoice_service import create_invoice_from_withdrawals
 from operations.application.withdrawal_service import create_withdrawal as _create_withdrawal
 
 
+def _test_user(user_id="user-1", name="Test User"):
+    return CurrentUser(id=user_id, email="test@test.com", name=name, role="admin")
+
+
 async def create_withdrawal(data, contractor, current_user):
+    if isinstance(current_user, dict):
+        current_user = CurrentUser(**{**{"email": "test@test.com", "role": "admin"}, **current_user})
     return await _create_withdrawal(
         data, contractor, current_user,
         list_products=list_products,

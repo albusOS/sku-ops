@@ -9,7 +9,7 @@ from shared.infrastructure.database import get_connection
 from catalog.application.queries import count_all_products
 from identity.infrastructure.org_repo import organization_repo
 
-from scripts.seed import (
+from devtools.scripts.seed import (
     seed_mock_user,
     seed_standard_departments,
     seed_demo_inventory,

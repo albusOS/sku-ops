@@ -19,7 +19,7 @@ from catalog.api.vendors import router as vendors_router
 from operations.api.withdrawals import router as withdrawals_router
 from operations.api.material_requests import router as material_requests_router
 from purchasing.api.purchase_orders import router as purchase_orders_router
-from identity.api.seed import router as seed_router
+from shared.infrastructure.config import is_development, is_test
 from identity.api.settings import router as settings_router
 from finance.api.xero_auth import router as xero_auth_router
 from inventory.api.stock import router as stock_router
@@ -45,7 +45,12 @@ api_router.include_router(invoices_router)
 api_router.include_router(reports_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(documents_router)
-api_router.include_router(seed_router)
+if is_development or is_test:
+    try:
+        from devtools.api.seed import router as seed_router
+        api_router.include_router(seed_router)
+    except ImportError:
+        pass
 api_router.include_router(settings_router)
 api_router.include_router(xero_auth_router)
 

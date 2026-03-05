@@ -229,6 +229,7 @@ PG_FULL_SCHEMA: list[str] = [
         received_by_id TEXT,
         received_by_name TEXT,
         created_at TEXT NOT NULL,
+        updated_at TEXT,
         organization_id TEXT
     )""",
     "CREATE INDEX IF NOT EXISTS idx_po_org_status ON purchase_orders(organization_id, status)",

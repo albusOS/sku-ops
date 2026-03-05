@@ -1,8 +1,7 @@
-"""
-Withdrawal service: encapsulates creation of material withdrawals with transaction.
-"""
+"""Withdrawal service: encapsulates creation of material withdrawals with transaction."""
 from typing import Callable, Awaitable, Optional
 
+from kernel.types import CurrentUser
 from shared.infrastructure.database import transaction
 from inventory.domain.stock import StockDecrement
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
@@ -17,7 +16,7 @@ StockChangesFn = Callable[..., Awaitable[None]]
 async def create_withdrawal(
     data: MaterialWithdrawalCreate,
     contractor: dict,
-    current_user: dict,
+    current_user: CurrentUser,
     *,
     list_products: ListProductsFn,
     process_stock_changes: StockChangesFn,
@@ -25,13 +24,11 @@ async def create_withdrawal(
     withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
     conn=None,
 ) -> dict:
-    """
-    Create a material withdrawal with atomic stock decrement and optional invoice.
+    """Create a material withdrawal with atomic stock decrement and optional invoice.
+
     Returns withdrawal dict with optional invoice_id.
-    If conn is provided, runs inside that transaction (no commit).
     """
-    # Enrich item costs from product catalog if not set by the caller
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     products = await list_products(organization_id=org_id)
     cost_map = {p["id"]: p.get("cost", 0.0) for p in products}
     enriched_items = []
@@ -52,8 +49,8 @@ async def create_withdrawal(
         contractor_company=contractor.get("company", ""),
         billing_entity=contractor.get("billing_entity", ""),
         payment_status="unpaid",
-        processed_by_id=current_user["id"],
-        processed_by_name=current_user.get("name", ""),
+        processed_by_id=current_user.id,
+        processed_by_name=current_user.name,
     )
     withdrawal.compute_totals()
 
@@ -65,14 +62,14 @@ async def create_withdrawal(
         await process_stock_changes(
             items=decrements,
             withdrawal_id=withdrawal.id,
-            user_id=current_user["id"],
-            user_name=current_user.get("name", ""),
-            organization_id=current_user.get("organization_id") or "default",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            organization_id=org_id,
             conn=tx_conn,
         )
 
         w_dict = withdrawal.model_dump()
-        w_dict["organization_id"] = current_user.get("organization_id") or "default"
+        w_dict["organization_id"] = org_id
         await withdrawal_repo.insert(w_dict, conn=tx_conn)
 
         if create_invoice:

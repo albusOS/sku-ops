@@ -115,10 +115,12 @@ async def process_receiving_stock_changes(
     user_id: str,
     user_name: str,
     reference_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    conn=None,
 ) -> None:
     """Add stock (receiving, import, return) and record transaction."""
     now = datetime.now(timezone.utc).isoformat()
-    result = await add_product_quantity(product_id, quantity, now)
+    result = await add_product_quantity(product_id, quantity, now, conn=conn)
     if not result:
         raise ResourceNotFoundError("Product", product_id)
 
@@ -133,6 +135,8 @@ async def process_receiving_stock_changes(
         user_id=user_id,
         user_name=user_name,
         reference_id=reference_id,
+        organization_id=organization_id,
+        conn=conn,
     )
 
 

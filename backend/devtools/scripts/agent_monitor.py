@@ -3,10 +3,10 @@
 Live agent monitoring dashboard.
 
 Usage:
-    python -m scripts.agent_monitor              # default: poll every 5s, last 60 min
-    python -m scripts.agent_monitor --interval 3 # poll every 3s
-    python -m scripts.agent_monitor --minutes 30 # only show last 30 min
-    python -m scripts.agent_monitor --once        # single snapshot, no live refresh
+    python -m devtools.scripts.agent_monitor              # default: poll every 5s, last 60 min
+    python -m devtools.scripts.agent_monitor --interval 3 # poll every 3s
+    python -m devtools.scripts.agent_monitor --minutes 30 # only show last 30 min
+    python -m devtools.scripts.agent_monitor --once        # single snapshot, no live refresh
 """
 import argparse
 import asyncio
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure backend is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from rich.console import Console
 from rich.live import Live

@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
+from kernel.types import CurrentUser
 from identity.application.auth_service import get_current_user, require_role
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from finance.application.invoice_service import mark_paid_for_withdrawal, create_invoice_from_withdrawals
@@ -14,7 +15,7 @@ from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from operations.application.withdrawal_service import create_withdrawal as _do_create_withdrawal
 
 
-async def do_create_withdrawal(data, contractor, current_user):
+async def do_create_withdrawal(data, contractor, current_user: CurrentUser):
     return await _do_create_withdrawal(
         data, contractor, current_user,
         list_products=list_products,
@@ -26,19 +27,20 @@ router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
 
 
 @router.post("", response_model=MaterialWithdrawal)
-async def create_withdrawal(data: MaterialWithdrawalCreate, current_user: dict = Depends(get_current_user)):
+async def create_withdrawal(data: MaterialWithdrawalCreate, current_user: CurrentUser = Depends(get_current_user)):
     """Create a material withdrawal - Contractors withdraw materials charged to their account"""
-    return await do_create_withdrawal(data, current_user, current_user)
+    contractor = current_user.model_dump()
+    return await do_create_withdrawal(data, contractor, current_user)
 
 
 @router.post("/for-contractor")
 async def create_withdrawal_for_contractor(
     contractor_id: str,
     data: MaterialWithdrawalCreate,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Warehouse manager creates withdrawal on behalf of a contractor"""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
@@ -54,10 +56,10 @@ async def get_withdrawals(
     billing_entity: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
-    org_id = current_user.get("organization_id") or "default"
-    cid = current_user["id"] if current_user.get("role") == "contractor" else contractor_id
+    org_id = current_user.organization_id
+    cid = current_user.id if current_user.role == "contractor" else contractor_id
     return await withdrawal_repo.list_withdrawals(
         contractor_id=cid,
         payment_status=payment_status,
@@ -70,21 +72,21 @@ async def get_withdrawals(
 
 
 @router.get("/{withdrawal_id}")
-async def get_withdrawal(withdrawal_id: str, current_user: dict = Depends(get_current_user)):
-    org_id = current_user.get("organization_id") or "default"
+async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends(get_current_user)):
+    org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
 
-    if current_user.get("role") == "contractor" and withdrawal.get("contractor_id") != current_user["id"]:
+    if current_user.role == "contractor" and withdrawal.get("contractor_id") != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     return withdrawal
 
 
 @router.put("/{withdrawal_id}/mark-paid")
-async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(require_role("admin"))):
-    org_id = current_user.get("organization_id") or "default"
+async def mark_withdrawal_paid(withdrawal_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+    org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
@@ -95,8 +97,8 @@ async def mark_withdrawal_paid(withdrawal_id: str, current_user: dict = Depends(
 
 
 @router.put("/bulk-mark-paid")
-async def bulk_mark_paid(withdrawal_ids: List[str] = Body(...), current_user: dict = Depends(require_role("admin"))):
-    org_id = current_user.get("organization_id") or "default"
+async def bulk_mark_paid(withdrawal_ids: List[str] = Body(...), current_user: CurrentUser = Depends(require_role("admin"))):
+    org_id = current_user.organization_id
     paid_at = datetime.now(timezone.utc).isoformat()
     updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at, organization_id=org_id)
     for wid in withdrawal_ids:

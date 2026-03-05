@@ -5,9 +5,16 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from kernel.entity import AuditedEntity
+from kernel.types import LineItem
 
 
 class InvoiceLineItem(BaseModel):
+    """A line on an accounting document.
+
+    Uses accounting-standard field names (unit_price, amount) rather than
+    the operational names on LineItem (unit_price, subtotal). The underlying
+    data is the same — unit_price * quantity = amount.
+    """
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid4()))
     invoice_id: str = ""
@@ -28,6 +35,25 @@ class InvoiceLineItem(BaseModel):
         if self.amount <= 0:
             return None
         return round(self.margin / self.amount * 100, 2)
+
+    @classmethod
+    def from_line_item(
+        cls,
+        item: LineItem,
+        invoice_id: str = "",
+        job_id: Optional[str] = None,
+    ) -> "InvoiceLineItem":
+        """Convert a universal LineItem to an InvoiceLineItem."""
+        return cls(
+            invoice_id=invoice_id,
+            description=item.name,
+            quantity=float(item.quantity),
+            unit_price=item.unit_price,
+            amount=item.subtotal,
+            cost=item.cost,
+            product_id=item.product_id,
+            job_id=job_id,
+        )
 
 
 class InvoiceCreate(BaseModel):
@@ -56,7 +82,7 @@ class Invoice(AuditedEntity):
     billing_entity: str = ""
     contact_name: str = ""
     contact_email: str = ""
-    status: str = "draft"  # draft, sent, paid
+    status: str = "draft"
     subtotal: float = 0.0
     tax: float = 0.0
     total: float = 0.0

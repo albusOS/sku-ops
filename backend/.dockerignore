@@ -5,6 +5,7 @@ __pycache__/
 .env.*
 !.env.example
 data/
+devtools/
 tests/
 .pytest_cache/
 *.db

@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 
 from identity.application.auth_service import require_role
+from kernel.types import CurrentUser
 from shared.infrastructure.database import get_connection
 from shared.infrastructure.db.sql_compat import date_group_expr
 from catalog.application.queries import list_products
@@ -18,9 +19,9 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 async def get_sales_report(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     withdrawals = await list_withdrawals(
         start_date=start_date, end_date=end_date, limit=10000, organization_id=org_id
     )
@@ -64,8 +65,8 @@ async def get_sales_report(
 
 
 @router.get("/inventory")
-async def get_inventory_report(current_user: dict = Depends(require_role("admin", "warehouse_manager"))):
-    org_id = current_user.get("organization_id") or "default"
+async def get_inventory_report(current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+    org_id = current_user.organization_id
     products = await list_products(organization_id=org_id)
 
     total_products = len(products)
@@ -100,9 +101,9 @@ async def get_trends_report(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     group_by: str = "day",
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
 
     period_expr = date_group_expr("created_at", group_by)
 
@@ -149,9 +150,9 @@ async def get_product_margins(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 20,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     withdrawals = await list_withdrawals(
         start_date=start_date, end_date=end_date, limit=10000, organization_id=org_id
     )
@@ -197,10 +198,10 @@ async def get_job_pl(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 100,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """P&L grouped by job_id. sku-ops is the SSOT; this is the primary per-job P&L view."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     withdrawals = await list_withdrawals(
         start_date=start_date, end_date=end_date, limit=10000, organization_id=org_id
     )
@@ -256,9 +257,9 @@ async def get_job_pl(
 async def get_kpis(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     products, withdrawals = await asyncio.gather(
         list_products(organization_id=org_id),
         list_withdrawals(
@@ -317,9 +318,9 @@ async def get_product_performance(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 200,
-    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
-    org_id = current_user.get("organization_id") or "default"
+    org_id = current_user.organization_id
     products, withdrawals = await asyncio.gather(
         list_products(organization_id=org_id),
         list_withdrawals(

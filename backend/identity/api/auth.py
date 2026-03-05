@@ -8,6 +8,7 @@ from identity.application.auth_service import (
     create_token,
     get_current_user,
 )
+from kernel.types import CurrentUser
 from identity.domain.user import ROLES, User, UserCreate, UserLogin
 from identity.infrastructure.user_repo import user_repo
 from identity.infrastructure.refresh_token_repo import refresh_token_repo
@@ -107,5 +108,5 @@ async def logout(data: LogoutRequest, request: Request):
 
 
 @router.get("/me")
-async def get_me(current_user: dict = Depends(get_current_user)):
+async def get_me(current_user: CurrentUser = Depends(get_current_user)):
     return current_user

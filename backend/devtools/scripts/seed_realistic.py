@@ -2,7 +2,7 @@
 Seed realistic demo data: vendors, products across departments, purchase history,
 withdrawals, and invoices. Designed to exercise every user story end-to-end.
 
-Run: cd backend && python -m scripts.seed_realistic
+Run: cd backend && python -m devtools.scripts.seed_realistic
 """
 import asyncio
 import logging
@@ -154,7 +154,7 @@ WITHDRAWAL_SCENARIOS = [
 async def main():
     import sys
     from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
     from shared.infrastructure.database import init_db, get_connection
     await init_db()

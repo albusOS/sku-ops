@@ -4,21 +4,12 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from kernel.entity import Entity
+from kernel.types import LineItem
 
 
-class WithdrawalItem(BaseModel):
-    product_id: str
-    sku: str
-    name: str
-    quantity: int
-    price: float
-    cost: float = 0.0
-    subtotal: float
-    unit: str = "each"  # sell_uom from product for display
-
-    @property
-    def computed_subtotal(self) -> float:
-        return round(self.price * self.quantity, 2)
+class WithdrawalItem(LineItem):
+    """A line item on a material withdrawal — extends the universal LineItem."""
+    pass
 
 
 class MaterialWithdrawalCreate(BaseModel):
@@ -50,6 +41,6 @@ class MaterialWithdrawal(Entity):
     def compute_totals(self, tax_rate: float = 0.08) -> None:
         """Calculate subtotal, tax, total, and cost_total from line items."""
         self.subtotal = sum(i.subtotal for i in self.items)
-        self.cost_total = sum(i.cost * i.quantity for i in self.items)
+        self.cost_total = sum(i.cost_total for i in self.items)
         self.tax = round(self.subtotal * tax_rate, 2)
         self.total = round(self.subtotal + self.tax, 2)
