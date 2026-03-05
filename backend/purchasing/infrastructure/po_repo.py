@@ -83,7 +83,13 @@ class PgPORepo(PORepoPort):
             (po_id,),
         )
         rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
+        items = []
+        for r in rows:
+            d = dict(r)
+            if "price" in d and "unit_price" not in d:
+                d["unit_price"] = d.pop("price")
+            items.append(d)
+        return items
 
     async def update_po_item(
         self,

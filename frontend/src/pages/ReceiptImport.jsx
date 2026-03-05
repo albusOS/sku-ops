@@ -191,9 +191,9 @@ const ReceiptImport = () => {
       .filter((p) => p.selected)
       .map((p) => ({
         name: p.name,
-        quantity: parseInt(p.quantity) || 1,
-        ordered_qty: p.ordered_qty != null ? parseInt(p.ordered_qty) : parseInt(p.quantity) || 1,
-        delivered_qty: p.delivered_qty != null ? parseInt(p.delivered_qty) : parseInt(p.quantity) || 1,
+        quantity: parseFloat(p.quantity) || 1,
+        ordered_qty: p.ordered_qty != null ? parseFloat(p.ordered_qty) : parseFloat(p.quantity) || 1,
+        delivered_qty: p.delivered_qty != null ? parseFloat(p.delivered_qty) : parseFloat(p.quantity) || 1,
         price: parseFloat(p.price) || 0,
         cost: p.cost != null ? parseFloat(p.cost) : undefined,
         original_sku: p.original_sku,
@@ -553,6 +553,7 @@ const ReceiptImport = () => {
                         <div className="grid grid-cols-2 gap-2">
                           <Input
                             type="number"
+                            step="any"
                             value={product.delivered_qty ?? product.quantity ?? 1}
                             onChange={(e) =>
                               updateProduct(product.id, "delivered_qty", e.target.value)

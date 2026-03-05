@@ -277,7 +277,7 @@ const MyHistory = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-mono">
-                            {item.quantity} × ${item.price.toFixed(2)}
+                            {item.quantity}{item.unit && item.unit !== "each" ? ` ${item.unit}` : ""} × ${item.price.toFixed(2)}
                           </p>
                           <p className="font-bold text-slate-900">
                             ${item.subtotal.toFixed(2)}

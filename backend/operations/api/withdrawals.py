@@ -6,8 +6,10 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 
 from kernel.types import CurrentUser
 from identity.application.auth_service import get_current_user, require_role
+from identity.application.org_service import get_org_settings
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from finance.application.invoice_service import mark_paid_for_withdrawal, create_invoice_from_withdrawals
+from finance.application.ledger_service import record_payment as _record_payment
 from identity.application.user_service import get_user_by_id
 from catalog.application.queries import list_products
 from inventory.application.inventory_service import process_withdrawal_stock_changes
@@ -16,11 +18,13 @@ from operations.application.withdrawal_service import create_withdrawal as _do_c
 
 
 async def do_create_withdrawal(data, contractor, current_user: CurrentUser):
+    settings = await get_org_settings(current_user.organization_id)
     return await _do_create_withdrawal(
         data, contractor, current_user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
         create_invoice=create_invoice_from_withdrawals,
+        tax_rate=settings.default_tax_rate,
     )
 
 router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
@@ -93,6 +97,13 @@ async def mark_withdrawal_paid(withdrawal_id: str, current_user: CurrentUser = D
     paid_at = datetime.now(timezone.utc).isoformat()
     result = await withdrawal_repo.mark_paid(withdrawal_id, paid_at)
     await mark_paid_for_withdrawal(withdrawal_id)
+    await _record_payment(
+        withdrawal_id=withdrawal_id,
+        amount=withdrawal.get("total", 0),
+        billing_entity=withdrawal.get("billing_entity", ""),
+        contractor_id=withdrawal.get("contractor_id", ""),
+        organization_id=org_id,
+    )
     return result
 
 
@@ -103,4 +114,13 @@ async def bulk_mark_paid(withdrawal_ids: List[str] = Body(...), current_user: Cu
     updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at, organization_id=org_id)
     for wid in withdrawal_ids:
         await mark_paid_for_withdrawal(wid)
+        w = await withdrawal_repo.get_by_id(wid, org_id)
+        if w:
+            await _record_payment(
+                withdrawal_id=wid,
+                amount=w.get("total", 0),
+                billing_entity=w.get("billing_entity", ""),
+                contractor_id=w.get("contractor_id", ""),
+                organization_id=org_id,
+            )
     return {"updated": updated}

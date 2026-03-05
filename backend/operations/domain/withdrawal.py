@@ -38,7 +38,7 @@ class MaterialWithdrawal(Entity):
     processed_by_id: str
     processed_by_name: str = ""
 
-    def compute_totals(self, tax_rate: float = 0.08) -> None:
+    def compute_totals(self, tax_rate: float = 0.10) -> None:
         """Calculate subtotal, tax, total, and cost_total from line items."""
         self.subtotal = sum(i.subtotal for i in self.items)
         self.cost_total = sum(i.cost_total for i in self.items)

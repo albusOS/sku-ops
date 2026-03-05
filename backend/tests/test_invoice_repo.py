@@ -1,6 +1,5 @@
 """Tests for invoice repository."""
 import pytest
-import pytest_asyncio
 
 from finance.infrastructure.invoice_repo import invoice_repo
 from operations.infrastructure.withdrawal_repo import withdrawal_repo

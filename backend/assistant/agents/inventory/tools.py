@@ -3,6 +3,8 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
+from assistant.agents.tools.registry import register as _reg
+
 from shared.infrastructure.config import OPENAI_API_KEY
 from shared.infrastructure.database import get_connection
 from operations.application.queries import list_withdrawals
@@ -181,7 +183,7 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
     )
     row = await cur.fetchone()
     txn_count = row["txn_count"] if row else 0
-    total_used = int(row["total_used"]) if row else 0
+    total_used = float(row["total_used"]) if row else 0
     avg_daily = round(total_used / days, 2)
     days_until_zero = round(current_qty / avg_daily, 1) if avg_daily > 0 else None
     return json.dumps({
@@ -324,7 +326,7 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
     )
     type_summary: dict[str, dict] = {}
     for row in await cur.fetchall():
-        type_summary[row["transaction_type"]] = {"transactions": row["txn_count"], "units": int(row["total_units"])}
+        type_summary[row["transaction_type"]] = {"transactions": row["txn_count"], "units": float(row["total_units"])}
     withdrawals = type_summary.get("WITHDRAWAL", {"transactions": 0, "units": 0})
     receiving = type_summary.get("RECEIVING", {"transactions": 0, "units": 0})
     imports = type_summary.get("IMPORT", {"transactions": 0, "units": 0})
@@ -418,7 +420,7 @@ async def _get_slow_movers(args: dict, org_id: str) -> str:
             "quantity": r["quantity"],
             "sell_uom": r["sell_uom"] or "each",
             "department": r["department_name"],
-            "units_withdrawn_30d": int(r["units_withdrawn"]),
+            "units_withdrawn_30d": float(r["units_withdrawn"]),
         }
         for r in rows
     ]
@@ -426,8 +428,6 @@ async def _get_slow_movers(args: dict, org_id: str) -> str:
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
-
-from assistant.agents.tools.registry import register as _reg
 
 _reg("search_products",        "inventory", _search_products,        lookup_key="search_products")
 _reg("search_semantic",        "inventory", _search_semantic)

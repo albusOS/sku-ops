@@ -1,13 +1,21 @@
 """Sequential migration runner with schema_migrations tracking.
 
-Each migration is an async function. The runner:
-1. Creates schema_migrations table on first run.
-2. Detects existing fully-migrated databases and fast-forwards history.
-3. Applies pending migrations in order, recording each on success.
+Architecture — single source of truth:
+  Each bounded context owns its current table definitions in
+  {context}/infrastructure/schema.py (TABLES, INDEXES).
 
-Dual-dialect: SQLite migrations 001-013 use aiosqlite internals. PostgreSQL
-gets the full schema from pg_schema.py in one shot. Migration 014+ is written
-to work with the Connection protocol (both backends).
+  full_schema.py aggregates all context schemas in dependency order.
+
+  On a FRESH database (no tables yet), both SQLite and PostgreSQL are
+  bootstrapped from full_schema.py — the context schemas are the single
+  source of truth.  The legacy SQLite migration chain (001-013) and common
+  migrations (014+) are only applied to EXISTING databases that need
+  incremental upgrades.
+
+Migration history:
+- 001-013: Legacy SQLite-only migrations (frozen).
+           Kept for upgrading pre-existing SQLite databases.
+- 014+:   Common migrations (both dialects) for incremental changes.
 """
 import logging
 from datetime import datetime, timezone
@@ -603,18 +611,164 @@ async def _015_decimal_quantities_and_stock_unit(conn, *, dialect: str = "sqlite
     await conn.commit()
 
 
+async def _016_returns_and_credit_notes(conn, *, dialect: str = "sqlite") -> None:
+    """Add returns, credit notes tables and org-level tax rate."""
+
+    if not await _column_exists(conn, "org_settings", "default_tax_rate", dialect=dialect):
+        await conn.execute(
+            "ALTER TABLE org_settings ADD COLUMN default_tax_rate REAL NOT NULL DEFAULT 0.10"
+        )
+    await conn.commit()
+
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS returns (
+            id TEXT PRIMARY KEY,
+            withdrawal_id TEXT NOT NULL,
+            contractor_id TEXT NOT NULL,
+            contractor_name TEXT NOT NULL DEFAULT '',
+            billing_entity TEXT NOT NULL DEFAULT '',
+            job_id TEXT NOT NULL DEFAULT '',
+            items TEXT NOT NULL,
+            subtotal REAL NOT NULL DEFAULT 0,
+            tax REAL NOT NULL DEFAULT 0,
+            total REAL NOT NULL DEFAULT 0,
+            cost_total REAL NOT NULL DEFAULT 0,
+            reason TEXT NOT NULL DEFAULT 'other',
+            notes TEXT,
+            credit_note_id TEXT,
+            processed_by_id TEXT NOT NULL DEFAULT '',
+            processed_by_name TEXT NOT NULL DEFAULT '',
+            organization_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    await conn.commit()
+
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_returns_withdrawal ON returns(withdrawal_id)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_returns_contractor ON returns(contractor_id)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_returns_org ON returns(organization_id)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at)"
+    )
+    await conn.commit()
+
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS credit_notes (
+            id TEXT PRIMARY KEY,
+            credit_note_number TEXT UNIQUE NOT NULL,
+            invoice_id TEXT,
+            return_id TEXT,
+            billing_entity TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'draft',
+            subtotal REAL NOT NULL DEFAULT 0,
+            tax REAL NOT NULL DEFAULT 0,
+            total REAL NOT NULL DEFAULT 0,
+            notes TEXT,
+            xero_credit_note_id TEXT,
+            organization_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    await conn.commit()
+
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cn_invoice ON credit_notes(invoice_id)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cn_org ON credit_notes(organization_id)"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cn_status ON credit_notes(status)"
+    )
+    await conn.commit()
+
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS credit_note_line_items (
+            id TEXT PRIMARY KEY,
+            credit_note_id TEXT NOT NULL REFERENCES credit_notes(id),
+            description TEXT NOT NULL DEFAULT '',
+            quantity REAL NOT NULL,
+            unit_price REAL NOT NULL,
+            amount REAL NOT NULL,
+            cost REAL NOT NULL DEFAULT 0,
+            product_id TEXT
+        )
+    """)
+    await conn.commit()
+
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cn_line_items_cn ON credit_note_line_items(credit_note_id)"
+    )
+    await conn.commit()
+
+
+async def _017_po_updated_at(conn, *, dialect: str = "sqlite") -> None:
+    """Add updated_at to purchase_orders — was in context schema but missing from SQLite migration."""
+    if not await _column_exists(conn, "purchase_orders", "updated_at", dialect=dialect):
+        await conn.execute("ALTER TABLE purchase_orders ADD COLUMN updated_at TEXT")
+    await conn.commit()
+
+
+async def _018_financial_ledger(conn, *, dialect: str = "sqlite") -> None:
+    """Add the financial_ledger table — immutable double-entry money ledger."""
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS financial_ledger (
+            id TEXT PRIMARY KEY,
+            account TEXT NOT NULL,
+            amount REAL NOT NULL,
+            department TEXT,
+            job_id TEXT,
+            billing_entity TEXT,
+            contractor_id TEXT,
+            vendor_name TEXT,
+            product_id TEXT,
+            reference_type TEXT NOT NULL,
+            reference_id TEXT NOT NULL,
+            organization_id TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+    await conn.commit()
+
+    for idx in [
+        "CREATE INDEX IF NOT EXISTS idx_fl_account ON financial_ledger(account)",
+        "CREATE INDEX IF NOT EXISTS idx_fl_created ON financial_ledger(created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_fl_org_account ON financial_ledger(organization_id, account, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_fl_ref ON financial_ledger(reference_type, reference_id)",
+        "CREATE INDEX IF NOT EXISTS idx_fl_dept ON financial_ledger(department, account)",
+        "CREATE INDEX IF NOT EXISTS idx_fl_job ON financial_ledger(job_id, account)",
+        "CREATE INDEX IF NOT EXISTS idx_fl_entity ON financial_ledger(billing_entity, account)",
+    ]:
+        await conn.execute(idx)
+    await conn.commit()
+
+
 _COMMON_MIGRATIONS: list[tuple[str, object]] = [
     ("014_refresh_tokens_and_audit", _014_refresh_tokens_and_audit),
     ("015_decimal_quantities_and_stock_unit", _015_decimal_quantities_and_stock_unit),
+    ("016_returns_and_credit_notes", _016_returns_and_credit_notes),
+    ("017_po_updated_at", _017_po_updated_at),
+    ("018_financial_ledger", _018_financial_ledger),
 ]
 
 
-# ── PostgreSQL full-schema bootstrap ──────────────────────────────────────────
+# ── Full-schema bootstrap (single source of truth) ───────────────────────────
 
-async def _pg_bootstrap_schema(conn) -> None:
-    """Create the full schema on a fresh PostgreSQL database (equivalent to migrations 001-013)."""
-    from shared.infrastructure.migrations.pg_schema import PG_FULL_SCHEMA
-    for stmt in PG_FULL_SCHEMA:
+async def _bootstrap_full_schema(conn) -> None:
+    """Create the full schema on a fresh database (any dialect).
+
+    Uses the aggregated context schemas — the single source of truth.
+    """
+    from full_schema import FULL_SCHEMA
+    for stmt in FULL_SCHEMA:
         await conn.execute(stmt)
     await conn.commit()
 
@@ -654,36 +808,42 @@ async def _bootstrap_existing_db(conn, versions: list[str], *, dialect: str) -> 
 
 
 async def run_migrations(backend) -> None:
-    """Apply all pending migrations in order. Accepts a DatabaseBackend."""
+    """Apply all pending migrations in order. Accepts a DatabaseBackend.
+
+    Fresh databases (no tables yet) are bootstrapped from the context schemas
+    — the single source of truth — then all migration versions are marked as
+    applied.  Existing databases run the incremental migration chain.
+    """
     dialect = backend.dialect
     conn = backend.connection()
 
     await _ensure_tracking_table(conn)
 
+    all_migrations = _SQLITE_MIGRATIONS + _COMMON_MIGRATIONS
+    all_versions = [v for v, _ in all_migrations]
+
+    # ── Fresh database: bootstrap from context schemas ────────────────────
+    if not await _table_exists(conn, "users", dialect=dialect):
+        logger.info("Fresh %s database — bootstrapping from context schemas", dialect)
+        await _bootstrap_full_schema(conn)
+
+        now = datetime.now(timezone.utc).isoformat()
+        for version in all_versions:
+            await conn.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                (version, now),
+            )
+        await conn.commit()
+        logger.info("Schema bootstrapped; %d migration versions recorded", len(all_versions))
+        return
+
+    # ── Existing database: incremental migrations ─────────────────────────
     if dialect == "sqlite":
+        await _bootstrap_existing_db(conn, [v for v, _ in _SQLITE_MIGRATIONS], dialect=dialect)
         migrations = _SQLITE_MIGRATIONS + _COMMON_MIGRATIONS
     else:
-        migrations = _COMMON_MIGRATIONS
-
-    all_versions = [v for v, _ in migrations]
-
-    # For PostgreSQL on a fresh DB, bootstrap the full schema first
-    if dialect == "postgresql":
-        sqlite_versions = [v for v, _ in _SQLITE_MIGRATIONS]
-        if not await _table_exists(conn, "users", dialect=dialect):
-            logger.info("Fresh PostgreSQL database — creating full schema")
-            await _pg_bootstrap_schema(conn)
-            now = datetime.now(timezone.utc).isoformat()
-            for version in sqlite_versions:
-                await conn.execute(
-                    "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-                    (version, now),
-                )
-            await conn.commit()
-        else:
-            await _bootstrap_existing_db(conn, sqlite_versions, dialect=dialect)
-    else:
         await _bootstrap_existing_db(conn, [v for v, _ in _SQLITE_MIGRATIONS], dialect=dialect)
+        migrations = _COMMON_MIGRATIONS
 
     cursor = await conn.execute("SELECT version FROM schema_migrations")
     applied = {row[0] if isinstance(row, (tuple, list)) else row.get("version") for row in await cursor.fetchall()}
@@ -693,7 +853,6 @@ async def run_migrations(backend) -> None:
             continue
         logger.info("Applying migration %s", version)
         if version.startswith("0") and dialect == "sqlite":
-            # SQLite-specific migrations get the raw SQLite connection wrapper
             await migrate_fn(conn)
         else:
             await migrate_fn(conn, dialect=dialect)

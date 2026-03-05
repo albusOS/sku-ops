@@ -1,6 +1,5 @@
 """Tests for product lifecycle service."""
 import pytest
-import pytest_asyncio
 
 from shared.infrastructure.database import get_connection
 from catalog.infrastructure.department_repo import department_repo
@@ -155,7 +154,7 @@ async def test_create_product_blank_barcode_uses_sku(db):
 @pytest.mark.asyncio
 async def test_update_product_to_duplicate_barcode_raises(db):
     """Update product barcode to one already used raises DuplicateBarcodeError."""
-    product1 = await create_product(
+    await create_product(
         department_id="dept-1",
         department_name="Hardware",
         name="Product One",

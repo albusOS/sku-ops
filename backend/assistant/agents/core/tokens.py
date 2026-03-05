@@ -5,7 +5,6 @@ OpenRouter models.  Not exact, but close enough for budget decisions.
 """
 import json
 import logging
-from typing import Any
 
 import tiktoken
 

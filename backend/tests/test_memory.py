@@ -81,7 +81,7 @@ class TestMemoryStore:
 
         result = await recall("default", "user-1", limit=3)
         # Should only have 3 facts in the output
-        lines = [l for l in result.split("\n") if l.startswith("- [")]
+        lines = [line for line in result.split("\n") if line.startswith("- [")]
         assert len(lines) == 3
 
     async def test_save_empty_list_is_noop(self, db):

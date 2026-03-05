@@ -1,10 +1,9 @@
 """Stock history and adjustment routes - inventory bounded context."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from identity.application.auth_service import get_current_user, require_role
+from identity.application.auth_service import require_role
 from kernel.types import CurrentUser
 from catalog.application.queries import get_product_by_id
 from inventory.application.inventory_service import (

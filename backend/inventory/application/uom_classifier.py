@@ -36,6 +36,7 @@ def _normalize_unit(raw: str) -> str:
         "lbs": "pound", "lb": "pound", "pounds": "pound", "lb.": "pound",
         "oz": "ounce", "ozs": "ounce", "ounces": "ounce", "oz.": "ounce",
         "ft": "foot", "feet": "foot", "lf": "foot", "lnft": "foot", "ln ft": "foot", "linear foot": "foot",
+        "in": "inch", "in.": "inch", "inches": "inch", "inch": "inch",
         "m": "meter", "meters": "meter", "metres": "meter",
         "yd": "yard", "yards": "yard", "yds": "yard",
         "sq ft": "sqft", "sqft": "sqft", "square feet": "sqft", "sq. ft": "sqft",
@@ -71,14 +72,24 @@ async def classify_uom(
     if not generate_text:
         return {"base_unit": "each", "sell_uom": "each", "pack_qty": 1}
 
-    units_str = ", ".join(ALLOWED_BASE_UNITS)
+    units_str = ", ".join(sorted(ALLOWED_BASE_UNITS))
     prompt = f"""Classify the unit of measure for this hardware/building-supply product.
 Product name: {product_name}
 {f'Description: {description}' if description else ''}
 
 Allowed units: {units_str}
 
-Consider: "5 Gal Paint" -> gallon, pack_qty 5; "2x4x8" -> foot; "Nail Box" -> box; "Pipe Fitting" -> each.
+Rules:
+- Linear goods (pipe, wire, cable, lumber, conduit, trim, rebar): base_unit=foot. sell_uom=foot (or inch if sold by the inch).
+- Liquids (paint, stain, primer, sealer): base_unit=gallon (or quart/pint for smaller sizes).
+- Fasteners (screws, nails, bolts): base_unit=box.
+- Sheet goods (drywall, plywood): base_unit=sqft.
+- Bulk (concrete, mortar, soil): base_unit=bag or pound.
+- Use "each" ONLY for discrete items that are individual units (fixtures, faucets, tools, valves, individual fittings).
+- pack_qty = embedded quantity in name (e.g. "5 Gal Paint" -> 5, "PEX 100ft" -> 100).
+- sell_uom can differ from base_unit. E.g. pipe bought by the foot but sold by the inch: base_unit=foot, sell_uom=inch.
+
+Examples: "5 Gal Paint" -> gallon/gallon/5; "2x4x8 Stud" -> foot/foot/8; "1/2 PEX 100ft" -> foot/foot/100; "3/4 Copper Pipe" -> foot/inch/1; "Nail Box 16d" -> box/box/1; "Pipe Fitting 1/2" -> each/each/1.
 Return ONLY valid JSON: {{"base_unit": "...", "sell_uom": "...", "pack_qty": 1}}"""
 
     try:
@@ -131,7 +142,7 @@ async def classify_uom_batch(
         p.setdefault("sell_uom", "each")
         p.setdefault("pack_qty", 1)
 
-    units_str = ", ".join(ALLOWED_BASE_UNITS)
+    units_str = ", ".join(sorted(ALLOWED_BASE_UNITS))
     names = [p.get("name", "Unknown") for p in products]
     prompt = f"""Classify unit of measure for each hardware/building-supply product.
 Allowed units: {units_str}
@@ -139,7 +150,18 @@ Allowed units: {units_str}
 Products:
 {chr(10).join(f'- "{n}"' for n in names)}
 
-Infer base_unit, sell_uom, pack_qty from the name. Examples: "5 Gal Paint" -> gallon/gallon/5; "2x4x8 Stud" -> foot/foot/8; "PEX 1/2 100ft" -> foot/foot/100; "Screw Box" -> box/box/1; "Wire 12/2" -> foot/foot/1; "Drywall 4x8" -> sqft/sqft/1; "Concrete 80lb" -> pound/pound/1; "Duct Tape" -> roll/roll/1. Use "each" only when name suggests a single item (faucet, fixture).
+Rules:
+- Linear goods (pipe, wire, cable, lumber, conduit, trim, rebar): base_unit=foot. sell_uom=foot or inch.
+- Liquids (paint, stain, primer, sealer): base_unit=gallon (or quart/pint for smaller).
+- Fasteners (screws, nails, bolts): base_unit=box.
+- Sheet goods (drywall, plywood): base_unit=sqft.
+- Bulk (concrete, mortar, soil): base_unit=bag or pound.
+- Tape, mesh, fabric: base_unit=roll.
+- Use "each" ONLY for discrete items (fixtures, faucets, tools, valves, individual fittings).
+- pack_qty = embedded quantity from name (e.g. "5 Gal" -> 5, "100ft" -> 100, "80lb" -> 80).
+- sell_uom can differ from base_unit when contractors buy in smaller increments.
+
+Examples: "5 Gal Paint" -> gallon/gallon/5; "2x4x8 Stud" -> foot/foot/8; "PEX 1/2 100ft" -> foot/foot/100; "3/4 Copper Pipe" -> foot/inch/1; "Screw Box 16d" -> box/box/1; "Wire 12/2 NM" -> foot/foot/1; "Drywall 4x8" -> sqft/sqft/1; "Concrete 80lb" -> pound/pound/80; "Duct Tape" -> roll/roll/1; "Faucet Kitchen" -> each/each/1.
 Return ONLY a JSON array, one object per product in same order: [{{"base_unit":"...","sell_uom":"...","pack_qty":1}}, ...]"""
 
     try:

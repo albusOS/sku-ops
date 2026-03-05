@@ -7,6 +7,7 @@ from inventory.domain.stock import StockDecrement
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from operations.infrastructure.withdrawal_repo import withdrawal_repo as _default_withdrawal_repo
 from operations.ports.withdrawal_repo_port import WithdrawalRepoPort
+from finance.application.ledger_service import record_withdrawal as _record_ledger
 
 CreateInvoiceFn = Optional[Callable[..., Awaitable[dict]]]
 ListProductsFn = Callable[..., Awaitable[list]]
@@ -22,6 +23,7 @@ async def create_withdrawal(
     process_stock_changes: StockChangesFn,
     create_invoice: CreateInvoiceFn = None,
     withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
+    tax_rate: float = 0.10,
     conn=None,
 ) -> dict:
     """Create a material withdrawal with atomic stock decrement and optional invoice.
@@ -31,6 +33,7 @@ async def create_withdrawal(
     org_id = current_user.organization_id
     products = await list_products(organization_id=org_id)
     cost_map = {p["id"]: p.get("cost", 0.0) for p in products}
+    dept_map = {p["id"]: p.get("department_name", "") for p in products}
     enriched_items = []
     for item in data.items:
         if item.cost == 0.0 and item.product_id in cost_map:
@@ -52,7 +55,7 @@ async def create_withdrawal(
         processed_by_id=current_user.id,
         processed_by_name=current_user.name,
     )
-    withdrawal.compute_totals()
+    withdrawal.compute_totals(tax_rate=tax_rate)
 
     async def _do_create(tx_conn):
         decrements = [
@@ -73,6 +76,24 @@ async def create_withdrawal(
 
         withdrawal.organization_id = org_id
         await withdrawal_repo.insert(withdrawal, conn=tx_conn)
+
+        ledger_items = [
+            {"product_id": i.product_id, "quantity": i.quantity,
+             "unit_price": i.unit_price, "cost": i.cost,
+             "department_name": dept_map.get(i.product_id)}
+            for i in data.items
+        ]
+        await _record_ledger(
+            withdrawal_id=withdrawal.id,
+            items=ledger_items,
+            tax=withdrawal.tax,
+            total=withdrawal.total,
+            job_id=withdrawal.job_id,
+            billing_entity=withdrawal.billing_entity,
+            contractor_id=withdrawal.contractor_id,
+            organization_id=org_id,
+            conn=tx_conn,
+        )
 
         if create_invoice:
             try:

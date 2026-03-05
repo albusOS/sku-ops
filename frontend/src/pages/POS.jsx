@@ -363,9 +363,20 @@ const IssueMaterials = () => {
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="w-10 text-center font-mono font-bold text-slate-900">
-                    {item.quantity}
-                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.01"
+                    max={item.max_quantity}
+                    value={item.quantity}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!val || val <= 0) return;
+                      if (val > item.max_quantity) { toast.error("Not enough stock"); return; }
+                      setItems(items.map((i) => i.product_id !== item.product_id ? i : { ...i, quantity: val, subtotal: val * i.unit_price }));
+                    }}
+                    className="w-16 text-center font-mono font-bold text-slate-900 border border-slate-200 rounded-lg h-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                   <button
                     onClick={() => updateQuantity(item.product_id, 1)}
                     className="w-8 h-8 border border-slate-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors"

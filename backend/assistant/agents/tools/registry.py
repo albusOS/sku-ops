@@ -6,8 +6,8 @@ Consumers resolve tools by canonical name or (domain, lookup_key) pair.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 

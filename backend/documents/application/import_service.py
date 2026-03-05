@@ -11,7 +11,7 @@ from kernel.types import CurrentUser
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from documents.application.import_parser import infer_uom, resolve_uom, suggest_department
 from documents.application.enrichment_service import enrich_for_import
-from purchasing.domain.purchase_order import POItemCreate
+from documents.domain.document import DocumentLineItem
 
 
 @dataclass
@@ -34,7 +34,7 @@ class ImportDeps:
 
 async def import_document(
     vendor_name: str,
-    products: list[POItemCreate],
+    products: list[DocumentLineItem],
     deps: ImportDeps,
     current_user: CurrentUser,
     department_id: Optional[str] = None,
@@ -131,7 +131,7 @@ async def import_document(
             delivered = item.get("delivered_qty")
             if delivered is None:
                 delivered = item.get("quantity", 1)
-            delivered = max(0, int(delivered))
+            delivered = max(0.0, float(delivered))
 
             existing = None
             if item.get("product_id"):

@@ -282,7 +282,6 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
     withdrawals = []
     billing_entity = None
     contact_name = ""
-    contact_email = ""
     for wid in withdrawal_ids:
         w = await _get_withdrawal(wid, org_id)
         if not w:
@@ -320,8 +319,8 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
     for w in withdrawals:
         for item in w.get("items", []):
             qty = item.get("quantity", 1)
-            price = item.get("price", 0)
-            amt = round(qty * price, 2)
+            price = item.get("unit_price") or item.get("price") or 0
+            amt = round(qty * float(price), 2)
             total_subtotal += amt
             await conn.execute(
                 """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
@@ -331,7 +330,7 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
                     invoice_id,
                     item.get("name", ""),
                     qty,
-                    price,
+                    float(price),
                     amt,
                     float(item.get("cost", 0)),
                     item.get("product_id"),
@@ -403,8 +402,8 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
     for w in withdrawals:
         for item in w.get("items", []):
             qty = item.get("quantity", 1)
-            price = item.get("price", 0)
-            amt = round(qty * price, 2)
+            price = item.get("unit_price") or item.get("price") or 0
+            amt = round(qty * float(price), 2)
             total_subtotal += amt
             await conn.execute(
                 """INSERT INTO invoice_line_items (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id)
@@ -414,7 +413,7 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: Optiona
                     inv_id,
                     item.get("name", ""),
                     qty,
-                    price,
+                    float(price),
                     amt,
                     float(item.get("cost", 0)),
                     item.get("product_id"),

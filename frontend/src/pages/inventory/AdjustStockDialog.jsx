@@ -27,7 +27,7 @@ export function AdjustStockDialog({ product, open, onOpenChange }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const d = parseInt(delta, 10);
+    const d = parseFloat(delta);
     if (isNaN(d) || d === 0) {
       toast.error("Enter a non-zero quantity delta");
       return;
@@ -64,6 +64,7 @@ export function AdjustStockDialog({ product, open, onOpenChange }) {
             <Label>Quantity delta (positive to add, negative to remove)</Label>
             <Input
               type="number"
+              step="any"
               value={delta}
               onChange={(e) => setDelta(e.target.value)}
               placeholder="e.g. 5 or -3"

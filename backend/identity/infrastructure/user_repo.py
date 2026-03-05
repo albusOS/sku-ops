@@ -1,5 +1,4 @@
 """User repository."""
-import json
 from typing import Optional
 
 from shared.infrastructure.database import get_connection

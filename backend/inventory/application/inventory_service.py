@@ -18,6 +18,7 @@ from catalog.application.queries import (
 from catalog.domain.units import convert_quantity, are_compatible
 from inventory.infrastructure.stock_repo import stock_repo as _default_stock_repo
 from inventory.ports.stock_repo_port import StockRepoPort
+from finance.application.ledger_service import record_adjustment as _record_ledger_adjustment
 
 
 async def _record_stock_transaction(
@@ -130,6 +131,7 @@ async def process_receiving_stock_changes(
     unit: str = "each",
     organization_id: Optional[str] = None,
     conn=None,
+    transaction_type: StockTransactionType = StockTransactionType.RECEIVING,
 ) -> None:
     """Add stock (receiving, import, return) and record transaction.
 
@@ -156,7 +158,7 @@ async def process_receiving_stock_changes(
         product_name=product_name,
         quantity_delta=canonical_qty,
         quantity_before=quantity_before,
-        transaction_type=StockTransactionType.RECEIVING,
+        transaction_type=transaction_type,
         user_id=user_id,
         user_name=user_name,
         reference_id=reference_id,
@@ -238,4 +240,13 @@ async def process_adjustment_stock_changes(
         user_name=user_name,
         reason=reason,
         unit=base_unit,
+    )
+
+    await _record_ledger_adjustment(
+        adjustment_ref_id=product_id,
+        product_id=product_id,
+        product_cost=float(product.get("cost", 0)),
+        quantity_delta=quantity_delta,
+        department=product.get("department_name"),
+        organization_id=product.get("organization_id", "default"),
     )

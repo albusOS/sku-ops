@@ -18,10 +18,12 @@ from catalog.api.sku import router as sku_router
 from catalog.api.vendors import router as vendors_router
 from operations.api.withdrawals import router as withdrawals_router
 from operations.api.material_requests import router as material_requests_router
+from operations.api.returns import router as returns_router
 from purchasing.api.purchase_orders import router as purchase_orders_router
 from shared.infrastructure.config import is_development, is_test
 from identity.api.settings import router as settings_router
 from finance.api.xero_auth import router as xero_auth_router
+from finance.api.credit_notes import router as credit_notes_router
 from inventory.api.stock import router as stock_router
 from assistant.api.monitoring import router as monitoring_router
 
@@ -42,6 +44,8 @@ api_router.include_router(material_requests_router)
 api_router.include_router(purchase_orders_router)
 api_router.include_router(financials_router)
 api_router.include_router(invoices_router)
+api_router.include_router(returns_router)
+api_router.include_router(credit_notes_router)
 api_router.include_router(reports_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(documents_router)

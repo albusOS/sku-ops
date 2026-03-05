@@ -9,20 +9,22 @@ from operations.domain.material_request import MaterialRequest, MaterialRequestC
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
 from operations.infrastructure.material_request_repo import material_request_repo
 from identity.application.user_service import get_user_by_id
-from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from operations.application.withdrawal_service import create_withdrawal as _do_create_withdrawal
 from finance.application.invoice_service import create_invoice_from_withdrawals
 from catalog.application.queries import list_products
+from identity.application.org_service import get_org_settings
 from inventory.application.inventory_service import process_withdrawal_stock_changes
 from shared.infrastructure.database import transaction
 
 
 async def do_create_withdrawal(data, contractor, current_user: CurrentUser, conn=None):
+    settings = await get_org_settings(current_user.organization_id)
     return await _do_create_withdrawal(
         data, contractor, current_user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
         create_invoice=create_invoice_from_withdrawals,
+        tax_rate=settings.default_tax_rate,
         conn=conn,
     )
 

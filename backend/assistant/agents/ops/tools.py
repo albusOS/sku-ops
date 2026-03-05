@@ -3,6 +3,8 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
+from assistant.agents.tools.registry import register as _reg
+
 from shared.infrastructure.database import get_connection
 from operations.application.queries import list_withdrawals
 
@@ -131,8 +133,6 @@ async def _list_pending_material_requests(args: dict, org_id: str) -> str:
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
-
-from assistant.agents.tools.registry import register as _reg
 
 _reg("get_contractor_history",        "ops", _get_contractor_history,        lookup_key="contractor_history")
 _reg("get_job_materials",             "ops", _get_job_materials,             lookup_key="job_materials")

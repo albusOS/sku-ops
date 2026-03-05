@@ -162,12 +162,10 @@ async def main():
     from catalog.application.queries import list_departments
     from catalog.application.product_lifecycle import create_product
     from catalog.infrastructure.vendor_repo import vendor_repo
-    from catalog.infrastructure.product_repo import product_repo
     from identity.infrastructure.user_repo import user_repo
     from inventory.application.inventory_service import process_import_stock_changes
     from operations.infrastructure.withdrawal_repo import withdrawal_repo
     from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
-    from finance.application.invoice_service import create_invoice_from_withdrawals
     from finance.infrastructure.invoice_repo import invoice_repo
 
     # Wire cross-domain DI (same as server.py startup)
@@ -357,13 +355,13 @@ async def main():
     cur = await conn.execute("SELECT COUNT(*) FROM invoices WHERE organization_id = ?", (org_id,))
     total_invoices = (await cur.fetchone())[0]
 
-    logger.info(f"\n=== SEED COMPLETE ===")
+    logger.info("\n=== SEED COMPLETE ===")
     logger.info(f"  {total_vendors} vendors")
     logger.info(f"  {total_products} products (across {len(dept_by_code)} departments)")
     logger.info(f"  {total_withdrawals} withdrawals")
     logger.info(f"  {total_invoices} invoices")
-    logger.info(f"  Login: admin@demo.local / demo123")
-    logger.info(f"  Login: contractor@demo.local / demo123")
+    logger.info("  Login: admin@demo.local / demo123")
+    logger.info("  Login: contractor@demo.local / demo123")
 
 
 if __name__ == "__main__":

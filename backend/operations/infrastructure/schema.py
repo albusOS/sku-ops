@@ -1,0 +1,79 @@
+"""Operations context schema — withdrawals, material requests, returns."""
+
+TABLES: list[str] = [
+    """CREATE TABLE IF NOT EXISTS withdrawals (
+        id TEXT PRIMARY KEY,
+        items TEXT NOT NULL,
+        job_id TEXT NOT NULL,
+        service_address TEXT NOT NULL,
+        notes TEXT,
+        subtotal REAL NOT NULL,
+        tax REAL NOT NULL,
+        total REAL NOT NULL,
+        cost_total REAL NOT NULL,
+        contractor_id TEXT NOT NULL,
+        contractor_name TEXT NOT NULL DEFAULT '',
+        contractor_company TEXT NOT NULL DEFAULT '',
+        billing_entity TEXT NOT NULL DEFAULT '',
+        payment_status TEXT NOT NULL DEFAULT 'unpaid',
+        invoice_id TEXT,
+        paid_at TEXT,
+        processed_by_id TEXT NOT NULL,
+        processed_by_name TEXT NOT NULL DEFAULT '',
+        organization_id TEXT,
+        created_at TEXT NOT NULL
+    )""",
+
+    """CREATE TABLE IF NOT EXISTS material_requests (
+        id TEXT PRIMARY KEY,
+        contractor_id TEXT NOT NULL,
+        contractor_name TEXT NOT NULL DEFAULT '',
+        items TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        withdrawal_id TEXT,
+        job_id TEXT,
+        service_address TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        processed_at TEXT,
+        processed_by_id TEXT,
+        organization_id TEXT NOT NULL
+    )""",
+
+    """CREATE TABLE IF NOT EXISTS returns (
+        id TEXT PRIMARY KEY,
+        withdrawal_id TEXT NOT NULL,
+        contractor_id TEXT NOT NULL,
+        contractor_name TEXT NOT NULL DEFAULT '',
+        billing_entity TEXT NOT NULL DEFAULT '',
+        job_id TEXT NOT NULL DEFAULT '',
+        items TEXT NOT NULL,
+        subtotal REAL NOT NULL DEFAULT 0,
+        tax REAL NOT NULL DEFAULT 0,
+        total REAL NOT NULL DEFAULT 0,
+        cost_total REAL NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL DEFAULT 'other',
+        notes TEXT,
+        credit_note_id TEXT,
+        processed_by_id TEXT NOT NULL DEFAULT '',
+        processed_by_name TEXT NOT NULL DEFAULT '',
+        organization_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+]
+
+INDEXES: list[str] = [
+    "CREATE INDEX IF NOT EXISTS idx_withdrawals_contractor ON withdrawals(contractor_id)",
+    "CREATE INDEX IF NOT EXISTS idx_withdrawals_created ON withdrawals(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(payment_status)",
+    "CREATE INDEX IF NOT EXISTS idx_withdrawals_billing ON withdrawals(billing_entity)",
+    "CREATE INDEX IF NOT EXISTS idx_withdrawals_org ON withdrawals(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_material_requests_contractor ON material_requests(contractor_id)",
+    "CREATE INDEX IF NOT EXISTS idx_material_requests_status ON material_requests(status)",
+    "CREATE INDEX IF NOT EXISTS idx_material_requests_org ON material_requests(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_returns_withdrawal ON returns(withdrawal_id)",
+    "CREATE INDEX IF NOT EXISTS idx_returns_contractor ON returns(contractor_id)",
+    "CREATE INDEX IF NOT EXISTS idx_returns_org ON returns(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at)",
+]

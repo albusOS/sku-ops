@@ -3,6 +3,8 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
+from assistant.agents.tools.registry import register as _reg
+
 from finance.application.invoice_service import list_invoices
 from operations.application.queries import list_withdrawals
 
@@ -110,8 +112,6 @@ async def _get_top_products(args: dict, org_id: str) -> str:
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
-
-from assistant.agents.tools.registry import register as _reg
 
 _reg("get_invoice_summary",    "finance", _get_invoice_summary,    takes_args=False)
 _reg("get_outstanding_balances","finance", _get_outstanding_balances,lookup_key="outstanding")

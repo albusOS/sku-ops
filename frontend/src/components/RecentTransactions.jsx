@@ -167,10 +167,11 @@ function WithdrawalBlock({ withdrawal: w, onProductStockHistory }) {
 }
 
 function WithdrawalItem({ item, onProductStockHistory }) {
+  const unitLabel = item.unit && item.unit !== "each" ? ` ${item.unit}` : "";
   const priceStr =
-    item.quantity === 1
+    item.quantity === 1 && !unitLabel
       ? `$${(item.subtotal || 0).toFixed(2)}`
-      : `${item.quantity} @ $${(item.price || 0).toFixed(2)}`;
+      : `${item.quantity}${unitLabel} @ $${(item.price || 0).toFixed(2)}`;
 
   return (
     <li className="flex items-center justify-between gap-4 px-4 py-2 pl-6 group">

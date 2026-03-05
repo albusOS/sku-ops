@@ -401,6 +401,7 @@ export default function PurchaseOrders() {
                                   <Input
                                     type="number"
                                     min="0"
+                                    step="any"
                                     value={deliveredQtys[item.id] ?? item.ordered_qty ?? 1}
                                     onChange={(e) =>
                                       setDeliveredQtys((prev) => ({

@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Callable, List, Optional, Tuple
 
 from dataclasses import dataclass
 
-from kernel.errors import InvalidTransitionError, ResourceNotFoundError
+from kernel.errors import ResourceNotFoundError
 from kernel.types import CurrentUser
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from purchasing.domain.purchase_order import (
@@ -21,6 +21,7 @@ from purchasing.domain.purchase_order import (
 )
 from purchasing.infrastructure.po_repo import po_repo as _default_repo
 from purchasing.ports.po_repo_port import PORepoPort
+from finance.application.ledger_service import record_po_receipt as _record_ledger
 
 
 @dataclass
@@ -142,10 +143,13 @@ async def create_purchase_order(
 
     needs_uom = [
         d for d in selected_dicts
-        if not d.get("ai_parsed")
-        and (
+        if (
             (d.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS
             or (d.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS
+            or (
+                (d.get("base_unit") or "each").lower() == "each"
+                and (d.get("sell_uom") or "each").lower() == "each"
+            )
         )
     ]
     if needs_uom:
@@ -255,6 +259,7 @@ async def receive_po_items(
     matched = []
     errors = []
     cost_total = 0.0
+    ledger_items: list[dict] = []
 
     for item_id, update in updates_by_id.items():
         item = items_by_id.get(item_id)
@@ -277,7 +282,9 @@ async def receive_po_items(
         try:
             existing = await _match_product(item, vendor_id, org_id, deps)
 
+            resolved_pid = None
             if existing:
+                resolved_pid = existing["id"]
                 await deps.process_receiving_stock_changes(
                     product_id=existing["id"],
                     sku=existing["sku"],
@@ -288,8 +295,21 @@ async def receive_po_items(
                     reference_id=po_id,
                     organization_id=org_id,
                 )
+                product_updates: dict = {}
                 if item.get("original_sku") and not existing.get("original_sku"):
-                    await deps.update_product(existing["id"], {"original_sku": item["original_sku"]})
+                    product_updates["original_sku"] = item["original_sku"]
+
+                po_item_cost = float(item.get("cost") or 0) or float(item.get("unit_price") or item.get("price") or 0) * 0.7
+                old_qty = float(existing.get("quantity", 0))
+                old_cost = float(existing.get("cost", 0))
+                if (old_qty + delivered) > 0:
+                    new_cost = round(
+                        (old_qty * old_cost + delivered * po_item_cost) / (old_qty + delivered), 4
+                    )
+                    product_updates["cost"] = new_cost
+
+                if product_updates:
+                    await deps.update_product(existing["id"], product_updates)
                 await repo.update_po_item(item_id, POItemStatus.ARRIVED, product_id=existing["id"], delivered_qty=delivered)
                 updated = await deps.get_product_by_id(existing["id"])
                 matched.append(updated)
@@ -299,13 +319,13 @@ async def receive_po_items(
                     errors.append({"item": item.get("name"), "error": "No valid department"})
                     continue
 
-                cost_val = float(item.get("cost") or 0) or float(item.get("price") or 0) * 0.7
+                cost_val = float(item.get("cost") or 0) or float(item.get("unit_price") or item.get("price") or 0) * 0.7
                 product = await deps.create_product(
                     department_id=dept["id"],
                     department_name=dept["name"],
                     name=item.get("name", "Unknown"),
                     description="",
-                    price=float(item.get("price") or 0),
+                    price=float(item.get("unit_price") or item.get("price") or 0),
                     cost=round(cost_val, 2),
                     quantity=delivered,
                     min_stock=5,
@@ -320,12 +340,29 @@ async def receive_po_items(
                     user_name=current_user.name,
                     organization_id=org_id,
                 )
+                resolved_pid = product.id
                 await repo.update_po_item(item_id, POItemStatus.ARRIVED, product_id=product.id, delivered_qty=delivered)
                 received.append(product)
 
-            cost_total += float(item.get("cost") or 0) * delivered
+            item_cost = float(item.get("cost") or 0)
+            cost_total += item_cost * delivered
+            dept_code = (item.get("suggested_department") or "HDW").upper()
+            ledger_items.append({
+                "cost": item_cost,
+                "delivered_qty": delivered,
+                "product_id": resolved_pid,
+                "department": dept_by_code.get(dept_code, {}).get("name") or dept_code,
+            })
         except Exception as e:
             errors.append({"item": item.get("name"), "error": str(e)})
+
+    if ledger_items:
+        await _record_ledger(
+            po_id=po_id,
+            items=ledger_items,
+            vendor_name=po.get("vendor_name", ""),
+            organization_id=org_id,
+        )
 
     new_status = await _recompute_po_status(po_id, po, current_user, repo)
     return {

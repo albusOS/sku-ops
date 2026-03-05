@@ -77,6 +77,8 @@ def infer_uom(name: str) -> Tuple[str, str, int]:
         (r"x(\d+)'", "foot"),
         (r"(\d+)\s*lf\b", "foot"),
         (r"(\d+)\s*ln\s*ft", "foot"),
+        (r'(\d+)\s*(?:in\b|in\.|")', "inch"),
+        (r"(\d+)\s*inch", "inch"),
         (r"sq\s*ft", "sqft"),
         (r"(\d+)\s*sq\s*ft", "sqft"),
         (r"(\d+)\s*bag", "bag"),
@@ -198,7 +200,9 @@ def parse_csv_products(content: bytes) -> list:
             col_map["quantity"] = idx
         elif "reorder point" in n:
             col_map["min_stock"] = idx
-        elif "unit cost" in n or "cost" in n:
+        elif "unit cost" in n:
+            col_map["cost"] = idx
+        elif "cost" in n and "total" not in n and "cost" not in col_map:
             col_map["cost"] = idx
         elif "retail price" in n and "ex" not in n and "inc" not in n:
             col_map["price"] = idx
@@ -225,7 +229,7 @@ def parse_csv_products(content: bytes) -> list:
 
         qty = 0
         try:
-            qty = int(float((row[col_map.get("quantity", 3)] or "0").replace(",", "")))
+            qty = float((row[col_map.get("quantity", 3)] or "0").replace(",", ""))
         except (ValueError, TypeError, IndexError):
             pass
 

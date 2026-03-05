@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from identity.application.auth_service import hash_password, require_role
 from kernel.types import CurrentUser
-from identity.domain.user import User, UserCreate, UserUpdate
 from identity.application.user_service import (
+    User, UserCreate, UserUpdate,
     get_user_by_id,
     get_user_by_email,
     list_contractors,

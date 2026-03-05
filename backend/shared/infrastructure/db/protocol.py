@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Protocol, runtime_checkable
+from typing import AsyncIterator, Protocol, runtime_checkable
 
 
 class DictRow(dict):

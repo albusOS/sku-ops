@@ -1,6 +1,5 @@
 """Per-org settings repository."""
 from datetime import datetime, timezone
-from typing import Optional
 
 from shared.infrastructure.database import get_connection
 from identity.domain.org_settings import OrgSettings
@@ -25,14 +24,15 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
     now = datetime.now(timezone.utc).isoformat()
     await conn.execute(
         """INSERT INTO org_settings (
-               organization_id, xero_client_id, xero_client_secret,
+               organization_id, default_tax_rate, xero_client_id, xero_client_secret,
                xero_tenant_id, xero_access_token, xero_refresh_token,
                xero_token_expiry, xero_sales_account_code,
                xero_cogs_account_code, xero_inventory_account_code,
                xero_ap_account_code, xero_tracking_category_id,
                xero_tax_type, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(organization_id) DO UPDATE SET
+               default_tax_rate = excluded.default_tax_rate,
                xero_client_id = excluded.xero_client_id,
                xero_client_secret = excluded.xero_client_secret,
                xero_tenant_id = excluded.xero_tenant_id,
@@ -49,6 +49,7 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
         """,
         (
             settings.organization_id,
+            settings.default_tax_rate,
             settings.xero_client_id,
             settings.xero_client_secret,
             settings.xero_tenant_id,

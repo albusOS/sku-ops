@@ -2,6 +2,7 @@
 Supply Yard API - Material Management System.
 Main entry point: composes FastAPI app with routers from api package.
 """
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,16 +13,14 @@ from shared.infrastructure.logging_config import setup_logging
 
 setup_logging()
 
-import logging
-
-from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed, is_deployed, is_test
-from shared.infrastructure.database import init_db, close_db
-from kernel.errors import DomainError
-from shared.infrastructure.middleware.request_id import RequestIDMiddleware
-from shared.infrastructure.middleware.security_headers import SecurityHeadersMiddleware
-from shared.infrastructure.middleware.rate_limit import setup_rate_limiting
-from shared.infrastructure.metrics import setup_sentry, setup_prometheus
-from api import api_router
+from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed, is_test  # noqa: E402
+from shared.infrastructure.database import init_db, close_db  # noqa: E402
+from kernel.errors import DomainError  # noqa: E402
+from shared.infrastructure.middleware.request_id import RequestIDMiddleware  # noqa: E402
+from shared.infrastructure.middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
+from shared.infrastructure.middleware.rate_limit import setup_rate_limiting  # noqa: E402
+from shared.infrastructure.metrics import setup_sentry, setup_prometheus  # noqa: E402
+from api import api_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

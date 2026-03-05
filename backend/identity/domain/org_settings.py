@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class OrgSettings(BaseModel):
     organization_id: str
+    default_tax_rate: float = 0.10          # 10% GST (NZ/AU default)
     xero_client_id: Optional[str] = None
     xero_client_secret: Optional[str] = None
     xero_tenant_id: Optional[str] = None
@@ -21,7 +22,8 @@ class OrgSettings(BaseModel):
 
 
 class OrgSettingsUpdate(BaseModel):
-    """Payload for updating Xero account code settings."""
+    """Payload for updating org and Xero settings."""
+    default_tax_rate: Optional[float] = None
     xero_sales_account_code: Optional[str] = None
     xero_cogs_account_code: Optional[str] = None
     xero_inventory_account_code: Optional[str] = None

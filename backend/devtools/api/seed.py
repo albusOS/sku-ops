@@ -24,14 +24,18 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 
 
 @router.post("/departments")
-async def seed_departments(current_user: dict = Depends(require_role("admin"))):
-    org_id = current_user.get("organization_id") or "default"
+async def seed_departments(current_user=Depends(require_role("admin"))):
+    org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
     await seed_standard_departments(org_id)
     return {"message": "Departments ready"}
 
 
 async def _clear_all_tables(conn) -> None:
     """Delete all data from core tables (FK order)."""
+    await conn.execute("DELETE FROM financial_ledger")
+    await conn.execute("DELETE FROM credit_note_line_items")
+    await conn.execute("DELETE FROM credit_notes")
+    await conn.execute("DELETE FROM returns")
     await conn.execute("DELETE FROM invoice_line_items")
     await conn.execute("DELETE FROM invoice_withdrawals")
     await conn.execute("DELETE FROM invoices")
@@ -85,10 +89,120 @@ async def reset_empty():
     return {"message": "Reset complete. Empty state. Log in with demo credentials (admin@demo.local / demo123)."}
 
 
+@router.post("/backfill-ledger")
+async def backfill_ledger(current_user=Depends(require_role("admin"))):
+    """Replay all historical events into the financial_ledger for existing data."""
+    from finance.application.ledger_service import (
+        record_withdrawal, record_return, record_po_receipt, record_adjustment, record_payment,
+    )
+    from operations.application.queries import list_withdrawals, list_returns
+    from catalog.application.queries import list_products
+
+    org_id = getattr(current_user, "organization_id", None) or "default"
+    conn = get_connection()
+
+    await conn.execute("DELETE FROM financial_ledger WHERE organization_id = ?", (org_id,))
+    await conn.commit()
+
+    products = await list_products(organization_id=org_id)
+    dept_map = {p["id"]: p.get("department_name") for p in products}
+    cost_map = {p["id"]: p.get("cost", 0) for p in products}
+
+    withdrawals = await list_withdrawals(limit=100000, organization_id=org_id)
+    for w in withdrawals:
+        items = [
+            {**i, "department_name": dept_map.get(i.get("product_id"))}
+            for i in w.get("items", [])
+        ]
+        await record_withdrawal(
+            withdrawal_id=w["id"], items=items,
+            tax=w.get("tax", 0), total=w.get("total", 0),
+            job_id=w.get("job_id", ""), billing_entity=w.get("billing_entity", ""),
+            contractor_id=w.get("contractor_id", ""), organization_id=org_id,
+        )
+        if w.get("payment_status") == "paid":
+            await record_payment(
+                withdrawal_id=w["id"], amount=w.get("total", 0),
+                billing_entity=w.get("billing_entity", ""),
+                contractor_id=w.get("contractor_id", ""),
+                organization_id=org_id,
+            )
+
+    returns = await list_returns(limit=100000, organization_id=org_id)
+    for r in returns:
+        items = [
+            {**i, "department_name": dept_map.get(i.get("product_id"))}
+            for i in r.get("items", [])
+        ]
+        await record_return(
+            return_id=r["id"], items=items,
+            tax=r.get("tax", 0), total=r.get("total", 0),
+            job_id=r.get("job_id", ""), billing_entity=r.get("billing_entity", ""),
+            contractor_id=r.get("contractor_id", ""), organization_id=org_id,
+        )
+
+    cursor = await conn.execute(
+        """SELECT po.id, po.vendor_name, poi.cost, poi.delivered_qty, poi.product_id, poi.suggested_department
+           FROM purchase_orders po
+           JOIN purchase_order_items poi ON po.id = poi.po_id
+           WHERE po.organization_id = ? AND poi.status = 'arrived'""",
+        (org_id,),
+    )
+    po_rows = await cursor.fetchall()
+    po_items: dict[str, list] = {}
+    po_vendors: dict[str, str] = {}
+    for row in po_rows:
+        r = dict(row)
+        po_id = r["id"]
+        po_vendors[po_id] = r["vendor_name"]
+        po_items.setdefault(po_id, []).append(r)
+    for po_id, items in po_items.items():
+        await record_po_receipt(
+            po_id=po_id, items=items,
+            vendor_name=po_vendors.get(po_id, ""),
+            organization_id=org_id,
+        )
+
+    cursor = await conn.execute(
+        """SELECT product_id, quantity_delta, reason
+           FROM stock_transactions
+           WHERE (organization_id = ? OR organization_id IS NULL)
+             AND transaction_type = 'adjustment'""",
+        (org_id,),
+    )
+    adj_rows = await cursor.fetchall()
+    for row in adj_rows:
+        r = dict(row)
+        pid = r["product_id"]
+        await record_adjustment(
+            adjustment_ref_id=pid, product_id=pid,
+            product_cost=cost_map.get(pid, 0),
+            quantity_delta=r["quantity_delta"],
+            department=dept_map.get(pid),
+            organization_id=org_id,
+        )
+
+    total_entries = 0
+    cursor = await conn.execute(
+        "SELECT COUNT(*) FROM financial_ledger WHERE organization_id = ?", (org_id,)
+    )
+    row = await cursor.fetchone()
+    total_entries = row[0] if row else 0
+
+    return {
+        "message": "Ledger backfill complete",
+        "withdrawals": len(withdrawals),
+        "returns": len(returns),
+        "po_receipts": len(po_items),
+        "adjustments": len(adj_rows),
+        "total_ledger_entries": total_entries,
+    }
+
+
 @router.post("/reset-inventory")
-async def reset_and_reseed_inventory(current_user: dict = Depends(require_role("admin"))):
+async def reset_and_reseed_inventory(current_user=Depends(require_role("admin"))):
     """Reset products and stock, then re-run demo seed."""
-    org_id = current_user.get("organization_id") or "default"
+    org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
     conn = get_connection()
     try:
         await conn.execute("DELETE FROM stock_transactions")

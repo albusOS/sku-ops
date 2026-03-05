@@ -18,8 +18,8 @@ BOUNDED_CONTEXTS = frozenset({
     "purchasing", "finance", "documents", "assistant", "reports",
 })
 
-# Files that compose routers from all contexts — infrastructure import rules don't apply.
-COMPOSITION_ROOTS = frozenset({"server.py", "api/__init__.py"})
+# Files that compose routers/schemas from all contexts — architecture rules don't apply.
+COMPOSITION_ROOTS = frozenset({"server.py", "api/__init__.py", "full_schema.py"})
 
 # ── Known cross-context infrastructure violations (pre-DDD coupling to clean up) ──────────
 # Each entry is "relative/path/from/backend:imported.module".

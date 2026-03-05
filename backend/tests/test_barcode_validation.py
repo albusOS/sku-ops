@@ -1,5 +1,4 @@
 """Tests for barcode validation (UPC-A, EAN-13)."""
-import pytest
 
 from catalog.domain.barcode import validate_barcode, validate_ean13, validate_upc
 

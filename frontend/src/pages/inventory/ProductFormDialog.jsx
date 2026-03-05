@@ -167,7 +167,7 @@ export function ProductFormDialog({
       description: form.description,
       price: parseFloat(form.price),
       cost: parseFloat(form.cost) || 0,
-      quantity: parseInt(form.quantity) || 0,
+      quantity: parseFloat(form.quantity) || 0,
       min_stock: parseInt(form.min_stock) || 5,
       department_id: form.department_id,
       vendor_id: form.vendor_id || null,
@@ -284,7 +284,7 @@ export function ProductFormDialog({
             </div>
             <div>
               <Label className="text-slate-600 font-medium text-sm">Quantity</Label>
-              <Input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="0" className="input-workshop mt-2" data-testid="product-quantity-input" />
+              <Input type="number" step="any" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="0" className="input-workshop mt-2" data-testid="product-quantity-input" />
             </div>
             <div>
               <Label className="text-slate-600 font-medium text-sm">

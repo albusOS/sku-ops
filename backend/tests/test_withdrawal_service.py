@@ -1,8 +1,6 @@
 """Tests for withdrawal service."""
 import pytest
-import pytest_asyncio
 
-from shared.infrastructure.database import get_connection
 from kernel.types import CurrentUser
 from inventory.domain.errors import InsufficientStockError
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem

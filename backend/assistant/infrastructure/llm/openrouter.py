@@ -41,7 +41,6 @@ class OpenRouterProvider:
         input_tokens: int,
         output_tokens: int,
     ) -> float:
-        from assistant.infrastructure.llm.catalog import get_model_pricing
         return _calc(model_id, input_tokens, output_tokens)
 
     def get_raw_client(self) -> Any:

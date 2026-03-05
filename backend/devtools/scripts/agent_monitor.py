@@ -12,8 +12,7 @@ import argparse
 import asyncio
 import json
 import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 # Ensure backend is on sys.path
@@ -24,7 +23,6 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.columns import Columns
 from rich.layout import Layout
 
 
