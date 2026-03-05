@@ -25,7 +25,6 @@ class WithdrawalRepoPort(Protocol):
 
     async def mark_paid(
         self, withdrawal_id: str, paid_at: str,
-        stripe_session_id: Optional[str] = None,
     ) -> Optional[dict]: ...
 
     async def bulk_mark_paid(

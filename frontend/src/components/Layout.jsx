@@ -206,7 +206,7 @@ const Layout = ({ children }) => {
         {children}
       </main>
 
-      <ChatAssistant />
+      {user?.role !== ROLES.CONTRACTOR && <ChatAssistant />}
     </div>
   );
 };

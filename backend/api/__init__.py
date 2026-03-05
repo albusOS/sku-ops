@@ -12,12 +12,10 @@ from catalog.api.departments import router as departments_router
 from documents.api.documents import router as documents_router
 from finance.api.financials import router as financials_router
 from finance.api.invoices import router as invoices_router
-from finance.api.payments import router as payments_router
 from catalog.api.products import router as products_router
 from reports.api.reports import router as reports_router
 from catalog.api.sku import router as sku_router
 from catalog.api.vendors import router as vendors_router
-from finance.api.webhooks import router as webhooks_router
 from operations.api.withdrawals import router as withdrawals_router
 from operations.api.material_requests import router as material_requests_router
 from purchasing.api.purchase_orders import router as purchase_orders_router
@@ -47,8 +45,6 @@ api_router.include_router(invoices_router)
 api_router.include_router(reports_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(documents_router)
-api_router.include_router(payments_router)
-api_router.include_router(webhooks_router)
 api_router.include_router(seed_router)
 api_router.include_router(settings_router)
 api_router.include_router(xero_auth_router)

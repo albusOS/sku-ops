@@ -103,11 +103,8 @@ async def get_by_id(withdrawal_id: str, organization_id: Optional[str] = None) -
     return _row_to_dict(row)
 
 
-async def mark_paid(withdrawal_id: str, paid_at: str, stripe_session_id: Optional[str] = None) -> Optional[dict]:
+async def mark_paid(withdrawal_id: str, paid_at: str) -> Optional[dict]:
     conn = get_connection()
-    # We don't have stripe_session_id column in base schema - withdrawal table doesn't have it in the plan
-    # The plan has: paid_at. Let me check - the original MongoDB had stripe_session_id on withdrawal.
-    # For simplicity I'll just update payment_status and paid_at. If stripe_session_id is needed, we can add.
     await conn.execute(
         "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id = ?",
         (paid_at, withdrawal_id),

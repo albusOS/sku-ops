@@ -62,7 +62,7 @@ backend/
 ├── documents/        # Document parsing (OCR, AI), import logic
 ├── purchasing/       # Purchase orders, receiving
 ├── operations/       # Withdrawals, material requests
-├── finance/          # Invoicing, payments (Stripe), Xero
+├── finance/          # Invoicing, Xero integration
 ├── assistant/        # AI chat agents, LLM infrastructure
 ├── reports/          # Dashboard analytics
 ├── scripts/          # Seed data, backfills, dev tools

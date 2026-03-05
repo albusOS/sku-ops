@@ -22,7 +22,6 @@
 - Warehouse managers can't access Financials/Invoices
 
 ### Integrations
-- Stripe (Pay Now) — working
 - Xero — stub only
 - ServiceM8 — not implemented
 
@@ -91,8 +90,7 @@ Add `organization_id TEXT NOT NULL` (or `org_id`) to:
 ### 4.1 Core User Flows
 | Flow | Actors | Steps |
 |------|--------|-------|
-| **Withdrawal → Pay Now** | Contractor/WM | POS → Stripe → paid |
-| **Withdrawal → Charge to Account** | Contractor/WM | POS → unpaid withdrawal |
+| **Withdrawal → Charge to Account** | Contractor/WM | POS → unpaid withdrawal → invoice via Xero |
 | **Unpaid → Invoice** | Admin | Financials → select withdrawals → Create Invoice |
 | **Invoice → Sent → Paid** | Admin | Invoices → Send to Xero → mark paid when paid |
 | **Contractor view** | Contractor | My History: see unpaid, invoiced, paid |
@@ -107,7 +105,6 @@ Add `organization_id TEXT NOT NULL` (or `org_id`) to:
 | Integration | Priority | Notes |
 |-------------|----------|-------|
 | **Xero** | High | Draft invoice → Xero; sync payment status |
-| **Stripe** | Done | Pay Now at POS |
 | **ServiceM8** | Medium | Job ID dropdown; optional |
 | **Barcode scanner** | Medium | POS search by scan |
 

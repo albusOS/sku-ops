@@ -1,13 +1,12 @@
 # Supply Yard - Hardware Material Management System PRD
 
 ## Original Problem Statement
-Build a complete hardware storefront, POS, and inventory management system with multi-tenancy support. The system needs its own SKU system, departments, and alignment with stores like Home Depot, Lowes, etc. Key use case: contractors withdraw materials and can either pay immediately (Stripe) or charge to their account for later invoicing.
+Build a complete hardware storefront, POS, and inventory management system with multi-tenancy support. The system needs its own SKU system, departments, and alignment with stores like Home Depot, Lowes, etc. Key use case: contractors withdraw materials and charge to their account for later invoicing via Xero.
 
 ## User Choices & Requirements
 - JWT-based custom auth (email/password)
 - Multi-tenancy with 3 roles: Admin, Warehouse Manager, Contractor
-- Stripe integration for "Pay Now" option at POS
-- "Charge to Account" option for later invoicing via Xero
+- "Charge to Account" — all withdrawals invoiced later via Xero
 - Standard hardware departments + custom departments
 - Sales/inventory reports
 - Receipt upload with OCR using Gemini 3 Flash
@@ -18,12 +17,12 @@ Build a complete hardware storefront, POS, and inventory management system with 
 - **Backend**: FastAPI + SQLite (aiosqlite)
 - **Auth**: JWT-based authentication with RBAC
 - **AI**: Gemini 3 Flash for receipt OCR
-- **Payments**: Stub adapter (Pay Now → stub flow; Charge to Account → Xero invoicing)
+- **Invoicing**: Xero integration for billing (Charge to Account)
 
 ## User Personas
 1. **Admin**: Full access - user management, financial dashboard, invoice exports
 2. **Warehouse Manager**: POS, inventory, vendors, receipt imports
-3. **Contractor**: Withdraw materials, view own history, pay or charge to account
+3. **Contractor**: Withdraw materials, view own history, charge to account
 
 ## Core Requirements (Static)
 - [x] User authentication (register/login)
@@ -35,8 +34,7 @@ Build a complete hardware storefront, POS, and inventory management system with 
 - [x] Department management
 - [x] Receipt OCR import (Gemini 3 Flash)
 - [x] Sales and inventory reports
-- [x] Stripe "Pay Now" at POS
-- [x] "Charge to Account" for later invoicing
+- [x] "Charge to Account" for later invoicing via Xero
 
 ## SKU System
 Format: `DEPT-SLUG-NNNNNN` (e.g., LUM-PIPE-000001, PLU-FITT-000002)
@@ -46,14 +44,6 @@ Format: `DEPT-SLUG-NNNNNN` (e.g., LUM-PIPE-000001, PLU-FITT-000002)
 - Standard department codes: LUM (Lumber), PLU (Plumbing), ELE (Electrical), PNT (Paint), TOL (Tools), HDW (Hardware), GDN (Garden), APP (Appliances)
 
 ## What's Been Implemented
-
-### Feb 24, 2026 - Stripe Payment Integration
-- **Pay Now** option at POS using Stripe checkout
-- Payment endpoints: `/api/payments/create-checkout`, `/api/payments/status/{session_id}`
-- Stripe webhook handler at `/api/webhook/stripe`
-- `payment_transactions` collection for tracking payments
-- Frontend payment polling after Stripe redirect
-- Both "Pay Now" and "Charge to Account" flows tested and working
 
 ### Feb 23, 2026 - Multi-Tenancy & Core System
 1. **Authentication**: JWT-based login/register with 3 roles
@@ -75,7 +65,7 @@ Format: `DEPT-SLUG-NNNNNN` (e.g., LUM-PIPE-000001, PLU-FITT-000002)
 - [x] Inventory CRUD with SKUs
 - [x] Basic authentication
 - [x] Multi-tenancy with RBAC
-- [x] Stripe "Pay Now" option
+- [x] Charge to Account (Xero invoicing)
 
 ### P1 (Important)
 - [ ] Xero integration for draft invoices
@@ -115,7 +105,7 @@ Format: `DEPT-SLUG-NNNNNN` (e.g., LUM-PIPE-000001, PLU-FITT-000002)
 
 ## Database (SQLite)
 - Single file: `data/sku_ops.db` (default, configurable via `DATABASE_URL`)
-- Tables: users, departments, vendors, products, withdrawals, payment_transactions, sku_counters, stock_transactions
+- Tables: users, departments, vendors, products, withdrawals, sku_counters, stock_transactions, invoices
 - No external DB process required
 
 ## Key API Endpoints
@@ -124,6 +114,5 @@ Format: `DEPT-SLUG-NNNNNN` (e.g., LUM-PIPE-000001, PLU-FITT-000002)
 - Vendors: `/api/vendors`
 - Document Import: `/api/documents/parse`, `/api/documents/import`
 - Withdrawals: `/api/withdrawals`, `/api/withdrawals/for-contractor`
-- Payments: `/api/payments/create-checkout`, `/api/payments/status/{session_id}`
 - Financials: `/api/financials/summary`, `/api/financials/export`
 - Reports: `/api/reports/sales`, `/api/reports/inventory`

@@ -8,7 +8,6 @@ from starlette.testclient import TestClient
 # Test environment: set before any app/config imports
 os.environ["ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["PAYMENT_ADAPTER"] = "stub"
 os.environ["JWT_SECRET"] = "test-secret-key-for-pytest"
 # Provide a dummy key so pydantic-ai can instantiate Agent at import time.
 # Tests that exercise LLM paths mock the actual API calls.
@@ -41,5 +40,11 @@ async def db():
            VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User', 'contractor', 'ACME', 'ACME Inc', 1, datetime('now'))"""
     )
     await conn.commit()
+
+    # Wire cross-domain DI (server.py does this in lifespan; tests bypass lifespan)
+    from finance.infrastructure.invoice_repo import set_withdrawal_getter
+    from operations.application.queries import get_withdrawal_by_id
+    set_withdrawal_getter(get_withdrawal_by_id)
+
     yield
     await close_db()

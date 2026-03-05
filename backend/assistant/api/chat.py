@@ -3,7 +3,7 @@ import uuid
 
 from fastapi import APIRouter, Depends
 
-from identity.application.auth_service import get_current_user
+from identity.application.auth_service import get_current_user, require_role
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL, SESSION_COST_CAP
 from assistant.api.schemas import ChatRequest
 from assistant.application.assistant import chat, recall_memory, schedule_memory_extraction
@@ -39,7 +39,7 @@ async def clear_session(session_id: str, current_user: dict = Depends(get_curren
 @router.post("/chat")
 async def chat_assistant(
     data: ChatRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Chat with AI assistant. Routes to specialist agents: inventory, ops, finance."""
     session_id = data.session_id or str(uuid.uuid4())

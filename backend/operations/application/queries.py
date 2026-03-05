@@ -30,5 +30,5 @@ async def get_withdrawal_by_id(withdrawal_id: str, organization_id: Optional[str
     return await _repo.get_by_id(withdrawal_id, organization_id=organization_id)
 
 
-async def mark_withdrawal_paid(withdrawal_id: str, paid_at: str, stripe_session_id: Optional[str] = None) -> Optional[dict]:
-    return await _repo.mark_paid(withdrawal_id, paid_at, stripe_session_id=stripe_session_id)
+async def mark_withdrawal_paid(withdrawal_id: str, paid_at: str) -> Optional[dict]:
+    return await _repo.mark_paid(withdrawal_id, paid_at)

@@ -88,19 +88,6 @@ _enforce_cors()
 # Sentry (optional — set SENTRY_DSN to enable)
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 
-# Payment
-PAYMENT_ADAPTER = os.environ.get("PAYMENT_ADAPTER", "").lower().strip()
-STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "").strip()
-# In test, always stub; in dev, stub if not configured; otherwise stripe when key set
-def _payment_adapter() -> str:
-    if is_test:
-        return "stub"
-    if PAYMENT_ADAPTER:
-        return PAYMENT_ADAPTER
-    return "stripe" if STRIPE_API_KEY else "stub"
-
-payment_adapter = _payment_adapter()
-
 # Demo / seed
 def _demo_email() -> str:
     env_val = os.environ.get("DEMO_USER_EMAIL", "").strip()

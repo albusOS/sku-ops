@@ -20,6 +20,16 @@ from catalog.api.schemas import SuggestUomRequest
 
 router = APIRouter(prefix="/products", tags=["products"])
 
+_CONTRACTOR_HIDDEN_FIELDS = {
+    "cost", "vendor_id", "vendor_name", "min_stock",
+    "original_sku", "vendor_barcode", "pack_qty", "organization_id",
+}
+
+
+def _strip_for_contractor(product: dict) -> dict:
+    """Remove internal/cost fields that contractors must not see."""
+    return {k: v for k, v in product.items() if k not in _CONTRACTOR_HIDDEN_FIELDS}
+
 
 @router.get("")
 async def get_products(
@@ -31,6 +41,7 @@ async def get_products(
     current_user: dict = Depends(get_current_user),
 ):
     org_id = current_user.get("organization_id") or "default"
+    is_contractor = current_user.get("role") == "contractor"
     items = await product_repo.list_products(
         department_id=department_id,
         search=search,
@@ -39,6 +50,8 @@ async def get_products(
         offset=offset,
         organization_id=org_id,
     )
+    if is_contractor:
+        items = [_strip_for_contractor(p) for p in items]
     if limit is not None:
         total = await product_repo.count_products(
             department_id=department_id,
@@ -57,15 +70,19 @@ async def get_product_by_barcode(barcode: str, current_user: dict = Depends(get_
     product = await product_repo.find_by_barcode(barcode.strip(), organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    if current_user.get("role") == "contractor":
+        return _strip_for_contractor(product)
     return product
 
 
-@router.get("/{product_id}", response_model=Product)
+@router.get("/{product_id}", response_model=None)
 async def get_product(product_id: str, current_user: dict = Depends(get_current_user)):
     org_id = current_user.get("organization_id") or "default"
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    if current_user.get("role") == "contractor":
+        return _strip_for_contractor(product)
     return product
 
 

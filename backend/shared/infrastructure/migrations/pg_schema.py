@@ -109,24 +109,6 @@ PG_FULL_SCHEMA: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_withdrawals_billing ON withdrawals(billing_entity)",
     "CREATE INDEX IF NOT EXISTS idx_withdrawals_org ON withdrawals(organization_id)",
 
-    # ── payment_transactions ──────────────────────────────────────────────
-    """CREATE TABLE IF NOT EXISTS payment_transactions (
-        id TEXT PRIMARY KEY,
-        session_id TEXT UNIQUE NOT NULL,
-        withdrawal_id TEXT,
-        user_id TEXT,
-        contractor_id TEXT,
-        amount REAL NOT NULL,
-        currency TEXT NOT NULL DEFAULT 'usd',
-        metadata TEXT,
-        payment_status TEXT NOT NULL DEFAULT 'pending',
-        status TEXT NOT NULL,
-        organization_id TEXT,
-        created_at TEXT NOT NULL,
-        paid_at TEXT
-    )""",
-    "CREATE INDEX IF NOT EXISTS idx_payment_transactions_org ON payment_transactions(organization_id)",
-
     # ── sku_counters ──────────────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS sku_counters (
         department_code TEXT PRIMARY KEY,

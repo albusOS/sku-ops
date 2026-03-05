@@ -147,21 +147,6 @@ async def _sqlite_001_initial_schema(conn) -> None:
         CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(payment_status);
         CREATE INDEX IF NOT EXISTS idx_withdrawals_billing ON withdrawals(billing_entity);
 
-        CREATE TABLE IF NOT EXISTS payment_transactions (
-            id TEXT PRIMARY KEY,
-            session_id TEXT UNIQUE NOT NULL,
-            withdrawal_id TEXT,
-            user_id TEXT,
-            contractor_id TEXT,
-            amount REAL NOT NULL,
-            currency TEXT NOT NULL DEFAULT 'usd',
-            metadata TEXT,
-            payment_status TEXT NOT NULL DEFAULT 'pending',
-            status TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            paid_at TEXT
-        );
-
         CREATE TABLE IF NOT EXISTS sku_counters (
             department_code TEXT PRIMARY KEY,
             counter INTEGER NOT NULL DEFAULT 0
@@ -360,7 +345,7 @@ async def _sqlite_005_barcode_uniqueness(conn) -> None:
 async def _sqlite_006_multi_tenant(conn) -> None:
     org_tables = [
         "users", "departments", "vendors", "products", "withdrawals",
-        "invoices", "payment_transactions", "stock_transactions",
+        "invoices", "stock_transactions",
     ]
     for table in org_tables:
         if not await _column_exists(conn, table, "organization_id"):

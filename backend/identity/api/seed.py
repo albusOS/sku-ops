@@ -36,7 +36,6 @@ async def _clear_all_tables(conn) -> None:
     await conn.execute("DELETE FROM invoice_withdrawals")
     await conn.execute("DELETE FROM invoices")
     await conn.execute("DELETE FROM invoice_counters")
-    await conn.execute("DELETE FROM payment_transactions")
     await conn.execute("DELETE FROM material_requests")
     await conn.execute("DELETE FROM withdrawals")
     await conn.execute("DELETE FROM purchase_order_items")

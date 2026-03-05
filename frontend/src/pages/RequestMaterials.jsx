@@ -46,6 +46,11 @@ const RequestMaterials = () => {
     fetchProducts();
   }, [search, selectedDept]);
 
+  const extractProducts = (data) => {
+    const list = Array.isArray(data) ? data : data?.items ?? [];
+    return list.filter((p) => p.quantity > 0);
+  };
+
   const fetchData = async () => {
     try {
       const [deptRes, productsRes] = await Promise.all([
@@ -53,7 +58,7 @@ const RequestMaterials = () => {
         axios.get(`${API}/products`),
       ]);
       setDepartments(deptRes.data);
-      setProducts(productsRes.data.filter((p) => p.quantity > 0));
+      setProducts(extractProducts(productsRes.data));
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load catalog");
@@ -68,7 +73,7 @@ const RequestMaterials = () => {
       if (search) params.append("search", search);
       if (selectedDept) params.append("department_id", selectedDept);
       const response = await axios.get(`${API}/products?${params}`);
-      setProducts(response.data.filter((p) => p.quantity > 0));
+      setProducts(extractProducts(response.data));
     } catch (error) {
       console.error("Error fetching products:", error);
     }
@@ -100,7 +105,6 @@ const RequestMaterials = () => {
           sku: product.sku,
           name: product.name,
           price: product.price,
-          cost: product.cost || 0,
           quantity: 1,
           subtotal: product.price,
           max_quantity: product.quantity,
@@ -174,13 +178,13 @@ const RequestMaterials = () => {
     setProcessing(true);
     try {
       const payload = {
-        items: cart.map(({ product_id, sku, name, quantity, price, cost, subtotal, unit }) => ({
+        items: cart.map(({ product_id, sku, name, quantity, price, subtotal, unit }) => ({
           product_id,
           sku,
           name,
           quantity,
           price,
-          cost,
+          cost: 0,
           subtotal,
           unit: unit || "each",
         })),

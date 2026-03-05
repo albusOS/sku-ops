@@ -21,17 +21,14 @@ import {
   HardHat,
   MapPin,
   FileText,
-  CreditCard,
   Clock,
   Loader2,
   ScanLine,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 import { API } from "@/lib/api";
 
 const IssueMaterials = () => {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -42,13 +39,11 @@ const IssueMaterials = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
 
   const [selectedContractor, setSelectedContractor] = useState("");
   const [jobId, setJobId] = useState("");
   const [serviceAddress, setServiceAddress] = useState("");
   const [notes, setNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("charge");
 
   const isContractor = user?.role === "contractor";
 
@@ -61,18 +56,6 @@ const IssueMaterials = () => {
         })
         .slice(0, 8)
     : [];
-
-  useEffect(() => {
-    const paymentStatus = searchParams.get("payment");
-    const sessionId = searchParams.get("session_id");
-    if (paymentStatus === "success" && sessionId) {
-      setCheckingPayment(true);
-      pollPaymentStatus(sessionId);
-    } else if (paymentStatus === "cancelled") {
-      toast.error("Payment was cancelled");
-      setSearchParams({});
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     fetchData();
@@ -91,35 +74,6 @@ const IssueMaterials = () => {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const pollPaymentStatus = async (sessionId, attempts = 0) => {
-    if (attempts >= 5) {
-      toast.error("Payment status check timed out. Please check your transaction history.");
-      setCheckingPayment(false);
-      setSearchParams({});
-      return;
-    }
-    try {
-      const response = await axios.get(`${API}/payments/status/${sessionId}`);
-      if (response.data.payment_status === "paid") {
-        toast.success("Payment successful! Material withdrawal completed.");
-        setCheckingPayment(false);
-        setSearchParams({});
-        fetchData();
-        return;
-      } else if (response.data.status === "expired") {
-        toast.error("Payment session expired. Please try again.");
-        setCheckingPayment(false);
-        setSearchParams({});
-        return;
-      }
-      setTimeout(() => pollPaymentStatus(sessionId, attempts + 1), 2000);
-    } catch {
-      toast.error("Error checking payment status");
-      setCheckingPayment(false);
-      setSearchParams({});
-    }
-  };
 
   const fetchData = async () => {
     try {
@@ -231,26 +185,12 @@ const IssueMaterials = () => {
         withdrawal = res.data;
       }
 
-      if (paymentMethod === "pay_now") {
-        try {
-          const paymentRes = await axios.post(`${API}/payments/create-checkout`, {
-            withdrawal_id: withdrawal.id,
-            origin_url: window.location.origin,
-          });
-          window.location.href = paymentRes.data.checkout_url;
-          return;
-        } catch {
-          toast.error("Could not initiate payment. Withdrawal logged as 'Charge to Account'.");
-        }
-      }
-
-      toast.success("Withdrawal logged!");
+      toast.success("Withdrawal logged — charged to account.");
       setItems([]);
       setJobId("");
       setServiceAddress("");
       setNotes("");
       if (!isContractor) setSelectedContractor("");
-      setPaymentMethod("charge");
       fetchData();
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -464,41 +404,11 @@ const IssueMaterials = () => {
             />
           </div>
 
-          <div>
-            <Label className="text-slate-600 font-medium text-sm mb-3 block">Payment method</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("charge")}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  paymentMethod === "charge"
-                    ? "border-amber-400 bg-amber-50/80"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-                data-testid="payment-method-charge"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className={`w-5 h-5 ${paymentMethod === "charge" ? "text-amber-500" : "text-slate-400"}`} />
-                  <span className="font-semibold text-slate-900">Charge to Account</span>
-                </div>
-                <p className="text-xs text-slate-500">Invoice later via Xero</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("pay_now")}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  paymentMethod === "pay_now"
-                    ? "border-amber-400 bg-amber-50/80"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-                data-testid="payment-method-pay-now"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <CreditCard className={`w-5 h-5 ${paymentMethod === "pay_now" ? "text-orange-500" : "text-slate-400"}`} />
-                  <span className="font-semibold text-slate-900">Pay Now</span>
-                </div>
-                <p className="text-xs text-slate-500">Pay via Stripe</p>
-              </button>
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50/80 border border-amber-200">
+            <Clock className="w-5 h-5 text-amber-500 shrink-0" />
+            <div>
+              <span className="font-semibold text-slate-900 text-sm">Charge to Account</span>
+              <p className="text-xs text-slate-500">Invoice later via Xero</p>
             </div>
           </div>
 
@@ -525,8 +435,6 @@ const IssueMaterials = () => {
             >
               {processing ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing…</>
-              ) : paymentMethod === "pay_now" ? (
-                <><CreditCard className="w-4 h-4 mr-2" />Proceed to Payment</>
               ) : (
                 <><Check className="w-4 h-4 mr-2" />Log Withdrawal</>
               )}
@@ -535,15 +443,6 @@ const IssueMaterials = () => {
         </div>
       )}
 
-      {checkingPayment && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50" data-testid="payment-processing-overlay">
-          <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-sm">
-            <Loader2 className="w-12 h-12 animate-spin text-amber-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Verifying payment</h3>
-            <p className="text-slate-500 text-sm">Confirming your payment…</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
