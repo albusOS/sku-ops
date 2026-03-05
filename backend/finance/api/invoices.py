@@ -1,4 +1,5 @@
 """Invoice CRUD and Xero sync routes."""
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -9,6 +10,8 @@ from finance.domain.invoice import InvoiceCreate, InvoiceUpdate, InvoiceSyncXero
 from finance.infrastructure.invoice_repo import invoice_repo
 from finance.application.invoice_service import sync_invoice
 from shared.infrastructure.middleware.audit import audit_log
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -103,23 +106,29 @@ async def update_invoice(
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    line_items_data = [i.model_dump() if hasattr(i, "model_dump") else i for i in (data.line_items or [])]
-    updated = await invoice_repo.update(
-        invoice_id,
-        billing_entity=data.billing_entity,
-        contact_name=data.contact_name,
-        contact_email=data.contact_email,
-        status=data.status,
-        notes=data.notes,
-        tax=data.tax,
-        tax_rate=data.tax_rate,
-        invoice_date=data.invoice_date,
-        due_date=data.due_date,
-        payment_terms=data.payment_terms,
-        billing_address=data.billing_address,
-        po_reference=data.po_reference,
-        line_items=line_items_data if data.line_items is not None else None,
-    )
+    try:
+        line_items_data = [i.model_dump() if hasattr(i, "model_dump") else i for i in (data.line_items or [])]
+        updated = await invoice_repo.update(
+            invoice_id,
+            billing_entity=data.billing_entity,
+            contact_name=data.contact_name,
+            contact_email=data.contact_email,
+            status=data.status,
+            notes=data.notes,
+            tax=data.tax,
+            tax_rate=data.tax_rate,
+            invoice_date=data.invoice_date,
+            due_date=data.due_date,
+            payment_terms=data.payment_terms,
+            billing_address=data.billing_address,
+            po_reference=data.po_reference,
+            line_items=line_items_data if data.line_items is not None else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Invoice update failed for {invoice_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update invoice")
     changes = {k: v for k, v in data.model_dump(exclude_none=True).items() if k != "line_items"}
     if data.line_items is not None:
         changes["line_items_updated"] = True

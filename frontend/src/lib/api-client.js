@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toast } from "sonner";
 import { API } from "./api";
 
 /**
@@ -13,6 +14,21 @@ export function getErrorMessage(error) {
   }
   return error.response?.data?.message || error.message || "Something went wrong";
 }
+
+axios.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    const status = error.response?.status;
+    const url = error.config?.url || "";
+
+    if (status >= 500) {
+      console.error(`[API] ${status} on ${url}`, error.response?.data);
+      toast.error("Something went wrong — please try again");
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 const api = {
   // ── Products ──────────────────────────────────────────────────────────

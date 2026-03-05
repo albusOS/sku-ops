@@ -136,19 +136,22 @@ async def bulk_mark_paid(request: Request, withdrawal_ids: List[str] = Body(...)
         raise HTTPException(status_code=400, detail="Cannot mark more than 200 withdrawals at once")
     org_id = current_user.organization_id
     paid_at = datetime.now(timezone.utc).isoformat()
-    updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at, organization_id=org_id)
-    for wid in withdrawal_ids:
-        await mark_paid_for_withdrawal(wid)
-        w = await withdrawal_repo.get_by_id(wid, org_id)
-        if w:
-            await _record_payment(
-                withdrawal_id=wid,
-                amount=w.get("total", 0),
-                billing_entity=w.get("billing_entity", ""),
-                contractor_id=w.get("contractor_id", ""),
-                organization_id=org_id,
-                performed_by_user_id=current_user.id,
-            )
+    try:
+        updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at, organization_id=org_id)
+        for wid in withdrawal_ids:
+            await mark_paid_for_withdrawal(wid)
+            w = await withdrawal_repo.get_by_id(wid, org_id)
+            if w:
+                await _record_payment(
+                    withdrawal_id=wid,
+                    amount=w.get("total", 0),
+                    billing_entity=w.get("billing_entity", ""),
+                    contractor_id=w.get("contractor_id", ""),
+                    organization_id=org_id,
+                    performed_by_user_id=current_user.id,
+                )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     await audit_log(
         user_id=current_user.id, action="payment.bulk_mark_paid",
         resource_type="withdrawal", resource_id=None,

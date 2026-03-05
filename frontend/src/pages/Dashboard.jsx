@@ -8,8 +8,11 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Warehouse,
+  TrendingUp,
+  Truck,
 } from "lucide-react";
-import { AreaChart } from "@tremor/react";
+import { AreaChart, BarChart } from "@tremor/react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, ADMIN_ROLES, DATE_PRESETS } from "@/lib/constants";
@@ -22,10 +25,85 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useDashboardStats } from "@/hooks/useDashboard";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 
+const Panel = ({ children, className = "" }) => (
+  <div className={`bg-white rounded-xl border border-slate-200 shadow-sm p-6 ${className}`}>{children}</div>
+);
+
+const SectionHead = ({ title, action }) => (
+  <div className="flex items-center justify-between mb-4">
+    <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400 border-l-2 border-amber-400 pl-3">{title}</h3>
+    {action}
+  </div>
+);
+
+const DeptMarginBars = ({ data = [] }) => {
+  const max = useMemo(() => Math.max(...data.map((d) => Math.max(d.revenue, d.cost)), 1), [data]);
+  return (
+    <div className="space-y-3">
+      {data.slice(0, 8).map((d) => {
+        const isLow = d.margin_pct < 25;
+        return (
+          <div key={d.department}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-slate-700 truncate">{d.department}</span>
+              <div className="flex items-center gap-3 text-xs tabular-nums shrink-0">
+                <span className={`font-bold px-1.5 py-0.5 rounded ${isLow ? "bg-orange-50 text-orange-700" : "bg-emerald-50 text-emerald-700"}`}>{d.margin_pct}%</span>
+                <span className="text-slate-400">{valueFormatter(d.profit)} profit</span>
+              </div>
+            </div>
+            <div className="relative h-4 bg-slate-100 rounded-md overflow-hidden">
+              <div className="absolute left-0 top-0 h-full bg-slate-200 rounded-md transition-all duration-500" style={{ width: `${(d.revenue / max) * 100}%` }} />
+              <div className="absolute left-0 top-0 h-full bg-orange-300/80 rounded-md transition-all duration-500" style={{ width: `${(d.cost / max) * 100}%` }} />
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-4 pt-1 text-[10px] text-slate-400">
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-300/80 inline-block" />Cost</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200 inline-block" />Revenue</span>
+      </div>
+    </div>
+  );
+};
+
+const POSummaryStrip = ({ summary = {} }) => {
+  const statuses = [
+    { key: "ordered", label: "Ordered", color: "bg-blue-400" },
+    { key: "partial", label: "Partial", color: "bg-amber-400" },
+    { key: "received", label: "Received", color: "bg-emerald-400" },
+  ];
+  const total = Object.values(summary).reduce((s, v) => s + (v?.total || 0), 0) || 1;
+  return (
+    <div>
+      <div className="flex h-2.5 rounded-full overflow-hidden gap-px mb-2">
+        {statuses.map((s) => {
+          const val = summary[s.key]?.total || 0;
+          if (!val) return null;
+          return <div key={s.key} className={s.color} style={{ width: `${(val / total) * 100}%` }} title={`${s.label}: ${valueFormatter(val)}`} />;
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {statuses.map((s) => {
+          const v = summary[s.key];
+          if (!v) return null;
+          return (
+            <div key={s.key} className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${s.color}`} />
+              <span className="text-xs text-slate-500">{s.label}</span>
+              <span className="text-xs font-bold text-slate-700 tabular-nums">{v.count}</span>
+              <span className="text-[10px] text-slate-400 tabular-nums">({valueFormatter(v.total)})</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
 
-  const defaultRange = DATE_PRESETS[1].getValue(); // Last 7 days
+  const defaultRange = DATE_PRESETS[1].getValue();
   const [dateRange, setDateRange] = useState(defaultRange);
   const [stockHistoryProduct, setStockHistoryProduct] = useState(null);
 
@@ -66,7 +144,7 @@ const Dashboard = () => {
           <StatCard label="Unpaid Balance" value={valueFormatter(stats?.unpaid_balance || 0)} accent="amber" />
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <Panel>
           <h2 className="text-base font-semibold text-slate-900 mb-4">Recent Withdrawals</h2>
           {stats?.recent_withdrawals?.length > 0 ? (
             <div className="space-y-2">
@@ -89,12 +167,12 @@ const Dashboard = () => {
               <p className="text-sm">No withdrawals in this range</p>
             </div>
           )}
-        </div>
+        </Panel>
       </div>
     );
   }
 
-  const revenueChartData = stats?.revenue_by_day?.length
+  const dailyChartData = stats?.revenue_by_day?.length
     ? stats.revenue_by_day.map((d) => ({
         date: format(new Date(d.date), "MMM d"),
         Revenue: d.revenue,
@@ -103,16 +181,24 @@ const Dashboard = () => {
       }))
     : [];
 
+  const inventoryCost = stats?.inventory_cost || 0;
+  const inventoryRetail = stats?.inventory_retail || 0;
+  const inventoryMargin = inventoryRetail > 0 ? Math.round(((inventoryRetail - inventoryCost) / inventoryRetail) * 100) : 0;
+
+  const hasPOs = stats?.po_summary && Object.keys(stats.po_summary).length > 0;
+  const openPOTotal = (stats?.po_summary?.ordered?.total || 0) + (stats?.po_summary?.partial?.total || 0);
+
   return (
     <div className="p-8" data-testid="dashboard-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Dashboard</h1>
-          <p className="text-slate-500 mt-1 text-sm">Welcome back, {user?.name}</p>
+          <p className="text-slate-500 mt-1 text-sm">{rangeLabel}</p>
         </div>
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
+      {/* ── Alerts ── */}
       {(stats?.low_stock_count > 0 || (isAdmin && stats?.unpaid_total > 0)) && (
         <div className="flex flex-wrap gap-2 mb-6">
           {stats?.low_stock_count > 0 && (
@@ -132,53 +218,106 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Revenue" value={valueFormatter(stats?.range_revenue || 0)} note={`${stats?.range_transactions || 0} withdrawals`} accent="emerald" />
-        <StatCard label="COGS" value={valueFormatter(stats?.range_cogs || 0)} />
-        <StatCard label="Gross Profit" value={valueFormatter(stats?.range_gross_profit || 0)} note={`${stats?.range_margin_pct || 0}% margin`} accent="violet" />
-        <StatCard label="Unpaid" value={valueFormatter(stats?.unpaid_total || 0)} accent={stats?.unpaid_total > 0 ? "orange" : "slate"} />
-        <StatCard label="Low Stock" value={stats?.low_stock_count || 0} accent={stats?.low_stock_count > 0 ? "amber" : "slate"} />
+      {/* ── Row 1: Inventory + Cost headline cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-md relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-amber-400" />
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Inventory Investment</p>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/10">
+              <Warehouse className="w-4 h-4 text-amber-400" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold tabular-nums leading-none">{valueFormatter(inventoryCost)}</p>
+          <p className="text-xs text-slate-400 mt-2">{stats?.inventory_units || 0} units · {valueFormatter(inventoryRetail)} retail · {inventoryMargin}% markup</p>
+        </div>
+
+        <StatCard label="Period COGS" value={valueFormatter(stats?.range_cogs || 0)} icon={DollarSign} accent="orange" note={`${stats?.range_transactions || 0} withdrawals`} />
+
+        <StatCard label="Gross Profit" value={valueFormatter(stats?.range_gross_profit || 0)} icon={TrendingUp} accent={stats?.range_margin_pct >= 30 ? "emerald" : "orange"} note={`${stats?.range_margin_pct || 0}% margin`} />
+
+        <StatCard label="Unpaid AR" value={valueFormatter(stats?.unpaid_total || 0)} icon={DollarSign} accent={stats?.unpaid_total > 0 ? "rose" : "slate"} note={`${stats?.low_stock_count || 0} items low stock`} />
       </div>
 
-      {revenueChartData.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900">Revenue — {rangeLabel}</h2>
-            <Link to="/reports" className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1">
-              Reports <BarChart3 className="w-3.5 h-3.5" />
+      {/* ── Row 2: Chart + Department Margins ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+        <Panel className="lg:col-span-3">
+          <SectionHead title={`Cost vs Revenue — ${rangeLabel}`} action={
+            <Link to="/reports" className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+              Full Reports <BarChart3 className="w-3 h-3" />
             </Link>
-          </div>
-          <AreaChart data={revenueChartData} index="date" categories={["Revenue", "Profit"]} colors={["orange", "violet"]} valueFormatter={valueFormatter} showLegend className="h-44" />
-        </div>
-      )}
+          } />
+          {dailyChartData.length > 0 ? (
+            <AreaChart
+              data={dailyChartData}
+              index="date"
+              categories={["Cost", "Revenue", "Profit"]}
+              colors={["orange", "slate", "emerald"]}
+              valueFormatter={valueFormatter}
+              showLegend
+              className="h-52"
+              curveType="monotone"
+            />
+          ) : (
+            <div className="h-52 flex items-center justify-center text-sm text-slate-300">No data for this period</div>
+          )}
+        </Panel>
 
+        <Panel className="lg:col-span-2">
+          <SectionHead title="Margin by Department" />
+          {stats?.dept_margins?.length > 0 ? (
+            <DeptMarginBars data={stats.dept_margins} />
+          ) : (
+            <div className="h-52 flex items-center justify-center text-sm text-slate-300">No department data</div>
+          )}
+        </Panel>
+      </div>
+
+      {/* ── Row 3: PO Activity + Low Stock ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {hasPOs && (
+          <Panel>
+            <SectionHead title="Purchase Orders" action={
+              <Link to="/purchase-orders" className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                All POs <Truck className="w-3 h-3" />
+              </Link>
+            } />
+            <div className="mb-4">
+              <span className="text-lg font-bold text-slate-900 tabular-nums">{valueFormatter(openPOTotal)}</span>
+              <span className="text-xs text-slate-400 ml-2">open / in-transit</span>
+            </div>
+            <POSummaryStrip summary={stats.po_summary} />
+          </Panel>
+        )}
+
+        {stats?.low_stock_alerts?.length > 0 && (
+          <Panel>
+            <SectionHead title="Low Stock" action={
+              <Link to="/inventory?low_stock=1" className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                {stats.low_stock_count} items
+              </Link>
+            } />
+            <div className="space-y-2 max-h-[260px] overflow-auto -mx-6 px-6">
+              {stats.low_stock_alerts.map((product, i) => (
+                <Link key={product.id || i} to="/inventory" className="flex items-center justify-between p-3 bg-amber-50/60 rounded-lg border border-amber-100 hover:border-amber-200 transition-colors">
+                  <div>
+                    <p className="font-mono text-xs text-amber-600">{product.sku}</p>
+                    <p className="text-sm font-medium text-slate-800 truncate max-w-[200px]">{product.name}</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-right shrink-0">
+                    <span className="text-xs font-semibold text-amber-700">{product.quantity} left</span>
+                    <span className="text-xs text-slate-400">min {product.min_stock}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </Panel>
+        )}
+      </div>
+
+      {/* ── Row 4: Recent Transactions ── */}
       {ADMIN_ROLES.includes(user?.role) && (
         <RecentTransactions dateRange={dateRange} onProductStockHistory={setStockHistoryProduct} />
-      )}
-
-      {stats?.low_stock_alerts?.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900">Low Stock Alerts</h2>
-            <Link to="/inventory?low_stock=1" className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1">
-              Inventory <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {stats.low_stock_alerts.map((product, i) => (
-              <Link key={product.id || i} to="/inventory" className="flex items-center justify-between p-3 bg-amber-50/60 rounded-lg border border-amber-100 hover:border-amber-200 transition-colors">
-                <div>
-                  <p className="font-mono text-xs text-amber-600">{product.sku}</p>
-                  <p className="text-sm font-medium text-slate-800">{product.name}</p>
-                </div>
-                <div className="flex items-center gap-3 text-right">
-                  <span className="text-xs font-semibold text-amber-700">{product.quantity} left</span>
-                  <span className="text-xs text-slate-400">Min: {product.min_stock}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
       )}
 
       {ADMIN_ROLES.includes(user?.role) && (

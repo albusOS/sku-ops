@@ -174,11 +174,17 @@ async def import_document(
         process_receiving_stock_changes=process_receiving_stock_changes,
         classify_uom_batch=_wired_classify_uom_batch,
     )
-    return await do_import_document(
-        vendor_name=data.vendor_name,
-        products=data.products,
-        deps=deps,
-        department_id=data.department_id,
-        create_vendor_if_missing=data.create_vendor_if_missing,
-        current_user=current_user,
-    )
+    try:
+        return await do_import_document(
+            vendor_name=data.vendor_name,
+            products=data.products,
+            deps=deps,
+            department_id=data.department_id,
+            create_vendor_if_missing=data.create_vendor_if_missing,
+            current_user=current_user,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Document import failed: {e}")
+        raise HTTPException(status_code=500, detail="Import failed — please check the file and try again")
