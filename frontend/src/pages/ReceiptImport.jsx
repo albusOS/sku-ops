@@ -8,11 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Upload, FileImage, ClipboardList, XCircle, CheckCircle, Package, Loader2, Trash2, Sparkles, FileSpreadsheet, FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { UOM_OPTIONS } from "@/lib/constants";
 import api from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-client";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useVendors } from "@/hooks/useVendors";
+import { useProductMatch } from "@/hooks/useProductMatch";
+import { ProductMatchPicker } from "@/components/ProductMatchPicker";
+import { ProductFields } from "@/components/ProductFields";
 
 const ReceiptImport = () => {
   const navigate = useNavigate();
@@ -31,7 +33,7 @@ const ReceiptImport = () => {
   const [csvFile, setCsvFile] = useState(null);
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvResult, setCsvResult] = useState(null);
-  const [productMatches, setProductMatches] = useState({});
+  const { matches: productMatches, autoMatch, searchMatch, confirmMatch, clearMatch, reset: resetMatches } = useProductMatch();
 
   const isImageOrPdf = (file) => {
     if (!file) return false;
@@ -197,46 +199,17 @@ const ReceiptImport = () => {
     setExtractedData(null);
     setEditedProducts([]);
     setVendorName("");
-    setProductMatches({});
+    resetMatches();
   };
 
-  // Fire a name search for every extracted item in parallel to find inventory matches
-  const autoMatch = async (products) => {
-    const updates = {};
-    await Promise.all(
-      products.map(async (p) => {
-        if (!p.name?.trim()) return;
-        try {
-          const data = await api.products.list({ search: p.name, limit: 5 });
-          const options = Array.isArray(data) ? data : (data?.items || []);
-          updates[p.id] = { matched: null, options, searching: false, query: "" };
-        } catch {
-          updates[p.id] = { matched: null, options: [], searching: false, query: "" };
-        }
-      })
-    );
-    setProductMatches((prev) => ({ ...prev, ...updates }));
-  };
-
-  const searchMatch = async (itemId, query) => {
-    setProductMatches((prev) => ({ ...prev, [itemId]: { ...prev[itemId], searching: true, query } }));
-    try {
-      const data = await api.products.list({ search: query, limit: 5 });
-      const options = Array.isArray(data) ? data : (data?.items || []);
-      setProductMatches((prev) => ({ ...prev, [itemId]: { ...prev[itemId], options, searching: false } }));
-    } catch {
-      setProductMatches((prev) => ({ ...prev, [itemId]: { ...prev[itemId], searching: false } }));
-    }
-  };
-
-  const confirmMatch = (itemId, product) => {
+  const handleConfirmMatch = (itemId, product) => {
     setEditedProducts((prev) => prev.map((p) => p.id === itemId ? { ...p, matched_product: product } : p));
-    setProductMatches((prev) => ({ ...prev, [itemId]: { ...prev[itemId], matched: product, query: "", options: [] } }));
+    confirmMatch(itemId, product);
   };
 
-  const clearMatch = (itemId) => {
+  const handleClearMatch = (itemId) => {
     setEditedProducts((prev) => prev.map((p) => p.id === itemId ? { ...p, matched_product: null } : p));
-    setProductMatches((prev) => ({ ...prev, [itemId]: { ...prev[itemId], matched: null } }));
+    clearMatch(itemId);
   };
 
   const handleCsvFileChange = (e) => {
@@ -451,131 +424,111 @@ const ReceiptImport = () => {
               </div>
 
               <div
-                className="space-y-3 max-h-[350px] overflow-auto"
+                className="space-y-3 max-h-[400px] overflow-auto"
                 data-testid="extracted-products-list"
               >
-                {editedProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className={`p-4 rounded-xl border transition-all ${
-                      product.selected
-                        ? "border-amber-200 bg-amber-50/50"
-                        : "border-slate-200 bg-slate-50/50 opacity-60"
-                    }`}
-                    data-testid={`extracted-product-${product.id}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <button
-                        onClick={() => toggleProduct(product.id)}
-                        className={`mt-1 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                          product.selected
-                            ? "bg-amber-500 border-amber-500 text-white"
-                            : "border-slate-300"
-                        }`}
-                        data-testid={`toggle-product-${product.id}`}
-                      >
-                        {product.selected && (
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                        )}
-                      </button>
+                {editedProducts.map((product) => {
+                  const matchState = productMatches[product.id] || {};
+                  const matched = matchState.matched || product.matched_product;
 
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <Input
-                          value={product.name}
-                          onChange={(e) =>
-                            updateProduct(product.id, "name", e.target.value)
-                          }
-                          className="input-field h-10 text-sm"
-                          placeholder="Product name"
-                          data-testid={`product-name-${product.id}`}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            type="number"
-                            step="any"
-                            value={product.delivered_qty ?? product.quantity ?? 1}
-                            onChange={(e) =>
-                              updateProduct(product.id, "delivered_qty", e.target.value)
-                            }
-                            className="input-field h-10 text-sm"
-                            placeholder="Delivered"
-                            data-testid={`product-delivered-${product.id}`}
+                  return (
+                    <div
+                      key={product.id}
+                      className={`p-4 rounded-xl border transition-all ${
+                        product.selected
+                          ? "border-amber-200 bg-amber-50/50"
+                          : "border-slate-200 bg-slate-50/50 opacity-60"
+                      }`}
+                      data-testid={`extracted-product-${product.id}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => toggleProduct(product.id)}
+                          className={`mt-1 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            product.selected
+                              ? "bg-amber-500 border-amber-500 text-white"
+                              : "border-slate-300"
+                          }`}
+                          data-testid={`toggle-product-${product.id}`}
+                        >
+                          {product.selected && (
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                          )}
+                        </button>
+
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <ProductMatchPicker
+                            matched={matched}
+                            options={matchState.options || []}
+                            searching={matchState.searching || false}
+                            onSearch={(q) => searchMatch(product.id, q)}
+                            onConfirm={(p) => handleConfirmMatch(product.id, p)}
+                            onClear={() => handleClearMatch(product.id)}
                           />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={product.price}
-                            onChange={(e) =>
-                              updateProduct(product.id, "price", e.target.value)
-                            }
-                            className="input-field h-10 text-sm"
-                            placeholder="Price"
-                            data-testid={`product-price-${product.id}`}
-                          />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={product.cost ?? ""}
-                            onChange={(e) =>
-                              updateProduct(product.id, "cost", e.target.value ? parseFloat(e.target.value) : null)
-                            }
-                            className="input-field h-10 text-sm"
-                            placeholder="Cost"
-                            data-testid={`product-cost-${product.id}`}
-                          />
-                          <Input
-                            value={product.suggested_department ?? ""}
-                            onChange={(e) =>
-                              updateProduct(product.id, "suggested_department", e.target.value || null)
-                            }
-                            className="input-field h-10 text-sm"
-                            placeholder="Dept (PLU, HDW…)"
-                            data-testid={`product-dept-${product.id}`}
-                          />
+
+                          {matched ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-slate-500">Delivered qty</Label>
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    value={product.delivered_qty ?? product.quantity ?? 1}
+                                    onChange={(e) => updateProduct(product.id, "delivered_qty", e.target.value)}
+                                    className="input-field h-9 text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-slate-500">Cost</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={product.cost ?? ""}
+                                    onChange={(e) => updateProduct(product.id, "cost", e.target.value ? parseFloat(e.target.value) : null)}
+                                    className="input-field h-9 text-sm"
+                                  />
+                                </div>
+                              </div>
+                              {product.original_sku && (
+                                <p className="text-xs text-slate-400 font-mono">Original: {product.original_sku}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <ProductFields
+                              compact
+                              fields={{
+                                name: product.name || "",
+                                price: product.price ?? "",
+                                cost: product.cost ?? "",
+                                base_unit: product.base_unit || "each",
+                                sell_uom: product.sell_uom || "each",
+                                pack_qty: product.pack_qty ?? 1,
+                                barcode: product.barcode || "",
+                                department_id: product.suggested_department || "",
+                                quantity: product.delivered_qty ?? product.quantity ?? 1,
+                              }}
+                              onChange={(field, value) => {
+                                const mapped = field === "department_id" ? "suggested_department" : field === "quantity" ? "delivered_qty" : field;
+                                updateProduct(product.id, mapped, value);
+                              }}
+                              departments={departments}
+                              hiddenFields={["description", "vendor_id", "min_stock", "sell_uom", "pack_qty"]}
+                            />
+                          )}
                         </div>
-                        {/* UOM row — always show so user can verify/correct */}
-                        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-                          <select
-                            value={product.base_unit || "each"}
-                            onChange={(e) =>
-                              updateProduct(product.id, "base_unit", e.target.value)
-                            }
-                            className="input-field h-10 text-sm bg-white"
-                            data-testid={`product-unit-${product.id}`}
-                          >
-                            {UOM_OPTIONS.map((u) => (
-                              <option key={u} value={u}>{u}</option>
-                            ))}
-                          </select>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={product.pack_qty ?? 1}
-                            onChange={(e) =>
-                              updateProduct(product.id, "pack_qty", parseInt(e.target.value) || 1)
-                            }
-                            className="input-field h-10 text-sm w-20"
-                            placeholder="Qty"
-                            data-testid={`product-packqty-${product.id}`}
-                          />
-                        </div>
-                        {product.original_sku && (
-                          <p className="text-xs text-slate-400 font-mono">
-                            Original: {product.original_sku}
-                          </p>
-                        )}
+
+                        <button
+                          onClick={() => removeProduct(product.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                          data-testid={`remove-product-${product.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-
-                      <button
-                        onClick={() => removeProduct(product.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                        data-testid={`remove-product-${product.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200">

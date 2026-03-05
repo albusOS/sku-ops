@@ -79,7 +79,15 @@ class PgPORepo(PORepoPort):
     async def get_po_items(self, po_id: str) -> List[dict]:
         conn = get_connection()
         cursor = await conn.execute(
-            "SELECT * FROM purchase_order_items WHERE po_id = ? ORDER BY id",
+            """SELECT poi.*,
+                      p.quantity AS matched_quantity,
+                      p.sku      AS matched_sku,
+                      p.name     AS matched_name,
+                      p.cost     AS matched_cost
+               FROM purchase_order_items poi
+               LEFT JOIN products p ON p.id = poi.product_id
+               WHERE poi.po_id = ?
+               ORDER BY poi.id""",
             (po_id,),
         )
         rows = await cursor.fetchall()

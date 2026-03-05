@@ -270,3 +270,81 @@ async def test_receive_rejects_ordered_items(db):
     assert result["errors"] == 1
     assert result["matched"] == 0
     assert "not yet marked" in result["error_details"][0]["error"]
+
+
+# ── Override fields from review modal ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_receive_cost_override_affects_wac(db):
+    """When the review modal overrides cost, the WAC should use the overridden value."""
+    product = await _create_test_product(quantity=100.0, cost=8.0)
+    po, item = await _create_po_with_item(product_id=product.id, cost=6.0, ordered_qty=50)
+
+    result = await receive_po_items(
+        po_id=po.id,
+        item_updates=[{"id": item.id, "delivered_qty": 50, "cost": 20.0}],
+        deps=_stub_deps(),
+        current_user=_user(),
+    )
+
+    assert result["matched"] == 1
+    updated = await product_repo.get_by_id(product.id)
+    expected_wac = (100 * 8 + 50 * 20) / 150
+    assert updated["cost"] == pytest.approx(expected_wac, abs=0.01)
+
+
+@pytest.mark.asyncio
+async def test_receive_creates_product_with_overridden_name(db):
+    """When no product match, overrides (name, department) apply to the new product."""
+    po, item = await _create_po_with_item(
+        product_id=None, cost=5.0, ordered_qty=10, name="Generic Widget",
+    )
+
+    result = await receive_po_items(
+        po_id=po.id,
+        item_updates=[{
+            "id": item.id,
+            "delivered_qty": 10,
+            "name": "Corrected Widget Name",
+            "suggested_department": "HDW",
+        }],
+        deps=_stub_deps(),
+        current_user=_user(),
+    )
+
+    assert result["received"] == 1
+    assert result["errors"] == 0
+
+    conn = get_connection()
+    cursor = await conn.execute(
+        "SELECT name FROM products WHERE id = (SELECT product_id FROM purchase_order_items WHERE id = ?)",
+        (item.id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "Corrected Widget Name"
+
+
+@pytest.mark.asyncio
+async def test_receive_product_id_override_matches_explicit(db):
+    """When the review modal sets product_id, it should be used instead of auto-match."""
+    product_a = await _create_test_product(name="Widget A", quantity=50.0, cost=10.0)
+    product_b = await _create_test_product(name="Widget B", quantity=30.0, cost=12.0)
+    po, item = await _create_po_with_item(
+        product_id=product_a.id, cost=8.0, ordered_qty=20,
+    )
+
+    result = await receive_po_items(
+        po_id=po.id,
+        item_updates=[{"id": item.id, "delivered_qty": 20, "product_id": product_b.id}],
+        deps=_stub_deps(),
+        current_user=_user(),
+    )
+
+    assert result["matched"] == 1
+    updated_b = await product_repo.get_by_id(product_b.id)
+    assert updated_b["quantity"] == pytest.approx(50.0)
+
+    updated_a = await product_repo.get_by_id(product_a.id)
+    assert updated_a["quantity"] == pytest.approx(50.0)

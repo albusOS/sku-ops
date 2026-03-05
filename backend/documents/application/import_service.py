@@ -70,8 +70,8 @@ async def import_document(
         vendor_id = vendor["id"]
         vendor_created = False
 
-    departments = await deps.list_departments()
-    default_dept = await deps.get_department_by_code("HDW") or (departments[0] if departments else None)
+    departments = await deps.list_departments(organization_id=org_id)
+    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (departments[0] if departments else None)
     dept_by_id = {d["id"]: d for d in departments}
     dept_by_code = {d["code"].upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())

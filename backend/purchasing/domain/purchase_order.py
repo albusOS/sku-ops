@@ -110,6 +110,15 @@ class CreatePORequest(BaseModel):
 class ReceiveItemUpdate(BaseModel):
     id: str
     delivered_qty: Optional[float] = None
+    product_id: Optional[str] = None
+    name: Optional[str] = None
+    cost: Optional[float] = None
+    unit_price: Optional[float] = None
+    suggested_department: Optional[str] = None
+    base_unit: Optional[str] = None
+    sell_uom: Optional[str] = None
+    pack_qty: Optional[int] = None
+    barcode: Optional[str] = None
 
 
 class ReceiveItemsRequest(BaseModel):

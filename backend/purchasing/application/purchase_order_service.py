@@ -96,7 +96,7 @@ async def create_purchase_order(
         vendor_id = vendor["id"]
         vendor_created = False
 
-    departments = await deps.list_departments()
+    departments = await deps.list_departments(organization_id=org_id)
     dept_by_id = {d["id"]: d for d in departments}
     dept_by_code = {d["code"].upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
@@ -247,8 +247,8 @@ async def receive_po_items(
         raise ResourceNotFoundError("PurchaseOrder", po_id)
 
     vendor_id: str = po.get("vendor_id") or ""
-    departments = await deps.list_departments()
-    default_dept = await deps.get_department_by_code("HDW") or (departments[0] if departments else None)
+    departments = await deps.list_departments(organization_id=org_id)
+    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (departments[0] if departments else None)
     dept_by_code = {d["code"].upper(): d for d in departments}
 
     all_items = await repo.get_po_items(po_id)
@@ -274,12 +274,19 @@ async def receive_po_items(
             errors.append({"item": item.get("name"), "error": "Item not yet marked as received at dock"})
             continue
 
+        # Apply field overrides from the review modal onto the stored PO item
+        _apply_overrides(item, update)
+
         delivered = update.get("delivered_qty")
         if delivered is None:
             delivered = item.get("delivered_qty") or item.get("ordered_qty") or 1
         delivered = max(0.0, float(delivered))
 
         try:
+            # If the frontend explicitly set a product_id override, prefer that
+            if update.get("product_id"):
+                item["product_id"] = update["product_id"]
+
             existing = await _match_product(item, vendor_id, org_id, deps)
 
             resolved_pid = None
@@ -332,7 +339,7 @@ async def receive_po_items(
                     vendor_id=vendor_id,
                     vendor_name=po.get("vendor_name", ""),
                     original_sku=item.get("original_sku"),
-                    barcode=None,
+                    barcode=item.get("barcode") or None,
                     base_unit=item.get("base_unit") or "each",
                     sell_uom=item.get("sell_uom") or "each",
                     pack_qty=int(item.get("pack_qty") or 1),
@@ -378,6 +385,17 @@ async def receive_po_items(
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
+
+_OVERRIDE_FIELDS = ("name", "cost", "unit_price", "suggested_department", "base_unit", "sell_uom", "pack_qty", "barcode")
+
+
+def _apply_overrides(item: dict, update: dict) -> None:
+    """Merge non-None override fields from the review modal into the PO item dict."""
+    for field in _OVERRIDE_FIELDS:
+        val = update.get(field)
+        if val is not None:
+            item[field] = val
+
 
 def _resolve_po_item_cost(item: dict) -> float:
     """Derive item cost from cost field, falling back to 70% of unit_price/price."""

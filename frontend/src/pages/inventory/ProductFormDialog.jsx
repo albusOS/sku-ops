@@ -1,31 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Sparkles, Info } from "lucide-react";
-import { UOM_OPTIONS } from "@/lib/constants";
+import { Sparkles } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-client";
 import api from "@/lib/api-client";
 import { useCreateProduct, useUpdateProduct, useSuggestUom } from "@/hooks/useProducts";
+import { ProductFields } from "@/components/ProductFields";
 
 const INITIAL_FORM = {
   name: "",
@@ -41,19 +27,6 @@ const INITIAL_FORM = {
   sell_uom: "each",
   pack_qty: "1",
 };
-
-function FieldTip({ children }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Info className="w-3.5 h-3.5 text-slate-400 cursor-help inline-block ml-1 align-middle" />
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[220px] text-center">
-        {children}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 export function ProductFormDialog({
   open,
@@ -218,114 +191,15 @@ export function ProductFormDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label className="text-slate-600 font-medium text-sm">Product name *</Label>
-              <Input
-                value={form.name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="e.g., 2x4 Pine Board, 5 Gal Paint"
-                className="input-workshop mt-2"
-                data-testid="product-name-input"
-              />
-            </div>
-
-            <div className="col-span-2">
-              <Label className="text-slate-600 font-medium text-sm">Description</Label>
-              <Input
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Optional description"
-                className="input-workshop mt-2"
-                data-testid="product-description-input"
-              />
-            </div>
-
-            <div>
-              <Label className="text-slate-600 font-medium text-sm">Department *</Label>
-              <Select value={form.department_id} onValueChange={(value) => setForm({ ...form, department_id: value })}>
-                <SelectTrigger className="input-workshop mt-2" data-testid="product-department-select">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      <span className="font-mono font-medium">{dept.code}</span>
-                      <span className="text-slate-400 mx-1.5">—</span>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-slate-600 font-medium text-sm">Vendor</Label>
-              <Select value={form.vendor_id || "none"} onValueChange={(value) => setForm({ ...form, vendor_id: value === "none" ? "" : value })}>
-                <SelectTrigger className="input-workshop mt-2" data-testid="product-vendor-select">
-                  <SelectValue placeholder="Select vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {vendors.map((vendor) => (
-                    <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-slate-600 font-medium text-sm">Price *</Label>
-              <Input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="0.00" className="input-workshop mt-2" data-testid="product-price-input" />
-            </div>
-            <div>
-              <Label className="text-slate-600 font-medium text-sm">Cost</Label>
-              <Input type="number" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} placeholder="0.00" className="input-workshop mt-2" data-testid="product-cost-input" />
-            </div>
-            <div>
-              <Label className="text-slate-600 font-medium text-sm">Quantity</Label>
-              <Input type="number" step="any" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} placeholder="0" className="input-workshop mt-2" data-testid="product-quantity-input" />
-            </div>
-            <div>
-              <Label className="text-slate-600 font-medium text-sm">
-                Min stock level
-                <FieldTip>Alert threshold — item shows as Low Stock when quantity falls to or below this number.</FieldTip>
-              </Label>
-              <Input type="number" value={form.min_stock} onChange={(e) => setForm({ ...form, min_stock: e.target.value })} placeholder="5" className="input-workshop mt-2" data-testid="product-min-stock-input" />
-            </div>
-
-            <div className="col-span-3 flex items-end gap-2 flex-wrap">
-              <div className="flex-1 min-w-[100px]">
-                <Label className="text-slate-600 font-medium text-sm">
-                  Base Unit
-                  <FieldTip>The physical unit this product is stored and counted in (e.g. each, roll, gallon).</FieldTip>
-                </Label>
-                <Select value={form.base_unit} onValueChange={(v) => setForm({ ...form, base_unit: v })}>
-                  <SelectTrigger className="input-workshop mt-2"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {UOM_OPTIONS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1 min-w-[100px]">
-                <Label className="text-slate-600 font-medium text-sm">
-                  Sell Unit
-                  <FieldTip>The unit shown to customers and used when issuing materials (e.g. box, case). Can differ from Base Unit.</FieldTip>
-                </Label>
-                <Select value={form.sell_uom} onValueChange={(v) => setForm({ ...form, sell_uom: v })}>
-                  <SelectTrigger className="input-workshop mt-2"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {UOM_OPTIONS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="min-w-[80px]">
-                <Label className="text-slate-600 font-medium text-sm">
-                  Pack Qty
-                  <FieldTip>How many Base Units are in one Sell Unit. E.g. a box of 12 screws → Pack Qty = 12.</FieldTip>
-                </Label>
-                <Input type="number" min="1" value={form.pack_qty} onChange={(e) => setForm({ ...form, pack_qty: e.target.value })} className="input-workshop mt-2" />
-              </div>
+          <ProductFields
+            fields={form}
+            onChange={(name, value) => {
+              if (name === "name") { handleNameChange(value); return; }
+              setForm((f) => ({ ...f, [name]: value }));
+            }}
+            departments={departments}
+            vendors={vendors}
+            uomAction={
               <Button
                 type="button"
                 variant="outline"
@@ -341,22 +215,8 @@ export function ProductFormDialog({
                 )}
                 <span className="ml-2 text-sm">Suggest unit</span>
               </Button>
-            </div>
-
-            <div className="col-span-2">
-              <Label className="text-slate-600 font-medium text-sm">Barcode</Label>
-              <Input
-                value={form.barcode}
-                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                placeholder="UPC (12 digits) or leave blank to use SKU"
-                className="input-workshop mt-2"
-                data-testid="product-barcode-input"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                UPC for vendor products; leave blank to use internal SKU (Code128)
-              </p>
-            </div>
-          </div>
+            }
+          />
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 btn-secondary h-12" data-testid="product-cancel-btn">

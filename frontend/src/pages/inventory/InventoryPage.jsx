@@ -1,34 +1,26 @@
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Plus, Printer } from "lucide-react";
+import { Plus, Printer, Package } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { PageHeader } from "@/components/PageHeader";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
 import { BarcodeLabelsModal } from "@/components/BarcodeLabelsModal";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { DataTable } from "@/components/DataTable";
+import { ViewToolbar } from "@/components/ViewToolbar";
 import { useProducts, useDeleteProduct } from "@/hooks/useProducts";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useVendors } from "@/hooks/useVendors";
+import { useViewController } from "@/hooks/useViewController";
 import { getErrorMessage } from "@/lib/api-client";
-import { PAGE_SIZES } from "@/lib/constants";
 import { toast } from "sonner";
-import { InventoryFilters } from "./InventoryFilters";
-import { InventoryTable } from "./InventoryTable";
 import { ProductFormDialog } from "./ProductFormDialog";
 import { AdjustStockDialog } from "./AdjustStockDialog";
-
-const PAGE_SIZE = PAGE_SIZES.INVENTORY;
+import { Info } from "lucide-react";
 
 const InventoryPage = () => {
-  const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("search") || "");
-  const [filterDept, setFilterDept] = useState("");
-  const [filterLowStock, setFilterLowStock] = useState(searchParams.get("low_stock") === "1");
-  const [page, setPage] = useState(0);
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
@@ -40,30 +32,124 @@ const InventoryPage = () => {
 
   const deleteMutation = useDeleteProduct();
 
-  useEffect(() => {
-    const q = searchParams.get("search");
-    if (q != null && q !== search) setSearch(q);
-  }, [searchParams]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [search, filterDept, filterLowStock]);
-
-  const queryParams = {
-    ...(search && { search }),
-    ...(filterDept && { department_id: filterDept }),
-    ...(filterLowStock && { low_stock: "true" }),
-    limit: String(PAGE_SIZE),
-    offset: String(page * PAGE_SIZE),
-  };
-
-  const { data: productsData, isLoading: productsLoading } = useProducts(queryParams);
+  const { data: productsData, isLoading: productsLoading } = useProducts({ limit: "10000" });
   const { data: departments = [], isLoading: deptsLoading } = useDepartments();
   const { data: vendors = [] } = useVendors();
 
-  const products = productsData?.items ?? (Array.isArray(productsData) ? productsData : []);
-  const totalProducts = productsData?.total ?? products.length;
+  const allProducts = productsData?.items ?? (Array.isArray(productsData) ? productsData : []);
   const loading = productsLoading || deptsLoading;
+
+  const columns = useMemo(
+    () => [
+      {
+        key: "sku",
+        label: "SKU",
+        type: "text",
+        render: (row) => <span className="font-mono text-sm">{row.sku}</span>,
+      },
+      {
+        key: "name",
+        label: "Product Name",
+        type: "text",
+        render: (row) => (
+          <div>
+            <p className="font-semibold">{row.name}</p>
+            {row.original_sku && (
+              <p className="text-xs text-slate-400">Orig: {row.original_sku}</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "department_name",
+        label: "Department",
+        type: "enum",
+        filterValues: departments.map((d) => d.name),
+      },
+      {
+        key: "vendor_name",
+        label: "Vendor",
+        type: "enum",
+        filterValues: vendors.map((v) => v.name),
+      },
+      {
+        key: "base_unit",
+        label: "Unit",
+        sortable: false,
+        filterable: false,
+        render: (row) => (
+          <span className="text-sm text-slate-600">
+            {row.base_unit || "each"}
+            {row.sell_uom && row.sell_uom !== row.base_unit && (
+              <span className="block text-xs text-slate-400">
+                sell: {row.sell_uom}
+                {(row.pack_qty || 1) > 1 ? ` ×${row.pack_qty}` : ""}
+              </span>
+            )}
+            {row.sell_uom === row.base_unit && (row.pack_qty || 1) > 1 && (
+              <span className="block text-xs text-slate-400">×{row.pack_qty}</span>
+            )}
+          </span>
+        ),
+      },
+      {
+        key: "price",
+        label: "Price",
+        type: "number",
+        align: "right",
+        render: (row) => <span className="font-mono">${row.price.toFixed(2)}</span>,
+        exportValue: (row) => row.price.toFixed(2),
+      },
+      {
+        key: "cost",
+        label: "Cost",
+        type: "number",
+        align: "right",
+        render: (row) => (
+          <span className="font-mono text-slate-500">${(row.cost || 0).toFixed(2)}</span>
+        ),
+        exportValue: (row) => (row.cost || 0).toFixed(2),
+      },
+      {
+        key: "quantity",
+        label: "Quantity",
+        type: "number",
+        align: "right",
+        render: (row) => <span className="font-mono">{row.quantity}</span>,
+      },
+      {
+        key: "_status",
+        label: "Status",
+        type: "enum",
+        filterValues: ["In Stock", "Low Stock", "Out of Stock"],
+        filterAccessor: (row) =>
+          row.quantity === 0
+            ? "Out of Stock"
+            : row.quantity <= row.min_stock
+              ? "Low Stock"
+              : "In Stock",
+        searchable: false,
+        render: (row) =>
+          row.quantity === 0 ? (
+            <span className="badge-error">Out of Stock</span>
+          ) : row.quantity <= row.min_stock ? (
+            <span className="badge-warning">Low Stock</span>
+          ) : (
+            <span className="badge-success">In Stock</span>
+          ),
+        exportValue: (row) =>
+          row.quantity === 0
+            ? "Out of Stock"
+            : row.quantity <= row.min_stock
+              ? "Low Stock"
+              : "In Stock",
+      },
+    ],
+    [departments, vendors]
+  );
+
+  const view = useViewController({ columns });
+  const processedProducts = view.apply(allProducts);
 
   const openDialog = (product = null) => {
     setEditingProduct(product);
@@ -96,13 +182,13 @@ const InventoryPage = () => {
       <div className="p-8" data-testid="inventory-page">
         <PageHeader
           title="Inventory"
-          subtitle={`${totalProducts} products`}
+          subtitle={`${allProducts.length} products`}
           action={
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
-                  setLabelsProducts(products);
+                  setLabelsProducts(processedProducts);
                   setLabelsModalOpen(true);
                 }}
                 className="h-12 px-6"
@@ -110,7 +196,11 @@ const InventoryPage = () => {
                 <Printer className="w-5 h-5 mr-2" />
                 Print Labels
               </Button>
-              <Button onClick={() => openDialog()} className="btn-primary h-12 px-6" data-testid="add-product-btn">
+              <Button
+                onClick={() => openDialog()}
+                className="btn-primary h-12 px-6"
+                data-testid="add-product-btn"
+              >
                 <Plus className="w-5 h-5 mr-2" />
                 Add Product
               </Button>
@@ -118,27 +208,36 @@ const InventoryPage = () => {
           }
         />
 
-        <p className="text-sm text-slate-500 mb-4">
-          SKUs are auto-assigned (e.g. <span className="font-mono">LUM-00001</span>). Search by name, SKU, or barcode.
-        </p>
-
-        <InventoryFilters
-          search={search}
-          onSearchChange={setSearch}
-          filterDept={filterDept}
-          onFilterDeptChange={setFilterDept}
-          filterLowStock={filterLowStock}
-          onFilterLowStockChange={setFilterLowStock}
-          departments={departments}
+        <ViewToolbar
+          controller={view}
+          columns={columns}
+          data={allProducts}
+          resultCount={processedProducts.length}
+          className="mb-3"
         />
 
-        <InventoryTable
-          products={products}
-          totalProducts={totalProducts}
-          page={page}
-          pageSize={PAGE_SIZE}
-          onPageChange={setPage}
-          onSelectProduct={setDetailProduct}
+        <DataTable
+          data={processedProducts}
+          columns={view.visibleColumns}
+          emptyMessage="No products found"
+          emptyIcon={Package}
+          onRowClick={setDetailProduct}
+          exportable
+          exportFilename="inventory.csv"
+          disableSort
+          rowActions={(product) => (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDetailProduct(product);
+              }}
+              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-sm transition-colors"
+              title="View details"
+              data-testid={`product-detail-${product.sku}`}
+            >
+              <Info className="w-4 h-4" />
+            </button>
+          )}
         />
 
         <ProductFormDialog
@@ -194,7 +293,11 @@ const InventoryPage = () => {
           open={deleteConfirm.open}
           onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
           title="Delete product"
-          description={deleteConfirm.product ? `Delete "${deleteConfirm.product.name}"? This cannot be undone.` : ""}
+          description={
+            deleteConfirm.product
+              ? `Delete "${deleteConfirm.product.name}"? This cannot be undone.`
+              : ""
+          }
           confirmLabel="Delete"
           cancelLabel="Cancel"
           onConfirm={handleDeleteConfirm}

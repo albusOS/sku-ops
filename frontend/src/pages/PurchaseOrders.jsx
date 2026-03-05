@@ -5,7 +5,9 @@ import { Input } from "../components/ui/input";
 import { ChevronDown, ChevronRight, CheckCircle, Clock, Loader2, Truck, BoxIcon, Filter, X } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ReceiveReviewModal } from "@/components/ReceiveReviewModal";
 import { usePurchaseOrders, usePOItems, useMarkDelivery, useReceivePO } from "@/hooks/usePurchaseOrders";
+import { useDepartments } from "@/hooks/useDepartments";
 import api from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-client";
 
@@ -24,6 +26,7 @@ export default function PurchaseOrders() {
   }), [statusFilter]);
 
   const { data: orders = [], isLoading } = usePurchaseOrders(params);
+  const { data: departments = [] } = useDepartments();
   const markDelivery = useMarkDelivery();
   const receivePO = useReceivePO();
 
@@ -34,6 +37,7 @@ export default function PurchaseOrders() {
   const [selectedPending, setSelectedPending] = useState({});
   const [loadingItems, setLoadingItems] = useState({});
   const [acting, setActing] = useState({});
+  const [reviewModal, setReviewModal] = useState({ open: false, poId: null, items: [] });
 
   const loadItems = async (poId) => {
     setLoadingItems((p) => ({ ...p, [poId]: true }));
@@ -73,16 +77,26 @@ export default function PurchaseOrders() {
     finally { setActing((p) => ({ ...p, [poId]: false })); }
   };
 
-  const receiveIntoInventory = async (poId) => {
+  const openReceiveReview = (poId) => {
     const items = orderItems[poId] || [];
-    const toReceive = items.filter((i) => i.status === "pending" && selectedPending[i.id]).map((i) => ({ id: i.id, delivered_qty: parseInt(deliveredQtys[i.id] ?? i.ordered_qty ?? 1) || 1 }));
-    if (toReceive.length === 0) { toast.error("No items selected"); return; }
+    const pending = items.filter((i) => i.status === "pending" && selectedPending[i.id]);
+    if (pending.length === 0) { toast.error("No items selected"); return; }
+    const withQtys = pending.map((i) => ({
+      ...i,
+      _delivered_qty: deliveredQtys[i.id] ?? i.delivered_qty ?? i.ordered_qty ?? 1,
+    }));
+    setReviewModal({ open: true, poId, items: withQtys });
+  };
+
+  const confirmReceive = async (payload) => {
+    const poId = reviewModal.poId;
     setActing((p) => ({ ...p, [poId]: "receive" }));
     try {
-      const res = await receivePO.mutateAsync({ id: poId, data: { items: toReceive } });
+      const res = await receivePO.mutateAsync({ id: poId, data: { items: payload } });
       const total = (res.received || 0) + (res.matched || 0);
       toast.success(`${total} item(s) added to inventory${res.errors > 0 ? ` (${res.errors} failed)` : ""}`);
       res.error_details?.forEach((e) => toast.error(`${e.item || e.item_id}: ${e.error}`));
+      setReviewModal({ open: false, poId: null, items: [] });
       delete orderItems[poId]; setOrderItems({ ...orderItems });
       if (res.status !== "received") await loadItems(poId);
     } catch (e) { toast.error(getErrorMessage(e)); }
@@ -188,7 +202,7 @@ export default function PurchaseOrders() {
                             ))}
                             <div className="flex items-center justify-between pt-1">
                               <p className="text-xs text-slate-500"><strong>{selectedPendingCount}</strong> of {pendingItems.length} selected</p>
-                              <Button onClick={() => receiveIntoInventory(po.id)} disabled={isActingReceive || selectedPendingCount === 0} size="sm" className="gap-1">
+                              <Button onClick={() => openReceiveReview(po.id)} disabled={isActingReceive || selectedPendingCount === 0} size="sm" className="gap-1">
                                 {isActingReceive ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Receiving…</> : <><CheckCircle className="w-3.5 h-3.5" />Receive into Inventory</>}
                               </Button>
                             </div>
@@ -224,6 +238,14 @@ export default function PurchaseOrders() {
           })}
         </div>
       )}
+      <ReceiveReviewModal
+        open={reviewModal.open}
+        onOpenChange={(v) => !v && setReviewModal({ open: false, poId: null, items: [] })}
+        items={reviewModal.items}
+        departments={departments}
+        onConfirm={confirmReceive}
+        isSubmitting={acting[reviewModal.poId] === "receive"}
+      />
     </div>
   );
 }

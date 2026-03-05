@@ -75,6 +75,8 @@ function exportCSV(columns, data, filename = "export.csv") {
  *
  * Server-side pagination (optional — bypasses client-side paging):
  * @param {{ page: number, total: number, pageSize: number, onPageChange: (page: number) => void }} [props.serverPagination]
+ *
+ * @param {boolean} [props.disableSort] - When true, disables column header sorting (use with ViewToolbar)
  */
 export function DataTable({
   data = [],
@@ -94,6 +96,7 @@ export function DataTable({
   exportFilename = "export.csv",
   searchable = false,
   serverPagination,
+  disableSort = false,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
@@ -127,7 +130,7 @@ export function DataTable({
   }, [data, searchLower, searchableKeys]);
 
   const sortedData = useMemo(() => {
-    if (!sortKey) return filteredData;
+    if (disableSort || !sortKey) return filteredData;
     return [...filteredData].sort((a, b) => {
       const va = a[sortKey];
       const vb = b[sortKey];
@@ -193,7 +196,7 @@ export function DataTable({
   }, [filteredData, selectedSet, isSelectable, onSelectionChange]);
 
   const SortIcon = ({ col }) => {
-    if (col.sortable === false) return null;
+    if (disableSort || col.sortable === false) return null;
     if (sortKey !== col.key)
       return <ArrowUpDown className="w-3.5 h-3.5 ml-1 opacity-40" />;
     return sortDir === "asc" ? (
@@ -294,12 +297,12 @@ export function DataTable({
                       "text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400 px-3 py-2.5",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
-                      col.sortable !== false &&
+                      !disableSort && col.sortable !== false &&
                         "cursor-pointer select-none hover:text-slate-600",
                       col.className
                     )}
                     onClick={() =>
-                      col.sortable !== false && handleSort(col.key)
+                      !disableSort && col.sortable !== false && handleSort(col.key)
                     }
                   >
                     <span

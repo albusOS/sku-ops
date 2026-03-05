@@ -17,6 +17,11 @@ def _parse_date_range(start_date: Optional[str], end_date: Optional[str]):
     return start_date or None, end_date or None
 
 
+def _parse_iso(s: str) -> datetime:
+    """Parse an ISO date string, handling the trailing 'Z' that JS produces."""
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
 def _build_revenue_by_day(withdrawals: list, start: datetime, end: datetime) -> list:
     """Bucket withdrawal totals by calendar day between start and end."""
     days = (end - start).days + 1
@@ -75,10 +80,10 @@ async def get_dashboard_stats(
     low_stock_items = await list_low_stock(10, org_id)
 
     chart_start = (
-        datetime.fromisoformat(sd) if sd
+        _parse_iso(sd) if sd
         else (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
     )
-    chart_end = datetime.fromisoformat(ed) if ed else now
+    chart_end = _parse_iso(ed) if ed else now
     revenue_by_day_list = _build_revenue_by_day(range_withdrawals, chart_start, chart_end)
 
     return {
