@@ -2,13 +2,18 @@
 name = "sku-ops-backend"
 version = "0.1.0"
 requires-python = ">=3.10"
+# Runtime dependencies are managed in requirements.txt (pip-style).
+# Use `pip install -r requirements-dev.txt` or `uv pip install -r requirements-dev.txt`
+# to set up a dev environment with test/lint tools included.
 dependencies = []
-
-[tool.uv]
-dev-dependencies = []
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
-[tool.uv.sources]
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true

@@ -15,7 +15,7 @@ import Reports from "./pages/Reports";
 import Layout from "./components/Layout";
 
 import {
-  POS, PendingRequests, RequestMaterials, Contractors, Departments,
+  POS, PendingRequests, RequestMaterials, ScanModePage, Contractors, Departments,
   Vendors, PurchaseOrders, MyHistory, ReceiptImport, Jobs,
 } from "./pages/operations";
 import { Financials, Invoices, Payments, XeroHealthPage } from "./pages/finance";
@@ -55,6 +55,7 @@ function App() {
                           <Route path="/" element={<Dashboard />} />
                           <Route path="/pos" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><POS /></ProtectedRoute>} />
                           <Route path="/request-materials" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}><RequestMaterials /></ProtectedRoute>} />
+                          <Route path="/scan" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR, ...ADMIN_ROLES]}><ScanModePage /></ProtectedRoute>} />
                           <Route path="/pending-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><PendingRequests /></ProtectedRoute>} />
                           <Route path="/inventory" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Inventory /></ProtectedRoute>} />
                           <Route path="/cycle-counts" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><CycleCountsPage /></ProtectedRoute>} />

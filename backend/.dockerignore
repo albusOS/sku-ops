@@ -1,15 +1,38 @@
+# Python artifacts
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environment — image installs its own
+.venv/
+
+# Dev / test only — not needed in production image
+tests/
+devtools/
+scripts/
+data/
+
+# Local database files
+*.db
+*.db-shm
+*.db-wal
+:memory:
+:memory:-shm
+:memory:-wal
+
+# Tooling config that doesn't affect runtime
+pyproject.toml
+requirements-dev.txt
+uv.lock
+.flake8
+.isort.cfg
+mypy.ini
+
+# Secrets / env
 .env
 .env.*
-!.env.example
-data/
-devtools/
-tests/
-.pytest_cache/
-*.db
-*.db-*
-uv.lock
-.git/
-.gitignore
+
+# OS noise
+.DS_Store

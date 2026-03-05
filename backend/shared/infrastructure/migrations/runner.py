@@ -38,18 +38,26 @@ async def _bootstrap_full_schema(conn) -> None:
 
 
 async def run_migrations(backend) -> None:
-    """Ensure the database schema exists.
+    """Ensure the database schema is up to date.
 
-    Fresh databases are bootstrapped from the context schemas (the single
-    source of truth).  Already-initialized databases are left as-is.
+    All schema statements use CREATE TABLE/INDEX IF NOT EXISTS, so running
+    them on an existing database is safe — new tables and indexes are added
+    without touching existing data.  This means new bounded contexts and new
+    tables automatically appear on the next server restart with no manual
+    migration step.
     """
-    dialect = backend.dialect
     conn = backend.connection()
+    from full_schema import FULL_SCHEMA
 
-    if not await _table_exists(conn, "users", dialect=dialect):
-        logger.info("Fresh %s database — bootstrapping from context schemas", dialect)
-        await _bootstrap_full_schema(conn)
+    is_fresh = not await _table_exists(conn, "users", dialect=backend.dialect)
+    if is_fresh:
+        logger.info("Fresh database — bootstrapping schema")
+    else:
+        logger.debug("Existing database — applying any missing tables/indexes")
+
+    for stmt in FULL_SCHEMA:
+        await conn.execute(stmt)
+    await conn.commit()
+
+    if is_fresh:
         logger.info("Schema bootstrapped")
-        return
-
-    logger.debug("Database already initialized — skipping bootstrap")

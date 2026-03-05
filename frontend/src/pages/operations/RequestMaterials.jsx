@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,51 +11,47 @@ import { useProducts } from "@/hooks/useProducts";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useCreateMaterialRequest } from "@/hooks/useMaterialRequests";
 import { useCart } from "@/hooks/useCart";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
 import { getErrorMessage } from "@/lib/api-client";
-import api from "@/lib/api-client";
 import { SubmitRequestModal } from "./_SubmitRequestModal";
 
 const RequestMaterials = () => {
   const { user } = useAuth();
-  const barcodeRef = useRef(null);
 
   const { items: cart, addItem: addToCart, updateQuantity, removeItem, clear: clearCart, total: subtotal } = useCart();
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("all");
-  const [barcodeInput, setBarcodeInput] = useState("");
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [unknownBarcode, setUnknownBarcode] = useState(null);
   const [jobId, setJobId] = useState("");
   const [serviceAddress, setServiceAddress] = useState("");
   const [notes, setNotes] = useState("");
 
   const productParams = { search: search || undefined, department_id: selectedDept !== "all" ? selectedDept : undefined };
   const { data: productsData, isLoading: productsLoading } = useProducts(productParams);
+  const { data: allProductsData } = useProducts();
   const { data: departmentsData, isLoading: deptsLoading } = useDepartments();
   const createRequest = useCreateMaterialRequest();
 
   const departments = departmentsData || [];
   const rawProducts = Array.isArray(productsData) ? productsData : (productsData?.items || []);
   const products = rawProducts.filter((p) => (p.sell_quantity ?? p.quantity) > 0);
+  const allProducts = Array.isArray(allProductsData) ? allProductsData : (allProductsData?.items || []);
 
-
-  const handleBarcodeSubmit = async (e) => {
-    e?.preventDefault();
-    const code = barcodeInput.trim();
-    if (!code) return;
-    try {
-      const product = await api.products.byBarcode(code);
-      if (product && (product.sell_quantity ?? product.quantity) > 0) {
-        addToCart(product);
-        setBarcodeInput("");
-        barcodeRef.current?.focus();
-      } else {
+  const scanner = useBarcodeScanner({
+    onSuccess: (product) => {
+      if ((product.sell_quantity ?? product.quantity) <= 0) {
         toast.error("Product out of stock");
+        return;
       }
-    } catch {
-      toast.error("Product not found");
-      setBarcodeInput("");
-    }
-  };
+      addToCart(product);
+      toast.success(`Added: ${product.sku} (+1)`);
+    },
+    onNotFound: ({ barcode }) => setUnknownBarcode(barcode),
+    onInvalidCheckDigit: (barcode) =>
+      toast.error(`Invalid barcode — bad check digit (${barcode})`),
+  });
 
 
   const handleSubmitRequest = async () => {
@@ -89,13 +85,20 @@ const RequestMaterials = () => {
         </div>
 
         <div className="p-3 border-b border-slate-200 bg-slate-50/80">
-          <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-            <div className="flex-1 relative">
-              <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input ref={barcodeRef} type="text" placeholder="Scan barcode..." value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)} className="pl-10 h-9 text-sm" />
-            </div>
-            <Button type="submit" variant="outline" size="sm">Add</Button>
-          </form>
+          <div className="flex-1 relative">
+            <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Input
+              ref={scanner.inputRef}
+              type="text"
+              placeholder="Scan barcode…"
+              value={scanner.value}
+              onChange={(e) => scanner.setValue(e.target.value)}
+              onKeyDown={scanner.onKeyDown}
+              className="pl-10 h-9 text-sm"
+              autoFocus
+              disabled={scanner.scanning}
+            />
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-3">
@@ -189,6 +192,18 @@ const RequestMaterials = () => {
         onNotesChange={setNotes}
         onSubmit={handleSubmitRequest}
         isPending={createRequest.isPending}
+      />
+
+      <UnknownBarcodeSheet
+        open={!!unknownBarcode}
+        onOpenChange={(open) => { if (!open) setUnknownBarcode(null); }}
+        barcode={unknownBarcode}
+        products={allProducts}
+        onAddProduct={(product) => {
+          addToCart(product);
+          toast.success(`Added: ${product.sku} (+1)`);
+          setUnknownBarcode(null);
+        }}
       />
     </div>
   );

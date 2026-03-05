@@ -14,6 +14,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { useContractors } from "@/hooks/useContractors";
 import { useCreateWithdrawal, useCreateWithdrawalForContractor } from "@/hooks/useWithdrawals";
 import { useCart } from "@/hooks/useCart";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
 import { getErrorMessage } from "@/lib/api-client";
 
 const IssueMaterials = () => {
@@ -39,6 +41,27 @@ const IssueMaterials = () => {
   const [jobId, setJobId] = useState("");
   const [serviceAddress, setServiceAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [unknownBarcode, setUnknownBarcode] = useState(null);
+
+  const scanner = useBarcodeScanner({
+    onSuccess: (product) => {
+      if ((product.sell_quantity ?? product.quantity) <= 0) {
+        toast.error("Product out of stock");
+        return;
+      }
+      addItem(product);
+      toast.success(`Added: ${product.sku} (+1)`);
+      setSearch("");
+      setShowDropdown(false);
+    },
+    onNotFound: ({ barcode }) => {
+      setUnknownBarcode(barcode);
+      setSearch("");
+      setShowDropdown(false);
+    },
+    onInvalidCheckDigit: (barcode) =>
+      toast.error(`Invalid barcode — bad check digit (${barcode})`),
+  });
 
   useEffect(() => {
     if (isContractor) setSelectedContractor(user.id);
@@ -67,9 +90,19 @@ const IssueMaterials = () => {
   };
 
   const handleSearchKeyDown = (e) => {
-    if (e.key === "Enter" && searchResults.length > 0) {
-      const exact = searchResults.find((p) => p.sku.toLowerCase() === search.toLowerCase());
-      handleAddItem(exact || searchResults[0]);
+    if (e.key === "Enter") {
+      // If input looks like a barcode (no spaces, reasonable length), use the
+      // scanner path so we get structured error handling and the not-found sheet.
+      const val = e.target.value.trim();
+      const looksLikeBarcode = val.length > 0 && !val.includes(" ");
+      if (looksLikeBarcode && searchResults.length === 0) {
+        scanner.onKeyDown(e);
+        return;
+      }
+      if (searchResults.length > 0) {
+        const exact = searchResults.find((p) => p.sku.toLowerCase() === val.toLowerCase());
+        handleAddItem(exact || searchResults[0]);
+      }
     }
     if (e.key === "Escape") { setShowDropdown(false); setSearch(""); }
   };
@@ -112,6 +145,7 @@ const IssueMaterials = () => {
   if (productsLoading || (!isContractor && contractorsLoading)) return <PageSkeleton />;
 
   return (
+    <>
     <div className="max-w-3xl mx-auto p-8" data-testid="pos-page">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Issue Materials</h1>
@@ -227,6 +261,19 @@ const IssueMaterials = () => {
         </div>
       )}
     </div>
+
+    <UnknownBarcodeSheet
+      open={!!unknownBarcode}
+      onOpenChange={(open) => { if (!open) setUnknownBarcode(null); }}
+      barcode={unknownBarcode}
+      products={allProducts}
+      onAddProduct={(product) => {
+        addItem(product);
+        toast.success(`Added: ${product.sku} (+1)`);
+        setUnknownBarcode(null);
+      }}
+    />
+    </>
   );
 };
 
