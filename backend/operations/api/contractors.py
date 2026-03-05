@@ -1,5 +1,7 @@
 """Contractor management routes (admin only)."""
-from fastapi import APIRouter, HTTPException, Depends
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Depends, Query
 
 from identity.application.auth_service import hash_password, require_role
 from kernel.types import CurrentUser
@@ -17,9 +19,12 @@ router = APIRouter(prefix="/contractors", tags=["contractors"])
 
 
 @router.get("")
-async def get_contractors(current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def get_contractors(
+    search: Optional[str] = Query(None, description="Search by name, email, company, billing entity, or phone"),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+):
     org_id = current_user.organization_id
-    return await list_contractors(org_id)
+    return await list_contractors(org_id, search=search)
 
 
 @router.post("")

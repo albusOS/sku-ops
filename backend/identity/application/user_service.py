@@ -1,4 +1,6 @@
 """User application service — safe for cross-context import."""
+from typing import Optional
+
 from identity.domain.user import User, UserCreate, UserUpdate  # noqa: F401
 from identity.infrastructure.user_repo import user_repo as _repo
 
@@ -11,8 +13,8 @@ async def get_user_by_email(email: str):
     return await _repo.get_by_email(email)
 
 
-async def list_contractors(org_id: str):
-    return await _repo.list_contractors(org_id)
+async def list_contractors(org_id: str, search: Optional[str] = None):
+    return await _repo.list_contractors(org_id, search=search)
 
 
 async def count_contractors(org_id: str) -> int:

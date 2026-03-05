@@ -14,7 +14,7 @@ class UserRepoPort(Protocol):
     async def update(self, user_id: str, updates: dict) -> Optional[dict]: ...
 
     async def list_contractors(
-        self, organization_id: Optional[str] = None,
+        self, organization_id: Optional[str] = None, search: Optional[str] = None,
     ) -> list: ...
 
     async def count_contractors(

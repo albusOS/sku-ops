@@ -233,15 +233,18 @@ async def summary_by_contractor(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT contractor_id,
-                   ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END), 2) AS ar_balance,
-                   COUNT(DISTINCT reference_id) AS transaction_count
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND contractor_id IS NOT NULL
-              {date_filter}
-            GROUP BY contractor_id""",
+        f"""SELECT fl.contractor_id,
+                   COALESCE(MAX(u.name), '') AS name,
+                   COALESCE(MAX(u.company), '') AS company,
+                   ROUND(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END), 2) AS revenue,
+                   ROUND(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END), 2) AS ar_balance,
+                   COUNT(DISTINCT fl.reference_id) AS transaction_count
+            FROM financial_ledger fl
+            LEFT JOIN users u ON u.id = fl.contractor_id
+            WHERE fl.organization_id = ?
+              AND fl.contractor_id IS NOT NULL
+              {date_filter.replace('created_at', 'fl.created_at')}
+            GROUP BY fl.contractor_id""",
         params,
     )
     return [dict(r) for r in await cursor.fetchall()]

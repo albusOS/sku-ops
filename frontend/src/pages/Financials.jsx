@@ -321,31 +321,32 @@ const Financials = () => {
             Top Contractors by Spend
           </p>
           <div className="space-y-2">
-            {summary.by_contractor
-              .sort((a, b) => (b.total || 0) - (a.total || 0))
+            {[...summary.by_contractor]
+              .sort((a, b) => (b.revenue ?? b.total ?? 0) - (a.revenue ?? a.total ?? 0))
               .slice(0, 8)
               .map((c, i) => {
-                const max = summary.by_contractor[0]?.total || 1;
+                const amount = c.revenue ?? c.total ?? 0;
+                const max = Math.max(...summary.by_contractor.map((x) => x.revenue ?? x.total ?? 0), 1);
                 return (
-                  <div key={i} className="flex items-center gap-3">
+                  <div key={c.contractor_id ?? i} className="flex items-center gap-3">
                     <span className="text-[10px] font-bold text-slate-300 w-4 tabular-nums">
                       {i + 1}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-700 truncate">
-                        {c.name || c.company || "Unknown"}
+                        {c.name || c.company || c.contractor_id || "Unknown"}
                       </p>
                       <div className="h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
                         <div
                           className="h-full bg-amber-400 rounded-full"
                           style={{
-                            width: `${(((c.total || 0) / max) * 100).toFixed(1)}%`,
+                            width: `${((amount / max) * 100).toFixed(1)}%`,
                           }}
                         />
                       </div>
                     </div>
                     <span className="text-sm font-semibold text-slate-900 tabular-nums shrink-0">
-                      {valueFormatter(c.total || 0)}
+                      {valueFormatter(amount)}
                     </span>
                   </div>
                 );
@@ -377,13 +378,13 @@ const Financials = () => {
                       <div className="flex justify-between">
                         <span className="text-slate-500">Total</span>
                         <span className="font-mono tabular-nums">
-                          ${data.total.toFixed(2)}
+                          ${(data.total ?? 0).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-red-500">Unpaid</span>
                         <span className="font-mono tabular-nums text-red-600">
-                          ${data.unpaid.toFixed(2)}
+                          ${(data.ar_balance ?? 0).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between">

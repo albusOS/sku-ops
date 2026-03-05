@@ -85,14 +85,18 @@ async def update(user_id: str, updates: dict) -> Optional[dict]:
     return await get_by_id(user_id)
 
 
-async def list_contractors(organization_id: Optional[str] = None) -> list:
+async def list_contractors(organization_id: Optional[str] = None, search: Optional[str] = None) -> list:
     conn = get_connection()
     org_id = organization_id or "default"
-    cursor = await conn.execute(
-        """SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at
-           FROM users WHERE role = 'contractor' AND (organization_id = ? OR organization_id IS NULL)""",
-        (org_id,),
-    )
+    base = """SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at
+              FROM users WHERE role = 'contractor' AND (organization_id = ? OR organization_id IS NULL)"""
+    params: list = [org_id]
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        base += " AND (name LIKE ? OR email LIKE ? OR company LIKE ? OR billing_entity LIKE ? OR phone LIKE ?)"
+        params.extend([term, term, term, term, term])
+    base += " ORDER BY name"
+    cursor = await conn.execute(base, params)
     rows = await cursor.fetchall()
     return [_row_to_dict(r) for r in rows]
 

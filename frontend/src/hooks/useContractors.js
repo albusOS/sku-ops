@@ -3,13 +3,13 @@ import api from "@/lib/api-client";
 
 export const contractorKeys = {
   all: ["contractors"],
-  list: () => ["contractors", "list"],
+  list: (params) => ["contractors", "list", params],
 };
 
-export function useContractors() {
+export function useContractors(search) {
   return useQuery({
-    queryKey: contractorKeys.list(),
-    queryFn: api.contractors.list,
+    queryKey: contractorKeys.list({ search: search || undefined }),
+    queryFn: () => api.contractors.list(search ? { search } : {}),
   });
 }
 

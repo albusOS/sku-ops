@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Edit2, Trash2, HardHat, Mail, Phone,
-  Building2, DollarSign, ToggleLeft, ToggleRight,
+  Building2, DollarSign, ToggleLeft, ToggleRight, Search,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
@@ -32,8 +32,9 @@ const Contractors = () => {
   const [editingContractor, setEditingContractor] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, contractor: null });
+  const [search, setSearch] = useState("");
 
-  const { data: contractors = [], isLoading } = useContractors();
+  const { data: contractors = [], isLoading } = useContractors(search);
   const createMutation = useCreateContractor();
   const updateMutation = useUpdateContractor();
   const deleteMutation = useDeleteContractor();
@@ -119,7 +120,7 @@ const Contractors = () => {
     <div className="p-8" data-testid="contractors-page">
       <PageHeader
         title="Contractors"
-        subtitle={`${contractors.length} registered contractors`}
+        subtitle={`${contractors.length} contractor${contractors.length !== 1 ? "s" : ""}`}
         action={
           <Button onClick={() => openDialog()} className="btn-primary h-12 px-6" data-testid="add-contractor-btn">
             <Plus className="w-5 h-5 mr-2" />
@@ -128,11 +129,25 @@ const Contractors = () => {
         }
       />
 
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+          <Input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, company…"
+            className="pl-10 input-workshop"
+            data-testid="contractor-search-input"
+          />
+        </div>
+      </div>
+
       {contractors.length === 0 ? (
         <div className="card-workshop p-12 text-center">
           <HardHat className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-          <p className="text-slate-500 font-medium">No contractors yet</p>
-          <p className="text-slate-400 text-sm mb-4">Add contractors to allow material withdrawals</p>
+          <p className="text-slate-500 font-medium">{search.trim() ? "No contractors match your search" : "No contractors yet"}</p>
+          <p className="text-slate-400 text-sm mb-4">{search.trim() ? "Try a different search term" : "Add contractors to allow material withdrawals"}</p>
           <Button onClick={() => openDialog()} className="btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Add First Contractor

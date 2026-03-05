@@ -32,7 +32,7 @@ const InventoryPage = () => {
 
   const deleteMutation = useDeleteProduct();
 
-  const { data: productsData, isLoading: productsLoading } = useProducts({ limit: "10000" });
+  const { data: productsData, isLoading: productsLoading } = useProducts({ limit: 500 });
   const { data: departments = [], isLoading: deptsLoading } = useDepartments();
   const { data: vendors = [] } = useVendors();
 

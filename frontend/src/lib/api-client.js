@@ -69,7 +69,7 @@ const api = {
 
   // ── Contractors ───────────────────────────────────────────────────────
   contractors: {
-    list: () => axios.get(`${API}/contractors`).then((r) => r.data),
+    list: (params) => axios.get(`${API}/contractors`, { params }).then((r) => r.data),
     create: (data) => axios.post(`${API}/contractors`, data).then((r) => r.data),
     update: (id, data) => axios.put(`${API}/contractors/${id}`, data).then((r) => r.data),
     delete: (id) => axios.delete(`${API}/contractors/${id}`),
