@@ -9,6 +9,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/inventory";
+import CycleCountsPage from "./pages/inventory/CycleCountsPage";
+import CycleCountDetailPage from "./pages/inventory/CycleCountDetailPage";
 import Reports from "./pages/Reports";
 import Layout from "./components/Layout";
 
@@ -16,7 +18,7 @@ import {
   POS, PendingRequests, RequestMaterials, Contractors, Departments,
   Vendors, PurchaseOrders, MyHistory, ReceiptImport, Jobs,
 } from "./pages/operations";
-import { Financials, Invoices, Payments } from "./pages/finance";
+import { Financials, Invoices, Payments, XeroHealthPage } from "./pages/finance";
 import { BillingEntities } from "./pages/identity";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -55,6 +57,8 @@ function App() {
                           <Route path="/request-materials" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}><RequestMaterials /></ProtectedRoute>} />
                           <Route path="/pending-requests" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><PendingRequests /></ProtectedRoute>} />
                           <Route path="/inventory" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Inventory /></ProtectedRoute>} />
+                          <Route path="/cycle-counts" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><CycleCountsPage /></ProtectedRoute>} />
+                          <Route path="/cycle-counts/:countId" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><CycleCountDetailPage /></ProtectedRoute>} />
                           <Route path="/vendors" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Vendors /></ProtectedRoute>} />
                           <Route path="/departments" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Departments /></ProtectedRoute>} />
                           <Route path="/import" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><ReceiptImport /></ProtectedRoute>} />
@@ -66,6 +70,7 @@ function App() {
                           <Route path="/invoices" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Invoices /></ProtectedRoute>} />
                           <Route path="/payments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Payments /></ProtectedRoute>} />
                           <Route path="/billing-entities" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><BillingEntities /></ProtectedRoute>} />
+                          <Route path="/xero-health" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><XeroHealthPage /></ProtectedRoute>} />
                           <Route path="/my-history" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}><MyHistory /></ProtectedRoute>} />
                         </Routes>
                       </ErrorBoundary>

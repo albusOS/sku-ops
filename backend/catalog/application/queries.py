@@ -99,8 +99,8 @@ async def add_product_quantity(product_id: str, quantity: float, updated_at: str
     return await _prod_repo.add_quantity(product_id, quantity, updated_at, conn=conn)
 
 
-async def atomic_adjust_product(product_id: str, quantity_delta: float, updated_at: str) -> Optional[dict]:
-    return await _prod_repo.atomic_adjust(product_id, quantity_delta, updated_at)
+async def atomic_adjust_product(product_id: str, quantity_delta: float, updated_at: str, conn=None) -> Optional[dict]:
+    return await _prod_repo.atomic_adjust(product_id, quantity_delta, updated_at, conn=conn)
 
 
 # ── Department queries ───────────────────────────────────────────────────────

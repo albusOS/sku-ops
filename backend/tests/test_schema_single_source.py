@@ -16,6 +16,7 @@ EXPECTED_TABLES = {
     "oauth_states", "fiscal_periods",
     "departments", "vendors", "products", "sku_counters",
     "stock_transactions",
+    "cycle_counts", "cycle_count_items",
     "withdrawals", "withdrawal_items", "material_requests", "returns", "return_items",
     "invoices", "invoice_withdrawals", "invoice_line_items", "invoice_counters",
     "credit_notes", "credit_note_line_items", "financial_ledger",
@@ -78,3 +79,78 @@ async def test_full_schema_is_idempotent():
         await db.execute(stmt)
     await db.commit()
     await db.close()
+
+
+# ── Xero sync column assertions ──────────────────────────────────────────────
+# If these fail it means a schema.py file was edited to remove or rename a
+# column that the Xero sync job depends on. Failing here is far better than
+# discovering a missing column at runtime after a real sync attempt.
+
+@pytest.mark.asyncio
+async def test_invoices_has_xero_sync_status_column():
+    """invoices.xero_sync_status must exist — the sync job reads and writes it."""
+    schema = await _bootstrap()
+    assert "xero_sync_status" in schema["invoices"], (
+        "invoices table is missing xero_sync_status column. "
+        "This will break the Xero sync job at runtime."
+    )
+
+
+@pytest.mark.asyncio
+async def test_invoices_has_xero_invoice_id_column():
+    schema = await _bootstrap()
+    assert "xero_invoice_id" in schema["invoices"]
+
+
+@pytest.mark.asyncio
+async def test_credit_notes_has_xero_sync_status_column():
+    """credit_notes.xero_sync_status must exist."""
+    schema = await _bootstrap()
+    assert "xero_sync_status" in schema["credit_notes"], (
+        "credit_notes table is missing xero_sync_status column."
+    )
+
+
+@pytest.mark.asyncio
+async def test_credit_notes_has_xero_credit_note_id_column():
+    schema = await _bootstrap()
+    assert "xero_credit_note_id" in schema["credit_notes"]
+
+
+@pytest.mark.asyncio
+async def test_purchase_orders_has_xero_bill_id_column():
+    """purchase_orders.xero_bill_id must exist — PO Bills sync depends on it."""
+    schema = await _bootstrap()
+    assert "xero_bill_id" in schema["purchase_orders"], (
+        "purchase_orders table is missing xero_bill_id column. "
+        "PO Bill sync will fail at runtime."
+    )
+
+
+@pytest.mark.asyncio
+async def test_purchase_orders_has_xero_sync_status_column():
+    schema = await _bootstrap()
+    assert "xero_sync_status" in schema["purchase_orders"]
+
+
+# ── Cycle count column assertions ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cycle_counts_has_required_columns():
+    """cycle_counts must have all columns the service reads and writes."""
+    schema = await _bootstrap()
+    required = {"id", "organization_id", "status", "scope",
+                "created_by_id", "created_by_name",
+                "committed_by_id", "committed_at", "created_at"}
+    missing = required - set(schema["cycle_counts"])
+    assert not missing, f"cycle_counts missing columns: {missing}"
+
+
+@pytest.mark.asyncio
+async def test_cycle_count_items_has_required_columns():
+    """cycle_count_items must have all columns the service reads and writes."""
+    schema = await _bootstrap()
+    required = {"id", "cycle_count_id", "product_id", "sku", "product_name",
+                "snapshot_qty", "counted_qty", "variance", "unit", "notes", "created_at"}
+    missing = required - set(schema["cycle_count_items"])
+    assert not missing, f"cycle_count_items missing columns: {missing}"

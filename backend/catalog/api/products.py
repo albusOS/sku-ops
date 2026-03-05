@@ -7,6 +7,7 @@ from identity.application.auth_service import get_current_user, require_role
 from shared.infrastructure.middleware.audit import audit_log
 from kernel.errors import ResourceNotFoundError
 from kernel.types import CurrentUser
+from catalog.domain.barcode import validate_barcode
 from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
 from catalog.domain.product import Product, ProductCreate, ProductUpdate
 from catalog.domain.units import compute_sell_fields
@@ -81,11 +82,30 @@ async def get_products(
 
 @router.get("/by-barcode")
 async def get_product_by_barcode(barcode: str, current_user: CurrentUser = Depends(get_current_user)):
-    """Look up product by barcode (for POS/request scan)."""
+    """Look up product by barcode (for POS/request scan).
+
+    Returns structured error detail so the UI can differentiate:
+      - {"code": "invalid_check_digit", "barcode": "..."} — numeric input with bad check digit
+      - {"code": "not_found", "barcode": "..."} — valid format but no match in DB
+    """
     org_id = current_user.organization_id
-    product = await product_repo.find_by_barcode(barcode.strip(), organization_id=org_id)
+    code = barcode.strip()
+
+    # Pre-validate numeric barcodes before hitting the DB
+    if code.isdigit() and len(code) in (12, 13):
+        valid, _ = validate_barcode(code)
+        if not valid:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "invalid_check_digit", "barcode": code},
+            )
+
+    product = await product_repo.find_by_barcode(code, organization_id=org_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "barcode": code},
+        )
     _enrich_sell_fields(product)
     if current_user.role == "contractor":
         return _strip_for_contractor(product)

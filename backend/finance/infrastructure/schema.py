@@ -24,6 +24,8 @@ TABLES: list[str] = [
         approved_by_id TEXT,
         approved_at TEXT,
         xero_invoice_id TEXT,
+        xero_cogs_journal_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         organization_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -66,6 +68,7 @@ TABLES: list[str] = [
         total REAL NOT NULL DEFAULT 0,
         notes TEXT,
         xero_credit_note_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         organization_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -147,4 +150,6 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date)",
     "CREATE INDEX IF NOT EXISTS idx_payment_withdrawals_wid ON payment_withdrawals(withdrawal_id)",
     "CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date)",
+    "CREATE INDEX IF NOT EXISTS idx_invoices_xero_sync ON invoices(xero_sync_status, xero_invoice_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cn_xero_sync ON credit_notes(xero_sync_status, xero_credit_note_id)",
 ]

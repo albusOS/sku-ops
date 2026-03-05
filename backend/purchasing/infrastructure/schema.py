@@ -15,6 +15,8 @@ TABLES: list[str] = [
         received_by_id TEXT,
         received_by_name TEXT,
         document_id TEXT,
+        xero_bill_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         created_at TEXT NOT NULL,
         updated_at TEXT,
         organization_id TEXT
@@ -44,4 +46,5 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_po_created ON purchase_orders(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items(po_id)",
     "CREATE INDEX IF NOT EXISTS idx_po_items_status ON purchase_order_items(status)",
+    "CREATE INDEX IF NOT EXISTS idx_po_xero_sync ON purchase_orders(xero_sync_status, xero_bill_id)",
 ]

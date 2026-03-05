@@ -216,11 +216,100 @@ async def apply_credit_note(credit_note_id: str, organization_id: Optional[str] 
     return (await get_by_id(credit_note_id)) or {}
 
 
+async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str) -> None:
+    """Store the Xero credit note ID and mark as synced after a successful sync."""
+    conn = get_connection()
+    now = datetime.now(timezone.utc).isoformat()
+    await conn.execute(
+        "UPDATE credit_notes SET xero_credit_note_id = ?, xero_sync_status = 'synced', updated_at = ? WHERE id = ?",
+        (xero_credit_note_id, now, credit_note_id),
+    )
+    await conn.commit()
+
+
+async def set_credit_note_sync_status(credit_note_id: str, status: str) -> None:
+    conn = get_connection()
+    now = datetime.now(timezone.utc).isoformat()
+    await conn.execute(
+        "UPDATE credit_notes SET xero_sync_status = ?, updated_at = ? WHERE id = ?",
+        (status, now, credit_note_id),
+    )
+    await conn.commit()
+
+
+async def list_unsynced_credit_notes(organization_id: str) -> list:
+    """Return applied credit notes not yet synced to Xero."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, credit_note_number, billing_entity, total, status, created_at
+           FROM credit_notes
+           WHERE (organization_id = ? OR organization_id IS NULL)
+             AND status = 'applied'
+             AND xero_credit_note_id IS NULL
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+async def list_credit_notes_needing_reconciliation(organization_id: str) -> list:
+    """Return credit notes that have a Xero ID and are not already flagged as mismatch."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT cn.id, cn.credit_note_number, cn.billing_entity, cn.total,
+                  cn.xero_credit_note_id, cn.xero_sync_status,
+                  (SELECT COUNT(*) FROM credit_note_line_items WHERE credit_note_id = cn.id) AS line_count
+           FROM credit_notes cn
+           WHERE (cn.organization_id = ? OR cn.organization_id IS NULL)
+             AND cn.xero_credit_note_id IS NOT NULL
+             AND cn.xero_sync_status != 'mismatch'
+           ORDER BY cn.created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+async def list_failed_credit_notes(organization_id: str) -> list:
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, credit_note_number, billing_entity, total, status, created_at
+           FROM credit_notes
+           WHERE (organization_id = ? OR organization_id IS NULL)
+             AND xero_sync_status = 'failed'
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+async def list_mismatch_credit_notes(organization_id: str) -> list:
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, credit_note_number, billing_entity, total, xero_credit_note_id, created_at
+           FROM credit_notes
+           WHERE (organization_id = ? OR organization_id IS NULL)
+             AND xero_sync_status = 'mismatch'
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
 class CreditNoteRepo:
     insert_credit_note = staticmethod(insert_credit_note)
     get_by_id = staticmethod(get_by_id)
     list_credit_notes = staticmethod(list_credit_notes)
     apply_credit_note = staticmethod(apply_credit_note)
+    set_xero_credit_note_id = staticmethod(set_xero_credit_note_id)
+    set_credit_note_sync_status = staticmethod(set_credit_note_sync_status)
+    list_unsynced_credit_notes = staticmethod(list_unsynced_credit_notes)
+    list_credit_notes_needing_reconciliation = staticmethod(list_credit_notes_needing_reconciliation)
+    list_failed_credit_notes = staticmethod(list_failed_credit_notes)
+    list_mismatch_credit_notes = staticmethod(list_mismatch_credit_notes)
 
 
 credit_note_repo = CreditNoteRepo()

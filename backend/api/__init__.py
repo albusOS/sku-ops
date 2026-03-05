@@ -27,10 +27,12 @@ from jobs.api.jobs import router as jobs_router
 from shared.infrastructure.config import is_development, is_test
 from identity.api.settings import router as settings_router
 from finance.api.xero_auth import router as xero_auth_router
+from finance.api.xero_health import router as xero_health_router
 from finance.api.credit_notes import router as credit_notes_router
 from finance.api.payments import router as payments_router
 from finance.api.fiscal_periods import router as fiscal_periods_router
 from inventory.api.stock import router as stock_router
+from inventory.api.cycle_counts import router as cycle_counts_router
 from assistant.api.monitoring import router as monitoring_router
 
 api_router = APIRouter(prefix="/api")
@@ -46,6 +48,7 @@ api_router.include_router(departments_router)
 api_router.include_router(vendors_router)
 api_router.include_router(products_router)
 api_router.include_router(stock_router)
+api_router.include_router(cycle_counts_router)
 api_router.include_router(withdrawals_router)
 api_router.include_router(material_requests_router)
 api_router.include_router(purchase_orders_router)
@@ -69,6 +72,7 @@ if is_development or is_test:
         pass
 api_router.include_router(settings_router)
 api_router.include_router(xero_auth_router)
+api_router.include_router(xero_health_router)
 
 
 @api_router.get("/")

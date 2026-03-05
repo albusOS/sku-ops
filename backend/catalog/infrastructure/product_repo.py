@@ -298,21 +298,24 @@ async def add_quantity(product_id: str, quantity: float, updated_at: str, conn=N
     return await get_by_id(product_id)
 
 
-async def atomic_adjust(product_id: str, quantity_delta: float, updated_at: str) -> Optional[dict]:
+async def atomic_adjust(product_id: str, quantity_delta: float, updated_at: str, conn=None) -> Optional[dict]:
     """
     Atomically adjust quantity by delta (+ or -).
     Returns updated row or None if adjustment would result in negative stock.
+    When conn is provided, runs inside that transaction (no commit).
     """
-    conn = get_connection()
+    in_transaction = conn is not None
+    conn = conn or get_connection()
     cursor = await conn.execute(
         """UPDATE products SET quantity = quantity + ?, updated_at = ?
            WHERE id = ? AND quantity + ? >= 0""",
         (quantity_delta, updated_at, product_id, quantity_delta),
     )
-    await conn.commit()
+    if not in_transaction:
+        await conn.commit()
     if cursor.rowcount == 0:
         return None
-    return await get_by_id(product_id)
+    return await get_by_id(product_id, conn=conn)
 
 
 async def count_all(organization_id: Optional[str] = None) -> int:

@@ -19,6 +19,7 @@ class Account(str, Enum):
     ACCOUNTS_RECEIVABLE = "accounts_receivable"
     ACCOUNTS_PAYABLE = "accounts_payable"
     SHRINKAGE = "shrinkage"
+    DAMAGE = "damage"
 
 
 class ReferenceType(str, Enum):

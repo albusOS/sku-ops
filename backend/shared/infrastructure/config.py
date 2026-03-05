@@ -155,3 +155,5 @@ SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
 XERO_CLIENT_ID = os.environ.get("XERO_CLIENT_ID", "").strip()
 XERO_CLIENT_SECRET = os.environ.get("XERO_CLIENT_SECRET", "").strip()
 XERO_REDIRECT_URI = os.environ.get("XERO_REDIRECT_URI", "").strip()
+# Hour of day (UTC, 0-23) when the nightly Xero sync job fires. Default: 2 AM UTC.
+XERO_SYNC_HOUR = int(os.environ.get("XERO_SYNC_HOUR", "2"))

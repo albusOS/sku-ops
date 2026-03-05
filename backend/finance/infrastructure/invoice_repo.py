@@ -239,8 +239,13 @@ async def update(
             subtotal += amt
         tax_val = tax if tax is not None else float(inv.get("tax", 0))
         total = round(subtotal + tax_val, 2)
+        # If already synced to Xero, mark COGS journal as stale so the sync job
+        # re-posts the invoice and re-posts the COGS journal with the updated cost.
+        sync_status_update = ""
+        if inv.get("xero_invoice_id"):
+            sync_status_update = ", xero_sync_status = 'cogs_stale'"
         await conn.execute(
-            """UPDATE invoices SET subtotal = ?, tax = ?, total = ?, updated_at = ? WHERE id = ?""",
+            f"UPDATE invoices SET subtotal = ?, tax = ?, total = ?, updated_at = ?{sync_status_update} WHERE id = ?",
             (subtotal, tax_val, total, now, invoice_id),
         )
     else:
@@ -507,14 +512,119 @@ async def mark_paid_for_withdrawal(withdrawal_id: str) -> None:
         await conn.commit()
 
 
-async def set_xero_invoice_id(invoice_id: str, xero_invoice_id: str) -> None:
-    """Store the Xero invoice ID after a successful sync."""
+async def set_xero_invoice_id(
+    invoice_id: str,
+    xero_invoice_id: str,
+    xero_cogs_journal_id: Optional[str] = None,
+) -> None:
+    """Store the Xero invoice ID (and optional COGS journal ID) and mark as synced."""
     conn = get_connection()
     await conn.execute(
-        "UPDATE invoices SET xero_invoice_id = ?, updated_at = ? WHERE id = ?",
-        (xero_invoice_id, datetime.now(timezone.utc).isoformat(), invoice_id),
+        """UPDATE invoices
+           SET xero_invoice_id = ?, xero_cogs_journal_id = ?, xero_sync_status = 'synced', updated_at = ?
+           WHERE id = ?""",
+        (xero_invoice_id, xero_cogs_journal_id, datetime.now(timezone.utc).isoformat(), invoice_id),
     )
     await conn.commit()
+
+
+async def set_xero_sync_status(invoice_id: str, status: str) -> None:
+    """Update the Xero sync status for an invoice."""
+    conn = get_connection()
+    await conn.execute(
+        "UPDATE invoices SET xero_sync_status = ?, updated_at = ? WHERE id = ?",
+        (status, datetime.now(timezone.utc).isoformat(), invoice_id),
+    )
+    await conn.commit()
+
+
+async def list_unsynced_invoices(organization_id: str) -> list:
+    """Return invoices that are approved/sent but not yet synced to Xero."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, invoice_number, billing_entity, total, status, created_at
+           FROM invoices
+           WHERE organization_id = ?
+             AND status IN ('approved', 'sent')
+             AND xero_invoice_id IS NULL
+             AND deleted_at IS NULL
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def list_invoices_needing_reconciliation(organization_id: str) -> list:
+    """Return invoices that have a Xero ID and are not already flagged as mismatch."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, invoice_number, billing_entity, total, xero_invoice_id, xero_sync_status,
+                  (SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = invoices.id) AS line_count
+           FROM invoices
+           WHERE organization_id = ?
+             AND xero_invoice_id IS NOT NULL
+             AND xero_sync_status != 'mismatch'
+             AND deleted_at IS NULL
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def list_failed_invoices(organization_id: str) -> list:
+    """Return invoices whose last Xero sync attempt failed."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, invoice_number, billing_entity, total, status, created_at
+           FROM invoices
+           WHERE organization_id = ?
+             AND xero_sync_status = 'failed'
+             AND deleted_at IS NULL
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def list_mismatch_invoices(organization_id: str) -> list:
+    """Return invoices where reconciliation detected a mismatch with Xero."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, invoice_number, billing_entity, total, xero_invoice_id, created_at
+           FROM invoices
+           WHERE organization_id = ?
+             AND xero_sync_status = 'mismatch'
+             AND deleted_at IS NULL
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def list_stale_cogs_invoices(organization_id: str) -> list:
+    """Return synced invoices whose COGS journal needs to be re-posted.
+
+    These are invoices that have a xero_invoice_id but xero_sync_status = 'cogs_stale',
+    set when line items are edited after an initial successful sync.
+    """
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, invoice_number, billing_entity, total, xero_invoice_id, xero_cogs_journal_id,
+                  (SELECT COUNT(*) FROM invoice_line_items WHERE invoice_id = invoices.id) AS line_count
+           FROM invoices
+           WHERE organization_id = ?
+             AND xero_sync_status = 'cogs_stale'
+             AND xero_invoice_id IS NOT NULL
+             AND deleted_at IS NULL
+           ORDER BY created_at""",
+        (organization_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
 
 
 async def delete_draft(invoice_id: str) -> bool:
@@ -550,6 +660,12 @@ class InvoiceRepo:
     create_from_withdrawals = staticmethod(create_from_withdrawals)
     mark_paid_for_withdrawal = staticmethod(mark_paid_for_withdrawal)
     set_xero_invoice_id = staticmethod(set_xero_invoice_id)
+    set_xero_sync_status = staticmethod(set_xero_sync_status)
+    list_unsynced_invoices = staticmethod(list_unsynced_invoices)
+    list_invoices_needing_reconciliation = staticmethod(list_invoices_needing_reconciliation)
+    list_failed_invoices = staticmethod(list_failed_invoices)
+    list_mismatch_invoices = staticmethod(list_mismatch_invoices)
+    list_stale_cogs_invoices = staticmethod(list_stale_cogs_invoices)
     delete_draft = staticmethod(delete_draft)
 
 

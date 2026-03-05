@@ -17,6 +17,7 @@ PROTECTED_ENDPOINTS = [
     ("GET",  "/api/auth/me"),
     # catalog
     ("GET",  "/api/products"),
+    ("GET",  "/api/products/by-barcode"),
     ("GET",  "/api/vendors"),
     ("GET",  "/api/departments"),
     # operations

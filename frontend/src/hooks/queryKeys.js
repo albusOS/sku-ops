@@ -74,6 +74,11 @@ export const keys = {
     stats: (params) => ["dashboard", "stats", params],
     transactions: (params) => ["dashboard", "transactions", params],
   },
+  cycleCounts: {
+    all:    ["cycleCounts"],
+    list:   (params) => ["cycleCounts", "list", params],
+    detail: (id)     => ["cycleCounts", "detail", id],
+  },
   reports: {
     sales: (params) => ["reports", "sales", params],
     inventory: () => ["reports", "inventory"],
@@ -81,5 +86,9 @@ export const keys = {
     productMargins: (params) => ["reports", "productMargins", params],
     pl: (params) => ["reports", "pl", params],
     arAging: () => ["reports", "arAging"],
+  },
+  xeroHealth: {
+    all: ["xeroHealth"],
+    summary: () => ["xeroHealth", "summary"],
   },
 };

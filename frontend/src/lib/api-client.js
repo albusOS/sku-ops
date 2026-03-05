@@ -184,6 +184,16 @@ const api = {
     arAging: () => axios.get(`${API}/reports/ar-aging`).then((r) => r.data),
   },
 
+  // ── Cycle Counts ────────────────────────────────────────────────────
+  cycleCounts: {
+    list:       (params) => axios.get(`${API}/cycle-counts`, { params }).then((r) => r.data),
+    get:        (id)     => axios.get(`${API}/cycle-counts/${id}`).then((r) => r.data),
+    open:       (data)   => axios.post(`${API}/cycle-counts`, data).then((r) => r.data),
+    updateItem: (countId, itemId, data) =>
+      axios.patch(`${API}/cycle-counts/${countId}/items/${itemId}`, data).then((r) => r.data),
+    commit:     (id)     => axios.post(`${API}/cycle-counts/${id}/commit`).then((r) => r.data),
+  },
+
   // ── Chat ────────────────────────────────────────────────────────────
   chat: {
     status: () => axios.get(`${API}/chat/status`).then((r) => r.data),
@@ -200,6 +210,12 @@ const api = {
 
   seed: {
     departments: () => axios.post(`${API}/seed/departments`).then((r) => r.data),
+  },
+
+  // ── Xero health ─────────────────────────────────────────────────────
+  xero: {
+    health: () => axios.get(`${API}/xero/health`).then((r) => r.data),
+    triggerSync: () => axios.post(`${API}/xero/sync`).then((r) => r.data),
   },
 };
 

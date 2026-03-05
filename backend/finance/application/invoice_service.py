@@ -28,7 +28,11 @@ async def sync_invoice(
         return {"invoice_id": inv_id, "invoice_number": inv.get("invoice_number"), "error": str(e), "success": False}
 
     if result.success and result.xero_invoice_id:
-        await invoice_repo.set_xero_invoice_id(inv_id, result.xero_invoice_id)
+        await invoice_repo.set_xero_invoice_id(
+            inv_id,
+            result.xero_invoice_id,
+            xero_cogs_journal_id=result.xero_journal_id,
+        )
 
     return {
         "invoice_id": inv_id,
@@ -67,3 +71,36 @@ async def get_invoice(
     invoice_repo: InvoiceRepoPort = _default_invoice_repo,
 ):
     return await invoice_repo.get_by_id(invoice_id, org_id)
+
+
+async def repost_cogs_for_invoice(
+    inv_id: str, org_id: str,
+    invoice_repo: InvoiceRepoPort = _default_invoice_repo,
+) -> dict:
+    """Re-post the COGS manual journal for an invoice whose line items changed after sync.
+
+    Voids the old Xero journal (if we have its ID), posts a fresh one with current
+    line item costs, and marks the invoice as synced again.
+    """
+    inv = await invoice_repo.get_by_id(inv_id, org_id)
+    if not inv:
+        return {"invoice_id": inv_id, "error": "Invoice not found", "success": False}
+    if not inv.get("xero_invoice_id"):
+        return {"invoice_id": inv_id, "error": "Invoice not yet synced to Xero", "success": False}
+
+    settings = await get_org_settings(org_id)
+    gateway = get_invoicing_gateway(settings)
+
+    try:
+        new_journal_id = await gateway.repost_cogs_journal(
+            inv, settings, old_journal_id=inv.get("xero_cogs_journal_id")
+        )
+        await invoice_repo.set_xero_invoice_id(
+            inv_id,
+            inv["xero_invoice_id"],
+            xero_cogs_journal_id=new_journal_id,
+        )
+        return {"invoice_id": inv_id, "xero_cogs_journal_id": new_journal_id, "success": True}
+    except Exception as e:
+        await invoice_repo.set_xero_sync_status(inv_id, "failed")
+        return {"invoice_id": inv_id, "error": str(e), "success": False}

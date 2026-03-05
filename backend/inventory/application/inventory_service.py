@@ -7,6 +7,7 @@ Unit conversion happens here — stock is always stored in the product's base_un
 """
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
+from uuid import uuid4
 
 from kernel.errors import ResourceNotFoundError
 from inventory.domain.errors import InsufficientStockError, NegativeStockError
@@ -209,26 +210,29 @@ async def process_adjustment_stock_changes(
     reason: str,
     user_id: str,
     user_name: str,
+    conn=None,
 ) -> None:
     """
     Adjust stock (count, damage, correction) and record transaction.
     Uses atomic UPDATE to avoid TOCTOU race conditions.
+    When conn is provided, all writes participate in the caller's transaction.
     """
     if quantity_delta == 0:
         raise ValueError("quantity_delta must not be zero")
     now = datetime.now(timezone.utc).isoformat()
-    product = await get_product_by_id(product_id)
+    product = await get_product_by_id(product_id, conn=conn)
     if not product:
         raise ResourceNotFoundError("Product", product_id)
 
     base_unit = (product.get("base_unit", "each")).lower()
-    result = await atomic_adjust_product(product_id, quantity_delta, now)
+    result = await atomic_adjust_product(product_id, quantity_delta, now, conn=conn)
     if not result:
         quantity_before = product.get("quantity", 0)
         raise NegativeStockError(product_id, current=quantity_before, delta=quantity_delta)
 
     quantity_after = result.get("quantity", 0)
     quantity_before = quantity_after - quantity_delta
+    adjustment_id = str(uuid4())
     await _record_stock_transaction(
         product_id=product_id,
         sku=product.get("sku", ""),
@@ -238,16 +242,20 @@ async def process_adjustment_stock_changes(
         transaction_type=StockTransactionType.ADJUSTMENT,
         user_id=user_id,
         user_name=user_name,
+        reference_id=adjustment_id,
         reason=reason,
         unit=base_unit,
+        conn=conn,
     )
 
     await _record_ledger_adjustment(
-        adjustment_ref_id=product_id,
+        adjustment_ref_id=adjustment_id,
         product_id=product_id,
         product_cost=float(product.get("cost", 0)),
         quantity_delta=quantity_delta,
         department=product.get("department_name"),
         organization_id=product.get("organization_id", "default"),
+        reason=reason,
         performed_by_user_id=user_id,
+        conn=conn,
     )

@@ -1,4 +1,4 @@
-"""Inventory context schema — stock transaction ledger."""
+"""Inventory context schema — stock transaction ledger and cycle counts."""
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS stock_transactions (
@@ -19,6 +19,30 @@ TABLES: list[str] = [
         organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS cycle_counts (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        scope TEXT,
+        created_by_id TEXT NOT NULL,
+        created_by_name TEXT NOT NULL DEFAULT '',
+        committed_by_id TEXT,
+        committed_at TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS cycle_count_items (
+        id TEXT PRIMARY KEY,
+        cycle_count_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        product_name TEXT NOT NULL DEFAULT '',
+        snapshot_qty REAL NOT NULL,
+        counted_qty REAL,
+        variance REAL,
+        unit TEXT NOT NULL DEFAULT 'each',
+        notes TEXT,
+        created_at TEXT NOT NULL
+    )""",
 ]
 
 INDEXES: list[str] = [
@@ -26,4 +50,8 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_transactions(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_transactions(product_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_stock_transactions_org ON stock_transactions(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cycle_counts_org ON cycle_counts(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cycle_counts_status ON cycle_counts(status)",
+    "CREATE INDEX IF NOT EXISTS idx_cycle_count_items_count ON cycle_count_items(cycle_count_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cycle_count_items_product ON cycle_count_items(product_id)",
 ]

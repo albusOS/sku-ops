@@ -131,17 +131,17 @@ class XeroAdapter:
                     timeout=20,
                 )
 
-        resp.raise_for_status()
-        result = resp.json()
-        invoices = result.get("Invoices", [])
-        if not invoices:
-            return InvoiceSyncResult(success=False, error="Xero returned no invoice in response")
+            resp.raise_for_status()
+            result = resp.json()
+            invoices = result.get("Invoices", [])
+            if not invoices:
+                return InvoiceSyncResult(success=False, error="Xero returned no invoice in response")
 
-        xero_invoice_id = invoices[0].get("InvoiceID")
+            xero_invoice_id = invoices[0].get("InvoiceID")
 
-        # Post COGS journal: Debit COGS, Credit Inventory
-        first_job_id = next((li.get("job_id") for li in line_items if li.get("job_id")), None)
-        journal_id = await self._post_cogs_journal(invoice, settings, xero_invoice_id, first_job_id)
+            # Post COGS journal within the same client session
+            first_job_id = next((li.get("job_id") for li in line_items if li.get("job_id")), None)
+            journal_id = await self._post_cogs_journal(invoice, settings, xero_invoice_id, first_job_id, client)
 
         return InvoiceSyncResult(
             success=True,
@@ -152,6 +152,7 @@ class XeroAdapter:
     async def _post_cogs_journal(
         self, invoice: dict, settings: OrgSettings, xero_invoice_id: Optional[str],
         first_job_id: Optional[str] = None,
+        client: Optional[httpx.AsyncClient] = None,
     ) -> Optional[str]:
         line_items = invoice.get("line_items", [])
         cost_total = sum(
@@ -175,50 +176,231 @@ class XeroAdapter:
             "Narration": narration,
             "JournalLines": [cogs_line, inv_line],
         }
-        async with httpx.AsyncClient() as client:
+        if client is not None:
             resp = await client.put(
                 f"{XERO_API}/ManualJournals",
                 headers=self._auth_headers(settings),
                 json={"ManualJournals": [journal]},
                 timeout=20,
             )
-        resp.raise_for_status()
-        journals = resp.json().get("ManualJournals", [])
+            resp.raise_for_status()
+            journals = resp.json().get("ManualJournals", [])
+        else:
+            async with httpx.AsyncClient() as _client:
+                resp = await _client.put(
+                    f"{XERO_API}/ManualJournals",
+                    headers=self._auth_headers(settings),
+                    json={"ManualJournals": [journal]},
+                    timeout=20,
+                )
+            resp.raise_for_status()
+            journals = resp.json().get("ManualJournals", [])
         return journals[0].get("ManualJournalID") if journals else None
 
+    async def repost_cogs_journal(
+        self,
+        invoice: dict,
+        settings: OrgSettings,
+        old_journal_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Void the previous COGS manual journal (if we have its ID) then post a fresh one.
+
+        Xero manual journals cannot be edited once posted, so the correct approach is:
+        1. POST to /ManualJournals/{id} with Status=VOIDED to reverse the old journal.
+        2. PUT a new manual journal with the updated cost total.
+        Returns the new ManualJournalID, or None if cost_total is zero.
+        """
+        if self._is_token_expired(settings):
+            settings = await self.refresh_token(settings)
+
+        if old_journal_id:
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"{XERO_API}/ManualJournals/{old_journal_id}",
+                        headers=self._auth_headers(settings),
+                        json={"Status": "VOIDED"},
+                        timeout=20,
+                    )
+            except Exception as e:
+                logger.warning("Could not void old COGS journal %s: %s", old_journal_id, e)
+
+        first_job_id = next(
+            (li.get("job_id") for li in invoice.get("line_items", []) if li.get("job_id")),
+            None,
+        )
+        return await self._post_cogs_journal(
+            invoice, settings, invoice.get("xero_invoice_id"), first_job_id
+        )
+
     async def sync_po_receipt(self, po: dict, cost_total: float, settings: OrgSettings) -> InvoiceSyncResult:
+        """Send a vendor purchase to Xero as an ACCPAY Bill (not a manual journal).
+
+        This creates a real AP liability attached to the vendor contact, which
+        appears in aging reports and can be marked paid — unlike a manual journal.
+        """
         if self._is_token_expired(settings):
             settings = await self.refresh_token(settings)
 
         vendor_name = po.get("vendor_name", "")
         po_id = po.get("id", "unknown")
-        narration = f"Inventory receipt — {vendor_name} PO {po_id}"
-        journal = {
-            "Narration": narration,
-            "JournalLines": [
-                {
+        items = po.get("items", [])
+
+        if items:
+            xero_lines = []
+            for item in items:
+                delivered = float(item.get("delivered_qty") or item.get("ordered_qty") or 1)
+                cost = float(item.get("cost") or 0)
+                if delivered <= 0 or cost <= 0:
+                    continue
+                xero_lines.append({
+                    "Description": item.get("name", ""),
+                    "Quantity": delivered,
+                    "UnitAmount": cost,
+                    "LineAmount": round(delivered * cost, 2),
                     "AccountCode": settings.xero_inventory_account_code,
-                    "Description": narration,
-                    "LineAmount": cost_total,  # Dr Inventory
-                },
-                {
-                    "AccountCode": settings.xero_ap_account_code,
-                    "Description": narration,
-                    "LineAmount": -cost_total,  # Cr AP
-                },
-            ],
+                })
+        else:
+            xero_lines = [{
+                "Description": f"Inventory receipt — {vendor_name} PO {po_id}",
+                "Quantity": 1,
+                "UnitAmount": cost_total,
+                "LineAmount": cost_total,
+                "AccountCode": settings.xero_inventory_account_code,
+            }]
+
+        bill: dict = {
+            "Type": "ACCPAY",
+            "Contact": {"Name": vendor_name},
+            "Reference": po_id,
+            "Status": "DRAFT",
+            "LineItems": xero_lines,
         }
+        if po.get("document_date"):
+            bill["Date"] = po["document_date"][:10]
+
+        existing_bill_id = po.get("xero_bill_id")
         async with httpx.AsyncClient() as client:
-            resp = await client.put(
-                f"{XERO_API}/ManualJournals",
+            if existing_bill_id:
+                bill["InvoiceID"] = existing_bill_id
+                resp = await client.post(
+                    f"{XERO_API}/Invoices",
+                    headers=self._auth_headers(settings),
+                    json={"Invoices": [bill]},
+                    timeout=20,
+                )
+            else:
+                resp = await client.put(
+                    f"{XERO_API}/Invoices",
+                    headers=self._auth_headers(settings),
+                    json={"Invoices": [bill]},
+                    timeout=20,
+                )
+        resp.raise_for_status()
+        invoices = resp.json().get("Invoices", [])
+        if not invoices:
+            return InvoiceSyncResult(success=False, error="Xero returned no bill in response")
+        xero_bill_id = invoices[0].get("InvoiceID")
+        return InvoiceSyncResult(success=True, xero_invoice_id=xero_bill_id)
+
+    async def sync_credit_note(self, credit_note: dict, settings: OrgSettings) -> InvoiceSyncResult:
+        """Send a credit note to Xero as an ACCREC credit note.
+
+        Returns/credits are reflected here so Xero Revenue/COGS/Inventory reverse correctly.
+        """
+        if self._is_token_expired(settings):
+            settings = await self.refresh_token(settings)
+
+        line_items = credit_note.get("line_items", [])
+        xero_lines = []
+        for li in line_items:
+            line: dict = {
+                "Description": li.get("description", ""),
+                "Quantity": li.get("quantity", 1),
+                "UnitAmount": li.get("unit_price", 0),
+                "LineAmount": li.get("amount", 0),
+                "AccountCode": settings.xero_sales_account_code,
+            }
+            if settings.xero_tax_type:
+                line["TaxType"] = settings.xero_tax_type
+            xero_lines.append(line)
+
+        xero_cn: dict = {
+            "Type": "ACCREC",
+            "Contact": {"Name": credit_note.get("billing_entity", "")},
+            "CreditNoteNumber": credit_note.get("credit_note_number", ""),
+            "Status": "AUTHORISED",
+            "CurrencyCode": "USD",
+            "LineItems": xero_lines,
+        }
+        if credit_note.get("created_at"):
+            xero_cn["Date"] = credit_note["created_at"][:10]
+
+        existing_cn_id = credit_note.get("xero_credit_note_id")
+        async with httpx.AsyncClient() as client:
+            if existing_cn_id:
+                xero_cn["CreditNoteID"] = existing_cn_id
+                resp = await client.post(
+                    f"{XERO_API}/CreditNotes",
+                    headers=self._auth_headers(settings),
+                    json={"CreditNotes": [xero_cn]},
+                    timeout=20,
+                )
+            else:
+                resp = await client.put(
+                    f"{XERO_API}/CreditNotes",
+                    headers=self._auth_headers(settings),
+                    json={"CreditNotes": [xero_cn]},
+                    timeout=20,
+                )
+        resp.raise_for_status()
+        credit_notes = resp.json().get("CreditNotes", [])
+        if not credit_notes:
+            return InvoiceSyncResult(success=False, error="Xero returned no credit note in response")
+        xero_cn_id = credit_notes[0].get("CreditNoteID")
+        return InvoiceSyncResult(success=True, xero_invoice_id=xero_cn_id)
+
+    async def fetch_invoice(self, xero_invoice_id: str, settings: OrgSettings) -> dict:
+        """Fetch an invoice from Xero for reconciliation verification."""
+        if self._is_token_expired(settings):
+            settings = await self.refresh_token(settings)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{XERO_API}/Invoices/{xero_invoice_id}",
                 headers=self._auth_headers(settings),
-                json={"ManualJournals": [journal]},
-                timeout=20,
+                timeout=15,
             )
         resp.raise_for_status()
-        journals = resp.json().get("ManualJournals", [])
-        journal_id = journals[0].get("ManualJournalID") if journals else None
-        return InvoiceSyncResult(success=True, xero_journal_id=journal_id)
+        invoices = resp.json().get("Invoices", [])
+        if not invoices:
+            return {}
+        inv = invoices[0]
+        return {
+            "total": float(inv.get("Total", 0)),
+            "line_count": len(inv.get("LineItems", [])),
+            "status": inv.get("Status", ""),
+        }
+
+    async def fetch_credit_note(self, xero_credit_note_id: str, settings: OrgSettings) -> dict:
+        """Fetch a credit note from Xero for reconciliation verification."""
+        if self._is_token_expired(settings):
+            settings = await self.refresh_token(settings)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{XERO_API}/CreditNotes/{xero_credit_note_id}",
+                headers=self._auth_headers(settings),
+                timeout=15,
+            )
+        resp.raise_for_status()
+        credit_notes = resp.json().get("CreditNotes", [])
+        if not credit_notes:
+            return {}
+        cn = credit_notes[0]
+        return {
+            "total": float(cn.get("Total", 0)),
+            "line_count": len(cn.get("LineItems", [])),
+            "status": cn.get("Status", ""),
+        }
 
     async def list_tracking_categories(self, settings: OrgSettings) -> list[dict]:
         if self._is_token_expired(settings):

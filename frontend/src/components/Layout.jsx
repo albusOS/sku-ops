@@ -16,9 +16,11 @@ import {
   History,
   FileText,
   ClipboardList,
+  ClipboardCheck,
   Briefcase,
   Building2,
   CreditCard,
+  ShieldCheck,
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
 
@@ -55,6 +57,7 @@ const Layout = ({ children }) => {
 
     const inventoryItems = [
       { path: "/inventory", icon: Package, label: "Inventory" },
+      { path: "/cycle-counts", icon: ClipboardCheck, label: "Cycle Counts" },
       { path: "/vendors", icon: Users, label: "Vendors" },
       { path: "/departments", icon: Layers, label: "Departments" },
       { path: "/import", icon: Truck, label: "Receive / Import" },
@@ -71,6 +74,7 @@ const Layout = ({ children }) => {
         { path: "/invoices", icon: FileText, label: "Invoices" },
         { path: "/payments", icon: CreditCard, label: "Payments" },
         { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
+        { path: "/xero-health", icon: ShieldCheck, label: "Xero Sync Health" },
       );
     }
 

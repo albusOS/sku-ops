@@ -2,6 +2,7 @@
 Supply Yard API - Material Management System.
 Main entry point: composes FastAPI app with routers from api package.
 """
+import asyncio
 import logging
 import traceback
 from contextlib import asynccontextmanager
@@ -14,7 +15,7 @@ from shared.infrastructure.logging_config import setup_logging
 
 setup_logging()
 
-from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed, is_test  # noqa: E402
+from shared.infrastructure.config import CORS_ORIGINS, cors_warn_in_deployed, is_test, XERO_SYNC_HOUR  # noqa: E402
 from shared.infrastructure.database import init_db, close_db  # noqa: E402
 from kernel.errors import DomainError  # noqa: E402
 from shared.infrastructure.middleware.request_id import RequestIDMiddleware  # noqa: E402
@@ -24,6 +25,42 @@ from shared.infrastructure.metrics import setup_sentry, setup_prometheus  # noqa
 from api import api_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+
+async def _xero_sync_loop() -> None:
+    """Background task: run the Xero sync job once per day at XERO_SYNC_HOUR UTC.
+
+    Wakes up every minute, checks whether the target hour has arrived, and
+    fires run_sync exactly once per calendar day. Skipped in test environment.
+    """
+    from datetime import datetime, timezone
+    last_run_date = None
+    logger.info("Xero nightly sync scheduler started (fires at %02d:00 UTC)", XERO_SYNC_HOUR)
+    while True:
+        try:
+            await asyncio.sleep(60)
+            now = datetime.now(timezone.utc)
+            if now.hour == XERO_SYNC_HOUR and now.date() != last_run_date:
+                last_run_date = now.date()
+                logger.info("Xero nightly sync starting for org 'default'")
+                try:
+                    from finance.application.xero_sync_job import run_sync
+                    summary = await run_sync("default")
+                    logger.info("Xero nightly sync complete: %s", {
+                        k: v for k, v in summary.items() if k != "errors"
+                    })
+                    if summary.get("errors"):
+                        logger.warning(
+                            "Xero nightly sync had %d error(s): %s",
+                            len(summary["errors"]), summary["errors"],
+                        )
+                except Exception as exc:
+                    logger.error("Xero nightly sync failed: %s", exc)
+        except asyncio.CancelledError:
+            logger.info("Xero nightly sync scheduler stopped")
+            return
+        except Exception as exc:
+            logger.error("Unexpected error in Xero sync loop: %s", exc)
 
 
 @asynccontextmanager
@@ -48,7 +85,24 @@ async def lifespan(app: FastAPI):
         await get_index("default")
     except Exception as e:
         logger.warning(f"BM25 index warm-up skipped: {e}")
+    try:
+        from finance.application.xero_startup_check import run_startup_check
+        await run_startup_check("default")
+    except Exception as e:
+        logger.warning("Xero startup check failed: %s", e)
+
+    sync_task = None
+    if not is_test:
+        sync_task = asyncio.create_task(_xero_sync_loop())
+
     yield
+
+    if sync_task is not None:
+        sync_task.cancel()
+        try:
+            await sync_task
+        except asyncio.CancelledError:
+            pass
     await close_db()
 
 

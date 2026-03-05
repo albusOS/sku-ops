@@ -1,0 +1,134 @@
+"""Cycle count repository — persistence for cycle_counts and cycle_count_items."""
+from typing import Optional
+
+from inventory.domain.cycle_count import CycleCount, CycleCountItem
+from shared.infrastructure.database import get_connection
+
+
+def _row(row) -> Optional[dict]:
+    if row is None:
+        return None
+    return dict(row) if hasattr(row, "keys") else {}
+
+
+async def insert_count(count: CycleCount, conn=None) -> None:
+    in_tx = conn is not None
+    conn = conn or get_connection()
+    d = count.model_dump()
+    await conn.execute(
+        """INSERT INTO cycle_counts
+           (id, organization_id, status, scope, created_by_id, created_by_name,
+            committed_by_id, committed_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            d["id"], d["organization_id"], d["status"], d.get("scope"),
+            d["created_by_id"], d.get("created_by_name", ""),
+            d.get("committed_by_id"), d.get("committed_at"), d["created_at"],
+        ),
+    )
+    if not in_tx:
+        await conn.commit()
+
+
+async def insert_item(item: CycleCountItem, conn=None) -> None:
+    in_tx = conn is not None
+    conn = conn or get_connection()
+    d = item.model_dump()
+    await conn.execute(
+        """INSERT INTO cycle_count_items
+           (id, cycle_count_id, product_id, sku, product_name,
+            snapshot_qty, counted_qty, variance, unit, notes, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            d["id"], d["cycle_count_id"], d["product_id"], d["sku"],
+            d.get("product_name", ""), d["snapshot_qty"],
+            d.get("counted_qty"), d.get("variance"),
+            d.get("unit", "each"), d.get("notes"), d["created_at"],
+        ),
+    )
+    if not in_tx:
+        await conn.commit()
+
+
+async def update_item_counted(
+    item_id: str,
+    counted_qty: float,
+    variance: float,
+    notes: Optional[str],
+    conn=None,
+) -> Optional[dict]:
+    in_tx = conn is not None
+    conn = conn or get_connection()
+    cursor = await conn.execute(
+        """UPDATE cycle_count_items
+           SET counted_qty = ?, variance = ?, notes = ?
+           WHERE id = ?
+           RETURNING *""",
+        (counted_qty, variance, notes, item_id),
+    )
+    row = await cursor.fetchone()
+    if not in_tx:
+        await conn.commit()
+    return _row(row)
+
+
+async def commit_count(
+    count_id: str,
+    committed_by_id: str,
+    committed_at: str,
+    conn=None,
+) -> None:
+    in_tx = conn is not None
+    conn = conn or get_connection()
+    await conn.execute(
+        """UPDATE cycle_counts
+           SET status = 'committed', committed_by_id = ?, committed_at = ?
+           WHERE id = ?""",
+        (committed_by_id, committed_at, count_id),
+    )
+    if not in_tx:
+        await conn.commit()
+
+
+async def get_count(count_id: str, organization_id: str, conn=None) -> Optional[dict]:
+    conn = conn or get_connection()
+    cursor = await conn.execute(
+        "SELECT * FROM cycle_counts WHERE id = ? AND organization_id = ?",
+        (count_id, organization_id),
+    )
+    return _row(await cursor.fetchone())
+
+
+async def list_counts(organization_id: str, status: Optional[str] = None) -> list:
+    conn = get_connection()
+    if status:
+        cursor = await conn.execute(
+            "SELECT * FROM cycle_counts WHERE organization_id = ? AND status = ? ORDER BY created_at DESC",
+            (organization_id, status),
+        )
+    else:
+        cursor = await conn.execute(
+            "SELECT * FROM cycle_counts WHERE organization_id = ? ORDER BY created_at DESC",
+            (organization_id,),
+        )
+    rows = await cursor.fetchall()
+    return [_row(r) for r in rows]
+
+
+async def list_items(cycle_count_id: str) -> list:
+    conn = get_connection()
+    cursor = await conn.execute(
+        "SELECT * FROM cycle_count_items WHERE cycle_count_id = ? ORDER BY sku ASC",
+        (cycle_count_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row(r) for r in rows]
+
+
+async def get_item(item_id: str, cycle_count_id: str, conn=None) -> Optional[dict]:
+    conn = conn or get_connection()
+    cursor = await conn.execute(
+        "SELECT * FROM cycle_count_items WHERE id = ? AND cycle_count_id = ?",
+        (item_id, cycle_count_id),
+    )
+    return _row(await cursor.fetchone())

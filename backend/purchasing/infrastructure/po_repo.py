@@ -130,5 +130,34 @@ class PgPORepo(PORepoPort):
         )
         await conn.commit()
 
+    async def list_unsynced_po_bills(self, org_id: str) -> List[dict]:
+        """Return received POs with pending Xero sync."""
+        conn = get_connection()
+        cursor = await conn.execute(
+            """SELECT id, vendor_name, total, document_date, created_at
+               FROM purchase_orders
+               WHERE organization_id = ?
+                 AND status = 'received'
+                 AND xero_bill_id IS NULL
+                 AND xero_sync_status = 'pending'
+               ORDER BY created_at""",
+            (org_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def list_failed_po_bills(self, org_id: str) -> List[dict]:
+        conn = get_connection()
+        cursor = await conn.execute(
+            """SELECT id, vendor_name, total, document_date, created_at
+               FROM purchase_orders
+               WHERE organization_id = ?
+                 AND xero_sync_status = 'failed'
+               ORDER BY created_at""",
+            (org_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
 
 po_repo = PgPORepo()

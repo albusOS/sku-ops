@@ -198,6 +198,17 @@ async def record_po_receipt(
         await insert_entries(entries, conn=conn)
 
 
+_DAMAGE_REASONS = {"damage"}
+_THEFT_REASONS = {"theft"}
+
+
+def _offset_account_for_reason(reason: Optional[str]) -> Account:
+    """Route negative adjustments to the correct contra-inventory account."""
+    if reason in _DAMAGE_REASONS:
+        return Account.DAMAGE
+    return Account.SHRINKAGE
+
+
 async def record_adjustment(
     adjustment_ref_id: str,
     product_id: str,
@@ -205,13 +216,15 @@ async def record_adjustment(
     quantity_delta: float,
     department: Optional[str],
     organization_id: str,
+    reason: Optional[str] = None,
     performed_by_user_id: Optional[str] = None,
     conn=None,
 ) -> None:
-    """Write inventory + shrinkage entries for a stock count adjustment.
+    """Write inventory + contra entries for a stock adjustment.
 
-    Negative delta = shrinkage (cost goes to shrinkage account).
-    Positive delta = found stock (reverses prior shrinkage).
+    Negative delta: INVENTORY decreases, offset account (shrinkage or damage) increases.
+    Positive delta: INVENTORY increases, offset account decreases (found stock).
+    The offset account is determined by reason: 'damage' → DAMAGE, everything else → SHRINKAGE.
     """
     if await entries_exist(ReferenceType.ADJUSTMENT.value, adjustment_ref_id, conn=conn):
         return
@@ -222,6 +235,7 @@ async def record_adjustment(
 
     journal_id = str(uuid4())
     sign = -1 if quantity_delta < 0 else 1
+    offset_account = _offset_account_for_reason(reason)
     entries = [
         FinancialEntry(
             account=Account.INVENTORY, amount=sign * amount,
@@ -231,7 +245,7 @@ async def record_adjustment(
             reference_type=ReferenceType.ADJUSTMENT, reference_id=adjustment_ref_id, organization_id=organization_id,
         ),
         FinancialEntry(
-            account=Account.SHRINKAGE, amount=-sign * amount,
+            account=offset_account, amount=-sign * amount,
             journal_id=journal_id,
             department=department, product_id=product_id,
             performed_by_user_id=performed_by_user_id,

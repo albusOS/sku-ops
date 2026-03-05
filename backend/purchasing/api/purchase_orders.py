@@ -159,14 +159,9 @@ async def receive_items(
         request=request, org_id=org_id,
     )
     if result.get("cost_total", 0) > 0:
-        from finance.adapters.invoicing_factory import get_invoicing_gateway
-        from identity.application.org_service import get_org_settings
+        from finance.application.po_sync_service import queue_po_for_sync
         try:
-            settings = await get_org_settings(org_id)
-            gateway = get_invoicing_gateway(settings)
-            po_data = await po_repo.get_po(po_id, org_id)
-            if po_data:
-                await gateway.sync_po_receipt(po_data, result["cost_total"], settings)
+            await queue_po_for_sync(po_id)
         except Exception as e:
-            logger.warning("Xero PO receipt sync failed: %s", e)
+            logger.warning("Failed to queue PO %s for Xero sync: %s", po_id, e)
     return result
