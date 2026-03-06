@@ -14,10 +14,13 @@ import logging
 import os
 import re
 import time
+from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI, Request
 
 logger = logging.getLogger(__name__)
 

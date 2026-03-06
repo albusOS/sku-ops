@@ -4,8 +4,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from shared.infrastructure.config import REFRESH_TOKEN_EXPIRATION_DAYS
 from shared.infrastructure.database import get_connection
@@ -57,7 +56,7 @@ async def validate_and_rotate(raw_token: str) -> dict | None:
     if row["revoked"]:
         return None
 
-    expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
+    expires = datetime.fromisoformat(row["expires_at"])
     if expires < datetime.now(UTC):
         return None
 

@@ -8,7 +8,6 @@ Every event produces a set of entries grouped under a single journal_id
 so the transaction can be verified as balanced.
 """
 from datetime import UTC
-from typing import List, Optional
 from uuid import uuid4
 
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
@@ -18,7 +17,7 @@ from kernel.types import round_money
 
 async def _check_fiscal_period(organization_id: str) -> None:
     """Check that the current date is not in a closed fiscal period."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     now = datetime.now(UTC).isoformat()
     try:
         from finance.api.fiscal_periods import check_period_open
@@ -75,16 +74,16 @@ async def _record_sale_event(
         return
     await _check_fiscal_period(organization_id)
     journal_id = str(uuid4())
-    common = dict(
-        journal_id=journal_id,
-        job_id=job_id, billing_entity=billing_entity, contractor_id=contractor_id,
-        performed_by_user_id=performed_by_user_id,
-        reference_type=reference_type, reference_id=reference_id, organization_id=organization_id,
-    )
+    common = {
+        "journal_id": journal_id,
+        "job_id": job_id, "billing_entity": billing_entity, "contractor_id": contractor_id,
+        "performed_by_user_id": performed_by_user_id,
+        "reference_type": reference_type, "reference_id": reference_id, "organization_id": organization_id,
+    }
     entries: list[FinancialEntry] = []
 
     for item in items:
-        qty, unit, unit_price, cost, sell_cost, sell_uom, dept, pid = _extract_item(item)
+        qty, unit, unit_price, _cost, sell_cost, sell_uom, dept, pid = _extract_item(item)
         entries.append(FinancialEntry(
             account=Account.REVENUE,
             amount=round_money(sign * unit_price * qty),

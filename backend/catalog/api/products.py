@@ -1,5 +1,4 @@
 """Product CRUD routes."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -9,7 +8,7 @@ from catalog.application.product_lifecycle import delete_product as lifecycle_de
 from catalog.application.product_lifecycle import update_product as lifecycle_update
 from catalog.domain.barcode import validate_barcode
 from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
-from catalog.domain.product import Product, ProductCreate, ProductUpdate
+from catalog.domain.product import ProductCreate, ProductUpdate
 from catalog.domain.units import compute_sell_fields
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.product_repo import product_repo
@@ -55,7 +54,7 @@ async def get_products(
     low_stock: bool = False,
     limit: int | None = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
 ):
     org_id = current_user.organization_id
     is_contractor = current_user.role == "contractor"
@@ -82,7 +81,7 @@ async def get_products(
 
 
 @router.get("/by-barcode")
-async def get_product_by_barcode(barcode: str, current_user: CurrentUser = Depends(get_current_user)):
+async def get_product_by_barcode(barcode: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     """Look up product by barcode (for POS/request scan).
 
     Returns structured error detail so the UI can differentiate:
@@ -114,7 +113,7 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUser = Depen
 
 
 @router.get("/{product_id}", response_model=None)
-async def get_product(product_id: str, current_user: CurrentUser = Depends(get_current_user)):
+async def get_product(product_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
@@ -126,7 +125,7 @@ async def get_product(product_id: str, current_user: CurrentUser = Depends(get_c
 
 
 @router.post("/suggest-uom")
-async def suggest_uom(data: SuggestUomRequest, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def suggest_uom(data: SuggestUomRequest, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
     gen_text = None
     if LLM_AVAILABLE:
@@ -137,7 +136,7 @@ async def suggest_uom(data: SuggestUomRequest, current_user: CurrentUser = Depen
 
 
 @router.post("")
-async def create_product(data: ProductCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def create_product(data: ProductCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     department = await department_repo.get_by_id(data.department_id, org_id)
     if not department:
@@ -179,7 +178,7 @@ async def create_product(data: ProductCreate, current_user: CurrentUser = Depend
 
 
 @router.put("/{product_id}")
-async def update_product(product_id: str, data: ProductUpdate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def update_product(product_id: str, data: ProductUpdate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
@@ -198,7 +197,7 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Cur
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def delete_product(product_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:

@@ -1,7 +1,6 @@
 """Xero API adapter — real Xero API v2 via OAuth 2.0."""
 import logging
-from datetime import UTC, datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 

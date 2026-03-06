@@ -1,5 +1,4 @@
 """Billing entity domain models — the "who gets billed" master record."""
-from typing import Optional
 
 from pydantic import BaseModel
 

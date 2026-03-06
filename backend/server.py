@@ -5,7 +5,7 @@ Main entry point: composes FastAPI app with routers from api package.
 import asyncio
 import logging
 import traceback
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -43,7 +43,7 @@ async def _xero_sync_loop() -> None:
     Wakes up every minute, checks whether the target hour has arrived, and
     fires run_sync exactly once per calendar day. Skipped in test environment.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     last_run_date = None
     logger.info("Xero nightly sync scheduler started (fires at %02d:00 UTC)", XERO_SYNC_HOUR)
     while True:
@@ -65,12 +65,12 @@ async def _xero_sync_loop() -> None:
                             len(summary["errors"]), summary["errors"],
                         )
                 except Exception as exc:
-                    logger.error("Xero nightly sync failed: %s", exc)
+                    logger.exception("Xero nightly sync failed: %s", exc)
         except asyncio.CancelledError:
             logger.info("Xero nightly sync scheduler stopped")
             return
         except Exception as exc:
-            logger.error("Unexpected error in Xero sync loop: %s", exc)
+            logger.exception("Unexpected error in Xero sync loop: %s", exc)
 
 
 @asynccontextmanager
@@ -94,7 +94,7 @@ async def lifespan(app: FastAPI):
         from assistant.agents.tools.search import get_index
         await get_index("default")
     except Exception as e:
-        logger.warning(f"BM25 index warm-up skipped: {e}")
+        logger.warning("BM25 index warm-up skipped: %s", e)
     try:
         from finance.application.xero_startup_check import run_startup_check
         await run_startup_check("default")
@@ -136,10 +136,8 @@ async def lifespan(app: FastAPI):
 
     if sync_task is not None:
         sync_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await sync_task
-        except asyncio.CancelledError:
-            pass
     await close_db()
 
 

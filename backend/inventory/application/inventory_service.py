@@ -5,8 +5,7 @@ Every quantity change creates an immutable StockTransaction record.
 Withdrawals use atomic UPDATE with quantity guard to prevent overselling.
 Unit conversion happens here — stock is always stored in the product's base_unit.
 """
-from datetime import UTC, datetime, timezone
-from typing import List, Optional, Tuple
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from catalog.application.queries import (

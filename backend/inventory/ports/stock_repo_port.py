@@ -1,5 +1,5 @@
 """Stock repository port — testable contract for stock transaction persistence."""
-from typing import List, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from inventory.domain.stock import StockTransaction
 

@@ -5,11 +5,15 @@ HSTS is only added in deployed environments (staging/production).
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
 
 from shared.infrastructure.config import is_deployed
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
+    from starlette.responses import Response
 
 _COMMON_HEADERS = {
     "X-Content-Type-Options": "nosniff",

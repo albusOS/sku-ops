@@ -1,6 +1,5 @@
 """Material request repository."""
 import json
-from typing import Optional, Union
 
 from operations.domain.material_request import MaterialRequest
 from shared.infrastructure.database import get_connection

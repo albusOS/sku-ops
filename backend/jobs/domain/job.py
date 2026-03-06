@@ -1,13 +1,12 @@
 """Job domain models — master record for job/project tracking."""
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 from kernel.entity import AuditedEntity
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     ACTIVE = "active"
     COMPLETED = "completed"
     CANCELLED = "cancelled"

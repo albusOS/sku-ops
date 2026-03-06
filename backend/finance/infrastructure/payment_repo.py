@@ -1,5 +1,4 @@
 """Payment repository — persistence for payment records."""
-from typing import Optional, Union
 
 from finance.domain.payment import Payment
 from shared.infrastructure.database import get_connection

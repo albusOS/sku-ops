@@ -5,7 +5,6 @@ The route calls queue_po_for_sync(); the nightly job calls sync_pending_po_bills
 """
 import logging
 from datetime import UTC
-from typing import Optional
 
 from finance.adapters.invoicing_factory import get_invoicing_gateway
 from identity.application.org_service import get_org_settings
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def queue_po_for_sync(po_id: str) -> None:
     """Mark a PO as pending Xero sync. Called after stock is received."""
     conn = get_connection()
-    from datetime import datetime, timezone
+    from datetime import datetime
     now = datetime.now(UTC).isoformat()
     await conn.execute(
         "UPDATE purchase_orders SET xero_sync_status = 'pending', updated_at = ? WHERE id = ?",
@@ -28,7 +27,7 @@ async def queue_po_for_sync(po_id: str) -> None:
 
 async def set_po_xero_bill_id(po_id: str, xero_bill_id: str) -> None:
     conn = get_connection()
-    from datetime import datetime, timezone
+    from datetime import datetime
     now = datetime.now(UTC).isoformat()
     await conn.execute(
         "UPDATE purchase_orders SET xero_bill_id = ?, xero_sync_status = 'synced', updated_at = ? WHERE id = ?",
@@ -39,7 +38,7 @@ async def set_po_xero_bill_id(po_id: str, xero_bill_id: str) -> None:
 
 async def set_po_sync_status(po_id: str, status: str) -> None:
     conn = get_connection()
-    from datetime import datetime, timezone
+    from datetime import datetime
     now = datetime.now(UTC).isoformat()
     await conn.execute(
         "UPDATE purchase_orders SET xero_sync_status = ?, updated_at = ? WHERE id = ?",
@@ -113,7 +112,7 @@ async def sync_po_bill(po_id: str, org_id: str, cost_total: float | None = None)
         result = await gateway.sync_po_receipt(po, cost_total, settings)
     except Exception as e:
         await set_po_sync_status(po_id, "failed")
-        logger.error("PO bill sync failed for %s: %s", po_id, e)
+        logger.exception("PO bill sync failed for %s: %s", po_id, e)
         return {"po_id": po_id, "success": False, "error": str(e)}
 
     if result.success and result.xero_invoice_id:

@@ -3,7 +3,6 @@
 Other bounded contexts import from here, never from operations.infrastructure directly.
 Thin delegation layer that decouples consumers from infrastructure details.
 """
-from typing import Optional
 
 from operations.infrastructure.return_repo import return_repo as _ret_repo
 from operations.infrastructure.withdrawal_repo import withdrawal_repo as _wd_repo

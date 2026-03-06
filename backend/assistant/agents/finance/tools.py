@@ -1,7 +1,7 @@
 """Finance helper functions — DB query implementations for the finance agent."""
 import json
 import logging
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
 from finance.application.invoice_service import list_invoices

@@ -1,6 +1,5 @@
 """Address repository — persistence for the address book."""
 from datetime import UTC
-from typing import Optional, Union
 
 from shared.infrastructure.database import get_connection
 
@@ -91,7 +90,7 @@ async def ensure_address(display_text: str, organization_id: str, conn=None) -> 
     existing = await search(text, organization_id, limit=1)
     if existing and existing[0].get("line1", "").lower() == text.lower():
         return existing[0]
-    from datetime import datetime, timezone
+    from datetime import datetime
     from uuid import uuid4
     address = {
         "id": str(uuid4()),

@@ -185,7 +185,7 @@ async def _synthesize_dag_results(query: str, sections: dict) -> str:
         )
         return result.output if isinstance(result.output, str) else str(result.output)
     except Exception as e:
-        logger.warning(f"DAG synthesis failed, using raw format: {e}")
+        logger.warning("DAG synthesis failed, using raw format: %s", e)
         return _format_dag_sections(sections)
 
 

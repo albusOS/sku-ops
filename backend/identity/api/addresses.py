@@ -1,6 +1,5 @@
 """Address book routes — CRUD and autocomplete for saved addresses."""
-from datetime import UTC, datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,7 +31,7 @@ async def list_addresses(
     q: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     return await address_repo.list_addresses(
         organization_id=current_user.organization_id,
@@ -45,7 +44,7 @@ async def list_addresses(
 async def search_addresses(
     q: str = "",
     limit: int = 20,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
 ):
     """Autocomplete endpoint for address pickers."""
     if not q.strip():
@@ -56,7 +55,7 @@ async def search_addresses(
 
 
 @router.get("/{address_id}")
-async def get_address(address_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def get_address(address_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     addr = await address_repo.get_by_id(address_id, current_user.organization_id)
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
@@ -66,7 +65,7 @@ async def get_address(address_id: str, current_user: CurrentUser = Depends(requi
 @router.post("")
 async def create_address(
     data: AddressCreate,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     if not data.line1.strip():
         raise HTTPException(status_code=400, detail="Address line 1 is required")

@@ -1,6 +1,5 @@
 """Stock ledger - immutable inventory transaction records."""
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -16,7 +15,7 @@ class StockDecrement(BaseModel):
     unit: str = "each"
 
 
-class StockTransactionType(str, Enum):
+class StockTransactionType(StrEnum):
     """Types of stock movements."""
     WITHDRAWAL = "withdrawal"      # POS sale / contractor withdrawal
     RECEIVING = "receiving"       # Goods received from vendor

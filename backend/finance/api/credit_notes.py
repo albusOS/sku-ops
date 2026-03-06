@@ -1,5 +1,4 @@
 """Credit note routes."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -19,7 +18,7 @@ async def list_credit_notes(
     status: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     org_id = current_user.organization_id
     return await credit_note_repo.list_credit_notes(
@@ -35,7 +34,7 @@ async def list_credit_notes(
 @router.get("/{credit_note_id}")
 async def get_credit_note(
     credit_note_id: str,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     org_id = current_user.organization_id
     cn = await credit_note_repo.get_by_id(credit_note_id, org_id)
@@ -48,7 +47,7 @@ async def get_credit_note(
 async def apply_credit_note_to_invoice(
     credit_note_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Apply a credit note against its linked invoice, reducing the balance due."""
     org_id = current_user.organization_id

@@ -188,11 +188,11 @@ class TestCompleteSaleEntries:
 
         wid = str(uuid4())
         items = [{"quantity": 1, "unit_price": 100.0, "cost": 50.0, "product_id": "p1"}]
-        kwargs = dict(
-            withdrawal_id=wid, items=items, tax=8.0, total=108.0,
-            job_id="J1", billing_entity="ACME",
-            contractor_id="c1", organization_id="default",
-        )
+        kwargs = {
+            "withdrawal_id": wid, "items": items, "tax": 8.0, "total": 108.0,
+            "job_id": "J1", "billing_entity": "ACME",
+            "contractor_id": "c1", "organization_id": "default",
+        }
         await record_withdrawal(**kwargs)
         await record_withdrawal(**kwargs)
 

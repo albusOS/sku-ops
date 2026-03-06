@@ -74,7 +74,7 @@ async def run_tool(name: str, args: dict, org_id: str) -> str:
             result = await entry.fn(org_id)
         return result if isinstance(result, str) else str(result)
     except Exception as e:
-        logger.warning(f"Tool {name} failed: {e}")
+        logger.warning("Tool %s failed: %s", name, e)
         return f'{{"error": "{e}"}}'
 
 

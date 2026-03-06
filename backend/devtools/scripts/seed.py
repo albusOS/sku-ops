@@ -4,7 +4,7 @@ Lives in scripts/ to avoid cross-domain imports inside identity/.
 """
 import logging
 import os
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from catalog.application.product_lifecycle import create_product as lifecycle_create
@@ -74,7 +74,7 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
         if count > 0:
             return
         if not os.path.exists(DEMO_CSV_PATH):
-            logger.warning(f"Demo CSV not found: {DEMO_CSV_PATH}")
+            logger.warning("Demo CSV not found: %s", DEMO_CSV_PATH)
             return
 
         await seed_standard_departments(organization_id)
@@ -130,11 +130,11 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
                 )
                 imported += 1
             except Exception as e:
-                logger.debug(f"Demo seed skip {item.get('name')}: {e}")
+                logger.debug("Demo seed skip %s: %s", item.get('name'), e)
 
-        logger.info(f"Demo inventory seeded: {imported} products")
+        logger.info("Demo inventory seeded: %d products", imported)
     except Exception as e:
-        logger.warning(f"Demo inventory seed: {e}")
+        logger.warning("Demo inventory seed: %s", e)
 
 
 async def seed_mock_user(organization_id: str = "default"):
@@ -150,7 +150,7 @@ async def seed_mock_user(organization_id: str = "default"):
             user_dict["password"] = hash_password(MOCK_USER_PASSWORD)
             user_dict["organization_id"] = organization_id
             await user_repo.insert(user_dict)
-            logger.info(f"Mock user created: {MOCK_USER_EMAIL}")
+            logger.info("Mock user created: %s", MOCK_USER_EMAIL)
 
         existing_contractor = await user_repo.get_by_email(DEMO_CONTRACTOR_EMAIL)
         if not existing_contractor:
@@ -166,9 +166,9 @@ async def seed_mock_user(organization_id: str = "default"):
             contractor_dict["password"] = hash_password(MOCK_USER_PASSWORD)
             contractor_dict["organization_id"] = organization_id
             await user_repo.insert(contractor_dict)
-            logger.info(f"Demo contractor created: {DEMO_CONTRACTOR_EMAIL}")
+            logger.info("Demo contractor created: %s", DEMO_CONTRACTOR_EMAIL)
     except Exception as e:
-        logger.warning(f"Mock user seed: {e}")
+        logger.warning("Mock user seed: %s", e)
 
 
 async def seed_demo_tenants() -> None:
@@ -180,7 +180,7 @@ async def seed_demo_tenants() -> None:
             return
 
         if not os.path.exists(DEMO_CSV_PATH):
-            logger.warning(f"Demo CSV not found: {DEMO_CSV_PATH}, skipping product seed")
+            logger.warning("Demo CSV not found: %s, skipping product seed", DEMO_CSV_PATH)
 
         now = datetime.now(UTC).isoformat()
         rows = parse_csv_products(open(DEMO_CSV_PATH, "rb").read()) if os.path.exists(DEMO_CSV_PATH) else []
@@ -193,7 +193,7 @@ async def seed_demo_tenants() -> None:
                 "slug": org["slug"],
                 "created_at": now,
             })
-            logger.info(f"Created org: {org['name']}")
+            logger.info("Created org: %s", org['name'])
 
             await seed_standard_departments(org_id)
 
@@ -211,7 +211,7 @@ async def seed_demo_tenants() -> None:
                         "created_at": now,
                     }
                     await user_repo.insert(user_dict)
-                    logger.info(f"Created user: {email}")
+                    logger.info("Created user: %s", email)
 
             admin_user = await user_repo.get_by_email(f"admin@{org['slug']}.demo")
             if admin_user and rows:
@@ -250,9 +250,9 @@ async def seed_demo_tenants() -> None:
                         )
                         imported += 1
                     except Exception as e:
-                        logger.debug(f"Demo product skip {item.get('name')}: {e}")
-                logger.info(f"Seeded {imported} products for {org['name']}")
+                        logger.debug("Demo product skip %s: %s", item.get('name'), e)
+                logger.info("Seeded %d products for %s", imported, org['name'])
 
         logger.info("Demo tenants seeded successfully")
     except Exception as e:
-        logger.warning(f"Demo tenants seed: {e}")
+        logger.warning("Demo tenants seed: %s", e)

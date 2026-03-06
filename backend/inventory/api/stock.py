@@ -25,7 +25,7 @@ class AdjustStockRequest(BaseModel):
 async def get_product_stock_history(
     product_id: str,
     limit: int = Query(50, ge=1, le=500),
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     org_id = current_user.organization_id
     product = await get_product_by_id(product_id, organization_id=org_id)
@@ -40,7 +40,7 @@ async def adjust_stock(
     product_id: str,
     data: AdjustStockRequest,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     try:
         await process_adjustment_stock_changes(

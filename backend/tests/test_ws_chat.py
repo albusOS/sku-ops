@@ -11,13 +11,11 @@ Tests cover:
 import asyncio
 import json
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import jwt
 import pytest
-import pytest_asyncio
 from starlette.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 from identity.application.auth_service import create_token
 from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET
@@ -57,8 +55,6 @@ def _expired_token() -> str:
 
 def _make_mock_stream(text_chunks, tool_names=None):
     """Build a mock async iterator that yields PydanticAI stream events."""
-    from dataclasses import dataclass, field
-    from typing import Any
 
     from pydantic_ai import AgentRunResultEvent
     from pydantic_ai.messages import (

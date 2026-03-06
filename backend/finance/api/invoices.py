@@ -1,7 +1,6 @@
 """Invoice CRUD and Xero sync routes."""
 import logging
 from datetime import UTC
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -21,7 +20,7 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 async def sync_invoices_to_xero_bulk(
     data: InvoiceSyncXeroBulk,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Bulk sync selected invoices to Xero."""
     org_id = current_user.organization_id
@@ -48,7 +47,7 @@ async def get_invoices(
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """List invoices with optional filters."""
     org_id = current_user.organization_id
@@ -63,7 +62,7 @@ async def get_invoices(
 
 
 @router.get("/{invoice_id}")
-async def get_invoice(invoice_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+async def get_invoice(invoice_id: str, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     """Get invoice with line items and linked withdrawals."""
     org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)
@@ -76,7 +75,7 @@ async def get_invoice(invoice_id: str, current_user: CurrentUser = Depends(requi
 async def create_invoice(
     data: InvoiceCreate,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Create invoice from selected unpaid withdrawals. All must share same billing_entity."""
     org_id = current_user.organization_id
@@ -99,7 +98,7 @@ async def update_invoice(
     invoice_id: str,
     data: InvoiceUpdate,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Update invoice fields and/or line items."""
     org_id = current_user.organization_id
@@ -128,7 +127,7 @@ async def update_invoice(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Invoice update failed for {invoice_id}: {e}")
+        logger.exception("Invoice update failed for %s: %s", invoice_id, e)
         raise HTTPException(status_code=500, detail="Failed to update invoice")
     changes = {k: v for k, v in data.model_dump(exclude_none=True).items() if k != "line_items"}
     if data.line_items is not None:
@@ -142,7 +141,7 @@ async def update_invoice(
 
 
 @router.delete("/{invoice_id}")
-async def delete_invoice(invoice_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
+async def delete_invoice(invoice_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     """Delete draft invoice and unlink withdrawals."""
     org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)
@@ -166,7 +165,7 @@ async def delete_invoice(invoice_id: str, request: Request, current_user: Curren
 async def approve_invoice(
     invoice_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Approve a draft invoice, locking it for Xero sync."""
     org_id = current_user.organization_id
@@ -176,7 +175,7 @@ async def approve_invoice(
     if inv.get("status") != "draft":
         raise HTTPException(status_code=400, detail=f"Cannot approve invoice in '{inv.get('status')}' status")
 
-    from datetime import datetime, timezone
+    from datetime import datetime
     now = datetime.now(UTC).isoformat()
     updated = await invoice_repo.update(
         invoice_id,
@@ -201,7 +200,7 @@ async def approve_invoice(
 
 
 @router.post("/{invoice_id}/sync-xero")
-async def sync_invoice_to_xero(invoice_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
+async def sync_invoice_to_xero(invoice_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     """Sync a single invoice to Xero. Requires approved or sent status."""
     org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)

@@ -1,7 +1,7 @@
 """Document repository — persistence for uploaded/parsed documents."""
+import contextlib
 import json
 from datetime import UTC
-from typing import Optional, Union
 
 from documents.domain.document import Document
 from shared.infrastructure.database import get_connection
@@ -12,10 +12,8 @@ def _row_to_dict(row) -> dict | None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
     if d and "parsed_data" in d and isinstance(d["parsed_data"], str):
-        try:
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
             d["parsed_data"] = json.loads(d["parsed_data"])
-        except (json.JSONDecodeError, TypeError):
-            pass
     return d
 
 
@@ -81,7 +79,7 @@ async def list_documents(
 
 
 async def update_status(doc_id: str, status: str, po_id: str | None = None, conn=None) -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
     in_tx = conn is not None
     conn = conn or get_connection()
     if po_id:

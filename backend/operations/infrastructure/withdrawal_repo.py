@@ -1,6 +1,5 @@
 """Withdrawal repository."""
 import json
-from typing import Optional, Union
 from uuid import uuid4
 
 from operations.domain.withdrawal import MaterialWithdrawal
@@ -147,7 +146,7 @@ async def bulk_mark_paid(withdrawal_ids: list, paid_at: str, organization_id: st
     placeholders = ",".join("?" * len(withdrawal_ids))
     cursor = await conn.execute(
         f"UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id IN ({placeholders}) AND (organization_id = ? OR organization_id IS NULL)",
-        [paid_at] + withdrawal_ids + [org_id],
+        [paid_at, *withdrawal_ids, org_id],
     )
     await conn.commit()
     return cursor.rowcount

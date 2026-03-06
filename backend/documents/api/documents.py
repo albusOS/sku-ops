@@ -63,15 +63,15 @@ async def _persist_parsed_document(extracted: dict, filename: str, content_type:
         await document_repo.insert(doc)
         extracted["document_id"] = doc.id
     except Exception as e:
-        logger.warning(f"Failed to persist document record: {e}")
+        logger.warning("Failed to persist document record: %s", e)
     return extracted
 
 
 @router.post("/parse")
 async def parse_document(
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
     use_ai: bool = False,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """Parse image or PDF. use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR."""
     contents = await file.read()
@@ -94,7 +94,7 @@ async def parse_document(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            logger.error(f"OCR parse error: {e}")
+            logger.exception("OCR parse error: %s", e)
             raise HTTPException(status_code=500, detail=str(e))
 
     if not ANTHROPIC_AVAILABLE:
@@ -137,7 +137,7 @@ async def parse_document(
             except ValueError as e:
                 if "rate limit" in str(e).lower() and attempt < _PARSE_MAX_RETRIES:
                     delay = _PARSE_RETRY_DELAYS[attempt]
-                    logger.info(f"Rate limit, retrying in {delay}s (attempt {attempt + 1})")
+                    logger.info("Rate limit, retrying in %ss (attempt %d)", delay, attempt + 1)
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -162,26 +162,26 @@ async def parse_document(
 
         return await _persist_parsed_document(extracted, filename, content_type, len(contents), current_user)
     except json.JSONDecodeError as e:
-        logger.error(f"Document parse JSON error: {e}")
+        logger.exception("Document parse JSON error: %s", e)
         raise HTTPException(status_code=422, detail="Could not parse document data")
     except HTTPException:
         raise
     except ValueError as e:
-        logger.warning(f"Document parse: {e}")
+        logger.warning("Document parse: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Document parse error: {e}")
+        logger.exception("Document parse error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("")
 async def list_documents(
-    status: str = None,
-    vendor_name: str = None,
-    po_id: str = None,
+    status: str | None = None,
+    vendor_name: str | None = None,
+    po_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """List uploaded/parsed documents."""
     return await document_repo.list_documents(
@@ -192,7 +192,7 @@ async def list_documents(
 
 
 @router.get("/{doc_id}")
-async def get_document(doc_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def get_document(doc_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     doc = await document_repo.get_by_id(doc_id, current_user.organization_id)
     if not doc:
         from fastapi import HTTPException as _E
@@ -212,7 +212,7 @@ async def _wired_classify_uom_batch(products):
 @router.post("/import")
 async def import_document(
     data: DocumentImportRequest,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """Import parsed products; create or match vendor."""
     deps = ImportDeps(
@@ -242,5 +242,5 @@ async def import_document(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Document import failed: {e}")
+        logger.exception("Document import failed: %s", e)
         raise HTTPException(status_code=500, detail="Import failed — please check the file and try again")

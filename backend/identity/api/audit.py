@@ -1,15 +1,14 @@
 """Audit log read API — exposes the audit trail for admin review and export."""
+import contextlib
 import csv
 import io
 import json
 from datetime import datetime
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/audit-log", tags=["audit-log"])
@@ -58,7 +57,7 @@ async def _query_audit_log(
 
     cursor = await conn.execute(
         f"SELECT * FROM audit_log {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        params + [limit, offset],
+        [*params, limit, offset],
     )
     rows = await cursor.fetchall()
 
@@ -66,10 +65,8 @@ async def _query_audit_log(
     for row in rows:
         d = dict(row)
         if d.get("details"):
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 d["details"] = json.loads(d["details"])
-            except (json.JSONDecodeError, TypeError):
-                pass
         entries.append(d)
 
     return entries, total
@@ -85,7 +82,7 @@ async def list_audit_log(
     end_date: str | None = None,
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: AdminDep,
 ):
     """List audit log entries with optional filters. Admin only."""
     org_id = current_user.organization_id
@@ -105,7 +102,7 @@ async def list_audit_log(
 
 @router.get("/actions")
 async def list_audit_actions(
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: AdminDep,
 ):
     """Return distinct action names for filter dropdowns."""
     conn = get_connection()
@@ -125,7 +122,7 @@ async def export_audit_log(
     resource_type: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: AdminDep,
 ):
     """Export audit log as CSV. Admin only."""
     org_id = current_user.organization_id

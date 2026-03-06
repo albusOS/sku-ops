@@ -60,4 +60,4 @@ async def extract_and_save(
             await save(org_id, user_id, session_id, artifacts)
 
     except Exception as e:
-        logger.warning(f"Memory extraction failed (non-critical): {e}")
+        logger.warning("Memory extraction failed (non-critical): %s", e)

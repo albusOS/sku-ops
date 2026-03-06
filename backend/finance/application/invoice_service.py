@@ -1,6 +1,6 @@
 """Invoice application services — safe for cross-context import."""
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from finance.adapters.invoicing_factory import get_invoicing_gateway
 from finance.infrastructure.invoice_repo import invoice_repo as _default_invoice_repo

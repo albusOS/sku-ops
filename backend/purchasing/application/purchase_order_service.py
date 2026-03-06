@@ -6,8 +6,8 @@ on receive. All types are explicit — no dicts flowing across domain boundaries
 """
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timezone
-from typing import Any, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from finance.application.ledger_service import record_po_receipt as _record_ledger

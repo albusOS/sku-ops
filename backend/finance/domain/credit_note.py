@@ -1,5 +1,4 @@
 """Credit note models — issued when materials are returned."""
-from typing import Optional
 
 from pydantic import BaseModel
 

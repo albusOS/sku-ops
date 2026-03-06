@@ -6,12 +6,12 @@ Pure data models with no side effects; safe to import anywhere.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
-class Complexity(str, Enum):
+class Complexity(StrEnum):
     """Query intent — drives dispatch to the cheapest correct path."""
     TRIVIAL = "trivial"
     LOOKUP = "lookup"

@@ -7,10 +7,11 @@ Run standalone:  cd backend && python -m devtools.scripts.seed_full
 Or via API:      POST /api/seed/seed-full
 """
 import asyncio
+import contextlib
 import json
 import logging
 import random
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -64,10 +65,8 @@ async def _clear_all_tables(conn) -> None:
         "refresh_tokens", "users", "organizations",
     ]
     for t in tables:
-        try:
+        with contextlib.suppress(Exception):
             await conn.execute(f"DELETE FROM {t}")
-        except Exception:
-            pass
     await conn.commit()
 
 
@@ -148,7 +147,7 @@ async def main():
             "id": vid, **v, "product_count": 0,
             "created_at": now_iso, "organization_id": org_id,
         })
-        logger.info(f"  {v['name']}")
+        logger.info("  %s", v['name'])
 
     # ══════════════════════════════════════════════════════════════════════
     # 2. PRODUCTS (from seed_realistic)
@@ -181,11 +180,11 @@ async def main():
             if p["name"] not in products_by_name:
                 products_by_name[p["name"]] = prod_dict
             all_products.append(prod_dict)
-            logger.info(f"  {product.sku} | {p['name']}")
+            logger.info("  %s | %s", product.sku, p['name'])
         except Exception as e:
-            logger.warning(f"  Skip {p['name']}: {e}")
+            logger.warning("  Skip %s: %s", p['name'], e)
 
-    logger.info(f"  {len(products_by_name)} unique products")
+    logger.info("  %d unique products", len(products_by_name))
 
     # ══════════════════════════════════════════════════════════════════════
     # 3. CONTRACTORS (8 new + original demo contractor)

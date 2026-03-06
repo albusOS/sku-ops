@@ -180,12 +180,12 @@ class TestAdjustmentDoubleEntry:
     async def test_idempotent_adjustment_recording(self, db):
         """Calling record_adjustment twice with the same ref_id must not duplicate entries."""
         ref = str(uuid4())
-        kwargs = dict(
-            adjustment_ref_id=ref, product_id="p1",
-            product_cost=10.0, quantity_delta=-2.0,
-            department="Hardware", organization_id="default",
-            reason="damage",
-        )
+        kwargs = {
+            "adjustment_ref_id": ref, "product_id": "p1",
+            "product_cost": 10.0, "quantity_delta": -2.0,
+            "department": "Hardware", "organization_id": "default",
+            "reason": "damage",
+        }
         await record_adjustment(**kwargs)
         await record_adjustment(**kwargs)
 

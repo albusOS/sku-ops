@@ -16,7 +16,7 @@ router = APIRouter(prefix="/xero", tags=["xero"])
 
 @router.get("/health")
 async def get_xero_health(
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Return a snapshot of all Xero sync exceptions for the sync health dashboard."""
     org_id = current_user.organization_id
@@ -49,7 +49,7 @@ async def get_xero_health(
 
 @router.post("/sync")
 async def trigger_sync(
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Manually trigger a full Xero sync + reconciliation for the org."""
     from finance.application.xero_sync_job import run_sync
@@ -58,5 +58,5 @@ async def trigger_sync(
         summary = await run_sync(org_id)
         return {"success": True, "summary": summary}
     except Exception as e:
-        logger.error("Manual Xero sync failed for org %s: %s", org_id, e)
+        logger.exception("Manual Xero sync failed for org %s: %s", org_id, e)
         return {"success": False, "error": str(e)}

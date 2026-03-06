@@ -1,2 +1,2 @@
 """Ops agent package."""
-from .agent import run  # noqa: F401
+from assistant.agents.ops.agent import run  # noqa: F401

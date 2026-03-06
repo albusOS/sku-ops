@@ -1,5 +1,4 @@
 """Per-org settings model (Xero config, account codes)."""
-from typing import Optional
 
 from pydantic import BaseModel
 

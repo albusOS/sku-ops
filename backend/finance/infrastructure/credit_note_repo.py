@@ -1,6 +1,5 @@
 """Credit note repository."""
-from datetime import UTC, datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from shared.infrastructure.database import get_connection
@@ -203,7 +202,7 @@ async def apply_credit_note(credit_note_id: str, organization_id: str | None = N
         (new_credited, now, inv_id),
     )
 
-    if balance_due <= 0 and inv.get("status") not in ("paid",):
+    if balance_due <= 0 and inv.get("status") != "paid":
         await conn.execute(
             "UPDATE invoices SET status = 'paid', updated_at = ? WHERE id = ?",
             (now, inv_id),

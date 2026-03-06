@@ -1,2 +1,2 @@
 """Inventory agent package."""
-from .agent import run  # noqa: F401
+from assistant.agents.inventory.agent import run  # noqa: F401

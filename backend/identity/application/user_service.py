@@ -1,5 +1,4 @@
 """User application service — safe for cross-context import."""
-from typing import Optional
 
 from identity.domain.user import AdminUserCreate, User, UserCreate, UserUpdate  # noqa: F401
 from identity.infrastructure.user_repo import user_repo as _repo

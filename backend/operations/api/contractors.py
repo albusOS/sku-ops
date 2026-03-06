@@ -1,5 +1,4 @@
 """Contractor management routes (admin only)."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -26,14 +25,14 @@ router = APIRouter(prefix="/contractors", tags=["contractors"])
 @router.get("")
 async def get_contractors(
     search: str | None = Query(None, description="Search by name, email, company, billing entity, or phone"),
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     org_id = current_user.organization_id
     return await list_contractors(org_id, search=search)
 
 
 @router.post("")
-async def create_contractor(data: UserCreate, current_user: CurrentUser = Depends(require_role("admin"))):
+async def create_contractor(data: UserCreate, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     existing = await get_user_by_email(data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -60,7 +59,7 @@ async def create_contractor(data: UserCreate, current_user: CurrentUser = Depend
 
 
 @router.put("/{contractor_id}")
-async def update_contractor(contractor_id: str, data: UserUpdate, current_user: CurrentUser = Depends(require_role("admin"))):
+async def update_contractor(contractor_id: str, data: UserUpdate, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":
@@ -74,7 +73,7 @@ async def update_contractor(contractor_id: str, data: UserUpdate, current_user: 
 
 
 @router.delete("/{contractor_id}")
-async def delete_contractor(contractor_id: str, current_user: CurrentUser = Depends(require_role("admin"))):
+async def delete_contractor(contractor_id: str, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":

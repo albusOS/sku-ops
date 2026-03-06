@@ -1,9 +1,8 @@
 """Dashboard stats routes."""
 import asyncio
-from datetime import UTC, datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from catalog.application.queries import (
     count_all_products,
@@ -29,7 +28,7 @@ def _parse_date_range(start_date: str | None, end_date: str | None):
 
 def _parse_iso(s: str) -> datetime:
     """Parse an ISO date string, handling the trailing 'Z' that JS produces."""
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    return datetime.fromisoformat(s)
 
 
 def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> list:
@@ -57,7 +56,7 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
 async def get_dashboard_stats(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
 ):
     now = datetime.now(UTC)
     org_id = current_user.organization_id
@@ -171,7 +170,7 @@ async def get_dashboard_transactions(
     end_date: str | None = Query(None),
     contractor_id: str | None = Query(None),
     payment_status: str | None = Query(None),
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """Paginated transactions for the dashboard. Supports date range + filters."""
     org_id = current_user.organization_id

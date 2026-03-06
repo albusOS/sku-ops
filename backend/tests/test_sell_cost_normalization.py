@@ -8,8 +8,7 @@ Covers:
   5. Xero adapter builds per-line itemized COGS journal (not one aggregate entry)
   6. Xero adapter uses sell_cost over cost when available
 """
-from datetime import UTC, datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -347,19 +346,19 @@ async def test_invoice_line_items_carry_sell_cost(db):
 # ── 5 & 6. Xero adapter: per-line COGS journal ────────────────────────────────
 
 def _settings(**overrides) -> OrgSettings:
-    base = dict(
-        organization_id="org-1",
-        xero_access_token="tok-valid",
-        xero_refresh_token="refresh-valid",
-        xero_tenant_id="tenant-abc",
-        xero_token_expiry=(
+    base = {
+        "organization_id": "org-1",
+        "xero_access_token": "tok-valid",
+        "xero_refresh_token": "refresh-valid",
+        "xero_tenant_id": "tenant-abc",
+        "xero_token_expiry": (
             datetime.now(UTC) + timedelta(hours=1)
         ).isoformat(),
-        xero_sales_account_code="200",
-        xero_cogs_account_code="500",
-        xero_inventory_account_code="630",
-        xero_ap_account_code="800",
-    )
+        "xero_sales_account_code": "200",
+        "xero_cogs_account_code": "500",
+        "xero_inventory_account_code": "630",
+        "xero_ap_account_code": "800",
+    }
     base.update(overrides)
     return OrgSettings(**base)
 
@@ -422,7 +421,7 @@ class TestBuildCogsJournalLines:
 
     def test_returns_two_lines_per_item(self):
         invoice = _invoice_with_sell_cost()
-        lines, total = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
+        lines, _total = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
         # 2 items × 2 lines (cogs + inventory) = 4 lines
         assert len(lines) == 4
 

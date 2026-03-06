@@ -1,11 +1,10 @@
 """Cycle count domain — snapshot-based physical inventory counting."""
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from kernel.entity import Entity
 
 
-class CycleCountStatus(str, Enum):
+class CycleCountStatus(StrEnum):
     OPEN = "open"
     COMMITTED = "committed"
 

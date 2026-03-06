@@ -1,5 +1,5 @@
 """Material request routes - contractor pick list, staff processes into withdrawal."""
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 
 @router.post("")
-async def create_material_request(data: MaterialRequestCreate, current_user: CurrentUser = Depends(get_current_user)):
+async def create_material_request(data: MaterialRequestCreate, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     """Contractor creates a material request (pick list). Staff will process it into a withdrawal."""
     if current_user.role != "contractor":
         raise HTTPException(status_code=403, detail="Only contractors can create material requests")
@@ -62,7 +62,7 @@ async def create_material_request(data: MaterialRequestCreate, current_user: Cur
 
 
 @router.get("")
-async def list_material_requests(current_user: CurrentUser = Depends(get_current_user)):
+async def list_material_requests(current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     """Contractors see own requests; admin/WM see all pending."""
     org_id = current_user.organization_id
     role = current_user.role
@@ -77,7 +77,7 @@ async def list_material_requests(current_user: CurrentUser = Depends(get_current
 
 
 @router.get("/{request_id}")
-async def get_material_request(request_id: str, current_user: CurrentUser = Depends(get_current_user)):
+async def get_material_request(request_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     org_id = current_user.organization_id
     req = await material_request_repo.get_by_id(request_id, org_id)
     if not req:
@@ -92,7 +92,7 @@ async def get_material_request(request_id: str, current_user: CurrentUser = Depe
 async def process_material_request(
     request_id: str,
     data: MaterialRequestProcess,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """Convert a pending material request into a withdrawal. Staff supplies job_id and service_address."""
     org_id = current_user.organization_id

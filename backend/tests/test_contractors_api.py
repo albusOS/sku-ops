@@ -1,5 +1,4 @@
 """Contractors API tests — list, search."""
-import pytest
 import pytest_asyncio
 
 from identity.application.auth_service import create_token

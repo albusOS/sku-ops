@@ -5,7 +5,6 @@ Anthropic SDK construction for backward compatibility.
 """
 import base64
 import logging
-from typing import Optional
 
 from shared.infrastructure.config import (
     ANTHROPIC_API_KEY,
@@ -67,7 +66,7 @@ def generate_text(prompt: str, system_instruction: str | None = None) -> str | N
         response = client.messages.create(**kwargs)
         return response.content[0].text
     except Exception as e:
-        logger.warning(f"Anthropic generate_text failed: {e}")
+        logger.warning("Anthropic generate_text failed: %s", e)
         return None
 
 

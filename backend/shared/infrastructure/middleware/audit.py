@@ -5,7 +5,7 @@ Usage in routes:
     from shared.infrastructure.middleware.audit import audit_log
 
     @router.post("/some-sensitive-action")
-    async def handler(request: Request, current_user = Depends(get_current_user)):
+    async def handler(request: Request, current_user = Depends(get_current_user)):  # noqa: B008
         # ... perform action ...
         await audit_log(
             user_id=current_user["id"],
@@ -24,12 +24,13 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import UTC, datetime, timezone
-from typing import Optional
-
-from starlette.requests import Request
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from shared.infrastructure.database import get_connection
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
 

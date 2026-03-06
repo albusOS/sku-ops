@@ -57,7 +57,7 @@ def test_ai_health_configured(client):
 
 # ── Auth enforcement ──────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("method,path", PROTECTED_ENDPOINTS)
+@pytest.mark.parametrize(("method", "path"), PROTECTED_ENDPOINTS)
 def test_endpoint_requires_auth(client, method, path):
     """Every protected endpoint must reject unauthenticated requests with 401 or 403."""
     response = client.request(method, path, json={})

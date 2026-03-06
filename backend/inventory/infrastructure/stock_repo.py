@@ -1,5 +1,4 @@
 """Stock transaction repository."""
-from typing import Optional, Union
 
 from inventory.domain.stock import StockTransaction
 from shared.infrastructure.database import get_connection

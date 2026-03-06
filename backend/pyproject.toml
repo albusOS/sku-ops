@@ -43,7 +43,6 @@ dependencies = [
     "PyYAML>=6.0",
     "tzdata>=2024.2",
     # ── Production hardening ──
-    "slowapi>=0.1.9",
     "python-json-logger>=2.0.7",
     "prometheus-client>=0.20.0",
     "sentry-sdk[fastapi]>=1.40.0",
@@ -119,16 +118,14 @@ select = [
     "YTT",    # flake8-2020
 ]
 ignore = [
-    "E501",    # line-too-long (formatter handles)
-    "S101",    # assert used in tests + runtime contracts
-    "TRY003",  # inline raise messages (project style)
-    "TRY300",  # try-consider-else (stylistic)
-    "RET504",  # assign-before-return (stylistic)
-    "B008",    # function-call-in-default-argument (FastAPI Depends() pattern)
-    "PLC0415", # import-outside-top-level (FastAPI DI + lazy imports)
-    "ARG002",  # unused-method-argument (framework callback signatures)
+    "E501",   # line-too-long (formatter handles)
+    "PLC0415",  # import-outside-top-level: lazy imports to avoid circular deps / defer heavy loads
+    "S101",   # assert used in tests + runtime contracts
+    "TRY003", # inline raise messages (project style)
+    "TRY300", # try-consider-else (stylistic)
+    "RET504", # assign-before-return (stylistic)
 ]
-unfixable = ["F401", "F841"]
+unfixable = ["F841"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["N806", "PLR2004", "PLR0913", "PLR0915", "S108", "ARG001"]

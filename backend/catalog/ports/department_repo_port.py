@@ -1,5 +1,5 @@
 """Department repository port — testable contract for department persistence."""
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from catalog.domain.department import Department
 

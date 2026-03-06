@@ -1,6 +1,5 @@
 """Document domain models for receipt/invoice parsing and archival."""
-from enum import Enum
-from typing import List, Optional
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -33,14 +32,14 @@ class DocumentImportRequest(BaseModel):
     products: list[DocumentLineItem]
 
 
-class DocumentType(str, Enum):
+class DocumentType(StrEnum):
     RECEIPT = "receipt"
     INVOICE = "invoice"
     PACKING_SLIP = "packing_slip"
     OTHER = "other"
 
 
-class DocumentStatus(str, Enum):
+class DocumentStatus(StrEnum):
     PARSED = "parsed"
     IMPORTED = "imported"
     REJECTED = "rejected"

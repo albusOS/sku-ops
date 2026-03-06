@@ -1,5 +1,4 @@
 """Purchase order repository — typed implementation of PORepoPort."""
-from typing import List, Optional
 
 from purchasing.domain.purchase_order import POItemStatus, PurchaseOrder, PurchaseOrderItem
 from purchasing.ports.po_repo_port import PORepoPort

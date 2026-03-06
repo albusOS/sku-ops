@@ -1,6 +1,5 @@
 """Return models — reversing all or part of a material withdrawal."""
-from enum import Enum
-from typing import List, Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,7 +7,7 @@ from kernel.entity import AuditedEntity
 from kernel.types import round_money
 
 
-class ReturnReason(str, Enum):
+class ReturnReason(StrEnum):
     WRONG_ITEM = "wrong_item"
     DEFECTIVE = "defective"
     OVERORDER = "overorder"

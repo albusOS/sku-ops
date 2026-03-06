@@ -1,7 +1,7 @@
 """Inventory agent tool implementations — DB queries and search helpers."""
 import json
 import logging
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
 from assistant.agents.tools.search import get_index

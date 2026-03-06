@@ -5,7 +5,7 @@ All product creation (API, CSV import, document import) flows through this servi
 Uses transactions to ensure product_count and stock ledger stay in sync.
 """
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Optional
 
 from catalog.application.sku_service import generate_sku

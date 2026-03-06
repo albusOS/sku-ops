@@ -13,7 +13,6 @@ from kernel.types import CurrentUser
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
     _resolve_po_item_cost,
-    mark_delivery_received,
     receive_po_items,
 )
 from purchasing.domain.purchase_order import (

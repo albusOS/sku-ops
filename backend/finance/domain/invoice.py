@@ -1,6 +1,6 @@
 """Invoice models."""
-from datetime import datetime, timedelta, timezone
-from typing import ClassVar, List, Optional
+from datetime import datetime, timedelta
+from typing import ClassVar
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +21,7 @@ PAYMENT_TERMS_DAYS: dict[str, int] = {
 def compute_due_date(invoice_date: str, payment_terms: str) -> str:
     """Return ISO due-date string from invoice_date + payment_terms."""
     days = PAYMENT_TERMS_DAYS.get(payment_terms, 30)
-    dt = datetime.fromisoformat(invoice_date.replace("Z", "+00:00"))
+    dt = datetime.fromisoformat(invoice_date)
     due = dt + timedelta(days=days)
     return due.isoformat()
 

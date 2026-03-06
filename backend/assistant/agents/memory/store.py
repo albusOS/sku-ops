@@ -7,7 +7,7 @@ about recurring contractors, products, and user preferences.
 import json
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from shared.infrastructure.database import get_connection
@@ -49,7 +49,7 @@ async def save(org_id: str, user_id: str, session_id: str, artifacts: list[dict]
         rows,
     )
     await conn.commit()
-    logger.info(f"Memory: saved {len(rows)} artifacts for user={user_id}")
+    logger.info("Memory: saved %d artifacts for user=%s", len(rows), user_id)
 
 
 async def recall(org_id: str, user_id: str, limit: int = 15) -> str:

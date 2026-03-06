@@ -7,7 +7,6 @@ import asyncio
 import csv
 import io
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -24,7 +23,7 @@ router = APIRouter(prefix="/financials", tags=["financials"])
 async def get_financial_summary(
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """P&L summary sourced from the financial ledger."""
     org_id = current_user.organization_id
@@ -95,7 +94,7 @@ async def export_financials(
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Export financial data as CSV (line-level, from operational tables)."""
     org_id = current_user.organization_id

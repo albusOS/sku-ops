@@ -2,10 +2,10 @@
 Document import helpers: UOM resolution, department suggestion, CSV parsing.
 Used by document import, CSV import, and seed flows.
 """
+import contextlib
 import csv
 import io
 import re
-from typing import Optional, Tuple
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
 
@@ -88,10 +88,8 @@ def infer_uom(name: str) -> tuple[str, str, int]:
         if m and unit in ALLOWED_BASE_UNITS:
             pq = 1
             if m.groups() and m.group(1):
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     pq = max(1, int(m.group(1)))
-                except (ValueError, TypeError):
-                    pass
             return unit, unit, pq
 
     # 2. Roll (before linear - tape, mesh are roll not foot)
@@ -226,10 +224,8 @@ def parse_csv_products(content: bytes) -> list:
             continue
 
         qty = 0.0
-        try:
+        with contextlib.suppress(ValueError, TypeError, IndexError):
             qty = float((row[col_map.get("quantity", 3)] or "0").replace(",", ""))
-        except (ValueError, TypeError, IndexError):
-            pass
 
         cost = parse_dollar(row[col_map.get("cost", 6)] if col_map.get("cost", 6) < len(row) else "0")
         price = parse_dollar(row[col_map.get("price", 8)] if col_map.get("price", 8) < len(row) else "0")
@@ -239,10 +235,8 @@ def parse_csv_products(content: bytes) -> list:
             cost = round(price * 0.7, 2)
 
         min_stock = 5
-        try:
+        with contextlib.suppress(ValueError, TypeError, IndexError):
             min_stock = max(0, int(float((row[col_map.get("min_stock", 5)] or "0").replace(",", ""))))
-        except (ValueError, TypeError, IndexError):
-            pass
         if min_stock == 0:
             min_stock = 5
 

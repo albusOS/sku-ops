@@ -1,4 +1,5 @@
 """Message extraction and history building for PydanticAI agent conversations."""
+import contextlib
 import json
 
 from pydantic_ai.messages import (
@@ -38,9 +39,11 @@ def extract_text_history(messages) -> list[dict]:  # type: ignore[type-arg]
                     if text:
                         out.append({"role": "user", "content": text})
         elif isinstance(msg, ModelResponse):
-            for resp_part in msg.parts:
-                if isinstance(resp_part, TextPart) and resp_part.content:
-                    out.append({"role": "assistant", "content": resp_part.content})
+            out.extend(
+                {"role": "assistant", "content": resp_part.content}
+                for resp_part in msg.parts
+                if isinstance(resp_part, TextPart) and resp_part.content
+            )
     return out
 
 
@@ -49,9 +52,11 @@ def extract_tool_calls(messages) -> list[dict]:
     out = []
     for msg in messages:
         if isinstance(msg, ModelResponse):
-            for part in msg.parts:
-                if isinstance(part, ToolCallPart):
-                    out.append({"tool": part.tool_name})
+            out.extend(
+                {"tool": part.tool_name}
+                for part in msg.parts
+                if isinstance(part, ToolCallPart)
+            )
     return out
 
 
@@ -72,10 +77,8 @@ def extract_tool_calls_detailed(messages) -> list[dict]:
                 if isinstance(resp_part, ToolCallPart):
                     args_raw = resp_part.args
                     if isinstance(args_raw, str):
-                        try:
+                        with contextlib.suppress(json.JSONDecodeError, TypeError):
                             args_raw = json.loads(args_raw)
-                        except (json.JSONDecodeError, TypeError):
-                            pass
                     entry = {
                         "tool": resp_part.tool_name,
                         "args": args_raw,

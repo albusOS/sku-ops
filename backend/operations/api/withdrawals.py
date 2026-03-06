@@ -1,8 +1,7 @@
 """Material withdrawal (POS) routes."""
-from datetime import UTC, datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from catalog.application.queries import list_products
 from finance.application.invoice_service import (
@@ -36,7 +35,7 @@ router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
 
 
 @router.post("", response_model=MaterialWithdrawal)
-async def create_withdrawal(data: MaterialWithdrawalCreate, request: Request, current_user: CurrentUser = Depends(get_current_user)):
+async def create_withdrawal(data: MaterialWithdrawalCreate, request: Request, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     """Create a material withdrawal - Contractors withdraw materials charged to their account"""
     contractor = current_user.model_dump()
     result = await do_create_withdrawal(data, contractor, current_user)
@@ -56,7 +55,7 @@ async def create_withdrawal_for_contractor(
     contractor_id: str,
     data: MaterialWithdrawalCreate,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """Warehouse manager creates withdrawal on behalf of a contractor"""
     org_id = current_user.organization_id
@@ -84,7 +83,7 @@ async def get_withdrawals(
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
 ):
     org_id = current_user.organization_id
     cid = current_user.id if current_user.role == "contractor" else contractor_id
@@ -100,7 +99,7 @@ async def get_withdrawals(
 
 
 @router.get("/{withdrawal_id}")
-async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends(get_current_user)):
+async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
@@ -113,7 +112,7 @@ async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends
 
 
 @router.put("/{withdrawal_id}/mark-paid")
-async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
+async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
@@ -140,7 +139,7 @@ async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_use
 
 
 @router.put("/bulk-mark-paid")
-async def bulk_mark_paid(request: Request, withdrawal_ids: list[str] = Body(...), current_user: CurrentUser = Depends(require_role("admin"))):
+async def bulk_mark_paid(request: Request, withdrawal_ids: list[str] = Body(...), current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     if len(withdrawal_ids) > 200:
         raise HTTPException(status_code=400, detail="Cannot mark more than 200 withdrawals at once")
     org_id = current_user.organization_id

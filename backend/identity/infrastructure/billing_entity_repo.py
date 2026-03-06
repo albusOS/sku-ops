@@ -1,6 +1,5 @@
 """Billing entity repository — persistence for billing entity master data."""
-from datetime import UTC, datetime, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime
 
 from identity.domain.billing_entity import BillingEntity
 from shared.infrastructure.database import get_connection

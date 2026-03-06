@@ -1,5 +1,4 @@
 """Department CRUD routes."""
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -13,13 +12,13 @@ router = APIRouter(prefix="/departments", tags=["departments"])
 
 
 @router.get("", response_model=list[Department])
-async def get_departments(current_user: CurrentUser = Depends(get_current_user)):
+async def get_departments(current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
     org_id = current_user.organization_id
     return await department_repo.list_all(org_id)
 
 
 @router.post("", response_model=Department)
-async def create_department(data: DepartmentCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def create_department(data: DepartmentCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     existing = await department_repo.get_by_code(data.code, org_id)
     if existing:
@@ -36,7 +35,7 @@ async def create_department(data: DepartmentCreate, current_user: CurrentUser = 
 
 
 @router.put("/{dept_id}", response_model=Department)
-async def update_department(dept_id: str, data: DepartmentCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def update_department(dept_id: str, data: DepartmentCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     existing = await department_repo.get_by_id(dept_id, org_id)
     if not existing:
@@ -46,7 +45,7 @@ async def update_department(dept_id: str, data: DepartmentCreate, current_user: 
 
 
 @router.delete("/{dept_id}")
-async def delete_department(dept_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
+async def delete_department(dept_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     org_id = current_user.organization_id
     existing = await department_repo.get_by_id(dept_id, org_id)
     if not existing:

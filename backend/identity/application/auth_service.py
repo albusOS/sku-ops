@@ -1,5 +1,8 @@
 """Authentication helpers and dependencies."""
-from datetime import UTC, datetime, timedelta, timezone
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import bcrypt
 import jwt
@@ -16,6 +19,8 @@ from shared.infrastructure.config import (
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 security = HTTPBearer()
+
+BearerToken = Annotated[HTTPAuthorizationCredentials, Depends(security)]
 
 
 def hash_password(password: str) -> str:
@@ -38,7 +43,7 @@ def create_token(user_id: str, email: str, role: str, organization_id: str = "de
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: BearerToken,
 ) -> CurrentUser:
     try:
         payload = jwt.decode(
@@ -61,7 +66,9 @@ async def get_current_user(
 
 
 def require_role(*roles):
-    async def role_checker(current_user: CurrentUser = Depends(get_current_user)):
+    async def role_checker(
+        current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    ) -> CurrentUser:
         if current_user.role not in roles:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return current_user

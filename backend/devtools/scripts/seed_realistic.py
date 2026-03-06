@@ -7,7 +7,7 @@ Run: cd backend && python -m devtools.scripts.seed_realistic
 import asyncio
 import logging
 import random
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

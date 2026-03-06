@@ -4,7 +4,6 @@ Tests cover:
   - /api/ws     — realtime domain event broadcasting
   - /api/ws/chat — AI chat streaming (protocol handshake only; LLM mocked)
 """
-import json
 import time
 
 import jwt

@@ -62,5 +62,5 @@ def calc_cost(task_or_model: str, usage) -> float:
     out = getattr(usage, "output_tokens", 0) or 0
     try:
         return _cost_calc(model, inp, out)
-    except Exception:
+    except (RuntimeError, ValueError, TypeError, KeyError, AttributeError):
         return 0.0

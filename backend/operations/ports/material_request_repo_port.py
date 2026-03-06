@@ -1,5 +1,5 @@
 """Material request repository port — testable contract for material request persistence."""
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from operations.domain.material_request import MaterialRequest
 

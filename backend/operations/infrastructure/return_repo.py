@@ -1,6 +1,5 @@
 """Return repository."""
 import json
-from typing import Optional, Union
 from uuid import uuid4
 
 from operations.domain.returns import MaterialReturn

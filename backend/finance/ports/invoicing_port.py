@@ -1,6 +1,6 @@
 """Invoicing gateway port — provider-agnostic abstraction for accounting integrations."""
 from dataclasses import dataclass
-from typing import List, Optional, Protocol
+from typing import Protocol
 
 from finance.domain.invoice import InvoiceWithDetails
 from identity.domain.org_settings import OrgSettings

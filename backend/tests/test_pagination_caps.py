@@ -11,7 +11,7 @@ PAGINATION_ENDPOINTS = [
 ]
 
 
-@pytest.mark.parametrize("method,path,params,expected", PAGINATION_ENDPOINTS)
+@pytest.mark.parametrize(("method", "path", "params", "expected"), PAGINATION_ENDPOINTS)
 def test_pagination_cap_rejects_over_limit(client, method, path, params, expected):
     """Endpoints must reject limit values above their configured maximum."""
     r = getattr(client, method.lower())(path, params=params)
@@ -27,7 +27,7 @@ NEGATIVE_OFFSET_ENDPOINTS = [
 ]
 
 
-@pytest.mark.parametrize("method,path,params", NEGATIVE_OFFSET_ENDPOINTS)
+@pytest.mark.parametrize(("method", "path", "params"), NEGATIVE_OFFSET_ENDPOINTS)
 def test_negative_offset_rejected(client, method, path, params):
     """Negative offsets should be rejected."""
     r = getattr(client, method.lower())(path, params=params)

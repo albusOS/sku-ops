@@ -9,9 +9,7 @@ from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import get_model
 from assistant.agents.core.runner import build_model_settings, run_specialist
 from assistant.agents.core.tokens import budget_tool_result
-from shared.infrastructure.prompt_loader import load_prompt
-
-from .tools import (
+from assistant.agents.inventory.tools import (
     _forecast_stockout,
     _get_department_activity,
     _get_department_health,
@@ -27,6 +25,7 @@ from .tools import (
     _search_products,
     _search_semantic,
 )
+from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 

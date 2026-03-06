@@ -1,5 +1,4 @@
 """Organization repository."""
-from typing import Optional
 
 from shared.infrastructure.database import get_connection
 

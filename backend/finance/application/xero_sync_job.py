@@ -43,7 +43,7 @@ async def _sync_outbound_invoices(org_id: str) -> dict:
             await invoice_repo.set_xero_sync_status(inv_id, "failed")
             results["failed"] += 1
             results["errors"].append({"type": "invoice", "id": inv_id, "error": str(e)})
-            logger.error("Invoice %s sync exception: %s", inv_id, e)
+            logger.exception("Invoice %s sync exception: %s", inv_id, e)
     return results
 
 
@@ -74,7 +74,7 @@ async def _sync_outbound_credit_notes(org_id: str, gateway, settings) -> dict:
             await credit_note_repo.set_credit_note_sync_status(cn_id, "failed")
             results["failed"] += 1
             results["errors"].append({"type": "credit_note", "id": cn_id, "error": str(e)})
-            logger.error("Credit note %s sync exception: %s", cn_id, e)
+            logger.exception("Credit note %s sync exception: %s", cn_id, e)
     return results
 
 
@@ -99,7 +99,7 @@ async def _sync_outbound_po_bills(org_id: str) -> dict:
         except Exception as e:
             results["failed"] += 1
             results["errors"].append({"type": "po_bill", "id": po_id, "error": str(e)})
-            logger.error("PO %s bill sync exception: %s", po_id, e)
+            logger.exception("PO %s bill sync exception: %s", po_id, e)
     return results
 
 
@@ -128,7 +128,7 @@ async def _repost_stale_cogs(org_id: str) -> dict:
         except Exception as e:
             results["failed"] += 1
             results["errors"].append({"type": "cogs_repost", "id": inv_id, "error": str(e)})
-            logger.error("COGS re-post exception for invoice %s: %s", inv_id, e)
+            logger.exception("COGS re-post exception for invoice %s: %s", inv_id, e)
     return results
 
 
@@ -165,7 +165,7 @@ async def _reconcile_invoices(org_id: str, gateway, settings) -> dict:
                 )
         except Exception as e:
             results["errors"].append({"type": "invoice_reconcile_error", "id": inv_id, "error": str(e)})
-            logger.error("Invoice %s reconcile exception: %s", inv_id, e)
+            logger.exception("Invoice %s reconcile exception: %s", inv_id, e)
     return results
 
 
@@ -199,7 +199,7 @@ async def _reconcile_credit_notes(org_id: str, gateway, settings) -> dict:
                 )
         except Exception as e:
             results["errors"].append({"type": "cn_reconcile_error", "id": cn_id, "error": str(e)})
-            logger.error("Credit note %s reconcile exception: %s", cn_id, e)
+            logger.exception("Credit note %s reconcile exception: %s", cn_id, e)
     return results
 
 

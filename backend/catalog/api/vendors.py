@@ -1,5 +1,4 @@
 """Vendor CRUD routes."""
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -13,13 +12,13 @@ router = APIRouter(prefix="/vendors", tags=["vendors"])
 
 
 @router.get("", response_model=list[Vendor])
-async def get_vendors(current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def get_vendors(current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     return await vendor_repo.list_all(org_id)
 
 
 @router.post("", response_model=Vendor)
-async def create_vendor(data: VendorCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def create_vendor(data: VendorCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     vendor = Vendor(**data.model_dump(), organization_id=org_id)
     await vendor_repo.insert(vendor)
@@ -27,7 +26,7 @@ async def create_vendor(data: VendorCreate, current_user: CurrentUser = Depends(
 
 
 @router.put("/{vendor_id}", response_model=Vendor)
-async def update_vendor(vendor_id: str, data: VendorCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):
+async def update_vendor(vendor_id: str, data: VendorCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
     org_id = current_user.organization_id
     existing = await vendor_repo.get_by_id(vendor_id, org_id)
     if not existing:
@@ -39,7 +38,7 @@ async def update_vendor(vendor_id: str, data: VendorCreate, current_user: Curren
 
 
 @router.delete("/{vendor_id}")
-async def delete_vendor(vendor_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):
+async def delete_vendor(vendor_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
     org_id = current_user.organization_id
     existing = await vendor_repo.get_by_id(vendor_id, org_id)
     if not existing:

@@ -1,6 +1,5 @@
 """Fiscal period management routes."""
-from datetime import UTC, datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -33,7 +32,7 @@ async def _get_period(period_id: str, org_id: str) -> dict | None:
 @router.get("")
 async def list_fiscal_periods(
     status: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     conn = get_connection()
     org_id = current_user.organization_id
@@ -50,7 +49,7 @@ async def list_fiscal_periods(
 @router.post("")
 async def create_fiscal_period(
     body: FiscalPeriodCreate,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     conn = get_connection()
     org_id = current_user.organization_id
@@ -69,7 +68,7 @@ async def create_fiscal_period(
 async def close_fiscal_period(
     period_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),
+    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
 ):
     """Close a fiscal period — prevents new ledger entries in this date range."""
     org_id = current_user.organization_id

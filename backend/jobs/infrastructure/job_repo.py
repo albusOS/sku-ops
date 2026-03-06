@@ -1,6 +1,5 @@
 """Job repository — persistence for job master data."""
 from datetime import UTC
-from typing import Optional, Union
 
 from jobs.domain.job import Job
 from shared.infrastructure.database import get_connection
@@ -84,7 +83,7 @@ async def update(job_id: str, updates: dict, organization_id: str) -> dict | Non
             params.append(updates[key])
     if not set_clauses:
         return await get_by_id(job_id, organization_id)
-    from datetime import datetime, timezone
+    from datetime import datetime
     set_clauses.append("updated_at = ?")
     params.append(datetime.now(UTC).isoformat())
     params.extend([job_id, organization_id])

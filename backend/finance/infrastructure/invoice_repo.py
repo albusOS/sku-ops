@@ -1,7 +1,6 @@
 """Invoice repository."""
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from finance.domain.invoice import Invoice, compute_due_date

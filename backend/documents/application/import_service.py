@@ -2,8 +2,8 @@
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from documents.application.enrichment_service import enrich_for_import

@@ -3,7 +3,6 @@
 Other bounded contexts import from here, never from catalog.infrastructure directly.
 Thin delegation layer that decouples consumers from infrastructure details.
 """
-from typing import Optional
 
 from catalog.infrastructure.department_repo import department_repo as _dept_repo
 from catalog.infrastructure.product_repo import product_repo as _prod_repo

@@ -10,17 +10,21 @@ The backend (SQLite vs PostgreSQL) is selected automatically from DATABASE_URL.
 """
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from shared.infrastructure.config import DATABASE_URL
-from shared.infrastructure.db.protocol import Connection, DatabaseBackend
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from shared.infrastructure.db.protocol import Connection, DatabaseBackend
 
 _backend: DatabaseBackend | None = None
 
 
 def _make_backend(url: str) -> DatabaseBackend:
-    if url.startswith("postgresql://") or url.startswith("postgres://"):
+    if url.startswith(("postgresql://", "postgres://")):
         from shared.infrastructure.db.postgres import PostgresBackend
         return PostgresBackend()
     from shared.infrastructure.db.sqlite import SqliteBackend

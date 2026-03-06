@@ -12,9 +12,10 @@ from environment configuration.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from assistant.infrastructure.llm.protocol import LLMProvider
+if TYPE_CHECKING:
+    from assistant.infrastructure.llm.protocol import LLMProvider
 
 logger = logging.getLogger(__name__)
 

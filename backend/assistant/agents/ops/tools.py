@@ -1,7 +1,7 @@
 """Ops agent helper functions — DB query implementations for operations data."""
 import json
 import logging
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
 from operations.application.queries import list_withdrawals

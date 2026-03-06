@@ -22,6 +22,7 @@ Protocol (server -> client):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import uuid
@@ -36,7 +37,6 @@ from pydantic_ai.messages import (
     TextPart,
     TextPartDelta,
     ToolCallPart,
-    ToolCallPartDelta,
 )
 
 from assistant.agents.core.deps import AgentDeps
@@ -159,10 +159,8 @@ def mount_chat_websocket(app: FastAPI) -> None:
             finally:
                 if generation_task and not generation_task.done():
                     generation_task.cancel()
-                    try:
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
                         await generation_task
-                    except (asyncio.CancelledError, Exception):
-                        pass
 
         ws = websocket
         tasks = [
@@ -170,7 +168,7 @@ def mount_chat_websocket(app: FastAPI) -> None:
             asyncio.create_task(_receiver()),
         ]
         try:
-            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for t in pending:
                 t.cancel()
         except Exception:

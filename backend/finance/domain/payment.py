@@ -1,13 +1,12 @@
 """Payment domain models — first-class record of money received."""
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 from kernel.entity import AuditedEntity
 
 
-class PaymentMethod(str, Enum):
+class PaymentMethod(StrEnum):
     BANK_TRANSFER = "bank_transfer"
     CHECK = "check"
     CASH = "cash"

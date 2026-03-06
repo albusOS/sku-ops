@@ -1,5 +1,4 @@
 """Cycle count repository — persistence for cycle_counts and cycle_count_items."""
-from typing import Optional
 
 from inventory.domain.cycle_count import CycleCount, CycleCountItem
 from shared.infrastructure.database import get_connection

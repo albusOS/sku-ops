@@ -5,7 +5,7 @@ config is non-fatal (StubXeroAdapter handles it). The goal is to surface
 misconfiguration immediately at boot, not at the moment the first sync fires.
 """
 import logging
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from identity.application.org_service import get_org_settings
 

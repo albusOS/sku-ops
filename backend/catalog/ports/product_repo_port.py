@@ -1,5 +1,5 @@
 """Product repository port — testable contract for product persistence."""
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from catalog.domain.product import Product
 

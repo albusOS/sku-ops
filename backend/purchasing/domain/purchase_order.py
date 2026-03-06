@@ -4,8 +4,8 @@ PurchaseOrder and PurchaseOrderItem are the canonical entities.
 POItemCreate is the typed DTO for incoming line items (from document parse or API).
 Status enums and transition rules live here — no free-form strings.
 """
-from enum import Enum
-from typing import ClassVar, List, Optional
+from enum import StrEnum
+from typing import ClassVar
 
 from pydantic import BaseModel
 
@@ -13,13 +13,13 @@ from kernel.entity import AuditedEntity, Entity
 
 # ── Status enums ───────────────────────────────────────────────────────────────
 
-class POStatus(str, Enum):
+class POStatus(StrEnum):
     ORDERED = "ordered"
     PARTIAL = "partial"
     RECEIVED = "received"
 
 
-class POItemStatus(str, Enum):
+class POItemStatus(StrEnum):
     ORDERED = "ordered"
     PENDING = "pending"    # delivery arrived at dock, not yet received into inventory
     ARRIVED = "arrived"    # received into inventory

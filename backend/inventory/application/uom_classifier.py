@@ -8,7 +8,7 @@ import json
 import logging
 import re
 from collections.abc import Callable
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from shared.infrastructure.prompt_loader import load_prompt
@@ -109,7 +109,7 @@ Return ONLY valid JSON: {{"base_unit": "...", "sell_uom": "...", "pack_qty": 1}}
                     "pack_qty": _normalize_pack_qty(data.get("pack_qty")),
                 }
     except Exception as e:
-        logger.warning(f"UOM classification failed: {e}")
+        logger.warning("UOM classification failed: %s", e)
     return {"base_unit": "each", "sell_uom": "each", "pack_qty": 1}
 
 
@@ -185,7 +185,7 @@ Return ONLY a JSON array, one object per product in same order: [{{"base_unit":"
                         _rule_fallback(p)
                 return products
     except Exception as e:
-        logger.warning(f"Batch UOM classification failed, falling back to rules: {e}")
+        logger.warning("Batch UOM classification failed, falling back to rules: %s", e)
 
     for p in products:
         _rule_fallback(p)

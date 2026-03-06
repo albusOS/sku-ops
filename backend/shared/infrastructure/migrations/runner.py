@@ -75,7 +75,7 @@ def _discover_migrations() -> list[tuple[int, str, object]]:
     import shared.infrastructure.migrations.versions as versions_pkg
 
     migrations = []
-    for importer, modname, ispkg in pkgutil.iter_modules(versions_pkg.__path__):
+    for _importer, modname, ispkg in pkgutil.iter_modules(versions_pkg.__path__):
         if ispkg or modname.startswith("_"):
             continue
         parts = modname.split("_", 1)

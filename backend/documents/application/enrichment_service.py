@@ -7,7 +7,6 @@ import asyncio
 import json
 import logging
 import re
-from typing import List
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from shared.infrastructure.config import LLM_AVAILABLE

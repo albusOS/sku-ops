@@ -1,2 +1,2 @@
 """Finance agent package."""
-from .agent import run  # noqa: F401
+from assistant.agents.finance.agent import run  # noqa: F401

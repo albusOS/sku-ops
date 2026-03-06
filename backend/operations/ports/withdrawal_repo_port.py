@@ -1,5 +1,5 @@
 """Withdrawal repository port — testable contract for withdrawal persistence."""
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from operations.domain.withdrawal import MaterialWithdrawal
 

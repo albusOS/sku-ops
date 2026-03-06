@@ -1,7 +1,7 @@
 """Repository for agent_runs — insert + query for monitoring."""
 import json
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from shared.infrastructure.database import get_connection
 from shared.infrastructure.db.sql_compat import date_extract, time_ago_expr

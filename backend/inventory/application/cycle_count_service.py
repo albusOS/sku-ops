@@ -10,8 +10,7 @@ Lifecycle:
 The snapshot (snapshot_qty) is frozen at open time and never changed.
 Inventory is only touched at commit — never during the counting phase.
 """
-from datetime import UTC, datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from catalog.application.queries import list_products
 from inventory.application.inventory_service import process_adjustment_stock_changes

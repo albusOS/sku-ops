@@ -1,5 +1,5 @@
 """Invoice repository port — testable contract for invoice persistence."""
-from typing import List, Optional, Protocol, Union, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from finance.domain.invoice import Invoice, InvoiceLineItem
 

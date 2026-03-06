@@ -320,7 +320,7 @@ async def execute_plan(
                 trimmed = budget_tool_result(raw, max_tokens=node.token_budget)
                 return node.id, trimmed
             except Exception as e:
-                logger.warning(f"DAG node {node.id} ({node.tool}) failed: {e}")
+                logger.warning("DAG node %s (%s) failed: %s", node.id, node.tool, e)
                 return node.id, json.dumps({"error": str(e)})
 
         batch = await asyncio.gather(*[_run_one(n) for n in runnable])

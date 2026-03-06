@@ -3,7 +3,6 @@
 Read-only report queries live in finance.application.ledger_queries,
 which is the cross-context entry point for analytics consumers.
 """
-from typing import List
 
 from finance.domain.ledger import FinancialEntry
 from kernel.types import round_money

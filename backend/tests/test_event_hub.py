@@ -1,5 +1,4 @@
 """Tests for the in-process event hub (pub/sub)."""
-import asyncio
 
 import pytest
 

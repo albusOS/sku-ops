@@ -1,5 +1,4 @@
 """SKU generation and preview routes."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -18,7 +17,7 @@ SKU_FORMAT = "DEPT-SLUG-XXXXX"
 async def get_sku_preview(
     department_id: str,
     product_name: str | None = None,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
 ):
     """Preview the next SKU for a department (without consuming it)."""
     department = await department_repo.get_by_id(department_id)
@@ -34,7 +33,7 @@ async def get_sku_preview(
 @router.get("/sku/overview")
 async def get_sku_overview(
     product_name: str | None = None,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
 ):
     """SKU system overview: format, departments with next available SKU."""
     departments = await department_repo.list_all()

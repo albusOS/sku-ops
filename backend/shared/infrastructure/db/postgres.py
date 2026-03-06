@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import asyncpg
 
 from shared.infrastructure.db.protocol import Connection, DictRow
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Sequence
 
 # ── Placeholder conversion ────────────────────────────────────────────────────
 

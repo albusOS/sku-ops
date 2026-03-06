@@ -34,7 +34,7 @@ from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
 class TestUOMConversion:
     """Convert between units — verify mathematical correctness."""
 
-    @pytest.mark.parametrize("from_u,to_u,qty,expected", [
+    @pytest.mark.parametrize(("from_u", "to_u", "qty", "expected"), [
         ("foot", "inch", 1.0, 12.0),
         ("inch", "foot", 12.0, 1.0),
         ("yard", "foot", 1.0, 3.0),
@@ -53,7 +53,7 @@ class TestUOMConversion:
             f"{qty} {from_u} → {to_u}: expected {expected}, got {result}"
         )
 
-    @pytest.mark.parametrize("from_u,to_u,qty", [
+    @pytest.mark.parametrize(("from_u", "to_u", "qty"), [
         ("foot", "inch", 2.5),
         ("gallon", "pint", 0.25),
         ("pound", "ounce", 0.125),
@@ -75,7 +75,7 @@ class TestUOMConversion:
     def test_case_insensitive(self):
         assert convert_quantity(1, "Foot", "INCH") == pytest.approx(12.0)
 
-    @pytest.mark.parametrize("from_u,to_u", [
+    @pytest.mark.parametrize(("from_u", "to_u"), [
         ("foot", "gallon"),
         ("pound", "inch"),
         ("pint", "ounce"),

@@ -1,6 +1,5 @@
 """Department repository."""
-from datetime import UTC, datetime, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime
 
 from catalog.domain.department import Department
 from shared.infrastructure.database import get_connection

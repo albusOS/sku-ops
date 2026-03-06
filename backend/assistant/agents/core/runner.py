@@ -1,9 +1,10 @@
 """Agent execution — run loop with retry/backoff, error classification, and run logging."""
 import asyncio
+import contextlib
 import logging
 import random
 import time
-from enum import Enum
+from enum import StrEnum
 
 from assistant.agents.core.contracts import AgentConfig, AgentResult, UsageInfo
 from assistant.agents.core.messages import (
@@ -27,7 +28,7 @@ _MAX_DELAY = 30.0   # seconds
 
 # ── Config-driven model settings ──────────────────────────────────────────────
 
-def build_model_settings(config: AgentConfig | None) -> dict | None:
+def build_model_settings(_config: AgentConfig | None) -> dict | None:
     """Build PydanticAI model_settings from an AgentConfig.
 
     Returns None — no special settings needed in the simplified architecture.
@@ -44,7 +45,7 @@ def get_agent_timeout(config: AgentConfig | None) -> int:
 
 # ── Error classification ─────────────────────────────────────────────────────
 
-class _ErrorKind(str, Enum):
+class _ErrorKind(StrEnum):
     RATE_LIMIT  = "rate_limit"
     TIMEOUT     = "timeout"
     NETWORK     = "network"
@@ -66,10 +67,8 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
         hdrs = getattr(resp, "headers", {})
         ra = hdrs.get("retry-after") or hdrs.get("x-ratelimit-reset-requests")
         if ra:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 retry_after = float(ra)
-            except (ValueError, TypeError):
-                pass
 
     if any(k in t for k in ("ratelimit", "rate_limit")) or \
        any(k in s for k in ("rate limit", "429", "too many requests", "ratelimit")):
@@ -104,7 +103,7 @@ async def _backoff(attempt: int, retry_after: float | None) -> None:
         delay = min(retry_after, _MAX_DELAY)
     else:
         delay = min(_BASE_DELAY * (2 ** attempt), _MAX_DELAY)
-    jitter = random.uniform(-delay * 0.25, delay * 0.25)
+    jitter = random.uniform(-delay * 0.25, delay * 0.25)  # noqa: S311 - backoff jitter, not crypto
     await asyncio.sleep(max(0.1, delay + jitter))
 
 
@@ -171,7 +170,10 @@ async def run_agent(
             kind, retriable, retry_after = _classify(e)
 
         if not retriable:
-            logger.error(f"{agent_name} non-retriable {kind} on attempt {attempt + 1}: {last_exc}")
+            logger.error(
+                "%s non-retriable %s on attempt %s: %s",
+                agent_name, kind, attempt + 1, last_exc,
+            )
             _log_failure(
                 user_message=user_message, agent_name=agent_name,
                 agent_label=agent_label,
@@ -183,15 +185,24 @@ async def run_agent(
             raise last_exc
 
         if active_settings and kind == _ErrorKind.MODEL_ERROR:
-            logger.warning(f"{agent_name} model_error with thinking settings, dropping and retrying: {last_exc}")
+            logger.warning(
+                "%s model_error with thinking settings, dropping and retrying: %s",
+                agent_name, last_exc,
+            )
             active_settings = None
             continue
 
         if attempt < _MAX_RETRIES - 1:
-            logger.warning(f"{agent_name} {kind} on attempt {attempt + 1}/{_MAX_RETRIES}, backing off: {last_exc}")
+            logger.warning(
+                "%s %s on attempt %s/%s, backing off: %s",
+                agent_name, kind, attempt + 1, _MAX_RETRIES, last_exc,
+            )
             await _backoff(attempt, retry_after)
         else:
-            logger.warning(f"{agent_name} {kind} on final attempt {_MAX_RETRIES}/{_MAX_RETRIES}: {last_exc}")
+            logger.warning(
+                "%s %s on final attempt %s/%s: %s",
+                agent_name, kind, _MAX_RETRIES, _MAX_RETRIES, last_exc,
+            )
 
     _log_failure(
         user_message=user_message, agent_name=agent_name,
@@ -225,10 +236,10 @@ def _log_success(result, *, user_message, agent_name, agent_label="", session_id
                 input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
                 cost_usd=cost, duration_ms=duration_ms, attempts=attempts,
             )
-        except Exception as e:
-            logger.warning(f"Failed to log agent run: {e}")
+        except Exception as e:  # noqa: BLE001 - fire-and-forget log must not crash
+            logger.warning("Failed to log agent run: %s", e)
 
-    asyncio.create_task(_write())
+    _ = asyncio.create_task(_write())  # RUF006: hold reference
 
 
 def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id, user_id, duration_ms, attempts, error, error_kind):
@@ -245,10 +256,10 @@ def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id
                 cost_usd=0.0, duration_ms=duration_ms, attempts=attempts,
                 error=error, error_kind=error_kind,
             )
-        except Exception as e:
-            logger.warning(f"Failed to log agent run failure: {e}")
+        except Exception as e:  # noqa: BLE001 - fire-and-forget log must not crash
+            logger.warning("Failed to log agent run failure: %s", e)
 
-    asyncio.create_task(_write())
+    _ = asyncio.create_task(_write())  # RUF006: hold reference
 
 
 # ── Specialist runner (no reflection re-run) ──────────────────────────────────
@@ -291,8 +302,8 @@ async def run_specialist(
             agent_name=agent_name, agent_label=agent_label,
             session_id=session_id,
         )
-    except Exception as e:
-        logger.error(f"{agent_name} failed: {e}")
+    except Exception:
+        logger.exception("%s failed", agent_name)
         return {
             "response": "I ran into an issue. Please try again in a moment.",
             "tool_calls": [], "history": history or [], "thinking": [],

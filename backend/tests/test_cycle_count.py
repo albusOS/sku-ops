@@ -11,7 +11,6 @@ Coverage:
   6. Atomicity — partial failure rolls back the entire commit
   7. Ledger balance invariant — post-commit ledger still sums to product qty
 """
-from uuid import uuid4
 
 import pytest
 
@@ -55,10 +54,10 @@ async def _make_product(name="Widget", qty=100.0, cost=5.0, dept="Hardware", org
 
 
 def _user():
-    return dict(
-        committed_by_id="user-1",
-        committed_by_name="Test User",
-    )
+    return {
+        "committed_by_id": "user-1",
+        "committed_by_name": "Test User",
+    }
 
 
 async def _open(scope=None, org="default"):
@@ -579,12 +578,12 @@ class TestPostCommitLedgerBalance:
         detail = await get_count_detail(count["id"], "default")
         item_map = {i["product_id"]: i for i in detail["items"]}
 
-        for p, cq in zip(products, counted_qtys):
+        for p, cq in zip(products, counted_qtys, strict=False):
             await _update(count["id"], item_map[p.id]["id"], counted_qty=cq)
 
         await _commit(count["id"])
 
-        for p, cq in zip(products, counted_qtys):
+        for p, cq in zip(products, counted_qtys, strict=False):
             current = await product_repo.get_by_id(p.id)
             history = await get_stock_history(p.id, limit=100)
             ledger_sum = sum(float(tx["quantity_delta"]) for tx in history)

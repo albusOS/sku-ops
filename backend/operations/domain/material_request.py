@@ -1,11 +1,9 @@
 """Material request models - contractor pick list before staff processes into withdrawal."""
-from typing import List, Optional
 
 from pydantic import BaseModel
 
 from kernel.entity import Entity
-
-from .withdrawal import WithdrawalItem
+from operations.domain.withdrawal import WithdrawalItem
 
 
 class MaterialRequestCreate(BaseModel):

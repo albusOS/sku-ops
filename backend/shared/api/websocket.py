@@ -45,9 +45,7 @@ def _should_deliver(event: event_hub.Event, org_id: str, role: str, user_id: str
         return False
     if event.user_id and event.user_id != user_id:
         return False
-    if role == "contractor" and event.type not in CONTRACTOR_VISIBLE_EVENTS:
-        return False
-    return True
+    return not (role == "contractor" and event.type not in CONTRACTOR_VISIBLE_EVENTS)
 
 
 def mount_websocket(app: FastAPI) -> None:
@@ -114,7 +112,7 @@ async def _relay_loop(
         asyncio.create_task(_receiver()),
     ]
     try:
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for t in pending:
             t.cancel()
     except Exception:

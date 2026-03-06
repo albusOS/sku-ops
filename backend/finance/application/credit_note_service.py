@@ -1,5 +1,4 @@
 """Credit note application service — safe for cross-context import."""
-from typing import Optional
 
 from finance.infrastructure.credit_note_repo import credit_note_repo as _repo
 

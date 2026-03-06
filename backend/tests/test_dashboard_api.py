@@ -1,5 +1,4 @@
 """Dashboard API tests — date parsing, pagination, error handling."""
-import pytest
 
 AUTH_REJECT = (401, 403)
 

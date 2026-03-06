@@ -3,7 +3,6 @@
 Cross-context consumers import from here, never from finance.infrastructure directly.
 Write operations (insert_entries, entries_exist) remain in finance.infrastructure.ledger_repo.
 """
-from typing import Optional
 
 # Re-export write-path helpers that some callers (tests, ledger_service) need via this module.
 from finance.infrastructure.ledger_repo import get_journal, trial_balance  # noqa: F401
@@ -55,10 +54,10 @@ async def summary_by_account(
     dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
     cursor = await conn.execute(
-        f"""SELECT account, ROUND(SUM(amount), 2) AS total
-            FROM financial_ledger
-            WHERE organization_id = ?{date_filter}{dim_filter}
-            GROUP BY account""",
+        "SELECT account, ROUND(SUM(amount), 2) AS total"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?" + date_filter + dim_filter +
+        " GROUP BY account",
         params,
     )
     return {row[0]: row[1] for row in await cursor.fetchall()}
@@ -81,16 +80,16 @@ async def summary_by_department(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT department,
-                   ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,
-                   ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND account IN ('revenue', 'cogs', 'shrinkage')
-              AND department IS NOT NULL
-              {date_filter}
-            GROUP BY department""",
+        "SELECT department,"
+        " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
+        " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
+        " ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?"
+        " AND account IN ('revenue', 'cogs', 'shrinkage')"
+        " AND department IS NOT NULL"
+        + date_filter +
+        " GROUP BY department",
         params,
     )
     rows = await cursor.fetchall()
@@ -129,20 +128,20 @@ async def summary_by_job(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT job_id,
-                   billing_entity,
-                   ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,
-                   COUNT(DISTINCT reference_id) AS transaction_count
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND account IN ('revenue', 'cogs')
-              AND job_id IS NOT NULL
-              {date_filter}
-            GROUP BY job_id, billing_entity
-            ORDER BY revenue DESC
-            LIMIT ?""",
-        params + [limit],
+        "SELECT job_id,"
+        " billing_entity,"
+        " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
+        " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
+        " COUNT(DISTINCT reference_id) AS transaction_count"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?"
+        " AND account IN ('revenue', 'cogs')"
+        " AND job_id IS NOT NULL"
+        + date_filter +
+        " GROUP BY job_id, billing_entity"
+        " ORDER BY revenue DESC"
+        " LIMIT ?",
+        [*params, limit],
     )
     rows = await cursor.fetchall()
     result = []
@@ -180,16 +179,16 @@ async def summary_by_billing_entity(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT billing_entity,
-                   ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,
-                   ROUND(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END), 2) AS ar_balance,
-                   COUNT(DISTINCT reference_id) AS transaction_count
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND billing_entity IS NOT NULL
-              {date_filter}
-            GROUP BY billing_entity""",
+        "SELECT billing_entity,"
+        " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
+        " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
+        " ROUND(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END), 2) AS ar_balance,"
+        " COUNT(DISTINCT reference_id) AS transaction_count"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?"
+        " AND billing_entity IS NOT NULL"
+        + date_filter +
+        " GROUP BY billing_entity",
         params,
     )
     rows = await cursor.fetchall()
@@ -227,18 +226,18 @@ async def summary_by_contractor(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT fl.contractor_id,
-                   COALESCE(MAX(u.name), '') AS name,
-                   COALESCE(MAX(u.company), '') AS company,
-                   ROUND(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END), 2) AS ar_balance,
-                   COUNT(DISTINCT fl.reference_id) AS transaction_count
-            FROM financial_ledger fl
-            LEFT JOIN users u ON u.id = fl.contractor_id
-            WHERE fl.organization_id = ?
-              AND fl.contractor_id IS NOT NULL
-              {date_filter.replace('created_at', 'fl.created_at')}
-            GROUP BY fl.contractor_id""",
+        "SELECT fl.contractor_id,"
+        " COALESCE(MAX(u.name), '') AS name,"
+        " COALESCE(MAX(u.company), '') AS company,"
+        " ROUND(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END), 2) AS revenue,"
+        " ROUND(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END), 2) AS ar_balance,"
+        " COUNT(DISTINCT fl.reference_id) AS transaction_count"
+        " FROM financial_ledger fl"
+        " LEFT JOIN users u ON u.id = fl.contractor_id"
+        " WHERE fl.organization_id = ?"
+        " AND fl.contractor_id IS NOT NULL"
+        + date_filter.replace('created_at', 'fl.created_at') +
+        " GROUP BY fl.contractor_id",
         params,
     )
     return [dict(r) for r in await cursor.fetchall()]
@@ -268,17 +267,17 @@ async def trend_series(
     dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
     cursor = await conn.execute(
-        f"""SELECT {period_expr} AS period,
-                   ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,
-                   ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage,
-                   COUNT(DISTINCT reference_id) AS transaction_count
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND account IN ('revenue', 'cogs', 'shrinkage')
-              {date_filter}{dim_filter}
-            GROUP BY period
-            ORDER BY period""",
+        "SELECT " + period_expr + " AS period,"
+        " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
+        " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
+        " ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage,"
+        " COUNT(DISTINCT reference_id) AS transaction_count"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?"
+        " AND account IN ('revenue', 'cogs', 'shrinkage')"
+        + date_filter + dim_filter +
+        " GROUP BY period"
+        " ORDER BY period",
         params,
     )
     rows = await cursor.fetchall()
@@ -374,7 +373,7 @@ async def product_margins(
             GROUP BY product_id
             ORDER BY revenue DESC
             LIMIT ?""",
-        params + [limit],
+        [*params, limit],
     )
     rows = await cursor.fetchall()
     result = []

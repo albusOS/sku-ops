@@ -1,5 +1,5 @@
 """Vendor repository port — testable contract for vendor persistence."""
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from catalog.domain.vendor import Vendor
 

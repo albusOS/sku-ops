@@ -1,6 +1,6 @@
 """Seed API routes. Business logic lives in scripts/seed.py to avoid cross-domain imports."""
 import logging
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 
 
 @router.post("/departments")
-async def seed_departments(current_user=Depends(require_role("admin"))):
+async def seed_departments(current_user=Depends(require_role("admin"))):  # noqa: B008
     org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
     await seed_standard_departments(org_id)
     return {"message": "Departments ready"}
@@ -62,7 +62,7 @@ async def reset_all():
         await _clear_all_tables(conn)
         logger.info("Full reset complete")
     except Exception as e:
-        logger.error(f"Reset failed: {e}")
+        logger.exception("Reset failed")
         raise HTTPException(status_code=500, detail=str(e))
     await seed_demo_tenants()
     return {"message": "Reset complete. Demo tenants (North, South) seeded with users and inventory."}
@@ -78,7 +78,7 @@ async def reset_empty():
         await _clear_all_tables(conn)
         logger.info("Full reset complete (empty)")
     except Exception as e:
-        logger.error(f"Reset failed: {e}")
+        logger.exception("Reset failed")
         raise HTTPException(status_code=500, detail=str(e))
     now = datetime.now(UTC).isoformat()
     await organization_repo.insert({"id": "default", "name": "Default", "slug": "default", "created_at": now})
@@ -88,7 +88,7 @@ async def reset_empty():
 
 
 @router.post("/backfill-ledger")
-async def backfill_ledger(current_user=Depends(require_role("admin"))):
+async def backfill_ledger(current_user=Depends(require_role("admin"))):  # noqa: B008
     """Replay all historical events into the financial_ledger for existing data."""
     from catalog.application.queries import list_products
     from finance.application.ledger_service import (
@@ -221,12 +221,12 @@ async def seed_full():
         counts = await run_full_seed()
         return {"message": "Full seed complete", "counts": counts or {}}
     except Exception as e:
-        logger.error(f"Full seed failed: {e}")
+        logger.exception("Full seed failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/reset-inventory")
-async def reset_and_reseed_inventory(current_user=Depends(require_role("admin"))):
+async def reset_and_reseed_inventory(current_user=Depends(require_role("admin"))):  # noqa: B008
     """Reset products and stock, then re-run demo seed."""
     org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
     conn = get_connection()
@@ -242,5 +242,5 @@ async def reset_and_reseed_inventory(current_user=Depends(require_role("admin"))
         count = await count_all_products(org_id)
         return {"message": f"Inventory reset and reseeded with {count} products"}
     except Exception as e:
-        logger.error(f"Reset inventory failed: {e}")
+        logger.exception("Reset inventory failed")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,5 @@
 """Job repository port — testable contract for job persistence."""
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable

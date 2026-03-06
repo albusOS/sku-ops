@@ -5,13 +5,12 @@ Every withdrawal, return, PO receipt, stock adjustment, and payment writes
 entries here at event time. Reports read from this table — they never
 recompute from operational data.
 """
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from kernel.entity import Entity
 
 
-class Account(str, Enum):
+class Account(StrEnum):
     REVENUE = "revenue"
     COGS = "cogs"
     TAX_COLLECTED = "tax_collected"
@@ -22,7 +21,7 @@ class Account(str, Enum):
     DAMAGE = "damage"
 
 
-class ReferenceType(str, Enum):
+class ReferenceType(StrEnum):
     WITHDRAWAL = "withdrawal"
     RETURN = "return"
     PO_RECEIPT = "po_receipt"

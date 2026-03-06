@@ -76,9 +76,13 @@ class ProductSearchIndex:
             norms = np.where(norms == 0, 1, norms)
             self._embeddings = mat / norms
             self._bm25 = None
-            logger.info(f"Embedding index built: {len(products)} products (org={self._products[0].get('organization_id', 'unknown') if products else '?'})")
+            logger.info(
+                "Embedding index built: %d products (org=%s)",
+                len(products),
+                self._products[0].get("organization_id", "unknown") if products else "?",
+            )
         except Exception as e:
-            logger.warning(f"Embedding build failed, falling back to BM25: {e}")
+            logger.warning("Embedding build failed, falling back to BM25: %s", e)
             self._embeddings = None
             self._build_bm25(products)
 
@@ -90,7 +94,7 @@ class ProductSearchIndex:
             return
         corpus = [_tokenize(_product_text(p)) or ["_"] for p in products]
         self._bm25 = BM25Okapi(corpus)
-        logger.info(f"BM25 index built: {len(products)} products (fallback mode)")
+        logger.info("BM25 index built: %d products (fallback mode)", len(products))
 
     async def search_semantic(self, query: str, limit: int = 10, api_key: str = "") -> list[dict]:
         """Embed the query and return nearest products by cosine similarity."""
@@ -108,7 +112,7 @@ class ProductSearchIndex:
             top_idx = np.argsort(scores)[::-1][:limit]
             return [self._products[i] for i in top_idx if scores[i] > 0.2]
         except Exception as e:
-            logger.warning(f"Semantic search failed, falling back to BM25: {e}")
+            logger.warning("Semantic search failed, falling back to BM25: %s", e)
             return self.search_bm25(query, limit)
 
     def search_bm25(self, query: str, limit: int = 10) -> list[dict]:
@@ -119,7 +123,7 @@ class ProductSearchIndex:
             return []
         scores = self._bm25.get_scores(tokens)
         ranked = sorted(
-            ((score, p) for score, p in zip(scores, self._products) if score > 0),
+            ((score, p) for score, p in zip(scores, self._products, strict=False) if score > 0),
             key=lambda x: x[0],
             reverse=True,
         )
