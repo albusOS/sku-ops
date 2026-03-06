@@ -70,14 +70,19 @@ const PL_COLUMNS = {
   product: { label: "Product", key: "name" },
 };
 
-export const PLBreakdownTable = ({ plDimension, rows }) => {
+export const PLBreakdownTable = ({ plDimension, rows, onRowClick }) => {
   const colCfg = PL_COLUMNS[plDimension];
   const columns = useMemo(() => {
     const cols = [
       {
         key: colCfg?.key || "name",
         label: colCfg?.label || "Name",
-        render: (row) => <span className="font-medium text-foreground truncate max-w-[200px] block">{row[colCfg?.key] || "\u2014"}</span>,
+        render: (row) => (
+          <span className="font-medium text-foreground truncate max-w-[200px] block">
+            {onRowClick && <span className="text-accent mr-1">&#x25B8;</span>}
+            {row[colCfg?.key] || "\u2014"}
+          </span>
+        ),
       },
     ];
     if (plDimension === "job") {
@@ -116,6 +121,7 @@ export const PLBreakdownTable = ({ plDimension, rows }) => {
       exportable
       exportFilename={`pl-${plDimension}.csv`}
       pageSize={20}
+      onRowClick={onRowClick}
     />
   );
 };

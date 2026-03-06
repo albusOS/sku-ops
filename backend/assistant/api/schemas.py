@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -6,5 +6,4 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
-    mode: Literal["fast", "deep"] = "fast"
     agent_type: Literal["auto", "inventory", "ops", "finance"] = "auto"

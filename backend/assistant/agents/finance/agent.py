@@ -62,14 +62,14 @@ async def get_top_products(ctx: RunContext[AgentDeps], days: int = 7, limit: int
     return budget_tool_result(await _get_top_products({"days": days, "limit": limit}, ctx.deps.org_id))
 
 
-async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:
-    model_settings = build_model_settings(_config, mode)
+async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = "") -> dict:
+    model_settings = build_model_settings(_config)
 
     return await run_specialist(
         _agent, user_message,
         msg_history=build_message_history(history), deps=deps,
         model_settings=model_settings,
         agent_name="FinanceAgent", agent_label="finance",
-        session_id=session_id, mode=mode, history=history,
+        session_id=session_id, history=history,
         config=_config,
     )

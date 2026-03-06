@@ -208,12 +208,11 @@ async def run(
     user_message: str,
     history: list[dict] | None,
     deps: AgentDeps,
-    mode: str = "fast",
     session_id: str = "",
 ) -> dict:
     return await run_specialist(
         _agent, user_message,
         msg_history=build_message_history(history), deps=deps,
         agent_name="UnifiedAgent", agent_label="unified",
-        session_id=session_id, mode=mode, history=history,
+        session_id=session_id, history=history,
     )

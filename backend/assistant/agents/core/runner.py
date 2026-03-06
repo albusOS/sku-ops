@@ -27,11 +27,10 @@ _MAX_DELAY = 30.0   # seconds
 
 # ── Config-driven model settings ──────────────────────────────────────────────
 
-def build_model_settings(config: AgentConfig | None, mode: str = "fast") -> dict | None:
+def build_model_settings(config: AgentConfig | None) -> dict | None:
     """Build PydanticAI model_settings from an AgentConfig.
 
     Returns None — no special settings needed in the simplified architecture.
-    Deep mode uses a different model via model_registry, not thinking budget.
     """
     return None
 
@@ -122,7 +121,6 @@ async def run_agent(
     agent_name: str = "agent",
     agent_label: str = "",
     session_id: str = "",
-    mode: str = "fast",
 ):
     """Run a PydanticAI agent with retry/backoff, error classification, and run logging.
 
@@ -162,7 +160,7 @@ async def run_agent(
                 agent_label=agent_label,
                 session_id=session_id, org_id=getattr(deps, "org_id", ""),
                 user_id=getattr(deps, "user_id", ""),
-                mode=mode, duration_ms=duration_ms, attempts=attempts,
+                duration_ms=duration_ms, attempts=attempts,
             )
             return result
         except TimeoutError:
@@ -179,7 +177,7 @@ async def run_agent(
                 agent_label=agent_label,
                 session_id=session_id, org_id=getattr(deps, "org_id", ""),
                 user_id=getattr(deps, "user_id", ""),
-                mode=mode, duration_ms=int((time.monotonic() - t0) * 1000),
+                duration_ms=int((time.monotonic() - t0) * 1000),
                 attempts=attempts, error=str(last_exc), error_kind=kind.value,
             )
             raise last_exc
@@ -200,7 +198,7 @@ async def run_agent(
         agent_label=agent_label,
         session_id=session_id, org_id=getattr(deps, "org_id", ""),
         user_id=getattr(deps, "user_id", ""),
-        mode=mode, duration_ms=int((time.monotonic() - t0) * 1000),
+        duration_ms=int((time.monotonic() - t0) * 1000),
         attempts=attempts, error=str(last_exc),
         error_kind=_classify(last_exc)[0].value,
     )
@@ -209,7 +207,7 @@ async def run_agent(
 
 # ── Run logging (fire-and-forget) ────────────────────────────────────────────
 
-def _log_success(result, *, user_message, agent_name, agent_label="", session_id, org_id, user_id, mode, duration_ms, attempts):
+def _log_success(result, *, user_message, agent_name, agent_label="", session_id, org_id, user_id, duration_ms, attempts):
     usage = result.usage()
     label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     model_name = get_model_name(f"agent:{label}")
@@ -221,7 +219,7 @@ def _log_success(result, *, user_message, agent_name, agent_label="", session_id
         try:
             await log_agent_run(
                 session_id=session_id, org_id=org_id, user_id=user_id,
-                agent_name=agent_name, model=model_name, mode=mode,
+                agent_name=agent_name, model=model_name, mode="fast",
                 user_message=user_message, response_text=response_text,
                 tool_calls=tool_calls,
                 input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
@@ -233,7 +231,7 @@ def _log_success(result, *, user_message, agent_name, agent_label="", session_id
     asyncio.create_task(_write())
 
 
-def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id, user_id, mode, duration_ms, attempts, error, error_kind):
+def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id, user_id, duration_ms, attempts, error, error_kind):
     label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     model_name = get_model_name(f"agent:{label}")
 
@@ -241,7 +239,7 @@ def _log_failure(*, user_message, agent_name, agent_label="", session_id, org_id
         try:
             await log_agent_run(
                 session_id=session_id, org_id=org_id, user_id=user_id,
-                agent_name=agent_name, model=model_name, mode=mode,
+                agent_name=agent_name, model=model_name, mode="fast",
                 user_message=user_message, response_text="",
                 tool_calls=[], input_tokens=0, output_tokens=0,
                 cost_usd=0.0, duration_ms=duration_ms, attempts=attempts,
@@ -265,7 +263,6 @@ async def run_specialist(
     agent_name: str = "agent",
     agent_label: str = "inventory",
     session_id: str = "",
-    mode: str = "fast",
     history: list[dict] | None = None,
     config: AgentConfig | None = None,
 ):
@@ -292,7 +289,7 @@ async def run_specialist(
             model_settings=model_settings,
             timeout_seconds=timeout,
             agent_name=agent_name, agent_label=agent_label,
-            session_id=session_id, mode=mode,
+            session_id=session_id,
         )
     except Exception as e:
         logger.error(f"{agent_name} failed: {e}")

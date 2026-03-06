@@ -11,10 +11,36 @@ from shared.infrastructure.database import get_connection
 from shared.infrastructure.db.sql_compat import date_group_expr
 
 
+def _build_dimension_filter(
+    params: list,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+    col_prefix: str = "",
+) -> str:
+    """Append optional WHERE clauses for dimension drill-down filtering."""
+    sql = ""
+    p = f"{col_prefix}." if col_prefix else ""
+    if job_id:
+        sql += f" AND {p}job_id = ?"
+        params.append(job_id)
+    if department:
+        sql += f" AND {p}department = ?"
+        params.append(department)
+    if billing_entity:
+        sql += f" AND {p}billing_entity = ?"
+        params.append(billing_entity)
+    return sql
+
+
 async def summary_by_account(
     org_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
 ) -> dict[str, float]:
     """P&L summary: {account_name: total_amount}."""
     conn = get_connection()
@@ -26,11 +52,12 @@ async def summary_by_account(
     if end_date:
         date_filter += " AND created_at <= ?"
         params.append(end_date)
+    dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
     cursor = await conn.execute(
         f"""SELECT account, ROUND(SUM(amount), 2) AS total
             FROM financial_ledger
-            WHERE organization_id = ?{date_filter}
+            WHERE organization_id = ?{date_filter}{dim_filter}
             GROUP BY account""",
         params,
     )
@@ -222,6 +249,10 @@ async def trend_series(
     start_date: str | None = None,
     end_date: str | None = None,
     group_by: str = "day",
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
 ) -> list[dict]:
     """Time-series of revenue, cost, profit."""
     conn = get_connection()
@@ -234,6 +265,7 @@ async def trend_series(
     if end_date:
         date_filter += " AND created_at <= ?"
         params.append(end_date)
+    dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
     cursor = await conn.execute(
         f"""SELECT {period_expr} AS period,
@@ -244,7 +276,7 @@ async def trend_series(
             FROM financial_ledger
             WHERE organization_id = ?
               AND account IN ('revenue', 'cogs', 'shrinkage')
-              {date_filter}
+              {date_filter}{dim_filter}
             GROUP BY period
             ORDER BY period""",
         params,
@@ -313,6 +345,10 @@ async def product_margins(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 50,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
 ) -> list[dict]:
     """Per-product revenue, COGS, profit, margin."""
     conn = get_connection()
@@ -324,6 +360,7 @@ async def product_margins(
     if end_date:
         date_filter += " AND created_at <= ?"
         params.append(end_date)
+    dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
     cursor = await conn.execute(
         f"""SELECT product_id,
@@ -333,7 +370,7 @@ async def product_margins(
             WHERE organization_id = ?
               AND account IN ('revenue', 'cogs')
               AND product_id IS NOT NULL
-              {date_filter}
+              {date_filter}{dim_filter}
             GROUP BY product_id
             ORDER BY revenue DESC
             LIMIT ?""",

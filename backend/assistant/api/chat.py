@@ -8,7 +8,7 @@ from assistant.application import session_store
 from assistant.application.assistant import chat, recall_memory, schedule_memory_extraction
 from identity.application.auth_service import get_current_user, require_role
 from kernel.types import CurrentUser
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL, SESSION_COST_CAP
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL, OPENROUTER_AVAILABLE, SESSION_COST_CAP
 
 router = APIRouter(tags=["chat"])
 
@@ -16,10 +16,11 @@ router = APIRouter(tags=["chat"])
 @router.get("/chat/status")
 async def chat_status(current_user: CurrentUser = Depends(get_current_user)):
     """Return whether AI assistant is configured. Frontend can show setup prompt when false."""
+    available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
     return {
-        "available": ANTHROPIC_AVAILABLE,
-        "provider": "anthropic" if ANTHROPIC_AVAILABLE else None,
-        "setup_url": LLM_SETUP_URL if not ANTHROPIC_AVAILABLE else None,
+        "available": available,
+        "provider": "anthropic" if ANTHROPIC_AVAILABLE else "openrouter" if OPENROUTER_AVAILABLE else None,
+        "setup_url": LLM_SETUP_URL if not available else None,
     }
 
 
@@ -79,7 +80,6 @@ async def chat_assistant(
         (data.message or "").strip(),
         history=history,
         ctx=ctx,
-        mode=data.mode,
         agent_type=data.agent_type,
         session_id=session_id,
     )

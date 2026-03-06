@@ -22,13 +22,17 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 async def get_sales_report(
     start_date: str | None = None,
     end_date: str | None = None,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     org_id = current_user.organization_id
+    dim_kw = dict(job_id=job_id, department=department, billing_entity=billing_entity)
 
     accounts, top_products, counts, catalog, payment_status = await asyncio.gather(
-        ledger_repo.summary_by_account(org_id, start_date=start_date, end_date=end_date),
-        ledger_repo.product_margins(org_id, start_date=start_date, end_date=end_date, limit=10),
+        ledger_repo.summary_by_account(org_id, start_date=start_date, end_date=end_date, **dim_kw),
+        ledger_repo.product_margins(org_id, start_date=start_date, end_date=end_date, limit=10, **dim_kw),
         ledger_repo.reference_counts(org_id, start_date=start_date, end_date=end_date),
         list_products(organization_id=org_id),
         ledger_repo.payment_status_breakdown(org_id, start_date=start_date, end_date=end_date),
@@ -110,12 +114,16 @@ async def get_trends_report(
     start_date: str | None = None,
     end_date: str | None = None,
     group_by: str = "day",
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Revenue/cost/profit trends from the ledger."""
     org_id = current_user.organization_id
     series = await ledger_repo.trend_series(
         org_id=org_id, start_date=start_date, end_date=end_date, group_by=group_by,
+        job_id=job_id, department=department, billing_entity=billing_entity,
     )
 
     totals = {
@@ -131,12 +139,16 @@ async def get_product_margins(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 20,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     org_id = current_user.organization_id
     margin_data, catalog = await asyncio.gather(
         ledger_repo.product_margins(
             org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
+            job_id=job_id, department=department, billing_entity=billing_entity,
         ),
         list_products(organization_id=org_id),
     )
@@ -180,14 +192,18 @@ async def get_pl(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 100,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Unified P&L endpoint. group_by: overall | job | contractor | department | entity | product."""
     org_id = current_user.organization_id
     date_kw = dict(start_date=start_date, end_date=end_date)
+    dim_kw = dict(job_id=job_id, department=department, billing_entity=billing_entity)
 
     if group_by == "overall":
-        accounts = await ledger_repo.summary_by_account(org_id, **date_kw)
+        accounts = await ledger_repo.summary_by_account(org_id, **date_kw, **dim_kw)
         revenue = accounts.get("revenue", 0)
         cogs = accounts.get("cogs", 0)
         tax = accounts.get("tax_collected", 0)
@@ -265,12 +281,16 @@ async def get_ar_aging(
 async def get_kpis(
     start_date: str | None = None,
     end_date: str | None = None,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     org_id = current_user.organization_id
 
     accounts, products_data, units_sold_map = await asyncio.gather(
-        ledger_repo.summary_by_account(org_id=org_id, start_date=start_date, end_date=end_date),
+        ledger_repo.summary_by_account(org_id=org_id, start_date=start_date, end_date=end_date,
+                                       job_id=job_id, department=department, billing_entity=billing_entity),
         list_products(organization_id=org_id),
         ledger_repo.units_sold_by_product(org_id=org_id, start_date=start_date, end_date=end_date),
     )

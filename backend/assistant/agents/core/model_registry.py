@@ -1,10 +1,7 @@
 """Model registry — maps task types to models.
 
 Thin adapter over the LLM infrastructure package.
-
-Mode-based model selection:
-  - Default (fast): Haiku for all agents
-  - Deep: Sonnet for all agents
+All agents use Haiku for fast, reliable responses.
 
 Env-var overrides still work:
     MODEL_REGISTRY_AGENT_INVENTORY=anthropic/claude-opus-4-6
@@ -24,13 +21,9 @@ logger = logging.getLogger(__name__)
 
 _DEFAULTS: dict[str, str] = {
     "agent:unified":         "anthropic/claude-haiku-4-5",
-    "agent:unified:deep":    "anthropic/claude-sonnet-4-6",
     "agent:inventory":       "anthropic/claude-haiku-4-5",
     "agent:ops":             "anthropic/claude-haiku-4-5",
     "agent:finance":         "anthropic/claude-haiku-4-5",
-    "agent:inventory:deep":  "anthropic/claude-sonnet-4-6",
-    "agent:ops:deep":        "anthropic/claude-sonnet-4-6",
-    "agent:finance:deep":    "anthropic/claude-sonnet-4-6",
     "infra:synthesis":       "meta-llama/llama-3.3-70b-instruct",
 }
 

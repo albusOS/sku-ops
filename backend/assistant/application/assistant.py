@@ -43,7 +43,6 @@ async def chat(
     user_message: str,
     history: list[dict] | None,
     ctx: dict | None = None,
-    mode: str = "fast",
     agent_type: str = "auto",
     session_id: str = "",
 ) -> dict:
@@ -58,7 +57,7 @@ async def chat(
         user_name=ctx.get("user_name", ""),
     )
 
-    result = await _unified_agent.run(user_message, history=history, deps=deps, mode=mode, session_id=session_id)
+    result = await _unified_agent.run(user_message, history=history, deps=deps, session_id=session_id)
     result["routed_to"] = ["unified"]
     return result
 
@@ -70,11 +69,10 @@ async def _chat_multipath(
     user_message: str,
     history: list[dict] | None,
     ctx: dict | None = None,
-    mode: str = "fast",
     agent_type: str = "auto",
     session_id: str = "",
 ) -> dict:
-    """Original 4-path dispatch: trivial → lookup → DAG → specialist agent."""
+    """Original 4-path dispatch: trivial -> lookup -> DAG -> specialist agent. Not active."""
     ctx = ctx or {}
     deps = AgentDeps(
         org_id=ctx.get("org_id", "default"),
@@ -84,11 +82,7 @@ async def _chat_multipath(
 
     if agent_type != "auto":
         agent_name = agent_type if agent_type in _AGENT_MODULES else "inventory"
-        return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
-
-    if mode == "deep":
-        agent_name = classify_domain(user_message)
-        return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
+        return await _run_agent(agent_name, user_message, history, deps, session_id)
 
     if is_trivial(user_message):
         return _trivial_response(user_message)
@@ -105,7 +99,7 @@ async def _chat_multipath(
         return await _dag_dispatch(user_message, report_plan, deps, session_id)
 
     agent_name = classify_domain(user_message)
-    return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
+    return await _run_agent(agent_name, user_message, history, deps, session_id)
 
 
 # ── Trivial response (no LLM) ────────────────────────────────────────────────
@@ -211,14 +205,13 @@ async def _run_agent(
     user_message: str,
     history: list[dict] | None,
     deps: AgentDeps,
-    mode: str,
     session_id: str,
 ) -> dict:
     """Dispatch to a single specialist agent by name."""
     module_path = _AGENT_MODULES.get(agent_name, _AGENT_MODULES["inventory"])
     agent_module = importlib.import_module(module_path)
     result = await agent_module.run(
-        user_message, history=history, deps=deps, mode=mode, session_id=session_id,
+        user_message, history=history, deps=deps, session_id=session_id,
     )
     result["routed_to"] = [agent_name]
     return result

@@ -125,14 +125,14 @@ async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
     return budget_tool_result(await _forecast_stockout({"limit": limit}, ctx.deps.org_id), max_tokens=600)
 
 
-async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, mode: str = "fast", session_id: str = "") -> dict:
-    model_settings = build_model_settings(_config, mode)
+async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = "") -> dict:
+    model_settings = build_model_settings(_config)
 
     return await run_specialist(
         _agent, user_message,
         msg_history=build_message_history(history), deps=deps,
         model_settings=model_settings,
         agent_name="InventoryAgent", agent_label="inventory",
-        session_id=session_id, mode=mode, history=history,
+        session_id=session_id, history=history,
         config=_config,
     )

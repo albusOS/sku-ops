@@ -40,7 +40,7 @@ export function MultiLineChart({
       showSymbol: dotted || data.length <= 31,
       data: data.map((d) => d[def.key] ?? 0),
       lineStyle: {
-        width: 2,
+        width: def.width ?? 2,
         type: dotted ? "dotted" : "solid",
       },
       itemStyle: { color: def.color },

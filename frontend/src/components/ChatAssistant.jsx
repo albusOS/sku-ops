@@ -2,18 +2,19 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MessageCircle, X, Send, ChevronDown, ChevronUp, Zap, Brain, Plus } from "lucide-react";
+import { MessageCircle, X, Send, ChevronDown, ChevronUp, Plus, Sparkles } from "lucide-react";
 import api from "@/lib/api-client";
 
-const STORAGE_KEY = "sku-ops:chat:v3";
+const STORAGE_KEY = "sku-ops:chat:v4";
 
 const AGENT_META = {
-  inventory: { label: "Inventory",  cls: "bg-info/10 text-info border border-info/30" },
+  inventory: { label: "Inventory", cls: "bg-info/10 text-info border border-info/30" },
   ops:       { label: "Operations", cls: "bg-warning/10 text-category-5 border border-warning/30" },
-  finance:   { label: "Finance",    cls: "bg-success/10 text-success border border-success/30" },
-  system:    { label: "Assistant",  cls: "bg-warning/10 text-accent border border-warning/30" },
-  lookup:    { label: "Quick Look", cls: "bg-muted text-foreground border border-border" },
-  dag:       { label: "Report",     cls: "bg-category-4/10 text-category-4 border border-category-4/30" },
+  finance:   { label: "Finance", cls: "bg-success/10 text-success border border-success/30" },
+  unified:   { label: "Assistant", cls: "bg-accent/10 text-accent border border-accent/30" },
+  system:    { label: "Assistant", cls: "bg-accent/10 text-accent border border-accent/30" },
+  lookup:    { label: "Lookup", cls: "bg-muted text-muted-foreground border border-border" },
+  dag:       { label: "Report", cls: "bg-category-4/10 text-category-4 border border-category-4/30" },
 };
 
 function agentTypeFromPath(pathname) {
@@ -51,36 +52,51 @@ const AGENT_SUGGESTIONS = {
 };
 
 const AGENT_PLACEHOLDER = {
-  auto:      "Ask about inventory, finance, operations, or trends…",
+  auto:      "Ask about inventory, finance, or operations…",
   inventory: "Ask about products, stock levels, reorders…",
-  ops:       "Ask about withdrawals, contractors, material requests…",
+  ops:       "Ask about withdrawals, contractors, requests…",
   finance:   "Ask about invoices, revenue, P&L, balances…",
 };
 
+function isNumeric(text) {
+  if (!text) return false;
+  const s = String(text).trim();
+  return /^[$%]?[\d,]+\.?\d*[%]?$/.test(s) || /^-?\$?[\d,]+\.?\d*$/.test(s);
+}
+
 const mdComponents = {
   table: ({ children }) => (
-    <div className="overflow-x-auto my-2 rounded-lg border border-border shadow-sm">
+    <div className="overflow-x-auto my-2.5 rounded-lg border border-border/60">
       <table className="min-w-full text-xs">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-muted border-b border-border">{children}</thead>,
-  tbody: ({ children }) => <tbody className="divide-y divide-border/50">{children}</tbody>,
+  thead: ({ children }) => <thead className="bg-muted/60 border-b border-border/60">{children}</thead>,
+  tbody: ({ children }) => (
+    <tbody className="divide-y divide-border/30 [&>tr:nth-child(even)]:bg-muted/20">{children}</tbody>
+  ),
   th: ({ children }) => (
-    <th className="px-3 py-2 text-left font-medium text-muted-foreground text-[10px] uppercase tracking-wider whitespace-nowrap">
+    <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground text-[10px] uppercase tracking-wider whitespace-nowrap">
       {children}
     </th>
   ),
-  td: ({ children }) => <td className="px-3 py-1.5 text-foreground whitespace-nowrap">{children}</td>,
-  p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  td: ({ children }) => {
+    const numeric = isNumeric(children);
+    return (
+      <td className={`px-2.5 py-1.5 whitespace-nowrap ${numeric ? "text-right font-mono tabular-nums text-foreground" : "text-foreground/90"}`}>
+        {children}
+      </td>
+    );
+  },
+  p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed text-[13px]">{children}</p>,
   strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-  ul: ({ children }) => <ul className="mb-2 space-y-0.5 pl-4 list-disc">{children}</ul>,
-  ol: ({ children }) => <ol className="mb-2 space-y-0.5 pl-4 list-decimal">{children}</ol>,
-  li: ({ children }) => <li className="text-foreground leading-relaxed">{children}</li>,
-  h1: ({ children }) => <h1 className="font-bold text-foreground text-sm mb-1.5 mt-3 first:mt-0">{children}</h1>,
-  h2: ({ children }) => <h2 className="font-semibold text-foreground text-sm mb-1 mt-3 first:mt-0">{children}</h2>,
-  h3: ({ children }) => <h3 className="font-medium text-foreground text-xs mb-1 mt-2 first:mt-0">{children}</h3>,
+  ul: ({ children }) => <ul className="mb-1.5 space-y-0.5 pl-4 list-disc marker:text-muted-foreground">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-1.5 space-y-0.5 pl-4 list-decimal marker:text-muted-foreground">{children}</ol>,
+  li: ({ children }) => <li className="text-foreground/90 leading-relaxed text-[13px]">{children}</li>,
+  h1: ({ children }) => <h1 className="font-bold text-foreground text-sm mb-1 mt-2.5 first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="font-semibold text-foreground text-[13px] mb-1 mt-2.5 first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="font-medium text-foreground text-xs mb-0.5 mt-2 first:mt-0">{children}</h3>,
   pre: ({ children }) => (
-    <pre className="my-2 p-3 bg-sidebar rounded-lg overflow-x-auto text-xs text-muted font-mono leading-relaxed">
+    <pre className="my-2 p-2.5 bg-sidebar/80 rounded-lg overflow-x-auto text-[11px] text-foreground/80 font-mono leading-relaxed border border-border/40">
       {children}
     </pre>
   ),
@@ -88,11 +104,11 @@ const mdComponents = {
     className ? (
       <code className={className}>{children}</code>
     ) : (
-      <code className="px-1 py-0.5 bg-border rounded text-[11px] font-mono text-foreground">{children}</code>
+      <code className="px-1 py-0.5 bg-muted/80 rounded text-[11px] font-mono text-accent">{children}</code>
     ),
-  hr: () => <hr className="my-3 border-border" />,
+  hr: () => <hr className="my-2.5 border-border/40" />,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-accent pl-3 my-2 text-muted-foreground italic text-xs">{children}</blockquote>
+    <blockquote className="border-l-2 border-accent/60 pl-3 my-2 text-muted-foreground text-xs">{children}</blockquote>
   ),
 };
 
@@ -102,40 +118,38 @@ function AgentBubble({ msg, thinkingOpen, onToggleThinking }) {
   const thinking = msg.thinking || [];
 
   return (
-    <div className="flex flex-col gap-1.5 max-w-[92%]">
-      {(meta || toolCalls.length > 0) && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {meta && (
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${meta.cls}`}>
-              {meta.label}
-            </span>
-          )}
-          {toolCalls.map((t, i) => (
-            <span key={t.tool || i} className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
-              {t.tool}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-foreground">
+    <div className="flex flex-col gap-1 max-w-[94%]">
+      <div className="bg-surface border border-border/40 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-foreground shadow-sm">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
           {msg.content}
         </ReactMarkdown>
       </div>
-      {thinking.length > 0 && (
-        <div>
-          <button
-            onClick={onToggleThinking}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {thinkingOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {thinkingOpen ? "Hide" : "View"} reasoning
-          </button>
-          {thinkingOpen && (
-            <div className="mt-1.5 p-3 bg-muted border border-border rounded-xl text-[11px] text-muted-foreground font-mono leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
-              {thinking.join("\n\n---\n\n")}
-            </div>
+      {(meta || toolCalls.length > 0 || thinking.length > 0) && (
+        <div className="flex items-center gap-1.5 flex-wrap px-1">
+          {meta && (
+            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${meta.cls}`}>
+              {meta.label}
+            </span>
           )}
+          {toolCalls.map((t, i) => (
+            <span key={t.tool || i} className="text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded border border-border/40">
+              {t.tool}
+            </span>
+          ))}
+          {thinking.length > 0 && (
+            <button
+              onClick={onToggleThinking}
+              className="flex items-center gap-0.5 text-[9px] text-muted-foreground hover:text-foreground transition-colors ml-auto"
+            >
+              {thinkingOpen ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+              reasoning
+            </button>
+          )}
+        </div>
+      )}
+      {thinking.length > 0 && thinkingOpen && (
+        <div className="mx-1 p-2.5 bg-muted/40 border border-border/30 rounded-lg text-[10px] text-muted-foreground font-mono leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap">
+          {thinking.join("\n\n---\n\n")}
         </div>
       )}
     </div>
@@ -145,7 +159,6 @@ function AgentBubble({ msg, thinkingOpen, onToggleThinking }) {
 export default function ChatAssistant() {
   const location = useLocation();
   const agentType = agentTypeFromPath(location.pathname);
-  const agentMeta = AGENT_META[agentType] || { label: "Assistant", cls: "bg-warning/10 text-accent border border-warning/30" };
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
@@ -162,7 +175,6 @@ export default function ChatAssistant() {
   const [setupUrl, setSetupUrl] = useState(null);
   const [openThinking, setOpenThinking] = useState(new Set());
   const [sessionCost, setSessionCost] = useState(0);
-  const [mode, setMode] = useState("fast");
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const prevAgentType = useRef(agentType);
@@ -171,7 +183,6 @@ export default function ChatAssistant() {
     if (sid) api.chat.deleteSession(sid).catch(() => {});
   };
 
-  // Clear session when navigating between sections
   useEffect(() => {
     if (prevAgentType.current !== agentType) {
       clearSession(sessionId);
@@ -218,7 +229,6 @@ export default function ChatAssistant() {
       const data = await api.chat.send({
         message: text,
         session_id: sessionId,
-        mode,
         agent_type: agentType,
       });
       if (data.session_id) setSessionId(data.session_id);
@@ -257,78 +267,43 @@ export default function ChatAssistant() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-accent hover:bg-accent/90 text-accent-foreground rounded-full shadow-lg flex items-center justify-center transition-colors z-40"
+        className="fixed bottom-6 right-6 w-12 h-12 bg-accent hover:bg-accent/90 text-accent-foreground rounded-full shadow-lg shadow-accent/20 flex items-center justify-center transition-all z-40 hover:scale-105"
         aria-label="Open AI assistant"
       >
-        <MessageCircle className="w-6 h-6" />
+        <Sparkles className="w-5 h-5" />
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-md bg-card shadow-xl flex flex-col h-full animate-slide-in-right">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
+          <div className="relative w-full max-w-md bg-background shadow-2xl flex flex-col h-full border-l border-border/60">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-4 h-4 text-white" />
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 bg-surface">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-accent/15 border border-accent/30 rounded-lg flex items-center justify-center">
+                  <Sparkles className="w-3.5 h-3.5 text-accent" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-foreground text-sm leading-tight">
-                    {agentMeta.label} Assistant
-                  </h2>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium ${agentMeta.cls}`}>
-                      {agentMeta.label}
-                    </span>
-                    {sessionCost > 0 && (
-                      <span className="ml-2 text-muted-foreground/60">· ${sessionCost.toFixed(4)} session</span>
-                    )}
-                  </p>
+                  <h2 className="font-semibold text-foreground text-sm leading-none">Assistant</h2>
+                  {sessionCost > 0 && (
+                    <p className="text-[9px] text-muted-foreground mt-0.5">${sessionCost.toFixed(4)}</p>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {messages.length > 0 && (
                   <button
                     type="button"
                     onClick={startNewChat}
                     title="New chat"
-                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-border rounded-lg transition-colors"
+                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 )}
-                <div className="flex rounded-lg border border-border bg-card p-0.5" role="group">
-                  <button
-                    type="button"
-                    onClick={() => setMode("fast")}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                      mode === "fast"
-                        ? "bg-warning/15 text-accent border border-warning/30"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                    title="Fast: quick answers, lower cost"
-                  >
-                    <Zap className="w-3 h-3" />
-                    Fast
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("deep")}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                      mode === "deep"
-                        ? "bg-sidebar text-white border border-sidebar-border"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                    title="Deep: more reasoning, higher cost"
-                  >
-                    <Brain className="w-3 h-3" />
-                    Deep
-                  </button>
-                </div>
                 <button
                   onClick={() => setOpen(false)}
-                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-border rounded-lg transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -336,32 +311,38 @@ export default function ChatAssistant() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
               {aiAvailable === false && (
-                <div className="rounded-xl bg-warning/10 border border-warning/30 p-4">
-                  <p className="font-medium text-sm text-foreground mb-1">AI assistant not configured</p>
-                  <p className="text-xs text-accent mb-3">
-                    Add <code className="px-1 bg-warning/15 rounded font-mono">ANTHROPIC_API_KEY</code> to{" "}
-                    <code className="px-1 bg-warning/15 rounded font-mono">backend/.env</code> to enable.
+                <div className="rounded-lg bg-warning/10 border border-warning/30 p-3">
+                  <p className="font-medium text-xs text-foreground mb-1">AI assistant not configured</p>
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    Add <code className="px-1 bg-muted rounded font-mono text-[10px]">ANTHROPIC_API_KEY</code> or{" "}
+                    <code className="px-1 bg-muted rounded font-mono text-[10px]">OPENROUTER_API_KEY</code> to{" "}
+                    <code className="px-1 bg-muted rounded font-mono text-[10px]">backend/.env</code>
                   </p>
                   {setupUrl && (
-                    <a href={setupUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent underline hover:text-foreground">
-                      Get an API key →
+                    <a href={setupUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-accent underline hover:text-foreground">
+                      Get an API key
                     </a>
                   )}
                 </div>
               )}
 
               {messages.length === 0 && aiAvailable !== false && (
-                <div className="flex flex-col items-center py-6 gap-4">
-                  <p className="text-xs text-muted-foreground text-center">{AGENT_PLACEHOLDER[agentType]}</p>
-                  <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="flex flex-col py-8 gap-4">
+                  <div className="text-center">
+                    <div className="w-10 h-10 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-center mx-auto mb-3">
+                      <Sparkles className="w-5 h-5 text-accent" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{AGENT_PLACEHOLDER[agentType]}</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
                     {suggestions.map((s) => (
                       <button
                         key={s.label}
                         onClick={() => sendMessage(s.prompt)}
                         disabled={loading || aiAvailable === false}
-                        className="text-xs text-left px-3 py-2.5 rounded-xl border border-border bg-card hover:bg-warning/10 hover:border-warning/30 text-muted-foreground transition-colors leading-snug disabled:opacity-50"
+                        className="text-xs text-left px-3 py-2 rounded-lg border border-border/50 bg-surface hover:bg-accent/5 hover:border-accent/30 text-muted-foreground hover:text-foreground transition-colors leading-snug disabled:opacity-50"
                       >
                         {s.label}
                       </button>
@@ -373,7 +354,7 @@ export default function ChatAssistant() {
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   {m.role === "user" ? (
-                    <div className="max-w-[85%] bg-accent text-accent-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed">
+                    <div className="max-w-[85%] bg-accent text-accent-foreground rounded-2xl rounded-tr-sm px-3.5 py-2 text-[13px] leading-relaxed">
                       {m.content}
                     </div>
                   ) : (
@@ -384,11 +365,11 @@ export default function ChatAssistant() {
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="bg-surface border border-border/40 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                     <span className="inline-flex gap-1 items-center">
-                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 bg-accent/70 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 bg-accent/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                     </span>
                   </div>
                 </div>
@@ -398,23 +379,23 @@ export default function ChatAssistant() {
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-border bg-card">
-              <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-2">
+            <div className="px-3 py-2.5 border-t border-border/60 bg-surface">
+              <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-1.5">
                 <input
                   ref={inputRef}
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={aiAvailable === false ? "Configure ANTHROPIC_API_KEY to enable" : AGENT_PLACEHOLDER[agentType]}
-                  className="flex-1 px-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:bg-muted disabled:text-muted-foreground"
+                  placeholder={aiAvailable === false ? "Configure API key to enable" : AGENT_PLACEHOLDER[agentType]}
+                  className="flex-1 px-3 py-2 bg-background border border-border/60 rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/50 disabled:opacity-50 transition-colors"
                   disabled={loading || aiAvailable === false}
                 />
                 <button
                   type="submit"
                   disabled={loading || !input.trim() || aiAvailable === false}
-                  className="p-2.5 bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed text-accent-foreground rounded-xl transition-colors"
+                  className="px-3 py-2 bg-accent hover:bg-accent/90 disabled:opacity-30 disabled:cursor-not-allowed text-accent-foreground rounded-lg transition-colors"
                 >
-                  <Send className="w-5 h-5" />
+                  <Send className="w-4 h-4" />
                 </button>
               </form>
             </div>
