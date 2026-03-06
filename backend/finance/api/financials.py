@@ -8,13 +8,13 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from finance.application import ledger_queries as ledger_repo
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser, round_money
+from kernel.types import round_money
 from operations.application.queries import list_withdrawals
+from shared.api.deps import AdminDep
 
 router = APIRouter(prefix="/financials", tags=["financials"])
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/financials", tags=["financials"])
 async def get_financial_summary(
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """P&L summary sourced from the financial ledger."""
     org_id = current_user.organization_id
@@ -94,7 +94,7 @@ async def export_financials(
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Export financial data as CSV (line-level, from operational tables)."""
     org_id = current_user.organization_id

@@ -17,8 +17,8 @@ async def insert(address: dict, conn=None) -> None:
     in_tx = conn is not None
     conn = conn or get_connection()
     await conn.execute(
-        f"""INSERT INTO addresses ({_COLUMNS})
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        "INSERT INTO addresses (" + _COLUMNS + ")"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             address["id"], address.get("label", ""),
             address.get("line1", ""), address.get("line2", ""),
@@ -35,7 +35,7 @@ async def insert(address: dict, conn=None) -> None:
 async def get_by_id(address_id: str, organization_id: str) -> dict | None:
     conn = get_connection()
     cursor = await conn.execute(
-        f"SELECT {_COLUMNS} FROM addresses WHERE id = ? AND organization_id = ?",
+        "SELECT " + _COLUMNS + " FROM addresses WHERE id = ? AND organization_id = ?",
         (address_id, organization_id),
     )
     return _row_to_dict(await cursor.fetchone())
@@ -50,7 +50,7 @@ async def list_addresses(
     offset: int = 0,
 ) -> list:
     conn = get_connection()
-    sql = f"SELECT {_COLUMNS} FROM addresses WHERE organization_id = ?"
+    sql = "SELECT " + _COLUMNS + " FROM addresses WHERE organization_id = ?"
     params: list = [organization_id]
     if billing_entity_id:
         sql += " AND billing_entity_id = ?"
@@ -73,10 +73,10 @@ async def search(query: str, organization_id: str, limit: int = 20) -> list:
     conn = get_connection()
     like = f"%{query.lower()}%"
     cursor = await conn.execute(
-        f"""SELECT {_COLUMNS} FROM addresses
-            WHERE organization_id = ?
-              AND (LOWER(label) LIKE ? OR LOWER(line1) LIKE ? OR LOWER(city) LIKE ?)
-            ORDER BY label, line1 LIMIT ?""",
+        "SELECT " + _COLUMNS + " FROM addresses"
+        " WHERE organization_id = ?"
+        " AND (LOWER(label) LIKE ? OR LOWER(line1) LIKE ? OR LOWER(city) LIKE ?)"
+        " ORDER BY label, line1 LIMIT ?",
         (organization_id, like, like, like, limit),
     )
     return [_row_to_dict(r) for r in await cursor.fetchall()]

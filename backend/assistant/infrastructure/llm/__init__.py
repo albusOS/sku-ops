@@ -19,13 +19,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_provider: LLMProvider | None = None
+_state: dict[str, LLMProvider | None] = {"provider": None}
 
 
 def init_llm() -> None:
     """Select the LLM provider based on environment config. Call once at startup."""
-    global _provider
-
     from shared.infrastructure.config import (
         AGENT_PRIMARY_MODEL,
         ANTHROPIC_API_KEY,
@@ -38,32 +36,32 @@ def init_llm() -> None:
 
     if is_test:
         from assistant.infrastructure.llm.stub import StubProvider
-        _provider = StubProvider()
+        _state["provider"] = StubProvider()
         logger.info("LLM provider: stub (test mode)")
         return
 
     if OPENROUTER_AVAILABLE:
         from assistant.infrastructure.llm.openrouter import OpenRouterProvider
-        _provider = OpenRouterProvider(OPENROUTER_API_KEY, OPENROUTER_BASE_URL)
+        _state["provider"] = OpenRouterProvider(OPENROUTER_API_KEY, OPENROUTER_BASE_URL)
         logger.info("LLM provider: openrouter (%s)", OPENROUTER_BASE_URL)
         return
 
     if ANTHROPIC_AVAILABLE:
         from assistant.infrastructure.llm.anthropic_provider import AnthropicProvider
-        _provider = AnthropicProvider(ANTHROPIC_API_KEY, AGENT_PRIMARY_MODEL)
+        _state["provider"] = AnthropicProvider(ANTHROPIC_API_KEY, AGENT_PRIMARY_MODEL)
         logger.info("LLM provider: anthropic (direct SDK)")
         return
 
     from assistant.infrastructure.llm.stub import StubProvider
-    _provider = StubProvider()
+    _state["provider"] = StubProvider()
     logger.warning("No LLM API keys configured — using stub provider")
 
 
 def get_provider() -> LLMProvider:
     """Return the active LLM provider. Raises if init_llm() was not called."""
-    if _provider is None:
+    if _state["provider"] is None:
         raise RuntimeError("LLM not initialized. Call init_llm() at startup.")
-    return _provider
+    return _state["provider"]
 
 
 def get_model(model_id: str) -> Any:

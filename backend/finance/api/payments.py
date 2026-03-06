@@ -1,15 +1,14 @@
 """Payment routes — record and list payments."""
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from finance.application.invoice_service import mark_paid_for_withdrawal
 from finance.application.ledger_service import record_payment as _record_ledger_payment
 from finance.domain.payment import Payment, PaymentCreate
 from finance.infrastructure.payment_repo import payment_repo
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser
 from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
+from shared.api.deps import AdminDep, ManagerDep
 from shared.infrastructure import event_hub
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 @router.post("")
 async def create_payment(
     data: PaymentCreate,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Record a payment against withdrawals and/or an invoice."""
     org_id = current_user.organization_id
@@ -84,7 +83,7 @@ async def list_payments(
     end_date: str | None = None,
     limit: int = 200,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     return await payment_repo.list_payments(
         organization_id=current_user.organization_id,
@@ -95,7 +94,7 @@ async def list_payments(
 
 
 @router.get("/{payment_id}")
-async def get_payment(payment_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def get_payment(payment_id: str, current_user: ManagerDep):
     p = await payment_repo.get_by_id(payment_id, current_user.organization_id)
     if not p:
         raise HTTPException(status_code=404, detail="Payment not found")

@@ -1,11 +1,10 @@
 """Credit note routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from finance.application.credit_note_service import apply_credit_note
 from finance.infrastructure.credit_note_repo import credit_note_repo
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/credit-notes", tags=["credit-notes"])
@@ -18,7 +17,7 @@ async def list_credit_notes(
     status: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     return await credit_note_repo.list_credit_notes(
@@ -34,7 +33,7 @@ async def list_credit_notes(
 @router.get("/{credit_note_id}")
 async def get_credit_note(
     credit_note_id: str,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     cn = await credit_note_repo.get_by_id(credit_note_id, org_id)
@@ -47,7 +46,7 @@ async def get_credit_note(
 async def apply_credit_note_to_invoice(
     credit_note_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Apply a credit note against its linked invoice, reducing the balance due."""
     org_id = current_user.organization_id
@@ -65,4 +64,4 @@ async def apply_credit_note_to_invoice(
         )
         return cn
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

@@ -2,12 +2,11 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from identity.application.auth_service import get_current_user, require_role
 from identity.infrastructure.address_repo import address_repo
-from kernel.types import CurrentUser
+from shared.api.deps import CurrentUserDep, ManagerDep
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 
@@ -31,7 +30,7 @@ async def list_addresses(
     q: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     return await address_repo.list_addresses(
         organization_id=current_user.organization_id,
@@ -44,7 +43,7 @@ async def list_addresses(
 async def search_addresses(
     q: str = "",
     limit: int = 20,
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    current_user: CurrentUserDep,
 ):
     """Autocomplete endpoint for address pickers."""
     if not q.strip():
@@ -55,7 +54,7 @@ async def search_addresses(
 
 
 @router.get("/{address_id}")
-async def get_address(address_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def get_address(address_id: str, current_user: ManagerDep):
     addr = await address_repo.get_by_id(address_id, current_user.organization_id)
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
@@ -65,7 +64,7 @@ async def get_address(address_id: str, current_user: CurrentUser = Depends(requi
 @router.post("")
 async def create_address(
     data: AddressCreate,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     if not data.line1.strip():
         raise HTTPException(status_code=400, detail="Address line 1 is required")

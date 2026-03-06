@@ -18,8 +18,8 @@ async def insert(payment: Payment | dict, withdrawal_ids: list[str] | None = Non
     in_tx = conn is not None
     conn = conn or get_connection()
     await conn.execute(
-        f"""INSERT INTO payments ({_COLUMNS})
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        "INSERT INTO payments (" + _COLUMNS + ")"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             d["id"], d.get("invoice_id"), d.get("billing_entity_id"),
             d["amount"], d.get("method", "bank_transfer"), d.get("reference", ""),
@@ -40,7 +40,7 @@ async def insert(payment: Payment | dict, withdrawal_ids: list[str] | None = Non
 async def get_by_id(payment_id: str, organization_id: str) -> dict | None:
     conn = get_connection()
     cursor = await conn.execute(
-        f"SELECT {_COLUMNS} FROM payments WHERE id = ? AND organization_id = ?",
+        "SELECT " + _COLUMNS + " FROM payments WHERE id = ? AND organization_id = ?",
         (payment_id, organization_id),
     )
     p = _row_to_dict(await cursor.fetchone())
@@ -66,7 +66,7 @@ async def list_payments(
     offset: int = 0,
 ) -> list:
     conn = get_connection()
-    sql = f"SELECT {_COLUMNS} FROM payments WHERE organization_id = ?"
+    sql = "SELECT " + _COLUMNS + " FROM payments WHERE organization_id = ?"
     params: list = [organization_id]
     if invoice_id:
         sql += " AND invoice_id = ?"
@@ -89,7 +89,7 @@ async def list_payments(
 async def list_for_invoice(invoice_id: str, organization_id: str) -> list:
     conn = get_connection()
     cursor = await conn.execute(
-        f"SELECT {_COLUMNS} FROM payments WHERE invoice_id = ? AND organization_id = ? ORDER BY payment_date DESC",
+        "SELECT " + _COLUMNS + " FROM payments WHERE invoice_id = ? AND organization_id = ? ORDER BY payment_date DESC",
         (invoice_id, organization_id),
     )
     return [_row_to_dict(r) for r in await cursor.fetchall()]

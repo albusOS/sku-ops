@@ -50,13 +50,13 @@ async def _query_audit_log(
         params.append(end_date)
 
     count_cursor = await conn.execute(
-        f"SELECT COUNT(*) FROM audit_log {where}", params
+        "SELECT COUNT(*) FROM audit_log " + where, params
     )
     count_row = await count_cursor.fetchone()
     total = count_row[0] if count_row else 0
 
     cursor = await conn.execute(
-        f"SELECT * FROM audit_log {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM audit_log " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
         [*params, limit, offset],
     )
     rows = await cursor.fetchall()

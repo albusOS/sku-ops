@@ -77,7 +77,7 @@ async def _send(ws: WebSocket, msg: dict) -> bool:
     try:
         await ws.send_text(json.dumps(msg))
         return True
-    except Exception:
+    except (RuntimeError, OSError):
         return False
 
 
@@ -154,7 +154,7 @@ def mount_chat_websocket(app: FastAPI) -> None:
 
             except WebSocketDisconnect:
                 logger.debug("Chat WS disconnected: user=%s", user_id)
-            except Exception as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 logger.warning("Chat WS receiver error for user=%s: %s", user_id, e)
             finally:
                 if generation_task and not generation_task.done():
@@ -171,7 +171,7 @@ def mount_chat_websocket(app: FastAPI) -> None:
             _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for t in pending:
                 t.cancel()
-        except Exception:
+        except (RuntimeError, OSError):
             for t in tasks:
                 t.cancel()
         finally:
@@ -212,7 +212,7 @@ async def _handle_chat(
     if not history:
         try:
             memory_ctx = await recall_memory(org_id=org_id, user_id=user_id)
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.warning("Memory recall failed for user=%s: %s", user_id, e)
             memory_ctx = ""
         if memory_ctx:

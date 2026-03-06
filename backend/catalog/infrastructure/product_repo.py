@@ -93,12 +93,12 @@ async def get_by_id(product_id: str, columns: str | None = "*", organization_id:
     sel = _sanitize_columns(columns or "*")
     if organization_id:
         cursor = await conn.execute(
-            f"SELECT {sel} FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
+            "SELECT " + sel + " FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
             (product_id, organization_id),
         )
     else:
         cursor = await conn.execute(
-            f"SELECT {sel} FROM products WHERE id = ? AND deleted_at IS NULL",
+            "SELECT " + sel + " FROM products WHERE id = ? AND deleted_at IS NULL",
             (product_id,),
         )
     row = await cursor.fetchone()
@@ -244,7 +244,7 @@ async def update(product_id: str, updates: dict, conn=None, organization_id: str
         where += " AND organization_id = ?"
         values.append(organization_id)
     await conn.execute(
-        f"UPDATE products SET {', '.join(set_parts)} {where}",
+        "UPDATE products SET " + ", ".join(set_parts) + " " + where,
         values,
     )
     if not in_transaction:
@@ -262,7 +262,7 @@ async def delete(product_id: str, conn=None, organization_id: str | None = None)
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"UPDATE products SET deleted_at = ? {where}",
+        "UPDATE products SET deleted_at = ? " + where,
         params,
     )
     if not in_transaction:
@@ -280,7 +280,7 @@ async def atomic_decrement(product_id: str, quantity: float, updated_at: str, co
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"UPDATE products SET quantity = quantity - ?, updated_at = ? {where}",
+        "UPDATE products SET quantity = quantity - ?, updated_at = ? " + where,
         params,
     )
     if not in_transaction:
@@ -300,7 +300,7 @@ async def increment_quantity(product_id: str, quantity: float, updated_at: str, 
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE products SET quantity = quantity + ?, updated_at = ? {where}",
+        "UPDATE products SET quantity = quantity + ?, updated_at = ? " + where,
         params,
     )
     if not in_transaction:
@@ -317,7 +317,7 @@ async def add_quantity(product_id: str, quantity: float, updated_at: str, conn=N
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE products SET quantity = quantity + ?, updated_at = ? {where}",
+        "UPDATE products SET quantity = quantity + ?, updated_at = ? " + where,
         params,
     )
     if not in_transaction:
@@ -337,7 +337,7 @@ async def atomic_adjust(product_id: str, quantity_delta: float, updated_at: str,
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"UPDATE products SET quantity = quantity + ?, updated_at = ? {where}",
+        "UPDATE products SET quantity = quantity + ?, updated_at = ? " + where,
         params,
     )
     if not in_transaction:

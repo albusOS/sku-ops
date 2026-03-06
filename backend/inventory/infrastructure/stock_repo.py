@@ -51,7 +51,7 @@ async def list_by_product(product_id: str, limit: int = 50, organization_id: str
         params.append(organization_id)
     params.append(limit)
     cursor = await conn.execute(
-        f"SELECT * FROM stock_transactions {where} ORDER BY created_at DESC LIMIT ?",
+        "SELECT * FROM stock_transactions " + where + " ORDER BY created_at DESC LIMIT ?",
         params,
     )
     rows = await cursor.fetchall()

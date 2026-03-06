@@ -7,20 +7,20 @@ from finance.domain.invoice import Invoice, compute_due_date
 from shared.infrastructure.database import get_connection
 
 # Injected at module level by the API layer to avoid circular import with operations
-_withdrawal_getter: Callable[..., Awaitable[dict | None]] | None = None
+_wiring: dict[str, Callable[..., Awaitable[dict | None]]] = {}
 
 
 def set_withdrawal_getter(fn: Callable[..., Awaitable[dict | None]]) -> None:
     """Wire the withdrawal query function (called once at startup)."""
-    global _withdrawal_getter
-    _withdrawal_getter = fn
+    _wiring["withdrawal_getter"] = fn
 
 
 async def _get_withdrawal(wid: str, org_id: str) -> dict | None:
     """Fetch a withdrawal via the injected operations query."""
-    if _withdrawal_getter is None:
+    getter = _wiring.get("withdrawal_getter")
+    if getter is None:
         raise RuntimeError("withdrawal_getter not wired — call set_withdrawal_getter at startup")
-    return await _withdrawal_getter(wid, organization_id=org_id)
+    return await getter(wid, organization_id=org_id)
 
 
 def _invoice_row_to_dict(row) -> dict:
@@ -180,7 +180,7 @@ async def list_invoices(
     if invoice_ids:
         placeholders = ",".join("?" for _ in invoice_ids)
         count_cursor = await conn.execute(
-            f"SELECT invoice_id, COUNT(*) FROM invoice_withdrawals WHERE invoice_id IN ({placeholders}) GROUP BY invoice_id",
+            "SELECT invoice_id, COUNT(*) FROM invoice_withdrawals WHERE invoice_id IN (" + placeholders + ") GROUP BY invoice_id",
             invoice_ids,
         )
         counts = {r[0]: r[1] for r in await count_cursor.fetchall()}
@@ -251,7 +251,7 @@ async def update(
         if inv.get("xero_invoice_id"):
             sync_status_update = ", xero_sync_status = 'cogs_stale'"
         await conn.execute(
-            f"UPDATE invoices SET subtotal = ?, tax = ?, total = ?, updated_at = ?{sync_status_update} WHERE id = ?",
+            "UPDATE invoices SET subtotal = ?, tax = ?, total = ?, updated_at = ?" + sync_status_update + " WHERE id = ?",
             (subtotal, tax_val, total, now, invoice_id),
         )
     else:
@@ -306,7 +306,7 @@ async def update(
             params.append(now)
             params.append(invoice_id)
             await conn.execute(
-                f"UPDATE invoices SET {', '.join(updates)} WHERE id = ?",
+                "UPDATE invoices SET " + ", ".join(updates) + " WHERE id = ?",
                 params,
             )
 
@@ -518,7 +518,7 @@ async def mark_paid_for_withdrawal(withdrawal_id: str, organization_id: str | No
         where += " AND (organization_id = ? OR organization_id IS NULL)"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"SELECT invoice_id FROM withdrawals {where}",
+        "SELECT invoice_id FROM withdrawals " + where,
         params,
     )
     row = await cursor.fetchone()
@@ -545,7 +545,7 @@ async def set_xero_invoice_id(
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE invoices SET xero_invoice_id = ?, xero_cogs_journal_id = ?, xero_sync_status = 'synced', updated_at = ? {where}",
+        "UPDATE invoices SET xero_invoice_id = ?, xero_cogs_journal_id = ?, xero_sync_status = 'synced', updated_at = ? " + where,
         params,
     )
     await conn.commit()
@@ -560,7 +560,7 @@ async def set_xero_sync_status(invoice_id: str, status: str, organization_id: st
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE invoices SET xero_sync_status = ?, updated_at = ? {where}",
+        "UPDATE invoices SET xero_sync_status = ?, updated_at = ? " + where,
         params,
     )
     await conn.commit()

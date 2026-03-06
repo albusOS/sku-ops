@@ -1,11 +1,10 @@
 """Material request routes - contractor pick list, staff processes into withdrawal."""
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from catalog.application.queries import list_products
 from finance.application.invoice_service import create_invoice_from_withdrawals
-from identity.application.auth_service import get_current_user, require_role
 from identity.application.org_service import get_org_settings
 from identity.application.user_service import get_user_by_id
 from inventory.application.inventory_service import process_withdrawal_stock_changes
@@ -18,6 +17,7 @@ from operations.domain.material_request import (
 )
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
 from operations.infrastructure.material_request_repo import material_request_repo
+from shared.api.deps import CurrentUserDep, ManagerDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.database import transaction
 
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 
 @router.post("")
-async def create_material_request(data: MaterialRequestCreate, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def create_material_request(data: MaterialRequestCreate, current_user: CurrentUserDep):
     """Contractor creates a material request (pick list). Staff will process it into a withdrawal."""
     if current_user.role != "contractor":
         raise HTTPException(status_code=403, detail="Only contractors can create material requests")
@@ -62,7 +62,7 @@ async def create_material_request(data: MaterialRequestCreate, current_user: Cur
 
 
 @router.get("")
-async def list_material_requests(current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def list_material_requests(current_user: CurrentUserDep):
     """Contractors see own requests; admin/WM see all pending."""
     org_id = current_user.organization_id
     role = current_user.role
@@ -77,7 +77,7 @@ async def list_material_requests(current_user: CurrentUser = Depends(get_current
 
 
 @router.get("/{request_id}")
-async def get_material_request(request_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def get_material_request(request_id: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
     req = await material_request_repo.get_by_id(request_id, org_id)
     if not req:
@@ -92,7 +92,7 @@ async def get_material_request(request_id: str, current_user: CurrentUser = Depe
 async def process_material_request(
     request_id: str,
     data: MaterialRequestProcess,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Convert a pending material request into a withdrawal. Staff supplies job_id and service_address."""
     org_id = current_user.organization_id

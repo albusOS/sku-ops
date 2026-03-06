@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from shared.infrastructure.db.protocol import Connection, DatabaseBackend
 
-_backend: DatabaseBackend | None = None
+_state: dict[str, DatabaseBackend | None] = {"backend": None}
 
 
 def _make_backend(url: str) -> DatabaseBackend:
@@ -33,33 +33,31 @@ def _make_backend(url: str) -> DatabaseBackend:
 
 async def init_db() -> None:
     """Open connection / pool and run pending migrations."""
-    global _backend
-    _backend = _make_backend(DATABASE_URL)
-    await _backend.connect(DATABASE_URL)
+    _state["backend"] = _make_backend(DATABASE_URL)
+    await _state["backend"].connect(DATABASE_URL)
 
     from shared.infrastructure.migrations.runner import run_migrations
-    await run_migrations(_backend)
+    await run_migrations(_state["backend"])
 
 
 def get_connection() -> Connection:
     """Return the database connection (pool proxy for PG, wrapper for SQLite)."""
-    if _backend is None:
+    if _state["backend"] is None:
         raise RuntimeError("Database not initialized. Call init_db() at startup.")
-    return _backend.connection()
+    return _state["backend"].connection()
 
 
 @asynccontextmanager
 async def transaction() -> AsyncIterator[Connection]:
     """Async context manager — commits on success, rolls back on exception."""
-    if _backend is None:
+    if _state["backend"] is None:
         raise RuntimeError("Database not initialized. Call init_db() at startup.")
-    async with _backend.transaction() as conn:
+    async with _state["backend"].transaction() as conn:
         yield conn
 
 
 async def close_db() -> None:
     """Close connection / pool on shutdown."""
-    global _backend
-    if _backend:
-        await _backend.close()
-        _backend = None
+    if _state["backend"]:
+        await _state["backend"].close()
+        _state["backend"] = None

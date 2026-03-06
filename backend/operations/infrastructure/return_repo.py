@@ -123,7 +123,7 @@ async def list_by_withdrawal(withdrawal_id: str, organization_id: str | None = N
         where += " AND (organization_id = ? OR organization_id IS NULL)"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"SELECT * FROM returns {where} ORDER BY created_at DESC",
+        "SELECT * FROM returns " + where + " ORDER BY created_at DESC",
         params,
     )
     rows = await cursor.fetchall()

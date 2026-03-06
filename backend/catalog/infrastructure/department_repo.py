@@ -82,7 +82,7 @@ async def update(dept_id: str, name: str, description: str, conn=None, organizat
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE departments SET name = ?, description = ? {where}",
+        "UPDATE departments SET name = ?, description = ? " + where,
         params,
     )
     await conn.execute(
@@ -102,7 +102,7 @@ async def count_products_by_department(dept_id: str, organization_id: str | None
         where += " AND (organization_id = ? OR organization_id IS NULL)"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"SELECT COUNT(*) FROM products {where}",
+        "SELECT COUNT(*) FROM products " + where,
         params,
     )
     row = await cursor.fetchone()
@@ -118,7 +118,7 @@ async def delete(dept_id: str, organization_id: str | None = None) -> int:
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"UPDATE departments SET deleted_at = ? {where}",
+        "UPDATE departments SET deleted_at = ? " + where,
         params,
     )
     await conn.commit()
@@ -134,7 +134,7 @@ async def increment_product_count(dept_id: str, delta: int, conn=None, organizat
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE departments SET product_count = product_count + ? {where}",
+        "UPDATE departments SET product_count = product_count + ? " + where,
         params,
     )
     if not in_transaction:

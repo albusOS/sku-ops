@@ -59,10 +59,10 @@ async def get_current_user(
         user_id_var.set(user.get("id", ""))
         org_id_var.set(org_id)
         return CurrentUser(**user)
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError as e:
+        raise HTTPException(status_code=401, detail="Token expired") from e
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail="Invalid token") from e
 
 
 def require_role(*roles):

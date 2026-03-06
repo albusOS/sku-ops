@@ -12,7 +12,7 @@ from shared.infrastructure.config import XERO_CLIENT_ID, XERO_CLIENT_SECRET
 logger = logging.getLogger(__name__)
 
 XERO_API = "https://api.xero.com/api.xro/2.0"
-XERO_TOKEN_URL = "https://identity.xero.com/connect/token"
+XERO_OAUTH_ENDPOINT = "https://identity.xero.com/connect/token"
 XERO_CONNECTIONS_URL = "https://api.xero.com/connections"
 
 
@@ -32,13 +32,13 @@ class XeroAdapter:
             expiry = datetime.fromisoformat(settings.xero_token_expiry)
             # Treat as expired 60 s before actual expiry to avoid edge races
             return datetime.now(UTC).timestamp() >= expiry.timestamp() - 60
-        except Exception:
+        except (ValueError, TypeError):
             return True
 
     async def refresh_token(self, settings: OrgSettings) -> OrgSettings:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                XERO_TOKEN_URL,
+                XERO_OAUTH_ENDPOINT,
                 data={
                     "grant_type": "refresh_token",
                     "refresh_token": settings.xero_refresh_token,
@@ -152,7 +152,7 @@ class XeroAdapter:
         self,
         invoice: dict,
         settings: OrgSettings,
-        xero_invoice_id: str | None,
+        _xero_invoice_id: str | None,
         first_job_id: str | None = None,
     ) -> tuple[list, float]:
         """Return (journal_lines, cost_total) for a per-line itemized COGS journal.
@@ -266,7 +266,7 @@ class XeroAdapter:
                         json={"Status": "VOIDED"},
                         timeout=20,
                     )
-            except Exception as e:
+            except (httpx.HTTPError, RuntimeError, OSError) as e:
                 logger.warning("Could not void old COGS journal %s: %s", old_journal_id, e)
 
         first_job_id = next(

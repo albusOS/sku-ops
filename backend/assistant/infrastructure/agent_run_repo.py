@@ -77,7 +77,7 @@ async def list_runs(
     where = " AND ".join(clauses)
     params.append(limit)
     cur = await conn.execute(
-        f"SELECT * FROM agent_runs WHERE {where} ORDER BY created_at DESC LIMIT ?",
+        "SELECT * FROM agent_runs WHERE " + where + " ORDER BY created_at DESC LIMIT ?",
         params,
     )
     return [dict(r) for r in await cur.fetchall()]
@@ -88,41 +88,41 @@ async def get_stats(*, hours: int = 24) -> dict:
     since_expr, since_params = time_ago_expr("created_at", hours=hours)
 
     cur = await conn.execute(
-        f"""SELECT
-                agent_name,
-                COUNT(*) as runs,
-                SUM(input_tokens) as total_input_tokens,
-                SUM(output_tokens) as total_output_tokens,
-                SUM(cost_usd) as total_cost,
-                AVG(duration_ms) as avg_duration_ms,
-                MAX(duration_ms) as max_duration_ms,
-                SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as errors
-            FROM agent_runs
-            WHERE {since_expr}
-            GROUP BY agent_name
-            ORDER BY runs DESC""",
+        "SELECT"
+        " agent_name,"
+        " COUNT(*) as runs,"
+        " SUM(input_tokens) as total_input_tokens,"
+        " SUM(output_tokens) as total_output_tokens,"
+        " SUM(cost_usd) as total_cost,"
+        " AVG(duration_ms) as avg_duration_ms,"
+        " MAX(duration_ms) as max_duration_ms,"
+        " SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as errors"
+        " FROM agent_runs"
+        " WHERE " + since_expr +
+        " GROUP BY agent_name"
+        " ORDER BY runs DESC",
         list(since_params),
     )
     by_agent = await cur.fetchall()
 
     cur = await conn.execute(
-        f"""SELECT
-                COUNT(*) as total_runs,
-                SUM(input_tokens) as total_input_tokens,
-                SUM(output_tokens) as total_output_tokens,
-                SUM(cost_usd) as total_cost,
-                AVG(duration_ms) as avg_duration_ms,
-                SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as total_errors
-            FROM agent_runs
-            WHERE {since_expr}""",
+        "SELECT"
+        " COUNT(*) as total_runs,"
+        " SUM(input_tokens) as total_input_tokens,"
+        " SUM(output_tokens) as total_output_tokens,"
+        " SUM(cost_usd) as total_cost,"
+        " AVG(duration_ms) as avg_duration_ms,"
+        " SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as total_errors"
+        " FROM agent_runs"
+        " WHERE " + since_expr,
         list(since_params),
     )
     totals = await cur.fetchone()
 
     cur = await conn.execute(
-        f"""SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost
-            FROM agent_runs WHERE {since_expr}
-            GROUP BY model ORDER BY cost DESC""",
+        "SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost"
+        " FROM agent_runs WHERE " + since_expr +
+        " GROUP BY model ORDER BY cost DESC",
         list(since_params),
     )
     by_model = await cur.fetchall()
@@ -155,16 +155,16 @@ async def get_cost_breakdown(*, days: int = 7, group_by: str = "agent") -> list[
 
     col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(group_by, "agent_name")
     cur = await conn.execute(
-        f"""SELECT {col} as group_key,
-                {day_expr} as day,
-                COUNT(*) as runs,
-                SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens,
-                SUM(cost_usd) as cost
-            FROM agent_runs
-            WHERE {since_expr}
-            GROUP BY {col}, {day_expr}
-            ORDER BY day DESC, cost DESC""",
+        "SELECT " + col + " as group_key,"
+        " " + day_expr + " as day,"
+        " COUNT(*) as runs,"
+        " SUM(input_tokens) as input_tokens,"
+        " SUM(output_tokens) as output_tokens,"
+        " SUM(cost_usd) as cost"
+        " FROM agent_runs"
+        " WHERE " + since_expr +
+        " GROUP BY " + col + ", " + day_expr +
+        " ORDER BY day DESC, cost DESC",
         list(since_params),
     )
     return [dict(r) for r in await cur.fetchall()]

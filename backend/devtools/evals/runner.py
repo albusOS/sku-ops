@@ -110,13 +110,13 @@ async def _eval_routing_case(case: dict) -> EvalCaseResult:
             }],
             latency_ms=latency,
         )
-    except Exception as e:
+    except (ValueError, KeyError, RuntimeError, OSError) as e:
         return EvalCaseResult(case_id=case["id"], passed=False, error=str(e))
 
 
 # ── Agent eval ────────────────────────────────────────────────────────────────
 
-async def _eval_agent_case(case: dict, agent_type: str, model_override: str | None = None) -> EvalCaseResult:
+async def _eval_agent_case(case: dict, agent_type: str, _model_override: str | None = None) -> EvalCaseResult:
     """Run a single agent test case through the full chat pipeline."""
     t0 = time.monotonic()
     try:
@@ -150,7 +150,7 @@ async def _eval_agent_case(case: dict, agent_type: str, model_override: str | No
             latency_ms=card.latency_ms,
             model=card.model,
         )
-    except Exception as e:
+    except (ValueError, KeyError, RuntimeError, OSError) as e:
         latency = int((time.monotonic() - t0) * 1000)
         return EvalCaseResult(case_id=case.get("id", "?"), passed=False, error=str(e), latency_ms=latency)
 

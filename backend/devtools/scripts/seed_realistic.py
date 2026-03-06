@@ -178,7 +178,7 @@ async def main():
     cur = await conn.execute("SELECT COUNT(*) FROM products WHERE organization_id = ?", (org_id,))
     count = (await cur.fetchone())[0]
     if count > 5:
-        logger.info(f"Already have {count} products — skipping seed. Delete DB to re-seed.")
+        logger.info("Already have %d products — skipping seed. Delete DB to re-seed.", count)
         return
 
     admin = await user_repo.get_by_email("admin@demo.local")
@@ -204,7 +204,7 @@ async def main():
             "created_at": datetime.now(UTC).isoformat(),
             "organization_id": org_id,
         })
-        logger.info(f"  Vendor: {v['name']}")
+        logger.info("  Vendor: %s", v['name'])
 
     # 2. Create products
     logger.info("--- Creating products ---")
@@ -212,7 +212,7 @@ async def main():
     for p in PRODUCTS:
         dept = dept_by_code.get(p["dept"])
         if not dept:
-            logger.warning(f"  Skipping {p['name']}: dept {p['dept']} not found")
+            logger.warning("  Skipping %s: dept %s not found", p['name'], p['dept'])
             continue
         vid = vendor_ids[p["vendor"]]
         vname = VENDORS[p["vendor"]]["name"]
@@ -236,11 +236,11 @@ async def main():
             )
             if p["name"] not in product_map:
                 product_map[p["name"]] = product
-            logger.info(f"  {product.sku} | {p['name']} | qty={p['qty']} | {vname}")
+            logger.info("  %s | %s | qty=%d | %s", product.sku, p['name'], p['qty'], vname)
         except Exception as e:
-            logger.warning(f"  Skip {p['name']}: {e}")
+            logger.warning("  Skip %s: %s", p['name'], e)
 
-    logger.info(f"--- {len(product_map)} unique products, {len(PRODUCTS)} total (with vendor overlaps) ---")
+    logger.info("--- %d unique products, %d total (with vendor overlaps) ---", len(product_map), len(PRODUCTS))
 
     # 3. Create withdrawals (simulating contractor purchases over 2 weeks)
     logger.info("--- Creating withdrawals ---")
@@ -252,7 +252,7 @@ async def main():
         for prod_name, qty in scenario["items"]:
             prod = product_map.get(prod_name)
             if not prod:
-                logger.warning(f"  Withdrawal skip: product '{prod_name}' not found")
+                logger.warning("  Withdrawal skip: product '%s' not found", prod_name)
                 continue
             items.append(WithdrawalItem(
                 product_id=prod.id,
@@ -301,7 +301,7 @@ async def main():
         item_summary = ", ".join(f"{i.name} x{i.quantity}" for i in items[:3])
         if len(items) > 3:
             item_summary += f" +{len(items)-3} more"
-        logger.info(f"  {scenario['job_id']} @ {scenario['service_address'][:25]} | ${withdrawal.total:.2f} | {item_summary}")
+        logger.info("  %s @ %s | $%.2f | %s", scenario['job_id'], scenario['service_address'][:25], withdrawal.total, item_summary)
 
     # 4. Create invoices from some withdrawals
     logger.info("--- Creating invoices ---")
@@ -312,18 +312,18 @@ async def main():
                 inv = await invoice_repo.create_from_withdrawals(
                     [wid], organization_id=org_id,
                 )
-                logger.info(f"  Invoice {inv['id'][:8]}... for withdrawal {wid[:8]}...")
+                logger.info("  Invoice %s... for withdrawal %s...", inv['id'][:8], wid[:8])
             except Exception as e:
-                logger.warning(f"  Invoice skip: {e}")
+                logger.warning("  Invoice skip: %s", e)
 
         # Mark the oldest 2 as paid
         for wid in withdrawal_ids[:2]:
             try:
                 paid_at = (now - timedelta(days=5)).isoformat()
                 await withdrawal_repo.mark_paid(wid, paid_at)
-                logger.info(f"  Marked withdrawal {wid[:8]}... as paid")
+                logger.info("  Marked withdrawal %s... as paid", wid[:8])
             except Exception as e:
-                logger.warning(f"  Mark paid skip: {e}")
+                logger.warning("  Mark paid skip: %s", e)
 
     # 5. Make a few products critically low to trigger alerts
     logger.info("--- Setting low-stock alerts ---")
@@ -341,7 +341,7 @@ async def main():
                 "UPDATE products SET quantity = ? WHERE id = ?",
                 (low_qty, prod.id),
             )
-            logger.info(f"  {prod.sku} | {name} → qty={low_qty} (min={prod.min_stock})")
+            logger.info("  %s | %s → qty=%d (min=%d)", prod.sku, name, low_qty, prod.min_stock)
     await conn.commit()
 
     # Summary
@@ -355,10 +355,10 @@ async def main():
     total_invoices = (await cur.fetchone())[0]
 
     logger.info("\n=== SEED COMPLETE ===")
-    logger.info(f"  {total_vendors} vendors")
-    logger.info(f"  {total_products} products (across {len(dept_by_code)} departments)")
-    logger.info(f"  {total_withdrawals} withdrawals")
-    logger.info(f"  {total_invoices} invoices")
+    logger.info("  %d vendors", total_vendors)
+    logger.info("  %d products (across %d departments)", total_products, len(dept_by_code))
+    logger.info("  %d withdrawals", total_withdrawals)
+    logger.info("  %d invoices", total_invoices)
     logger.info("  Login: admin@demo.local / demo123")
     logger.info("  Login: contractor@demo.local / demo123")
 

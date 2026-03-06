@@ -1,9 +1,8 @@
 """Cycle count routes — inventory bounded context."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from identity.application.auth_service import require_role
 from inventory.application.cycle_count_service import (
     commit_cycle_count,
     get_count_detail,
@@ -12,7 +11,7 @@ from inventory.application.cycle_count_service import (
     update_counted_qty,
 )
 from kernel.errors import ResourceNotFoundError
-from kernel.types import CurrentUser
+from shared.api.deps import ManagerDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -32,7 +31,7 @@ class UpdateItemRequest(BaseModel):
 async def open_count(
     data: OpenCycleCountRequest,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     try:
         count = await open_cycle_count(
@@ -42,7 +41,7 @@ async def open_count(
             scope=data.scope,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     await audit_log(
         user_id=current_user.id, action="cycle_count.open",
@@ -56,7 +55,7 @@ async def open_count(
 @router.get("")
 async def list_counts(
     status: str | None = Query(None, description="Filter by status: open or committed"),
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     return await list_cycle_counts(
         organization_id=current_user.organization_id,
@@ -67,12 +66,12 @@ async def list_counts(
 @router.get("/{count_id}")
 async def get_count(
     count_id: str,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     try:
         return await get_count_detail(count_id, current_user.organization_id)
     except ResourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.patch("/{count_id}/items/{item_id}")
@@ -80,7 +79,7 @@ async def update_item(
     count_id: str,
     item_id: str,
     data: UpdateItemRequest,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     try:
         return await update_counted_qty(
@@ -91,16 +90,16 @@ async def update_item(
             organization_id=current_user.organization_id,
         )
     except ResourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{count_id}/commit")
 async def commit_count(
     count_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     try:
         result = await commit_cycle_count(
@@ -110,9 +109,9 @@ async def commit_count(
             committed_by_name=current_user.name,
         )
     except ResourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     await audit_log(
         user_id=current_user.id, action="cycle_count.commit",

@@ -315,25 +315,25 @@ async def ar_aging(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT fl.billing_entity,
-                  ROUND(SUM(fl.amount), 2) AS total_ar,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 0 THEN fl.amount ELSE 0 END), 2) AS current_not_due,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 0
-                                  AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 30 THEN fl.amount ELSE 0 END), 2) AS overdue_1_30,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 30
-                                  AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 60 THEN fl.amount ELSE 0 END), 2) AS overdue_31_60,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 60
-                                  AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 90 THEN fl.amount ELSE 0 END), 2) AS overdue_61_90,
-                  ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 90 THEN fl.amount ELSE 0 END), 2) AS overdue_90_plus
-           FROM financial_ledger fl
-           LEFT JOIN invoice_withdrawals iw ON fl.reference_id = iw.withdrawal_id AND fl.reference_type = 'withdrawal'
-           LEFT JOIN invoices inv ON iw.invoice_id = inv.id
-           WHERE fl.organization_id = ?
-             AND fl.account = 'accounts_receivable'
-             AND fl.billing_entity IS NOT NULL
-             {date_filter}
-           GROUP BY fl.billing_entity
-           HAVING ROUND(SUM(fl.amount), 2) != 0""",
+        "SELECT fl.billing_entity,"
+        " ROUND(SUM(fl.amount), 2) AS total_ar,"
+        " ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 0 THEN fl.amount ELSE 0 END), 2) AS current_not_due,"
+        " ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 0"
+        " AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 30 THEN fl.amount ELSE 0 END), 2) AS overdue_1_30,"
+        " ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 30"
+        " AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 60 THEN fl.amount ELSE 0 END), 2) AS overdue_31_60,"
+        " ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 60"
+        " AND julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 90 THEN fl.amount ELSE 0 END), 2) AS overdue_61_90,"
+        " ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 90 THEN fl.amount ELSE 0 END), 2) AS overdue_90_plus"
+        " FROM financial_ledger fl"
+        " LEFT JOIN invoice_withdrawals iw ON fl.reference_id = iw.withdrawal_id AND fl.reference_type = 'withdrawal'"
+        " LEFT JOIN invoices inv ON iw.invoice_id = inv.id"
+        " WHERE fl.organization_id = ?"
+        " AND fl.account = 'accounts_receivable'"
+        " AND fl.billing_entity IS NOT NULL"
+        + date_filter +
+        " GROUP BY fl.billing_entity"
+        " HAVING ROUND(SUM(fl.amount), 2) != 0",
         params,
     )
     return [dict(r) for r in await cursor.fetchall()]
@@ -362,17 +362,17 @@ async def product_margins(
     dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
     cursor = await conn.execute(
-        f"""SELECT product_id,
-                   ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
-                   ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND account IN ('revenue', 'cogs')
-              AND product_id IS NOT NULL
-              {date_filter}{dim_filter}
-            GROUP BY product_id
-            ORDER BY revenue DESC
-            LIMIT ?""",
+        "SELECT product_id,"
+        " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
+        " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?"
+        " AND account IN ('revenue', 'cogs')"
+        " AND product_id IS NOT NULL"
+        + date_filter + dim_filter +
+        " GROUP BY product_id"
+        " ORDER BY revenue DESC"
+        " LIMIT ?",
         [*params, limit],
     )
     rows = await cursor.fetchall()
@@ -409,11 +409,11 @@ async def units_sold_by_product(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT wi.product_id, SUM(wi.quantity) AS total_qty
-            FROM withdrawal_items wi
-            JOIN withdrawals w ON wi.withdrawal_id = w.id
-            WHERE w.organization_id = ?{date_filter}
-            GROUP BY wi.product_id""",
+        "SELECT wi.product_id, SUM(wi.quantity) AS total_qty"
+        " FROM withdrawal_items wi"
+        " JOIN withdrawals w ON wi.withdrawal_id = w.id"
+        " WHERE w.organization_id = ?" + date_filter +
+        " GROUP BY wi.product_id",
         params,
     )
     return {row[0]: row[1] for row in await cursor.fetchall()}
@@ -436,16 +436,16 @@ async def payment_status_breakdown(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT
-                CASE
-                    WHEN w.payment_status = 'paid' THEN 'Paid'
-                    WHEN w.invoice_id IS NOT NULL THEN 'Invoiced'
-                    ELSE 'Unpaid'
-                END AS status,
-                ROUND(SUM(w.total), 2) AS total
-            FROM withdrawals w
-            WHERE w.organization_id = ?{date_filter}
-            GROUP BY status""",
+        "SELECT"
+        " CASE"
+        " WHEN w.payment_status = 'paid' THEN 'Paid'"
+        " WHEN w.invoice_id IS NOT NULL THEN 'Invoiced'"
+        " ELSE 'Unpaid'"
+        " END AS status,"
+        " ROUND(SUM(w.total), 2) AS total"
+        " FROM withdrawals w"
+        " WHERE w.organization_id = ?" + date_filter +
+        " GROUP BY status",
         params,
     )
     return {row[0]: row[1] for row in await cursor.fetchall()}
@@ -468,12 +468,12 @@ async def purchase_spend(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT ROUND(COALESCE(SUM(amount), 0), 2) AS total
-            FROM financial_ledger
-            WHERE organization_id = ?
-              AND account = 'inventory'
-              AND reference_type = 'po_receipt'
-              {date_filter}""",
+        "SELECT ROUND(COALESCE(SUM(amount), 0), 2) AS total"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?"
+        " AND account = 'inventory'"
+        " AND reference_type = 'po_receipt'"
+        + date_filter,
         params,
     )
     row = await cursor.fetchone()
@@ -497,10 +497,10 @@ async def reference_counts(
         params.append(end_date)
 
     cursor = await conn.execute(
-        f"""SELECT reference_type, COUNT(DISTINCT reference_id) AS cnt
-            FROM financial_ledger
-            WHERE organization_id = ?{date_filter}
-            GROUP BY reference_type""",
+        "SELECT reference_type, COUNT(DISTINCT reference_id) AS cnt"
+        " FROM financial_ledger"
+        " WHERE organization_id = ?" + date_filter +
+        " GROUP BY reference_type",
         params,
     )
     return {row[0]: row[1] for row in await cursor.fetchall()}

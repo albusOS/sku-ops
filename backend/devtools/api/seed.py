@@ -63,7 +63,7 @@ async def reset_all():
         logger.info("Full reset complete")
     except Exception as e:
         logger.exception("Reset failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     await seed_demo_tenants()
     return {"message": "Reset complete. Demo tenants (North, South) seeded with users and inventory."}
 
@@ -79,7 +79,7 @@ async def reset_empty():
         logger.info("Full reset complete (empty)")
     except Exception as e:
         logger.exception("Reset failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     now = datetime.now(UTC).isoformat()
     await organization_repo.insert({"id": "default", "name": "Default", "slug": "default", "created_at": now})
     await seed_mock_user()
@@ -222,7 +222,7 @@ async def seed_full():
         return {"message": "Full seed complete", "counts": counts or {}}
     except Exception as e:
         logger.exception("Full seed failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/reset-inventory")
@@ -243,4 +243,4 @@ async def reset_and_reseed_inventory(current_user=Depends(require_role("admin"))
         return {"message": f"Inventory reset and reseeded with {count} products"}
     except Exception as e:
         logger.exception("Reset inventory failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

@@ -131,7 +131,7 @@ async def mark_paid(withdrawal_id: str, paid_at: str, organization_id: str | Non
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE withdrawals SET payment_status = 'paid', paid_at = ? {where}",
+        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? " + where,
         params,
     )
     await conn.commit()
@@ -145,7 +145,7 @@ async def bulk_mark_paid(withdrawal_ids: list, paid_at: str, organization_id: st
     org_id = organization_id or "default"
     placeholders = ",".join("?" * len(withdrawal_ids))
     cursor = await conn.execute(
-        f"UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id IN ({placeholders}) AND (organization_id = ? OR organization_id IS NULL)",
+        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id IN (" + placeholders + ") AND (organization_id = ? OR organization_id IS NULL)",
         [paid_at, *withdrawal_ids, org_id],
     )
     await conn.commit()

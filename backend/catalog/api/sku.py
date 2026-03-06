@@ -1,12 +1,11 @@
 """SKU generation and preview routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from catalog.application.sku_service import slug_from_name
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.sku_repo import sku_repo
-from identity.application.auth_service import get_current_user
-from kernel.types import CurrentUser
+from shared.api.deps import CurrentUserDep
 
 router = APIRouter(tags=["sku"])
 
@@ -17,7 +16,7 @@ SKU_FORMAT = "DEPT-SLUG-XXXXX"
 async def get_sku_preview(
     department_id: str,
     product_name: str | None = None,
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    _    current_user: CurrentUserDep,
 ):
     """Preview the next SKU for a department (without consuming it)."""
     department = await department_repo.get_by_id(department_id)
@@ -33,7 +32,7 @@ async def get_sku_preview(
 @router.get("/sku/overview")
 async def get_sku_overview(
     product_name: str | None = None,
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    _    current_user: CurrentUserDep,
 ):
     """SKU system overview: format, departments with next available SKU."""
     departments = await department_repo.list_all()

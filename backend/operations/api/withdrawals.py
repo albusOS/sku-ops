@@ -1,7 +1,10 @@
 """Material withdrawal (POS) routes."""
-from datetime import UTC, datetime
+from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from datetime import UTC, datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Body, HTTPException, Request
 
 from catalog.application.queries import list_products
 from finance.application.invoice_service import (
@@ -9,7 +12,6 @@ from finance.application.invoice_service import (
     mark_paid_for_withdrawal,
 )
 from finance.application.ledger_service import record_payment as _record_payment
-from identity.application.auth_service import get_current_user, require_role
 from identity.application.org_service import get_org_settings
 from identity.application.user_service import get_user_by_id
 from inventory.application.inventory_service import process_withdrawal_stock_changes
@@ -17,6 +19,7 @@ from kernel.types import CurrentUser
 from operations.application.withdrawal_service import create_withdrawal as _do_create_withdrawal
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
+from shared.api.deps import AdminDep, CurrentUserDep, ManagerDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -35,7 +38,7 @@ router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
 
 
 @router.post("", response_model=MaterialWithdrawal)
-async def create_withdrawal(data: MaterialWithdrawalCreate, request: Request, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def create_withdrawal(data: MaterialWithdrawalCreate, request: Request, current_user: CurrentUserDep):
     """Create a material withdrawal - Contractors withdraw materials charged to their account"""
     contractor = current_user.model_dump()
     result = await do_create_withdrawal(data, contractor, current_user)
@@ -55,7 +58,7 @@ async def create_withdrawal_for_contractor(
     contractor_id: str,
     data: MaterialWithdrawalCreate,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Warehouse manager creates withdrawal on behalf of a contractor"""
     org_id = current_user.organization_id
@@ -83,7 +86,7 @@ async def get_withdrawals(
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    current_user: CurrentUserDep,
 ):
     org_id = current_user.organization_id
     cid = current_user.id if current_user.role == "contractor" else contractor_id
@@ -99,7 +102,7 @@ async def get_withdrawals(
 
 
 @router.get("/{withdrawal_id}")
-async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def get_withdrawal(withdrawal_id: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
@@ -112,7 +115,7 @@ async def get_withdrawal(withdrawal_id: str, current_user: CurrentUser = Depends
 
 
 @router.put("/{withdrawal_id}/mark-paid")
-async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_user: AdminDep):
     org_id = current_user.organization_id
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
     if not withdrawal:
@@ -139,7 +142,7 @@ async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_use
 
 
 @router.put("/bulk-mark-paid")
-async def bulk_mark_paid(request: Request, withdrawal_ids: list[str] = Body(...), current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def bulk_mark_paid(request: Request, withdrawal_ids: Annotated[list[str], Body(...)], current_user: AdminDep):
     if len(withdrawal_ids) > 200:
         raise HTTPException(status_code=400, detail="Cannot mark more than 200 withdrawals at once")
     org_id = current_user.organization_id
@@ -159,7 +162,7 @@ async def bulk_mark_paid(request: Request, withdrawal_ids: list[str] = Body(...)
                     performed_by_user_id=current_user.id,
                 )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     await audit_log(
         user_id=current_user.id, action="payment.bulk_mark_paid",
         resource_type="withdrawal", resource_id=None,

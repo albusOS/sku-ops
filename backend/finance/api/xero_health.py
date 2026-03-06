@@ -58,5 +58,5 @@ async def trigger_sync(
         summary = await run_sync(org_id)
         return {"success": True, "summary": summary}
     except Exception as e:
-        logger.exception("Manual Xero sync failed for org %s: %s", org_id, e)
+        logger.exception("Manual Xero sync failed for org %s", org_id)
         return {"success": False, "error": str(e)}

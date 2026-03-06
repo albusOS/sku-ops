@@ -223,7 +223,7 @@ async def try_lookup(message: str, org_id: str) -> str | None:
                 raw = await entry.fn(org_id)
             data = json.loads(raw)
             return formatter(data)
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, RuntimeError, OSError, KeyError) as e:
             logger.warning("Lookup failed for pattern=%s: %s", pattern.pattern, e)
             continue
     return None

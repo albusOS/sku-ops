@@ -66,7 +66,7 @@ async def _clear_all_tables(conn) -> None:
     ]
     for t in tables:
         with contextlib.suppress(Exception):
-            await conn.execute(f"DELETE FROM {t}")
+            await conn.execute("DELETE FROM " + t)
     await conn.commit()
 
 
@@ -210,7 +210,7 @@ async def main():
         u = await user_repo.get_by_id(user.id)
         if u:
             contractor_users.append(u)
-        logger.info(f"  {c['name']} — {c['email']} ({c['company']})")
+        logger.info("  %s — %s (%s)", c['name'], c['email'], c['company'])
 
     # ══════════════════════════════════════════════════════════════════════
     # 4. WITHDRAWALS — 60 across contractors/jobs over 120 days
@@ -298,9 +298,9 @@ async def main():
             "total": withdrawal.total, "tax": withdrawal.tax, "subtotal": withdrawal.subtotal,
         })
         if i < 3 or i % 15 == 0:
-            logger.info(f"  [{i+1}/60] {job['id']} | {contractor.get('company', '')[:25]} | ${withdrawal.total:.2f}")
+            logger.info("  [%d/60] %s | %s | $%.2f", i + 1, job['id'], contractor.get('company', '')[:25], withdrawal.total)
 
-    logger.info(f"  {len(withdrawal_records)} withdrawals created")
+    logger.info("  %d withdrawals created", len(withdrawal_records))
 
     # ══════════════════════════════════════════════════════════════════════
     # 5. STOCK ADJUSTMENTS — 15 manual adjustments
@@ -418,7 +418,7 @@ async def main():
                 created_at=received_at,
             )
 
-        logger.info(f"  PO {po.id[:8]}... | {vendor['name'][:25]} | {scenario['status']} | ${po_total:.2f}")
+        logger.info("  PO %s... | %s | %s | $%.2f", po.id[:8], vendor['name'][:25], scenario['status'], po_total)
 
     await conn.commit()
 
@@ -446,7 +446,7 @@ async def main():
             try:
                 inv = await invoice_repo.create_from_withdrawals(wids, organization_id=org_id)
                 invoice_count += 1
-                logger.info(f"  INV {inv.get('invoice_number', '?')} | {entity[:30]} | {len(wids)} w/d | ${inv.get('total', 0):.2f}")
+                logger.info("  INV %s | %s | %d w/d | $%.2f", inv.get('invoice_number', '?'), entity[:30], len(wids), inv.get('total', 0))
 
                 if random.random() < 0.4:
                     paid_at = (now - timedelta(days=random.randint(1, 8))).isoformat()
@@ -466,9 +466,9 @@ async def main():
                         await conn.execute("UPDATE invoices SET status = 'paid' WHERE id = ?", (inv["id"],))
                         await conn.commit()
             except Exception as e:
-                logger.warning(f"  Invoice skip ({entity[:20]}): {e}")
+                logger.warning("  Invoice skip (%s): %s", entity[:20], e)
 
-    logger.info(f"  {invoice_count} invoices, {len(paid_withdrawal_ids)} paid")
+    logger.info("  %d invoices, %d paid", invoice_count, len(paid_withdrawal_ids))
 
     # ══════════════════════════════════════════════════════════════════════
     # 8. RETURNS — 5 partial returns against older withdrawals
@@ -523,7 +523,7 @@ async def main():
             created_at=return_created_at,
         )
         items_str = ", ".join(f"{ri.name[:20]} x{ri.quantity}" for ri in return_items)
-        logger.info(f"  Return | {contractor.get('company', '')[:25]} | ${ret.total:.2f} | {items_str}")
+        logger.info("  Return | %s | $%.2f | %s", contractor.get('company', '')[:25], ret.total, items_str)
 
     # ══════════════════════════════════════════════════════════════════════
     # 9. MATERIAL REQUESTS — 8 (pending / approved / fulfilled)
@@ -569,7 +569,7 @@ async def main():
         await material_request_repo.insert(mr_dict)
         mr_count += 1
 
-    logger.info(f"  {mr_count} material requests")
+    logger.info("  %d material requests", mr_count)
 
     # ══════════════════════════════════════════════════════════════════════
     # 10. CREDIT NOTES — one per return
@@ -598,9 +598,9 @@ async def main():
                 organization_id=org_id,
             )
             cn_count += 1
-            logger.info(f"  {cn.get('credit_note_number', '?')} | {r['billing_entity'][:25]} | ${r['total']:.2f}")
+            logger.info("  %s | %s | $%.2f", cn.get('credit_note_number', '?'), r['billing_entity'][:25], r['total'])
         except Exception as e:
-            logger.warning(f"  Credit note skip: {e}")
+            logger.warning("  Credit note skip: %s", e)
 
     # ══════════════════════════════════════════════════════════════════════
     # 11. LOW-STOCK ALERTS — force a few products critically low
@@ -616,7 +616,7 @@ async def main():
         if prod:
             low_qty = random.randint(1, prod["min_stock"])
             await conn.execute("UPDATE products SET quantity = ? WHERE id = ?", (low_qty, prod["id"]))
-            logger.info(f"  {prod['sku']} | {name} → qty={low_qty} (min={prod['min_stock']})")
+            logger.info("  %s | %s → qty=%d (min=%d)", prod['sku'], name, low_qty, prod['min_stock'])
     await conn.commit()
 
     # ══════════════════════════════════════════════════════════════════════
@@ -627,7 +627,7 @@ async def main():
                    "invoices", "returns", "purchase_orders", "purchase_order_items",
                    "material_requests", "credit_notes", "stock_transactions", "financial_ledger"]:
         try:
-            cur = await conn.execute(f"SELECT COUNT(*) FROM {table} WHERE organization_id = ?", (org_id,))
+            cur = await conn.execute("SELECT COUNT(*) FROM " + table + " WHERE organization_id = ?", (org_id,))
             counts[table] = (await cur.fetchone())[0]
         except Exception:
             counts[table] = "?"
@@ -636,13 +636,13 @@ async def main():
     logger.info("  FULL SEED COMPLETE")
     logger.info("=" * 60)
     for table, count in counts.items():
-        logger.info(f"  {table:25s} {count}")
+        logger.info("  %-25s %s", table, count)
     logger.info("-" * 60)
     logger.info("  Logins (password: demo123):")
-    logger.info(f"    {'admin@demo.local':40s} Admin")
-    logger.info(f"    {'contractor@demo.local':40s} Demo Contractor")
+    logger.info("    %-40s Admin", "admin@demo.local")
+    logger.info("    %-40s Demo Contractor", "contractor@demo.local")
     for c in CONTRACTORS:
-        logger.info(f"    {c['email']:40s} {c['company']}")
+        logger.info("    %-40s %s", c['email'], c['company'])
     logger.info("=" * 60)
 
     return counts

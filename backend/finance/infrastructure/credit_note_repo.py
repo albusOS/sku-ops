@@ -59,7 +59,7 @@ async def insert_credit_note(
             inv_where += " AND (organization_id = ? OR organization_id IS NULL)"
             inv_params.append(org_id)
         cursor = await conn.execute(
-            f"SELECT billing_entity FROM invoices {inv_where}", inv_params
+            "SELECT billing_entity FROM invoices " + inv_where, inv_params
         )
         inv_row = await cursor.fetchone()
         if inv_row:
@@ -230,7 +230,7 @@ async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str,
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE credit_notes SET xero_credit_note_id = ?, xero_sync_status = 'synced', updated_at = ? {where}",
+        "UPDATE credit_notes SET xero_credit_note_id = ?, xero_sync_status = 'synced', updated_at = ? " + where,
         params,
     )
     await conn.commit()
@@ -245,7 +245,7 @@ async def set_credit_note_sync_status(credit_note_id: str, status: str, organiza
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE credit_notes SET xero_sync_status = ?, updated_at = ? {where}",
+        "UPDATE credit_notes SET xero_sync_status = ?, updated_at = ? " + where,
         params,
     )
     await conn.commit()

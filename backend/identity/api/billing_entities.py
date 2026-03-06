@@ -15,7 +15,7 @@ async def list_billing_entities(
     q: str | None = None,
     limit: int = 200,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     return await billing_entity_repo.list_billing_entities(
         organization_id=current_user.organization_id,
@@ -27,7 +27,7 @@ async def list_billing_entities(
 async def search_billing_entities(
     q: str = "",
     limit: int = 20,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Autocomplete endpoint for billing entity pickers."""
     if not q.strip():
@@ -39,7 +39,7 @@ async def search_billing_entities(
 
 
 @router.get("/{entity_id}")
-async def get_billing_entity(entity_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def get_billing_entity(entity_id: str, current_user: ManagerDep):
     entity = await billing_entity_repo.get_by_id(entity_id, current_user.organization_id)
     if not entity:
         raise HTTPException(status_code=404, detail="Billing entity not found")
@@ -49,7 +49,7 @@ async def get_billing_entity(entity_id: str, current_user: CurrentUser = Depends
 @router.post("")
 async def create_billing_entity(
     data: BillingEntityCreate,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     name = data.name.strip()
@@ -76,7 +76,7 @@ async def create_billing_entity(
 async def update_billing_entity(
     entity_id: str,
     data: BillingEntityUpdate,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     existing = await billing_entity_repo.get_by_id(entity_id, org_id)

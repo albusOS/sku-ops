@@ -1,6 +1,6 @@
 """Product CRUD routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from catalog.api.schemas import SuggestUomRequest
 from catalog.application.product_lifecycle import create_product as lifecycle_create
@@ -13,11 +13,10 @@ from catalog.domain.units import compute_sell_fields
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.product_repo import product_repo
 from catalog.infrastructure.vendor_repo import vendor_repo
-from identity.application.auth_service import get_current_user, require_role
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
 from kernel.errors import ResourceNotFoundError
-from kernel.types import CurrentUser
+from shared.api.deps import CurrentUserDep, ManagerDep
 from shared.infrastructure.config import LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -54,7 +53,7 @@ async def get_products(
     low_stock: bool = False,
     limit: int | None = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    current_user: CurrentUserDep,
 ):
     org_id = current_user.organization_id
     is_contractor = current_user.role == "contractor"
@@ -81,7 +80,7 @@ async def get_products(
 
 
 @router.get("/by-barcode")
-async def get_product_by_barcode(barcode: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def get_product_by_barcode(barcode: str, current_user: CurrentUserDep):
     """Look up product by barcode (for POS/request scan).
 
     Returns structured error detail so the UI can differentiate:
@@ -113,7 +112,7 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUser = Depen
 
 
 @router.get("/{product_id}", response_model=None)
-async def get_product(product_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def get_product(product_id: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
@@ -125,7 +124,7 @@ async def get_product(product_id: str, current_user: CurrentUser = Depends(get_c
 
 
 @router.post("/suggest-uom")
-async def suggest_uom(data: SuggestUomRequest, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def suggest_uom(data: SuggestUomRequest, _current_user: ManagerDep):
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
     gen_text = None
     if LLM_AVAILABLE:
@@ -136,7 +135,7 @@ async def suggest_uom(data: SuggestUomRequest, current_user: CurrentUser = Depen
 
 
 @router.post("")
-async def create_product(data: ProductCreate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def create_product(data: ProductCreate, current_user: ManagerDep):
     org_id = current_user.organization_id
     department = await department_repo.get_by_id(data.department_id, org_id)
     if not department:
@@ -172,13 +171,13 @@ async def create_product(data: ProductCreate, current_user: CurrentUser = Depend
         )
         return _enrich_sell_fields(product.model_dump())
     except DuplicateBarcodeError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidBarcodeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/{product_id}")
-async def update_product(product_id: str, data: ProductUpdate, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def update_product(product_id: str, data: ProductUpdate, current_user: ManagerDep):
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
@@ -188,16 +187,16 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Cur
     try:
         result = await lifecycle_update(product_id, update_data, current_product=product)
     except ResourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except DuplicateBarcodeError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidBarcodeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return _enrich_sell_fields(result)
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def delete_product(product_id: str, request: Request, current_user: ManagerDep):
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
@@ -206,7 +205,7 @@ async def delete_product(product_id: str, request: Request, current_user: Curren
     try:
         await lifecycle_delete(product_id)
     except ResourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     await audit_log(
         user_id=current_user.id, action="product.delete",
         resource_type="product", resource_id=product_id,

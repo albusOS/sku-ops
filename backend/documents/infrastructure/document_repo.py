@@ -28,8 +28,8 @@ async def insert(doc: Document | dict, conn=None) -> None:
     if parsed and not isinstance(parsed, str):
         parsed = json.dumps(parsed)
     await conn.execute(
-        f"""INSERT INTO documents ({_COLUMNS})
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        "INSERT INTO documents (" + _COLUMNS + ")"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             d["id"], d["filename"], d.get("document_type", "other"),
             d.get("vendor_name"), d.get("file_hash", ""),
@@ -46,7 +46,7 @@ async def insert(doc: Document | dict, conn=None) -> None:
 async def get_by_id(doc_id: str, organization_id: str) -> dict | None:
     conn = get_connection()
     cursor = await conn.execute(
-        f"SELECT {_COLUMNS} FROM documents WHERE id = ? AND organization_id = ?",
+        "SELECT " + _COLUMNS + " FROM documents WHERE id = ? AND organization_id = ?",
         (doc_id, organization_id),
     )
     return _row_to_dict(await cursor.fetchone())
@@ -61,7 +61,7 @@ async def list_documents(
     offset: int = 0,
 ) -> list:
     conn = get_connection()
-    sql = f"SELECT {_COLUMNS} FROM documents WHERE organization_id = ?"
+    sql = "SELECT " + _COLUMNS + " FROM documents WHERE organization_id = ?"
     params: list = [organization_id]
     if status:
         sql += " AND status = ?"

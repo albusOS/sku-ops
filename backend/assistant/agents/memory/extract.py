@@ -59,5 +59,5 @@ async def extract_and_save(
         if isinstance(artifacts, list) and artifacts:
             await save(org_id, user_id, session_id, artifacts)
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError, TypeError, RuntimeError, OSError) as e:
         logger.warning("Memory extraction failed (non-critical): %s", e)

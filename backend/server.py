@@ -64,13 +64,13 @@ async def _xero_sync_loop() -> None:
                             "Xero nightly sync had %d error(s): %s",
                             len(summary["errors"]), summary["errors"],
                         )
-                except Exception as exc:
-                    logger.exception("Xero nightly sync failed: %s", exc)
+                except Exception:
+                    logger.exception("Xero nightly sync failed")
         except asyncio.CancelledError:
             logger.info("Xero nightly sync scheduler stopped")
             return
-        except Exception as exc:
-            logger.exception("Unexpected error in Xero sync loop: %s", exc)
+        except Exception:
+            logger.exception("Unexpected error in Xero sync loop")
 
 
 @asynccontextmanager

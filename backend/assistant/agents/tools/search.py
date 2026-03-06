@@ -81,7 +81,7 @@ class ProductSearchIndex:
                 len(products),
                 self._products[0].get("organization_id", "unknown") if products else "?",
             )
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError, TypeError) as e:
             logger.warning("Embedding build failed, falling back to BM25: %s", e)
             self._embeddings = None
             self._build_bm25(products)
@@ -111,7 +111,7 @@ class ProductSearchIndex:
             scores = self._embeddings @ qvec
             top_idx = np.argsort(scores)[::-1][:limit]
             return [self._products[i] for i in top_idx if scores[i] > 0.2]
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError, TypeError) as e:
             logger.warning("Semantic search failed, falling back to BM25: %s", e)
             return self.search_bm25(query, limit)
 

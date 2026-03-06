@@ -18,7 +18,7 @@ async def entries_exist(reference_type: str, reference_id: str, conn=None, organ
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await c.execute(
-        f"SELECT 1 FROM financial_ledger {where} LIMIT 1",
+        "SELECT 1 FROM financial_ledger " + where + " LIMIT 1",
         params,
     )
     return (await cursor.fetchone()) is not None
@@ -58,7 +58,7 @@ async def get_journal(journal_id: str, organization_id: str | None = None) -> li
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"SELECT * FROM financial_ledger {where} ORDER BY id",
+        "SELECT * FROM financial_ledger " + where + " ORDER BY id",
         params,
     )
     return [dict(r) for r in await cursor.fetchall()]

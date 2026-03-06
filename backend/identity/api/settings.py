@@ -1,10 +1,9 @@
 """Org settings API — Xero account codes and connection status."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from identity.application.auth_service import require_role
 from identity.domain.org_settings import OrgSettings, OrgSettingsUpdate
 from identity.infrastructure.org_settings_repo import get_org_settings, upsert_org_settings
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -23,7 +22,7 @@ def _mask(settings: OrgSettings) -> dict:
 
 
 @router.get("/xero")
-async def get_xero_settings(current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def get_xero_settings(current_user: AdminDep):
     """Return Xero config for the org. Secrets are masked in the response."""
     org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
@@ -33,7 +32,7 @@ async def get_xero_settings(current_user: CurrentUser = Depends(require_role("ad
 @router.put("/xero")
 async def update_xero_settings(
     data: OrgSettingsUpdate,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Update Xero account codes and/or API credentials."""
     org_id = current_user.organization_id

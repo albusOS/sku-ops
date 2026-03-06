@@ -65,7 +65,7 @@ def generate_text(prompt: str, system_instruction: str | None = None) -> str | N
             kwargs["system"] = system_instruction
         response = client.messages.create(**kwargs)
         return response.content[0].text
-    except Exception as e:
+    except (ValueError, RuntimeError, OSError) as e:
         logger.warning("Anthropic generate_text failed: %s", e)
         return None
 

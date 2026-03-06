@@ -265,7 +265,7 @@ def _evaluate_condition(condition: str, results: dict[str, str]) -> bool:
             return actual >= expected_val
         if op == "<=":
             return actual <= expected_val
-    except Exception:
+    except (ValueError, TypeError, KeyError):
         pass
     return True  # default: execute the node
 
@@ -319,7 +319,7 @@ async def execute_plan(
                 raw = await tool_runner(node.tool or "", node.args, org_id)
                 trimmed = budget_tool_result(raw, max_tokens=node.token_budget)
                 return node.id, trimmed
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError, KeyError) as e:
                 logger.warning("DAG node %s (%s) failed: %s", node.id, node.tool, e)
                 return node.id, json.dumps({"error": str(e)})
 

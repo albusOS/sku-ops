@@ -36,7 +36,7 @@ _TRIVIAL_SIGNALS = frozenset((
 
 _NUMBER_RE = re.compile(r"\b\d[\d,]*\.?\d*\b")
 
-_domain_tool_cache: dict[str, set[str]] | None = None
+_domain_tool_cache: dict[str, dict[str, set[str]]] = {}
 
 
 def _get_domain_tool_sets() -> dict[str, set[str]]:
@@ -45,9 +45,8 @@ def _get_domain_tool_sets() -> dict[str, set[str]]:
     Returns e.g. {"inventory": {"search_products", ...}, "ops": {...}, ...}.
     Inventory tools also appear under "inventory_analytics" for overlap detection.
     """
-    global _domain_tool_cache
-    if _domain_tool_cache is not None:
-        return _domain_tool_cache
+    if "value" in _domain_tool_cache:
+        return _domain_tool_cache["value"]
 
     mapping: dict[str, set[str]] = {}
     for entry in all_tools().values():
@@ -55,7 +54,7 @@ def _get_domain_tool_sets() -> dict[str, set[str]]:
     mapping.setdefault("inventory_analytics", set()).update(
         mapping.get("inventory", set())
     )
-    _domain_tool_cache = mapping
+    _domain_tool_cache["value"] = mapping
     return mapping
 
 

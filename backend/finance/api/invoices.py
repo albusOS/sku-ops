@@ -2,13 +2,12 @@
 import logging
 from datetime import UTC
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from finance.application.invoice_service import sync_invoice
 from finance.domain.invoice import InvoiceCreate, InvoiceSyncXeroBulk, InvoiceUpdate
 from finance.infrastructure.invoice_repo import invoice_repo
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 from shared.infrastructure.middleware.audit import audit_log
 
 logger = logging.getLogger(__name__)
@@ -20,7 +19,7 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 async def sync_invoices_to_xero_bulk(
     data: InvoiceSyncXeroBulk,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Bulk sync selected invoices to Xero."""
     org_id = current_user.organization_id
@@ -47,7 +46,7 @@ async def get_invoices(
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """List invoices with optional filters."""
     org_id = current_user.organization_id
@@ -62,7 +61,7 @@ async def get_invoices(
 
 
 @router.get("/{invoice_id}")
-async def get_invoice(invoice_id: str, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def get_invoice(invoice_id: str, current_user: AdminDep):
     """Get invoice with line items and linked withdrawals."""
     org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)
@@ -75,7 +74,7 @@ async def get_invoice(invoice_id: str, current_user: CurrentUser = Depends(requi
 async def create_invoice(
     data: InvoiceCreate,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Create invoice from selected unpaid withdrawals. All must share same billing_entity."""
     org_id = current_user.organization_id
@@ -90,7 +89,7 @@ async def create_invoice(
         )
         return inv
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/{invoice_id}")
@@ -98,7 +97,7 @@ async def update_invoice(
     invoice_id: str,
     data: InvoiceUpdate,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Update invoice fields and/or line items."""
     org_id = current_user.organization_id
@@ -125,10 +124,10 @@ async def update_invoice(
             line_items=line_items_data if data.line_items is not None else None,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.exception("Invoice update failed for %s: %s", invoice_id, e)
-        raise HTTPException(status_code=500, detail="Failed to update invoice")
+        logger.exception("Invoice update failed for %s", invoice_id)
+        raise HTTPException(status_code=500, detail="Failed to update invoice") from e
     changes = {k: v for k, v in data.model_dump(exclude_none=True).items() if k != "line_items"}
     if data.line_items is not None:
         changes["line_items_updated"] = True
@@ -141,7 +140,7 @@ async def update_invoice(
 
 
 @router.delete("/{invoice_id}")
-async def delete_invoice(invoice_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def delete_invoice(invoice_id: str, request: Request, current_user: AdminDep):
     """Delete draft invoice and unlink withdrawals."""
     org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)
@@ -158,14 +157,14 @@ async def delete_invoice(invoice_id: str, request: Request, current_user: Curren
         )
         return {"deleted": True}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{invoice_id}/approve")
 async def approve_invoice(
     invoice_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Approve a draft invoice, locking it for Xero sync."""
     org_id = current_user.organization_id
@@ -200,7 +199,7 @@ async def approve_invoice(
 
 
 @router.post("/{invoice_id}/sync-xero")
-async def sync_invoice_to_xero(invoice_id: str, request: Request, current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def sync_invoice_to_xero(invoice_id: str, request: Request, current_user: AdminDep):
     """Sync a single invoice to Xero. Requires approved or sent status."""
     org_id = current_user.organization_id
     inv = await invoice_repo.get_by_id(invoice_id, org_id)

@@ -2,11 +2,10 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 from shared.infrastructure.database import get_connection
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -32,7 +31,7 @@ async def _get_period(period_id: str, org_id: str) -> dict | None:
 @router.get("")
 async def list_fiscal_periods(
     status: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     conn = get_connection()
     org_id = current_user.organization_id
@@ -49,7 +48,7 @@ async def list_fiscal_periods(
 @router.post("")
 async def create_fiscal_period(
     body: FiscalPeriodCreate,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     conn = get_connection()
     org_id = current_user.organization_id
@@ -68,7 +67,7 @@ async def create_fiscal_period(
 async def close_fiscal_period(
     period_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Close a fiscal period — prevents new ledger entries in this date range."""
     org_id = current_user.organization_id

@@ -62,7 +62,7 @@ async def _persist_parsed_document(extracted: dict, filename: str, content_type:
     try:
         await document_repo.insert(doc)
         extracted["document_id"] = doc.id
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         logger.warning("Failed to persist document record: %s", e)
     return extracted
 
@@ -92,10 +92,10 @@ async def parse_document(
                     p["delivered_qty"] = qty
             return await _persist_parsed_document(extracted, filename, content_type, len(contents), current_user)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
-            logger.exception("OCR parse error: %s", e)
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.exception("OCR parse error")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     if not ANTHROPIC_AVAILABLE:
         raise HTTPException(
@@ -162,16 +162,16 @@ async def parse_document(
 
         return await _persist_parsed_document(extracted, filename, content_type, len(contents), current_user)
     except json.JSONDecodeError as e:
-        logger.exception("Document parse JSON error: %s", e)
-        raise HTTPException(status_code=422, detail="Could not parse document data")
+        logger.exception("Document parse JSON error")
+        raise HTTPException(status_code=422, detail="Could not parse document data") from e
     except HTTPException:
         raise
     except ValueError as e:
         logger.warning("Document parse: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.exception("Document parse error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Document parse error")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("")
@@ -240,7 +240,7 @@ async def import_document(
             current_user=current_user,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.exception("Document import failed: %s", e)
-        raise HTTPException(status_code=500, detail="Import failed — please check the file and try again")
+        logger.exception("Document import failed")
+        raise HTTPException(status_code=500, detail="Import failed — please check the file and try again") from e

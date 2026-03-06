@@ -95,7 +95,7 @@ async def update(vendor_id: str, vendor_dict: dict, conn=None, organization_id: 
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE vendors SET name = ?, contact_name = ?, email = ?, phone = ?, address = ? {where}",
+        "UPDATE vendors SET name = ?, contact_name = ?, email = ?, phone = ?, address = ? " + where,
         params,
     )
     await conn.execute(
@@ -116,7 +116,7 @@ async def delete(vendor_id: str, organization_id: str | None = None) -> int:
         where += " AND organization_id = ?"
         params.append(organization_id)
     cursor = await conn.execute(
-        f"UPDATE vendors SET deleted_at = ? {where}",
+        "UPDATE vendors SET deleted_at = ? " + where,
         params,
     )
     await conn.commit()
@@ -145,7 +145,7 @@ async def increment_product_count(vendor_id: str, delta: int, conn=None, organiz
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        f"UPDATE vendors SET product_count = product_count + ? {where}",
+        "UPDATE vendors SET product_count = product_count + ? " + where,
         params,
     )
     if not in_transaction:

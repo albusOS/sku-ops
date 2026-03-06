@@ -112,7 +112,7 @@ async def sync_po_bill(po_id: str, org_id: str, cost_total: float | None = None)
         result = await gateway.sync_po_receipt(po, cost_total, settings)
     except Exception as e:
         await set_po_sync_status(po_id, "failed")
-        logger.exception("PO bill sync failed for %s: %s", po_id, e)
+        logger.exception("PO bill sync failed for %s", po_id)
         return {"po_id": po_id, "success": False, "error": str(e)}
 
     if result.success and result.xero_invoice_id:

@@ -398,10 +398,10 @@ async def get_reorder_urgency(
     conn = get_connection()
     placeholders = ",".join("?" * len(product_ids))
     cur = await conn.execute(
-        f"""SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
-            FROM stock_transactions
-            WHERE product_id IN ({placeholders}) AND transaction_type = 'WITHDRAWAL' AND created_at >= ?
-            GROUP BY product_id""",
+        "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
+        " FROM stock_transactions"
+        " WHERE product_id IN (" + placeholders + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
+        " GROUP BY product_id",
         (*product_ids, since),
     )
     velocity_map = {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
@@ -457,16 +457,16 @@ async def get_product_activity(
         params.append(product_id)
 
     cur = await conn.execute(
-        f"""SELECT DATE(created_at) AS day,
-                   COUNT(*) AS transaction_count,
-                   COALESCE(SUM(ABS(quantity_delta)), 0) AS units_moved
-            FROM stock_transactions
-            WHERE (organization_id = ? OR organization_id IS NULL)
-              AND transaction_type = 'WITHDRAWAL'
-              AND created_at >= ?
-              {product_filter}
-            GROUP BY day
-            ORDER BY day""",
+        "SELECT DATE(created_at) AS day,"
+        " COUNT(*) AS transaction_count,"
+        " COALESCE(SUM(ABS(quantity_delta)), 0) AS units_moved"
+        " FROM stock_transactions"
+        " WHERE (organization_id = ? OR organization_id IS NULL)"
+        " AND transaction_type = 'WITHDRAWAL'"
+        " AND created_at >= ?"
+        + product_filter +
+        " GROUP BY day"
+        " ORDER BY day",
         params,
     )
     rows = [dict(r) for r in await cur.fetchall()]

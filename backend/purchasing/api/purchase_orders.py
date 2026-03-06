@@ -1,7 +1,7 @@
 """Purchase order API routes."""
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
@@ -17,11 +17,9 @@ from catalog.application.queries import (
 )
 from documents.application.enrichment_service import enrich_for_import
 from documents.application.import_parser import infer_uom, suggest_department
-from identity.application.auth_service import require_role
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
 from kernel.errors import ResourceNotFoundError
-from kernel.types import CurrentUser
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
     create_purchase_order,
@@ -34,6 +32,7 @@ from purchasing.domain.purchase_order import (
     ReceiveItemsRequest,
 )
 from purchasing.infrastructure.po_repo import po_repo
+from shared.api.deps import ManagerDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
@@ -75,7 +74,7 @@ router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 async def create_po(
     data: CreatePORequest,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Save reviewed receipt items as a pending purchase order (no inventory update)."""
     result = await create_purchase_order(
@@ -100,7 +99,7 @@ async def create_po(
 @router.get("")
 async def list_purchase_orders(
     status: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """List purchase orders, optionally filtered by status (ordered/received)."""
     org_id = current_user.organization_id
@@ -117,7 +116,7 @@ async def list_purchase_orders(
 @router.get("/{po_id}")
 async def get_purchase_order(
     po_id: str,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Get a purchase order with all its items."""
     org_id = current_user.organization_id
@@ -132,7 +131,7 @@ async def get_purchase_order(
 async def mark_delivery(
     po_id: str,
     data: MarkDeliveryRequest,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Mark selected 'ordered' items as 'pending' (delivery arrived at dock)."""
     return await mark_delivery_received(
@@ -147,7 +146,7 @@ async def receive_items(
     po_id: str,
     data: ReceiveItemsRequest,
     request: Request,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Mark selected items as arrived and update inventory stock."""
     result = await receive_po_items(

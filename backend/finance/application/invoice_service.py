@@ -24,7 +24,7 @@ async def sync_invoice(
 
     try:
         result = await gateway.sync_invoice(inv, settings)
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         return {"invoice_id": inv_id, "invoice_number": inv.get("invoice_number"), "error": str(e), "success": False}
 
     if result.success and result.xero_invoice_id:

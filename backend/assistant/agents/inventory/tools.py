@@ -221,10 +221,10 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
     product_ids = [p["id"] for p in low_stock]
     placeholders = ",".join("?" * len(product_ids))
     cur = await conn.execute(
-        f"""SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
-            FROM stock_transactions
-            WHERE product_id IN ({placeholders}) AND transaction_type = 'WITHDRAWAL' AND created_at >= ?
-            GROUP BY product_id""",
+        "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
+        " FROM stock_transactions"
+        " WHERE product_id IN (" + placeholders + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
+        " GROUP BY product_id",
         (*product_ids, since),
     )
     velocity_map = {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
@@ -326,13 +326,13 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
     product_ids = [p["id"] for p in products]
     placeholders = ",".join("?" * len(product_ids))
     cur = await conn.execute(
-        f"""SELECT
-              transaction_type,
-              COUNT(*) as txn_count,
-              COALESCE(SUM(ABS(quantity_delta)), 0) as total_units
-            FROM stock_transactions
-            WHERE product_id IN ({placeholders}) AND created_at >= ?
-            GROUP BY transaction_type""",
+        "SELECT"
+        " transaction_type,"
+        " COUNT(*) as txn_count,"
+        " COALESCE(SUM(ABS(quantity_delta)), 0) as total_units"
+        " FROM stock_transactions"
+        " WHERE product_id IN (" + placeholders + ") AND created_at >= ?"
+        " GROUP BY transaction_type",
         (*product_ids, since),
     )
     type_summary: dict[str, dict] = {}
@@ -373,10 +373,10 @@ async def _forecast_stockout(args: dict, org_id: str) -> str:
     product_ids = [p["id"] for p in products]
     placeholders = ",".join("?" * len(product_ids))
     cur = await conn.execute(
-        f"""SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
-            FROM stock_transactions
-            WHERE product_id IN ({placeholders}) AND transaction_type = 'WITHDRAWAL' AND created_at >= ?
-            GROUP BY product_id""",
+        "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
+        " FROM stock_transactions"
+        " WHERE product_id IN (" + placeholders + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
+        " GROUP BY product_id",
         (*product_ids, since),
     )
     velocity_map = {row["product_id"]: row["total_used"] for row in await cur.fetchall()}

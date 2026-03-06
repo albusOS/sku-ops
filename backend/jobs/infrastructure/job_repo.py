@@ -19,8 +19,8 @@ async def insert(job: Job | dict, conn=None) -> None:
     in_tx = conn is not None
     conn = conn or get_connection()
     await conn.execute(
-        f"""INSERT INTO jobs ({_COLUMNS})
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        "INSERT INTO jobs (" + _COLUMNS + ")"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             d["id"], d["code"], d.get("name", ""), d.get("billing_entity_id"),
             d.get("status", "active"), d.get("service_address", ""),
@@ -35,7 +35,7 @@ async def insert(job: Job | dict, conn=None) -> None:
 async def get_by_id(job_id: str, organization_id: str) -> dict | None:
     conn = get_connection()
     cursor = await conn.execute(
-        f"SELECT {_COLUMNS} FROM jobs WHERE id = ? AND organization_id = ?",
+        "SELECT " + _COLUMNS + " FROM jobs WHERE id = ? AND organization_id = ?",
         (job_id, organization_id),
     )
     return _row_to_dict(await cursor.fetchone())
@@ -44,7 +44,7 @@ async def get_by_id(job_id: str, organization_id: str) -> dict | None:
 async def get_by_code(code: str, organization_id: str) -> dict | None:
     conn = get_connection()
     cursor = await conn.execute(
-        f"SELECT {_COLUMNS} FROM jobs WHERE code = ? AND organization_id = ?",
+        "SELECT " + _COLUMNS + " FROM jobs WHERE code = ? AND organization_id = ?",
         (code, organization_id),
     )
     return _row_to_dict(await cursor.fetchone())
@@ -58,7 +58,7 @@ async def list_jobs(
     offset: int = 0,
 ) -> list:
     conn = get_connection()
-    sql = f"SELECT {_COLUMNS} FROM jobs WHERE organization_id = ?"
+    sql = "SELECT " + _COLUMNS + " FROM jobs WHERE organization_id = ?"
     params: list = [organization_id]
     if status:
         sql += " AND status = ?"
@@ -88,7 +88,7 @@ async def update(job_id: str, updates: dict, organization_id: str) -> dict | Non
     params.append(datetime.now(UTC).isoformat())
     params.extend([job_id, organization_id])
     await conn.execute(
-        f"UPDATE jobs SET {', '.join(set_clauses)} WHERE id = ? AND organization_id = ?",
+        "UPDATE jobs SET " + ", ".join(set_clauses) + " WHERE id = ? AND organization_id = ?",
         params,
     )
     await conn.commit()
@@ -100,10 +100,10 @@ async def search(query: str, organization_id: str, limit: int = 20) -> list:
     conn = get_connection()
     like = f"%{query.lower()}%"
     cursor = await conn.execute(
-        f"""SELECT {_COLUMNS} FROM jobs
-            WHERE organization_id = ? AND status = 'active'
-              AND (LOWER(code) LIKE ? OR LOWER(name) LIKE ?)
-            ORDER BY code LIMIT ?""",
+        "SELECT " + _COLUMNS + " FROM jobs"
+        " WHERE organization_id = ? AND status = 'active'"
+        " AND (LOWER(code) LIKE ? OR LOWER(name) LIKE ?)"
+        " ORDER BY code LIMIT ?",
         (organization_id, like, like, limit),
     )
     return [_row_to_dict(r) for r in await cursor.fetchall()]

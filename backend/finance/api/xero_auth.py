@@ -4,18 +4,17 @@ from datetime import UTC, datetime
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 
 from finance.adapters.invoicing_factory import get_invoicing_gateway
 from finance.adapters.xero_adapter import XeroAdapter
-from identity.application.auth_service import require_role
 from identity.application.org_service import (
     clear_xero_tokens,
     get_org_settings,
     upsert_org_settings,
 )
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 from shared.infrastructure.config import (
     FRONTEND_URL,
     XERO_CLIENT_ID,
@@ -27,7 +26,7 @@ from shared.infrastructure.database import get_connection
 router = APIRouter(prefix="/xero", tags=["xero"])
 
 XERO_AUTH_URL = "https://login.xero.com/identity/connect/authorize"
-XERO_TOKEN_URL = "https://identity.xero.com/connect/token"
+XERO_OAUTH_URL = "https://identity.xero.com/connect/token"
 XERO_SCOPES = "openid profile email accounting.transactions accounting.contacts offline_access"
 
 
@@ -62,7 +61,7 @@ def _require_xero_configured():
 
 
 @router.get("/connect")
-async def xero_connect(current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def xero_connect(current_user: AdminDep):
     """Initiate Xero OAuth 2.0 Authorization Code flow. Redirects to Xero consent page."""
     _require_xero_configured()
     org_id = current_user.organization_id
@@ -93,7 +92,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            XERO_TOKEN_URL,
+            XERO_OAUTH_URL,
             data={
                 "grant_type": "authorization_code",
                 "code": code,
@@ -123,7 +122,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
 
 
 @router.get("/tenants")
-async def list_xero_tenants(current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def list_xero_tenants(current_user: AdminDep):
     """List Xero organisations the connected token can access. Use to select tenant_id."""
     org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
@@ -134,14 +133,14 @@ async def list_xero_tenants(current_user: CurrentUser = Depends(require_role("ad
     try:
         tenants = await adapter.get_tenants(settings.xero_access_token)
         return {"tenants": tenants}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch Xero tenants: {e}")
+    except (httpx.HTTPError, RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch Xero tenants: {e}") from e
 
 
 @router.post("/select-tenant")
 async def select_xero_tenant(
     tenant_id: str,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Save the chosen Xero tenant (organisation) ID for this org."""
     org_id = current_user.organization_id
@@ -154,7 +153,7 @@ async def select_xero_tenant(
 
 
 @router.post("/disconnect")
-async def xero_disconnect(current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def xero_disconnect(current_user: AdminDep):
     """Remove Xero OAuth tokens for this org."""
     org_id = current_user.organization_id
     await clear_xero_tokens(org_id)
@@ -162,7 +161,7 @@ async def xero_disconnect(current_user: CurrentUser = Depends(require_role("admi
 
 
 @router.get("/tracking-categories")
-async def list_tracking_categories(current_user: CurrentUser = Depends(require_role("admin"))):  # noqa: B008
+async def list_tracking_categories(current_user: AdminDep):
     """List Xero tracking categories for the connected org."""
     org_id = current_user.organization_id
     settings = await get_org_settings(org_id)
@@ -173,14 +172,14 @@ async def list_tracking_categories(current_user: CurrentUser = Depends(require_r
     try:
         categories = await gateway.list_tracking_categories(settings)
         return {"tracking_categories": categories}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch tracking categories: {e}")
+    except (httpx.HTTPError, RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch tracking categories: {e}") from e
 
 
 @router.post("/select-tracking-category")
 async def select_tracking_category(
     tracking_category_id: str,
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Save the chosen Xero tracking category ID for job_id tagging on invoice lines."""
     org_id = current_user.organization_id
