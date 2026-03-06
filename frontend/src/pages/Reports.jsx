@@ -3,249 +3,110 @@ import { Button } from "../components/ui/button";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { BarChart3, TrendingUp, Package, DollarSign, Calendar as CalendarIcon, Download, Layers, Briefcase, Receipt } from "lucide-react";
+import {
+  TrendingUp, Package, DollarSign, Calendar as CalendarIcon,
+  Download, Layers, Briefcase, Receipt, ChevronDown, ChevronRight, Activity,
+} from "lucide-react";
 import { format } from "date-fns";
-import { AreaChart } from "@tremor/react";
 import { valueFormatter } from "@/lib/chartConfig";
 import { DATE_PRESETS } from "@/lib/constants";
+import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { StatCard } from "@/components/StatCard";
-import { DataTable } from "@/components/DataTable";
-import { useReportSales, useReportInventory, useReportTrends, useReportMargins, useReportPL, useReportArAging } from "@/hooks/useReports";
+import {
+  useReportSales, useReportInventory, useReportTrends, useReportMargins,
+  useReportPL, useReportArAging, useReportKpis, useReportProductPerformance,
+  useReportReorderUrgency, useReportProductActivity,
+} from "@/hooks/useReports";
+import { useFinancialSummary } from "@/hooks/useFinancials";
+import { useProducts } from "@/hooks/useProducts";
+import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
+import { MultiLineChart } from "@/components/charts/MultiLineChart";
+import { GaugeRing } from "@/components/charts/GaugeRing";
+import { ProductBubblePlot } from "@/components/charts/ProductBubblePlot";
+import { LollipopChart } from "@/components/charts/LollipopChart";
+import { WaterfallChart } from "@/components/charts/WaterfallChart";
+import { DotColumnChart } from "@/components/charts/DotColumnChart";
+import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
+import { ProductDetailModal } from "@/components/ProductDetailModal";
+import { ChartExplainer, BubbleChartGuide } from "@/components/charts/ChartExplainer";
+import { Panel, SectionHead as SectionHeadBase } from "@/components/Panel";
+import {
+  PaymentStrip, LowStockList, PL_DIMENSIONS, PLBreakdownTable, ARAgingTable, PLStatement, FinanceTab,
+} from "@/components/reports/ReportHelpers";
 
 const Stat = StatCard;
-
-const ProductBars = ({ products = [] }) => {
-  const max = useMemo(() => Math.max(...products.map((p) => p.revenue), 1), [products]);
-  return (
-    <div className="space-y-0 divide-y divide-slate-50">
-      {products.map((p, i) => (
-        <div key={i} className="flex items-center gap-3 py-2.5">
-          <span className="text-[10px] font-bold text-slate-300 w-4 shrink-0 tabular-nums">{i + 1}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-700 truncate mb-1.5">{p.name}</p>
-            <div className="h-[5px] bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{ width: `${((p.revenue / max) * 100).toFixed(1)}%` }} />
-            </div>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="text-sm font-bold text-slate-900 tabular-nums">{valueFormatter(p.revenue)}</p>
-            <p className="text-[10px] text-slate-400 tabular-nums">{p.quantity} units</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const PaymentStrip = ({ data = [] }) => {
-  const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  const palette = { Paid: "#34d399", Invoiced: "#60a5fa", Unpaid: "#fb923c", Unknown: "#94a3b8" };
-  return (
-    <div>
-      <div className="flex h-3 rounded-full overflow-hidden gap-px mb-3">
-        {data.map((d) => <div key={d.name} style={{ width: `${(d.value / total) * 100}%`, backgroundColor: palette[d.name] || "#94a3b8" }} title={`${d.name}: ${valueFormatter(d.value)}`} />)}
-      </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-        {data.map((d) => (
-          <div key={d.name} className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: palette[d.name] || "#94a3b8" }} />
-            <span className="text-xs text-slate-500">{d.name}</span>
-            <span className="text-xs font-bold text-slate-700 tabular-nums">{valueFormatter(d.value)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const DeptBars = ({ data = [] }) => {
-  const max = useMemo(() => Math.max(...data.map((d) => d.value), 1), [data]);
-  const sorted = [...data].sort((a, b) => b.value - a.value);
-  return (
-    <div className="space-y-3">
-      {sorted.map((d) => (
-        <div key={d.name}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium text-slate-700">{d.name}</span>
-            <div className="flex items-center gap-3 text-xs tabular-nums">
-              <span className="text-slate-500">{valueFormatter(d.cost)} cost</span>
-              <span className="font-bold text-slate-900">{valueFormatter(d.value)} retail</span>
-            </div>
-          </div>
-          <div className="relative h-4 bg-slate-100 rounded-md overflow-hidden">
-            <div className="absolute left-0 top-0 h-full bg-emerald-200 rounded-md transition-all duration-500" style={{ width: `${(d.value / max) * 100}%` }} />
-            <div className="absolute left-0 top-0 h-full bg-orange-300 rounded-md transition-all duration-500" style={{ width: `${(d.cost / max) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-      <div className="flex items-center gap-4 pt-1">
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-orange-300" /><span className="text-xs text-slate-500">Cost</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-emerald-200" /><span className="text-xs text-slate-500">Retail</span></div>
-      </div>
-    </div>
-  );
-};
-
-const LowStockList = ({ items = [] }) => (
-  <div className="divide-y divide-slate-50">
-    {items.map((item, i) => {
-      const pct = item.min_stock > 0 ? Math.min((item.quantity / item.min_stock) * 100, 100) : 0;
-      const isEmpty = item.quantity === 0;
-      return (
-        <div key={i} className="py-3 flex items-center gap-3">
-          <div className={`w-1.5 h-8 rounded-full shrink-0 ${isEmpty ? "bg-red-500" : "bg-orange-400"}`} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-medium text-slate-800 truncate">{item.name}</p>
-              <span className={`text-sm font-bold tabular-nums ml-3 shrink-0 ${isEmpty ? "text-red-600" : "text-orange-600"}`}>{item.quantity} left</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${isEmpty ? "bg-red-400" : "bg-orange-400"}`} style={{ width: `${pct}%` }} /></div>
-              <span className="text-[10px] text-slate-400 w-16 text-right shrink-0 tabular-nums">min {item.min_stock}</span>
-            </div>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-);
-
-const MarginList = ({ margins }) => (
-  <div className="divide-y divide-slate-50">
-    {margins.map((p, i) => {
-      const isHigh = p.margin_pct >= 40; const isLow = p.margin_pct < 30;
-      return (
-        <div key={i} className="py-3 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-800 truncate">{p.name}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">{p.quantity} units · {valueFormatter(p.cost)} COGS</p>
-            <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden w-full">
-              <div className={`h-full rounded-full ${isHigh ? "bg-emerald-400" : isLow ? "bg-orange-400" : "bg-blue-400"}`} style={{ width: `${Math.min(p.margin_pct, 100)}%` }} />
-            </div>
-          </div>
-          <div className="text-right shrink-0 ml-2">
-            <p className={`text-sm font-bold tabular-nums ${isHigh ? "text-emerald-600" : isLow ? "text-orange-600" : "text-blue-600"}`}>{p.margin_pct}%</p>
-            <p className="text-[10px] text-slate-400 tabular-nums">{valueFormatter(p.profit)}</p>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-);
-
-import { Panel, SectionHead as SectionHeadBase } from "@/components/Panel";
 const SectionHead = ({ title, action }) => <SectionHeadBase title={title} action={action} variant="report" />;
-
-const PL_DIMENSIONS = [
-  { value: "overall", label: "Overall" },
-  { value: "job", label: "By Job" },
-  { value: "department", label: "By Department" },
-  { value: "entity", label: "By Entity" },
-  { value: "product", label: "By Product" },
-];
-
-const PL_COLUMNS = {
-  job: { label: "Job ID", key: "job_id", secondary: "billing_entity" },
-  department: { label: "Department", key: "department" },
-  entity: { label: "Billing Entity", key: "billing_entity" },
-  product: { label: "Product", key: "product_id" },
-};
-
-const PLBreakdownTable = ({ plDimension, rows }) => {
-  const colCfg = PL_COLUMNS[plDimension];
-  const columns = useMemo(() => {
-    const cols = [
-      {
-        key: colCfg?.key || "name",
-        label: colCfg?.label || "Name",
-        render: (row) => <span className="font-medium text-slate-700 truncate max-w-[200px] block">{row[colCfg?.key] || "—"}</span>,
-      },
-    ];
-    if (plDimension === "job") {
-      cols.push(
-        { key: "billing_entity", label: "Customer", render: (row) => <span className="text-slate-500 truncate max-w-[160px] block">{row.billing_entity || "—"}</span> },
-        { key: "withdrawal_count", label: "Orders", align: "right", render: (row) => <span className="tabular-nums text-slate-500">{row.withdrawal_count || row.transaction_count}</span> },
-      );
-    }
-    cols.push(
-      { key: "revenue", label: "Revenue", align: "right", render: (row) => <span className="tabular-nums font-semibold text-slate-900">{valueFormatter(row.revenue)}</span> },
-      { key: "cost", label: "COGS", align: "right", render: (row) => <span className="tabular-nums text-slate-500">{valueFormatter(row.cost)}</span> },
-      { key: "profit", label: "Profit", align: "right", render: (row) => <span className="tabular-nums font-semibold text-slate-900">{valueFormatter(row.profit)}</span> },
-      {
-        key: "margin_pct",
-        label: "Margin",
-        align: "right",
-        render: (row) => {
-          const isHigh = (row.margin_pct || 0) >= 40;
-          const isLow = (row.margin_pct || 0) < 30;
-          return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold tabular-nums ${isHigh ? "bg-emerald-50 text-emerald-700" : isLow ? "bg-orange-50 text-orange-700" : "bg-blue-50 text-blue-700"}`}>{row.margin_pct}%</span>;
-        },
-      },
-    );
-    return cols;
-  }, [plDimension, colCfg]);
-
-  const dataWithId = useMemo(() => rows.map((r, i) => ({ ...r, id: r[colCfg?.key] || i })), [rows, colCfg]);
-
-  return (
-    <DataTable
-      data={dataWithId}
-      columns={columns}
-      title={`Breakdown — ${PL_DIMENSIONS.find((d) => d.value === plDimension)?.label || plDimension}`}
-      emptyMessage="No P&L data"
-      searchable
-      exportable
-      exportFilename={`pl-${plDimension}.csv`}
-      pageSize={20}
-    />
-  );
-};
-
-const AR_AGING_COLUMNS = [
-  { key: "billing_entity", label: "Entity", render: (row) => <span className="font-medium text-slate-700">{row.billing_entity}</span> },
-  { key: "total_ar", label: "Total AR", align: "right", render: (row) => <span className="tabular-nums font-semibold">{valueFormatter(row.total_ar)}</span> },
-  { key: "current_not_due", label: "Current", align: "right", render: (row) => <span className="tabular-nums text-slate-500">{valueFormatter(row.current_not_due)}</span> },
-  { key: "overdue_1_30", label: "1–30d", align: "right", render: (row) => <span className="tabular-nums text-amber-500">{valueFormatter(row.overdue_1_30)}</span> },
-  { key: "overdue_31_60", label: "31–60d", align: "right", render: (row) => <span className="tabular-nums text-amber-600">{valueFormatter(row.overdue_31_60)}</span> },
-  { key: "overdue_61_90", label: "61–90d", align: "right", render: (row) => <span className="tabular-nums text-orange-600">{valueFormatter(row.overdue_61_90)}</span> },
-  { key: "overdue_90_plus", label: "90d+", align: "right", render: (row) => <span className="tabular-nums text-red-600 font-semibold">{valueFormatter(row.overdue_90_plus)}</span> },
-];
-
-const ARAgingTable = ({ data }) => {
-  const dataWithId = useMemo(() => data.map((r, i) => ({ ...r, id: r.billing_entity || i })), [data]);
-  return (
-    <DataTable
-      data={dataWithId}
-      columns={AR_AGING_COLUMNS}
-      title="Accounts Receivable Aging"
-      emptyMessage="No AR data"
-      searchable
-      exportable
-      exportFilename="ar-aging.csv"
-    />
-  );
-};
 
 const Reports = () => {
   const [activeTab, setActiveTab] = useState("pl");
   const [trendsGroupBy, setTrendsGroupBy] = useState("day");
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [plDimension, setPlDimension] = useState("overall");
+  const [arAgingOpen, setArAgingOpen] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const dateParams = useMemo(() => ({
-    start_date: dateRange.from?.toISOString(),
-    end_date: dateRange.to?.toISOString(),
+    start_date: dateToISO(dateRange.from),
+    end_date: endOfDayISO(dateRange.to),
   }), [dateRange]);
 
   const plParams = useMemo(() => ({ ...dateParams, group_by: plDimension }), [dateParams, plDimension]);
 
   const { data: plData, isLoading: plLoading } = useReportPL(plParams);
-  const { data: arAging } = useReportArAging();
+  const { data: arAging } = useReportArAging(dateParams);
   const { data: salesReport, isLoading: salesLoading } = useReportSales(dateParams);
   const { data: inventoryReport, isLoading: invLoading } = useReportInventory();
   const { data: trendsReport, isLoading: trendsLoading } = useReportTrends({ ...dateParams, group_by: trendsGroupBy });
   const { data: marginsReport } = useReportMargins(dateParams);
+  const { data: kpis } = useReportKpis(dateParams);
+  const { data: perfData } = useReportProductPerformance(dateParams);
+  const { data: reorderData } = useReportReorderUrgency();
+
+  const jobPlParams = useMemo(() => ({ ...dateParams, group_by: "job" }), [dateParams]);
+  const contractorPlParams = useMemo(() => ({ ...dateParams, group_by: "contractor" }), [dateParams]);
+  const { data: jobPlData } = useReportPL(jobPlParams);
+  const { data: contractorPlData } = useReportPL(contractorPlParams);
+  const { data: financialSummary } = useFinancialSummary(dateParams);
+
+  const productPerf = perfData?.products || [];
+  const reorderProducts = reorderData?.products || [];
+  const lollipopData = useMemo(() => reorderProducts.map((p) => ({
+    name: p.name,
+    value: p.days_until_stockout,
+    urgency: p.urgency,
+    id: p.product_id,
+    ...p,
+  })), [reorderProducts]);
+
+  const trailing365Params = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 365);
+    return { start_date: start.toISOString(), end_date: end.toISOString(), group_by: "day" };
+  }, []);
+  const { data: dailyTrends } = useReportTrends(trailing365Params);
+  const dotColumnData = useMemo(() => {
+    if (!dailyTrends?.series) return [];
+    return dailyTrends.series.map((d) => ({ date: d.date, value: d.transaction_count || 0 }));
+  }, [dailyTrends]);
+
+  const handleProductClick = (product) => {
+    setSelectedProduct({ id: product.product_id || product.id, name: product.name, sku: product.sku })
+  };
+
+  const [heatmapProductId, setHeatmapProductId] = useState(null);
+  const { data: productsList } = useProducts();
+  const activityParams = useMemo(() => ({ product_id: heatmapProductId || undefined }), [heatmapProductId]);
+  const { data: productActivityData } = useReportProductActivity(activityParams);
+  const productHeatmapData = useMemo(() => {
+    if (!productActivityData?.series) return [];
+    return productActivityData.series.map((d) => ({
+      date: d.day,
+      value: d.transaction_count || 0,
+      units: d.units_moved || 0,
+    }));
+  }, [productActivityData]);
 
   const margins = marginsReport?.products || [];
 
@@ -271,7 +132,7 @@ const Reports = () => {
         rows.push([colCfg?.label || "Name", "Revenue", "COGS", "Profit", "Margin %"]);
         plData.rows.forEach((r) => rows.push([r[colCfg?.key] || "—", r.revenue, r.cost, r.profit, r.margin_pct]));
       }
-    } else if (activeTab === "sales" && salesReport) {
+    } else if (activeTab === "operations" && salesReport) {
       rows.push(["Metric", "Value"]);
       rows.push(["Total Revenue", salesReport.total_revenue]);
       rows.push(["Total Transactions", salesReport.total_transactions]);
@@ -289,6 +150,18 @@ const Reports = () => {
   const inStock = (inventoryReport?.total_products || 0) - (inventoryReport?.low_stock_count || 0) - (inventoryReport?.out_of_stock_count || 0);
   const totalP = inventoryReport?.total_products || 1;
 
+  const waterfallItems = useMemo(() => {
+    if (!plData?.summary || plDimension !== "overall") return [];
+    const s = plData.summary;
+    const items = [{ label: "Revenue", value: s.revenue || 0, type: "total" }];
+    if (s.cogs) items.push({ label: "COGS", value: -(s.cogs || 0), type: "decrease" });
+    if (s.shrinkage) items.push({ label: "Shrinkage", value: -(s.shrinkage || 0), type: "decrease" });
+    if (s.tax_collected) items.push({ label: "Tax", value: -(s.tax_collected || 0), type: "decrease" });
+    const net = (s.revenue || 0) - (s.cogs || 0) - (s.shrinkage || 0) - (s.tax_collected || 0);
+    items.push({ label: "Net Profit", value: net, type: "total" });
+    return items;
+  }, [plData, plDimension]);
+
   const loading = plLoading && salesLoading && invLoading && trendsLoading;
   if (loading) return <PageSkeleton />;
 
@@ -297,7 +170,7 @@ const Reports = () => {
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Reports</h1>
-          <p className="text-slate-500 mt-1 text-sm">P&L, sales, inventory, and profit analytics</p>
+          <p className="text-slate-500 mt-1 text-sm">P&L, operations, inventory, and trend analytics</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
@@ -323,9 +196,10 @@ const Reports = () => {
         <TabsList className="bg-transparent border-b border-slate-200 rounded-none p-0 h-auto gap-0 w-full justify-start" data-testid="report-tabs">
           {[
             { value: "pl", label: "P&L", icon: Receipt },
-            { value: "sales", label: "Sales", icon: BarChart3 },
+            { value: "finance", label: "Finance", icon: DollarSign },
+            { value: "operations", label: "Operations", icon: Activity },
             { value: "inventory", label: "Inventory", icon: Package },
-            { value: "trends", label: "Trends & Margins", icon: TrendingUp },
+            { value: "trends", label: "Trends", icon: TrendingUp },
           ].map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} className="rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-slate-900 text-slate-500 px-5 py-3 text-sm font-semibold gap-2 bg-transparent shadow-none" data-testid={`${value}-tab`}>
               <Icon className="w-4 h-4" />{label}
@@ -335,6 +209,65 @@ const Reports = () => {
 
         {/* ══ P&L ════════════════════════════════════════════════════════════ */}
         <TabsContent value="pl" className="space-y-6 mt-6" data-testid="pl-report-content">
+          {/* P&L Statement + Waterfall side by side */}
+          {plDimension === "overall" && plData?.summary && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <PLStatement summary={plData.summary} />
+              {waterfallItems.length > 0 && (
+                <Panel>
+                  <SectionHead title="P&L Waterfall" />
+                  <ChartExplainer
+                    title="Waterfall Chart"
+                    bullets={[
+                      "Starts with total Revenue on the left",
+                      "Each red bar shows a deduction (COGS, shrinkage, tax) dropping from the running total",
+                      "The final bar shows your Net Profit — what's left after all deductions",
+                      "Taller red bars mean bigger cost drains to investigate",
+                    ]}
+                  >
+                    <WaterfallChart items={waterfallItems} height={260} />
+                  </ChartExplainer>
+                </Panel>
+              )}
+            </div>
+          )}
+
+          {/* Financial trend — stepped lines */}
+          {plDimension === "overall" && trendsReport?.series?.length > 0 && (
+            <Panel>
+              <SectionHead title="Revenue, Cost & Profit Over Time" action={
+                <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                  {["day", "week", "month"].map((g) => (
+                    <button key={g} onClick={() => setTrendsGroupBy(g)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all ${trendsGroupBy === g ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>{g.charAt(0).toUpperCase() + g.slice(1)}</button>
+                  ))}
+                </div>
+              } />
+              <MultiLineChart
+                data={trendsReport.series}
+                xKey="date"
+                series={[
+                  { key: "revenue", label: "Revenue", color: "#10b981" },
+                  { key: "cost", label: "Cost", color: "#f59e0b" },
+                  { key: "profit", label: "Profit", color: "#3b82f6" },
+                ]}
+                valueFormatter={valueFormatter}
+                height={280}
+                stepped
+                area
+              />
+            </Panel>
+          )}
+
+          {/* KPI metrics row */}
+          {kpis && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Stat label="Inventory Turnover" value={`${kpis.inventory_turnover}×`} icon={Layers} accent="blue" note={`${kpis.period_days} day period`} />
+              <Stat label="Days in Inventory" value={`${kpis.dio} days`} icon={Package} accent="slate" />
+              <Stat label="Avg Transaction" value={valueFormatter(kpis.total_revenue / Math.max(kpis.total_units_sold, 1))} icon={DollarSign} accent="violet" note={`${kpis.total_units_sold} units sold`} />
+            </div>
+          )}
+
+          {/* Dimension selector */}
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">View</span>
             <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
@@ -346,7 +279,8 @@ const Reports = () => {
             </div>
           </div>
 
-          {plData?.summary && (
+          {/* Non-overall: show stat cards + breakdown table */}
+          {plDimension !== "overall" && plData?.summary && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-6 text-white shadow-md">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-100 mb-4">Revenue</p>
@@ -355,16 +289,11 @@ const Reports = () => {
               <Stat label="COGS" value={valueFormatter(plData.summary.cogs)} icon={DollarSign} accent="orange" />
               <Stat label="Gross Profit" value={valueFormatter(plData.summary.gross_profit)} icon={TrendingUp} accent="emerald" note={`${plData.summary.margin_pct}% margin`} />
               {plData.summary.tax_collected != null && <Stat label="Tax Collected" value={valueFormatter(plData.summary.tax_collected)} icon={Receipt} accent="slate" />}
-              {plData.summary.shrinkage != null && plData.summary.shrinkage > 0 && <Stat label="Shrinkage" value={valueFormatter(plData.summary.shrinkage)} icon={Package} accent="orange" note="inventory adjustments" />}
             </div>
           )}
 
           {plDimension !== "overall" && plData?.rows?.length > 0 && (
             <PLBreakdownTable plDimension={plDimension} rows={plData.rows} />
-          )}
-
-          {plDimension === "overall" && plData?.rows?.length === 0 && arAging?.length > 0 && (
-            <ARAgingTable data={arAging} />
           )}
 
           {plDimension !== "overall" && (!plData?.rows || plData.rows.length === 0) && (
@@ -373,32 +302,269 @@ const Reports = () => {
               <p className="text-sm text-slate-400">No P&L data for this period and dimension</p>
             </div>
           )}
+
+          {/* AR Aging — permanent collapsible section */}
+          {arAging?.length > 0 && (
+            <div>
+              <button
+                onClick={() => setArAgingOpen(!arAgingOpen)}
+                className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 mb-3"
+              >
+                {arAgingOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                Accounts Receivable Aging
+                <span className="text-xs font-normal text-slate-400">({arAging.length} entities)</span>
+              </button>
+              {arAgingOpen && <ARAgingTable data={arAging} />}
+            </div>
+          )}
         </TabsContent>
 
-        {/* ══ SALES ══════════════════════════════════════════════════════════ */}
-        <TabsContent value="sales" className="space-y-6 mt-6" data-testid="sales-report-content">
+        {/* ══ FINANCE ═════════════════════════════════════════════════════════ */}
+        <TabsContent value="finance" className="mt-6" data-testid="finance-report-content">
+          <FinanceTab
+            financialSummary={financialSummary}
+            arAging={arAging}
+            arAgingOpen={arAgingOpen}
+            setArAgingOpen={setArAgingOpen}
+          />
+        </TabsContent>
+
+        {/* ══ OPERATIONS ══════════════════════════════════════════════════════ */}
+        <TabsContent value="operations" className="space-y-6 mt-6" data-testid="operations-report-content">
+          {/* Sales summary cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-1 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-6 text-white shadow-md">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100 mb-4">Total Revenue</p>
               <p className="text-4xl font-bold tabular-nums leading-none">{valueFormatter(salesReport?.total_revenue || 0)}</p>
               <p className="text-xs text-amber-200 mt-3">{salesReport?.total_transactions || 0} transactions</p>
             </div>
-            <Stat label="COGS" value={valueFormatter(salesReport?.total_cogs || 0)} icon={DollarSign} accent="orange" note="cost of goods sold" />
+            <Stat label="COGS" value={valueFormatter(salesReport?.total_cogs || 0)} icon={DollarSign} accent="orange" />
             <Stat label="Gross Profit" value={valueFormatter(salesReport?.gross_profit || 0)} icon={TrendingUp} accent="emerald" note={`${salesReport?.gross_margin_pct ?? 0}% margin`} />
             <Stat label="Avg Transaction" value={valueFormatter(salesReport?.average_transaction || 0)} accent="violet" note="per order" />
           </div>
-          <Panel><SectionHead title="Sales by Payment Status" />{paymentChartData.length > 0 ? <PaymentStrip data={paymentChartData} /> : <p className="text-sm text-slate-400 py-8 text-center">No sales data</p>}</Panel>
-          <Panel><SectionHead title="Top Selling Products" />{salesReport?.top_products?.length > 0 ? <ProductBars products={salesReport.top_products.slice(0, 10)} /> : <p className="text-sm text-slate-400 py-8 text-center">No sales data</p>}</Panel>
+
+          {/* Payment status strip */}
+          {paymentChartData.length > 0 && (
+            <Panel>
+              <SectionHead title="Payment Status" />
+              <PaymentStrip data={paymentChartData} />
+            </Panel>
+          )}
+
+          {/* Job throughput + Contractor activity */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Panel>
+              <SectionHead title="Job Throughput — Top by Revenue" />
+              {jobPlData?.rows?.length > 0 ? (
+                <HorizontalBarChart
+                  data={jobPlData.rows.slice(0, 12)}
+                  categoryKey="job_id"
+                  series={[
+                    { key: "revenue", label: "Revenue", color: "#f59e0b" },
+                    { key: "cost", label: "COGS", color: "#94a3b8" },
+                  ]}
+                  valueFormatter={valueFormatter}
+                  showLegend
+                  height={Math.max(200, jobPlData.rows.slice(0, 12).length * 36)}
+                />
+              ) : <p className="text-sm text-slate-400 py-8 text-center">No job data</p>}
+            </Panel>
+            <Panel>
+              <SectionHead title="Contractor Activity — Top by Revenue" />
+              {contractorPlData?.rows?.length > 0 ? (
+                <HorizontalBarChart
+                  data={contractorPlData.rows.slice(0, 12).map((r) => ({ ...r, name: r.name || r.company || r.contractor_id || "Unknown" }))}
+                  categoryKey="name"
+                  series={[{ key: "revenue", label: "Revenue", color: "#3b82f6" }]}
+                  valueFormatter={valueFormatter}
+                  height={Math.max(200, contractorPlData.rows.slice(0, 12).length * 36)}
+                />
+              ) : <p className="text-sm text-slate-400 py-8 text-center">No contractor data</p>}
+            </Panel>
+          </div>
+
+          {/* Operational activity dot column */}
+          {dotColumnData.length > 0 && (
+            <Panel>
+              <SectionHead title="Daily Operational Activity" action={
+                <span className="text-xs text-slate-400 tabular-nums">{dotColumnData.filter((d) => d.value > 0).length} active days</span>
+              } />
+              <ChartExplainer
+                title="Activity Pattern"
+                bullets={[
+                  "Each dot is one day — columns are months",
+                  "Darker/brighter dots = more transactions that day",
+                  "Look for patterns: consistent activity, quiet periods, or spikes",
+                  "Gaps or pale columns may indicate supply issues or seasonal slowdowns",
+                ]}
+              >
+                <DotColumnChart data={dotColumnData} height={260} />
+              </ChartExplainer>
+            </Panel>
+          )}
         </TabsContent>
 
-        {/* ══ INVENTORY ══════════════════════════════════════════════════════ */}
+        {/* ══ INVENTORY — Interactive Product Analytics ════════════════════ */}
         <TabsContent value="inventory" className="space-y-6 mt-6" data-testid="inventory-report-content">
+          {/* Compact stat strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Stat label="Total Products" value={inventoryReport?.total_products || 0} icon={Package} accent="blue" />
             <Stat label="Retail Value" value={valueFormatter(inventoryReport?.total_retail_value || 0)} icon={DollarSign} accent="emerald" />
             <Stat label="Cost Value" value={valueFormatter(inventoryReport?.total_cost_value || 0)} icon={Layers} accent="slate" />
             <Stat label="Unrealized Margin" value={valueFormatter(inventoryReport?.unrealized_margin || inventoryReport?.potential_profit || 0)} note={inventoryReport?.margin_pct ? `${inventoryReport.margin_pct}%` : ""} icon={TrendingUp} accent="amber" />
           </div>
+
+          {/* Gauge rings row */}
+          {kpis && (
+            <ChartExplainer
+              title="Health Gauges"
+              position="top-left"
+              bullets={[
+                "Each gauge shows one key inventory health metric",
+                "Green zone = healthy, Amber = needs watching, Red = action needed",
+                "Turnover: how many times you sell through stock per period (higher is better)",
+                "Sell-Through: % of stock that has been sold (higher = faster moving)",
+                "Gross Margin: your profit % after cost of goods (higher = more profitable)",
+              ]}
+            >
+              <div className="flex flex-wrap items-center justify-center gap-6">
+                <div className="flex flex-col items-center">
+                  <GaugeRing
+                    value={kpis.inventory_turnover}
+                    max={Math.max(kpis.inventory_turnover * 1.5, 6)}
+                    label="Turnover"
+                    unit="×"
+                    zones={[{ max: 0.2, color: "#ef4444" }, { max: 0.5, color: "#f59e0b" }, { max: 1, color: "#10b981" }]}
+                    size={150}
+                  />
+                </div>
+                <div className="flex flex-col items-center">
+                  <GaugeRing
+                    value={kpis.sell_through_pct}
+                    max={100}
+                    label="Sell-Through"
+                    unit="%"
+                    zones={[{ max: 0.3, color: "#ef4444" }, { max: 0.6, color: "#f59e0b" }, { max: 1, color: "#10b981" }]}
+                    size={150}
+                  />
+                </div>
+                <div className="flex flex-col items-center">
+                  <GaugeRing
+                    value={kpis.gross_margin_pct}
+                    max={100}
+                    label="Gross Margin"
+                    unit="%"
+                    zones={[{ max: 0.3, color: "#ef4444" }, { max: 0.5, color: "#f59e0b" }, { max: 1, color: "#10b981" }]}
+                    size={150}
+                  />
+                </div>
+              </div>
+            </ChartExplainer>
+          )}
+
+          {/* Product Bubble Plot — centerpiece */}
+          {productPerf.length > 0 && (
+            <Panel>
+              <SectionHead title="Product Portfolio — Sell-Through vs Margin" action={
+                <span className="text-xs text-slate-400">{productPerf.length} products · click to drill in</span>
+              } />
+              <ChartExplainer
+                title="Product Portfolio"
+                wide
+                content={<BubbleChartGuide />}
+              >
+                <ProductBubblePlot
+                  products={productPerf}
+                  onBubbleClick={handleProductClick}
+                  height={420}
+                />
+              </ChartExplainer>
+            </Panel>
+          )}
+
+          {/* Reorder Urgency + Department Value */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Panel>
+              <SectionHead title="Reorder Urgency — Days to Stockout" action={
+                lollipopData.length > 0 && <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">{lollipopData.filter((d) => d.urgency === "critical" || d.urgency === "high").length} urgent</span>
+              } />
+              {lollipopData.length > 0 ? (
+                <ChartExplainer
+                  title="Reorder Urgency"
+                  bullets={[
+                    "Each dot is a product — fewer days = closer to running out",
+                    "Red = critical (under 3 days), Orange = high (under 7 days)",
+                    "Amber = medium (under 30 days), Green = healthy stock",
+                    "Click any product to view details and adjust stock",
+                    "Products at the top of the list need the most urgent attention",
+                  ]}
+                >
+                  <LollipopChart
+                    data={lollipopData.slice(0, 20)}
+                    valueLabel="days"
+                    onDotClick={handleProductClick}
+                    height={Math.max(200, Math.min(lollipopData.length, 20) * 28)}
+                  />
+                </ChartExplainer>
+              ) : <p className="text-sm text-slate-400 py-8 text-center">All stock levels healthy</p>}
+            </Panel>
+            <Panel>
+              <SectionHead title="Value by Department" />
+              {departmentChartData.length > 0 ? (
+                <HorizontalBarChart
+                  data={departmentChartData}
+                  categoryKey="name"
+                  series={[
+                    { key: "cost", label: "Cost", color: "#fb923c" },
+                    { key: "value", label: "Retail", color: "#6ee7b7" },
+                  ]}
+                  valueFormatter={valueFormatter}
+                  showLegend
+                  height={Math.max(200, departmentChartData.length * 40)}
+                />
+              ) : <p className="text-sm text-slate-400 py-8 text-center">No data</p>}
+            </Panel>
+          </div>
+
+          {/* Product Activity Heatmap */}
+          <Panel>
+            <SectionHead
+              title="Product Activity"
+              action={
+                <select
+                  value={heatmapProductId || ""}
+                  onChange={(e) => setHeatmapProductId(e.target.value || null)}
+                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 max-w-[220px] truncate"
+                >
+                  <option value="">All products</option>
+                  {(productsList || []).map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                  ))}
+                </select>
+              }
+            />
+            {productHeatmapData.length > 0 ? (
+              <ChartExplainer
+                title="Activity Heatmap"
+                bullets={[
+                  "Each square is one day — darker = more withdrawal transactions",
+                  "Use the dropdown to filter by a specific product or view all",
+                  "Hover over any square to see the exact count and units moved",
+                  "Consistent color = steady demand. Gaps = periods with no withdrawals",
+                ]}
+              >
+                <ActivityHeatmap
+                  data={productHeatmapData}
+                  label="withdrawals"
+                  tooltipExtra={(d) => d?.units ? `Units moved: ${d.units}` : ""}
+                />
+              </ChartExplainer>
+            ) : (
+              <p className="text-sm text-slate-400 py-6 text-center">No withdrawal activity found</p>
+            )}
+          </Panel>
+
+          {/* Stock Health + Low Stock */}
           <Panel>
             <SectionHead title="Stock Health" />
             <div className="flex h-5 rounded-lg overflow-hidden gap-px mb-3">
@@ -412,13 +578,13 @@ const Reports = () => {
               <span className="flex items-center gap-1.5 text-slate-600"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Out <strong className="tabular-nums">{inventoryReport?.out_of_stock_count || 0}</strong></span>
             </div>
           </Panel>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Panel><SectionHead title="Value by Department" />{departmentChartData.length > 0 ? <DeptBars data={departmentChartData} /> : <p className="text-sm text-slate-400 py-8 text-center">No data</p>}</Panel>
+
+          {inventoryReport?.low_stock_items?.length > 0 && (
             <Panel>
-              <SectionHead title="Low Stock Alert" action={inventoryReport?.low_stock_items?.length > 0 && <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">{inventoryReport.low_stock_count} items</span>} />
-              {inventoryReport?.low_stock_items?.length > 0 ? <div className="max-h-[360px] overflow-auto -mx-6 px-6"><LowStockList items={inventoryReport.low_stock_items} /></div> : <p className="text-sm text-slate-400 py-8 text-center">All well stocked</p>}
+              <SectionHead title="Low Stock Alert" action={<span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">{inventoryReport.low_stock_count} items</span>} />
+              <div className="max-h-[360px] overflow-auto -mx-6 px-6"><LowStockList items={inventoryReport.low_stock_items} /></div>
             </Panel>
-          </div>
+          )}
         </TabsContent>
 
         {/* ══ TRENDS ═════════════════════════════════════════════════════════ */}
@@ -431,6 +597,7 @@ const Reports = () => {
             <Stat label="Total Cost (COGS)" value={valueFormatter(trendsReport?.totals?.cost || 0)} icon={DollarSign} accent="orange" />
             <Stat label="Gross Profit" value={valueFormatter(trendsReport?.totals?.profit || 0)} icon={TrendingUp} accent="blue" />
           </div>
+
           <Panel>
             <SectionHead title="Revenue, Cost & Profit Over Time" action={
               <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
@@ -439,22 +606,63 @@ const Reports = () => {
                 ))}
               </div>
             } />
-            {trendsReport?.series?.length > 0 ? <AreaChart data={trendsReport.series} index="date" categories={["revenue", "cost", "profit"]} colors={["emerald", "orange", "blue"]} valueFormatter={valueFormatter} className="h-[280px] mt-2" /> : <div className="h-[280px] flex items-center justify-center"><p className="text-sm text-slate-400">No trend data</p></div>}
+            {trendsReport?.series?.length > 0 ? (
+              <MultiLineChart
+                data={trendsReport.series}
+                xKey="date"
+                series={[
+                  { key: "revenue", label: "Revenue", color: "#10b981" },
+                  { key: "cost", label: "Cost", color: "#f59e0b" },
+                  { key: "profit", label: "Profit", color: "#3b82f6" },
+                ]}
+                valueFormatter={valueFormatter}
+                height={300}
+                stepped
+              />
+            ) : <div className="h-[300px] flex items-center justify-center"><p className="text-sm text-slate-400">No trend data</p></div>}
           </Panel>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Panel><SectionHead title="Top Products by Revenue" />{margins.length > 0 ? <ProductBars products={margins.slice(0, 10).map((p) => ({ name: p.name, revenue: p.revenue, quantity: p.quantity }))} /> : <p className="text-sm text-slate-400 py-8 text-center">No data</p>}</Panel>
             <Panel>
-              <SectionHead title="Profit Margin by Product" />
-              <div className="flex items-center gap-4 mb-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400 inline-block" />≥40%</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-400 inline-block" />30–40%</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-orange-400 inline-block" />&lt;30%</span>
-              </div>
-              {margins.length > 0 ? <div className="max-h-[360px] overflow-auto -mx-6 px-6"><MarginList margins={margins} /></div> : <p className="text-sm text-slate-400 py-8 text-center">No data</p>}
+              <SectionHead title="Top Products by Revenue" />
+              {margins.length > 0 ? (
+                <HorizontalBarChart
+                  data={margins.slice(0, 10).map((p) => ({ name: p.name || p.product_id, revenue: p.revenue }))}
+                  categoryKey="name"
+                  series={[{ key: "revenue", label: "Revenue", color: "#f59e0b" }]}
+                  valueFormatter={valueFormatter}
+                  height={Math.max(200, Math.min(margins.length, 10) * 36)}
+                />
+              ) : <p className="text-sm text-slate-400 py-8 text-center">No data</p>}
+            </Panel>
+            <Panel>
+              <SectionHead title="Product Performance — Revenue vs Margin" />
+              {productPerf.length > 0 ? (
+                <ChartExplainer
+                  title="Product Scatter"
+                  bullets={[
+                    "Each bubble is a product — bigger = more revenue",
+                    "Right = high sell-through, Top = high margin",
+                    "Click any bubble to see full product details",
+                  ]}
+                >
+                  <ProductBubblePlot
+                    products={productPerf}
+                    onBubbleClick={handleProductClick}
+                    height={Math.max(300, 340)}
+                  />
+                </ChartExplainer>
+              ) : <p className="text-sm text-slate-400 py-8 text-center">No data</p>}
             </Panel>
           </div>
         </TabsContent>
       </Tabs>
+
+      <ProductDetailModal
+        product={selectedProduct}
+        open={!!selectedProduct}
+        onOpenChange={(open) => !open && setSelectedProduct(null)}
+      />
     </div>
   );
 };

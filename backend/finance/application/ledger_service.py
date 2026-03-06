@@ -62,6 +62,7 @@ async def _record_sale_event(
     organization_id: str,
     performed_by_user_id: Optional[str] = None,
     conn=None,
+    created_at: Optional[str] = None,
 ) -> None:
     """Shared logic for withdrawals (+1) and returns (-1).
 
@@ -111,6 +112,10 @@ async def _record_sale_event(
         amount=round_money(sign * total), **common,
     ))
 
+    if created_at:
+        for e in entries:
+            e.created_at = created_at
+
     await insert_entries(entries, conn=conn)
 
 
@@ -125,6 +130,7 @@ async def record_withdrawal(
     organization_id: str,
     performed_by_user_id: Optional[str] = None,
     conn=None,
+    created_at: Optional[str] = None,
 ) -> None:
     """Write ledger entries for a new material withdrawal."""
     await _record_sale_event(
@@ -136,6 +142,7 @@ async def record_withdrawal(
         contractor_id=contractor_id, organization_id=organization_id,
         performed_by_user_id=performed_by_user_id,
         conn=conn,
+        created_at=created_at,
     )
 
 
@@ -150,6 +157,7 @@ async def record_return(
     organization_id: str,
     performed_by_user_id: Optional[str] = None,
     conn=None,
+    created_at: Optional[str] = None,
 ) -> None:
     """Write reversing entries for a material return."""
     await _record_sale_event(
@@ -161,6 +169,7 @@ async def record_return(
         contractor_id=contractor_id, organization_id=organization_id,
         performed_by_user_id=performed_by_user_id,
         conn=conn,
+        created_at=created_at,
     )
 
 
@@ -171,6 +180,7 @@ async def record_po_receipt(
     organization_id: str,
     performed_by_user_id: Optional[str] = None,
     conn=None,
+    created_at: Optional[str] = None,
 ) -> None:
     """Write inventory + AP entries for each received PO line item."""
     if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id, conn=conn):
@@ -206,6 +216,9 @@ async def record_po_receipt(
             reference_type=ReferenceType.PO_RECEIPT, reference_id=po_id, organization_id=organization_id,
         ))
 
+    if created_at:
+        for e in entries:
+            e.created_at = created_at
     if entries:
         await insert_entries(entries, conn=conn)
 
@@ -231,6 +244,7 @@ async def record_adjustment(
     reason: Optional[str] = None,
     performed_by_user_id: Optional[str] = None,
     conn=None,
+    created_at: Optional[str] = None,
 ) -> None:
     """Write inventory + contra entries for a stock adjustment.
 
@@ -264,6 +278,9 @@ async def record_adjustment(
             reference_type=ReferenceType.ADJUSTMENT, reference_id=adjustment_ref_id, organization_id=organization_id,
         ),
     ]
+    if created_at:
+        for e in entries:
+            e.created_at = created_at
     await insert_entries(entries, conn=conn)
 
 
@@ -275,24 +292,26 @@ async def record_payment(
     organization_id: str,
     performed_by_user_id: Optional[str] = None,
     conn=None,
+    created_at: Optional[str] = None,
 ) -> None:
     """Write AR reduction when a withdrawal is marked paid."""
     if await entries_exist(ReferenceType.PAYMENT.value, withdrawal_id, conn=conn):
         return
     journal_id = str(uuid4())
-    await insert_entries([
-        FinancialEntry(
-            account=Account.ACCOUNTS_RECEIVABLE,
-            amount=-round_money(amount),
-            journal_id=journal_id,
-            billing_entity=billing_entity,
-            contractor_id=contractor_id,
-            performed_by_user_id=performed_by_user_id,
-            reference_type=ReferenceType.PAYMENT,
-            reference_id=withdrawal_id,
-            organization_id=organization_id,
-        ),
-    ], conn=conn)
+    entry = FinancialEntry(
+        account=Account.ACCOUNTS_RECEIVABLE,
+        amount=-round_money(amount),
+        journal_id=journal_id,
+        billing_entity=billing_entity,
+        contractor_id=contractor_id,
+        performed_by_user_id=performed_by_user_id,
+        reference_type=ReferenceType.PAYMENT,
+        reference_id=withdrawal_id,
+        organization_id=organization_id,
+    )
+    if created_at:
+        entry.created_at = created_at
+    await insert_entries([entry], conn=conn)
 
 
 async def record_credit_note_application(

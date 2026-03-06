@@ -181,7 +181,9 @@ const api = {
     kpis: (params) => axios.get(`${API}/reports/kpis`, { params }).then((r) => r.data),
     productPerformance: (params) => axios.get(`${API}/reports/product-performance`, { params }).then((r) => r.data),
     pl: (params) => axios.get(`${API}/reports/pl`, { params }).then((r) => r.data),
-    arAging: () => axios.get(`${API}/reports/ar-aging`).then((r) => r.data),
+    arAging: (params) => axios.get(`${API}/reports/ar-aging`, { params }).then((r) => r.data),
+    reorderUrgency: (params) => axios.get(`${API}/reports/reorder-urgency`, { params }).then((r) => r.data),
+    productActivity: (params) => axios.get(`${API}/reports/product-activity`, { params }).then((r) => r.data),
   },
 
   // ── Cycle Counts ────────────────────────────────────────────────────

@@ -85,7 +85,12 @@ export const keys = {
     trends: (params) => ["reports", "trends", params],
     productMargins: (params) => ["reports", "productMargins", params],
     pl: (params) => ["reports", "pl", params],
-    arAging: () => ["reports", "arAging"],
+    arAging: (params) => ["reports", "arAging", params],
+    kpis: (params) => ["reports", "kpis", params],
+    productPerformance: (params) => ["reports", "productPerformance", params],
+    jobPl: (params) => ["reports", "jobPl", params],
+    reorderUrgency: (params) => ["reports", "reorderUrgency", params],
+    productActivity: (params) => ["reports", "productActivity", params],
   },
   xeroHealth: {
     all: ["xeroHealth"],

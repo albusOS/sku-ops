@@ -4,15 +4,16 @@ All monetary reports read from the financial_ledger table via ledger_repo.
 Inventory report remains current-state (product quantities).
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends
 
 from identity.application.auth_service import require_role
 from kernel.types import CurrentUser, round_money
-from catalog.application.queries import list_products
+from catalog.application.queries import list_products, list_low_stock
 from finance.application import ledger_queries as ledger_repo
+from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -25,11 +26,18 @@ async def get_sales_report(
 ):
     org_id = current_user.organization_id
 
-    accounts, top_products, counts = await asyncio.gather(
+    accounts, top_products, counts, catalog, payment_status = await asyncio.gather(
         ledger_repo.summary_by_account(org_id, start_date=start_date, end_date=end_date),
         ledger_repo.product_margins(org_id, start_date=start_date, end_date=end_date, limit=10),
         ledger_repo.reference_counts(org_id, start_date=start_date, end_date=end_date),
+        list_products(organization_id=org_id),
+        ledger_repo.payment_status_breakdown(org_id, start_date=start_date, end_date=end_date),
     )
+    product_map = {p["id"]: p for p in catalog}
+    for m in top_products:
+        p = product_map.get(m["product_id"], {})
+        m["name"] = p.get("name", "Unknown")
+        m["sku"] = p.get("sku", "")
 
     revenue = accounts.get("revenue", 0)
     cogs = accounts.get("cogs", 0)
@@ -49,7 +57,7 @@ async def get_sales_report(
         "total_transactions": tx_count,
         "return_count": return_count,
         "average_transaction": round_money(revenue / tx_count) if tx_count > 0 else 0,
-        "by_payment_status": {},
+        "by_payment_status": payment_status,
         "top_products": top_products,
         "total_revenue": round_money(revenue),
     }
@@ -126,10 +134,18 @@ async def get_product_margins(
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     org_id = current_user.organization_id
-    products = await ledger_repo.product_margins(
-        org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
+    margin_data, catalog = await asyncio.gather(
+        ledger_repo.product_margins(
+            org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
+        ),
+        list_products(organization_id=org_id),
     )
-    return {"products": products}
+    product_map = {p["id"]: p for p in catalog}
+    for m in margin_data:
+        p = product_map.get(m["product_id"], {})
+        m["name"] = p.get("name", "Unknown")
+        m["sku"] = p.get("sku", "")
+    return {"products": margin_data}
 
 
 @router.get("/job-pl")
@@ -203,8 +219,15 @@ async def get_pl(
         rows = await ledger_repo.summary_by_billing_entity(org_id, **date_kw)
         label_key = "billing_entity"
     elif group_by == "product":
-        rows = await ledger_repo.product_margins(org_id, **date_kw, limit=limit)
-        label_key = "product_id"
+        rows, catalog = await asyncio.gather(
+            ledger_repo.product_margins(org_id, **date_kw, limit=limit),
+            list_products(organization_id=org_id),
+        )
+        pmap = {p["id"]: p for p in catalog}
+        for m in rows:
+            p = pmap.get(m["product_id"], {})
+            m["name"] = p.get("name", "Unknown")
+        label_key = "name"
     else:
         rows = []
         label_key = "name"
@@ -228,10 +251,14 @@ async def get_pl(
 
 @router.get("/ar-aging")
 async def get_ar_aging(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
 ):
     """Accounts receivable aging buckets by billing entity."""
-    return await ledger_repo.ar_aging(current_user.organization_id)
+    return await ledger_repo.ar_aging(
+        current_user.organization_id, start_date=start_date, end_date=end_date,
+    )
 
 
 @router.get("/kpis")
@@ -242,9 +269,10 @@ async def get_kpis(
 ):
     org_id = current_user.organization_id
 
-    accounts, products_data = await asyncio.gather(
+    accounts, products_data, units_sold_map = await asyncio.gather(
         ledger_repo.summary_by_account(org_id=org_id, start_date=start_date, end_date=end_date),
         list_products(organization_id=org_id),
+        ledger_repo.units_sold_by_product(org_id=org_id, start_date=start_date, end_date=end_date),
     )
 
     total_revenue = accounts.get("revenue", 0)
@@ -265,11 +293,9 @@ async def get_kpis(
     dio = (inventory_cost_value / total_cogs * period_days) if total_cogs > 0 else 0
     gross_margin_pct = ((total_revenue - total_cogs) / total_revenue * 100) if total_revenue > 0 else 0
 
-    # Estimate units sold from ledger: count distinct product references
-    # For sell-through we need actual unit counts which the ledger doesn't store,
-    # so fall back to 0 (this KPI requires operational data or a units_sold ledger column)
-    total_units_sold = 0
-    sell_through_pct = 0
+    total_units_sold = sum(units_sold_map.values())
+    total_stock = sum(p.get("quantity", 0) for p in products_data)
+    sell_through_pct = (total_units_sold / (total_units_sold + total_stock) * 100) if (total_units_sold + total_stock) > 0 else 0
 
     return {
         "period_days": period_days,
@@ -294,11 +320,12 @@ async def get_product_performance(
 ):
     org_id = current_user.organization_id
 
-    margin_data, products_data = await asyncio.gather(
+    margin_data, products_data, units_sold_map = await asyncio.gather(
         ledger_repo.product_margins(
             org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
         ),
         list_products(organization_id=org_id),
+        ledger_repo.units_sold_by_product(org_id=org_id, start_date=start_date, end_date=end_date),
     )
 
     product_map = {p["id"]: p for p in products_data}
@@ -308,6 +335,9 @@ async def get_product_performance(
         pid = m["product_id"]
         p = product_map.get(pid, {})
         current_stock = p.get("quantity", 0)
+        units_sold = units_sold_map.get(pid, 0)
+        avg_cost = m["cost"] / units_sold if units_sold > 0 else 0
+        sell_through = (units_sold / (units_sold + current_stock) * 100) if (units_sold + current_stock) > 0 else 0
         result.append({
             "product_id": pid,
             "name": p.get("name", "Unknown"),
@@ -315,13 +345,111 @@ async def get_product_performance(
             "department": p.get("department_name", ""),
             "current_stock": current_stock,
             "catalog_unit_cost": round(p.get("cost", 0), 2),
-            "units_sold": 0,
-            "avg_cost_per_unit": 0,
+            "units_sold": units_sold,
+            "avg_cost_per_unit": round(avg_cost, 2),
             "revenue": m["revenue"],
             "cogs": m["cost"],
             "gross_profit": m["profit"],
             "margin_pct": m["margin_pct"],
-            "sell_through_pct": 0,
+            "sell_through_pct": round(sell_through, 1),
         })
 
     return {"products": result, "total": len(result)}
+
+
+@router.get("/reorder-urgency")
+async def get_reorder_urgency(
+    days: int = 30,
+    limit: int = 50,
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+):
+    """Products ranked by days-until-stockout using withdrawal velocity."""
+    org_id = current_user.organization_id
+    since = (datetime.now(timezone.utc) - timedelta(days=min(days, 365))).isoformat()
+
+    low_stock, all_products = await asyncio.gather(
+        list_low_stock(limit=200, organization_id=org_id),
+        list_products(organization_id=org_id),
+    )
+
+    product_ids = [p["id"] for p in low_stock]
+    if not product_ids:
+        return {"products": [], "total": 0}
+
+    conn = get_connection()
+    placeholders = ",".join("?" * len(product_ids))
+    cur = await conn.execute(
+        f"""SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
+            FROM stock_transactions
+            WHERE product_id IN ({placeholders}) AND transaction_type = 'WITHDRAWAL' AND created_at >= ?
+            GROUP BY product_id""",
+        (*product_ids, since),
+    )
+    velocity_map = {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
+
+    result = []
+    for p in low_stock:
+        total_used = velocity_map.get(p["id"], 0)
+        avg_daily = total_used / days
+        qty = p.get("quantity", 0)
+        days_until_zero = round(qty / avg_daily, 1) if avg_daily > 0 else None
+        urgency = (
+            "critical" if days_until_zero is not None and days_until_zero <= 3
+            else "high" if days_until_zero is not None and days_until_zero <= 7
+            else "medium" if days_until_zero is not None and days_until_zero <= 30
+            else "low" if days_until_zero is not None
+            else "no_data"
+        )
+        result.append({
+            "product_id": p["id"],
+            "name": p.get("name", "Unknown"),
+            "sku": p.get("sku", ""),
+            "department": p.get("department_name", ""),
+            "current_stock": qty,
+            "min_stock": p.get("min_stock", 0),
+            "avg_daily_use": round(avg_daily, 2),
+            "days_until_stockout": days_until_zero,
+            "urgency": urgency,
+        })
+
+    result.sort(key=lambda x: (
+        x["days_until_stockout"] is None,
+        x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
+    ))
+
+    return {"products": result[:limit], "total": len(result)}
+
+
+@router.get("/product-activity")
+async def get_product_activity(
+    product_id: Optional[str] = None,
+    days: int = 365,
+    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),
+):
+    """Daily withdrawal activity heatmap data. Optional product_id filter."""
+    org_id = current_user.organization_id
+    since = (datetime.now(timezone.utc) - timedelta(days=min(days, 730))).isoformat()
+    conn = get_connection()
+
+    params: list = [org_id, since]
+    product_filter = ""
+    if product_id:
+        product_filter = " AND product_id = ?"
+        params.append(product_id)
+
+    cur = await conn.execute(
+        f"""SELECT DATE(created_at) AS day,
+                   COUNT(*) AS transaction_count,
+                   COALESCE(SUM(ABS(quantity_delta)), 0) AS units_moved
+            FROM stock_transactions
+            WHERE (organization_id = ? OR organization_id IS NULL)
+              AND transaction_type = 'WITHDRAWAL'
+              AND created_at >= ?
+              {product_filter}
+            GROUP BY day
+            ORDER BY day""",
+        params,
+    )
+    rows = [dict(r) for r in await cur.fetchall()]
+
+    return {"series": rows, "product_id": product_id, "days": days}

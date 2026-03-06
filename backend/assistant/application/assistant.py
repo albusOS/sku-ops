@@ -1,12 +1,8 @@
-"""Chat assistant entrypoint — 4-path dispatch.
+"""Chat assistant entrypoint.
 
-Execution paths (cheapest first):
-1. Trivial  → canned response ($0)
-2. Lookup   → pattern-match to single tool + template ($0)
-3. Report   → DAG parallel tools + cheap synthesis ($0.001)
-4. Reasoning → specialist agent with tools ($0.003-$0.015)
-
-mode="deep" skips lookup/report shortcuts, goes straight to Sonnet agent.
+All messages are routed to the unified agent which handles inventory, ops, and
+finance in a single agent. The previous 4-path dispatch (trivial/lookup/DAG/specialist)
+is preserved below but not used — kept for reference and potential re-enablement.
 """
 import asyncio
 import importlib
@@ -27,6 +23,7 @@ from assistant.agents.routing.dag import match_report, execute_plan
 from assistant.agents.tools.registry import run_tool
 from assistant.agents.memory.store import recall
 from assistant.agents.memory.extract import extract_and_save
+import assistant.agents.unified.agent as _unified_agent
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +47,34 @@ async def chat(
     agent_type: str = "auto",
     session_id: str = "",
 ) -> dict:
-    """Dispatch user message to the cheapest correct execution path."""
+    """Route all messages to the unified agent."""
     if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": [], "agent": None}
 
+    ctx = ctx or {}
+    deps = AgentDeps(
+        org_id=ctx.get("org_id", "default"),
+        user_id=ctx.get("user_id", ""),
+        user_name=ctx.get("user_name", ""),
+    )
+
+    result = await _unified_agent.run(user_message, history=history, deps=deps, mode=mode, session_id=session_id)
+    result["routed_to"] = ["unified"]
+    return result
+
+
+# ── Previous 4-path dispatch — preserved but not active ──────────────────────
+# To re-enable, replace the chat() body above with the logic below.
+
+async def _chat_multipath(
+    user_message: str,
+    history: list[dict] | None,
+    ctx: dict | None = None,
+    mode: str = "fast",
+    agent_type: str = "auto",
+    session_id: str = "",
+) -> dict:
+    """Original 4-path dispatch: trivial → lookup → DAG → specialist agent."""
     ctx = ctx or {}
     deps = AgentDeps(
         org_id=ctx.get("org_id", "default"),
@@ -69,29 +90,21 @@ async def chat(
         agent_name = classify_domain(user_message)
         return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
 
-    # ── Path 1: Trivial ───────────────────────────────────────────────────
     if is_trivial(user_message):
-        logger.info("dispatch → trivial")
         return _trivial_response(user_message)
 
-    # ── Path 2: Lookup (zero LLM) ────────────────────────────────────────
     lookup_result = await try_lookup(user_message, deps.org_id)
     if lookup_result:
-        logger.info("dispatch → lookup")
         result = AgentResult(agent="lookup", response=lookup_result)
         d = result.to_dict()
         d["routed_to"] = ["lookup"]
         return d
 
-    # ── Path 3: Report (DAG + cheap synthesis) ────────────────────────────
     report_plan = match_report(user_message)
     if report_plan:
-        logger.info(f"dispatch → report ({report_plan.template_name})")
         return await _dag_dispatch(user_message, report_plan, deps, session_id)
 
-    # ── Path 4: Reasoning (specialist agent) ──────────────────────────────
     agent_name = classify_domain(user_message)
-    logger.info(f"dispatch → reasoning ({agent_name})")
     return await _run_agent(agent_name, user_message, history, deps, mode, session_id)
 
 

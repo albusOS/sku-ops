@@ -15,9 +15,13 @@ import { InvoiceDetailModal } from "@/components/InvoiceDetailModal";
 import { JobDetailPanel } from "@/components/JobDetailPanel";
 import { useFinancialSummary } from "@/hooks/useFinancials";
 import { useWithdrawals } from "@/hooks/useWithdrawals";
+import { useReportArAging } from "@/hooks/useReports";
 import { useViewController } from "@/hooks/useViewController";
 import { valueFormatter } from "@/lib/chartConfig";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
+import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
+import { StackedBarChart } from "@/components/charts/StackedBarChart";
+import { Panel, SectionHead } from "@/components/Panel";
 
 const buildColumns = (onViewJob) => [
   {
@@ -163,6 +167,16 @@ const Financials = () => {
 
   const { data: summary, isLoading: summaryLoading } = useFinancialSummary(dateParams);
   const { data: withdrawals = [], isLoading: wdLoading } = useWithdrawals(dateParams);
+  const { data: arAging } = useReportArAging();
+
+  const arAgingByEntity = useMemo(() => {
+    if (!arAging) return {};
+    const map = {};
+    for (const row of arAging) {
+      map[row.billing_entity] = row;
+    }
+    return map;
+  }, [arAging]);
 
   const selectAllUninvoiced = () => {
     setSelectedIds(
@@ -257,45 +271,51 @@ const Financials = () => {
         />
       </div>
 
-      {summary?.by_contractor?.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
-            Top Contractors by Spend
-          </p>
-          <div className="space-y-2">
-            {[...summary.by_contractor]
-              .sort((a, b) => (b.revenue ?? b.total ?? 0) - (a.revenue ?? a.total ?? 0))
-              .slice(0, 8)
-              .map((c, i) => {
-                const amount = c.revenue ?? c.total ?? 0;
-                const max = Math.max(...summary.by_contractor.map((x) => x.revenue ?? x.total ?? 0), 1);
-                return (
-                  <div key={c.contractor_id ?? i} className="flex items-center gap-3">
-                    <span className="text-[10px] font-bold text-slate-300 w-4 tabular-nums">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-700 truncate">
-                        {c.name || c.company || c.contractor_id || "Unknown"}
-                      </p>
-                      <div className="h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
-                        <div
-                          className="h-full bg-amber-400 rounded-full"
-                          style={{
-                            width: `${((amount / max) * 100).toFixed(1)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold text-slate-900 tabular-nums shrink-0">
-                      {valueFormatter(amount)}
-                    </span>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {summary?.by_contractor?.length > 0 && (
+          <Panel>
+            <SectionHead title="Top Contractors by Spend" variant="report" />
+            <HorizontalBarChart
+              data={[...summary.by_contractor]
+                .sort((a, b) => (b.revenue ?? b.total ?? 0) - (a.revenue ?? a.total ?? 0))
+                .slice(0, 10)
+                .map((c) => ({
+                  name: c.name || c.company || c.contractor_id || "Unknown",
+                  revenue: c.revenue ?? c.total ?? 0,
+                }))}
+              categoryKey="name"
+              series={[{ key: "revenue", label: "Revenue", color: "#f59e0b" }]}
+              valueFormatter={valueFormatter}
+              height={Math.max(200, Math.min(summary.by_contractor.length, 10) * 36)}
+            />
+          </Panel>
+        )}
+        {arAging?.length > 0 && (
+          <Panel>
+            <SectionHead title="AR Aging by Entity" variant="report" />
+            <StackedBarChart
+              data={arAging.map((r) => ({
+                name: r.billing_entity,
+                current: r.current_not_due || 0,
+                "1-30d": r.overdue_1_30 || 0,
+                "31-60d": r.overdue_31_60 || 0,
+                "61-90d": r.overdue_61_90 || 0,
+                "90d+": r.overdue_90_plus || 0,
+              }))}
+              categoryKey="name"
+              series={[
+                { key: "current", label: "Current", color: "#34d399" },
+                { key: "1-30d", label: "1–30d", color: "#fbbf24" },
+                { key: "31-60d", label: "31–60d", color: "#fb923c" },
+                { key: "61-90d", label: "61–90d", color: "#f87171" },
+                { key: "90d+", label: "90d+", color: "#dc2626" },
+              ]}
+              valueFormatter={valueFormatter}
+              height={Math.max(200, arAging.length * 40)}
+            />
+          </Panel>
+        )}
+      </div>
 
       {summary?.by_billing_entity &&
         Object.keys(summary.by_billing_entity).length > 0 && (
@@ -305,33 +325,52 @@ const Financials = () => {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {Object.entries(summary.by_billing_entity).map(
-                ([entity, data]) => (
-                  <div
-                    key={entity}
-                    className="p-3 bg-slate-50 rounded-lg border border-slate-100"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="text-sm font-semibold text-slate-800">
-                        {entity}
-                      </span>
-                    </div>
-                    <div className="space-y-0.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Revenue</span>
-                        <span className="font-mono tabular-nums">
-                          ${(data.total ?? 0).toFixed(2)}
+                ([entity, data]) => {
+                  const aging = arAgingByEntity[entity];
+                  const hasOverdue90 = aging && ((aging.overdue_61_90 || 0) > 0 || (aging.overdue_90_plus || 0) > 0);
+                  const hasOverdue30 = aging && ((aging.overdue_31_60 || 0) > 0);
+                  const hasOverdue = aging && ((aging.overdue_1_30 || 0) > 0);
+                  const badgeColor = hasOverdue90 ? "bg-red-100 text-red-700 border-red-200" : hasOverdue30 ? "bg-orange-100 text-orange-700 border-orange-200" : hasOverdue ? "bg-amber-100 text-amber-700 border-amber-200" : null;
+                  const badgeLabel = hasOverdue90 ? "60d+ overdue" : hasOverdue30 ? "31–60d overdue" : hasOverdue ? "1–30d overdue" : null;
+                  return (
+                    <div
+                      key={entity}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-100"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-sm font-semibold text-slate-800 flex-1 truncate">
+                          {entity}
                         </span>
+                        {badgeColor && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}`}>
+                            {badgeLabel}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Txns</span>
-                        <span className="font-mono tabular-nums">
-                          {data.count}
-                        </span>
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Revenue</span>
+                          <span className="font-mono tabular-nums">
+                            ${(data.total ?? 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">AR Balance</span>
+                          <span className="font-mono tabular-nums text-amber-600">
+                            ${(data.ar_balance ?? 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Txns</span>
+                          <span className="font-mono tabular-nums">
+                            {data.count}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )
+                  );
+                }
               )}
             </div>
           </div>

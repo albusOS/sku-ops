@@ -316,7 +316,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
                 <Label className="text-xs uppercase text-slate-500">Linked Withdrawals</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {invoice.withdrawal_ids.map((wid) => (
-                    <Link key={wid} to="/financials" className="px-2 py-1 bg-slate-100 rounded font-mono text-xs hover:bg-slate-200 hover:underline" title={wid}>
+                    <Link key={wid} to="/" className="px-2 py-1 bg-slate-100 rounded font-mono text-xs hover:bg-slate-200 hover:underline" title={wid}>
                       {wid.slice(0, 8)}…
                     </Link>
                   ))}

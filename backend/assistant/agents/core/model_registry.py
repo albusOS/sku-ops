@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 # ── Per-task model assignments ────────────────────────────────────────────────
 
 _DEFAULTS: dict[str, str] = {
+    "agent:unified":         "anthropic/claude-haiku-4-5",
+    "agent:unified:deep":    "anthropic/claude-sonnet-4-6",
     "agent:inventory":       "anthropic/claude-haiku-4-5",
     "agent:ops":             "anthropic/claude-haiku-4-5",
     "agent:finance":         "anthropic/claude-haiku-4-5",

@@ -1,57 +1,32 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import {
-  DollarSign,
-  ShoppingCart,
   AlertTriangle,
   ArrowRight,
-  BarChart3,
-  Warehouse,
-  TrendingUp,
   Truck,
+  ClipboardList,
+  FileText,
+  ShoppingCart,
+  Package,
 } from "lucide-react";
-import { AreaChart } from "@tremor/react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, ADMIN_ROLES, DATE_PRESETS } from "@/lib/constants";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { StatCard } from "@/components/StatCard";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
-import { RecentTransactions } from "@/components/RecentTransactions";
-import { WithdrawalDetailPanel } from "@/components/WithdrawalDetailPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { TransactionsTable } from "@/components/TransactionsTable";
 import { useDashboardStats } from "@/hooks/useDashboard";
+import { useReportTrends } from "@/hooks/useReports";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { Panel, SectionHead } from "@/components/Panel";
-
-const DeptMarginBars = ({ data = [] }) => {
-  const max = useMemo(() => Math.max(...data.map((d) => Math.max(d.revenue, d.cost)), 1), [data]);
-  return (
-    <div className="space-y-3">
-      {data.slice(0, 8).map((d) => (
-          <div key={d.department}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-slate-700 truncate">{d.department}</span>
-              <div className="flex items-center gap-3 text-xs tabular-nums shrink-0 text-slate-500">
-                <span>{d.margin_pct}%</span>
-                <span>{valueFormatter(d.profit)}</span>
-              </div>
-            </div>
-            <div className="relative h-4 bg-slate-100 rounded-md overflow-hidden">
-              <div className="absolute left-0 top-0 h-full bg-slate-200 rounded-md transition-all duration-500" style={{ width: `${(d.revenue / max) * 100}%` }} />
-              <div className="absolute left-0 top-0 h-full bg-orange-300/80 rounded-md transition-all duration-500" style={{ width: `${(d.cost / max) * 100}%` }} />
-            </div>
-          </div>
-      ))}
-      <div className="flex items-center gap-4 pt-1 text-[10px] text-slate-400">
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-300/80 inline-block" />Cost</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200 inline-block" />Revenue</span>
-      </div>
-    </div>
-  );
-};
+import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
+import { ChartExplainer } from "@/components/charts/ChartExplainer";
+import api from "@/lib/api-client";
 
 const POSummaryStrip = ({ summary = {} }) => {
   const statuses = [
@@ -93,7 +68,6 @@ const Dashboard = () => {
   const defaultRange = DATE_PRESETS[1].getValue();
   const [dateRange, setDateRange] = useState(defaultRange);
   const [stockHistoryProduct, setStockHistoryProduct] = useState(null);
-  const [detailWithdrawalId, setDetailWithdrawalId] = useState(null);
 
   const statsParams = useMemo(() => {
     const p = {};
@@ -104,8 +78,29 @@ const Dashboard = () => {
 
   const { data: stats, isLoading } = useDashboardStats(statsParams);
 
+  const { data: pendingRequests } = useQuery({
+    queryKey: ["materialRequests", "pending-count"],
+    queryFn: () => api.materialRequests.list({ status: "pending" }).then((r) => r.length),
+    staleTime: 30_000,
+  });
+
+  const trailing365 = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 365);
+    return { start_date: start.toISOString(), end_date: end.toISOString(), group_by: "day" };
+  }, []);
+  const { data: heatmapTrends } = useReportTrends(trailing365);
+  const heatmapData = useMemo(() => {
+    if (!heatmapTrends?.series) return [];
+    return heatmapTrends.series.map((d) => ({
+      date: d.date,
+      value: d.transaction_count || 0,
+      revenue: d.revenue || 0,
+    }));
+  }, [heatmapTrends]);
+
   const isContractor = user?.role === ROLES.CONTRACTOR;
-  const isAdmin = user?.role === ROLES.ADMIN;
 
   const rangeLabel = dateRange.from
     ? dateRange.to
@@ -137,15 +132,24 @@ const Dashboard = () => {
           {stats?.recent_withdrawals?.length > 0 ? (
             <div className="space-y-2">
               {stats.recent_withdrawals.map((w, i) => (
-                <div key={w.id || i} className="flex items-center justify-between p-4 bg-slate-50/80 rounded-lg border border-slate-100">
-                  <div>
+                <div key={w.id || i} className="p-4 bg-slate-50/80 rounded-lg border border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
                     <p className="font-mono text-xs text-slate-400">Job: {w.job_id}</p>
-                    <p className="text-sm text-slate-600 mt-0.5">{w.items?.length || 0} items</p>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-slate-900 tabular-nums">${w.total?.toFixed(2)}</span>
+                      <StatusBadge status={w.invoice_id ? "invoiced" : "uninvoiced"} />
+                    </div>
                   </div>
-                  <div className="text-right flex items-center gap-3">
-                    <span className="font-semibold text-slate-900 tabular-nums">${w.total?.toFixed(2)}</span>
-                    <StatusBadge status={w.invoice_id ? "invoiced" : "uninvoiced"} />
-                  </div>
+                  {w.items?.length > 0 && (
+                    <div className="space-y-1 mt-2 border-t border-slate-100 pt-2">
+                      {w.items.map((item, j) => (
+                        <div key={j} className="flex items-center justify-between text-xs text-slate-600">
+                          <span className="truncate max-w-[200px]">{item.name || item.product_name || "Item"}</span>
+                          <span className="tabular-nums text-slate-500">{item.quantity} × ${(item.unit_price ?? 0).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -160,19 +164,8 @@ const Dashboard = () => {
     );
   }
 
-  const dailyChartData = stats?.revenue_by_day?.length
-    ? stats.revenue_by_day.map((d) => ({
-        date: format(new Date(d.date), "MMM d"),
-        Revenue: d.revenue,
-        Cost: d.cost || 0,
-        Profit: d.profit || 0,
-      }))
-    : [];
-
-  const inventoryCost = stats?.inventory_cost || 0;
-
   const hasPOs = stats?.po_summary && Object.keys(stats.po_summary).length > 0;
-  const openPOTotal = (stats?.po_summary?.ordered?.total || 0) + (stats?.po_summary?.partial?.total || 0);
+  const openPOCount = (stats?.po_summary?.ordered?.count || 0) + (stats?.po_summary?.partial?.count || 0);
 
   return (
     <div className="p-8" data-testid="dashboard-page">
@@ -185,62 +178,58 @@ const Dashboard = () => {
       </div>
 
       {/* ── Alerts ── */}
-      {stats?.low_stock_count > 0 && (
+      {(stats?.low_stock_count > 0 || (pendingRequests ?? 0) > 0) && (
         <div className="flex flex-wrap gap-2 mb-6">
-          <Link to="/inventory?low_stock=1" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span>{stats.low_stock_count} items low on stock</span>
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-          </Link>
+          {(pendingRequests ?? 0) > 0 && (
+            <Link to="/pending-requests" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-sm">
+              <ClipboardList className="w-4 h-4" />
+              <span>{pendingRequests} pending requests</span>
+              <ArrowRight className="w-3.5 h-3.5 text-blue-400" />
+            </Link>
+          )}
+          {stats?.low_stock_count > 0 && (
+            <Link to="/inventory?low_stock=1" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <span>{stats.low_stock_count} items low on stock</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            </Link>
+          )}
         </div>
       )}
 
-      {/* ── Row 1: Key metrics ── */}
+      {/* ── Operational KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Stock on Hand" value={valueFormatter(inventoryCost)} icon={Warehouse} accent="slate" note={`${stats?.inventory_units || 0} units at cost`} />
-
-        <StatCard label="Withdrawals (cost)" value={valueFormatter(stats?.range_cogs || 0)} icon={DollarSign} accent="orange" note={`${stats?.range_transactions || 0} withdrawals this period`} />
-
-        <StatCard label="Profit (this period)" value={valueFormatter(stats?.range_gross_profit || 0)} icon={TrendingUp} accent={stats?.range_margin_pct >= 30 ? "emerald" : "orange"} note={`${stats?.range_margin_pct || 0}% margin`} />
-
-        <StatCard label="Uninvoiced" value={valueFormatter(stats?.unpaid_total || 0)} icon={DollarSign} accent={stats?.unpaid_total > 0 ? "amber" : "slate"} note={`${stats?.low_stock_count || 0} items low stock`} />
+        <StatCard label="Pending Requests" value={pendingRequests ?? 0} icon={ClipboardList} accent="blue" note={pendingRequests > 0 ? "awaiting processing" : "all clear"} />
+        <StatCard label="Low Stock Alerts" value={stats?.low_stock_count || 0} icon={Package} accent={stats?.low_stock_count > 0 ? "amber" : "slate"} note={`${stats?.inventory_units || 0} total units`} />
+        <StatCard label="Uninvoiced" value={valueFormatter(stats?.unpaid_total || 0)} icon={FileText} accent={stats?.unpaid_total > 0 ? "amber" : "slate"} note={`${stats?.range_transactions || 0} transactions`} />
+        <StatCard label="Open POs" value={openPOCount} icon={Truck} accent={openPOCount > 0 ? "violet" : "slate"} note={hasPOs ? valueFormatter((stats?.po_summary?.ordered?.total || 0) + (stats?.po_summary?.partial?.total || 0)) + " in progress" : "none in progress"} />
       </div>
 
-      {/* ── Row 2: Chart + Department Margins ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-        <Panel className="lg:col-span-3">
-          <SectionHead title={`Revenue & cost — ${rangeLabel}`} action={
-            <Link to="/reports" className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
-              Full Reports <BarChart3 className="w-3 h-3" />
-            </Link>
+      {/* ── Activity Heatmap ── */}
+      {heatmapData.length > 0 && (
+        <Panel className="mb-6">
+          <SectionHead title="Transaction Activity" action={
+            <span className="text-xs text-slate-400 tabular-nums">{heatmapData.reduce((s, d) => s + d.value, 0).toLocaleString()} total</span>
           } />
-          {dailyChartData.length > 0 ? (
-            <AreaChart
-              data={dailyChartData}
-              index="date"
-              categories={["Cost", "Revenue", "Profit"]}
-              colors={["orange", "slate", "emerald"]}
-              valueFormatter={valueFormatter}
-              showLegend
-              className="h-52"
-              curveType="monotone"
+          <ChartExplainer
+            title="Activity Heatmap"
+            bullets={[
+              "Each square is one day — darker = more transactions",
+              "Rows are days of the week (Mon–Sun), columns are weeks",
+              "Hover over any square to see the exact count and revenue",
+              "Look for patterns: busy days, quiet weeks, or seasonal trends",
+            ]}
+          >
+            <ActivityHeatmap
+              data={heatmapData}
+              label="transactions"
+              tooltipExtra={(d) => d?.revenue ? `Revenue: $${d.revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : ""}
             />
-          ) : (
-            <div className="h-52 flex items-center justify-center text-sm text-slate-300">No data for this period</div>
-          )}
+          </ChartExplainer>
         </Panel>
+      )}
 
-        <Panel className="lg:col-span-2">
-          <SectionHead title="Profit by department" />
-          {stats?.dept_margins?.length > 0 ? (
-            <DeptMarginBars data={stats.dept_margins} />
-          ) : (
-            <div className="h-52 flex items-center justify-center text-sm text-slate-300">No department data</div>
-          )}
-        </Panel>
-      </div>
-
-      {/* ── Row 3: PO Activity + Low Stock ── */}
+      {/* ── PO Activity + Low Stock ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {hasPOs && (
           <Panel>
@@ -250,8 +239,8 @@ const Dashboard = () => {
               </Link>
             } />
             <div className="mb-4">
-              <span className="text-lg font-bold text-slate-900 tabular-nums">{valueFormatter(openPOTotal)}</span>
-              <span className="text-xs text-slate-400 ml-2">in progress</span>
+              <span className="text-lg font-bold text-slate-900 tabular-nums">{openPOCount} open</span>
+              <span className="text-xs text-slate-400 ml-2">purchase orders</span>
             </div>
             <POSummaryStrip summary={stats.po_summary} />
           </Panel>
@@ -282,24 +271,12 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* ── Row 4: Recent Transactions ── */}
-      {ADMIN_ROLES.includes(user?.role) && (
-        <RecentTransactions
-          dateRange={dateRange}
-          onProductStockHistory={setStockHistoryProduct}
-          onWithdrawalClick={setDetailWithdrawalId}
-        />
-      )}
+      {/* ── Transactions Table ── */}
+      {ADMIN_ROLES.includes(user?.role) && <TransactionsTable dateParams={statsParams} />}
 
       {ADMIN_ROLES.includes(user?.role) && (
         <StockHistoryModal product={stockHistoryProduct} open={!!stockHistoryProduct} onOpenChange={(open) => !open && setStockHistoryProduct(null)} />
       )}
-
-      <WithdrawalDetailPanel
-        withdrawalId={detailWithdrawalId}
-        open={!!detailWithdrawalId}
-        onOpenChange={(open) => !open && setDetailWithdrawalId(null)}
-      />
     </div>
   );
 };

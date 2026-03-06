@@ -19,7 +19,7 @@ const AGENT_META = {
 function agentTypeFromPath(pathname) {
   if (["/inventory", "/vendors", "/departments", "/import", "/purchase-orders"].some((p) => pathname.startsWith(p))) return "inventory";
   if (["/pos", "/pending-requests", "/contractors"].some((p) => pathname.startsWith(p))) return "ops";
-  if (["/financials", "/invoices"].some((p) => pathname.startsWith(p))) return "finance";
+  if (["/invoices", "/payments", "/billing-entities"].some((p) => pathname.startsWith(p))) return "finance";
   return "auto";
 }
 

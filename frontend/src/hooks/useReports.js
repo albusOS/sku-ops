@@ -41,9 +41,48 @@ export function useReportPL(params) {
   });
 }
 
-export function useReportArAging() {
+export function useReportArAging(params) {
   return useQuery({
-    queryKey: keys.reports.arAging(),
-    queryFn: api.reports.arAging,
+    queryKey: keys.reports.arAging(params),
+    queryFn: () => params ? api.reports.arAging(params) : api.reports.arAging(),
+  });
+}
+
+export function useReportKpis(params) {
+  return useQuery({
+    queryKey: keys.reports.kpis(params),
+    queryFn: () => api.reports.kpis(params),
+    enabled: !!params,
+  });
+}
+
+export function useReportProductPerformance(params) {
+  return useQuery({
+    queryKey: keys.reports.productPerformance(params),
+    queryFn: () => api.reports.productPerformance(params),
+    enabled: !!params,
+  });
+}
+
+export function useReportJobPl(params) {
+  return useQuery({
+    queryKey: keys.reports.jobPl(params),
+    queryFn: () => api.reports.jobPl(params),
+    enabled: !!params,
+  });
+}
+
+export function useReportReorderUrgency(params) {
+  return useQuery({
+    queryKey: keys.reports.reorderUrgency(params),
+    queryFn: () => api.reports.reorderUrgency(params),
+  });
+}
+
+export function useReportProductActivity(params) {
+  return useQuery({
+    queryKey: keys.reports.productActivity(params),
+    queryFn: () => api.reports.productActivity(params),
+    enabled: params !== false,
   });
 }

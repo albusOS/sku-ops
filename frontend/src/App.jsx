@@ -18,7 +18,7 @@ import {
   POS, PendingRequests, RequestMaterials, ScanModePage, Contractors, Departments,
   Vendors, PurchaseOrders, MyHistory, ReceiptImport, Jobs,
 } from "./pages/operations";
-import { Financials, Invoices, Payments, XeroHealthPage } from "./pages/finance";
+import { Invoices, Payments, XeroHealthPage } from "./pages/finance";
 import { BillingEntities } from "./pages/identity";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -67,7 +67,7 @@ function App() {
                           <Route path="/reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Reports /></ProtectedRoute>} />
                           <Route path="/contractors" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Contractors /></ProtectedRoute>} />
                           <Route path="/jobs" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Jobs /></ProtectedRoute>} />
-                          <Route path="/financials" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Financials /></ProtectedRoute>} />
+                          <Route path="/financials" element={<Navigate to="/reports" replace />} />
                           <Route path="/invoices" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Invoices /></ProtectedRoute>} />
                           <Route path="/payments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Payments /></ProtectedRoute>} />
                           <Route path="/billing-entities" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><BillingEntities /></ProtectedRoute>} />

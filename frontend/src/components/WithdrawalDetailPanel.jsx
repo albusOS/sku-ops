@@ -78,32 +78,53 @@ export function WithdrawalDetailPanel({ withdrawalId, open, onOpenChange, onView
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200">
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Item</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-16">Qty</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Unit $</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-24">Amount</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-14">Qty</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Unit $</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Cost</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Amount</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider w-16">Margin</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={idx} className="border-b border-slate-100 last:border-b-0">
-                  <td className="px-3 py-2">
-                    <p className="font-medium text-slate-800">{item.product_name || item.description || "—"}</p>
-                    {item.sku && <p className="text-[10px] text-slate-400 font-mono">{item.sku}</p>}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-slate-600">{item.quantity}</td>
-                  <td className="px-3 py-2 text-right font-mono text-slate-600">${(item.unit_price ?? 0).toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right font-mono font-semibold text-slate-900">
-                    ${((item.quantity ?? 0) * (item.unit_price ?? 0)).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
+              {items.map((item, idx) => {
+                const unitPrice = item.unit_price ?? 0;
+                const unitCost = item.cost ?? 0;
+                const marginPct = unitPrice > 0 ? ((unitPrice - unitCost) / unitPrice * 100) : 0;
+                return (
+                  <tr key={idx} className="border-b border-slate-100 last:border-b-0">
+                    <td className="px-3 py-2">
+                      <p className="font-medium text-slate-800">{item.product_name || item.description || "—"}</p>
+                      {item.sku && <p className="text-[10px] text-slate-400 font-mono">{item.sku}</p>}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-600">{item.quantity}</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-600">${unitPrice.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-500">${unitCost.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-slate-900">
+                      ${((item.quantity ?? 0) * unitPrice).toFixed(2)}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono text-xs font-bold ${marginPct >= 40 ? "text-emerald-600" : marginPct < 30 ? "text-orange-600" : "text-blue-600"}`}>
+                      {marginPct.toFixed(1)}%
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        <div className="flex justify-end mt-3">
+        <div className="flex justify-end mt-3 gap-6">
           <div className="text-right">
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Total</p>
-            <p className="text-lg font-bold font-mono text-slate-900">${total.toFixed(2)}</p>
+            <p className="text-xs text-slate-400 uppercase tracking-wider">COGS</p>
+            <p className="text-sm font-semibold font-mono text-slate-500">${(wd?.cost_total ?? 0).toFixed(2)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400 uppercase tracking-wider">Revenue</p>
+            <p className="text-sm font-semibold font-mono text-slate-900">${total.toFixed(2)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400 uppercase tracking-wider">Margin</p>
+            <p className={`text-sm font-bold font-mono ${total > 0 && ((total - (wd?.cost_total ?? 0)) / total * 100) >= 40 ? "text-emerald-600" : "text-orange-600"}`}>
+              {total > 0 ? ((total - (wd?.cost_total ?? 0)) / total * 100).toFixed(1) : "0.0"}%
+            </p>
           </div>
         </div>
       </DetailSection>

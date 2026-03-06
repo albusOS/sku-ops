@@ -184,10 +184,10 @@ const Invoices = () => {
               Invoices
             </h1>
             <Link
-              to="/financials"
+              to="/"
               className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 mt-1 transition-colors"
             >
-              Financials <ArrowRight className="w-3 h-3" />
+              Dashboard <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           <Button

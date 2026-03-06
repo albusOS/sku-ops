@@ -56,7 +56,7 @@ export function RecentTransactions({ dateRange, onProductStockHistory, onWithdra
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
         <h2 className="text-lg font-semibold text-slate-900">Recent Transactions</h2>
         <Link
-          to="/financials"
+          to="/reports"
           className="text-sm text-slate-500 hover:text-orange-600 flex items-center gap-1"
         >
           View all <ArrowRight className="w-4 h-4" />

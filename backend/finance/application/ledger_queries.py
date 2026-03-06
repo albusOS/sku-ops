@@ -240,7 +240,8 @@ async def trend_series(
         f"""SELECT {period_expr} AS period,
                    ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,
                    ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,
-                   ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage
+                   ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage,
+                   COUNT(DISTINCT reference_id) AS transaction_count
             FROM financial_ledger
             WHERE organization_id = ?
               AND account IN ('revenue', 'cogs', 'shrinkage')
@@ -262,15 +263,29 @@ async def trend_series(
             "cost": cost,
             "shrinkage": row["shrinkage"],
             "profit": profit,
+            "transaction_count": row["transaction_count"],
         })
     return series
 
 
-async def ar_aging(org_id: str) -> list[dict]:
+async def ar_aging(
+    org_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> list[dict]:
     """AR aging buckets by billing entity based on invoice due_date."""
     conn = get_connection()
+    params: list = [org_id]
+    date_filter = ""
+    if start_date:
+        date_filter += " AND fl.created_at >= ?"
+        params.append(start_date)
+    if end_date:
+        date_filter += " AND fl.created_at <= ?"
+        params.append(end_date)
+
     cursor = await conn.execute(
-        """SELECT fl.billing_entity,
+        f"""SELECT fl.billing_entity,
                   ROUND(SUM(fl.amount), 2) AS total_ar,
                   ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 0 THEN fl.amount ELSE 0 END), 2) AS current_not_due,
                   ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) > 0
@@ -286,9 +301,10 @@ async def ar_aging(org_id: str) -> list[dict]:
            WHERE fl.organization_id = ?
              AND fl.account = 'accounts_receivable'
              AND fl.billing_entity IS NOT NULL
+             {date_filter}
            GROUP BY fl.billing_entity
            HAVING ROUND(SUM(fl.amount), 2) != 0""",
-        (org_id,),
+        params,
     )
     return [dict(r) for r in await cursor.fetchall()]
 
@@ -339,6 +355,65 @@ async def product_margins(
             "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
         })
     return result
+
+
+async def units_sold_by_product(
+    org_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> dict[str, float]:
+    """Sum of quantities sold per product_id from withdrawal_items."""
+    conn = get_connection()
+    params: list = [org_id]
+    date_filter = ""
+    if start_date:
+        date_filter += " AND w.created_at >= ?"
+        params.append(start_date)
+    if end_date:
+        date_filter += " AND w.created_at <= ?"
+        params.append(end_date)
+
+    cursor = await conn.execute(
+        f"""SELECT wi.product_id, SUM(wi.quantity) AS total_qty
+            FROM withdrawal_items wi
+            JOIN withdrawals w ON wi.withdrawal_id = w.id
+            WHERE w.organization_id = ?{date_filter}
+            GROUP BY wi.product_id""",
+        params,
+    )
+    return {row[0]: row[1] for row in await cursor.fetchall()}
+
+
+async def payment_status_breakdown(
+    org_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> dict[str, float]:
+    """Revenue breakdown by payment status: {Paid: X, Invoiced: Y, Unpaid: Z}."""
+    conn = get_connection()
+    params: list = [org_id]
+    date_filter = ""
+    if start_date:
+        date_filter += " AND w.created_at >= ?"
+        params.append(start_date)
+    if end_date:
+        date_filter += " AND w.created_at <= ?"
+        params.append(end_date)
+
+    cursor = await conn.execute(
+        f"""SELECT
+                CASE
+                    WHEN w.payment_status = 'paid' THEN 'Paid'
+                    WHEN w.invoice_id IS NOT NULL THEN 'Invoiced'
+                    ELSE 'Unpaid'
+                END AS status,
+                ROUND(SUM(w.total), 2) AS total
+            FROM withdrawals w
+            WHERE w.organization_id = ?{date_filter}
+            GROUP BY status""",
+        params,
+    )
+    return {row[0]: row[1] for row in await cursor.fetchall()}
 
 
 async def purchase_spend(

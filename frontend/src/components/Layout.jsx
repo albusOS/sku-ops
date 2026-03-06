@@ -12,7 +12,6 @@ import {
   LogOut,
   Wrench,
   HardHat,
-  DollarSign,
   History,
   FileText,
   ClipboardList,
@@ -70,7 +69,6 @@ const Layout = ({ children }) => {
 
     if (role === ROLES.ADMIN) {
       analyticsItems.push(
-        { path: "/financials", icon: DollarSign, label: "Financials" },
         { path: "/invoices", icon: FileText, label: "Invoices" },
         { path: "/payments", icon: CreditCard, label: "Payments" },
         { path: "/billing-entities", icon: Building2, label: "Billing Entities" },

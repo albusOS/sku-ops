@@ -98,6 +98,7 @@ async def main():
     from purchasing.infrastructure.po_repo import po_repo
     from finance.application.ledger_service import (
         record_withdrawal, record_return, record_po_receipt, record_payment,
+        record_adjustment,
     )
     from inventory.domain.stock import StockTransaction, StockTransactionType
     from inventory.infrastructure.stock_repo import stock_repo
@@ -210,16 +211,16 @@ async def main():
         logger.info(f"  {c['name']} — {c['email']} ({c['company']})")
 
     # ══════════════════════════════════════════════════════════════════════
-    # 4. WITHDRAWALS — 30 across contractors/jobs over 45 days
+    # 4. WITHDRAWALS — 60 across contractors/jobs over 120 days
     # ══════════════════════════════════════════════════════════════════════
     logger.info("--- Creating withdrawals ---")
     product_names = list(products_by_name.keys())
     withdrawal_records: list[dict] = []
 
-    for i in range(30):
+    for i in range(60):
         contractor = random.choice(contractor_users)
         job = random.choice(JOBS)
-        days_ago = random.randint(1, 45)
+        days_ago = random.randint(1, 120)
         created_at = (now - timedelta(days=days_ago, hours=random.randint(6, 17))).isoformat()
 
         pick_count = random.randint(2, 5)
@@ -252,10 +253,25 @@ async def main():
         await withdrawal_repo.insert(w_dict)
 
         for item in items:
+            prod = products_by_name.get(item.name, {})
+            qty_before = max(0, prod.get("quantity", 0))
+            qty_after = max(0, qty_before - item.quantity)
             await conn.execute(
                 "UPDATE products SET quantity = MAX(0, quantity - ?) WHERE id = ?",
                 (item.quantity, item.product_id),
             )
+            tx = StockTransaction(
+                product_id=item.product_id, sku=item.sku, product_name=item.name,
+                quantity_delta=-item.quantity, quantity_before=qty_before, quantity_after=qty_after,
+                unit="each", transaction_type=StockTransactionType.WITHDRAWAL,
+                reason=f"Withdrawal for {job['id']}",
+                user_id=admin["id"], user_name=admin.get("name", ""),
+                reference_id=withdrawal.id,
+            )
+            tx.organization_id = org_id
+            tx.created_at = created_at
+            await stock_repo.insert_transaction(tx)
+            prod["quantity"] = qty_after
         await conn.commit()
 
         ledger_items = [{
@@ -271,6 +287,7 @@ async def main():
             contractor_id=contractor["id"],
             organization_id=org_id,
             performed_by_user_id=admin["id"],
+            created_at=created_at,
         )
 
         withdrawal_records.append({
@@ -278,8 +295,8 @@ async def main():
             "items": items, "days_ago": days_ago,
             "total": withdrawal.total, "tax": withdrawal.tax, "subtotal": withdrawal.subtotal,
         })
-        if i < 3 or i % 10 == 0:
-            logger.info(f"  [{i+1}/30] {job['id']} | {contractor.get('company', '')[:25]} | ${withdrawal.total:.2f}")
+        if i < 3 or i % 15 == 0:
+            logger.info(f"  [{i+1}/60] {job['id']} | {contractor.get('company', '')[:25]} | ${withdrawal.total:.2f}")
 
     logger.info(f"  {len(withdrawal_records)} withdrawals created")
 
@@ -287,22 +304,35 @@ async def main():
     # 5. STOCK ADJUSTMENTS — 15 manual adjustments
     # ══════════════════════════════════════════════════════════════════════
     logger.info("--- Creating stock adjustments ---")
+    adj_reasons = ["Physical count correction", "Damaged goods", "Cycle count", "Shrinkage"]
     for _ in range(15):
         prod = random.choice(all_products)
         delta = random.choice([-5, -3, -1, 2, 5, 10, 20])
         qty_before = max(0, prod["quantity"])
         qty_after = max(0, qty_before + delta)
+        reason = random.choice(adj_reasons)
         tx = StockTransaction(
             product_id=prod["id"], sku=prod["sku"], product_name=prod["name"],
             quantity_delta=delta, quantity_before=qty_before, quantity_after=qty_after,
             unit="each", transaction_type=StockTransactionType.ADJUSTMENT,
-            reason=random.choice(["Physical count correction", "Damaged goods", "Cycle count", "Shrinkage"]),
+            reason=reason,
             user_id=admin["id"], user_name=admin.get("name", ""),
         )
         tx.organization_id = org_id
-        tx.created_at = (now - timedelta(days=random.randint(1, 30))).isoformat()
+        adj_created = (now - timedelta(days=random.randint(1, 90))).isoformat()
+        tx.created_at = adj_created
         await stock_repo.insert_transaction(tx)
         await conn.execute("UPDATE products SET quantity = ? WHERE id = ?", (qty_after, prod["id"]))
+
+        dept_name = dept_name_map.get(prod.get("department_id"))
+        ledger_reason = "damage" if "Damaged" in reason else "shrinkage"
+        await record_adjustment(
+            adjustment_ref_id=tx.id, product_id=prod["id"],
+            product_cost=prod["cost"], quantity_delta=delta,
+            department=dept_name, organization_id=org_id,
+            reason=ledger_reason, performed_by_user_id=admin["id"],
+            created_at=adj_created,
+        )
     await conn.commit()
     logger.info("  15 stock adjustments")
 
@@ -314,11 +344,12 @@ async def main():
     vendors = [dict(v) for v in await cur.fetchall()]
 
     po_scenarios = [
-        {"days_ago": 35, "status": "received"},
-        {"days_ago": 28, "status": "received"},
-        {"days_ago": 21, "status": "received"},
+        {"days_ago": 90, "status": "received"},
+        {"days_ago": 60, "status": "received"},
+        {"days_ago": 45, "status": "received"},
+        {"days_ago": 30, "status": "received"},
+        {"days_ago": 21, "status": "partial"},
         {"days_ago": 14, "status": "partial"},
-        {"days_ago": 10, "status": "partial"},
         {"days_ago": 7,  "status": "ordered"},
         {"days_ago": 3,  "status": "ordered"},
         {"days_ago": 1,  "status": "ordered"},
@@ -382,6 +413,7 @@ async def main():
                 po_id=po.id, items=ledger_items,
                 vendor_name=vendor["name"], organization_id=org_id,
                 performed_by_user_id=admin["id"],
+                created_at=received_at,
             )
 
         logger.info(f"  PO {po.id[:8]}... | {vendor['name'][:25]} | {scenario['status']} | ${po_total:.2f}")
@@ -426,6 +458,7 @@ async def main():
                             contractor_id=batch[0]["contractor"]["id"],
                             organization_id=org_id,
                             performed_by_user_id=admin["id"],
+                            created_at=paid_at,
                         )
                     if inv.get("id"):
                         await conn.execute("UPDATE invoices SET status = 'paid' WHERE id = ?", (inv["id"],))
@@ -476,6 +509,7 @@ async def main():
             "quantity": ri.quantity, "unit_price": ri.unit_price, "cost": ri.cost,
             "department_name": dept_name_map.get(products_by_name.get(ri.name, {}).get("department_id")),
         } for ri in return_items]
+        return_created_at = (now - timedelta(days=wr["days_ago"] - 2)).isoformat()
         await record_return(
             return_id=ret.id, items=ledger_items,
             tax=ret.tax, total=ret.total,
@@ -484,6 +518,7 @@ async def main():
             contractor_id=contractor["id"],
             organization_id=org_id,
             performed_by_user_id=admin["id"],
+            created_at=return_created_at,
         )
         items_str = ", ".join(f"{ri.name[:20]} x{ri.quantity}" for ri in return_items)
         logger.info(f"  Return | {contractor.get('company', '')[:25]} | ${ret.total:.2f} | {items_str}")
