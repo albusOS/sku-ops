@@ -36,9 +36,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("xero_smoke_test")
 
-PASS = "\033[32m✓\033[0m"
-FAIL = "\033[31m✗\033[0m"
-SKIP = "\033[33m–\033[0m"
+_PASS_ICON = "\033[32m✓\033[0m"
+_FAIL_ICON = "\033[31m✗\033[0m"
+_SKIP_ICON = "\033[33m–\033[0m"
 
 
 class SmokeTestRunner:
@@ -52,14 +52,14 @@ class SmokeTestRunner:
 
     def _ok(self, name: str, detail: str = "") -> None:
         self.passed += 1
-        logger.info("%s  %s  %s", PASS, name, detail)
+        logger.info("%s  %s  %s", _PASS_ICON, name, detail)
 
     def _fail(self, name: str, error: str) -> None:
         self.failed += 1
-        logger.error("%s  %s  ERROR: %s", FAIL, name, error)
+        logger.error("%s  %s  ERROR: %s", _FAIL_ICON, name, error)
 
     def _skip(self, name: str, reason: str) -> None:
-        logger.info("%s  %s  (skipped: %s)", SKIP, name, reason)
+        logger.info("%s  %s  (skipped: %s)", _SKIP_ICON, name, reason)
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 

@@ -48,12 +48,12 @@ def _strip_for_contractor(product: dict) -> dict:
 
 @router.get("")
 async def get_products(
+    current_user: CurrentUserDep,
     department_id: str | None = None,
     search: str | None = None,
     low_stock: bool = False,
     limit: int | None = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: CurrentUserDep,
 ):
     org_id = current_user.organization_id
     is_contractor = current_user.role == "contractor"

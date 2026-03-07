@@ -14,9 +14,9 @@ SKU_FORMAT = "DEPT-SLUG-XXXXX"
 
 @router.get("/sku/preview")
 async def get_sku_preview(
+    current_user: CurrentUserDep,
     department_id: str,
     product_name: str | None = None,
-    _    current_user: CurrentUserDep,
 ):
     """Preview the next SKU for a department (without consuming it)."""
     department = await department_repo.get_by_id(department_id)
@@ -31,8 +31,8 @@ async def get_sku_preview(
 
 @router.get("/sku/overview")
 async def get_sku_overview(
+    current_user: CurrentUserDep,
     product_name: str | None = None,
-    _    current_user: CurrentUserDep,
 ):
     """SKU system overview: format, departments with next available SKU."""
     departments = await department_repo.list_all()

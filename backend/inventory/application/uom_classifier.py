@@ -108,7 +108,7 @@ Return ONLY valid JSON: {{"base_unit": "...", "sell_uom": "...", "pack_qty": 1}}
                     "sell_uom": _normalize_unit(data.get("sell_uom", data.get("base_unit"))),
                     "pack_qty": _normalize_pack_qty(data.get("pack_qty")),
                 }
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError, RuntimeError, OSError) as e:
         logger.warning("UOM classification failed: %s", e)
     return {"base_unit": "each", "sell_uom": "each", "pack_qty": 1}
 
@@ -184,7 +184,7 @@ Return ONLY a JSON array, one object per product in same order: [{{"base_unit":"
                     else:
                         _rule_fallback(p)
                 return products
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError, RuntimeError, OSError) as e:
         logger.warning("Batch UOM classification failed, falling back to rules: %s", e)
 
     for p in products:

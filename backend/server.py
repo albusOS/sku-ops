@@ -93,12 +93,12 @@ async def lifespan(app: FastAPI):
     try:
         from assistant.agents.tools.search import get_index
         await get_index("default")
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         logger.warning("BM25 index warm-up skipped: %s", e)
     try:
         from finance.application.xero_startup_check import run_startup_check
         await run_startup_check("default")
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         logger.warning("Xero startup check failed: %s", e)
 
     from shared.infrastructure.config import (
@@ -158,7 +158,7 @@ setup_prometheus(app)
 # ── Exception handlers ────────────────────────────────────────────────────────
 
 @app.exception_handler(DomainError)
-async def domain_error_handler(request, exc: DomainError):
+async def domain_error_handler(_request, exc: DomainError):
     return JSONResponse(status_code=exc.status_hint, content={"detail": str(exc)})
 
 

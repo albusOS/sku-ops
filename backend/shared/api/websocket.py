@@ -87,7 +87,7 @@ async def _relay_loop(
             msg = {"type": event.type, **event.data}
             try:
                 await websocket.send_text(json.dumps(msg))
-            except Exception:
+            except (RuntimeError, OSError):
                 return
 
     async def _heartbeat():
@@ -95,7 +95,7 @@ async def _relay_loop(
             await asyncio.sleep(HEARTBEAT_INTERVAL)
             try:
                 await websocket.send_text(json.dumps({"type": "ping"}))
-            except Exception:
+            except (RuntimeError, OSError):
                 return
 
     async def _receiver():
@@ -115,6 +115,6 @@ async def _relay_loop(
         _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for t in pending:
             t.cancel()
-    except Exception:
+    except (RuntimeError, OSError):
         for t in tasks:
             t.cancel()

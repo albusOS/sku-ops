@@ -81,12 +81,12 @@ async def create_withdrawal_for_contractor(
 
 @router.get("")
 async def get_withdrawals(
+    current_user: CurrentUserDep,
     contractor_id: str | None = None,
     payment_status: str | None = None,
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUserDep,
 ):
     org_id = current_user.organization_id
     cid = current_user.id if current_user.role == "contractor" else contractor_id

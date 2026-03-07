@@ -1,13 +1,12 @@
 """Xero sync health — surfaces unsynced documents, failures, and mismatches."""
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from finance.application.po_sync_service import list_failed_po_bills, list_unsynced_po_bills
 from finance.infrastructure.credit_note_repo import credit_note_repo
 from finance.infrastructure.invoice_repo import invoice_repo
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser
+from shared.api.deps import AdminDep
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ router = APIRouter(prefix="/xero", tags=["xero"])
 
 @router.get("/health")
 async def get_xero_health(
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Return a snapshot of all Xero sync exceptions for the sync health dashboard."""
     org_id = current_user.organization_id
@@ -49,7 +48,7 @@ async def get_xero_health(
 
 @router.post("/sync")
 async def trigger_sync(
-    current_user: CurrentUser = Depends(require_role("admin")),  # noqa: B008
+    current_user: AdminDep,
 ):
     """Manually trigger a full Xero sync + reconciliation for the org."""
     from finance.application.xero_sync_job import run_sync

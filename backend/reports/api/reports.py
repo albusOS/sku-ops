@@ -6,12 +6,12 @@ Inventory report remains current-state (product quantities).
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from catalog.application.queries import list_low_stock, list_products
 from finance.application import ledger_queries as ledger_repo
-from identity.application.auth_service import require_role
-from kernel.types import CurrentUser, round_money
+from kernel.types import round_money
+from shared.api.deps import ManagerDep
 from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -24,7 +24,7 @@ async def get_sales_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
@@ -67,7 +67,7 @@ async def get_sales_report(
 
 
 @router.get("/inventory")
-async def get_inventory_report(current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def get_inventory_report(current_user: ManagerDep):
     org_id = current_user.organization_id
     products = await list_products(organization_id=org_id)
 
@@ -116,7 +116,7 @@ async def get_trends_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Revenue/cost/profit trends from the ledger."""
     org_id = current_user.organization_id
@@ -141,7 +141,7 @@ async def get_product_margins(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     margin_data, catalog = await asyncio.gather(
@@ -164,7 +164,7 @@ async def get_job_pl(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 100,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Per-job P&L from the ledger."""
     org_id = current_user.organization_id
@@ -194,7 +194,7 @@ async def get_pl(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Unified P&L endpoint. group_by: overall | job | contractor | department | entity | product."""
     org_id = current_user.organization_id
@@ -268,7 +268,7 @@ async def get_pl(
 async def get_ar_aging(
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Accounts receivable aging buckets by billing entity."""
     return await ledger_repo.ar_aging(
@@ -283,7 +283,7 @@ async def get_kpis(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
 
@@ -335,7 +335,7 @@ async def get_product_performance(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 200,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
 
@@ -380,7 +380,7 @@ async def get_product_performance(
 async def get_reorder_urgency(
     days: int = 30,
     limit: int = 50,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Products ranked by days-until-stockout using withdrawal velocity."""
     org_id = current_user.organization_id
@@ -443,7 +443,7 @@ async def get_reorder_urgency(
 async def get_product_activity(
     product_id: str | None = None,
     days: int = 365,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Daily withdrawal activity heatmap data. Optional product_id filter."""
     org_id = current_user.organization_id

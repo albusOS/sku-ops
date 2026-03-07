@@ -25,12 +25,12 @@ class AddressCreate(BaseModel):
 
 @router.get("")
 async def list_addresses(
+    current_user: ManagerDep,
     billing_entity_id: str | None = None,
     job_id: str | None = None,
     q: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    current_user: ManagerDep,
 ):
     return await address_repo.list_addresses(
         organization_id=current_user.organization_id,
@@ -41,9 +41,9 @@ async def list_addresses(
 
 @router.get("/search")
 async def search_addresses(
+    current_user: CurrentUserDep,
     q: str = "",
     limit: int = 20,
-    current_user: CurrentUserDep,
 ):
     """Autocomplete endpoint for address pickers."""
     if not q.strip():

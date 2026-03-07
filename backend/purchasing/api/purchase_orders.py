@@ -167,7 +167,7 @@ async def receive_items(
         from finance.application.po_sync_service import queue_po_for_sync
         try:
             await queue_po_for_sync(po_id)
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Failed to queue PO %s for Xero sync: %s", po_id, e)
     await event_hub.emit("inventory.updated", org_id=org_id)
     return result

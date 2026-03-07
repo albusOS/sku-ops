@@ -47,7 +47,7 @@ async def ready():
             "status": "ok",
             "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
         }
-    except Exception as exc:
+    except (RuntimeError, OSError) as exc:
         checks["database"] = {"status": "unavailable", "error": str(exc)}
         overall = "unavailable"
 

@@ -101,6 +101,6 @@ async def repost_cogs_for_invoice(
             xero_cogs_journal_id=new_journal_id,
         )
         return {"invoice_id": inv_id, "xero_cogs_journal_id": new_journal_id, "success": True}
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         await invoice_repo.set_xero_sync_status(inv_id, "failed")
         return {"invoice_id": inv_id, "error": str(e), "success": False}

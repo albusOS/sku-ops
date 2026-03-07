@@ -2,18 +2,19 @@
 
 Usage in routes:
 
+    from shared.api.deps import CurrentUserDep
     from shared.infrastructure.middleware.audit import audit_log
 
     @router.post("/some-sensitive-action")
-    async def handler(request: Request, current_user = Depends(get_current_user)):  # noqa: B008
+    async def handler(request: Request, current_user: CurrentUserDep):
         # ... perform action ...
         await audit_log(
-            user_id=current_user["id"],
+            user_id=current_user.id,
             action="payment.mark_paid",
             resource_type="withdrawal",
             resource_id=withdrawal_id,
             request=request,
-            org_id=current_user.get("organization_id"),
+            org_id=current_user.organization_id,
         )
 
 This is intentionally a function, not global middleware, to avoid noisy logs

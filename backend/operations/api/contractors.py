@@ -24,8 +24,8 @@ router = APIRouter(prefix="/contractors", tags=["contractors"])
 
 @router.get("")
 async def get_contractors(
-    search: str | None = Query(None, description="Search by name, email, company, billing entity, or phone"),
     current_user: ManagerDep,
+    search: str | None = Query(None, description="Search by name, email, company, billing entity, or phone"),
 ):
     org_id = current_user.organization_id
     return await list_contractors(org_id, search=search)

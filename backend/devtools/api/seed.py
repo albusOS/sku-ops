@@ -2,7 +2,7 @@
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from catalog.application.queries import count_all_products
 from devtools.scripts.seed import (
@@ -11,8 +11,8 @@ from devtools.scripts.seed import (
     seed_mock_user,
     seed_standard_departments,
 )
-from identity.application.auth_service import require_role
 from identity.infrastructure.org_repo import organization_repo
+from shared.api.deps import AdminDep
 from shared.infrastructure.config import ALLOW_RESET
 from shared.infrastructure.database import get_connection
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 
 
 @router.post("/departments")
-async def seed_departments(current_user=Depends(require_role("admin"))):  # noqa: B008
+async def seed_departments(current_user: AdminDep):
     org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
     await seed_standard_departments(org_id)
     return {"message": "Departments ready"}
@@ -88,7 +88,7 @@ async def reset_empty():
 
 
 @router.post("/backfill-ledger")
-async def backfill_ledger(current_user=Depends(require_role("admin"))):  # noqa: B008
+async def backfill_ledger(current_user: AdminDep):
     """Replay all historical events into the financial_ledger for existing data."""
     from catalog.application.queries import list_products
     from finance.application.ledger_service import (
@@ -226,7 +226,7 @@ async def seed_full():
 
 
 @router.post("/reset-inventory")
-async def reset_and_reseed_inventory(current_user=Depends(require_role("admin"))):  # noqa: B008
+async def reset_and_reseed_inventory(current_user: AdminDep):
     """Reset products and stock, then re-run demo seed."""
     org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
     conn = get_connection()

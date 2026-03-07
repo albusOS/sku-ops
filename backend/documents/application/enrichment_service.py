@@ -134,7 +134,7 @@ Return ONLY the JSON array, no other text."""
                             item["pack_qty"] = max(1, int(r.get("pack_qty", 1)))
                         except (ValueError, TypeError):
                             item["pack_qty"] = 1
-    except Exception as e:
+    except (ValueError, RuntimeError, OSError, KeyError, json.JSONDecodeError) as e:
         logger.warning("Document enrichment failed (%s: %s) — items returned without enrichment", type(e).__name__, e)
         for item in items:
             item.setdefault("enrichment_warning", "Auto-classification unavailable — verify department, UOM, and SKU matching")

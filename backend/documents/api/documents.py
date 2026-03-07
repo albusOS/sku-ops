@@ -6,7 +6,9 @@ import os
 import re
 import tempfile
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from typing import Annotated
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
@@ -26,10 +28,10 @@ from documents.application.import_service import ImportDeps
 from documents.application.import_service import import_document as do_import_document
 from documents.domain.document import Document, DocumentImportRequest
 from documents.infrastructure.document_repo import document_repo
-from identity.application.auth_service import require_role
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
 from kernel.types import CurrentUser
+from shared.api.deps import ManagerDep
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.prompt_loader import load_prompt
@@ -69,9 +71,9 @@ async def _persist_parsed_document(extracted: dict, filename: str, content_type:
 
 @router.post("/parse")
 async def parse_document(
-    file: UploadFile = File(...),  # noqa: B008
+    file: Annotated[UploadFile, File(...)],
+    current_user: ManagerDep,
     use_ai: bool = False,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
 ):
     """Parse image or PDF. use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR."""
     contents = await file.read()
@@ -181,7 +183,7 @@ async def list_documents(
     po_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """List uploaded/parsed documents."""
     return await document_repo.list_documents(
@@ -192,7 +194,7 @@ async def list_documents(
 
 
 @router.get("/{doc_id}")
-async def get_document(doc_id: str, current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager"))):  # noqa: B008
+async def get_document(doc_id: str, current_user: ManagerDep):
     doc = await document_repo.get_by_id(doc_id, current_user.organization_id)
     if not doc:
         from fastapi import HTTPException as _E
@@ -212,7 +214,7 @@ async def _wired_classify_uom_batch(products):
 @router.post("/import")
 async def import_document(
     data: DocumentImportRequest,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Import parsed products; create or match vendor."""
     deps = ImportDeps(

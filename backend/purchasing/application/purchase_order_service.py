@@ -360,7 +360,7 @@ async def receive_po_items(
                 "product_id": resolved_pid,
                 "department": dept_by_code.get(dept_code, {}).get("name") or dept_code,
             })
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError, KeyError) as e:
             errors.append({"item": item.get("name"), "error": str(e)})
 
     if ledger_items:

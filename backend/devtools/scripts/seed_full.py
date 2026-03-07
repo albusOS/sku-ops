@@ -181,7 +181,7 @@ async def main():
                 products_by_name[p["name"]] = prod_dict
             all_products.append(prod_dict)
             logger.info("  %s | %s", product.sku, p['name'])
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.warning("  Skip %s: %s", p['name'], e)
 
     logger.info("  %d unique products", len(products_by_name))
@@ -465,7 +465,7 @@ async def main():
                     if inv.get("id"):
                         await conn.execute("UPDATE invoices SET status = 'paid' WHERE id = ?", (inv["id"],))
                         await conn.commit()
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError) as e:
                 logger.warning("  Invoice skip (%s): %s", entity[:20], e)
 
     logger.info("  %d invoices, %d paid", invoice_count, len(paid_withdrawal_ids))
@@ -599,7 +599,7 @@ async def main():
             )
             cn_count += 1
             logger.info("  %s | %s | $%.2f", cn.get('credit_note_number', '?'), r['billing_entity'][:25], r['total'])
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.warning("  Credit note skip: %s", e)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -629,7 +629,7 @@ async def main():
         try:
             cur = await conn.execute("SELECT COUNT(*) FROM " + table + " WHERE organization_id = ?", (org_id,))
             counts[table] = (await cur.fetchone())[0]
-        except Exception:
+        except (RuntimeError, OSError):
             counts[table] = "?"
 
     logger.info("\n" + "=" * 60)

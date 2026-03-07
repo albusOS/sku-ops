@@ -237,7 +237,7 @@ async def main():
             if p["name"] not in product_map:
                 product_map[p["name"]] = product
             logger.info("  %s | %s | qty=%d | %s", product.sku, p['name'], p['qty'], vname)
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.warning("  Skip %s: %s", p['name'], e)
 
     logger.info("--- %d unique products, %d total (with vendor overlaps) ---", len(product_map), len(PRODUCTS))
@@ -313,7 +313,7 @@ async def main():
                     [wid], organization_id=org_id,
                 )
                 logger.info("  Invoice %s... for withdrawal %s...", inv['id'][:8], wid[:8])
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError) as e:
                 logger.warning("  Invoice skip: %s", e)
 
         # Mark the oldest 2 as paid
@@ -322,7 +322,7 @@ async def main():
                 paid_at = (now - timedelta(days=5)).isoformat()
                 await withdrawal_repo.mark_paid(wid, paid_at)
                 logger.info("  Marked withdrawal %s... as paid", wid[:8])
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError) as e:
                 logger.warning("  Mark paid skip: %s", e)
 
     # 5. Make a few products critically low to trigger alerts

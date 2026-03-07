@@ -198,7 +198,7 @@ async def _run(interval: int, minutes: int, limit: int, once: bool):
                 try:
                     stats, runs = await _fetch_data(minutes, limit)
                     live.update(_build_display(stats, runs))
-                except Exception as e:
+                except (RuntimeError, OSError, ValueError) as e:
                     live.update(Panel(f"Error fetching data: {e}", style="red"))
                 await asyncio.sleep(interval)
     finally:

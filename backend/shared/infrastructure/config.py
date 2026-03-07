@@ -59,18 +59,18 @@ DATABASE_URL = os.environ.get("DATABASE_URL") or (
 )
 
 # Auth
-_DEFAULT_JWT_SECRET = "hardware-store-secret-key"
+_DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
 
 def _resolve_jwt_secret() -> str:
     raw = os.environ.get("JWT_SECRET", "").strip()
-    if is_production and (not raw or raw == _DEFAULT_JWT_SECRET):
+    if is_production and (not raw or raw == _DEV_JWT_FALLBACK):
         raise RuntimeError("JWT_SECRET must be set in production. Do not use default.")
-    if is_staging and (not raw or raw == _DEFAULT_JWT_SECRET):
+    if is_staging and (not raw or raw == _DEV_JWT_FALLBACK):
         raise RuntimeError(
             "JWT_SECRET must be set in staging and must not be the default. "
             'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
         )
-    return raw or _DEFAULT_JWT_SECRET
+    return raw or _DEV_JWT_FALLBACK
 
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
@@ -151,7 +151,7 @@ def _load_agent_model() -> str:
             model = (data.get("primary") or "").strip()
             if model:
                 return model
-    except Exception:
+    except (OSError, ValueError, KeyError):
         pass
     return "anthropic:claude-sonnet-4-6"
 

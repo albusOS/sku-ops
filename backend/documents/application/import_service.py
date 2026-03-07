@@ -210,7 +210,7 @@ async def import_document(
                 organization_id=org_id,
             )
             imported.append(product)
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError, KeyError) as e:
             errors.append({"product": item.get("name"), "error": str(e)})
 
     return {

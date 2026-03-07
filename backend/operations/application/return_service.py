@@ -154,7 +154,7 @@ async def create_return(
                         organization_id=org_id,
                         performed_by_user_id=current_user.id,
                     )
-            except Exception:
+            except (ValueError, RuntimeError, OSError):
                 pass
 
         return result

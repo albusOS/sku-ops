@@ -129,11 +129,11 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
                     on_stock_import=process_import_stock_changes,
                 )
                 imported += 1
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError, KeyError) as e:
                 logger.debug("Demo seed skip %s: %s", item.get('name'), e)
 
         logger.info("Demo inventory seeded: %d products", imported)
-    except Exception as e:
+    except (ValueError, RuntimeError, OSError) as e:
         logger.warning("Demo inventory seed: %s", e)
 
 
@@ -167,7 +167,7 @@ async def seed_mock_user(organization_id: str = "default"):
             contractor_dict["organization_id"] = organization_id
             await user_repo.insert(contractor_dict)
             logger.info("Demo contractor created: %s", DEMO_CONTRACTOR_EMAIL)
-    except Exception as e:
+    except (ValueError, RuntimeError, OSError) as e:
         logger.warning("Mock user seed: %s", e)
 
 
@@ -249,10 +249,10 @@ async def seed_demo_tenants() -> None:
                             on_stock_import=process_import_stock_changes,
                         )
                         imported += 1
-                    except Exception as e:
+                    except (ValueError, RuntimeError, OSError, KeyError) as e:
                         logger.debug("Demo product skip %s: %s", item.get('name'), e)
                 logger.info("Seeded %d products for %s", imported, org['name'])
 
         logger.info("Demo tenants seeded successfully")
-    except Exception as e:
+    except (ValueError, RuntimeError, OSError) as e:
         logger.warning("Demo tenants seed: %s", e)

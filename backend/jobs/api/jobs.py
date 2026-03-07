@@ -1,11 +1,10 @@
 """Job master data routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from identity.application.auth_service import get_current_user, require_role
 from jobs.domain.job import JobCreate, JobStatus, JobUpdate
 from jobs.infrastructure.job_repo import job_repo
-from kernel.types import CurrentUser
+from shared.api.deps import CurrentUserDep, ManagerDep
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -16,7 +15,7 @@ async def list_jobs(
     q: str | None = None,
     limit: int = 200,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     return await job_repo.list_jobs(
         organization_id=current_user.organization_id,
@@ -28,7 +27,7 @@ async def list_jobs(
 async def search_jobs(
     q: str = "",
     limit: int = 20,
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    current_user: CurrentUserDep,
 ):
     """Autocomplete endpoint for job pickers (all authenticated users including contractors)."""
     if not q.strip():
@@ -40,7 +39,7 @@ async def search_jobs(
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str, current_user: CurrentUser = Depends(get_current_user)):  # noqa: B008
+async def get_job(job_id: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
     job = await job_repo.get_by_id(job_id, org_id)
     if not job:
@@ -53,7 +52,7 @@ async def get_job(job_id: str, current_user: CurrentUser = Depends(get_current_u
 @router.post("")
 async def create_job(
     data: JobCreate,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     code = data.code.strip()
@@ -80,7 +79,7 @@ async def create_job(
 async def update_job(
     job_id: str,
     data: JobUpdate,
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     existing = await job_repo.get_by_id(job_id, org_id)

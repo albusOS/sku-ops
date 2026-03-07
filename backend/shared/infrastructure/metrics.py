@@ -118,7 +118,7 @@ def setup_prometheus(app: FastAPI) -> None:
 # ── Sentry ────────────────────────────────────────────────────────────────────
 
 
-def _sentry_before_send(event: dict, hint: dict) -> dict:
+def _sentry_before_send(event: dict, _hint: dict) -> dict:
     """Enrich every Sentry event with request correlation context."""
     from shared.infrastructure.logging_config import (
         org_id_var,

@@ -23,7 +23,7 @@ def _is_token_expired(token_expiry: str) -> bool:
     try:
         expiry = datetime.fromisoformat(token_expiry)
         return datetime.now(UTC).timestamp() >= expiry.timestamp() - 60
-    except Exception:
+    except (ValueError, TypeError):
         return True
 
 
@@ -32,7 +32,7 @@ async def check_xero_configuration(org_id: str) -> list[str]:
     warnings: list[str] = []
     try:
         settings = await get_org_settings(org_id)
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         warnings.append(f"XERO: Could not load org settings for {org_id}: {e}")
         return warnings
 

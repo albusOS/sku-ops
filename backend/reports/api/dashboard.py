@@ -2,7 +2,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
 from catalog.application.queries import (
     count_all_products,
@@ -12,10 +12,10 @@ from catalog.application.queries import (
     list_products,
 )
 from finance.application import ledger_queries as ledger_repo
-from identity.application.auth_service import get_current_user, require_role
 from identity.application.user_service import count_contractors
-from kernel.types import CurrentUser, round_money
+from kernel.types import round_money
 from operations.application.queries import list_withdrawals
+from shared.api.deps import CurrentUserDep, ManagerDep
 from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -56,7 +56,7 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
 async def get_dashboard_stats(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    current_user: CurrentUserDep,
 ):
     now = datetime.now(UTC)
     org_id = current_user.organization_id
@@ -170,7 +170,7 @@ async def get_dashboard_transactions(
     end_date: str | None = Query(None),
     contractor_id: str | None = Query(None),
     payment_status: str | None = Query(None),
-    current_user: CurrentUser = Depends(require_role("admin", "warehouse_manager")),  # noqa: B008
+    current_user: ManagerDep,
 ):
     """Paginated transactions for the dashboard. Supports date range + filters."""
     org_id = current_user.organization_id

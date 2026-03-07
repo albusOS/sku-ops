@@ -74,6 +74,7 @@ async def _query_audit_log(
 
 @router.get("")
 async def list_audit_log(
+    current_user: AdminDep,
     user_id: str | None = None,
     action: str | None = None,
     resource_type: str | None = None,
@@ -82,7 +83,6 @@ async def list_audit_log(
     end_date: str | None = None,
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    current_user: AdminDep,
 ):
     """List audit log entries with optional filters. Admin only."""
     org_id = current_user.organization_id
@@ -117,12 +117,12 @@ async def list_audit_actions(
 
 @router.get("/export")
 async def export_audit_log(
+    current_user: AdminDep,
     user_id: str | None = None,
     action: str | None = None,
     resource_type: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: AdminDep,
 ):
     """Export audit log as CSV. Admin only."""
     org_id = current_user.organization_id

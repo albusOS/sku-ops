@@ -11,11 +11,11 @@ router = APIRouter(prefix="/billing-entities", tags=["billing-entities"])
 
 @router.get("")
 async def list_billing_entities(
+    current_user: ManagerDep,
     is_active: bool | None = None,
     q: str | None = None,
     limit: int = 200,
     offset: int = 0,
-    current_user: ManagerDep,
 ):
     return await billing_entity_repo.list_billing_entities(
         organization_id=current_user.organization_id,
@@ -25,9 +25,9 @@ async def list_billing_entities(
 
 @router.get("/search")
 async def search_billing_entities(
+    current_user: ManagerDep,
     q: str = "",
     limit: int = 20,
-    current_user: ManagerDep,
 ):
     """Autocomplete endpoint for billing entity pickers."""
     if not q.strip():
