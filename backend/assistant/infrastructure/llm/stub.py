@@ -20,9 +20,9 @@ class StubProvider:
 
     def estimate_cost(
         self,
-        model_id: str,
-        input_tokens: int,
-        output_tokens: int,
+        _model_id: str,
+        _input_tokens: int,
+        _output_tokens: int,
     ) -> float:
         return 0.0
 

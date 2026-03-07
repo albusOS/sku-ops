@@ -178,12 +178,12 @@ async def parse_document(
 
 @router.get("")
 async def list_documents(
+    current_user: ManagerDep,
     status: str | None = None,
     vendor_name: str | None = None,
     po_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
-    current_user: ManagerDep,
 ):
     """List uploaded/parsed documents."""
     return await document_repo.list_documents(

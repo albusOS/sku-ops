@@ -12,12 +12,12 @@ router = APIRouter(prefix="/credit-notes", tags=["credit-notes"])
 
 @router.get("")
 async def list_credit_notes(
+    current_user: AdminDep,
     invoice_id: str | None = None,
     billing_entity: str | None = None,
     status: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     return await credit_note_repo.list_credit_notes(

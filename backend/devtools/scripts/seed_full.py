@@ -10,12 +10,14 @@ import asyncio
 import contextlib
 import json
 import logging
-import random
+import random as _random_mod
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+_rng = _random_mod.Random(42)
 
 TAX_RATE = 0.10
 
@@ -220,17 +222,17 @@ async def main():
     withdrawal_records: list[dict] = []
 
     for i in range(60):
-        contractor = random.choice(contractor_users)
-        job = random.choice(JOBS)
-        days_ago = random.randint(1, 120)
-        created_at = (now - timedelta(days=days_ago, hours=random.randint(6, 17))).isoformat()
+        contractor = _rng.choice(contractor_users)
+        job = _rng.choice(JOBS)
+        days_ago = _rng.randint(1, 120)
+        created_at = (now - timedelta(days=days_ago, hours=_rng.randint(6, 17))).isoformat()
 
-        pick_count = random.randint(2, 5)
-        picked_names = random.sample(product_names, min(pick_count, len(product_names)))
+        pick_count = _rng.randint(2, 5)
+        picked_names = _rng.sample(product_names, min(pick_count, len(product_names)))
         items = []
         for pname in picked_names:
             prod = products_by_name[pname]
-            qty = random.randint(1, 20)
+            qty = _rng.randint(1, 20)
             items.append(WithdrawalItem(
                 product_id=prod["id"], sku=prod["sku"], name=prod["name"],
                 quantity=qty, unit_price=prod["price"], cost=prod["cost"],
@@ -308,11 +310,11 @@ async def main():
     logger.info("--- Creating stock adjustments ---")
     adj_reasons = ["Physical count correction", "Damaged goods", "Cycle count", "Shrinkage"]
     for _ in range(15):
-        prod = random.choice(all_products)
-        delta = random.choice([-5, -3, -1, 2, 5, 10, 20])
+        prod = _rng.choice(all_products)
+        delta = _rng.choice([-5, -3, -1, 2, 5, 10, 20])
         qty_before = max(0, prod["quantity"])
         qty_after = max(0, qty_before + delta)
-        reason = random.choice(adj_reasons)
+        reason = _rng.choice(adj_reasons)
         tx = StockTransaction(
             product_id=prod["id"], sku=prod["sku"], product_name=prod["name"],
             quantity_delta=delta, quantity_before=qty_before, quantity_after=qty_after,
@@ -321,7 +323,7 @@ async def main():
             user_id=admin["id"], user_name=admin.get("name", ""),
         )
         tx.organization_id = org_id
-        adj_created = (now - timedelta(days=random.randint(1, 90))).isoformat()
+        adj_created = (now - timedelta(days=_rng.randint(1, 90))).isoformat()
         tx.created_at = adj_created
         await stock_repo.insert_transaction(tx)
         await conn.execute("UPDATE products SET quantity = ? WHERE id = ?", (qty_after, prod["id"]))
@@ -359,7 +361,7 @@ async def main():
 
     for idx, scenario in enumerate(po_scenarios):
         vendor = vendors[idx % len(vendors)]
-        po_prods = random.sample(all_products, min(random.randint(2, 5), len(all_products)))
+        po_prods = _rng.sample(all_products, min(_rng.randint(2, 5), len(all_products)))
         po_date = (now - timedelta(days=scenario["days_ago"])).isoformat()
         is_received = scenario["status"] == "received"
         received_at = (now - timedelta(days=scenario["days_ago"] - 3)).isoformat() if is_received else None
@@ -378,11 +380,11 @@ async def main():
         items = []
         po_total = 0.0
         for prod in po_prods:
-            ordered = random.randint(5, 50)
+            ordered = _rng.randint(5, 50)
             if is_received:
                 delivered, item_status = ordered, "arrived"
             elif scenario["status"] == "partial":
-                delivered = random.randint(0, ordered - 1)
+                delivered = _rng.randint(0, ordered - 1)
                 item_status = "pending" if delivered > 0 else "ordered"
             else:
                 delivered, item_status = 0, "ordered"
@@ -448,8 +450,8 @@ async def main():
                 invoice_count += 1
                 logger.info("  INV %s | %s | %d w/d | $%.2f", inv.get('invoice_number', '?'), entity[:30], len(wids), inv.get('total', 0))
 
-                if random.random() < 0.4:
-                    paid_at = (now - timedelta(days=random.randint(1, 8))).isoformat()
+                if _rng.random() < 0.4:
+                    paid_at = (now - timedelta(days=_rng.randint(1, 8))).isoformat()
                     for wid in wids:
                         await withdrawal_repo.mark_paid(wid, paid_at)
                         paid_withdrawal_ids.append(wid)
@@ -475,17 +477,17 @@ async def main():
     # ══════════════════════════════════════════════════════════════════════
     logger.info("--- Creating returns ---")
     return_candidates = [w for w in withdrawal_records if w["days_ago"] > 5]
-    random.shuffle(return_candidates)
+    _rng.shuffle(return_candidates)
 
     for wr in return_candidates[:5]:
-        picked_items = random.sample(list(wr["items"]), random.randint(1, min(2, len(wr["items"]))))
+        picked_items = _rng.sample(list(wr["items"]), _rng.randint(1, min(2, len(wr["items"]))))
         return_items = []
         for item in picked_items:
             return_items.append(ReturnItem(
                 product_id=item.product_id, sku=item.sku, name=item.name,
-                quantity=random.randint(1, max(1, int(item.quantity) // 2)),
+                quantity=_rng.randint(1, max(1, int(item.quantity) // 2)),
                 unit_price=item.unit_price, cost=item.cost,
-                reason=random.choice(RETURN_REASONS), notes="",
+                reason=_rng.choice(RETURN_REASONS), notes="",
             ))
 
         contractor = wr["contractor"]
@@ -531,19 +533,19 @@ async def main():
     logger.info("--- Creating material requests ---")
     mr_count = 0
     for i in range(8):
-        contractor = random.choice(contractor_users)
-        job = random.choice(JOBS)
-        picked = random.sample(product_names, random.randint(2, 4))
+        contractor = _rng.choice(contractor_users)
+        job = _rng.choice(JOBS)
+        picked = _rng.sample(product_names, _rng.randint(2, 4))
         items = []
         for pname in picked:
             prod = products_by_name[pname]
-            qty = random.randint(1, 10)
+            qty = _rng.randint(1, 10)
             items.append(WithdrawalItem(
                 product_id=prod["id"], sku=prod["sku"], name=prod["name"],
                 quantity=qty, unit_price=prod["price"], cost=prod["cost"],
             ))
 
-        days_ago = random.randint(0, 20)
+        days_ago = _rng.randint(0, 20)
         if i < 3:
             status, processed_at, processed_by = "pending", None, None
         elif i < 6:
@@ -560,7 +562,7 @@ async def main():
             contractor_name=contractor.get("name", ""),
             items=items, status=status,
             job_id=job["id"], service_address=job["address"],
-            notes=random.choice(["", "Urgent", "Need by tomorrow", "For phase 2", ""]),
+            notes=_rng.choice(["", "Urgent", "Need by tomorrow", "For phase 2", ""]),
             processed_at=processed_at, processed_by_id=processed_by,
         )
         mr_dict = mr.model_dump()
@@ -614,7 +616,7 @@ async def main():
     for name in low_stock_names:
         prod = products_by_name.get(name)
         if prod:
-            low_qty = random.randint(1, prod["min_stock"])
+            low_qty = _rng.randint(1, prod["min_stock"])
             await conn.execute("UPDATE products SET quantity = ? WHERE id = ?", (low_qty, prod["id"]))
             logger.info("  %s | %s → qty=%d (min=%d)", prod['sku'], name, low_qty, prod['min_stock'])
     await conn.commit()

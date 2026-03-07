@@ -42,11 +42,11 @@ async def sync_invoices_to_xero_bulk(
 
 @router.get("")
 async def get_invoices(
+    current_user: AdminDep,
     status: str | None = None,
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: AdminDep,
 ):
     """List invoices with optional filters."""
     org_id = current_user.organization_id

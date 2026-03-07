@@ -8,15 +8,15 @@ from shared.api.deps import AdminDep
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
+_REDACTED = "***"
+
+
 def _mask(settings: OrgSettings) -> dict:
     """Return settings dict with secrets masked."""
     d = settings.model_dump()
-    if d.get("xero_client_secret"):
-        d["xero_client_secret"] = "***"
-    if d.get("xero_access_token"):
-        d["xero_access_token"] = "***"
-    if d.get("xero_refresh_token"):
-        d["xero_refresh_token"] = "***"
+    for key in ("xero_client_secret", "xero_access_token", "xero_refresh_token"):
+        if d.get(key):
+            d[key] = _REDACTED
     d["xero_connected"] = bool(settings.xero_tenant_id and settings.xero_access_token)
     return d
 

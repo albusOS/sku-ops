@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 GenerateTextFn = Optional[Callable[[str, str | None], str | None]]
 RuleInferFn = Callable[[str], tuple[str, str, int]]
 
-def _default_rule_infer(name: str) -> tuple[str, str, int]:
+def _default_rule_infer(_name: str) -> tuple[str, str, int]:
     """Fallback: everything is 'each'."""
     return "each", "each", 1
 

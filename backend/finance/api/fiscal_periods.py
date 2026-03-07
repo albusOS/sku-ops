@@ -30,8 +30,8 @@ async def _get_period(period_id: str, org_id: str) -> dict | None:
 
 @router.get("")
 async def list_fiscal_periods(
-    status: str | None = None,
     current_user: AdminDep,
+    status: str | None = None,
 ):
     conn = get_connection()
     org_id = current_user.organization_id

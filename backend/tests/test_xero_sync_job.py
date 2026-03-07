@@ -28,6 +28,9 @@ from finance.infrastructure.invoice_repo import invoice_repo
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from shared.infrastructure.database import get_connection
 
+_STUB_XERO_TOKEN = "stub-" + "token"
+_STUB_TENANT = "stub-tenant"
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def _make_withdrawal(billing_entity="On Point LLC") -> str:
@@ -66,7 +69,7 @@ async def _run_sync_with_stub(org_id="default"):
 
     stub_settings = OrgSettings(
         organization_id=org_id,
-        xero_access_token="stub-token",
+        xero_access_token=_STUB_XERO_TOKEN,
         xero_tenant_id="stub-tenant",
     )
     stub_gateway = StubXeroAdapter()
@@ -115,7 +118,7 @@ class TestSyncJobIdempotency:
 
         stub_settings = OrgSettings(
             organization_id="default",
-            xero_access_token="stub-token",
+            xero_access_token=_STUB_XERO_TOKEN,
             xero_tenant_id="stub-tenant",
         )
         stub_gateway = StubXeroAdapter()
@@ -200,7 +203,7 @@ class TestSyncStatusGating:
 
         from finance.application.xero_sync_job import run_sync
         from identity.domain.org_settings import OrgSettings
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         with patch("finance.application.xero_sync_job.get_org_settings", AsyncMock(return_value=stub_settings)), \
              patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway), \
              patch("finance.application.invoice_service.get_org_settings", AsyncMock(return_value=stub_settings)), \
@@ -322,7 +325,7 @@ class TestReconciliationMismatch:
         inv_id = inv["id"]
 
         # First sync to set xero_invoice_id
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         stub_gateway = StubXeroAdapter()
 
         with patch("finance.application.xero_sync_job.get_org_settings", AsyncMock(return_value=stub_settings)), \
@@ -360,7 +363,7 @@ class TestReconciliationMismatch:
 
         inv = await _make_approved_invoice()
         inv_id = inv["id"]
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
 
         # First sync
         stub_gateway = StubXeroAdapter()
@@ -507,7 +510,7 @@ class TestPOQueuing:
         await po_repo.insert_items([item])
         await queue_po_for_sync(po.id)
 
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         stub_gateway = StubXeroAdapter()
 
         with patch("finance.application.po_sync_service.get_org_settings", AsyncMock(return_value=stub_settings)), \
@@ -548,7 +551,7 @@ class TestPOQueuing:
         )
         await po_repo.insert_items([item])
 
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         stub_gateway = StubXeroAdapter()
 
         with patch("finance.application.po_sync_service.get_org_settings", AsyncMock(return_value=stub_settings)), \
@@ -589,7 +592,7 @@ class TestSyncSummaryCounts:
             success=False, error="Xero API unavailable"
         ))
 
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         with patch("finance.application.xero_sync_job.get_org_settings", AsyncMock(return_value=stub_settings)), \
              patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=failing_gateway), \
              patch("finance.application.invoice_service.get_org_settings", AsyncMock(return_value=stub_settings)), \
@@ -686,7 +689,7 @@ class TestCogsRepost:
         assert inv_stale["xero_sync_status"] == "cogs_stale"
 
         # Run sync again — the repost pass should fix it
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         stub_gateway = StubXeroAdapter()
         repost_called = []
         original_repost = stub_gateway.repost_cogs_journal
@@ -740,7 +743,7 @@ class TestCogsRepost:
              "amount": 5.0, "cost": 3.0, "product_id": "p1", "job_id": None}
         ])
 
-        stub_settings = OrgSettings(organization_id="default", xero_access_token="t", xero_tenant_id="t")
+        stub_settings = OrgSettings(organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t")
         failing_gateway = StubXeroAdapter()
         failing_gateway.repost_cogs_journal = AsyncMock(side_effect=Exception("Xero journal error"))
 

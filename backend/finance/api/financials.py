@@ -21,9 +21,9 @@ router = APIRouter(prefix="/financials", tags=["financials"])
 
 @router.get("/summary")
 async def get_financial_summary(
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: AdminDep,
 ):
     """P&L summary sourced from the financial ledger."""
     org_id = current_user.organization_id
@@ -89,12 +89,12 @@ async def get_financial_summary(
 
 @router.get("/export")
 async def export_financials(
-    format: str = "csv",
+    current_user: AdminDep,
+    _format: str = "csv",
     payment_status: str | None = None,
     billing_entity: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: AdminDep,
 ):
     """Export financial data as CSV (line-level, from operational tables)."""
     org_id = current_user.organization_id

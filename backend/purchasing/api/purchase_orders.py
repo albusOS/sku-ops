@@ -98,8 +98,8 @@ async def create_po(
 
 @router.get("")
 async def list_purchase_orders(
-    status: str | None = None,
     current_user: ManagerDep,
+    status: str | None = None,
 ):
     """List purchase orders, optionally filtered by status (ordered/received)."""
     org_id = current_user.organization_id

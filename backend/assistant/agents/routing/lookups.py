@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 # ── Arg extractors ────────────────────────────────────────────────────────────
 
-def _extract_sku(m: re.Match, msg: str) -> dict:
+def _extract_sku(m: re.Match, _msg: str) -> dict:
     sku = (m.group("sku") if "sku" in m.groupdict() else "").strip().upper()
     return {"sku": sku}
 
 
-def _extract_name(m: re.Match, msg: str) -> dict:
+def _extract_name(m: re.Match, _msg: str) -> dict:
     name = (m.group("name") if "name" in m.groupdict() else "").strip()
     return {"name": name}
 
@@ -32,21 +32,21 @@ def _extract_query(m: re.Match, msg: str) -> dict:
     return {"query": query}
 
 
-def _extract_job(m: re.Match, msg: str) -> dict:
+def _extract_job(m: re.Match, _msg: str) -> dict:
     job_id = (m.group("job") if "job" in m.groupdict() else "").strip()
     return {"job_id": job_id}
 
 
-def _extract_dept(m: re.Match, msg: str) -> dict:
+def _extract_dept(m: re.Match, _msg: str) -> dict:
     code = (m.group("dept") if "dept" in m.groupdict() else "").strip().upper()
     return {"dept_code": code}
 
 
-def _no_args(m: re.Match, msg: str) -> dict:
+def _no_args(_m: re.Match, _msg: str) -> dict:
     return {}
 
 
-def _extract_limit(m: re.Match, msg: str) -> dict:
+def _extract_limit(_m: re.Match, _msg: str) -> dict:
     return {"limit": 20}
 
 

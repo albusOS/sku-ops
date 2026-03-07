@@ -77,13 +77,13 @@ async def create_payment(
 
 @router.get("")
 async def list_payments(
+    current_user: ManagerDep,
     invoice_id: str | None = None,
     billing_entity_id: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 200,
     offset: int = 0,
-    current_user: ManagerDep,
 ):
     return await payment_repo.list_payments(
         organization_id=current_user.organization_id,

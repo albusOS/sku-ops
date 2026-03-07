@@ -6,12 +6,13 @@ Run: cd backend && python -m devtools.scripts.seed_realistic
 """
 import asyncio
 import logging
-import random
+import random as _random_mod
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+_rng = _random_mod.Random(42)
 
 VENDORS = [
     {"name": "Johnson Lumber Co", "contact_name": "Mike Johnson", "email": "mike@johnsonlumber.com", "phone": "555-0101", "address": "100 Timber Rd"},
@@ -336,7 +337,7 @@ async def main():
     for name in low_stock_products:
         prod = product_map.get(name)
         if prod:
-            low_qty = random.randint(1, prod.min_stock)
+            low_qty = _rng.randint(1, prod.min_stock)
             await conn.execute(
                 "UPDATE products SET quantity = ? WHERE id = ?",
                 (low_qty, prod.id),

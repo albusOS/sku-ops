@@ -11,11 +11,11 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.get("")
 async def list_jobs(
+    current_user: ManagerDep,
     status: str | None = None,
     q: str | None = None,
     limit: int = 200,
     offset: int = 0,
-    current_user: ManagerDep,
 ):
     return await job_repo.list_jobs(
         organization_id=current_user.organization_id,
@@ -25,9 +25,9 @@ async def list_jobs(
 
 @router.get("/search")
 async def search_jobs(
+    current_user: CurrentUserDep,
     q: str = "",
     limit: int = 20,
-    current_user: CurrentUserDep,
 ):
     """Autocomplete endpoint for job pickers (all authenticated users including contractors)."""
     if not q.strip():

@@ -19,15 +19,15 @@ def _build_dimension_filter(
 ) -> str:
     """Append optional WHERE clauses for dimension drill-down filtering."""
     sql = ""
-    p = f"{col_prefix}." if col_prefix else ""
+    p = col_prefix + "." if col_prefix else ""
     if job_id:
-        sql += f" AND {p}job_id = ?"
+        sql += " AND " + p + "job_id = ?"
         params.append(job_id)
     if department:
-        sql += f" AND {p}department = ?"
+        sql += " AND " + p + "department = ?"
         params.append(department)
     if billing_entity:
-        sql += f" AND {p}billing_entity = ?"
+        sql += " AND " + p + "billing_entity = ?"
         params.append(billing_entity)
     return sql
 
@@ -53,13 +53,14 @@ async def summary_by_account(
         params.append(end_date)
     dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT account, ROUND(SUM(amount), 2) AS total"
         " FROM financial_ledger"
-        " WHERE organization_id = ?" + date_filter + dim_filter +
-        " GROUP BY account",
-        params,
+        " WHERE organization_id = ?"
     )
+    query += date_filter + dim_filter
+    query += " GROUP BY account"
+    cursor = await conn.execute(query, params)
     return {row[0]: row[1] for row in await cursor.fetchall()}
 
 
@@ -79,7 +80,7 @@ async def summary_by_department(
         date_filter += " AND created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT department,"
         " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
         " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
@@ -88,10 +89,10 @@ async def summary_by_department(
         " WHERE organization_id = ?"
         " AND account IN ('revenue', 'cogs', 'shrinkage')"
         " AND department IS NOT NULL"
-        + date_filter +
-        " GROUP BY department",
-        params,
     )
+    query += date_filter
+    query += " GROUP BY department"
+    cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
     result = []
     for r in rows:
@@ -127,7 +128,7 @@ async def summary_by_job(
         date_filter += " AND created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT job_id,"
         " billing_entity,"
         " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
@@ -137,12 +138,10 @@ async def summary_by_job(
         " WHERE organization_id = ?"
         " AND account IN ('revenue', 'cogs')"
         " AND job_id IS NOT NULL"
-        + date_filter +
-        " GROUP BY job_id, billing_entity"
-        " ORDER BY revenue DESC"
-        " LIMIT ?",
-        [*params, limit],
     )
+    query += date_filter
+    query += " GROUP BY job_id, billing_entity ORDER BY revenue DESC LIMIT ?"
+    cursor = await conn.execute(query, [*params, limit])
     rows = await cursor.fetchall()
     result = []
     for r in rows:
@@ -178,7 +177,7 @@ async def summary_by_billing_entity(
         date_filter += " AND created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT billing_entity,"
         " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
         " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
@@ -187,10 +186,10 @@ async def summary_by_billing_entity(
         " FROM financial_ledger"
         " WHERE organization_id = ?"
         " AND billing_entity IS NOT NULL"
-        + date_filter +
-        " GROUP BY billing_entity",
-        params,
     )
+    query += date_filter
+    query += " GROUP BY billing_entity"
+    cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
     result = []
     for r in rows:
@@ -219,13 +218,13 @@ async def summary_by_contractor(
     params: list = [org_id]
     date_filter = ""
     if start_date:
-        date_filter += " AND created_at >= ?"
+        date_filter += " AND fl.created_at >= ?"
         params.append(start_date)
     if end_date:
-        date_filter += " AND created_at <= ?"
+        date_filter += " AND fl.created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT fl.contractor_id,"
         " COALESCE(MAX(u.name), '') AS name,"
         " COALESCE(MAX(u.company), '') AS company,"
@@ -236,10 +235,10 @@ async def summary_by_contractor(
         " LEFT JOIN users u ON u.id = fl.contractor_id"
         " WHERE fl.organization_id = ?"
         " AND fl.contractor_id IS NOT NULL"
-        + date_filter.replace('created_at', 'fl.created_at') +
-        " GROUP BY fl.contractor_id",
-        params,
     )
+    query += date_filter
+    query += " GROUP BY fl.contractor_id"
+    cursor = await conn.execute(query, params)
     return [dict(r) for r in await cursor.fetchall()]
 
 
@@ -266,8 +265,10 @@ async def trend_series(
         params.append(end_date)
     dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
-    cursor = await conn.execute(
-        "SELECT " + period_expr + " AS period,"
+    query = "SELECT "
+    query += period_expr
+    query += (
+        " AS period,"
         " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
         " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost,"
         " ROUND(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END), 2) AS shrinkage,"
@@ -275,11 +276,10 @@ async def trend_series(
         " FROM financial_ledger"
         " WHERE organization_id = ?"
         " AND account IN ('revenue', 'cogs', 'shrinkage')"
-        + date_filter + dim_filter +
-        " GROUP BY period"
-        " ORDER BY period",
-        params,
     )
+    query += date_filter + dim_filter
+    query += " GROUP BY period ORDER BY period"
+    cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
     series = []
     for r in rows:
@@ -314,7 +314,7 @@ async def ar_aging(
         date_filter += " AND fl.created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT fl.billing_entity,"
         " ROUND(SUM(fl.amount), 2) AS total_ar,"
         " ROUND(SUM(CASE WHEN julianday('now') - julianday(COALESCE(inv.due_date, datetime(fl.created_at, '+30 days'))) <= 0 THEN fl.amount ELSE 0 END), 2) AS current_not_due,"
@@ -331,11 +331,10 @@ async def ar_aging(
         " WHERE fl.organization_id = ?"
         " AND fl.account = 'accounts_receivable'"
         " AND fl.billing_entity IS NOT NULL"
-        + date_filter +
-        " GROUP BY fl.billing_entity"
-        " HAVING ROUND(SUM(fl.amount), 2) != 0",
-        params,
     )
+    query += date_filter
+    query += " GROUP BY fl.billing_entity HAVING ROUND(SUM(fl.amount), 2) != 0"
+    cursor = await conn.execute(query, params)
     return [dict(r) for r in await cursor.fetchall()]
 
 
@@ -361,7 +360,7 @@ async def product_margins(
         params.append(end_date)
     dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT product_id,"
         " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
         " ROUND(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END), 2) AS cost"
@@ -369,12 +368,10 @@ async def product_margins(
         " WHERE organization_id = ?"
         " AND account IN ('revenue', 'cogs')"
         " AND product_id IS NOT NULL"
-        + date_filter + dim_filter +
-        " GROUP BY product_id"
-        " ORDER BY revenue DESC"
-        " LIMIT ?",
-        [*params, limit],
     )
+    query += date_filter + dim_filter
+    query += " GROUP BY product_id ORDER BY revenue DESC LIMIT ?"
+    cursor = await conn.execute(query, [*params, limit])
     rows = await cursor.fetchall()
     result = []
     for r in rows:
@@ -408,14 +405,15 @@ async def units_sold_by_product(
         date_filter += " AND w.created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT wi.product_id, SUM(wi.quantity) AS total_qty"
         " FROM withdrawal_items wi"
         " JOIN withdrawals w ON wi.withdrawal_id = w.id"
-        " WHERE w.organization_id = ?" + date_filter +
-        " GROUP BY wi.product_id",
-        params,
+        " WHERE w.organization_id = ?"
     )
+    query += date_filter
+    query += " GROUP BY wi.product_id"
+    cursor = await conn.execute(query, params)
     return {row[0]: row[1] for row in await cursor.fetchall()}
 
 
@@ -435,7 +433,7 @@ async def payment_status_breakdown(
         date_filter += " AND w.created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT"
         " CASE"
         " WHEN w.payment_status = 'paid' THEN 'Paid'"
@@ -444,10 +442,11 @@ async def payment_status_breakdown(
         " END AS status,"
         " ROUND(SUM(w.total), 2) AS total"
         " FROM withdrawals w"
-        " WHERE w.organization_id = ?" + date_filter +
-        " GROUP BY status",
-        params,
+        " WHERE w.organization_id = ?"
     )
+    query += date_filter
+    query += " GROUP BY status"
+    cursor = await conn.execute(query, params)
     return {row[0]: row[1] for row in await cursor.fetchall()}
 
 
@@ -467,15 +466,15 @@ async def purchase_spend(
         date_filter += " AND created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT ROUND(COALESCE(SUM(amount), 0), 2) AS total"
         " FROM financial_ledger"
         " WHERE organization_id = ?"
         " AND account = 'inventory'"
         " AND reference_type = 'po_receipt'"
-        + date_filter,
-        params,
     )
+    query += date_filter
+    cursor = await conn.execute(query, params)
     row = await cursor.fetchone()
     return row[0] if row else 0.0
 
@@ -496,11 +495,12 @@ async def reference_counts(
         date_filter += " AND created_at <= ?"
         params.append(end_date)
 
-    cursor = await conn.execute(
+    query = (
         "SELECT reference_type, COUNT(DISTINCT reference_id) AS cnt"
         " FROM financial_ledger"
-        " WHERE organization_id = ?" + date_filter +
-        " GROUP BY reference_type",
-        params,
+        " WHERE organization_id = ?"
     )
+    query += date_filter
+    query += " GROUP BY reference_type"
+    cursor = await conn.execute(query, params)
     return {row[0]: row[1] for row in await cursor.fetchall()}

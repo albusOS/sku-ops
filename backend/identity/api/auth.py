@@ -113,7 +113,7 @@ async def login(data: UserLogin, request: Request):
 
 
 @router.post("/refresh")
-async def refresh(data: RefreshRequest, request: Request):
+async def refresh(data: RefreshRequest, _request: Request):
     """Exchange a valid refresh token for a new access + refresh token pair (rotation)."""
     result = await refresh_token_repo.validate_and_rotate(data.refresh_token)
     if not result:
@@ -132,7 +132,7 @@ async def refresh(data: RefreshRequest, request: Request):
 
 
 @router.post("/logout")
-async def logout(data: LogoutRequest, request: Request):
+async def logout(data: LogoutRequest, _request: Request):
     """Revoke the refresh token."""
     await refresh_token_repo.revoke(data.refresh_token)
     return {"detail": "Logged out"}

@@ -82,7 +82,7 @@ def check_budget(
 
 
 def recommend_tier(
-    estimated_input_tokens: int,
+    _estimated_input_tokens: int,
     is_trivial: bool = False,
     is_complex: bool = False,
 ) -> str:

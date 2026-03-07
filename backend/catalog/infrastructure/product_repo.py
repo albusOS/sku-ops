@@ -92,15 +92,15 @@ async def get_by_id(product_id: str, columns: str | None = "*", organization_id:
     conn = conn or get_connection()
     sel = _sanitize_columns(columns or "*")
     if organization_id:
-        cursor = await conn.execute(
-            "SELECT " + sel + " FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
-            (product_id, organization_id),
-        )
+        query = "SELECT "
+        query += sel
+        query += " FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL"
+        cursor = await conn.execute(query, (product_id, organization_id))
     else:
-        cursor = await conn.execute(
-            "SELECT " + sel + " FROM products WHERE id = ? AND deleted_at IS NULL",
-            (product_id,),
-        )
+        query = "SELECT "
+        query += sel
+        query += " FROM products WHERE id = ? AND deleted_at IS NULL"
+        cursor = await conn.execute(query, (product_id,))
     row = await cursor.fetchone()
     return _row_to_dict(row)
 
@@ -243,10 +243,10 @@ async def update(product_id: str, updates: dict, conn=None, organization_id: str
     if organization_id:
         where += " AND organization_id = ?"
         values.append(organization_id)
-    await conn.execute(
-        "UPDATE products SET " + ", ".join(set_parts) + " " + where,
-        values,
-    )
+    query = "UPDATE products SET "
+    query += ", ".join(set_parts)
+    query += " " + where
+    await conn.execute(query, values)
     if not in_transaction:
         await conn.commit()
     return await get_by_id(product_id, conn=conn)
@@ -261,10 +261,9 @@ async def delete(product_id: str, conn=None, organization_id: str | None = None)
     if organization_id:
         where += " AND organization_id = ?"
         params.append(organization_id)
-    cursor = await conn.execute(
-        "UPDATE products SET deleted_at = ? " + where,
-        params,
-    )
+    query = "UPDATE products SET deleted_at = ? "
+    query += where
+    cursor = await conn.execute(query, params)
     if not in_transaction:
         await conn.commit()
     return cursor.rowcount
@@ -279,10 +278,9 @@ async def atomic_decrement(product_id: str, quantity: float, updated_at: str, co
     if organization_id:
         where += " AND organization_id = ?"
         params.append(organization_id)
-    cursor = await conn.execute(
-        "UPDATE products SET quantity = quantity - ?, updated_at = ? " + where,
-        params,
-    )
+    query = "UPDATE products SET quantity = quantity - ?, updated_at = ? "
+    query += where
+    cursor = await conn.execute(query, params)
     if not in_transaction:
         await conn.commit()
     if cursor.rowcount == 0:
@@ -299,10 +297,9 @@ async def increment_quantity(product_id: str, quantity: float, updated_at: str, 
     if organization_id:
         where += " AND organization_id = ?"
         params.append(organization_id)
-    await conn.execute(
-        "UPDATE products SET quantity = quantity + ?, updated_at = ? " + where,
-        params,
-    )
+    query = "UPDATE products SET quantity = quantity + ?, updated_at = ? "
+    query += where
+    await conn.execute(query, params)
     if not in_transaction:
         await conn.commit()
 
@@ -316,10 +313,9 @@ async def add_quantity(product_id: str, quantity: float, updated_at: str, conn=N
     if organization_id:
         where += " AND organization_id = ?"
         params.append(organization_id)
-    await conn.execute(
-        "UPDATE products SET quantity = quantity + ?, updated_at = ? " + where,
-        params,
-    )
+    query = "UPDATE products SET quantity = quantity + ?, updated_at = ? "
+    query += where
+    await conn.execute(query, params)
     if not in_transaction:
         await conn.commit()
     return await get_by_id(product_id)
@@ -336,10 +332,9 @@ async def atomic_adjust(product_id: str, quantity_delta: float, updated_at: str,
     if organization_id:
         where += " AND organization_id = ?"
         params.append(organization_id)
-    cursor = await conn.execute(
-        "UPDATE products SET quantity = quantity + ?, updated_at = ? " + where,
-        params,
-    )
+    query = "UPDATE products SET quantity = quantity + ?, updated_at = ? "
+    query += where
+    cursor = await conn.execute(query, params)
     if not in_transaction:
         await conn.commit()
     if cursor.rowcount == 0:

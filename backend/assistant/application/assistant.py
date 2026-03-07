@@ -43,7 +43,7 @@ async def chat(
     user_message: str,
     history: list[dict] | None,
     ctx: dict | None = None,
-    agent_type: str = "auto",
+    _agent_type: str = "auto",
     session_id: str = "",
 ) -> dict:
     """Route all messages to the unified agent."""
@@ -141,7 +141,7 @@ def _trivial_response(user_message: str) -> dict:
 
 # ── DAG report dispatch ───────────────────────────────────────────────────────
 
-async def _dag_dispatch(user_message: str, plan, deps: AgentDeps, session_id: str) -> dict:
+async def _dag_dispatch(user_message: str, plan, deps: AgentDeps, _session_id: str) -> dict:
     """Execute a structured DAG plan — parallel tool calls, cheap LLM synthesis."""
     dag_result = await execute_plan(plan, run_tool, deps.org_id)
 

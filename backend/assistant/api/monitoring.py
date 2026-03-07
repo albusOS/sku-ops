@@ -30,7 +30,7 @@ async def agent_runs(
 
 @router.get("/stats")
 async def agent_stats(
-    current_user: CurrentUserDep,
+    _current_user: CurrentUserDep,
     hours: int = Query(24, ge=1, le=720),
 ):
     """Aggregate stats: runs per agent, total tokens, total cost, avg duration, error rate."""
@@ -40,7 +40,7 @@ async def agent_stats(
 @router.get("/sessions/{session_id}")
 async def session_trace(
     session_id: str,
-    current_user: CurrentUserDep,
+    _current_user: CurrentUserDep,
 ):
     """Full trace of a session: every agent run, tool calls, tokens, in order."""
     return await get_session_trace(session_id)
@@ -48,7 +48,7 @@ async def session_trace(
 
 @router.get("/costs")
 async def cost_breakdown(
-    current_user: CurrentUserDep,
+    _current_user: CurrentUserDep,
     days: int = Query(7, ge=1, le=90),
     group_by: str = Query("agent", pattern="^(agent|model|org)$"),
 ):

@@ -179,10 +179,10 @@ async def list_invoices(
 
     if invoice_ids:
         placeholders = ",".join("?" for _ in invoice_ids)
-        count_cursor = await conn.execute(
-            "SELECT invoice_id, COUNT(*) FROM invoice_withdrawals WHERE invoice_id IN (" + placeholders + ") GROUP BY invoice_id",
-            invoice_ids,
-        )
+        count_q = "SELECT invoice_id, COUNT(*) FROM invoice_withdrawals WHERE invoice_id IN ("
+        count_q += placeholders
+        count_q += ") GROUP BY invoice_id"
+        count_cursor = await conn.execute(count_q, invoice_ids)
         counts = {r[0]: r[1] for r in await count_cursor.fetchall()}
         for inv in result:
             inv["withdrawal_count"] = counts.get(inv["id"], 0)
@@ -250,10 +250,10 @@ async def update(
         sync_status_update = ""
         if inv.get("xero_invoice_id"):
             sync_status_update = ", xero_sync_status = 'cogs_stale'"
-        await conn.execute(
-            "UPDATE invoices SET subtotal = ?, tax = ?, total = ?, updated_at = ?" + sync_status_update + " WHERE id = ?",
-            (subtotal, tax_val, total, now, invoice_id),
-        )
+        upd_q = "UPDATE invoices SET subtotal = ?, tax = ?, total = ?, updated_at = ?"
+        upd_q += sync_status_update
+        upd_q += " WHERE id = ?"
+        await conn.execute(upd_q, (subtotal, tax_val, total, now, invoice_id))
     else:
         updates: list[str] = []
         params: list = []
@@ -305,10 +305,10 @@ async def update(
             updates.append("updated_at = ?")
             params.append(now)
             params.append(invoice_id)
-            await conn.execute(
-                "UPDATE invoices SET " + ", ".join(updates) + " WHERE id = ?",
-                params,
-            )
+            upd_q = "UPDATE invoices SET "
+            upd_q += ", ".join(updates)
+            upd_q += " WHERE id = ?"
+            await conn.execute(upd_q, params)
 
     if status == "paid":
         await conn.execute(

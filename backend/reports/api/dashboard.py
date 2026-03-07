@@ -54,9 +54,9 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
 
 @router.get("/stats")
 async def get_dashboard_stats(
+    current_user: CurrentUserDep,
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
-    current_user: CurrentUserDep,
 ):
     now = datetime.now(UTC)
     org_id = current_user.organization_id
@@ -164,13 +164,13 @@ async def get_dashboard_stats(
 
 @router.get("/transactions")
 async def get_dashboard_transactions(
+    current_user: ManagerDep,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     contractor_id: str | None = Query(None),
     payment_status: str | None = Query(None),
-    current_user: ManagerDep,
 ):
     """Paginated transactions for the dashboard. Supports date range + filters."""
     org_id = current_user.organization_id

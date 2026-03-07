@@ -52,11 +52,11 @@ async def create_material_return(
 
 @router.get("")
 async def list_returns(
+    current_user: ManagerDep,
     contractor_id: str | None = None,
     withdrawal_id: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     return await _list_returns(

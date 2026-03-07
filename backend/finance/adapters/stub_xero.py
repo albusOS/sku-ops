@@ -25,14 +25,14 @@ class StubXeroAdapter:
             xero_invoice_id=f"XERO-STUB-CN-{cn_id}",
         )
 
-    async def repost_cogs_journal(self, invoice: dict, _settings: OrgSettings, old_journal_id=None) -> str:
+    async def repost_cogs_journal(self, invoice: dict, _settings: OrgSettings, _old_journal_id=None) -> str:
         inv_id = invoice.get("id", "unknown")
         return f"XERO-STUB-COGS-REPOST-{inv_id}"
 
-    async def fetch_invoice(self, xero_invoice_id: str, _settings: OrgSettings) -> dict:
+    async def fetch_invoice(self, _xero_invoice_id: str, _settings: OrgSettings) -> dict:
         return {"total": 0.0, "line_count": 0, "status": "STUB"}
 
-    async def fetch_credit_note(self, xero_credit_note_id: str, _settings: OrgSettings) -> dict:
+    async def fetch_credit_note(self, _xero_credit_note_id: str, _settings: OrgSettings) -> dict:
         return {"total": 0.0, "line_count": 0, "status": "STUB"}
 
     async def list_tracking_categories(self, _settings: OrgSettings) -> list[dict]:

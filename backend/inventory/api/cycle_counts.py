@@ -54,8 +54,8 @@ async def open_count(
 
 @router.get("")
 async def list_counts(
-    status: str | None = Query(None, description="Filter by status: open or committed"),
     current_user: ManagerDep,
+    status: str | None = Query(None, description="Filter by status: open or committed"),
 ):
     return await list_cycle_counts(
         organization_id=current_user.organization_id,

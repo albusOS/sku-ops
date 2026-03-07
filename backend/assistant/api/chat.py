@@ -23,7 +23,7 @@ router = APIRouter(tags=["chat"])
 
 
 @router.get("/chat/status")
-async def chat_status(current_user: CurrentUserDep):
+async def chat_status(_current_user: CurrentUserDep):
     """Return whether AI assistant is configured. Frontend can show setup prompt when false."""
     available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
     return {

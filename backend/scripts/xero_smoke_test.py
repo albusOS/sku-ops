@@ -26,6 +26,8 @@ import logging
 import os
 import sys
 
+import httpx
+
 # Bootstrap Django-style: must happen before any app imports
 os.environ.setdefault("ENV", "development")
 
@@ -85,7 +87,7 @@ class SmokeTestRunner:
                 logger.info("  Refreshed. New expiry: %s", self.settings.xero_token_expiry)
             self._ok(name, f"tenant={self.settings.xero_tenant_id}")
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -97,7 +99,7 @@ class SmokeTestRunner:
             categories = await self.adapter.list_tracking_categories(self.settings)
             self._ok(name, f"{len(categories)} categories found")
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -137,7 +139,7 @@ class SmokeTestRunner:
                 return True
             self._fail(name, result.error or "No InvoiceID returned")
             return False
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -159,7 +161,7 @@ class SmokeTestRunner:
                 return False
             self._ok(name, f"total={data['total']}, lines={data['line_count']}, status={data['status']}")
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -189,7 +191,7 @@ class SmokeTestRunner:
             self._ok(name, f"voided {self.created_invoice_id}")
             self.created_invoice_id = None
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, f"{e} — manually void invoice {self.created_invoice_id} in Xero")
             return False
 
@@ -214,7 +216,7 @@ class SmokeTestRunner:
                 return True
             self._fail(name, result.error or "No InvoiceID returned for bill")
             return False
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -245,7 +247,7 @@ class SmokeTestRunner:
             contact_name = invoices[0].get("Contact", {}).get("Name", "")
             self._ok(name, f"type={bill_type}, contact={contact_name!r}")
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -270,7 +272,7 @@ class SmokeTestRunner:
             self._ok(name, f"voided {self.created_bill_id}")
             self.created_bill_id = None
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, f"{e} — manually void bill {self.created_bill_id} in Xero")
             return False
 
@@ -303,7 +305,7 @@ class SmokeTestRunner:
                 return True
             self._fail(name, result.error or "No CreditNoteID returned")
             return False
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
             return False
 
@@ -328,7 +330,7 @@ class SmokeTestRunner:
             self._ok(name, f"voided {self.created_cn_id}")
             self.created_cn_id = None
             return True
-        except Exception as e:
+        except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, f"{e} — manually void credit note {self.created_cn_id} in Xero")
             return False
 
@@ -360,7 +362,7 @@ class SmokeTestRunner:
         if self.failed == 0:
             logger.info(
                 "%s  All %d checks passed. Xero integration is ready.",
-                PASS, self.passed
+                _PASS_ICON, self.passed
             )
             return 0
         logger.error(

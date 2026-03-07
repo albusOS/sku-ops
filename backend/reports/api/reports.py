@@ -19,12 +19,12 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/sales")
 async def get_sales_report(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
@@ -110,13 +110,13 @@ async def get_inventory_report(current_user: ManagerDep):
 
 @router.get("/trends")
 async def get_trends_report(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
     group_by: str = "day",
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: ManagerDep,
 ):
     """Revenue/cost/profit trends from the ledger."""
     org_id = current_user.organization_id
@@ -135,13 +135,13 @@ async def get_trends_report(
 
 @router.get("/product-margins")
 async def get_product_margins(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 20,
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
     margin_data, catalog = await asyncio.gather(
@@ -161,10 +161,10 @@ async def get_product_margins(
 
 @router.get("/job-pl")
 async def get_job_pl(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 100,
-    current_user: ManagerDep,
 ):
     """Per-job P&L from the ledger."""
     org_id = current_user.organization_id
@@ -187,6 +187,7 @@ async def get_job_pl(
 
 @router.get("/pl")
 async def get_pl(
+    current_user: ManagerDep,
     group_by: str = "overall",
     start_date: str | None = None,
     end_date: str | None = None,
@@ -194,7 +195,6 @@ async def get_pl(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: ManagerDep,
 ):
     """Unified P&L endpoint. group_by: overall | job | contractor | department | entity | product."""
     org_id = current_user.organization_id
@@ -266,9 +266,9 @@ async def get_pl(
 
 @router.get("/ar-aging")
 async def get_ar_aging(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
-    current_user: ManagerDep,
 ):
     """Accounts receivable aging buckets by billing entity."""
     return await ledger_repo.ar_aging(
@@ -278,12 +278,12 @@ async def get_ar_aging(
 
 @router.get("/kpis")
 async def get_kpis(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
 
@@ -332,10 +332,10 @@ async def get_kpis(
 
 @router.get("/product-performance")
 async def get_product_performance(
+    current_user: ManagerDep,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 200,
-    current_user: ManagerDep,
 ):
     org_id = current_user.organization_id
 
@@ -378,9 +378,9 @@ async def get_product_performance(
 
 @router.get("/reorder-urgency")
 async def get_reorder_urgency(
+    current_user: ManagerDep,
     days: int = 30,
     limit: int = 50,
-    current_user: ManagerDep,
 ):
     """Products ranked by days-until-stockout using withdrawal velocity."""
     org_id = current_user.organization_id
@@ -441,9 +441,9 @@ async def get_reorder_urgency(
 
 @router.get("/product-activity")
 async def get_product_activity(
+    current_user: ManagerDep,
     product_id: str | None = None,
     days: int = 365,
-    current_user: ManagerDep,
 ):
     """Daily withdrawal activity heatmap data. Optional product_id filter."""
     org_id = current_user.organization_id

@@ -400,7 +400,7 @@ def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
             collected.append(msg)
             if msg.get("type") == until_type:
                 break
-        except Exception:
+        except (json.JSONDecodeError, RuntimeError, OSError):
             break
     return collected
 
