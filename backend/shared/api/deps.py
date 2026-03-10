@@ -1,6 +1,14 @@
-"""Shared Annotated dependency aliases for FastAPI route handlers.
+"""Shared dependency aliases for FastAPI route handlers.
 
-Import these instead of writing ``Depends(get_current_user)`` inline.
+IMPORTANT — runtime imports only, never TYPE_CHECKING:
+These are not pure type aliases. Each carries a ``Depends(...)`` call that
+FastAPI must inspect at import time to wire up dependency injection. If you
+move these imports into an ``if TYPE_CHECKING:`` block (even at Ruff's
+suggestion via TC001), FastAPI will see an unresolved forward reference and
+fall back to treating the parameter as a plain query param, returning 422
+instead of 401 for unauthenticated requests.
+
+All api/** files therefore suppress TC001/TC002/TC003 in pyproject.toml.
 """
 
 from __future__ import annotations
