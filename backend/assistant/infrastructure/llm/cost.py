@@ -3,6 +3,7 @@
 Centralizes cost logic previously scattered across model_registry.calc_cost(),
 tokens.estimate_turn_tokens(), and chat.py SESSION_COST_CAP checks.
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CostEstimate:
     """Pre-flight cost estimate for a planned LLM call."""
+
     model_id: str
     tier: str
     estimated_input_tokens: int
@@ -37,8 +39,10 @@ def calc_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
     if not pricing:
         return 0.0
     return round(
-        (input_tokens * pricing["input_price_per_m"]
-         + output_tokens * pricing["output_price_per_m"])
+        (
+            input_tokens * pricing["input_price_per_m"]
+            + output_tokens * pricing["output_price_per_m"]
+        )
         / 1_000_000,
         6,
     )

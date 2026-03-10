@@ -1,26 +1,41 @@
 """Units of measure: allowed set, family groupings, and conversion logic."""
 
-ALLOWED_BASE_UNITS: frozenset[str] = frozenset({
-    "each", "case", "box", "pack", "bag", "roll", "kit",
-    "gallon", "quart", "pint", "liter",
-    "pound", "ounce",
-    "foot", "inch", "meter", "yard",
-    "sqft",
-})
+ALLOWED_BASE_UNITS: frozenset[str] = frozenset(
+    {
+        "each",
+        "case",
+        "box",
+        "pack",
+        "bag",
+        "roll",
+        "kit",
+        "gallon",
+        "quart",
+        "pint",
+        "liter",
+        "pound",
+        "ounce",
+        "foot",
+        "inch",
+        "meter",
+        "yard",
+        "sqft",
+    }
+)
 
 # Each family maps unit → factor relative to the smallest unit in that family.
 UNIT_FAMILIES: dict[str, dict[str, float]] = {
     "length": {
-        "inch":  1.0,
-        "foot":  12.0,
-        "yard":  36.0,
+        "inch": 1.0,
+        "foot": 12.0,
+        "yard": 36.0,
         "meter": 39.3701,
     },
     "volume": {
-        "pint":   1.0,
-        "quart":  2.0,
+        "pint": 1.0,
+        "quart": 2.0,
         "gallon": 8.0,
-        "liter":  2.11338,
+        "liter": 2.11338,
     },
     "weight": {
         "ounce": 1.0,
@@ -32,18 +47,16 @@ UNIT_FAMILIES: dict[str, dict[str, float]] = {
     "discrete": {
         "each": 1.0,
         "pack": 1.0,
-        "box":  1.0,
+        "box": 1.0,
         "case": 1.0,
-        "bag":  1.0,
+        "bag": 1.0,
         "roll": 1.0,
-        "kit":  1.0,
+        "kit": 1.0,
     },
 }
 
 _UNIT_TO_FAMILY: dict[str, str] = {
-    unit: family
-    for family, units in UNIT_FAMILIES.items()
-    for unit in units
+    unit: family for family, units in UNIT_FAMILIES.items() for unit in units
 }
 
 
@@ -72,8 +85,7 @@ def convert_quantity(qty: float, from_unit: str, to_unit: str) -> float:
         raise ValueError(f"Unknown unit: {to_unit}")
     if from_family != to_family:
         raise ValueError(
-            f"Cannot convert between {from_unit} ({from_family}) "
-            f"and {to_unit} ({to_family})"
+            f"Cannot convert between {from_unit} ({from_family}) and {to_unit} ({to_family})"
         )
 
     from_factor = UNIT_FAMILIES[from_family][from_unit]
@@ -111,9 +123,7 @@ def cost_per_sell_unit(
     if base_unit == sell_uom and pack_qty == 1:
         return cost_per_base
     base_per_sell = (
-        convert_quantity(1, sell_uom, base_unit)
-        if are_compatible(base_unit, sell_uom)
-        else 1.0
+        convert_quantity(1, sell_uom, base_unit) if are_compatible(base_unit, sell_uom) else 1.0
     )
     return round(cost_per_base * base_per_sell * pack_qty, 6)
 

@@ -1,4 +1,5 @@
 """Address book routes — CRUD and autocomplete for saved addresses."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -34,8 +35,11 @@ async def list_addresses(
 ):
     return await address_repo.list_addresses(
         organization_id=current_user.organization_id,
-        billing_entity_id=billing_entity_id, job_id=job_id,
-        q=q, limit=limit, offset=offset,
+        billing_entity_id=billing_entity_id,
+        job_id=job_id,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -48,7 +52,8 @@ async def search_addresses(
     """Autocomplete endpoint for address pickers."""
     if not q.strip():
         return await address_repo.list_addresses(
-            organization_id=current_user.organization_id, limit=limit,
+            organization_id=current_user.organization_id,
+            limit=limit,
         )
     return await address_repo.search(q, current_user.organization_id, limit=limit)
 

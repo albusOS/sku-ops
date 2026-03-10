@@ -1,4 +1,5 @@
 """Authentication routes."""
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -54,7 +55,14 @@ async def register(data: UserCreate, request: Request):
     org_id = "default"
     token = create_token(user.id, user.email, user.role, org_id)
     raw_refresh, _ = await refresh_token_repo.create(user.id)
-    await audit_log(user_id=user.id, action="auth.register", resource_type="user", resource_id=user.id, request=request, org_id=org_id)
+    await audit_log(
+        user_id=user.id,
+        action="auth.register",
+        resource_type="user",
+        resource_id=user.id,
+        request=request,
+        org_id=org_id,
+    )
     return {
         "token": token,
         "refresh_token": raw_refresh,
@@ -89,8 +97,12 @@ async def admin_create_user(
     await user_repo.insert(user_dict)
 
     await audit_log(
-        user_id=current_user.id, action="auth.admin_create_user",
-        resource_type="user", resource_id=user.id, request=request, org_id=org_id,
+        user_id=current_user.id,
+        action="auth.admin_create_user",
+        resource_type="user",
+        resource_id=user.id,
+        request=request,
+        org_id=org_id,
     )
     return {k: v for k, v in user_dict.items() if k != "password"}
 
@@ -108,7 +120,14 @@ async def login(data: UserLogin, request: Request):
     raw_refresh, _ = await refresh_token_repo.create(user["id"])
     user_response = {k: v for k, v in user.items() if k != "password"}
     user_response["organization_id"] = org_id
-    await audit_log(user_id=user["id"], action="auth.login", resource_type="user", resource_id=user["id"], request=request, org_id=org_id)
+    await audit_log(
+        user_id=user["id"],
+        action="auth.login",
+        resource_type="user",
+        resource_id=user["id"],
+        request=request,
+        org_id=org_id,
+    )
     return {"token": token, "refresh_token": raw_refresh, "user": user_response}
 
 

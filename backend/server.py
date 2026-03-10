@@ -7,6 +7,7 @@ Multi-worker support:
   lock use Redis — safe to run with WORKERS > 1.  Without Redis (local dev)
   all subsystems fall back to in-process memory and WORKERS must be 1.
 """
+
 import asyncio
 import logging
 import os
@@ -23,25 +24,25 @@ setup_logging()
 
 from datetime import UTC
 
-from api import api_router  # noqa: E402
-from inventory.domain.errors import InsufficientStockError  # noqa: E402
-from kernel.errors import DomainError  # noqa: E402
-from shared.infrastructure.config import (  # noqa: E402
+from api import api_router
+from inventory.domain.errors import InsufficientStockError
+from kernel.errors import DomainError
+from shared.infrastructure.config import (
     CORS_ORIGINS,
     XERO_SYNC_HOUR,
     cors_warn_in_deployed,
     is_deployed,
     is_test,
 )
-from shared.infrastructure.database import close_db, init_db  # noqa: E402
-from shared.infrastructure.redis import close_redis, init_redis, is_redis_available  # noqa: E402
-from shared.infrastructure.prometheus import setup_prometheus  # noqa: E402
-from shared.infrastructure.sentry import setup_sentry  # noqa: E402
-from shared.infrastructure.middleware.rate_limit import setup_rate_limiting  # noqa: E402
-from shared.infrastructure.middleware.request_id import RequestIDMiddleware  # noqa: E402
+from shared.infrastructure.database import close_db, init_db
+from shared.infrastructure.middleware.rate_limit import setup_rate_limiting
+from shared.infrastructure.middleware.request_id import RequestIDMiddleware
 from shared.infrastructure.middleware.security_headers import (
     SecurityHeadersMiddleware,
 )
+from shared.infrastructure.prometheus import setup_prometheus
+from shared.infrastructure.redis import close_redis, init_redis, is_redis_available
+from shared.infrastructure.sentry import setup_sentry
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ async def _xero_sync_loop() -> None:
     Skipped in test environment.
     """
     from datetime import datetime
+
     last_run_date = None
     logger.info("Xero nightly sync scheduler started (fires at %02d:00 UTC)", XERO_SYNC_HOUR)
     while True:
@@ -76,14 +78,19 @@ async def _xero_sync_loop() -> None:
                     logger.info("Xero nightly sync starting for org '%s'", org_id)
                     try:
                         from finance.application.xero_sync_job import run_sync
+
                         summary = await run_sync(org_id)
-                        logger.info("Xero nightly sync complete for org '%s': %s", org_id, {
-                            k: v for k, v in summary.items() if k != "errors"
-                        })
+                        logger.info(
+                            "Xero nightly sync complete for org '%s': %s",
+                            org_id,
+                            {k: v for k, v in summary.items() if k != "errors"},
+                        )
                         if summary.get("errors"):
                             logger.warning(
                                 "Xero nightly sync for org '%s' had %d error(s): %s",
-                                org_id, len(summary["errors"]), summary["errors"],
+                                org_id,
+                                len(summary["errors"]),
+                                summary["errors"],
                             )
                     except Exception:
                         logger.exception("Xero nightly sync failed for org '%s'", org_id)
@@ -97,30 +104,38 @@ async def _xero_sync_loop() -> None:
 async def _ensure_demo_users() -> None:
     """Create admin + contractor demo accounts if they don't already exist."""
     import uuid
-    from datetime import datetime, UTC
-    from identity.infrastructure.user_repo import get_by_email, insert
+    from datetime import UTC, datetime
+
     from identity.application.auth_service import hash_password
+    from identity.infrastructure.user_repo import get_by_email, insert
     from shared.infrastructure.config import DEMO_USER_EMAIL, DEMO_USER_PASSWORD
 
     demo_users = [
         {"email": DEMO_USER_EMAIL, "name": "Admin", "role": "admin"},
-        {"email": "contractor@demo.local", "name": "Demo Contractor", "role": "contractor", "company": "ABC Plumbing"},
+        {
+            "email": "contractor@demo.local",
+            "name": "Demo Contractor",
+            "role": "contractor",
+            "company": "ABC Plumbing",
+        },
     ]
     for u in demo_users:
         existing = await get_by_email(u["email"])
         if existing:
             continue
-        await insert({
-            "id": str(uuid.uuid4()),
-            "email": u["email"],
-            "password": hash_password(DEMO_USER_PASSWORD),
-            "name": u["name"],
-            "role": u["role"],
-            "company": u.get("company", ""),
-            "is_active": True,
-            "organization_id": "default",
-            "created_at": datetime.now(UTC).isoformat(),
-        })
+        await insert(
+            {
+                "id": str(uuid.uuid4()),
+                "email": u["email"],
+                "password": hash_password(DEMO_USER_PASSWORD),
+                "name": u["name"],
+                "role": u["role"],
+                "company": u.get("company", ""),
+                "is_active": True,
+                "organization_id": "default",
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
         logger.info("Created demo user: %s (%s)", u["email"], u["role"])
 
 
@@ -132,6 +147,7 @@ async def lifespan(app: FastAPI):
     await init_redis()
     if is_redis_available():
         from shared.infrastructure.event_hub import activate_redis
+
         activate_redis()
         if worker_count > 1:
             logger.info("WORKERS=%d — Redis is connected, multi-worker mode is safe", worker_count)
@@ -143,22 +159,28 @@ async def lifespan(app: FastAPI):
         )
 
     if cors_warn_in_deployed:
-        logger.warning("CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for staging/production.")
+        logger.warning(
+            "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for staging/production."
+        )
     await init_db()
     logger.info("Database initialized")
 
     from shared.infrastructure.config import seed_on_startup
+
     if seed_on_startup:
         await _ensure_demo_users()
 
     from assistant.infrastructure.llm import init_llm
+
     init_llm()
     logger.info("LLM provider initialized")
     from assistant.agents.tools.registry import init_tools
+
     init_tools()
     logger.info("Tool registry initialized")
     from finance.infrastructure.invoice_repo import set_withdrawal_getter
     from operations.application.queries import get_withdrawal_by_id
+
     set_withdrawal_getter(get_withdrawal_by_id)
     logger.info("Cross-domain DI wired")
 
@@ -166,11 +188,13 @@ async def lifespan(app: FastAPI):
     for org_id in org_ids:
         try:
             from assistant.agents.tools.search import get_index
+
             await get_index(org_id)
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("BM25 index warm-up skipped for org '%s': %s", org_id, e)
         try:
             from finance.application.xero_startup_check import run_startup_check
+
             await run_startup_check(org_id)
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Xero startup check failed for org '%s': %s", org_id, e)
@@ -181,6 +205,7 @@ async def lifespan(app: FastAPI):
         OPENAI_AVAILABLE,
         SENTRY_DSN,
     )
+
     db_type = "postgres" if "postgresql" in (DATABASE_URL or "") else "sqlite"
     logger.info(
         "Application ready — env=%s, db=%s, sentry=%s, ai=%s, embeddings=%s",
@@ -198,11 +223,16 @@ async def lifespan(app: FastAPI):
     logger.info("WebSocket endpoints verified: %s", ws_routes)
 
     from shared.infrastructure.database import get_connection
+
     conn = get_connection()
     await conn.execute("SELECT 1")
     logger.info("Database connectivity verified")
 
-    from assistant.agents.tools.search import start_invalidation_listener, stop_invalidation_listener
+    from assistant.agents.tools.search import (
+        start_invalidation_listener,
+        stop_invalidation_listener,
+    )
+
     sync_task = None
     if not is_test:
         sync_task = asyncio.create_task(_xero_sync_loop())
@@ -222,11 +252,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(api_router)
 
-from shared.api.websocket import mount_websocket  # noqa: E402
+from shared.api.websocket import mount_websocket
 
 mount_websocket(app)
 
-from assistant.api.ws_chat import mount_chat_websocket  # noqa: E402
+from assistant.api.ws_chat import mount_chat_websocket
 
 mount_chat_websocket(app)
 
@@ -234,6 +264,7 @@ setup_sentry()
 setup_prometheus(app)
 
 # ── Exception handlers ────────────────────────────────────────────────────────
+
 
 @app.exception_handler(InsufficientStockError)
 async def insufficient_stock_handler(_request, exc: InsufficientStockError):
@@ -265,7 +296,9 @@ async def value_error_handler(request, exc: ValueError):
 async def unhandled_exception_handler(request, exc: Exception):
     logger.error(
         "Unhandled %s on %s %s:\n%s",
-        type(exc).__name__, request.method, request.url.path,
+        type(exc).__name__,
+        request.method,
+        request.url.path,
         traceback.format_exc(),
     )
     return JSONResponse(

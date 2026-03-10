@@ -28,7 +28,9 @@ async def insert_transaction(transaction: StockTransaction | dict, conn=None) ->
             tx_dict["quantity_before"],
             tx_dict["quantity_after"],
             tx_dict.get("unit", "each"),
-            tx_dict["transaction_type"].value if hasattr(tx_dict["transaction_type"], "value") else tx_dict["transaction_type"],
+            tx_dict["transaction_type"].value
+            if hasattr(tx_dict["transaction_type"], "value")
+            else tx_dict["transaction_type"],
             tx_dict.get("reference_id"),
             tx_dict.get("reference_type"),
             tx_dict.get("reason"),
@@ -42,7 +44,9 @@ async def insert_transaction(transaction: StockTransaction | dict, conn=None) ->
         await conn.commit()
 
 
-async def list_by_product(product_id: str, limit: int = 50, organization_id: str | None = None) -> list:
+async def list_by_product(
+    product_id: str, limit: int = 50, organization_id: str | None = None
+) -> list:
     conn = get_connection()
     params: list = [product_id]
     where = "WHERE product_id = ?"

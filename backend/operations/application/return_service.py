@@ -1,20 +1,25 @@
 """Return service: validate against original withdrawal, restock, create credit note."""
+
+from __future__ import annotations
+
 import contextlib
 from collections.abc import Awaitable, Callable
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from finance.application.ledger_service import record_return as _record_ledger
 from inventory.domain.stock import StockTransactionType
 from kernel.errors import DomainError, ResourceNotFoundError
-from kernel.types import CurrentUser
 from operations.domain.returns import MaterialReturn, ReturnCreate, ReturnItem
 from operations.infrastructure.return_repo import return_repo as _default_return_repo
-from operations.ports.return_repo_port import ReturnRepoPort
 from shared.infrastructure.database import transaction
+
+if TYPE_CHECKING:
+    from kernel.types import CurrentUser
+    from operations.ports.return_repo_port import ReturnRepoPort
 
 GetWithdrawalFn = Callable[..., Awaitable[dict | None]]
 RestockFn = Callable[..., Awaitable[None]]
-CreateCreditNoteFn = Optional[Callable[..., Awaitable[dict]]]
+CreateCreditNoteFn = Callable[..., Awaitable[dict]] | None
 
 
 async def create_return(
@@ -66,15 +71,17 @@ async def create_return(
         max_returnable = original.get("quantity", 0) - already_returned.get(item.product_id, 0)
         if item.quantity > max_returnable:
             raise DomainError(
-                f"Cannot return {item.quantity} of {item.name} — "
-                f"max returnable is {max_returnable}"
+                f"Cannot return {item.quantity} of {item.name} — max returnable is {max_returnable}"
             )
 
-        enriched = item.model_copy(update={
-            "unit_price": item.unit_price or (original.get("unit_price") or original.get("price") or 0),
-            "cost": item.cost or original.get("cost", 0),
-            "unit": item.unit or original.get("unit", "each"),
-        })
+        enriched = item.model_copy(
+            update={
+                "unit_price": item.unit_price
+                or (original.get("unit_price") or original.get("price") or 0),
+                "cost": item.cost or original.get("cost", 0),
+                "unit": item.unit or original.get("unit", "each"),
+            }
+        )
         enriched_items.append(enriched)
 
     ret = MaterialReturn(
@@ -112,9 +119,13 @@ async def create_return(
 
         w_dept_map = {wi.get("product_id"): wi.get("department_name") for wi in w_items}
         ledger_items = [
-            {"product_id": item.product_id, "quantity": item.quantity,
-             "unit_price": item.unit_price, "cost": item.cost,
-             "department_name": w_dept_map.get(item.product_id)}
+            {
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "cost": item.cost,
+                "department_name": w_dept_map.get(item.product_id),
+            }
             for item in enriched_items
         ]
         await _record_ledger(
@@ -148,6 +159,7 @@ async def create_return(
 
                 # Auto-apply the credit note against the invoice
                 from finance.application.credit_note_service import apply_credit_note as _apply_cn
+
                 with contextlib.suppress(Exception):
                     await _apply_cn(
                         credit_note_id=cn["id"],

@@ -2,6 +2,7 @@
 
 Import these instead of writing ``Depends(get_current_user)`` inline.
 """
+
 from __future__ import annotations
 
 from typing import Annotated

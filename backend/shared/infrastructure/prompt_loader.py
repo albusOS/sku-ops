@@ -1,4 +1,5 @@
 """Load versioned .md prompt files co-located with their owning modules."""
+
 from functools import cache
 from pathlib import Path
 

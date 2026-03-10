@@ -4,9 +4,12 @@ Product lifecycle service: single source of truth for create, update, delete.
 All product creation (API, CSV import, document import) flows through this service.
 Uses transactions to ensure product_count and stock ledger stay in sync.
 """
+
+from __future__ import annotations
+
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from catalog.application.sku_service import generate_sku
 from catalog.domain.barcode import validate_barcode
@@ -18,7 +21,7 @@ from catalog.infrastructure.vendor_repo import vendor_repo
 from kernel.errors import ResourceNotFoundError
 from shared.infrastructure.database import transaction
 
-StockChangesFn = Optional[Callable[..., Awaitable[None]]]
+StockChangesFn = Callable[..., Awaitable[None]] | None
 
 
 async def create_product(
@@ -93,9 +96,13 @@ async def create_product(
     product.organization_id = org_id
     async with transaction() as conn:
         await product_repo.insert(product, conn=conn)
-        await department_repo.increment_product_count(department_id, 1, conn=conn, organization_id=org_id)
+        await department_repo.increment_product_count(
+            department_id, 1, conn=conn, organization_id=org_id
+        )
         if vendor_id:
-            await vendor_repo.increment_product_count(vendor_id, 1, conn=conn, organization_id=org_id)
+            await vendor_repo.increment_product_count(
+                vendor_id, 1, conn=conn, organization_id=org_id
+            )
         if quantity > 0 and user_id and on_stock_import:
             await on_stock_import(
                 product_id=product.id,
@@ -146,9 +153,7 @@ async def update_product(
                 update_data["barcode"], exclude_product_id=product_id, organization_id=org_id
             )
             if existing:
-                raise DuplicateBarcodeError(
-                    update_data["barcode"], existing.get("name", "Unknown")
-                )
+                raise DuplicateBarcodeError(update_data["barcode"], existing.get("name", "Unknown"))
 
     org_id = product.get("organization_id") or "default"
     if "department_id" in update_data:
@@ -168,20 +173,30 @@ async def update_product(
             new_dept: str | None = update_data["department_id"]
             if old_dept != new_dept:
                 if old_dept:
-                    await department_repo.increment_product_count(old_dept, -1, conn=conn, organization_id=org_id)
+                    await department_repo.increment_product_count(
+                        old_dept, -1, conn=conn, organization_id=org_id
+                    )
                 if new_dept:
-                    await department_repo.increment_product_count(new_dept, 1, conn=conn, organization_id=org_id)
+                    await department_repo.increment_product_count(
+                        new_dept, 1, conn=conn, organization_id=org_id
+                    )
 
         if "vendor_id" in update_data:
             old_vendor = product.get("vendor_id") or ""
             new_vendor = update_data.get("vendor_id") or ""
             if old_vendor != new_vendor:
                 if old_vendor:
-                    await vendor_repo.increment_product_count(old_vendor, -1, conn=conn, organization_id=org_id)
+                    await vendor_repo.increment_product_count(
+                        old_vendor, -1, conn=conn, organization_id=org_id
+                    )
                 if new_vendor:
-                    await vendor_repo.increment_product_count(new_vendor, 1, conn=conn, organization_id=org_id)
+                    await vendor_repo.increment_product_count(
+                        new_vendor, 1, conn=conn, organization_id=org_id
+                    )
 
-        result = await product_repo.update(product_id, update_data, conn=conn, organization_id=org_id)
+        result = await product_repo.update(
+            product_id, update_data, conn=conn, organization_id=org_id
+        )
     if not result:
         raise ResourceNotFoundError("Product", product_id)
     return result
@@ -196,6 +211,10 @@ async def delete_product(product_id: str, organization_id: str | None = None) ->
     org_id = organization_id or product.get("organization_id")
     async with transaction() as conn:
         await product_repo.delete(product_id, conn=conn, organization_id=org_id)
-        await department_repo.increment_product_count(product["department_id"], -1, conn=conn, organization_id=org_id)
+        await department_repo.increment_product_count(
+            product["department_id"], -1, conn=conn, organization_id=org_id
+        )
         if product.get("vendor_id"):
-            await vendor_repo.increment_product_count(product["vendor_id"], -1, conn=conn, organization_id=org_id)
+            await vendor_repo.increment_product_count(
+                product["vendor_id"], -1, conn=conn, organization_id=org_id
+            )

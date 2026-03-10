@@ -5,12 +5,12 @@ from fastapi import APIRouter, HTTPException, Request
 from finance.application.credit_note_service import insert_credit_note
 from identity.application.org_service import get_org_settings
 from inventory.application.inventory_service import process_receiving_stock_changes
+from kernel import events
 from operations.application.queries import get_return_by_id as _get_return_by_id
 from operations.application.queries import get_withdrawal_by_id
 from operations.application.queries import list_returns as _list_returns
 from operations.application.return_service import create_return
 from operations.domain.returns import ReturnCreate
-from kernel import events
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
@@ -36,11 +36,17 @@ async def create_material_return(
             tax_rate=settings.default_tax_rate,
         )
         await audit_log(
-            user_id=current_user.id, action="return.create",
-            resource_type="return", resource_id=result.get("id"),
-            details={"withdrawal_id": data.withdrawal_id, "total": result.get("total"),
-                      "item_count": len(data.items)},
-            request=request, org_id=current_user.organization_id,
+            user_id=current_user.id,
+            action="return.create",
+            resource_type="return",
+            resource_id=result.get("id"),
+            details={
+                "withdrawal_id": data.withdrawal_id,
+                "total": result.get("total"),
+                "item_count": len(data.items),
+            },
+            request=request,
+            org_id=current_user.organization_id,
         )
         org_id = current_user.organization_id
         await event_hub.emit(events.INVENTORY_UPDATED, org_id=org_id)

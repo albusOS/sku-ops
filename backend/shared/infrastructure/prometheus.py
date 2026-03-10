@@ -4,6 +4,7 @@ Metrics collected:
     http_requests_total            — Counter[method, endpoint, status]
     http_request_duration_seconds  — Histogram[method, endpoint]
 """
+
 from __future__ import annotations
 
 import logging
@@ -101,9 +102,12 @@ def setup_prometheus(app: FastAPI) -> None:
             if auth != f"Bearer {_METRICS_TOKEN}":
                 return Response(status_code=403, content="Forbidden")
         from starlette.responses import Response as StarletteResponse
+
         return StarletteResponse(
             content=generate_latest(),
             media_type=CONTENT_TYPE_LATEST,
         )
 
-    logger.info("Prometheus metrics enabled at /metrics%s", " (token-protected)" if _METRICS_TOKEN else "")
+    logger.info(
+        "Prometheus metrics enabled at /metrics%s", " (token-protected)" if _METRICS_TOKEN else ""
+    )

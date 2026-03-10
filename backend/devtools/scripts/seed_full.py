@@ -6,6 +6,7 @@ transactions, material requests, credit notes, and financial ledger entries.
 Run standalone:  cd backend && python -m devtools.scripts.seed_full
 Or via API:      POST /api/seed/seed-full
 """
+
 import asyncio
 import contextlib
 import json
@@ -22,14 +23,62 @@ _rng = _random_mod.Random(42)
 TAX_RATE = 0.10
 
 CONTRACTORS = [
-    {"name": "Mike Brennan", "email": "mike@brennanbuilders.com", "company": "Brennan Builders LLC", "billing_entity": "Brennan Builders LLC", "phone": "555-1001"},
-    {"name": "Jessica Tran", "email": "jtran@tranconstruction.com", "company": "Tran Construction Inc", "billing_entity": "Tran Construction Inc", "phone": "555-1002"},
-    {"name": "Carlos Medina", "email": "carlos@medinahomes.com", "company": "Medina Custom Homes", "billing_entity": "Medina Custom Homes", "phone": "555-1003"},
-    {"name": "Anita Kapoor", "email": "anita@kapoorenergy.com", "company": "Kapoor Energy Solutions", "billing_entity": "Kapoor Energy Solutions", "phone": "555-1004"},
-    {"name": "Ray Dubois", "email": "ray@duboismaintenance.com", "company": "DuBois Property Maintenance", "billing_entity": "DuBois Property Maintenance", "phone": "555-1005"},
-    {"name": "Sandra Walsh", "email": "swalsh@walshplumbing.com", "company": "Walsh Plumbing & Heating", "billing_entity": "Walsh Plumbing & Heating", "phone": "555-1006"},
-    {"name": "Derek Okonkwo", "email": "derek@deobuilds.com", "company": "DEO Builds", "billing_entity": "DEO Builds", "phone": "555-1007"},
-    {"name": "Linda Park", "email": "linda@parkrenovations.com", "company": "Park Renovations", "billing_entity": "Park Renovations", "phone": "555-1008"},
+    {
+        "name": "Mike Brennan",
+        "email": "mike@brennanbuilders.com",
+        "company": "Brennan Builders LLC",
+        "billing_entity": "Brennan Builders LLC",
+        "phone": "555-1001",
+    },
+    {
+        "name": "Jessica Tran",
+        "email": "jtran@tranconstruction.com",
+        "company": "Tran Construction Inc",
+        "billing_entity": "Tran Construction Inc",
+        "phone": "555-1002",
+    },
+    {
+        "name": "Carlos Medina",
+        "email": "carlos@medinahomes.com",
+        "company": "Medina Custom Homes",
+        "billing_entity": "Medina Custom Homes",
+        "phone": "555-1003",
+    },
+    {
+        "name": "Anita Kapoor",
+        "email": "anita@kapoorenergy.com",
+        "company": "Kapoor Energy Solutions",
+        "billing_entity": "Kapoor Energy Solutions",
+        "phone": "555-1004",
+    },
+    {
+        "name": "Ray Dubois",
+        "email": "ray@duboismaintenance.com",
+        "company": "DuBois Property Maintenance",
+        "billing_entity": "DuBois Property Maintenance",
+        "phone": "555-1005",
+    },
+    {
+        "name": "Sandra Walsh",
+        "email": "swalsh@walshplumbing.com",
+        "company": "Walsh Plumbing & Heating",
+        "billing_entity": "Walsh Plumbing & Heating",
+        "phone": "555-1006",
+    },
+    {
+        "name": "Derek Okonkwo",
+        "email": "derek@deobuilds.com",
+        "company": "DEO Builds",
+        "billing_entity": "DEO Builds",
+        "phone": "555-1007",
+    },
+    {
+        "name": "Linda Park",
+        "email": "linda@parkrenovations.com",
+        "company": "Park Renovations",
+        "billing_entity": "Park Renovations",
+        "phone": "555-1008",
+    },
 ]
 
 JOBS = [
@@ -57,14 +106,28 @@ def _round(v: float) -> float:
 async def _clear_all_tables(conn) -> None:
     """Delete all data from core tables in FK-safe order."""
     tables = [
-        "financial_ledger", "credit_note_line_items", "credit_notes",
-        "return_items", "returns",
-        "invoice_line_items", "invoice_withdrawals", "invoices", "invoice_counters",
-        "material_requests", "withdrawal_items", "withdrawals",
-        "purchase_order_items", "purchase_orders",
-        "stock_transactions", "products", "sku_counters",
-        "vendors", "departments",
-        "refresh_tokens", "users", "organizations",
+        "financial_ledger",
+        "credit_note_line_items",
+        "credit_notes",
+        "return_items",
+        "returns",
+        "invoice_line_items",
+        "invoice_withdrawals",
+        "invoices",
+        "invoice_counters",
+        "material_requests",
+        "withdrawal_items",
+        "withdrawals",
+        "purchase_order_items",
+        "purchase_orders",
+        "stock_transactions",
+        "products",
+        "sku_counters",
+        "vendors",
+        "departments",
+        "refresh_tokens",
+        "users",
+        "organizations",
     ]
     for t in tables:
         with contextlib.suppress(Exception):
@@ -75,9 +138,11 @@ async def _clear_all_tables(conn) -> None:
 async def main():
     import sys
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
     from shared.infrastructure.database import get_connection, init_db
+
     await init_db()
 
     from catalog.application.product_lifecycle import create_product
@@ -120,9 +185,12 @@ async def main():
     await _clear_all_tables(conn)
 
     now_iso = now.isoformat()
-    await organization_repo.insert({"id": org_id, "name": "Default", "slug": "default", "created_at": now_iso})
+    await organization_repo.insert(
+        {"id": org_id, "name": "Default", "slug": "default", "created_at": now_iso}
+    )
 
     from devtools.scripts.seed import seed_mock_user, seed_standard_departments
+
     await seed_mock_user(org_id)
     await seed_standard_departments(org_id)
 
@@ -140,15 +208,21 @@ async def main():
     # 1. VENDORS (from seed_realistic)
     # ══════════════════════════════════════════════════════════════════════
     from devtools.scripts.seed_realistic import PRODUCTS, VENDORS
+
     logger.info("--- Creating vendors ---")
     vendor_ids = []
     for v in VENDORS:
         vid = str(uuid4())
         vendor_ids.append(vid)
-        await vendor_repo.insert({
-            "id": vid, **v, "product_count": 0,
-            "created_at": now_iso, "organization_id": org_id,
-        })
+        await vendor_repo.insert(
+            {
+                "id": vid,
+                **v,
+                "product_count": 0,
+                "created_at": now_iso,
+                "organization_id": org_id,
+            }
+        )
         logger.info("  %s", v["name"])
 
     # ══════════════════════════════════════════════════════════════════════
@@ -166,19 +240,32 @@ async def main():
         vname = VENDORS[p["vendor"]]["name"]
         try:
             product = await create_product(
-                department_id=dept["id"], department_name=dept["name"],
-                name=p["name"], price=p["price"], cost=p["cost"],
-                quantity=p["qty"], min_stock=p["min"],
-                vendor_id=vid, vendor_name=vname,
-                base_unit=p["unit"], sell_uom=p["unit"],
-                user_id=admin["id"], user_name=admin.get("name", "Admin"),
+                department_id=dept["id"],
+                department_name=dept["name"],
+                name=p["name"],
+                price=p["price"],
+                cost=p["cost"],
+                quantity=p["qty"],
+                min_stock=p["min"],
+                vendor_id=vid,
+                vendor_name=vname,
+                base_unit=p["unit"],
+                sell_uom=p["unit"],
+                user_id=admin["id"],
+                user_name=admin.get("name", "Admin"),
                 organization_id=org_id,
                 on_stock_import=process_import_stock_changes,
             )
-            prod_dict = {"id": product.id, "sku": product.sku, "name": product.name,
-                         "price": product.price, "cost": product.cost,
-                         "quantity": p["qty"], "min_stock": p["min"],
-                         "department_id": dept["id"]}
+            prod_dict = {
+                "id": product.id,
+                "sku": product.sku,
+                "name": product.name,
+                "price": product.price,
+                "cost": product.cost,
+                "quantity": p["qty"],
+                "min_stock": p["min"],
+                "department_id": dept["id"],
+            }
             if p["name"] not in products_by_name:
                 products_by_name[p["name"]] = prod_dict
             all_products.append(prod_dict)
@@ -193,6 +280,7 @@ async def main():
     # ══════════════════════════════════════════════════════════════════════
     logger.info("--- Creating contractors ---")
     from identity.domain.user import User
+
     contractor_users = []
 
     # Original demo contractor
@@ -202,8 +290,12 @@ async def main():
 
     for c in CONTRACTORS:
         user = User(
-            email=c["email"], name=c["name"], role="contractor",
-            company=c["company"], billing_entity=c["billing_entity"], phone=c["phone"],
+            email=c["email"],
+            name=c["name"],
+            role="contractor",
+            company=c["company"],
+            billing_entity=c["billing_entity"],
+            phone=c["phone"],
         )
         user_dict = user.model_dump()
         user_dict["password"] = hash_password("demo123")
@@ -233,14 +325,26 @@ async def main():
         for pname in picked_names:
             prod = products_by_name[pname]
             qty = _rng.randint(1, 20)
-            items.append(WithdrawalItem(
-                product_id=prod["id"], sku=prod["sku"], name=prod["name"],
-                quantity=qty, unit_price=prod["price"], cost=prod["cost"],
-            ))
+            items.append(
+                WithdrawalItem(
+                    product_id=prod["id"],
+                    sku=prod["sku"],
+                    name=prod["name"],
+                    quantity=qty,
+                    unit_price=prod["price"],
+                    cost=prod["cost"],
+                )
+            )
 
         withdrawal = MaterialWithdrawal(
-            items=items, job_id=job["id"], service_address=job["address"], notes="",
-            subtotal=0, tax=0, total=0, cost_total=0,
+            items=items,
+            job_id=job["id"],
+            service_address=job["address"],
+            notes="",
+            subtotal=0,
+            tax=0,
+            total=0,
+            cost_total=0,
             contractor_id=contractor["id"],
             contractor_name=contractor.get("name", ""),
             contractor_company=contractor.get("company", ""),
@@ -265,11 +369,17 @@ async def main():
                 (item.quantity, item.product_id),
             )
             tx = StockTransaction(
-                product_id=item.product_id, sku=item.sku, product_name=item.name,
-                quantity_delta=-item.quantity, quantity_before=qty_before, quantity_after=qty_after,
-                unit="each", transaction_type=StockTransactionType.WITHDRAWAL,
+                product_id=item.product_id,
+                sku=item.sku,
+                product_name=item.name,
+                quantity_delta=-item.quantity,
+                quantity_before=qty_before,
+                quantity_after=qty_after,
+                unit="each",
+                transaction_type=StockTransactionType.WITHDRAWAL,
                 reason=f"Withdrawal for {job['id']}",
-                user_id=admin["id"], user_name=admin.get("name", ""),
+                user_id=admin["id"],
+                user_name=admin.get("name", ""),
                 reference_id=withdrawal.id,
             )
             tx.organization_id = org_id
@@ -278,14 +388,25 @@ async def main():
             prod["quantity"] = qty_after
         await conn.commit()
 
-        ledger_items = [{
-            "product_id": it.product_id, "sku": it.sku, "name": it.name,
-            "quantity": it.quantity, "unit_price": it.unit_price, "cost": it.cost,
-            "department_name": dept_name_map.get(products_by_name.get(it.name, {}).get("department_id")),
-        } for it in items]
+        ledger_items = [
+            {
+                "product_id": it.product_id,
+                "sku": it.sku,
+                "name": it.name,
+                "quantity": it.quantity,
+                "unit_price": it.unit_price,
+                "cost": it.cost,
+                "department_name": dept_name_map.get(
+                    products_by_name.get(it.name, {}).get("department_id")
+                ),
+            }
+            for it in items
+        ]
         await record_withdrawal(
-            withdrawal_id=withdrawal.id, items=ledger_items,
-            tax=withdrawal.tax, total=withdrawal.total,
+            withdrawal_id=withdrawal.id,
+            items=ledger_items,
+            tax=withdrawal.tax,
+            total=withdrawal.total,
             job_id=job["id"],
             billing_entity=contractor.get("billing_entity") or "",
             contractor_id=contractor["id"],
@@ -294,13 +415,26 @@ async def main():
             created_at=created_at,
         )
 
-        withdrawal_records.append({
-            "id": withdrawal.id, "contractor": contractor, "job": job,
-            "items": items, "days_ago": days_ago,
-            "total": withdrawal.total, "tax": withdrawal.tax, "subtotal": withdrawal.subtotal,
-        })
+        withdrawal_records.append(
+            {
+                "id": withdrawal.id,
+                "contractor": contractor,
+                "job": job,
+                "items": items,
+                "days_ago": days_ago,
+                "total": withdrawal.total,
+                "tax": withdrawal.tax,
+                "subtotal": withdrawal.subtotal,
+            }
+        )
         if i < 3 or i % 15 == 0:
-            logger.info("  [%d/60] %s | %s | $%.2f", i + 1, job["id"], contractor.get("company", "")[:25], withdrawal.total)
+            logger.info(
+                "  [%d/60] %s | %s | $%.2f",
+                i + 1,
+                job["id"],
+                contractor.get("company", "")[:25],
+                withdrawal.total,
+            )
 
     logger.info("  %d withdrawals created", len(withdrawal_records))
 
@@ -316,11 +450,17 @@ async def main():
         qty_after = max(0, qty_before + delta)
         reason = _rng.choice(adj_reasons)
         tx = StockTransaction(
-            product_id=prod["id"], sku=prod["sku"], product_name=prod["name"],
-            quantity_delta=delta, quantity_before=qty_before, quantity_after=qty_after,
-            unit="each", transaction_type=StockTransactionType.ADJUSTMENT,
+            product_id=prod["id"],
+            sku=prod["sku"],
+            product_name=prod["name"],
+            quantity_delta=delta,
+            quantity_before=qty_before,
+            quantity_after=qty_after,
+            unit="each",
+            transaction_type=StockTransactionType.ADJUSTMENT,
             reason=reason,
-            user_id=admin["id"], user_name=admin.get("name", ""),
+            user_id=admin["id"],
+            user_name=admin.get("name", ""),
         )
         tx.organization_id = org_id
         adj_created = (now - timedelta(days=_rng.randint(1, 90))).isoformat()
@@ -331,10 +471,14 @@ async def main():
         dept_name = dept_name_map.get(prod.get("department_id"))
         ledger_reason = "damage" if "Damaged" in reason else "shrinkage"
         await record_adjustment(
-            adjustment_ref_id=tx.id, product_id=prod["id"],
-            product_cost=prod["cost"], quantity_delta=delta,
-            department=dept_name, organization_id=org_id,
-            reason=ledger_reason, performed_by_user_id=admin["id"],
+            adjustment_ref_id=tx.id,
+            product_id=prod["id"],
+            product_cost=prod["cost"],
+            quantity_delta=delta,
+            department=dept_name,
+            organization_id=org_id,
+            reason=ledger_reason,
+            performed_by_user_id=admin["id"],
             created_at=adj_created,
         )
     await conn.commit()
@@ -354,9 +498,9 @@ async def main():
         {"days_ago": 30, "status": "received"},
         {"days_ago": 21, "status": "partial"},
         {"days_ago": 14, "status": "partial"},
-        {"days_ago": 7,  "status": "ordered"},
-        {"days_ago": 3,  "status": "ordered"},
-        {"days_ago": 1,  "status": "ordered"},
+        {"days_ago": 7, "status": "ordered"},
+        {"days_ago": 3, "status": "ordered"},
+        {"days_ago": 1, "status": "ordered"},
     ]
 
     for idx, scenario in enumerate(po_scenarios):
@@ -364,12 +508,18 @@ async def main():
         po_prods = _rng.sample(all_products, min(_rng.randint(2, 5), len(all_products)))
         po_date = (now - timedelta(days=scenario["days_ago"])).isoformat()
         is_received = scenario["status"] == "received"
-        received_at = (now - timedelta(days=scenario["days_ago"] - 3)).isoformat() if is_received else None
+        received_at = (
+            (now - timedelta(days=scenario["days_ago"] - 3)).isoformat() if is_received else None
+        )
 
         po = PurchaseOrder(
-            vendor_id=vendor["id"], vendor_name=vendor["name"],
-            document_date=po_date, total=0, status=scenario["status"],
-            created_by_id=admin["id"], created_by_name=admin.get("name", ""),
+            vendor_id=vendor["id"],
+            vendor_name=vendor["name"],
+            document_date=po_date,
+            total=0,
+            status=scenario["status"],
+            created_by_id=admin["id"],
+            created_by_name=admin.get("name", ""),
             received_at=received_at,
             received_by_id=admin["id"] if is_received else None,
             received_by_name=admin.get("name", "") if is_received else None,
@@ -390,12 +540,20 @@ async def main():
                 delivered, item_status = 0, "ordered"
 
             po_total += _round(prod["cost"] * ordered)
-            items.append(PurchaseOrderItem(
-                po_id=po.id, name=prod["name"], original_sku=prod["sku"],
-                ordered_qty=ordered, delivered_qty=delivered,
-                unit_price=prod["price"], cost=prod["cost"],
-                status=item_status, product_id=prod["id"], organization_id=org_id,
-            ))
+            items.append(
+                PurchaseOrderItem(
+                    po_id=po.id,
+                    name=prod["name"],
+                    original_sku=prod["sku"],
+                    ordered_qty=ordered,
+                    delivered_qty=delivered,
+                    unit_price=prod["price"],
+                    cost=prod["cost"],
+                    status=item_status,
+                    product_id=prod["id"],
+                    organization_id=org_id,
+                )
+            )
             if delivered > 0:
                 await conn.execute(
                     "UPDATE products SET quantity = quantity + ? WHERE id = ?",
@@ -407,20 +565,34 @@ async def main():
         await po_repo.insert_items(items)
 
         if is_received:
-            ledger_items = [{
-                "product_id": it.product_id, "cost": it.cost,
-                "delivered_qty": it.delivered_qty,
-                "suggested_department": dept_name_map.get(
-                    products_by_name.get(it.name, {}).get("department_id"), ""),
-            } for it in items if it.delivered_qty > 0]
+            ledger_items = [
+                {
+                    "product_id": it.product_id,
+                    "cost": it.cost,
+                    "delivered_qty": it.delivered_qty,
+                    "suggested_department": dept_name_map.get(
+                        products_by_name.get(it.name, {}).get("department_id"), ""
+                    ),
+                }
+                for it in items
+                if it.delivered_qty > 0
+            ]
             await record_po_receipt(
-                po_id=po.id, items=ledger_items,
-                vendor_name=vendor["name"], organization_id=org_id,
+                po_id=po.id,
+                items=ledger_items,
+                vendor_name=vendor["name"],
+                organization_id=org_id,
                 performed_by_user_id=admin["id"],
                 created_at=received_at,
             )
 
-        logger.info("  PO %s... | %s | %s | $%.2f", po.id[:8], vendor["name"][:25], scenario["status"], po_total)
+        logger.info(
+            "  PO %s... | %s | %s | $%.2f",
+            po.id[:8],
+            vendor["name"][:25],
+            scenario["status"],
+            po_total,
+        )
 
     await conn.commit()
 
@@ -443,12 +615,18 @@ async def main():
 
         batch_size = max(1, len(old_wrs) // 2)
         for batch_start in range(0, len(old_wrs), batch_size):
-            batch = old_wrs[batch_start:batch_start + batch_size]
+            batch = old_wrs[batch_start : batch_start + batch_size]
             wids = [w["id"] for w in batch]
             try:
                 inv = await invoice_repo.create_from_withdrawals(wids, organization_id=org_id)
                 invoice_count += 1
-                logger.info("  INV %s | %s | %d w/d | $%.2f", inv.get("invoice_number", "?"), entity[:30], len(wids), inv.get("total", 0))
+                logger.info(
+                    "  INV %s | %s | %d w/d | $%.2f",
+                    inv.get("invoice_number", "?"),
+                    entity[:30],
+                    len(wids),
+                    inv.get("total", 0),
+                )
 
                 if _rng.random() < 0.4:
                     paid_at = (now - timedelta(days=_rng.randint(1, 8))).isoformat()
@@ -465,7 +643,9 @@ async def main():
                             created_at=paid_at,
                         )
                     if inv.get("id"):
-                        await conn.execute("UPDATE invoices SET status = 'paid' WHERE id = ?", (inv["id"],))
+                        await conn.execute(
+                            "UPDATE invoices SET status = 'paid' WHERE id = ?", (inv["id"],)
+                        )
                         await conn.commit()
             except (ValueError, RuntimeError, OSError) as e:
                 logger.warning("  Invoice skip (%s): %s", entity[:20], e)
@@ -483,20 +663,29 @@ async def main():
         picked_items = _rng.sample(list(wr["items"]), _rng.randint(1, min(2, len(wr["items"]))))
         return_items = []
         for item in picked_items:
-            return_items.append(ReturnItem(
-                product_id=item.product_id, sku=item.sku, name=item.name,
-                quantity=_rng.randint(1, max(1, int(item.quantity) // 2)),
-                unit_price=item.unit_price, cost=item.cost,
-                reason=_rng.choice(RETURN_REASONS), notes="",
-            ))
+            return_items.append(
+                ReturnItem(
+                    product_id=item.product_id,
+                    sku=item.sku,
+                    name=item.name,
+                    quantity=_rng.randint(1, max(1, int(item.quantity) // 2)),
+                    unit_price=item.unit_price,
+                    cost=item.cost,
+                    reason=_rng.choice(RETURN_REASONS),
+                    notes="",
+                )
+            )
 
         contractor = wr["contractor"]
         ret = MaterialReturn(
-            withdrawal_id=wr["id"], contractor_id=contractor["id"],
+            withdrawal_id=wr["id"],
+            contractor_id=contractor["id"],
             contractor_name=contractor.get("name", ""),
             billing_entity=contractor.get("billing_entity") or contractor.get("company", ""),
-            job_id=wr["job"]["id"], items=return_items,
-            processed_by_id=admin["id"], processed_by_name=admin.get("name", ""),
+            job_id=wr["job"]["id"],
+            items=return_items,
+            processed_by_id=admin["id"],
+            processed_by_name=admin.get("name", ""),
         )
         ret.compute_totals(TAX_RATE)
         ret_dict = ret.model_dump()
@@ -505,18 +694,32 @@ async def main():
         await return_repo.insert(ret_dict)
 
         for ri in return_items:
-            await conn.execute("UPDATE products SET quantity = quantity + ? WHERE id = ?", (ri.quantity, ri.product_id))
+            await conn.execute(
+                "UPDATE products SET quantity = quantity + ? WHERE id = ?",
+                (ri.quantity, ri.product_id),
+            )
         await conn.commit()
 
-        ledger_items = [{
-            "product_id": ri.product_id, "sku": ri.sku, "name": ri.name,
-            "quantity": ri.quantity, "unit_price": ri.unit_price, "cost": ri.cost,
-            "department_name": dept_name_map.get(products_by_name.get(ri.name, {}).get("department_id")),
-        } for ri in return_items]
+        ledger_items = [
+            {
+                "product_id": ri.product_id,
+                "sku": ri.sku,
+                "name": ri.name,
+                "quantity": ri.quantity,
+                "unit_price": ri.unit_price,
+                "cost": ri.cost,
+                "department_name": dept_name_map.get(
+                    products_by_name.get(ri.name, {}).get("department_id")
+                ),
+            }
+            for ri in return_items
+        ]
         return_created_at = (now - timedelta(days=wr["days_ago"] - 2)).isoformat()
         await record_return(
-            return_id=ret.id, items=ledger_items,
-            tax=ret.tax, total=ret.total,
+            return_id=ret.id,
+            items=ledger_items,
+            tax=ret.tax,
+            total=ret.total,
             job_id=wr["job"]["id"],
             billing_entity=contractor.get("billing_entity") or "",
             contractor_id=contractor["id"],
@@ -525,7 +728,9 @@ async def main():
             created_at=return_created_at,
         )
         items_str = ", ".join(f"{ri.name[:20]} x{ri.quantity}" for ri in return_items)
-        logger.info("  Return | %s | $%.2f | %s", contractor.get("company", "")[:25], ret.total, items_str)
+        logger.info(
+            "  Return | %s | $%.2f | %s", contractor.get("company", "")[:25], ret.total, items_str
+        )
 
     # ══════════════════════════════════════════════════════════════════════
     # 9. MATERIAL REQUESTS — 8 (pending / approved / fulfilled)
@@ -540,10 +745,16 @@ async def main():
         for pname in picked:
             prod = products_by_name[pname]
             qty = _rng.randint(1, 10)
-            items.append(WithdrawalItem(
-                product_id=prod["id"], sku=prod["sku"], name=prod["name"],
-                quantity=qty, unit_price=prod["price"], cost=prod["cost"],
-            ))
+            items.append(
+                WithdrawalItem(
+                    product_id=prod["id"],
+                    sku=prod["sku"],
+                    name=prod["name"],
+                    quantity=qty,
+                    unit_price=prod["price"],
+                    cost=prod["cost"],
+                )
+            )
 
         days_ago = _rng.randint(0, 20)
         if i < 3:
@@ -560,10 +771,13 @@ async def main():
         mr = MaterialRequest(
             contractor_id=contractor["id"],
             contractor_name=contractor.get("name", ""),
-            items=items, status=status,
-            job_id=job["id"], service_address=job["address"],
+            items=items,
+            status=status,
+            job_id=job["id"],
+            service_address=job["address"],
             notes=_rng.choice(["", "Urgent", "Need by tomorrow", "For phase 2", ""]),
-            processed_at=processed_at, processed_by_id=processed_by,
+            processed_at=processed_at,
+            processed_by_id=processed_by,
         )
         mr_dict = mr.model_dump()
         mr_dict["organization_id"] = org_id
@@ -579,7 +793,8 @@ async def main():
     logger.info("--- Creating credit notes ---")
     cur = await conn.execute(
         "SELECT id, billing_entity, subtotal, tax, total, items, withdrawal_id "
-        "FROM returns WHERE organization_id = ? AND credit_note_id IS NULL", (org_id,),
+        "FROM returns WHERE organization_id = ? AND credit_note_id IS NULL",
+        (org_id,),
     )
     return_rows = await cur.fetchall()
     cn_count = 0
@@ -588,19 +803,30 @@ async def main():
         items_data = json.loads(r["items"]) if isinstance(r["items"], str) else r["items"]
 
         invoice_id = None
-        cur2 = await conn.execute("SELECT invoice_id FROM withdrawals WHERE id = ?", (r["withdrawal_id"],))
+        cur2 = await conn.execute(
+            "SELECT invoice_id FROM withdrawals WHERE id = ?", (r["withdrawal_id"],)
+        )
         w_row = await cur2.fetchone()
         if w_row:
             invoice_id = dict(w_row).get("invoice_id")
 
         try:
             cn = await credit_note_repo.insert_credit_note(
-                return_id=r["id"], invoice_id=invoice_id,
-                items=items_data, subtotal=r["subtotal"], tax=r["tax"], total=r["total"],
+                return_id=r["id"],
+                invoice_id=invoice_id,
+                items=items_data,
+                subtotal=r["subtotal"],
+                tax=r["tax"],
+                total=r["total"],
                 organization_id=org_id,
             )
             cn_count += 1
-            logger.info("  %s | %s | $%.2f", cn.get("credit_note_number", "?"), r["billing_entity"][:25], r["total"])
+            logger.info(
+                "  %s | %s | $%.2f",
+                cn.get("credit_note_number", "?"),
+                r["billing_entity"][:25],
+                r["total"],
+            )
         except (ValueError, RuntimeError, OSError) as e:
             logger.warning("  Credit note skip: %s", e)
 
@@ -609,32 +835,53 @@ async def main():
     # ══════════════════════════════════════════════════════════════════════
     logger.info("--- Setting low-stock alerts ---")
     low_stock_names = [
-        "4x8 3/4in Sanded Plywood", "GFCI Outlet 15A White",
-        "5 Gal Interior Eggshell White", "20V Cordless Drill Kit",
-        "SharkBite 1/2in Push Fitting", "Deadbolt Single Cyl Satin Nickel",
+        "4x8 3/4in Sanded Plywood",
+        "GFCI Outlet 15A White",
+        "5 Gal Interior Eggshell White",
+        "20V Cordless Drill Kit",
+        "SharkBite 1/2in Push Fitting",
+        "Deadbolt Single Cyl Satin Nickel",
     ]
     for name in low_stock_names:
         prod = products_by_name.get(name)
         if prod:
             low_qty = _rng.randint(1, prod["min_stock"])
-            await conn.execute("UPDATE products SET quantity = ? WHERE id = ?", (low_qty, prod["id"]))
-            logger.info("  %s | %s → qty=%d (min=%d)", prod["sku"], name, low_qty, prod["min_stock"])
+            await conn.execute(
+                "UPDATE products SET quantity = ? WHERE id = ?", (low_qty, prod["id"])
+            )
+            logger.info(
+                "  %s | %s → qty=%d (min=%d)", prod["sku"], name, low_qty, prod["min_stock"]
+            )
     await conn.commit()
 
     # ══════════════════════════════════════════════════════════════════════
     # SUMMARY
     # ══════════════════════════════════════════════════════════════════════
     counts = {}
-    for table in ["users", "products", "vendors", "departments", "withdrawals",
-                   "invoices", "returns", "purchase_orders", "purchase_order_items",
-                   "material_requests", "credit_notes", "stock_transactions", "financial_ledger"]:
+    for table in [
+        "users",
+        "products",
+        "vendors",
+        "departments",
+        "withdrawals",
+        "invoices",
+        "returns",
+        "purchase_orders",
+        "purchase_order_items",
+        "material_requests",
+        "credit_notes",
+        "stock_transactions",
+        "financial_ledger",
+    ]:
         try:
-            cur = await conn.execute("SELECT COUNT(*) FROM " + table + " WHERE organization_id = ?", (org_id,))
+            cur = await conn.execute(
+                "SELECT COUNT(*) FROM " + table + " WHERE organization_id = ?", (org_id,)
+            )
             counts[table] = (await cur.fetchone())[0]
         except (RuntimeError, OSError):
             counts[table] = "?"
 
-    logger.info("\n" + "=" * 60)
+    logger.info("\n%s", "=" * 60)
     logger.info("  FULL SEED COMPLETE")
     logger.info("=" * 60)
     for table, count in counts.items():

@@ -9,6 +9,7 @@ Public API (mirrors the pattern in shared/infrastructure/db/__init__.py):
 The backend (OpenRouter vs Anthropic direct vs stub) is selected automatically
 from environment configuration.
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,23 +37,27 @@ def init_llm() -> None:
 
     if is_test:
         from assistant.infrastructure.llm.stub import StubProvider
+
         _state["provider"] = StubProvider()
         logger.info("LLM provider: stub (test mode)")
         return
 
     if OPENROUTER_AVAILABLE:
         from assistant.infrastructure.llm.openrouter import OpenRouterProvider
+
         _state["provider"] = OpenRouterProvider(OPENROUTER_API_KEY, OPENROUTER_BASE_URL)
         logger.info("LLM provider: openrouter (%s)", OPENROUTER_BASE_URL)
         return
 
     if ANTHROPIC_AVAILABLE:
         from assistant.infrastructure.llm.anthropic_provider import AnthropicProvider
+
         _state["provider"] = AnthropicProvider(ANTHROPIC_API_KEY, AGENT_PRIMARY_MODEL)
         logger.info("LLM provider: anthropic (direct SDK)")
         return
 
     from assistant.infrastructure.llm.stub import StubProvider
+
     _state["provider"] = StubProvider()
     logger.warning("No LLM API keys configured — using stub provider")
 

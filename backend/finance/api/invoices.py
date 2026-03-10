@@ -1,4 +1,5 @@
 """Invoice CRUD and Xero sync routes."""
+
 import logging
 from datetime import UTC
 
@@ -27,10 +28,13 @@ async def sync_invoices_to_xero_bulk(
     successes = [r for r in results if r.get("success")]
     errors = [r for r in results if not r.get("success")]
     await audit_log(
-        user_id=current_user.id, action="invoice.sync_xero_bulk",
-        resource_type="invoice", resource_id=None,
+        user_id=current_user.id,
+        action="invoice.sync_xero_bulk",
+        resource_type="invoice",
+        resource_id=None,
         details={"count": len(data.invoice_ids), "synced": len(successes), "failed": len(errors)},
-        request=request, org_id=org_id,
+        request=request,
+        org_id=org_id,
     )
     return {
         "synced": len(successes),
@@ -79,13 +83,21 @@ async def create_invoice(
     """Create invoice from selected unpaid withdrawals. All must share same billing_entity."""
     org_id = current_user.organization_id
     try:
-        inv = await invoice_repo.create_from_withdrawals(data.withdrawal_ids, organization_id=org_id)
+        inv = await invoice_repo.create_from_withdrawals(
+            data.withdrawal_ids, organization_id=org_id
+        )
         await audit_log(
-            user_id=current_user.id, action="invoice.create",
-            resource_type="invoice", resource_id=inv.get("id"),
-            details={"invoice_number": inv.get("invoice_number"), "total": inv.get("total"),
-                      "withdrawal_count": len(data.withdrawal_ids)},
-            request=request, org_id=org_id,
+            user_id=current_user.id,
+            action="invoice.create",
+            resource_type="invoice",
+            resource_id=inv.get("id"),
+            details={
+                "invoice_number": inv.get("invoice_number"),
+                "total": inv.get("total"),
+                "withdrawal_count": len(data.withdrawal_ids),
+            },
+            request=request,
+            org_id=org_id,
         )
         return inv
     except ValueError as e:
@@ -106,7 +118,9 @@ async def update_invoice(
         raise HTTPException(status_code=404, detail="Invoice not found")
 
     try:
-        line_items_data = [i.model_dump() if hasattr(i, "model_dump") else i for i in (data.line_items or [])]
+        line_items_data = [
+            i.model_dump() if hasattr(i, "model_dump") else i for i in (data.line_items or [])
+        ]
         updated = await invoice_repo.update(
             invoice_id,
             billing_entity=data.billing_entity,
@@ -132,9 +146,13 @@ async def update_invoice(
     if data.line_items is not None:
         changes["line_items_updated"] = True
     await audit_log(
-        user_id=current_user.id, action="invoice.update",
-        resource_type="invoice", resource_id=invoice_id,
-        details=changes, request=request, org_id=org_id,
+        user_id=current_user.id,
+        action="invoice.update",
+        resource_type="invoice",
+        resource_id=invoice_id,
+        details=changes,
+        request=request,
+        org_id=org_id,
     )
     return updated
 
@@ -149,11 +167,16 @@ async def delete_invoice(invoice_id: str, request: Request, current_user: AdminD
         if not ok:
             raise HTTPException(status_code=404, detail="Invoice not found")
         await audit_log(
-            user_id=current_user.id, action="invoice.delete",
-            resource_type="invoice", resource_id=invoice_id,
-            details={"invoice_number": inv.get("invoice_number") if inv else None,
-                      "total": inv.get("total") if inv else None},
-            request=request, org_id=org_id,
+            user_id=current_user.id,
+            action="invoice.delete",
+            resource_type="invoice",
+            resource_id=invoice_id,
+            details={
+                "invoice_number": inv.get("invoice_number") if inv else None,
+                "total": inv.get("total") if inv else None,
+            },
+            request=request,
+            org_id=org_id,
         )
         return {"deleted": True}
     except ValueError as e:
@@ -172,16 +195,20 @@ async def approve_invoice(
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     if inv.get("status") != "draft":
-        raise HTTPException(status_code=400, detail=f"Cannot approve invoice in '{inv.get('status')}' status")
+        raise HTTPException(
+            status_code=400, detail=f"Cannot approve invoice in '{inv.get('status')}' status"
+        )
 
     from datetime import datetime
+
     now = datetime.now(UTC).isoformat()
-    updated = await invoice_repo.update(
+    await invoice_repo.update(
         invoice_id,
         status="approved",
     )
 
     from shared.infrastructure.database import get_connection
+
     conn = get_connection()
     await conn.execute(
         "UPDATE invoices SET approved_by_id = ?, approved_at = ? WHERE id = ?",
@@ -190,10 +217,13 @@ async def approve_invoice(
     await conn.commit()
 
     await audit_log(
-        user_id=current_user.id, action="invoice.approve",
-        resource_type="invoice", resource_id=invoice_id,
+        user_id=current_user.id,
+        action="invoice.approve",
+        resource_type="invoice",
+        resource_id=invoice_id,
         details={"invoice_number": inv.get("invoice_number")},
-        request=request, org_id=org_id,
+        request=request,
+        org_id=org_id,
     )
     return await invoice_repo.get_by_id(invoice_id, org_id)
 
@@ -206,16 +236,21 @@ async def sync_invoice_to_xero(invoice_id: str, request: Request, current_user: 
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     if inv.get("status") not in ("approved", "sent", "paid"):
-        raise HTTPException(status_code=400, detail="Invoice must be approved before syncing to Xero")
+        raise HTTPException(
+            status_code=400, detail="Invoice must be approved before syncing to Xero"
+        )
 
     result = await sync_invoice(invoice_id, org_id)
     if result.get("error") and not result.get("success"):
         status_code = 404 if result["error"] == "Invoice not found" else 502
         raise HTTPException(status_code=status_code, detail=result["error"])
     await audit_log(
-        user_id=current_user.id, action="invoice.sync_xero",
-        resource_type="invoice", resource_id=invoice_id,
+        user_id=current_user.id,
+        action="invoice.sync_xero",
+        resource_type="invoice",
+        resource_id=invoice_id,
         details={"success": result.get("success", False)},
-        request=request, org_id=org_id,
+        request=request,
+        org_id=org_id,
     )
     return result

@@ -4,6 +4,7 @@ Artifacts are typed facts extracted from completed conversations.
 They are recalled at the start of fresh sessions so agents have context
 about recurring contractors, products, and user preferences.
 """
+
 import json
 import logging
 import uuid

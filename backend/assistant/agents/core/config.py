@@ -1,4 +1,5 @@
 """Agent config loading — resolves YAML + env-var overrides to AgentConfig objects."""
+
 from __future__ import annotations
 
 import os
@@ -17,7 +18,7 @@ def _apply_env_overrides(agent_id: str, data: dict) -> dict:
     prefix = f"AGENT_CONFIG_{agent_id.upper()}_"
     for key, value in os.environ.items():
         if key.startswith(prefix):
-            field_name = key[len(prefix):].lower()
+            field_name = key[len(prefix) :].lower()
             if field_name == "max_output_tokens":
                 data["max_output_tokens"] = int(value.strip())
             elif field_name == "temperature":

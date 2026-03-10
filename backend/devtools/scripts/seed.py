@@ -2,6 +2,7 @@
 Seed logic: demo users, departments, inventory.
 Lives in scripts/ to avoid cross-domain imports inside identity/.
 """
+
 import logging
 import os
 from datetime import UTC, datetime
@@ -29,7 +30,9 @@ from shared.infrastructure.config import (
 
 logger = logging.getLogger(__name__)
 
-DEMO_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "SY Inventory - Sheet1 (1).csv")
+DEMO_CSV_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "data", "SY Inventory - Sheet1 (1).csv"
+)
 DEMO_PRODUCT_LIMIT = 2000
 DEMO_PRODUCT_PER_ORG = 80
 
@@ -97,7 +100,14 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
                 if item.get("department"):
                     raw = item["department"].strip()
                     key = raw.upper()[:3] if len(raw) >= 3 else raw.lower()
-                    dept = next((d for d in all_depts if d["code"] == key or d["name"].lower() == raw.lower()), None)
+                    dept = next(
+                        (
+                            d
+                            for d in all_depts
+                            if d["code"] == key or d["name"].lower() == raw.lower()
+                        ),
+                        None,
+                    )
                 if not dept:
                     suggested = suggest_department(item["name"], dept_by_code)
                     dept = dept_by_code.get(suggested) if suggested else None
@@ -144,6 +154,7 @@ async def seed_mock_user(organization_id: str = "default"):
         existing = await user_repo.get_by_email(MOCK_USER_EMAIL)
         if not existing:
             from identity.domain.user import User
+
             user = User(email=MOCK_USER_EMAIL, name="Demo Admin", role="admin")
             user_dict = user.model_dump()
             user_dict["password"] = hash_password(MOCK_USER_PASSWORD)
@@ -154,6 +165,7 @@ async def seed_mock_user(organization_id: str = "default"):
         existing_contractor = await user_repo.get_by_email(DEMO_CONTRACTOR_EMAIL)
         if not existing_contractor:
             from identity.domain.user import User
+
             contractor = User(
                 email=DEMO_CONTRACTOR_EMAIL,
                 name="Demo Contractor",
@@ -182,16 +194,22 @@ async def seed_demo_tenants() -> None:
             logger.warning("Demo CSV not found: %s, skipping product seed", DEMO_CSV_PATH)
 
         now = datetime.now(UTC).isoformat()
-        rows = parse_csv_products(open(DEMO_CSV_PATH, "rb").read()) if os.path.exists(DEMO_CSV_PATH) else []
+        if os.path.exists(DEMO_CSV_PATH):
+            with open(DEMO_CSV_PATH, "rb") as f:
+                rows = parse_csv_products(f.read())
+        else:
+            rows = []
 
         for org in DEMO_TENANTS:
             org_id = org["id"]
-            await organization_repo.insert({
-                "id": org_id,
-                "name": org["name"],
-                "slug": org["slug"],
-                "created_at": now,
-            })
+            await organization_repo.insert(
+                {
+                    "id": org_id,
+                    "name": org["name"],
+                    "slug": org["slug"],
+                    "created_at": now,
+                }
+            )
             logger.info("Created org: %s", org["name"])
 
             await seed_standard_departments(org_id)
@@ -221,8 +239,14 @@ async def seed_demo_tenants() -> None:
                     if imported >= DEMO_PRODUCT_PER_ORG:
                         break
                     try:
-                        suggested = suggest_department(item["name"], dept_by_code) if dept_by_code else None
-                        dept = dept_by_code.get(suggested) if suggested else (all_depts[0] if all_depts else None)
+                        suggested = (
+                            suggest_department(item["name"], dept_by_code) if dept_by_code else None
+                        )
+                        dept = (
+                            dept_by_code.get(suggested)
+                            if suggested
+                            else (all_depts[0] if all_depts else None)
+                        )
                         if not dept:
                             dept = all_depts[0]
                         bu, su, pq = infer_uom(item["name"])

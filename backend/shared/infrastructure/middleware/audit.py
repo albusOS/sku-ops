@@ -20,6 +20,7 @@ Usage in routes:
 This is intentionally a function, not global middleware, to avoid noisy logs
 on read-only endpoints.
 """
+
 from __future__ import annotations
 
 import json

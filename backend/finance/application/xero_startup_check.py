@@ -4,6 +4,7 @@ Logs warnings for missing or expired config. Never raises — missing Xero
 config is non-fatal (StubXeroAdapter handles it). The goal is to surface
 misconfiguration immediately at boot, not at the moment the first sync fires.
 """
+
 import logging
 from datetime import UTC, datetime
 

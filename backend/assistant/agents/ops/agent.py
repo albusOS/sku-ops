@@ -1,4 +1,5 @@
 """OpsAgent: contractors, withdrawals, jobs, material requests."""
+
 import logging
 
 from pydantic_ai import Agent, RunContext
@@ -33,7 +34,9 @@ _agent = Agent(
 @_agent.tool
 async def get_contractor_history(ctx: RunContext[AgentDeps], name: str, limit: int = 20) -> str:
     """Withdrawal history for a contractor (by name). Shows jobs, materials pulled, amounts."""
-    return budget_tool_result(await _get_contractor_history({"name": name, "limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _get_contractor_history({"name": name, "limit": limit}, ctx.deps.org_id)
+    )
 
 
 @_agent.tool
@@ -43,25 +46,37 @@ async def get_job_materials(ctx: RunContext[AgentDeps], job_id: str) -> str:
 
 
 @_agent.tool
-async def list_recent_withdrawals(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20) -> str:
+async def list_recent_withdrawals(
+    ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20
+) -> str:
     """Recent material withdrawals across all jobs. Filter by last N days."""
-    return budget_tool_result(await _list_recent_withdrawals({"days": days, "limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _list_recent_withdrawals({"days": days, "limit": limit}, ctx.deps.org_id)
+    )
 
 
 @_agent.tool
 async def list_pending_material_requests(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Material requests from contractors that are awaiting approval."""
-    return budget_tool_result(await _list_pending_material_requests({"limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _list_pending_material_requests({"limit": limit}, ctx.deps.org_id)
+    )
 
 
-async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = "") -> dict:
+async def run(
+    user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = ""
+) -> dict:
     model_settings = build_model_settings(_config)
 
     return await run_specialist(
-        _agent, user_message,
-        msg_history=build_message_history(history), deps=deps,
+        _agent,
+        user_message,
+        msg_history=build_message_history(history),
+        deps=deps,
         model_settings=model_settings,
-        agent_name="OpsAgent", agent_label="ops",
-        session_id=session_id, history=history,
+        agent_name="OpsAgent",
+        agent_label="ops",
+        session_id=session_id,
+        history=history,
         config=_config,
     )

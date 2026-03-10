@@ -1,4 +1,5 @@
 """Xero API adapter — real Xero API v2 via OAuth 2.0."""
+
 import logging
 from datetime import UTC, datetime
 
@@ -51,11 +52,13 @@ class XeroAdapter:
         token_data = resp.json()
 
         expiry = datetime.now(UTC).timestamp() + token_data.get("expires_in", 1800)
-        updated = settings.model_copy(update={
-            "xero_access_token": token_data["access_token"],
-            "xero_refresh_token": token_data.get("refresh_token", settings.xero_refresh_token),
-            "xero_token_expiry": datetime.fromtimestamp(expiry, tz=UTC).isoformat(),
-        })
+        updated = settings.model_copy(
+            update={
+                "xero_access_token": token_data["access_token"],
+                "xero_refresh_token": token_data.get("refresh_token", settings.xero_refresh_token),
+                "xero_token_expiry": datetime.fromtimestamp(expiry, tz=UTC).isoformat(),
+            }
+        )
         return await upsert_org_settings(updated)
 
     async def get_tenants(self, access_token: str) -> list[dict]:
@@ -137,10 +140,12 @@ class XeroAdapter:
                 if settings.xero_tax_type:
                     line["TaxType"] = settings.xero_tax_type
                 if settings.xero_tracking_category_id and li.get("job_id"):
-                    line["Tracking"] = [{
-                        "TrackingCategoryID": settings.xero_tracking_category_id,
-                        "Option": li["job_id"],
-                    }]
+                    line["Tracking"] = [
+                        {
+                            "TrackingCategoryID": settings.xero_tracking_category_id,
+                            "Option": li["job_id"],
+                        }
+                    ]
                 xero_line_items.append(line)
 
             xero_invoice: dict = {
@@ -185,13 +190,17 @@ class XeroAdapter:
             result = resp.json()
             invoices = result.get("Invoices", [])
             if not invoices:
-                return InvoiceSyncResult(success=False, error="Xero returned no invoice in response")
+                return InvoiceSyncResult(
+                    success=False, error="Xero returned no invoice in response"
+                )
 
             xero_invoice_id = invoices[0].get("InvoiceID")
 
             # Post COGS journal within the same client session
             first_job_id = next((li.get("job_id") for li in line_items if li.get("job_id")), None)
-            journal_id = await self._post_cogs_journal(invoice, settings, xero_invoice_id, first_job_id, client)
+            journal_id = await self._post_cogs_journal(
+                invoice, settings, xero_invoice_id, first_job_id, client
+            )
 
         return InvoiceSyncResult(
             success=True,
@@ -217,7 +226,9 @@ class XeroAdapter:
 
         tracking: list = []
         if settings.xero_tracking_category_id and first_job_id:
-            tracking = [{"TrackingCategoryID": settings.xero_tracking_category_id, "Option": first_job_id}]
+            tracking = [
+                {"TrackingCategoryID": settings.xero_tracking_category_id, "Option": first_job_id}
+            ]
 
         journal_lines: list = []
         cost_total = 0.0
@@ -233,8 +244,7 @@ class XeroAdapter:
             description = li.get("description") or li.get("name") or ""
             unit = li.get("unit") or li.get("sell_uom") or "each"
             line_narration = (
-                f"{description} — {qty} {unit} @ {unit_cost:.4f} "
-                f"[INV {invoice_number}]"
+                f"{description} — {qty} {unit} @ {unit_cost:.4f} [INV {invoice_number}]"
             ).strip(" —")
 
             cogs_line: dict = {
@@ -256,7 +266,10 @@ class XeroAdapter:
         return journal_lines, round(cost_total, 2)
 
     async def _post_cogs_journal(
-        self, invoice: dict, settings: OrgSettings, xero_invoice_id: str | None,
+        self,
+        invoice: dict,
+        settings: OrgSettings,
+        xero_invoice_id: str | None,
         first_job_id: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> str | None:
@@ -276,7 +289,9 @@ class XeroAdapter:
             if cost_total <= 0:
                 return None
 
-            narration = f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
+            narration = (
+                f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
+            )
             journal = {"Narration": narration, "JournalLines": journal_lines}
             resp = await _client.put(
                 f"{XERO_API}/ManualJournals",
@@ -329,7 +344,9 @@ class XeroAdapter:
             invoice, settings, invoice.get("xero_invoice_id"), first_job_id
         )
 
-    async def sync_po_receipt(self, po: dict, cost_total: float, settings: OrgSettings) -> InvoiceSyncResult:
+    async def sync_po_receipt(
+        self, po: dict, cost_total: float, settings: OrgSettings
+    ) -> InvoiceSyncResult:
         """Send a vendor purchase to Xero as an ACCPAY Bill (not a manual journal).
 
         This creates a real AP liability attached to the vendor contact, which
@@ -349,21 +366,25 @@ class XeroAdapter:
                 cost = float(item.get("cost") or 0)
                 if delivered <= 0 or cost <= 0:
                     continue
-                xero_lines.append({
-                    "Description": item.get("name", ""),
-                    "Quantity": delivered,
-                    "UnitAmount": cost,
-                    "LineAmount": round(delivered * cost, 2),
-                    "AccountCode": settings.xero_inventory_account_code,
-                })
+                xero_lines.append(
+                    {
+                        "Description": item.get("name", ""),
+                        "Quantity": delivered,
+                        "UnitAmount": cost,
+                        "LineAmount": round(delivered * cost, 2),
+                        "AccountCode": settings.xero_inventory_account_code,
+                    }
+                )
         else:
-            xero_lines = [{
-                "Description": f"Inventory receipt — {vendor_name} PO {po_id}",
-                "Quantity": 1,
-                "UnitAmount": cost_total,
-                "LineAmount": cost_total,
-                "AccountCode": settings.xero_inventory_account_code,
-            }]
+            xero_lines = [
+                {
+                    "Description": f"Inventory receipt — {vendor_name} PO {po_id}",
+                    "Quantity": 1,
+                    "UnitAmount": cost_total,
+                    "LineAmount": cost_total,
+                    "AccountCode": settings.xero_inventory_account_code,
+                }
+            ]
 
         bill: dict = {
             "Type": "ACCPAY",
@@ -452,11 +473,15 @@ class XeroAdapter:
         resp.raise_for_status()
         credit_notes = resp.json().get("CreditNotes", [])
         if not credit_notes:
-            return InvoiceSyncResult(success=False, error="Xero returned no credit note in response")
+            return InvoiceSyncResult(
+                success=False, error="Xero returned no credit note in response"
+            )
         xero_cn_id = credit_notes[0].get("CreditNoteID")
         return InvoiceSyncResult(success=True, xero_invoice_id=xero_cn_id)
 
-    async def fetch_invoice_by_number(self, invoice_number: str, settings: OrgSettings) -> dict | None:
+    async def fetch_invoice_by_number(
+        self, invoice_number: str, settings: OrgSettings
+    ) -> dict | None:
         """Look up a Xero invoice by InvoiceNumber. Returns the first match or None."""
         if self._is_token_expired(settings):
             settings = await self.refresh_token(settings)
@@ -527,4 +552,9 @@ class XeroAdapter:
 
 
 def _xero_status(sku_status: str) -> str:
-    return {"draft": "DRAFT", "approved": "SUBMITTED", "sent": "SUBMITTED", "paid": "AUTHORISED"}.get(sku_status, "DRAFT")
+    return {
+        "draft": "DRAFT",
+        "approved": "SUBMITTED",
+        "sent": "SUBMITTED",
+        "paid": "AUTHORISED",
+    }.get(sku_status, "DRAFT")

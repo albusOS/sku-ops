@@ -2,6 +2,7 @@
 
 Other bounded contexts import from here, never from identity.infrastructure directly.
 """
+
 from identity.infrastructure.billing_entity_repo import billing_entity_repo
 
 

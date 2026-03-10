@@ -1,4 +1,5 @@
 """Document import service: vendor lookup/create, product match/create, inventory updates."""
+
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from kernel.types import CurrentUser
 @dataclass
 class ImportDeps:
     """Cross-domain dependencies injected by the API layer."""
+
     list_departments: Callable[..., Awaitable[list]]
     get_department_by_code: Callable[..., Awaitable[Any]]
     find_vendor_by_name: Callable[..., Awaitable[Any]]
@@ -52,17 +54,19 @@ async def import_document(
             raise ResourceNotFoundError("Vendor", vendor_name)
         vendor_id = uuid.uuid4().hex
         now = datetime.now(UTC).isoformat()
-        await deps.insert_vendor({
-            "id": vendor_id,
-            "name": vendor_name,
-            "contact_name": "",
-            "email": "",
-            "phone": "",
-            "address": "",
-            "product_count": 0,
-            "created_at": now,
-            "organization_id": org_id,
-        })
+        await deps.insert_vendor(
+            {
+                "id": vendor_id,
+                "name": vendor_name,
+                "contact_name": "",
+                "email": "",
+                "phone": "",
+                "address": "",
+                "product_count": 0,
+                "created_at": now,
+                "organization_id": org_id,
+            }
+        )
         vendor = {"id": vendor_id, "name": vendor_name}
         vendor_created = True
     else:
@@ -70,7 +74,9 @@ async def import_document(
         vendor_created = False
 
     departments = await deps.list_departments(organization_id=org_id)
-    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (departments[0] if departments else None)
+    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (
+        departments[0] if departments else None
+    )
     dept_by_id = {d["id"]: d for d in departments}
     dept_by_code = {d["code"].upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
@@ -111,7 +117,8 @@ async def import_document(
                 item["pack_qty"] = inferred_pq
 
     needs_uom = [
-        d for d in selected_dicts
+        d
+        for d in selected_dicts
         if not d.get("ai_parsed")
         and (
             (d.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS
@@ -156,7 +163,9 @@ async def import_document(
                     organization_id=org_id,
                 )
                 if item.get("original_sku") and not existing.get("original_sku"):
-                    await deps.update_product(existing["id"], {"original_sku": item["original_sku"]})
+                    await deps.update_product(
+                        existing["id"], {"original_sku": item["original_sku"]}
+                    )
                 updated = await deps.get_product_by_id(existing["id"])
                 matched.append(updated)
                 continue
@@ -173,7 +182,9 @@ async def import_document(
 
             bu, su, pq = resolve_uom(item)
             cost_val = float(item.get("cost") or 0) or float(item.get("price", 0)) * 0.7
-            price_val = float(item.get("price") or 0) or (round(cost_val * 1.4, 2) if cost_val > 0 else 0.0)
+            price_val = float(item.get("price") or 0) or (
+                round(cost_val * 1.4, 2) if cost_val > 0 else 0.0
+            )
 
             barcode_val = item.get("barcode")
             if barcode_val and str(barcode_val).strip():
@@ -181,10 +192,12 @@ async def import_document(
                 if barcode_val.isdigit():
                     valid, _ = deps.validate_barcode(barcode_val)
                     if not valid:
-                        warnings.append({
-                            "product": item.get("name", "Unknown"),
-                            "warning": "Invalid UPC/EAN barcode; using SKU",
-                        })
+                        warnings.append(
+                            {
+                                "product": item.get("name", "Unknown"),
+                                "warning": "Invalid UPC/EAN barcode; using SKU",
+                            }
+                        )
                         barcode_val = None
             else:
                 barcode_val = None

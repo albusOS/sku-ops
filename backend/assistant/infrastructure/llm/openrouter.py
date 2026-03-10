@@ -1,4 +1,5 @@
 """OpenRouter provider adapter — routes to any model via the OpenRouter gateway."""
+
 from __future__ import annotations
 
 import logging
@@ -30,6 +31,7 @@ class OpenRouterProvider:
     def _cached_model(self, model_id: str) -> Any:
         from pydantic_ai.models.openai import OpenAIModel
         from pydantic_ai.providers.openai import OpenAIProvider
+
         provider = OpenAIProvider(api_key=self._api_key, base_url=self._base_url)
         return OpenAIModel(model_id, provider=provider)
 
@@ -43,17 +45,21 @@ class OpenRouterProvider:
 
     def get_raw_client(self) -> Any:
         from openai import AsyncOpenAI
+
         return AsyncOpenAI(api_key=self._api_key, base_url=self._base_url)
 
 
 def _calc(model_id: str, input_tokens: int, output_tokens: int) -> float:
     from assistant.infrastructure.llm.catalog import get_model_pricing
+
     pricing = get_model_pricing(model_id)
     if not pricing:
         return 0.0
     return round(
-        (input_tokens * pricing["input_price_per_m"]
-         + output_tokens * pricing["output_price_per_m"])
+        (
+            input_tokens * pricing["input_price_per_m"]
+            + output_tokens * pricing["output_price_per_m"]
+        )
         / 1_000_000,
         6,
     )

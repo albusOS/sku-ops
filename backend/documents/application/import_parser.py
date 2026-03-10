@@ -2,6 +2,7 @@
 Document import helpers: UOM resolution, department suggestion, CSV parsing.
 Used by document import, CSV import, and seed flows.
 """
+
 import contextlib
 import csv
 import io
@@ -26,11 +27,77 @@ def resolve_uom(item: dict) -> tuple[str, str, int]:
 
 # Keyword hints for auto-department from product name (Supply Yard style)
 _DEPT_KEYWORDS = {
-    "PLU": ["pex", "pvc", "cpvc", "pipe", "valve", "elbow", "coupling", "adapter", "sweat", "press", "crimp", "tailpiece", "drain", "faucet", "toilet", "sink"],
-    "ELE": ["wire", "cable", "connector", "emt", "conduit", "outlet", "switch", "breaker", "led", "light", "lamp", "box", "strap", "clamp", "knockout"],
-    "PNT": ["paint", "brush", "roller", "stain", "primer", "caulk", "spray", "sanding", "sandpaper"],
-    "LUM": ["lumber", "board", "stud", "plywood", "2x4", "2x6", "trim", "furring", "door", "slab", "moulding"],
-    "TOL": ["tool", "drill", "saw", "sander", "bit", "blade", "hammer", "screwdriver", "wrench", "level"],
+    "PLU": [
+        "pex",
+        "pvc",
+        "cpvc",
+        "pipe",
+        "valve",
+        "elbow",
+        "coupling",
+        "adapter",
+        "sweat",
+        "press",
+        "crimp",
+        "tailpiece",
+        "drain",
+        "faucet",
+        "toilet",
+        "sink",
+    ],
+    "ELE": [
+        "wire",
+        "cable",
+        "connector",
+        "emt",
+        "conduit",
+        "outlet",
+        "switch",
+        "breaker",
+        "led",
+        "light",
+        "lamp",
+        "box",
+        "strap",
+        "clamp",
+        "knockout",
+    ],
+    "PNT": [
+        "paint",
+        "brush",
+        "roller",
+        "stain",
+        "primer",
+        "caulk",
+        "spray",
+        "sanding",
+        "sandpaper",
+    ],
+    "LUM": [
+        "lumber",
+        "board",
+        "stud",
+        "plywood",
+        "2x4",
+        "2x6",
+        "trim",
+        "furring",
+        "door",
+        "slab",
+        "moulding",
+    ],
+    "TOL": [
+        "tool",
+        "drill",
+        "saw",
+        "sander",
+        "bit",
+        "blade",
+        "hammer",
+        "screwdriver",
+        "wrench",
+        "level",
+    ],
     "HDW": ["screw", "nail", "bolt", "anchor", "hinge", "lock", "bracket", "fastener"],
     "GDN": ["garden", "plant", "soil", "fertilizer", "hose", "sprinkler"],
     "APP": ["appliance", "furnace", "range", "hood", "filter", "hvac"],
@@ -99,11 +166,44 @@ def infer_uom(name: str) -> tuple[str, str, int]:
 
     # 3. Keyword-based inference (linear / by foot)
     linear_keywords = [
-        "pipe", "pvc", "cpvc", "pex", "conduit", "emt", "wire", "cable", "romex",
-        "rope", "hose", "chain", "cord", "extension cord", "trim", "moulding", "molding",
-        "lumber", "stud", "2x4", "2x6", "2x8", "1x4", "1x6", "board", "furring",
-        "rebar", "angle iron", "duct", "ductwork", "flex duct", "b vent",
-        "sill plate", "joist", "rafter", "siding", "fencing", "fence",
+        "pipe",
+        "pvc",
+        "cpvc",
+        "pex",
+        "conduit",
+        "emt",
+        "wire",
+        "cable",
+        "romex",
+        "rope",
+        "hose",
+        "chain",
+        "cord",
+        "extension cord",
+        "trim",
+        "moulding",
+        "molding",
+        "lumber",
+        "stud",
+        "2x4",
+        "2x6",
+        "2x8",
+        "1x4",
+        "1x6",
+        "board",
+        "furring",
+        "rebar",
+        "angle iron",
+        "duct",
+        "ductwork",
+        "flex duct",
+        "b vent",
+        "sill plate",
+        "joist",
+        "rafter",
+        "siding",
+        "fencing",
+        "fence",
     ]
     if any(kw in n for kw in linear_keywords):
         # Extract length if present (e.g. "2x4x8" -> 8, "100ft" -> 100)
@@ -124,7 +224,17 @@ def infer_uom(name: str) -> tuple[str, str, int]:
         return "gallon", "gallon", 1
 
     # 5. Box / pack (fasteners, small parts)
-    box_keywords = ["screw", "nail", "bolt", "nut", "washer", "anchor", "fastener", "rivet", "staple"]
+    box_keywords = [
+        "screw",
+        "nail",
+        "bolt",
+        "nut",
+        "washer",
+        "anchor",
+        "fastener",
+        "rivet",
+        "staple",
+    ]
     if any(kw in n for kw in box_keywords):
         if "box" in n or "bx" in n:
             return "box", "box", 1
@@ -135,7 +245,16 @@ def infer_uom(name: str) -> tuple[str, str, int]:
         return "box", "box", 1
 
     # 6. Sqft (sheet goods)
-    sqft_keywords = ["drywall", "sheetrock", "plywood", "osb", "mdf", "hardboard", "insulation board", "ceiling tile"]
+    sqft_keywords = [
+        "drywall",
+        "sheetrock",
+        "plywood",
+        "osb",
+        "mdf",
+        "hardboard",
+        "insulation board",
+        "ceiling tile",
+    ]
     if any(kw in n for kw in sqft_keywords):
         return "sqft", "sqft", 1
 
@@ -220,15 +339,21 @@ def parse_csv_products(content: bytes) -> list:
         name = (row[col_map["name"]] or "").strip()
         if not name:
             continue
-        if name.lower().startswith("current inventory") or name.lower().startswith("for the period"):
+        if name.lower().startswith("current inventory") or name.lower().startswith(
+            "for the period"
+        ):
             continue
 
         qty = 0.0
         with contextlib.suppress(ValueError, TypeError, IndexError):
             qty = float((row[col_map.get("quantity", 3)] or "0").replace(",", ""))
 
-        cost = parse_dollar(row[col_map.get("cost", 6)] if col_map.get("cost", 6) < len(row) else "0")
-        price = parse_dollar(row[col_map.get("price", 8)] if col_map.get("price", 8) < len(row) else "0")
+        cost = parse_dollar(
+            row[col_map.get("cost", 6)] if col_map.get("cost", 6) < len(row) else "0"
+        )
+        price = parse_dollar(
+            row[col_map.get("price", 8)] if col_map.get("price", 8) < len(row) else "0"
+        )
         if price <= 0 and cost > 0:
             price = round(cost * 1.4, 2)
         elif cost <= 0 and price > 0:
@@ -236,19 +361,29 @@ def parse_csv_products(content: bytes) -> list:
 
         min_stock = 5
         with contextlib.suppress(ValueError, TypeError, IndexError):
-            min_stock = max(0, int(float((row[col_map.get("min_stock", 5)] or "0").replace(",", ""))))
+            min_stock = max(
+                0, int(float((row[col_map.get("min_stock", 5)] or "0").replace(",", "")))
+            )
         if min_stock == 0:
             min_stock = 5
 
-        products.append({
-            "name": name,
-            "quantity": qty,
-            "cost": cost,
-            "price": price,
-            "min_stock": min_stock,
-            "original_sku": (row[col_map["sku"]] or "").strip() or None if col_map.get("sku") is not None and col_map["sku"] < len(row) else None,
-            "barcode": (row[col_map["barcode"]] or "").strip() or None if col_map.get("barcode") is not None and col_map["barcode"] < len(row) else None,
-            "department": (row[col_map["department"]] or "").strip() or None if col_map.get("department") is not None and col_map["department"] < len(row) else None,
-        })
+        products.append(
+            {
+                "name": name,
+                "quantity": qty,
+                "cost": cost,
+                "price": price,
+                "min_stock": min_stock,
+                "original_sku": (row[col_map["sku"]] or "").strip() or None
+                if col_map.get("sku") is not None and col_map["sku"] < len(row)
+                else None,
+                "barcode": (row[col_map["barcode"]] or "").strip() or None
+                if col_map.get("barcode") is not None and col_map["barcode"] < len(row)
+                else None,
+                "department": (row[col_map["department"]] or "").strip() or None
+                if col_map.get("department") is not None and col_map["department"] < len(row)
+                else None,
+            }
+        )
 
     return products

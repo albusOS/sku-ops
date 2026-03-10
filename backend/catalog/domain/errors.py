@@ -1,9 +1,11 @@
 """Catalog-specific domain errors."""
+
 from kernel.errors import DomainError
 
 
 class DuplicateBarcodeError(DomainError):
     """Raised when barcode is already used by another product."""
+
     status_hint = 409
 
     def __init__(self, barcode: str, product_name: str):

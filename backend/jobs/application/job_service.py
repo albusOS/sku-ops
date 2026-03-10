@@ -2,6 +2,7 @@
 
 Other bounded contexts import from here, never from jobs.infrastructure directly.
 """
+
 from jobs.infrastructure.job_repo import job_repo
 
 

@@ -1,4 +1,5 @@
 """Inventory agent tool implementations — DB queries and search helpers."""
+
 import json
 import logging
 from datetime import UTC, datetime, timedelta
@@ -80,22 +81,24 @@ async def _get_product_details(args: dict, org_id: str) -> str:
     if not row:
         return json.dumps({"error": f"Product with SKU '{sku}' not found"})
     p = dict(row)
-    return json.dumps({
-        "sku": p.get("sku"),
-        "name": p.get("name"),
-        "description": p.get("description"),
-        "price": p.get("price"),
-        "cost": p.get("cost"),
-        "quantity": p.get("quantity"),
-        "min_stock": p.get("min_stock"),
-        "department": p.get("department_name"),
-        "vendor": p.get("vendor_name"),
-        "original_sku": p.get("original_sku"),
-        "barcode": p.get("barcode"),
-        "base_unit": p.get("base_unit"),
-        "sell_uom": p.get("sell_uom"),
-        "pack_qty": p.get("pack_qty"),
-    })
+    return json.dumps(
+        {
+            "sku": p.get("sku"),
+            "name": p.get("name"),
+            "description": p.get("description"),
+            "price": p.get("price"),
+            "cost": p.get("cost"),
+            "quantity": p.get("quantity"),
+            "min_stock": p.get("min_stock"),
+            "department": p.get("department_name"),
+            "vendor": p.get("vendor_name"),
+            "original_sku": p.get("original_sku"),
+            "barcode": p.get("barcode"),
+            "base_unit": p.get("base_unit"),
+            "sell_uom": p.get("sell_uom"),
+            "pack_qty": p.get("pack_qty"),
+        }
+    )
 
 
 async def _get_inventory_stats(org_id: str) -> str:
@@ -124,13 +127,15 @@ async def _get_inventory_stats(org_id: str) -> str:
     )
     row = await cur.fetchone()
     out_of_stock = row[0] if row else 0
-    return json.dumps({
-        "total_skus": total_skus,
-        "_note": "total_skus is the count of distinct product lines. No meaningful total unit count exists because products are measured in different units (each, gallon, box, etc.).",
-        "total_cost_value": total_value,
-        "low_stock_count": low_count,
-        "out_of_stock_count": out_of_stock,
-    })
+    return json.dumps(
+        {
+            "total_skus": total_skus,
+            "_note": "total_skus is the count of distinct product lines. No meaningful total unit count exists because products are measured in different units (each, gallon, box, etc.).",
+            "total_cost_value": total_value,
+            "low_stock_count": low_count,
+            "out_of_stock_count": out_of_stock,
+        }
+    )
 
 
 async def _list_low_stock(args: dict, org_id: str) -> str:
@@ -158,12 +163,14 @@ async def _list_departments(org_id: str) -> str:
         code = d.get("code", "")
         next_num = counters.get(code, 0) + 1
         next_sku = f"{code}-ITM-{str(next_num).zfill(6)}"
-        out.append({
-            "name": d.get("name"),
-            "code": code,
-            "product_count": d.get("product_count", 0),
-            "next_sku": next_sku,
-        })
+        out.append(
+            {
+                "name": d.get("name"),
+                "code": code,
+                "product_count": d.get("product_count", 0),
+                "next_sku": next_sku,
+            }
+        )
     return json.dumps({"departments": out})
 
 
@@ -185,7 +192,12 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
     row = await cur.fetchone()
     if not row:
         return json.dumps({"error": f"Product '{sku}' not found"})
-    product_id, product_name, current_qty, sell_uom = row["id"], row["name"], row["quantity"], row["sell_uom"] or "each"
+    product_id, product_name, current_qty, sell_uom = (
+        row["id"],
+        row["name"],
+        row["quantity"],
+        row["sell_uom"] or "each",
+    )
     cur = await conn.execute(
         """SELECT COUNT(*) as txn_count, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
            FROM stock_transactions
@@ -197,18 +209,22 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
     total_used = float(row["total_used"]) if row else 0
     avg_daily = round(total_used / days, 2)
     days_until_zero = round(current_qty / avg_daily, 1) if avg_daily > 0 else None
-    return json.dumps({
-        "sku": sku,
-        "name": product_name,
-        "sell_uom": sell_uom,
-        "current_quantity": current_qty,
-        "period_days": days,
-        "total_withdrawn": total_used,
-        "withdrawal_transactions": txn_count,
-        "avg_daily_use": avg_daily,
-        "days_until_stockout": days_until_zero,
-        "_note": None if days_until_zero is not None else "days_until_stockout is null because avg_daily_use=0 — no withdrawals recorded in this period, not a data error.",
-    })
+    return json.dumps(
+        {
+            "sku": sku,
+            "name": product_name,
+            "sell_uom": sell_uom,
+            "current_quantity": current_qty,
+            "period_days": days,
+            "total_withdrawn": total_used,
+            "withdrawal_transactions": txn_count,
+            "avg_daily_use": avg_daily,
+            "days_until_stockout": days_until_zero,
+            "_note": None
+            if days_until_zero is not None
+            else "days_until_stockout is null because avg_daily_use=0 — no withdrawals recorded in this period, not a data error.",
+        }
+    )
 
 
 async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
@@ -223,7 +239,9 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
     cur = await conn.execute(
         "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
         " FROM stock_transactions"
-        " WHERE product_id IN (" + placeholders + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
+        " WHERE product_id IN ("
+        + placeholders
+        + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
         " GROUP BY product_id",
         (*product_ids, since),
     )
@@ -235,30 +253,39 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
         qty = p.get("quantity", 0)
         days_until_zero = round(qty / avg_daily, 1) if avg_daily > 0 else None
         urgency = (
-            "critical" if days_until_zero is not None and days_until_zero <= 3
-            else "high" if days_until_zero is not None and days_until_zero <= 7
-            else "medium" if days_until_zero is not None
+            "critical"
+            if days_until_zero is not None and days_until_zero <= 3
+            else "high"
+            if days_until_zero is not None and days_until_zero <= 7
+            else "medium"
+            if days_until_zero is not None
             else "no_velocity_data"
         )
-        suggestions.append({
-            "sku": p.get("sku"),
-            "name": p.get("name"),
-            "quantity": qty,
-            "sell_uom": p.get("sell_uom", "each"),
-            "min_stock": p.get("min_stock"),
-            "avg_daily_use": round(avg_daily, 2),
-            "days_until_stockout": days_until_zero,
-            "urgency": urgency,
-        })
-    suggestions.sort(key=lambda x: (
-        x["days_until_stockout"] is None,
-        x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
-    ))
-    return json.dumps({
-        "count": len(suggestions),
-        "suggestions": suggestions[:limit],
-        "_note": "urgency='no_velocity_data' means the product has no withdrawal history in the last 30 days — it is still below reorder point and may need restocking.",
-    })
+        suggestions.append(
+            {
+                "sku": p.get("sku"),
+                "name": p.get("name"),
+                "quantity": qty,
+                "sell_uom": p.get("sell_uom", "each"),
+                "min_stock": p.get("min_stock"),
+                "avg_daily_use": round(avg_daily, 2),
+                "days_until_stockout": days_until_zero,
+                "urgency": urgency,
+            }
+        )
+    suggestions.sort(
+        key=lambda x: (
+            x["days_until_stockout"] is None,
+            x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
+        )
+    )
+    return json.dumps(
+        {
+            "count": len(suggestions),
+            "suggestions": suggestions[:limit],
+            "_note": "urgency='no_velocity_data' means the product has no withdrawal history in the last 30 days — it is still below reorder point and may need restocking.",
+        }
+    )
 
 
 async def _get_department_health(org_id: str) -> str:
@@ -291,20 +318,27 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     withdrawals = await list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     product_map: dict[str, dict] = {}
     for w in withdrawals:
-        for item in (w.get("items") or []):
+        for item in w.get("items") or []:
             sku = item.get("sku") or item.get("name", "unknown")
             name = item.get("name", sku)
             qty = item.get("quantity", 0)
             revenue = item.get("subtotal", 0)
             if sku not in product_map:
-                product_map[sku] = {"sku": sku, "name": name, "total_units": 0, "total_revenue": 0.0}
+                product_map[sku] = {
+                    "sku": sku,
+                    "name": name,
+                    "total_units": 0,
+                    "total_revenue": 0.0,
+                }
             product_map[sku]["total_units"] += qty
             product_map[sku]["total_revenue"] += revenue
     sort_key = "total_revenue" if by == "revenue" else "total_units"
     ranked = sorted(product_map.values(), key=lambda x: x[sort_key], reverse=True)[:limit]
     for r in ranked:
         r["total_revenue"] = round(r["total_revenue"], 2)
-    return json.dumps({"period_days": days, "ranked_by": by, "count": len(ranked), "products": ranked})
+    return json.dumps(
+        {"period_days": days, "ranked_by": by, "count": len(ranked), "products": ranked}
+    )
 
 
 async def _get_department_activity(args: dict, org_id: str) -> str:
@@ -337,21 +371,26 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
     )
     type_summary: dict[str, dict] = {}
     for row in await cur.fetchall():
-        type_summary[row["transaction_type"]] = {"transactions": row["txn_count"], "units": float(row["total_units"])}
+        type_summary[row["transaction_type"]] = {
+            "transactions": row["txn_count"],
+            "units": float(row["total_units"]),
+        }
     withdrawals = type_summary.get("WITHDRAWAL", {"transactions": 0, "units": 0})
     receiving = type_summary.get("RECEIVING", {"transactions": 0, "units": 0})
     imports = type_summary.get("IMPORT", {"transactions": 0, "units": 0})
     low_stock_count = sum(1 for p in products if p["quantity"] <= p["min_stock"])
-    return json.dumps({
-        "dept_code": dept_code,
-        "period_days": days,
-        "product_count": len(products),
-        "low_stock_count": low_stock_count,
-        "withdrawals": withdrawals,
-        "receiving": receiving,
-        "imports": imports,
-        "net_units": (receiving["units"] + imports["units"]) - withdrawals["units"],
-    })
+    return json.dumps(
+        {
+            "dept_code": dept_code,
+            "period_days": days,
+            "product_count": len(products),
+            "low_stock_count": low_stock_count,
+            "withdrawals": withdrawals,
+            "receiving": receiving,
+            "imports": imports,
+            "net_units": (receiving["units"] + imports["units"]) - withdrawals["units"],
+        }
+    )
 
 
 async def _forecast_stockout(args: dict, org_id: str) -> str:
@@ -375,7 +414,9 @@ async def _forecast_stockout(args: dict, org_id: str) -> str:
     cur = await conn.execute(
         "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
         " FROM stock_transactions"
-        " WHERE product_id IN (" + placeholders + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
+        " WHERE product_id IN ("
+        + placeholders
+        + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
         " GROUP BY product_id",
         (*product_ids, since),
     )
@@ -387,16 +428,22 @@ async def _forecast_stockout(args: dict, org_id: str) -> str:
         if avg_daily <= 0:
             continue
         days_until_zero = round(p["quantity"] / avg_daily, 1)
-        forecast.append({
-            "sku": p["sku"],
-            "name": p["name"],
-            "department": p["department_name"],
-            "quantity": p["quantity"],
-            "min_stock": p["min_stock"],
-            "avg_daily_use": round(avg_daily, 2),
-            "days_until_stockout": days_until_zero,
-            "risk": "critical" if days_until_zero <= 3 else "high" if days_until_zero <= 7 else "medium",
-        })
+        forecast.append(
+            {
+                "sku": p["sku"],
+                "name": p["name"],
+                "department": p["department_name"],
+                "quantity": p["quantity"],
+                "min_stock": p["min_stock"],
+                "avg_daily_use": round(avg_daily, 2),
+                "days_until_stockout": days_until_zero,
+                "risk": "critical"
+                if days_until_zero <= 3
+                else "high"
+                if days_until_zero <= 7
+                else "medium",
+            }
+        )
     forecast.sort(key=lambda x: x["days_until_stockout"])
     return json.dumps({"count": len(forecast), "forecast": forecast[:limit]})
 
@@ -440,17 +487,17 @@ async def _get_slow_movers(args: dict, org_id: str) -> str:
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 
-_reg("search_products",        "inventory", _search_products,        lookup_key="search_products")
-_reg("search_semantic",        "inventory", _search_semantic)
-_reg("get_product_details",    "inventory", _get_product_details,    lookup_key="product_details")
-_reg("get_inventory_stats",    "inventory", _get_inventory_stats,    takes_args=False, lookup_key="stats")
-_reg("list_low_stock",         "inventory", _list_low_stock,         lookup_key="low_stock")
-_reg("list_departments",       "inventory", _list_departments,       takes_args=False, lookup_key="departments")
-_reg("list_vendors",           "inventory", _list_vendors,           takes_args=False, lookup_key="vendors")
-_reg("get_usage_velocity",     "inventory", _get_usage_velocity)
-_reg("get_reorder_suggestions","inventory", _get_reorder_suggestions)
-_reg("get_department_health",  "inventory", _get_department_health,  takes_args=False)
-_reg("get_slow_movers",        "inventory", _get_slow_movers)
-_reg("get_top_products",       "inventory", _get_top_products)
-_reg("get_department_activity","inventory", _get_department_activity)
-_reg("forecast_stockout",      "inventory", _forecast_stockout)
+_reg("search_products", "inventory", _search_products, lookup_key="search_products")
+_reg("search_semantic", "inventory", _search_semantic)
+_reg("get_product_details", "inventory", _get_product_details, lookup_key="product_details")
+_reg("get_inventory_stats", "inventory", _get_inventory_stats, takes_args=False, lookup_key="stats")
+_reg("list_low_stock", "inventory", _list_low_stock, lookup_key="low_stock")
+_reg("list_departments", "inventory", _list_departments, takes_args=False, lookup_key="departments")
+_reg("list_vendors", "inventory", _list_vendors, takes_args=False, lookup_key="vendors")
+_reg("get_usage_velocity", "inventory", _get_usage_velocity)
+_reg("get_reorder_suggestions", "inventory", _get_reorder_suggestions)
+_reg("get_department_health", "inventory", _get_department_health, takes_args=False)
+_reg("get_slow_movers", "inventory", _get_slow_movers)
+_reg("get_top_products", "inventory", _get_top_products)
+_reg("get_department_activity", "inventory", _get_department_activity)
+_reg("forecast_stockout", "inventory", _forecast_stockout)

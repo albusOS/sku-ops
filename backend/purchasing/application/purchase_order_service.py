@@ -4,6 +4,7 @@ Purchase order service: create pending POs and receive items into inventory.
 Items are saved as pending when a document is reviewed; inventory only updates
 on receive. All types are explicit — no dicts flowing across domain boundaries.
 """
+
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -27,6 +28,7 @@ from purchasing.ports.po_repo_port import PORepoPort
 @dataclass
 class PurchasingDeps:
     """Cross-domain dependencies injected by the API layer."""
+
     list_departments: Callable[..., Awaitable[list]]
     get_department_by_code: Callable[..., Awaitable[Any]]
     find_vendor_by_name: Callable[..., Awaitable[Any]]
@@ -86,6 +88,7 @@ async def create_purchase_order(
         if not create_vendor_if_missing:
             raise ResourceNotFoundError("Vendor", vendor_name)
         from uuid import uuid4
+
         vendor_id = uuid4().hex
         vendor_dict = _resolve_vendor_dict(vendor_name, vendor_id)
         vendor_dict["organization_id"] = org_id
@@ -142,7 +145,8 @@ async def create_purchase_order(
                 item["pack_qty"] = inferred_pq
 
     needs_uom = [
-        d for d in selected_dicts
+        d
+        for d in selected_dicts
         if (
             (d.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS
             or (d.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS
@@ -169,22 +173,24 @@ async def create_purchase_order(
     po_items: list[PurchaseOrderItem] = []
     for item in selected_dicts:
         cost_val = _resolve_po_item_cost(item)
-        po_items.append(PurchaseOrderItem(
-            po_id=po.id,
-            name=item.get("name", "Unknown"),
-            original_sku=item.get("original_sku"),
-            ordered_qty=float(item.get("ordered_qty") or item.get("quantity") or 1),
-            delivered_qty=item.get("delivered_qty") or 0,
-            unit_price=float(item.get("price") or 0),
-            cost=round(cost_val, 2),
-            base_unit=item.get("base_unit") or "each",
-            sell_uom=item.get("sell_uom") or "each",
-            pack_qty=int(item.get("pack_qty") or 1),
-            suggested_department=(item.get("suggested_department") or "HDW").upper(),
-            status=POItemStatus.ORDERED,
-            product_id=item.get("product_id") or None,
-            organization_id=org_id,
-        ))
+        po_items.append(
+            PurchaseOrderItem(
+                po_id=po.id,
+                name=item.get("name", "Unknown"),
+                original_sku=item.get("original_sku"),
+                ordered_qty=float(item.get("ordered_qty") or item.get("quantity") or 1),
+                delivered_qty=item.get("delivered_qty") or 0,
+                unit_price=float(item.get("price") or 0),
+                cost=round(cost_val, 2),
+                base_unit=item.get("base_unit") or "each",
+                sell_uom=item.get("sell_uom") or "each",
+                pack_qty=int(item.get("pack_qty") or 1),
+                suggested_department=(item.get("suggested_department") or "HDW").upper(),
+                status=POItemStatus.ORDERED,
+                product_id=item.get("product_id") or None,
+                organization_id=org_id,
+            )
+        )
 
     await repo.insert_po(po)
     await repo.insert_items(po_items)
@@ -248,7 +254,9 @@ async def receive_po_items(
 
     vendor_id: str = po.get("vendor_id") or ""
     departments = await deps.list_departments(organization_id=org_id)
-    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (departments[0] if departments else None)
+    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (
+        departments[0] if departments else None
+    )
     dept_by_code = {d["code"].upper(): d for d in departments}
 
     all_items = await repo.get_po_items(po_id)
@@ -271,7 +279,9 @@ async def receive_po_items(
         if current_status == POItemStatus.ARRIVED:
             continue
         if current_status == POItemStatus.ORDERED:
-            errors.append({"item": item.get("name"), "error": "Item not yet marked as received at dock"})
+            errors.append(
+                {"item": item.get("name"), "error": "Item not yet marked as received at dock"}
+            )
             continue
 
         # Apply field overrides from the review modal onto the stored PO item
@@ -317,11 +327,19 @@ async def receive_po_items(
 
                 if product_updates:
                     await deps.update_product(existing["id"], product_updates)
-                await repo.update_po_item(item_id, POItemStatus.ARRIVED, product_id=existing["id"], delivered_qty=delivered)
+                await repo.update_po_item(
+                    item_id,
+                    POItemStatus.ARRIVED,
+                    product_id=existing["id"],
+                    delivered_qty=delivered,
+                )
                 updated = await deps.get_product_by_id(existing["id"])
                 matched.append(updated)
             else:
-                dept = dept_by_code.get((item.get("suggested_department") or "HDW").upper()) or default_dept
+                dept = (
+                    dept_by_code.get((item.get("suggested_department") or "HDW").upper())
+                    or default_dept
+                )
                 if not dept:
                     errors.append({"item": item.get("name"), "error": "No valid department"})
                     continue
@@ -348,18 +366,22 @@ async def receive_po_items(
                     organization_id=org_id,
                 )
                 resolved_pid = product.id
-                await repo.update_po_item(item_id, POItemStatus.ARRIVED, product_id=product.id, delivered_qty=delivered)
+                await repo.update_po_item(
+                    item_id, POItemStatus.ARRIVED, product_id=product.id, delivered_qty=delivered
+                )
                 received.append(product)
 
             item_cost = _resolve_po_item_cost(item)
             cost_total += item_cost * delivered
             dept_code = (item.get("suggested_department") or "HDW").upper()
-            ledger_items.append({
-                "cost": item_cost,
-                "delivered_qty": delivered,
-                "product_id": resolved_pid,
-                "department": dept_by_code.get(dept_code, {}).get("name") or dept_code,
-            })
+            ledger_items.append(
+                {
+                    "cost": item_cost,
+                    "delivered_qty": delivered,
+                    "product_id": resolved_pid,
+                    "department": dept_by_code.get(dept_code, {}).get("name") or dept_code,
+                }
+            )
         except (ValueError, RuntimeError, OSError, KeyError) as e:
             errors.append({"item": item.get("name"), "error": str(e)})
 
@@ -386,7 +408,16 @@ async def receive_po_items(
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-_OVERRIDE_FIELDS = ("name", "cost", "unit_price", "suggested_department", "base_unit", "sell_uom", "pack_qty", "barcode")
+_OVERRIDE_FIELDS = (
+    "name",
+    "cost",
+    "unit_price",
+    "suggested_department",
+    "base_unit",
+    "sell_uom",
+    "pack_qty",
+    "barcode",
+)
 
 
 def _apply_overrides(item: dict, update: dict) -> None:
@@ -447,7 +478,8 @@ async def _recompute_po_status(
     if arrived_count == total and total > 0:
         new_status = POStatus.RECEIVED.value
         await repo.update_po_status(
-            po_id, status=new_status,
+            po_id,
+            status=new_status,
             received_at=now,
             received_by_id=current_user.id,
             received_by_name=current_user.name,

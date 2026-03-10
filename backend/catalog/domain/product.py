@@ -114,5 +114,3 @@ class Product(AuditedEntity):
         if days_of_stock <= 7:
             return "high"
         return "medium"
-
-

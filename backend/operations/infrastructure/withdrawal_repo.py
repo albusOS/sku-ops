@@ -1,4 +1,5 @@
 """Withdrawal repository."""
+
 import json
 from uuid import uuid4
 
@@ -20,7 +21,9 @@ async def insert(withdrawal: MaterialWithdrawal | dict, conn=None) -> None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     org_id = withdrawal_dict.get("organization_id") or "default"
-    items_json = json.dumps([i if isinstance(i, dict) else i.model_dump() for i in withdrawal_dict["items"]])
+    items_json = json.dumps(
+        [i if isinstance(i, dict) else i.model_dump() for i in withdrawal_dict["items"]]
+    )
     await conn.execute(
         """INSERT INTO withdrawals (id, items, job_id, service_address, notes, subtotal, tax, tax_rate, total, cost_total,
            contractor_id, contractor_name, contractor_company, billing_entity, billing_entity_id, payment_status, invoice_id, paid_at,
@@ -53,7 +56,11 @@ async def insert(withdrawal: MaterialWithdrawal | dict, conn=None) -> None:
     )
     # Write normalized items
     for item in withdrawal_dict["items"]:
-        i = item if isinstance(item, dict) else (item.model_dump() if hasattr(item, "model_dump") else item)
+        i = (
+            item
+            if isinstance(item, dict)
+            else (item.model_dump() if hasattr(item, "model_dump") else item)
+        )
         qty = float(i.get("quantity", 0))
         price = float(i.get("unit_price") or i.get("price") or 0)
         cost = float(i.get("cost", 0))
@@ -61,10 +68,19 @@ async def insert(withdrawal: MaterialWithdrawal | dict, conn=None) -> None:
             """INSERT INTO withdrawal_items
                (id, withdrawal_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (str(uuid4()), withdrawal_dict["id"],
-             i.get("product_id", ""), i.get("sku", ""), i.get("name", ""),
-             qty, price, cost, i.get("unit", "each"),
-             round(qty * price, 2), round(qty * cost, 2)),
+            (
+                str(uuid4()),
+                withdrawal_dict["id"],
+                i.get("product_id", ""),
+                i.get("sku", ""),
+                i.get("name", ""),
+                qty,
+                price,
+                cost,
+                i.get("unit", "each"),
+                round(qty * price, 2),
+                round(qty * cost, 2),
+            ),
         )
 
     if not in_transaction:
@@ -123,7 +139,9 @@ async def get_by_id(withdrawal_id: str, organization_id: str | None = None) -> d
     return _row_to_dict(row)
 
 
-async def mark_paid(withdrawal_id: str, paid_at: str, organization_id: str | None = None) -> dict | None:
+async def mark_paid(
+    withdrawal_id: str, paid_at: str, organization_id: str | None = None
+) -> dict | None:
     conn = get_connection()
     params: list = [paid_at, withdrawal_id]
     where = "WHERE id = ?"
@@ -138,14 +156,18 @@ async def mark_paid(withdrawal_id: str, paid_at: str, organization_id: str | Non
     return await get_by_id(withdrawal_id)
 
 
-async def bulk_mark_paid(withdrawal_ids: list, paid_at: str, organization_id: str | None = None) -> int:
+async def bulk_mark_paid(
+    withdrawal_ids: list, paid_at: str, organization_id: str | None = None
+) -> int:
     if not withdrawal_ids:
         return 0
     conn = get_connection()
     org_id = organization_id or "default"
     placeholders = ",".join("?" * len(withdrawal_ids))
     cursor = await conn.execute(
-        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id IN (" + placeholders + ") AND (organization_id = ? OR organization_id IS NULL)",
+        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id IN ("
+        + placeholders
+        + ") AND (organization_id = ? OR organization_id IS NULL)",
         [paid_at, *withdrawal_ids, org_id],
     )
     await conn.commit()

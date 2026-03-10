@@ -1,4 +1,5 @@
 """Purchase order API routes."""
+
 import logging
 
 from fastapi import APIRouter, Request
@@ -19,6 +20,7 @@ from documents.application.enrichment_service import enrich_for_import
 from documents.application.import_parser import infer_uom, suggest_department
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
+from kernel import events
 from kernel.errors import ResourceNotFoundError
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
@@ -32,7 +34,6 @@ from purchasing.domain.purchase_order import (
     ReceiveItemsRequest,
 )
 from purchasing.infrastructure.po_repo import po_repo
-from kernel import events
 from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
@@ -45,6 +46,7 @@ async def _wired_classify_uom_batch(products):
     gen_text = None
     if _LLM_AVAILABLE:
         from assistant.application.llm import generate_text
+
         gen_text = generate_text
     return await _classify_uom_batch(products, generate_text=gen_text, rule_infer=infer_uom)
 
@@ -60,13 +62,16 @@ def _build_deps() -> PurchasingDeps:
         find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
         find_product_by_name_and_vendor=find_product_by_name_and_vendor,
         update_product=update_product,
-        create_product=lambda **kw: lifecycle_create(**kw, on_stock_import=process_receiving_stock_changes),
+        create_product=lambda **kw: lifecycle_create(
+            **kw, on_stock_import=process_receiving_stock_changes
+        ),
         process_receiving_stock_changes=process_receiving_stock_changes,
         classify_uom_batch=_wired_classify_uom_batch,
         infer_uom=infer_uom,
         suggest_department=suggest_department,
         enrich_for_import=enrich_for_import,
     )
+
 
 router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 
@@ -89,10 +94,13 @@ async def create_po(
         create_vendor_if_missing=data.create_vendor_if_missing,
     )
     await audit_log(
-        user_id=current_user.id, action="po.create",
-        resource_type="purchase_order", resource_id=result.get("id"),
+        user_id=current_user.id,
+        action="po.create",
+        resource_type="purchase_order",
+        resource_id=result.get("id"),
         details={"vendor": data.vendor_name, "item_count": len(data.products)},
-        request=request, org_id=current_user.organization_id,
+        request=request,
+        org_id=current_user.organization_id,
     )
     return result
 
@@ -158,14 +166,21 @@ async def receive_items(
     )
     org_id = current_user.organization_id
     await audit_log(
-        user_id=current_user.id, action="po.receive",
-        resource_type="purchase_order", resource_id=po_id,
-        details={"received": result.get("received", 0), "matched": result.get("matched", 0),
-                  "cost_total": result.get("cost_total", 0)},
-        request=request, org_id=org_id,
+        user_id=current_user.id,
+        action="po.receive",
+        resource_type="purchase_order",
+        resource_id=po_id,
+        details={
+            "received": result.get("received", 0),
+            "matched": result.get("matched", 0),
+            "cost_total": result.get("cost_total", 0),
+        },
+        request=request,
+        org_id=org_id,
     )
     if result.get("cost_total", 0) > 0:
         from finance.application.po_sync_service import queue_po_for_sync
+
         try:
             await queue_po_for_sync(po_id)
         except (RuntimeError, OSError, ValueError) as e:

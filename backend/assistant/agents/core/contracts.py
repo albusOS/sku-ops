@@ -3,6 +3,7 @@
 Defines the interfaces that agents and the orchestrator share.
 Pure data models with no side effects; safe to import anywhere.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -11,8 +12,10 @@ from typing import Any
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
+
 class Complexity(StrEnum):
     """Query intent — drives dispatch to the cheapest correct path."""
+
     TRIVIAL = "trivial"
     LOOKUP = "lookup"
     REPORT = "report"
@@ -20,6 +23,7 @@ class Complexity(StrEnum):
 
 
 # ── Agent configuration ───────────────────────────────────────────────────────
+
 
 @dataclass
 class RetryConfig:
@@ -31,6 +35,7 @@ class RetryConfig:
 @dataclass
 class AgentConfig:
     """Declarative agent definition — loaded from YAML, one per agent."""
+
     id: str
     description: str = ""
     domains: list[str] = field(default_factory=list)
@@ -41,6 +46,7 @@ class AgentConfig:
 
 
 # ── Agent result types ────────────────────────────────────────────────────────
+
 
 @dataclass
 class UsageInfo:
@@ -54,6 +60,7 @@ class UsageInfo:
 @dataclass
 class AgentResult:
     """Typed output from any agent run — replaces raw dict returns."""
+
     agent: str
     response: str
     tool_calls: list[dict] = field(default_factory=list)
@@ -86,9 +93,11 @@ class AgentResult:
 
 # ── Orchestration state ───────────────────────────────────────────────────────
 
+
 @dataclass
 class TurnState:
     """Full state for one orchestration turn — flows through the dispatch loop."""
+
     trace_id: str
     query: str
     session_id: str

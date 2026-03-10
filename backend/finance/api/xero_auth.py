@@ -1,4 +1,5 @@
 """Xero OAuth 2.0 routes — connect, callback, disconnect, tenants."""
+
 import secrets
 from datetime import UTC, datetime
 from urllib.parse import urlencode
@@ -110,14 +111,18 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     expiry_iso = datetime.fromtimestamp(expiry_ts, tz=UTC).isoformat()
 
     settings = await get_org_settings(org_id)
-    updated = settings.model_copy(update={
-        "xero_access_token": token_data["access_token"],
-        "xero_refresh_token": token_data.get("refresh_token"),
-        "xero_token_expiry": expiry_iso,
-    })
+    updated = settings.model_copy(
+        update={
+            "xero_access_token": token_data["access_token"],
+            "xero_refresh_token": token_data.get("refresh_token"),
+            "xero_token_expiry": expiry_iso,
+        }
+    )
     await upsert_org_settings(updated)
 
-    redirect_target = f"{FRONTEND_URL}/settings?xero=connected" if FRONTEND_URL else "/settings?xero=connected"
+    redirect_target = (
+        f"{FRONTEND_URL}/settings?xero=connected" if FRONTEND_URL else "/settings?xero=connected"
+    )
     return RedirectResponse(url=redirect_target)
 
 
@@ -173,7 +178,9 @@ async def list_tracking_categories(current_user: AdminDep):
         categories = await gateway.list_tracking_categories(settings)
         return {"tracking_categories": categories}
     except (httpx.HTTPError, RuntimeError, OSError) as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch tracking categories: {e}") from e
+        raise HTTPException(
+            status_code=502, detail=f"Failed to fetch tracking categories: {e}"
+        ) from e
 
 
 @router.post("/select-tracking-category")

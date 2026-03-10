@@ -1,4 +1,5 @@
 """Vendor repository."""
+
 from datetime import UTC, datetime
 
 from catalog.domain.vendor import Vendor
@@ -78,7 +79,9 @@ async def insert(vendor: Vendor | dict) -> None:
     await conn.commit()
 
 
-async def update(vendor_id: str, vendor_dict: dict, conn=None, organization_id: str | None = None) -> dict | None:
+async def update(
+    vendor_id: str, vendor_dict: dict, conn=None, organization_id: str | None = None
+) -> dict | None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     new_name = vendor_dict.get("name", "")
@@ -134,7 +137,9 @@ async def count(organization_id: str | None = None) -> int:
     return row[0] if row else 0
 
 
-async def increment_product_count(vendor_id: str, delta: int, conn=None, organization_id: str | None = None) -> None:
+async def increment_product_count(
+    vendor_id: str, delta: int, conn=None, organization_id: str | None = None
+) -> None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     params: list = [delta, vendor_id]

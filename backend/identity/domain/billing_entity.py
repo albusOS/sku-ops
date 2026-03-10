@@ -7,6 +7,7 @@ from kernel.entity import AuditedEntity
 
 class BillingEntity(AuditedEntity):
     """An organization or person that receives invoices."""
+
     name: str
     contact_name: str = ""
     contact_email: str = ""

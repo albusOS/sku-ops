@@ -4,6 +4,7 @@ Every bounded context emits events through the event hub. This module defines
 the ``Event`` value object, the event type constants (single source of truth),
 and the visibility policy for contractor-scoped WebSocket delivery.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -45,9 +46,11 @@ CHAT_TOOL_CALL = "chat.tool_call"
 
 # ── Visibility policy ────────────────────────────────────────────────────────
 
-CONTRACTOR_VISIBLE_EVENTS = frozenset({
-    MATERIAL_REQUEST_CREATED,
-    MATERIAL_REQUEST_PROCESSED,
-    WITHDRAWAL_CREATED,
-    WITHDRAWAL_UPDATED,
-})
+CONTRACTOR_VISIBLE_EVENTS = frozenset(
+    {
+        MATERIAL_REQUEST_CREATED,
+        MATERIAL_REQUEST_PROCESSED,
+        WITHDRAWAL_CREATED,
+        WITHDRAWAL_UPDATED,
+    }
+)

@@ -1,10 +1,10 @@
 """Job repository port — testable contract for job persistence."""
+
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class JobRepoPort(Protocol):
-
     async def insert(self, job, conn=None) -> None: ...
 
     async def get_by_id(self, job_id: str, organization_id: str) -> dict | None: ...

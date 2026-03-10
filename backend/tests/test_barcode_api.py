@@ -1,4 +1,5 @@
 """Tests for GET /api/products/by-barcode structured error responses."""
+
 import pytest
 import pytest_asyncio
 
@@ -9,7 +10,9 @@ from inventory.application.inventory_service import process_import_stock_changes
 
 @pytest_asyncio.fixture
 async def auth_headers():
-    return {"Authorization": f"Bearer {create_token('user-1', 'test@test.com', 'admin', 'default')}"}
+    return {
+        "Authorization": f"Bearer {create_token('user-1', 'test@test.com', 'admin', 'default')}"
+    }
 
 
 @pytest.mark.asyncio
@@ -43,7 +46,9 @@ async def test_by_barcode_not_found_returns_structured_error(db, client, auth_he
 
 
 @pytest.mark.asyncio
-async def test_by_barcode_invalid_upc_check_digit_returns_structured_error(db, client, auth_headers):
+async def test_by_barcode_invalid_upc_check_digit_returns_structured_error(
+    db, client, auth_headers
+):
     """Scanning a 12-digit UPC with a wrong check digit returns 422 with code: invalid_check_digit."""
     # 042100005265 has a bad check digit (valid: 042100005264)
     resp = client.get("/api/products/by-barcode?barcode=042100005265", headers=auth_headers)
@@ -54,7 +59,9 @@ async def test_by_barcode_invalid_upc_check_digit_returns_structured_error(db, c
 
 
 @pytest.mark.asyncio
-async def test_by_barcode_invalid_ean13_check_digit_returns_structured_error(db, client, auth_headers):
+async def test_by_barcode_invalid_ean13_check_digit_returns_structured_error(
+    db, client, auth_headers
+):
     """Scanning a 13-digit EAN-13 with a wrong check digit returns 422 with code: invalid_check_digit."""
     # 5901234123458 has wrong check digit (valid: 5901234123457)
     resp = client.get("/api/products/by-barcode?barcode=5901234123458", headers=auth_headers)

@@ -3,6 +3,7 @@
 Enabled when SENTRY_DSN is set.  Each event is enriched with request_id,
 org_id, and user_id from the request context.
 """
+
 from __future__ import annotations
 
 import logging

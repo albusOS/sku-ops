@@ -1,4 +1,5 @@
 """Agent monitoring API — internal endpoints for observability."""
+
 from fastapi import APIRouter, Query
 
 from assistant.infrastructure.agent_run_repo import (
@@ -22,9 +23,11 @@ async def agent_runs(
 ):
     """Recent agent runs with full details."""
     return await list_runs(
-        agent_name=agent, session_id=session_id,
+        agent_name=agent,
+        session_id=session_id,
         org_id=current_user.organization_id,
-        minutes=minutes, limit=limit,
+        minutes=minutes,
+        limit=limit,
     )
 
 

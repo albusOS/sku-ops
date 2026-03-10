@@ -1,4 +1,5 @@
 """Database protocol — interface contract for SQLite and PostgreSQL adapters."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable

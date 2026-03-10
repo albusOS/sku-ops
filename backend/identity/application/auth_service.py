@@ -1,4 +1,5 @@
 """Authentication helpers and dependencies."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -46,9 +47,7 @@ async def get_current_user(
     credentials: BearerToken,
 ) -> CurrentUser:
     try:
-        payload = jwt.decode(
-            credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM]
-        )
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user = await user_repo.get_by_id(payload["user_id"])
         if not user:
             raise HTTPException(status_code=401, detail="User not found")

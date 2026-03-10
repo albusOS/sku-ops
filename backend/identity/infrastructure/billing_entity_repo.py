@@ -1,4 +1,5 @@
 """Billing entity repository — persistence for billing entity master data."""
+
 from datetime import UTC, datetime
 
 from identity.domain.billing_entity import BillingEntity
@@ -27,11 +28,17 @@ async def insert(entity: BillingEntity | dict, conn=None) -> None:
     await conn.execute(
         ins_q,
         (
-            d["id"], d["name"], d.get("contact_name", ""),
-            d.get("contact_email", ""), d.get("billing_address", ""),
-            d.get("payment_terms", "net_30"), d.get("xero_contact_id"),
+            d["id"],
+            d["name"],
+            d.get("contact_name", ""),
+            d.get("contact_email", ""),
+            d.get("billing_address", ""),
+            d.get("payment_terms", "net_30"),
+            d.get("xero_contact_id"),
             1 if d.get("is_active", True) else 0,
-            d["organization_id"], d["created_at"], d["updated_at"],
+            d["organization_id"],
+            d["created_at"],
+            d["updated_at"],
         ),
     )
     if not in_tx:
@@ -85,7 +92,14 @@ async def update(entity_id: str, updates: dict, organization_id: str) -> dict | 
     conn = get_connection()
     set_clauses = []
     params = []
-    for key in ("name", "contact_name", "contact_email", "billing_address", "payment_terms", "xero_contact_id"):
+    for key in (
+        "name",
+        "contact_name",
+        "contact_email",
+        "billing_address",
+        "payment_terms",
+        "xero_contact_id",
+    ):
         if key in updates and updates[key] is not None:
             set_clauses.append(f"{key} = ?")
             params.append(updates[key])

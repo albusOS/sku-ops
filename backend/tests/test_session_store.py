@@ -1,6 +1,7 @@
 """Tests for the chat session store — covers the in-process fallback path
 and, when REDIS_URL is set, the Redis hash path.
 """
+
 import os
 
 import pytest
@@ -20,10 +21,14 @@ class TestSessionStoreFallback:
 
     async def test_update_and_retrieve(self):
         sid = "test-update"
-        await session_store.update(sid, [
-            {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "hi"},
-        ], cost_usd=0.05)
+        await session_store.update(
+            sid,
+            [
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "hi"},
+            ],
+            cost_usd=0.05,
+        )
 
         history = await session_store.get_or_create(sid)
         assert len(history) == 2
@@ -50,7 +55,9 @@ class TestSessionStoreFallback:
 
     async def test_history_windowing(self):
         sid = "test-window"
-        long_history = [{"role": "user" if i % 2 == 0 else "assistant", "content": str(i)} for i in range(100)]
+        long_history = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": str(i)} for i in range(100)
+        ]
         await session_store.update(sid, long_history)
         history = await session_store.get_or_create(sid)
         assert len(history) == 40  # _MAX_TURNS=20 → 40 messages
@@ -67,10 +74,12 @@ class TestSessionStoreRedis:
 
     async def _setup_redis(self):
         from shared.infrastructure.redis import init_redis
+
         await init_redis()
 
     async def _teardown_redis(self):
         from shared.infrastructure.redis import close_redis
+
         await close_redis()
 
     async def test_crud_via_redis(self):
@@ -81,10 +90,14 @@ class TestSessionStoreRedis:
             history = await session_store.get_or_create(sid)
             assert history == []
 
-            await session_store.update(sid, [
-                {"role": "user", "content": "hi"},
-                {"role": "assistant", "content": "hello"},
-            ], cost_usd=0.10)
+            await session_store.update(
+                sid,
+                [
+                    {"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": "hello"},
+                ],
+                cost_usd=0.10,
+            )
 
             history = await session_store.get_or_create(sid)
             assert len(history) == 2
@@ -115,7 +128,10 @@ class TestSessionStoreRedis:
         await self._setup_redis()
         try:
             sid = "redis-test-window"
-            long = [{"role": "user" if i % 2 == 0 else "assistant", "content": str(i)} for i in range(100)]
+            long = [
+                {"role": "user" if i % 2 == 0 else "assistant", "content": str(i)}
+                for i in range(100)
+            ]
             await session_store.update(sid, long)
             history = await session_store.get_or_create(sid)
             assert len(history) == 40

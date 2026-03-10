@@ -3,6 +3,7 @@
 All monetary reports read from the financial_ledger table via ledger_repo.
 Inventory report remains current-state (product quantities).
 """
+
 import asyncio
 from datetime import UTC, datetime, timedelta
 
@@ -31,7 +32,9 @@ async def get_sales_report(
 
     accounts, top_products, counts, catalog, payment_status = await asyncio.gather(
         ledger_repo.summary_by_account(org_id, start_date=start_date, end_date=end_date, **dim_kw),
-        ledger_repo.product_margins(org_id, start_date=start_date, end_date=end_date, limit=10, **dim_kw),
+        ledger_repo.product_margins(
+            org_id, start_date=start_date, end_date=end_date, limit=10, **dim_kw
+        ),
         ledger_repo.reference_counts(org_id, start_date=start_date, end_date=end_date),
         list_products(organization_id=org_id),
         ledger_repo.payment_status_breakdown(org_id, start_date=start_date, end_date=end_date),
@@ -121,8 +124,13 @@ async def get_trends_report(
     """Revenue/cost/profit trends from the ledger."""
     org_id = current_user.organization_id
     series = await ledger_repo.trend_series(
-        org_id=org_id, start_date=start_date, end_date=end_date, group_by=group_by,
-        job_id=job_id, department=department, billing_entity=billing_entity,
+        org_id=org_id,
+        start_date=start_date,
+        end_date=end_date,
+        group_by=group_by,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
     )
 
     totals = {
@@ -146,8 +154,13 @@ async def get_product_margins(
     org_id = current_user.organization_id
     margin_data, catalog = await asyncio.gather(
         ledger_repo.product_margins(
-            org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
-            job_id=job_id, department=department, billing_entity=billing_entity,
+            org_id=org_id,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
         ),
         list_products(organization_id=org_id),
     )
@@ -171,8 +184,12 @@ async def get_job_pl(
     """Per-job P&L from the ledger."""
     org_id = current_user.organization_id
     result = await ledger_repo.summary_by_job(
-        org_id=org_id, start_date=start_date, end_date=end_date,
-        limit=limit, offset=offset, search=search,
+        org_id=org_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
+        search=search,
     )
     jobs = result["rows"]
 
@@ -186,7 +203,9 @@ async def get_job_pl(
         "total_revenue": round_money(total_revenue),
         "total_cost": round_money(total_cost),
         "total_profit": round_money(total_profit),
-        "total_margin_pct": round((total_profit / total_revenue * 100) if total_revenue > 0 else 0, 1),
+        "total_margin_pct": round(
+            (total_profit / total_revenue * 100) if total_revenue > 0 else 0, 1
+        ),
     }
 
 
@@ -234,7 +253,11 @@ async def get_pl(
 
     if group_by == "job":
         result = await ledger_repo.summary_by_job(
-            org_id, **date_kw, limit=limit, offset=offset, search=search,
+            org_id,
+            **date_kw,
+            limit=limit,
+            offset=offset,
+            search=search,
         )
         rows = result["rows"]
         total_rows = result["total"]
@@ -264,8 +287,14 @@ async def get_pl(
         rows = []
         label_key = "name"
 
-    total_revenue = all_revenue_override if all_revenue_override is not None else sum(r.get("revenue", 0) for r in rows)
-    total_cost = all_cost_override if all_cost_override is not None else sum(r.get("cost", 0) for r in rows)
+    total_revenue = (
+        all_revenue_override
+        if all_revenue_override is not None
+        else sum(r.get("revenue", 0) for r in rows)
+    )
+    total_cost = (
+        all_cost_override if all_cost_override is not None else sum(r.get("cost", 0) for r in rows)
+    )
     total_profit = round_money(total_revenue - total_cost)
 
     resp = {
@@ -292,7 +321,9 @@ async def get_ar_aging(
 ):
     """Accounts receivable aging buckets by billing entity."""
     return await ledger_repo.ar_aging(
-        current_user.organization_id, start_date=start_date, end_date=end_date,
+        current_user.organization_id,
+        start_date=start_date,
+        end_date=end_date,
     )
 
 
@@ -308,8 +339,14 @@ async def get_kpis(
     org_id = current_user.organization_id
 
     accounts, products_data, units_sold_map = await asyncio.gather(
-        ledger_repo.summary_by_account(org_id=org_id, start_date=start_date, end_date=end_date,
-                                       job_id=job_id, department=department, billing_entity=billing_entity),
+        ledger_repo.summary_by_account(
+            org_id=org_id,
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
+        ),
         list_products(organization_id=org_id),
         ledger_repo.units_sold_by_product(org_id=org_id, start_date=start_date, end_date=end_date),
     )
@@ -330,11 +367,17 @@ async def get_kpis(
 
     inventory_turnover = total_cogs / inventory_cost_value if inventory_cost_value > 0 else 0
     dio = (inventory_cost_value / total_cogs * period_days) if total_cogs > 0 else 0
-    gross_margin_pct = ((total_revenue - total_cogs) / total_revenue * 100) if total_revenue > 0 else 0
+    gross_margin_pct = (
+        ((total_revenue - total_cogs) / total_revenue * 100) if total_revenue > 0 else 0
+    )
 
     total_units_sold = sum(units_sold_map.values())
     total_stock = sum(p.get("quantity", 0) for p in products_data)
-    sell_through_pct = (total_units_sold / (total_units_sold + total_stock) * 100) if (total_units_sold + total_stock) > 0 else 0
+    sell_through_pct = (
+        (total_units_sold / (total_units_sold + total_stock) * 100)
+        if (total_units_sold + total_stock) > 0
+        else 0
+    )
 
     return {
         "period_days": period_days,
@@ -361,7 +404,10 @@ async def get_product_performance(
 
     margin_data, products_data, units_sold_map = await asyncio.gather(
         ledger_repo.product_margins(
-            org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
+            org_id=org_id,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
         ),
         list_products(organization_id=org_id),
         ledger_repo.units_sold_by_product(org_id=org_id, start_date=start_date, end_date=end_date),
@@ -376,22 +422,28 @@ async def get_product_performance(
         current_stock = p.get("quantity", 0)
         units_sold = units_sold_map.get(pid, 0)
         avg_cost = m["cost"] / units_sold if units_sold > 0 else 0
-        sell_through = (units_sold / (units_sold + current_stock) * 100) if (units_sold + current_stock) > 0 else 0
-        result.append({
-            "product_id": pid,
-            "name": p.get("name", "Unknown"),
-            "sku": p.get("sku", ""),
-            "department": p.get("department_name", ""),
-            "current_stock": current_stock,
-            "catalog_unit_cost": round(p.get("cost", 0), 2),
-            "units_sold": units_sold,
-            "avg_cost_per_unit": round(avg_cost, 2),
-            "revenue": m["revenue"],
-            "cogs": m["cost"],
-            "gross_profit": m["profit"],
-            "margin_pct": m["margin_pct"],
-            "sell_through_pct": round(sell_through, 1),
-        })
+        sell_through = (
+            (units_sold / (units_sold + current_stock) * 100)
+            if (units_sold + current_stock) > 0
+            else 0
+        )
+        result.append(
+            {
+                "product_id": pid,
+                "name": p.get("name", "Unknown"),
+                "sku": p.get("sku", ""),
+                "department": p.get("department_name", ""),
+                "current_stock": current_stock,
+                "catalog_unit_cost": round(p.get("cost", 0), 2),
+                "units_sold": units_sold,
+                "avg_cost_per_unit": round(avg_cost, 2),
+                "revenue": m["revenue"],
+                "cogs": m["cost"],
+                "gross_profit": m["profit"],
+                "margin_pct": m["margin_pct"],
+                "sell_through_pct": round(sell_through, 1),
+            }
+        )
 
     return {"products": result, "total": len(result)}
 
@@ -420,7 +472,9 @@ async def get_reorder_urgency(
     cur = await conn.execute(
         "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
         " FROM stock_transactions"
-        " WHERE product_id IN (" + placeholders + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
+        " WHERE product_id IN ("
+        + placeholders
+        + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
         " GROUP BY product_id",
         (*product_ids, since),
     )
@@ -433,28 +487,36 @@ async def get_reorder_urgency(
         qty = p.get("quantity", 0)
         days_until_zero = round(qty / avg_daily, 1) if avg_daily > 0 else None
         urgency = (
-            "critical" if days_until_zero is not None and days_until_zero <= 3
-            else "high" if days_until_zero is not None and days_until_zero <= 7
-            else "medium" if days_until_zero is not None and days_until_zero <= 30
-            else "low" if days_until_zero is not None
+            "critical"
+            if days_until_zero is not None and days_until_zero <= 3
+            else "high"
+            if days_until_zero is not None and days_until_zero <= 7
+            else "medium"
+            if days_until_zero is not None and days_until_zero <= 30
+            else "low"
+            if days_until_zero is not None
             else "no_data"
         )
-        result.append({
-            "product_id": p["id"],
-            "name": p.get("name", "Unknown"),
-            "sku": p.get("sku", ""),
-            "department": p.get("department_name", ""),
-            "current_stock": qty,
-            "min_stock": p.get("min_stock", 0),
-            "avg_daily_use": round(avg_daily, 2),
-            "days_until_stockout": days_until_zero,
-            "urgency": urgency,
-        })
+        result.append(
+            {
+                "product_id": p["id"],
+                "name": p.get("name", "Unknown"),
+                "sku": p.get("sku", ""),
+                "department": p.get("department_name", ""),
+                "current_stock": qty,
+                "min_stock": p.get("min_stock", 0),
+                "avg_daily_use": round(avg_daily, 2),
+                "days_until_stockout": days_until_zero,
+                "urgency": urgency,
+            }
+        )
 
-    result.sort(key=lambda x: (
-        x["days_until_stockout"] is None,
-        x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
-    ))
+    result.sort(
+        key=lambda x: (
+            x["days_until_stockout"] is None,
+            x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
+        )
+    )
 
     return {"products": result[:limit], "total": len(result)}
 
@@ -483,9 +545,7 @@ async def get_product_activity(
         " FROM stock_transactions"
         " WHERE (organization_id = ? OR organization_id IS NULL)"
         " AND transaction_type = 'WITHDRAWAL'"
-        " AND created_at >= ?"
-        + product_filter +
-        " GROUP BY day"
+        " AND created_at >= ?" + product_filter + " GROUP BY day"
         " ORDER BY day",
         params,
     )

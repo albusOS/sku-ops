@@ -5,6 +5,7 @@ Every withdrawal, return, PO receipt, stock adjustment, and payment writes
 entries here at event time. Reports read from this table — they never
 recompute from operational data.
 """
+
 from enum import StrEnum
 
 from kernel.entity import Entity
@@ -32,6 +33,7 @@ class ReferenceType(StrEnum):
 
 class FinancialEntry(Entity):
     """One line in the financial ledger — always created, never mutated."""
+
     journal_id: str | None = None
     account: Account
     amount: float

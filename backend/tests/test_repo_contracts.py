@@ -12,6 +12,7 @@ These would have caught:
   - Missing float coercion in credit_note_repo
   - Any schema drift between domain models and SQL columns
 """
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product
@@ -32,17 +33,23 @@ from shared.infrastructure.database import get_connection
 
 # ── Product repo ─────────────────────────────────────────────────────────────
 
-class TestProductRepoContract:
 
+class TestProductRepoContract:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_round_trip_preserves_float_quantity(self, _db):
+    async def test_round_trip_preserves_float_quantity(self):
         """Insert a product with float quantity, read it back, assert float."""
         product = await create_product(
-            department_id="dept-1", department_name="Hardware",
-            name="Round Trip Widget", quantity=7.25,
-            price=12.50, cost=6.75,
-            base_unit="foot", sell_uom="inch",
-            user_id="user-1", user_name="Test",
+            department_id="dept-1",
+            department_name="Hardware",
+            name="Round Trip Widget",
+            quantity=7.25,
+            price=12.50,
+            cost=6.75,
+            base_unit="foot",
+            sell_uom="inch",
+            user_id="user-1",
+            user_name="Test",
             on_stock_import=process_import_stock_changes,
         )
         row = await product_repo.get_by_id(product.id)
@@ -60,13 +67,17 @@ class TestProductRepoContract:
         assert row["base_unit"] == "foot"
         assert row["sell_uom"] == "inch"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_list_products_returns_float_quantities(self, _db):
+    async def test_list_products_returns_float_quantities(self):
         """Listing products must return float quantities, not int."""
         await create_product(
-            department_id="dept-1", department_name="Hardware",
-            name="List Test", quantity=3.5,
-            user_id="user-1", user_name="Test",
+            department_id="dept-1",
+            department_name="Hardware",
+            name="List Test",
+            quantity=3.5,
+            user_id="user-1",
+            user_name="Test",
             on_stock_import=process_import_stock_changes,
         )
         products = await product_repo.list_products(limit=10)
@@ -79,16 +90,20 @@ class TestProductRepoContract:
 
 # ── Stock transaction repo ───────────────────────────────────────────────────
 
-class TestStockRepoContract:
 
+class TestStockRepoContract:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_transaction_round_trip_field_types(self, _db):
+    async def test_transaction_round_trip_field_types(self):
         """Stock transaction read-back must have float quantity fields and unit."""
         product = await create_product(
-            department_id="dept-1", department_name="Hardware",
-            name="Stock Repo Test", quantity=15.75,
+            department_id="dept-1",
+            department_name="Hardware",
+            name="Stock Repo Test",
+            quantity=15.75,
             base_unit="gallon",
-            user_id="user-1", user_name="Test",
+            user_id="user-1",
+            user_name="Test",
             on_stock_import=process_import_stock_changes,
         )
         txs = await stock_repo.list_by_product(product.id, limit=10)
@@ -96,8 +111,14 @@ class TestStockRepoContract:
         tx = txs[0]
 
         required_fields = {
-            "product_id", "sku", "quantity_delta", "quantity_before",
-            "quantity_after", "transaction_type", "user_id", "unit",
+            "product_id",
+            "sku",
+            "quantity_delta",
+            "quantity_before",
+            "quantity_after",
+            "transaction_type",
+            "user_id",
+            "unit",
         }
         missing = required_fields - set(tx.keys())
         assert not missing, f"Stock transaction missing fields: {missing}"
@@ -112,22 +133,33 @@ class TestStockRepoContract:
 
 # ── Purchase order repo ──────────────────────────────────────────────────────
 
-class TestPORepoContract:
 
+class TestPORepoContract:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_po_item_round_trip_has_unit_price_not_price(self, _db):
+    async def test_po_item_round_trip_has_unit_price_not_price(self):
         """PO items read from DB must use 'unit_price', not the raw column name 'price'."""
         po = PurchaseOrder(
-            vendor_id="v1", vendor_name="Acme", status=POStatus.ORDERED,
-            created_by_id="user-1", created_by_name="Test",
+            vendor_id="v1",
+            vendor_name="Acme",
+            status=POStatus.ORDERED,
+            created_by_id="user-1",
+            created_by_name="Test",
         )
         await po_repo.insert_po(po)
 
         item = PurchaseOrderItem(
-            po_id=po.id, name="Pipe", ordered_qty=5.5, delivered_qty=0,
-            unit_price=12.99, cost=8.50,
-            base_unit="foot", sell_uom="inch", pack_qty=1,
-            suggested_department="PLU", status=POItemStatus.ORDERED,
+            po_id=po.id,
+            name="Pipe",
+            ordered_qty=5.5,
+            delivered_qty=0,
+            unit_price=12.99,
+            cost=8.50,
+            base_unit="foot",
+            sell_uom="inch",
+            pack_qty=1,
+            suggested_department="PLU",
+            status=POItemStatus.ORDERED,
         )
         await po_repo.insert_items([item])
 
@@ -142,20 +174,31 @@ class TestPORepoContract:
         assert read_item["ordered_qty"] == pytest.approx(5.5)
         assert read_item["base_unit"] == "foot"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_po_item_float_quantities(self, _db):
+    async def test_po_item_float_quantities(self):
         """PO item quantities must be float after read-back."""
         po = PurchaseOrder(
-            vendor_id="v1", vendor_name="Acme", status=POStatus.ORDERED,
-            created_by_id="user-1", created_by_name="Test",
+            vendor_id="v1",
+            vendor_name="Acme",
+            status=POStatus.ORDERED,
+            created_by_id="user-1",
+            created_by_name="Test",
         )
         await po_repo.insert_po(po)
 
         item = PurchaseOrderItem(
-            po_id=po.id, name="Fitting", ordered_qty=3.25, delivered_qty=1.5,
-            unit_price=7.0, cost=4.0,
-            base_unit="each", sell_uom="each", pack_qty=1,
-            suggested_department="HDW", status=POItemStatus.PENDING,
+            po_id=po.id,
+            name="Fitting",
+            ordered_qty=3.25,
+            delivered_qty=1.5,
+            unit_price=7.0,
+            cost=4.0,
+            base_unit="each",
+            sell_uom="each",
+            pack_qty=1,
+            suggested_department="HDW",
+            status=POItemStatus.PENDING,
         )
         await po_repo.insert_items([item])
 
@@ -170,16 +213,23 @@ class TestPORepoContract:
 
 # ── Credit note repo ─────────────────────────────────────────────────────────
 
-class TestCreditNoteRepoContract:
 
+class TestCreditNoteRepoContract:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_credit_note_line_items_have_float_amounts(self, _db):
+    async def test_credit_note_line_items_have_float_amounts(self):
         """Credit note line items must have float quantity, unit_price, amount, cost."""
         cn = await credit_note_repo.insert_credit_note(
             return_id="ret-1",
             invoice_id=None,
             items=[
-                {"description": "Widget return", "quantity": 2.5, "unit_price": 10.0, "cost": 5.0, "product_id": None},
+                {
+                    "description": "Widget return",
+                    "quantity": 2.5,
+                    "unit_price": 10.0,
+                    "cost": 5.0,
+                    "product_id": None,
+                },
             ],
             subtotal=25.0,
             tax=2.50,
@@ -203,10 +253,11 @@ class TestCreditNoteRepoContract:
 
 # ── Invoice repo ─────────────────────────────────────────────────────────────
 
-class TestInvoiceRepoContract:
 
+class TestInvoiceRepoContract:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_invoice_line_items_have_float_amounts(self, _db):
+    async def test_invoice_line_items_have_float_amounts(self):
         """Invoice line items must have float quantity and amounts."""
         conn = get_connection()
         await conn.execute(
@@ -219,10 +270,20 @@ class TestInvoiceRepoContract:
             (
                 "w-inv-test",
                 '[{"product_id":"p1","sku":"S","name":"X","quantity":2.5,"unit_price":10.0,"cost":5.0,"subtotal":25.0,"cost_total":12.5,"unit":"each"}]',
-                "JOB-1", "123 Main St",
-                25.0, 2.50, 27.50, 12.50,
-                "contractor-1", "Contractor", "ACME", "ACME Inc",
-                "unpaid", "user-1", "Test", "default",
+                "JOB-1",
+                "123 Main St",
+                25.0,
+                2.50,
+                27.50,
+                12.50,
+                "contractor-1",
+                "Contractor",
+                "ACME",
+                "ACME Inc",
+                "unpaid",
+                "user-1",
+                "Test",
+                "default",
             ),
         )
         await conn.commit()
@@ -240,10 +301,11 @@ class TestInvoiceRepoContract:
 
 # ── Material request repo ────────────────────────────────────────────────────
 
-class TestMaterialRequestRepoContract:
 
+class TestMaterialRequestRepoContract:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_round_trip_preserves_items_json(self, _db):
+    async def test_round_trip_preserves_items_json(self):
         """Material request items (JSON blob) must survive round-trip."""
         from operations.domain.material_request import MaterialRequest
         from operations.domain.withdrawal import WithdrawalItem
@@ -253,8 +315,13 @@ class TestMaterialRequestRepoContract:
             contractor_name="Contractor User",
             items=[
                 WithdrawalItem(
-                    product_id="p1", sku="HDW-001", name="Widget",
-                    quantity=2.5, unit_price=10.0, cost=5.0, unit="foot",
+                    product_id="p1",
+                    sku="HDW-001",
+                    name="Widget",
+                    quantity=2.5,
+                    unit_price=10.0,
+                    cost=5.0,
+                    unit="foot",
                 ),
             ],
             status="pending",

@@ -9,7 +9,9 @@ from kernel.types import round_money
 from shared.infrastructure.database import get_connection
 
 
-async def entries_exist(reference_type: str, reference_id: str, conn=None, organization_id: str | None = None) -> bool:
+async def entries_exist(
+    reference_type: str, reference_id: str, conn=None, organization_id: str | None = None
+) -> bool:
     """Return True if any ledger rows already exist for this reference."""
     c = conn or get_connection()
     params: list = [reference_type, reference_id]
@@ -36,13 +38,24 @@ async def insert_entries(entries: list[FinancialEntry], conn=None) -> None:
                 reference_type, reference_id, organization_id, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                e.id, e.journal_id, e.account.value, round_money(e.amount),
-                e.quantity, e.unit, e.unit_cost,
-                e.department, e.job_id, e.billing_entity,
-                e.contractor_id, e.vendor_name, e.product_id,
+                e.id,
+                e.journal_id,
+                e.account.value,
+                round_money(e.amount),
+                e.quantity,
+                e.unit,
+                e.unit_cost,
+                e.department,
+                e.job_id,
+                e.billing_entity,
+                e.contractor_id,
+                e.vendor_name,
+                e.product_id,
                 e.performed_by_user_id,
-                e.reference_type.value, e.reference_id,
-                e.organization_id, e.created_at,
+                e.reference_type.value,
+                e.reference_id,
+                e.organization_id,
+                e.created_at,
             ),
         )
     if conn is None:

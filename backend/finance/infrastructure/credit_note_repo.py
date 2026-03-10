@@ -1,4 +1,5 @@
 """Credit note repository."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -15,9 +16,7 @@ async def _next_credit_note_number(organization_id: str | None = None, conn=None
            ON CONFLICT(key) DO UPDATE SET counter = counter + 1""",
         (key,),
     )
-    cursor = await conn.execute(
-        "SELECT counter FROM invoice_counters WHERE key = ?", (key,)
-    )
+    cursor = await conn.execute("SELECT counter FROM invoice_counters WHERE key = ?", (key,))
     row = await cursor.fetchone()
     if not in_transaction:
         await conn.commit()
@@ -27,7 +26,16 @@ async def _next_credit_note_number(organization_id: str | None = None, conn=None
 
 def _row_to_dict(row) -> dict:
     d = dict(row) if hasattr(row, "keys") else {}
-    for fld in ("quantity", "unit_price", "amount", "cost", "subtotal", "tax", "total", "cost_total"):
+    for fld in (
+        "quantity",
+        "unit_price",
+        "amount",
+        "cost",
+        "subtotal",
+        "tax",
+        "total",
+        "cost_total",
+    ):
         if fld in d and d[fld] is not None:
             d[fld] = float(d[fld])
     return d
@@ -58,12 +66,12 @@ async def insert_credit_note(
         if org_id != "default":
             inv_where += " AND (organization_id = ? OR organization_id IS NULL)"
             inv_params.append(org_id)
-        cursor = await conn.execute(
-            "SELECT billing_entity FROM invoices " + inv_where, inv_params
-        )
+        cursor = await conn.execute("SELECT billing_entity FROM invoices " + inv_where, inv_params)
         inv_row = await cursor.fetchone()
         if inv_row:
-            billing_entity = (dict(inv_row) if hasattr(inv_row, "keys") else {}).get("billing_entity", "")
+            billing_entity = (dict(inv_row) if hasattr(inv_row, "keys") else {}).get(
+                "billing_entity", ""
+            )
 
     await conn.execute(
         """INSERT INTO credit_notes (id, credit_note_number, invoice_id, return_id,
@@ -71,9 +79,20 @@ async def insert_credit_note(
            xero_credit_note_id, organization_id, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            cn_id, cn_number, invoice_id, return_id,
-            billing_entity, "draft", subtotal, tax, total, None,
-            None, org_id, now, now,
+            cn_id,
+            cn_number,
+            invoice_id,
+            return_id,
+            billing_entity,
+            "draft",
+            subtotal,
+            tax,
+            total,
+            None,
+            None,
+            org_id,
+            now,
+            now,
         ),
     )
 
@@ -87,18 +106,19 @@ async def insert_credit_note(
                (id, credit_note_id, description, quantity, unit_price, amount, cost, product_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                str(uuid4()), cn_id,
+                str(uuid4()),
+                cn_id,
                 i.get("name") or i.get("description", ""),
-                qty, price, amt,
+                qty,
+                price,
+                amt,
                 float(i.get("cost", 0)),
                 i.get("product_id"),
             ),
         )
 
     # Update the return record with the credit note ID
-    await conn.execute(
-        "UPDATE returns SET credit_note_id = ? WHERE id = ?", (cn_id, return_id)
-    )
+    await conn.execute("UPDATE returns SET credit_note_id = ? WHERE id = ?", (cn_id, return_id))
 
     if not in_transaction:
         await conn.commit()
@@ -117,9 +137,7 @@ async def get_by_id(credit_note_id: str, organization_id: str | None = None) -> 
             (credit_note_id, organization_id),
         )
     else:
-        cursor = await conn.execute(
-            "SELECT * FROM credit_notes WHERE id = ?", (credit_note_id,)
-        )
+        cursor = await conn.execute("SELECT * FROM credit_notes WHERE id = ?", (credit_note_id,))
     row = await cursor.fetchone()
     if not row:
         return None
@@ -188,7 +206,9 @@ async def apply_credit_note(credit_note_id: str, organization_id: str | None = N
     cn_total = float(cn.get("total", 0))
 
     async with transaction() as conn:
-        cursor = await conn.execute("SELECT total, amount_credited, status FROM invoices WHERE id = ?", (inv_id,))
+        cursor = await conn.execute(
+            "SELECT total, amount_credited, status FROM invoices WHERE id = ?", (inv_id,)
+        )
         inv_row = await cursor.fetchone()
         if not inv_row:
             raise ValueError(f"Linked invoice {inv_id} not found")
@@ -220,7 +240,9 @@ async def apply_credit_note(credit_note_id: str, organization_id: str | None = N
     return (await get_by_id(credit_note_id)) or {}
 
 
-async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str, organization_id: str | None = None) -> None:
+async def set_xero_credit_note_id(
+    credit_note_id: str, xero_credit_note_id: str, organization_id: str | None = None
+) -> None:
     """Store the Xero credit note ID and mark as synced after a successful sync."""
     conn = get_connection()
     now = datetime.now(UTC).isoformat()
@@ -230,13 +252,16 @@ async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str,
         where += " AND organization_id = ?"
         params.append(organization_id)
     await conn.execute(
-        "UPDATE credit_notes SET xero_credit_note_id = ?, xero_sync_status = 'synced', updated_at = ? " + where,
+        "UPDATE credit_notes SET xero_credit_note_id = ?, xero_sync_status = 'synced', updated_at = ? "
+        + where,
         params,
     )
     await conn.commit()
 
 
-async def set_credit_note_sync_status(credit_note_id: str, status: str, organization_id: str | None = None) -> None:
+async def set_credit_note_sync_status(
+    credit_note_id: str, status: str, organization_id: str | None = None
+) -> None:
     conn = get_connection()
     now = datetime.now(UTC).isoformat()
     params: list = [status, now, credit_note_id]
@@ -321,7 +346,9 @@ class CreditNoteRepo:
     set_xero_credit_note_id = staticmethod(set_xero_credit_note_id)
     set_credit_note_sync_status = staticmethod(set_credit_note_sync_status)
     list_unsynced_credit_notes = staticmethod(list_unsynced_credit_notes)
-    list_credit_notes_needing_reconciliation = staticmethod(list_credit_notes_needing_reconciliation)
+    list_credit_notes_needing_reconciliation = staticmethod(
+        list_credit_notes_needing_reconciliation
+    )
     list_failed_credit_notes = staticmethod(list_failed_credit_notes)
     list_mismatch_credit_notes = staticmethod(list_mismatch_credit_notes)
 

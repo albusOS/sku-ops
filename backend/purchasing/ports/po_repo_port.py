@@ -1,11 +1,11 @@
 """Port for purchase order persistence."""
+
 from abc import ABC, abstractmethod
 
 from purchasing.domain.purchase_order import POItemStatus, PurchaseOrder, PurchaseOrderItem
 
 
 class PORepoPort(ABC):
-
     @abstractmethod
     async def insert_po(self, po: PurchaseOrder) -> None: ...
 

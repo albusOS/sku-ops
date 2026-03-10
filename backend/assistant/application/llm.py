@@ -3,6 +3,7 @@
 Uses the LLM infrastructure adapter when available, falls back to direct
 Anthropic SDK construction for backward compatibility.
 """
+
 import base64
 import logging
 
@@ -20,6 +21,7 @@ def _get_client():
     """Return configured Anthropic client, preferring the infrastructure adapter."""
     try:
         from assistant.infrastructure.llm import get_provider
+
         provider = get_provider()
         client = provider.get_raw_client()
         if client is not None:
@@ -31,6 +33,7 @@ def _get_client():
         return None
     try:
         import anthropic
+
         return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     except ImportError:
         logger.warning("anthropic package not installed. Run: pip install anthropic")

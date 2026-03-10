@@ -3,6 +3,7 @@ LLM enrichment for document import: department, UOM, and product alignment.
 When ANTHROPIC_API_KEY is set, enriches extracted items with suggested_department,
 base_unit, sell_uom, pack_qty, and original_sku to match existing vendor products.
 """
+
 import asyncio
 import json
 import logging
@@ -23,17 +24,36 @@ def _normalize_enriched_unit(raw) -> str:
         return "each"
     v = raw.lower().strip()
     abbrev = {
-        "gal": "gallon", "gals": "gallon", "gallons": "gallon",
-        "ft": "foot", "feet": "foot", "lf": "foot", "linear foot": "foot",
-        "in": "inch", "in.": "inch", "inches": "inch",
-        "yd": "yard", "yards": "yard",
-        "lb": "pound", "lbs": "pound", "pounds": "pound",
-        "oz": "ounce", "ounces": "ounce",
-        "qt": "quart", "quarts": "quart",
-        "pt": "pint", "pints": "pint",
-        "sq ft": "sqft", "square feet": "sqft",
-        "ea": "each", "pc": "each", "pcs": "each",
-        "bx": "box", "cs": "case", "pk": "pack", "pkg": "pack",
+        "gal": "gallon",
+        "gals": "gallon",
+        "gallons": "gallon",
+        "ft": "foot",
+        "feet": "foot",
+        "lf": "foot",
+        "linear foot": "foot",
+        "in": "inch",
+        "in.": "inch",
+        "inches": "inch",
+        "yd": "yard",
+        "yards": "yard",
+        "lb": "pound",
+        "lbs": "pound",
+        "pounds": "pound",
+        "oz": "ounce",
+        "ounces": "ounce",
+        "qt": "quart",
+        "quarts": "quart",
+        "pt": "pint",
+        "pints": "pint",
+        "sq ft": "sqft",
+        "square feet": "sqft",
+        "ea": "each",
+        "pc": "each",
+        "pcs": "each",
+        "bx": "box",
+        "cs": "case",
+        "pk": "pack",
+        "pkg": "pack",
     }
     v = abbrev.get(v, v)
     return v if v in ALLOWED_BASE_UNITS else "each"
@@ -58,11 +78,11 @@ async def enrich_for_import(
         return items
 
     vendor_str = "\n".join(
-        f"- {p.get('name','')} | original_sku: {p.get('original_sku') or 'none'} | sku: {p.get('sku','')}"
+        f"- {p.get('name', '')} | original_sku: {p.get('original_sku') or 'none'} | sku: {p.get('sku', '')}"
         for p in vendor_products[:100]
     )
     items_str = "\n".join(
-        f"{i+1}. {item.get('name','')} (current suggested_department: {item.get('suggested_department') or 'HDW'}, original_sku: {item.get('original_sku') or 'none'})"
+        f"{i + 1}. {item.get('name', '')} (current suggested_department: {item.get('suggested_department') or 'HDW'}, original_sku: {item.get('original_sku') or 'none'})"
         for i, item in enumerate(items)
     )
 
@@ -71,7 +91,7 @@ async def enrich_for_import(
 2. Match to an existing vendor product if possible.
 3. Classify the unit of measure (base_unit, sell_uom, pack_qty).
 
-Valid department codes: {', '.join(dept_codes)}
+Valid department codes: {", ".join(dept_codes)}
 Department hints: PLU=plumbing, ELE=electrical, PNT=paint, LUM=lumber, TOL=tools, HDW=hardware, GDN=garden, APP=appliances.
 
 Allowed units: {_ENRICHMENT_UNITS_STR}
@@ -135,7 +155,14 @@ Return ONLY the JSON array, no other text."""
                         except (ValueError, TypeError):
                             item["pack_qty"] = 1
     except (ValueError, RuntimeError, OSError, KeyError, json.JSONDecodeError) as e:
-        logger.warning("Document enrichment failed (%s: %s) — items returned without enrichment", type(e).__name__, e)
+        logger.warning(
+            "Document enrichment failed (%s: %s) — items returned without enrichment",
+            type(e).__name__,
+            e,
+        )
         for item in items:
-            item.setdefault("enrichment_warning", "Auto-classification unavailable — verify department, UOM, and SKU matching")
+            item.setdefault(
+                "enrichment_warning",
+                "Auto-classification unavailable — verify department, UOM, and SKU matching",
+            )
     return items

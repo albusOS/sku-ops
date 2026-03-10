@@ -1,4 +1,5 @@
 """FinanceAgent: invoices, payments, outstanding balances, revenue, P&L."""
+
 import logging
 
 from pydantic_ai import Agent, RunContext
@@ -46,29 +47,41 @@ async def get_outstanding_balances(ctx: RunContext[AgentDeps], limit: int = 20) 
 @_agent.tool
 async def get_revenue_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
     """Revenue summary for the last N days: total revenue, tax collected, transaction count."""
-    return budget_tool_result(await _get_revenue_summary({"days": days}, ctx.deps.org_id), max_tokens=300)
+    return budget_tool_result(
+        await _get_revenue_summary({"days": days}, ctx.deps.org_id), max_tokens=300
+    )
 
 
 @_agent.tool
 async def get_pl_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
     """Profit & loss for the last N days: revenue, cost of goods sold, gross profit and margin."""
-    return budget_tool_result(await _get_pl_summary({"days": days}, ctx.deps.org_id), max_tokens=300)
+    return budget_tool_result(
+        await _get_pl_summary({"days": days}, ctx.deps.org_id), max_tokens=300
+    )
 
 
 @_agent.tool
 async def get_top_products(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 10) -> str:
     """Top products ranked by revenue over the last N days. Use for weekly/periodic sales reports."""
-    return budget_tool_result(await _get_top_products({"days": days, "limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _get_top_products({"days": days, "limit": limit}, ctx.deps.org_id)
+    )
 
 
-async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = "") -> dict:
+async def run(
+    user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = ""
+) -> dict:
     model_settings = build_model_settings(_config)
 
     return await run_specialist(
-        _agent, user_message,
-        msg_history=build_message_history(history), deps=deps,
+        _agent,
+        user_message,
+        msg_history=build_message_history(history),
+        deps=deps,
         model_settings=model_settings,
-        agent_name="FinanceAgent", agent_label="finance",
-        session_id=session_id, history=history,
+        agent_name="FinanceAgent",
+        agent_label="finance",
+        session_id=session_id,
+        history=history,
         config=_config,
     )

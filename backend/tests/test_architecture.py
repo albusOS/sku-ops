@@ -8,21 +8,33 @@ Rules enforced here:
   4. Cross-context infrastructure imports are frozen at a known set — no new ones allowed.
      (Existing violations are pre-DDD coupling that will be cleaned up incrementally.)
 """
+
 import ast
 from pathlib import Path
 
 BACKEND = Path(__file__).parent.parent
 
-BOUNDED_CONTEXTS = frozenset({
-    "identity", "catalog", "inventory", "operations",
-    "purchasing", "finance", "documents", "assistant", "reports",
-})
+BOUNDED_CONTEXTS = frozenset(
+    {
+        "identity",
+        "catalog",
+        "inventory",
+        "operations",
+        "purchasing",
+        "finance",
+        "documents",
+        "assistant",
+        "reports",
+    }
+)
 
 # Files that compose routers/schemas from all contexts — architecture rules don't apply.
 # shared/api/deps.py is a FastAPI dependency-injection composition helper: it wires
 # identity.application auth functions into Annotated type aliases used across all routes.
 # It is a composition root by function even though it lives in shared/api/.
-COMPOSITION_ROOTS = frozenset({"server.py", "api/__init__.py", "full_schema.py", "shared/api/deps.py"})
+COMPOSITION_ROOTS = frozenset(
+    {"server.py", "api/__init__.py", "full_schema.py", "shared/api/deps.py"}
+)
 
 # ── Known cross-context infrastructure violations (pre-DDD coupling to clean up) ──────────
 # Each entry is "relative/path/from/backend:imported.module".
@@ -42,9 +54,7 @@ def _from_imports(path: Path) -> list[str]:
     except (SyntaxError, UnicodeDecodeError):
         return []
     return [
-        node.module
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module
+        node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
     ]
 
 
@@ -59,6 +69,7 @@ def _all_backend_py_files(skip_roots: bool = True):
 
 
 # ── Test 1: shared kernel is dependency-free ─────────────────────────────────────────────
+
 
 def test_shared_kernel_has_no_context_imports():
     """shared/ must not import from any bounded context.
@@ -78,12 +89,11 @@ def test_shared_kernel_has_no_context_imports():
         for module in _from_imports(py_file):
             if module.split(".")[0] in BOUNDED_CONTEXTS:
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, (
-        "shared/ imports from bounded contexts:\n" + "\n".join(violations)
-    )
+    assert not violations, "shared/ imports from bounded contexts:\n" + "\n".join(violations)
 
 
 # ── Test 2: domain layer purity ──────────────────────────────────────────────────────────
+
 
 def test_domain_layer_does_not_import_infrastructure_or_api():
     """Domain models must be pure — no infrastructure or HTTP coupling."""
@@ -98,13 +108,13 @@ def test_domain_layer_does_not_import_infrastructure_or_api():
             # Importing own or other context's infrastructure/api is a violation
             if len(seg) >= 2 and seg[1] in ("infrastructure", "api"):
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, (
-        "Domain files import from infrastructure or api layers:\n"
-        + "\n".join(violations)
+    assert not violations, "Domain files import from infrastructure or api layers:\n" + "\n".join(
+        violations
     )
 
 
 # ── Test 3: no cross-context api imports ─────────────────────────────────────────────────
+
 
 def test_no_cross_context_api_imports():
     """Contexts must not import each other's api layer (only composition roots do that)."""
@@ -124,12 +134,12 @@ def test_no_cross_context_api_imports():
             ):
                 violations.append(f"  {rel}: from {module}")
     assert not violations, (
-        "Cross-context api imports (only composition roots may do this):\n"
-        + "\n".join(violations)
+        "Cross-context api imports (only composition roots may do this):\n" + "\n".join(violations)
     )
 
 
 # ── Test 4: cross-infra violations are frozen ────────────────────────────────────────────
+
 
 def test_cross_context_infrastructure_violations_not_growing():
     """

@@ -1,4 +1,5 @@
 """Document domain models for receipt/invoice parsing and archival."""
+
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from kernel.entity import AuditedEntity
 
 class DocumentLineItem(BaseModel):
     """Line item from a parsed document — local to the documents context."""
+
     name: str
     original_sku: str | None = None
     quantity: float = 1
@@ -26,6 +28,7 @@ class DocumentLineItem(BaseModel):
 
 class DocumentImportRequest(BaseModel):
     """Request to import a parsed document into a purchase order."""
+
     vendor_name: str
     create_vendor_if_missing: bool = True
     department_id: str | None = None
@@ -47,6 +50,7 @@ class DocumentStatus(StrEnum):
 
 class Document(AuditedEntity):
     """Persisted record of an uploaded and parsed document."""
+
     filename: str
     document_type: str = DocumentType.OTHER
     vendor_name: str | None = None

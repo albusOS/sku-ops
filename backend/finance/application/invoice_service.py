@@ -1,4 +1,5 @@
 """Invoice application services — safe for cross-context import."""
+
 import logging
 from typing import Any
 
@@ -11,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 async def sync_invoice(
-    inv_id: str, org_id: str,
+    inv_id: str,
+    org_id: str,
     invoice_repo: InvoiceRepoPort = _default_invoice_repo,
 ) -> dict:
     """Sync a single invoice to Xero. Returns a result dict."""
@@ -26,9 +28,7 @@ async def sync_invoice(
     # before persisting the xero_invoice_id locally, check Xero by invoice number.
     if inv.get("xero_sync_status") == "syncing":
         try:
-            existing = await gateway.fetch_invoice_by_number(
-                inv.get("invoice_number"), settings
-            )
+            existing = await gateway.fetch_invoice_by_number(inv.get("invoice_number"), settings)
             if existing:
                 xero_id = existing["InvoiceID"]
                 await invoice_repo.set_xero_invoice_id(inv_id, xero_id)
@@ -42,7 +42,12 @@ async def sync_invoice(
         result = await gateway.sync_invoice(inv, settings)
     except (RuntimeError, OSError, ValueError) as e:
         await invoice_repo.set_xero_sync_status(inv_id, "failed")
-        return {"invoice_id": inv_id, "invoice_number": inv.get("invoice_number"), "error": str(e), "success": False}
+        return {
+            "invoice_id": inv_id,
+            "invoice_number": inv.get("invoice_number"),
+            "error": str(e),
+            "success": False,
+        }
 
     if result.success and result.xero_invoice_id:
         await invoice_repo.set_xero_invoice_id(
@@ -71,10 +76,14 @@ async def mark_paid_for_withdrawal(
 
 
 async def create_invoice_from_withdrawals(
-    withdrawal_ids: list, organization_id: str | None = None, conn: Any = None,
+    withdrawal_ids: list,
+    organization_id: str | None = None,
+    conn: Any = None,
     invoice_repo: InvoiceRepoPort = _default_invoice_repo,
 ) -> dict:
-    return await invoice_repo.create_from_withdrawals(withdrawal_ids, organization_id=organization_id, conn=conn)
+    return await invoice_repo.create_from_withdrawals(
+        withdrawal_ids, organization_id=organization_id, conn=conn
+    )
 
 
 async def list_invoices(
@@ -86,14 +95,16 @@ async def list_invoices(
 
 
 async def get_invoice(
-    invoice_id: str, org_id: str,
+    invoice_id: str,
+    org_id: str,
     invoice_repo: InvoiceRepoPort = _default_invoice_repo,
 ):
     return await invoice_repo.get_by_id(invoice_id, org_id)
 
 
 async def repost_cogs_for_invoice(
-    inv_id: str, org_id: str,
+    inv_id: str,
+    org_id: str,
     invoice_repo: InvoiceRepoPort = _default_invoice_repo,
 ) -> dict:
     """Re-post the COGS manual journal for an invoice whose line items changed after sync.

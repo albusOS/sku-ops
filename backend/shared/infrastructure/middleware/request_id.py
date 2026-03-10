@@ -3,6 +3,7 @@
 Sets contextvars consumed by the structured logger so every log line in the
 request lifecycle carries the same correlation ID.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -20,7 +21,6 @@ _HEADER = "X-Request-ID"
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         rid = request.headers.get(_HEADER) or uuid.uuid4().hex
         request_id_var.set(rid)

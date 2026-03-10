@@ -18,11 +18,12 @@ class CreditNoteLineItem(BaseModel):
 
 class CreditNote(AuditedEntity):
     """An accounting credit issued against an invoice for returned goods."""
+
     credit_note_number: str = ""
     invoice_id: str | None = None
     return_id: str | None = None
     billing_entity: str = ""
-    status: str = "draft"           # draft → applied → void
+    status: str = "draft"  # draft → applied → void
     subtotal: float = 0.0
     tax: float = 0.0
     total: float = 0.0

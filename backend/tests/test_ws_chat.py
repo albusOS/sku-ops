@@ -8,6 +8,7 @@ Tests cover:
   - Session management (session_id assignment, cost cap)
   - Connection lifecycle (heartbeat, graceful close)
 """
+
 import asyncio
 import json
 import time
@@ -23,9 +24,11 @@ from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def client():
     from server import app
+
     return TestClient(app)
 
 
@@ -50,6 +53,7 @@ def _expired_token() -> str:
 
 # ── Helper to make a mock stream event sequence ──────────────────────────────
 
+
 def _make_mock_stream(text_chunks, tool_names=None):
     """Build a mock async iterator that yields PydanticAI stream events."""
 
@@ -66,31 +70,37 @@ def _make_mock_stream(text_chunks, tool_names=None):
 
     if tool_names:
         for name in tool_names:
-            events.append(PartStartEvent(
-                index=0,
-                part=ToolCallPart(
-                    tool_name=name,
-                    args=None,
-                    tool_call_id=f"tc_{name}",
-                ),
-                previous_part_kind=None,
-            ))
+            events.append(
+                PartStartEvent(
+                    index=0,
+                    part=ToolCallPart(
+                        tool_name=name,
+                        args=None,
+                        tool_call_id=f"tc_{name}",
+                    ),
+                    previous_part_kind=None,
+                )
+            )
 
     if text_chunks:
-        events.append(PartStartEvent(
-            index=1,
-            part=TextPart(content=text_chunks[0]),
-            previous_part_kind="tool-call" if tool_names else None,
-        ))
-        for chunk in text_chunks[1:]:
-            events.append(PartDeltaEvent(
+        events.append(
+            PartStartEvent(
                 index=1,
-                delta=TextPartDelta(
-                    content_delta=chunk,
-                    provider_name=None,
-                    provider_details=None,
-                ),
-            ))
+                part=TextPart(content=text_chunks[0]),
+                previous_part_kind="tool-call" if tool_names else None,
+            )
+        )
+        for chunk in text_chunks[1:]:
+            events.append(
+                PartDeltaEvent(
+                    index=1,
+                    delta=TextPartDelta(
+                        content_delta=chunk,
+                        provider_name=None,
+                        provider_details=None,
+                    ),
+                )
+            )
 
     full_text = "".join(text_chunks)
 
@@ -114,6 +124,7 @@ def _make_mock_stream(text_chunks, tool_names=None):
 
 
 # ── Authentication tests ──────────────────────────────────────────────────────
+
 
 def _assert_ws_close(client, url: str, expected_code: int):
     """Connect and assert the server closes with the given code."""
@@ -149,6 +160,7 @@ class TestWSChatAuth:
 
 # ── Protocol tests ────────────────────────────────────────────────────────────
 
+
 class TestWSChatProtocol:
     def test_pong_response_accepted(self, client):
         """Server should accept pong messages without error."""
@@ -177,14 +189,19 @@ class TestWSChatProtocol:
 
 # ── Chat streaming tests ─────────────────────────────────────────────────────
 
+
 class TestWSChatStreaming:
     def test_empty_message_returns_error(self, client):
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({
-                "type": "chat",
-                "message": "",
-            }))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "",
+                    }
+                )
+            )
             # Receive heartbeat pings and the error
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
             error = _find_msg(messages, "chat.error")
@@ -194,10 +211,14 @@ class TestWSChatStreaming:
     def test_whitespace_only_message_returns_error(self, client):
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({
-                "type": "chat",
-                "message": "   ",
-            }))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "   ",
+                    }
+                )
+            )
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
             error = _find_msg(messages, "chat.error")
             assert error is not None
@@ -207,10 +228,14 @@ class TestWSChatStreaming:
     def test_ai_not_configured_returns_error(self, client):
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({
-                "type": "chat",
-                "message": "Hello",
-            }))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "Hello",
+                    }
+                )
+            )
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
             error = _find_msg(messages, "chat.error")
             assert error is not None
@@ -228,10 +253,14 @@ class TestWSChatStreaming:
 
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({
-                "type": "chat",
-                "message": "Search for widgets",
-            }))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "Search for widgets",
+                    }
+                )
+            )
 
             messages = _collect_messages(ws, until_type="chat.done", max_msgs=20)
 
@@ -264,10 +293,14 @@ class TestWSChatStreaming:
 
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({
-                "type": "chat",
-                "message": "Hello",
-            }))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "Hello",
+                    }
+                )
+            )
             messages = _collect_messages(ws, until_type="chat.done", max_msgs=10)
             done = _find_msg(messages, "chat.done")
             assert done is not None
@@ -283,11 +316,15 @@ class TestWSChatStreaming:
 
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({
-                "type": "chat",
-                "message": "Hello",
-                "session_id": "my-session-123",
-            }))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "Hello",
+                        "session_id": "my-session-123",
+                    }
+                )
+            )
             messages = _collect_messages(ws, until_type="chat.done", max_msgs=10)
             done = _find_msg(messages, "chat.done")
             assert done["session_id"] == "my-session-123"
@@ -312,14 +349,16 @@ class TestWSChatStreaming:
 
 # ── Error handling tests ──────────────────────────────────────────────────────
 
+
 class TestWSChatErrors:
     @patch("assistant.api.ws_chat._agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
     def test_agent_exception_returns_chat_error(self, mock_agent, client):
         """If the agent raises, client should get a chat.error event."""
+
         async def _failing_stream(*args, **kwargs):
             raise RuntimeError("LLM provider down")
-            yield  # noqa: unreachable — makes it an async generator
+            yield
 
         mock_agent.run_stream_events = _failing_stream
 
@@ -335,6 +374,7 @@ class TestWSChatErrors:
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
     def test_duplicate_generation_rejected(self, mock_agent, client):
         """Sending a second chat while one is streaming should return an error."""
+
         async def _slow_stream(*args, **kwargs):
             from pydantic_ai import AgentRunResultEvent
 
@@ -364,6 +404,7 @@ class TestWSChatErrors:
 
 # ── Session cost cap tests ────────────────────────────────────────────────────
 
+
 class TestWSChatCostCap:
     @patch("assistant.api.ws_chat.session_store")
     @patch("assistant.api.ws_chat.SESSION_COST_CAP", 1.00)
@@ -383,6 +424,7 @@ class TestWSChatCostCap:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
     """Read messages from WebSocket until we see a message of `until_type`."""

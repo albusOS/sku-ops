@@ -1,36 +1,9 @@
-# Python artifacts
-__pycache__/
-*.py[cod]
-*.pyo
-.mypy_cache/
-.ruff_cache/
-
-# Virtual environment — image installs its own
-.venv/
-
-# Dev / test only — not needed in production image
 tests/
 devtools/
-scripts/
-data/
-
-# Local database files
-*.db
-*.db-shm
-*.db-wal
-:memory:
-:memory:-shm
-:memory:-wal
-
-# Legacy tooling config
-requirements-dev.txt
-.flake8
-.isort.cfg
-mypy.ini
-
-# Secrets / env
 .env
 .env.*
-
-# OS noise
-.DS_Store
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.git/

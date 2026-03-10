@@ -4,6 +4,7 @@ withdrawals, and invoices. Designed to exercise every user story end-to-end.
 
 Run: cd backend && python -m devtools.scripts.seed_realistic
 """
+
 import asyncio
 import logging
 import random as _random_mod
@@ -15,76 +16,565 @@ logger = logging.getLogger(__name__)
 _rng = _random_mod.Random(42)
 
 VENDORS = [
-    {"name": "Johnson Lumber Co", "contact_name": "Mike Johnson", "email": "mike@johnsonlumber.com", "phone": "555-0101", "address": "100 Timber Rd"},
-    {"name": "Pacific Plumbing Supply", "contact_name": "Sarah Chen", "email": "sarah@pacificplumbing.com", "phone": "555-0202", "address": "250 Pipe Ave"},
-    {"name": "National Paint & Coatings", "contact_name": "Tom Rivera", "email": "tom@nationalpaint.com", "phone": "555-0303", "address": "88 Color Blvd"},
-    {"name": "Allied Electrical Dist.", "contact_name": "Karen Park", "email": "karen@alliedelectric.com", "phone": "555-0404", "address": "300 Watt St"},
-    {"name": "FastenAll Hardware", "contact_name": "Dave Wilson", "email": "dave@fastenall.com", "phone": "555-0505", "address": "42 Bolt Lane"},
-    {"name": "Pro Tool Warehouse", "contact_name": "Lisa Ortega", "email": "lisa@protool.com", "phone": "555-0606", "address": "78 Wrench Way"},
+    {
+        "name": "Johnson Lumber Co",
+        "contact_name": "Mike Johnson",
+        "email": "mike@johnsonlumber.com",
+        "phone": "555-0101",
+        "address": "100 Timber Rd",
+    },
+    {
+        "name": "Pacific Plumbing Supply",
+        "contact_name": "Sarah Chen",
+        "email": "sarah@pacificplumbing.com",
+        "phone": "555-0202",
+        "address": "250 Pipe Ave",
+    },
+    {
+        "name": "National Paint & Coatings",
+        "contact_name": "Tom Rivera",
+        "email": "tom@nationalpaint.com",
+        "phone": "555-0303",
+        "address": "88 Color Blvd",
+    },
+    {
+        "name": "Allied Electrical Dist.",
+        "contact_name": "Karen Park",
+        "email": "karen@alliedelectric.com",
+        "phone": "555-0404",
+        "address": "300 Watt St",
+    },
+    {
+        "name": "FastenAll Hardware",
+        "contact_name": "Dave Wilson",
+        "email": "dave@fastenall.com",
+        "phone": "555-0505",
+        "address": "42 Bolt Lane",
+    },
+    {
+        "name": "Pro Tool Warehouse",
+        "contact_name": "Lisa Ortega",
+        "email": "lisa@protool.com",
+        "phone": "555-0606",
+        "address": "78 Wrench Way",
+    },
 ]
 
 # Products keyed by (department_code, vendor_index, product_data)
 # Some products overlap across vendors (paint brushes, screws, tape, etc.)
 PRODUCTS = [
     # === LUMBER (Johnson Lumber) ===
-    {"name": "2x4x8 Stud SPF", "dept": "LUM", "vendor": 0, "price": 5.99, "cost": 3.50, "qty": 450, "min": 100, "unit": "each", "group": "Dimensional Lumber"},
-    {"name": "2x6x12 Douglas Fir", "dept": "LUM", "vendor": 0, "price": 12.49, "cost": 7.80, "qty": 180, "min": 40, "unit": "each", "group": "Dimensional Lumber"},
-    {"name": "4x8 1/2in CDX Plywood", "dept": "LUM", "vendor": 0, "price": 42.99, "cost": 28.00, "qty": 85, "min": 20, "unit": "each", "group": "Sheet Goods"},
-    {"name": "4x8 3/4in Sanded Plywood", "dept": "LUM", "vendor": 0, "price": 64.99, "cost": 42.00, "qty": 45, "min": 15, "unit": "each", "group": "Sheet Goods"},
-    {"name": "1x6x8 Cedar Fence Board", "dept": "LUM", "vendor": 0, "price": 4.29, "cost": 2.50, "qty": 600, "min": 150, "unit": "each"},
-    {"name": "2x4x10 Pressure Treated", "dept": "LUM", "vendor": 0, "price": 9.99, "cost": 6.20, "qty": 220, "min": 50, "unit": "each", "group": "Pressure Treated Lumber"},
-    {"name": "4x4x8 Post Treated", "dept": "LUM", "vendor": 0, "price": 14.99, "cost": 9.00, "qty": 60, "min": 20, "unit": "each", "group": "Pressure Treated Lumber"},
-    {"name": "1x4x8 Furring Strip", "dept": "LUM", "vendor": 0, "price": 2.49, "cost": 1.30, "qty": 300, "min": 80, "unit": "each"},
-
+    {
+        "name": "2x4x8 Stud SPF",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 5.99,
+        "cost": 3.50,
+        "qty": 450,
+        "min": 100,
+        "unit": "each",
+        "group": "Dimensional Lumber",
+    },
+    {
+        "name": "2x6x12 Douglas Fir",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 12.49,
+        "cost": 7.80,
+        "qty": 180,
+        "min": 40,
+        "unit": "each",
+        "group": "Dimensional Lumber",
+    },
+    {
+        "name": "4x8 1/2in CDX Plywood",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 42.99,
+        "cost": 28.00,
+        "qty": 85,
+        "min": 20,
+        "unit": "each",
+        "group": "Sheet Goods",
+    },
+    {
+        "name": "4x8 3/4in Sanded Plywood",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 64.99,
+        "cost": 42.00,
+        "qty": 45,
+        "min": 15,
+        "unit": "each",
+        "group": "Sheet Goods",
+    },
+    {
+        "name": "1x6x8 Cedar Fence Board",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 4.29,
+        "cost": 2.50,
+        "qty": 600,
+        "min": 150,
+        "unit": "each",
+    },
+    {
+        "name": "2x4x10 Pressure Treated",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 9.99,
+        "cost": 6.20,
+        "qty": 220,
+        "min": 50,
+        "unit": "each",
+        "group": "Pressure Treated Lumber",
+    },
+    {
+        "name": "4x4x8 Post Treated",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 14.99,
+        "cost": 9.00,
+        "qty": 60,
+        "min": 20,
+        "unit": "each",
+        "group": "Pressure Treated Lumber",
+    },
+    {
+        "name": "1x4x8 Furring Strip",
+        "dept": "LUM",
+        "vendor": 0,
+        "price": 2.49,
+        "cost": 1.30,
+        "qty": 300,
+        "min": 80,
+        "unit": "each",
+    },
     # === PLUMBING (Pacific Plumbing) ===
-    {"name": "1/2in PEX Pipe 100ft", "dept": "PLU", "vendor": 1, "price": 89.99, "cost": 52.00, "qty": 35, "min": 10, "unit": "roll", "group": "PEX Tubing"},
-    {"name": "3/4in PEX Pipe 100ft", "dept": "PLU", "vendor": 1, "price": 119.99, "cost": 72.00, "qty": 20, "min": 8, "unit": "roll", "group": "PEX Tubing"},
-    {"name": "1/2in Copper Elbow 90deg", "dept": "PLU", "vendor": 1, "price": 2.49, "cost": 1.20, "qty": 250, "min": 50, "unit": "each", "group": "Copper Fittings"},
-    {"name": "3/4in PVC Coupling", "dept": "PLU", "vendor": 1, "price": 0.89, "cost": 0.35, "qty": 400, "min": 100, "unit": "each"},
-    {"name": "SharkBite 1/2in Push Fitting", "dept": "PLU", "vendor": 1, "price": 7.99, "cost": 4.20, "qty": 80, "min": 20, "unit": "each"},
-    {"name": "PVC Cement 16oz", "dept": "PLU", "vendor": 1, "price": 8.49, "cost": 4.50, "qty": 45, "min": 15, "unit": "each"},
-    {"name": "Teflon Tape 1/2in x 520in", "dept": "PLU", "vendor": 1, "price": 1.99, "cost": 0.60, "qty": 200, "min": 50, "unit": "roll"},
-
+    {
+        "name": "1/2in PEX Pipe 100ft",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 89.99,
+        "cost": 52.00,
+        "qty": 35,
+        "min": 10,
+        "unit": "roll",
+        "group": "PEX Tubing",
+    },
+    {
+        "name": "3/4in PEX Pipe 100ft",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 119.99,
+        "cost": 72.00,
+        "qty": 20,
+        "min": 8,
+        "unit": "roll",
+        "group": "PEX Tubing",
+    },
+    {
+        "name": "1/2in Copper Elbow 90deg",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 2.49,
+        "cost": 1.20,
+        "qty": 250,
+        "min": 50,
+        "unit": "each",
+        "group": "Copper Fittings",
+    },
+    {
+        "name": "3/4in PVC Coupling",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 0.89,
+        "cost": 0.35,
+        "qty": 400,
+        "min": 100,
+        "unit": "each",
+    },
+    {
+        "name": "SharkBite 1/2in Push Fitting",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 7.99,
+        "cost": 4.20,
+        "qty": 80,
+        "min": 20,
+        "unit": "each",
+    },
+    {
+        "name": "PVC Cement 16oz",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 8.49,
+        "cost": 4.50,
+        "qty": 45,
+        "min": 15,
+        "unit": "each",
+    },
+    {
+        "name": "Teflon Tape 1/2in x 520in",
+        "dept": "PLU",
+        "vendor": 1,
+        "price": 1.99,
+        "cost": 0.60,
+        "qty": 200,
+        "min": 50,
+        "unit": "roll",
+    },
     # === PAINT (National Paint) ===
-    {"name": "5 Gal Interior Flat White", "dept": "PNT", "vendor": 2, "price": 149.99, "cost": 85.00, "qty": 18, "min": 8, "unit": "gallon", "group": "Interior Paint"},
-    {"name": "5 Gal Interior Eggshell White", "dept": "PNT", "vendor": 2, "price": 164.99, "cost": 95.00, "qty": 14, "min": 6, "unit": "gallon", "group": "Interior Paint"},
-    {"name": "1 Gal Exterior Semi-Gloss White", "dept": "PNT", "vendor": 2, "price": 44.99, "cost": 26.00, "qty": 30, "min": 10, "unit": "gallon", "group": "Exterior Paint"},
-    {"name": "Primer 5 Gal", "dept": "PNT", "vendor": 2, "price": 109.99, "cost": 62.00, "qty": 12, "min": 5, "unit": "gallon", "group": "Interior Paint"},
-    {"name": "Wood Stain Golden Oak Qt", "dept": "PNT", "vendor": 2, "price": 18.99, "cost": 10.50, "qty": 25, "min": 8, "unit": "quart"},
-    {"name": "2in Angle Sash Brush", "dept": "PNT", "vendor": 2, "price": 8.99, "cost": 4.00, "qty": 60, "min": 20, "unit": "each", "group": "Paint Brushes"},
-    {"name": "9in Roller Cover 3/8nap 3pk", "dept": "PNT", "vendor": 2, "price": 12.99, "cost": 6.50, "qty": 40, "min": 15, "unit": "pack", "group": "Paint Brushes"},
-    {"name": "Painters Tape Blue 1.88in x 60yd", "dept": "PNT", "vendor": 2, "price": 7.49, "cost": 3.80, "qty": 75, "min": 25, "unit": "roll"},
-
+    {
+        "name": "5 Gal Interior Flat White",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 149.99,
+        "cost": 85.00,
+        "qty": 18,
+        "min": 8,
+        "unit": "gallon",
+        "group": "Interior Paint",
+    },
+    {
+        "name": "5 Gal Interior Eggshell White",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 164.99,
+        "cost": 95.00,
+        "qty": 14,
+        "min": 6,
+        "unit": "gallon",
+        "group": "Interior Paint",
+    },
+    {
+        "name": "1 Gal Exterior Semi-Gloss White",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 44.99,
+        "cost": 26.00,
+        "qty": 30,
+        "min": 10,
+        "unit": "gallon",
+        "group": "Exterior Paint",
+    },
+    {
+        "name": "Primer 5 Gal",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 109.99,
+        "cost": 62.00,
+        "qty": 12,
+        "min": 5,
+        "unit": "gallon",
+        "group": "Interior Paint",
+    },
+    {
+        "name": "Wood Stain Golden Oak Qt",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 18.99,
+        "cost": 10.50,
+        "qty": 25,
+        "min": 8,
+        "unit": "quart",
+    },
+    {
+        "name": "2in Angle Sash Brush",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 8.99,
+        "cost": 4.00,
+        "qty": 60,
+        "min": 20,
+        "unit": "each",
+        "group": "Paint Brushes",
+    },
+    {
+        "name": "9in Roller Cover 3/8nap 3pk",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 12.99,
+        "cost": 6.50,
+        "qty": 40,
+        "min": 15,
+        "unit": "pack",
+        "group": "Paint Brushes",
+    },
+    {
+        "name": "Painters Tape Blue 1.88in x 60yd",
+        "dept": "PNT",
+        "vendor": 2,
+        "price": 7.49,
+        "cost": 3.80,
+        "qty": 75,
+        "min": 25,
+        "unit": "roll",
+    },
     # === ELECTRICAL (Allied Electrical) ===
-    {"name": "12/2 NM-B Romex 250ft", "dept": "ELE", "vendor": 3, "price": 149.99, "cost": 92.00, "qty": 15, "min": 5, "unit": "roll", "group": "Romex Wire"},
-    {"name": "14/2 NM-B Romex 250ft", "dept": "ELE", "vendor": 3, "price": 119.99, "cost": 72.00, "qty": 18, "min": 5, "unit": "roll", "group": "Romex Wire"},
-    {"name": "Single Gang Old Work Box", "dept": "ELE", "vendor": 3, "price": 2.99, "cost": 1.40, "qty": 150, "min": 40, "unit": "each"},
-    {"name": "Decora Switch White", "dept": "ELE", "vendor": 3, "price": 3.49, "cost": 1.60, "qty": 120, "min": 30, "unit": "each", "group": "Switches & Outlets"},
-    {"name": "Decora Outlet 15A White", "dept": "ELE", "vendor": 3, "price": 2.99, "cost": 1.30, "qty": 140, "min": 35, "unit": "each", "group": "Switches & Outlets"},
-    {"name": "GFCI Outlet 15A White", "dept": "ELE", "vendor": 3, "price": 16.99, "cost": 9.00, "qty": 35, "min": 10, "unit": "each", "group": "Switches & Outlets"},
-    {"name": "Wire Nuts Assorted 100pk", "dept": "ELE", "vendor": 3, "price": 9.99, "cost": 4.20, "qty": 50, "min": 15, "unit": "pack"},
-    {"name": "Electrical Tape Black 3/4in", "dept": "ELE", "vendor": 3, "price": 3.49, "cost": 1.50, "qty": 90, "min": 25, "unit": "roll"},
-
+    {
+        "name": "12/2 NM-B Romex 250ft",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 149.99,
+        "cost": 92.00,
+        "qty": 15,
+        "min": 5,
+        "unit": "roll",
+        "group": "Romex Wire",
+    },
+    {
+        "name": "14/2 NM-B Romex 250ft",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 119.99,
+        "cost": 72.00,
+        "qty": 18,
+        "min": 5,
+        "unit": "roll",
+        "group": "Romex Wire",
+    },
+    {
+        "name": "Single Gang Old Work Box",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 2.99,
+        "cost": 1.40,
+        "qty": 150,
+        "min": 40,
+        "unit": "each",
+    },
+    {
+        "name": "Decora Switch White",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 3.49,
+        "cost": 1.60,
+        "qty": 120,
+        "min": 30,
+        "unit": "each",
+        "group": "Switches & Outlets",
+    },
+    {
+        "name": "Decora Outlet 15A White",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 2.99,
+        "cost": 1.30,
+        "qty": 140,
+        "min": 35,
+        "unit": "each",
+        "group": "Switches & Outlets",
+    },
+    {
+        "name": "GFCI Outlet 15A White",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 16.99,
+        "cost": 9.00,
+        "qty": 35,
+        "min": 10,
+        "unit": "each",
+        "group": "Switches & Outlets",
+    },
+    {
+        "name": "Wire Nuts Assorted 100pk",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 9.99,
+        "cost": 4.20,
+        "qty": 50,
+        "min": 15,
+        "unit": "pack",
+    },
+    {
+        "name": "Electrical Tape Black 3/4in",
+        "dept": "ELE",
+        "vendor": 3,
+        "price": 3.49,
+        "cost": 1.50,
+        "qty": 90,
+        "min": 25,
+        "unit": "roll",
+    },
     # === HARDWARE (FastenAll) — overlaps with other vendors on consumables ===
-    {"name": "#8 x 2-1/2in Deck Screw 5lb", "dept": "HDW", "vendor": 4, "price": 24.99, "cost": 13.00, "qty": 55, "min": 15, "unit": "box", "group": "Screws"},
-    {"name": "#8 x 1-5/8in Drywall Screw 1lb", "dept": "HDW", "vendor": 4, "price": 6.99, "cost": 3.20, "qty": 80, "min": 25, "unit": "box", "group": "Screws"},
-    {"name": "16d Framing Nail 50lb", "dept": "HDW", "vendor": 4, "price": 89.99, "cost": 52.00, "qty": 12, "min": 5, "unit": "box"},
-    {"name": "3in Cabinet Hinge Satin Nickel", "dept": "HDW", "vendor": 4, "price": 4.99, "cost": 2.30, "qty": 100, "min": 30, "unit": "each", "group": "Door Hardware"},
-    {"name": "Door Knob Passage Satin Nickel", "dept": "HDW", "vendor": 4, "price": 19.99, "cost": 10.50, "qty": 30, "min": 10, "unit": "each", "group": "Door Hardware"},
-    {"name": "Deadbolt Single Cyl Satin Nickel", "dept": "HDW", "vendor": 4, "price": 34.99, "cost": 18.00, "qty": 20, "min": 8, "unit": "each", "group": "Door Hardware"},
-    {"name": "Construction Adhesive 10oz", "dept": "HDW", "vendor": 4, "price": 5.99, "cost": 2.80, "qty": 60, "min": 20, "unit": "each"},
-    {"name": "2in Angle Sash Brush", "dept": "PNT", "vendor": 4, "price": 7.99, "cost": 3.50, "qty": 40, "min": 15, "unit": "each", "group": "Paint Brushes"},
-    {"name": "Painters Tape Blue 1.88in x 60yd", "dept": "PNT", "vendor": 4, "price": 6.99, "cost": 3.50, "qty": 50, "min": 20, "unit": "roll"},
-    {"name": "Electrical Tape Black 3/4in", "dept": "ELE", "vendor": 4, "price": 2.99, "cost": 1.20, "qty": 60, "min": 20, "unit": "roll"},
-
+    {
+        "name": "#8 x 2-1/2in Deck Screw 5lb",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 24.99,
+        "cost": 13.00,
+        "qty": 55,
+        "min": 15,
+        "unit": "box",
+        "group": "Screws",
+    },
+    {
+        "name": "#8 x 1-5/8in Drywall Screw 1lb",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 6.99,
+        "cost": 3.20,
+        "qty": 80,
+        "min": 25,
+        "unit": "box",
+        "group": "Screws",
+    },
+    {
+        "name": "16d Framing Nail 50lb",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 89.99,
+        "cost": 52.00,
+        "qty": 12,
+        "min": 5,
+        "unit": "box",
+    },
+    {
+        "name": "3in Cabinet Hinge Satin Nickel",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 4.99,
+        "cost": 2.30,
+        "qty": 100,
+        "min": 30,
+        "unit": "each",
+        "group": "Door Hardware",
+    },
+    {
+        "name": "Door Knob Passage Satin Nickel",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 19.99,
+        "cost": 10.50,
+        "qty": 30,
+        "min": 10,
+        "unit": "each",
+        "group": "Door Hardware",
+    },
+    {
+        "name": "Deadbolt Single Cyl Satin Nickel",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 34.99,
+        "cost": 18.00,
+        "qty": 20,
+        "min": 8,
+        "unit": "each",
+        "group": "Door Hardware",
+    },
+    {
+        "name": "Construction Adhesive 10oz",
+        "dept": "HDW",
+        "vendor": 4,
+        "price": 5.99,
+        "cost": 2.80,
+        "qty": 60,
+        "min": 20,
+        "unit": "each",
+    },
+    {
+        "name": "2in Angle Sash Brush",
+        "dept": "PNT",
+        "vendor": 4,
+        "price": 7.99,
+        "cost": 3.50,
+        "qty": 40,
+        "min": 15,
+        "unit": "each",
+        "group": "Paint Brushes",
+    },
+    {
+        "name": "Painters Tape Blue 1.88in x 60yd",
+        "dept": "PNT",
+        "vendor": 4,
+        "price": 6.99,
+        "cost": 3.50,
+        "qty": 50,
+        "min": 20,
+        "unit": "roll",
+    },
+    {
+        "name": "Electrical Tape Black 3/4in",
+        "dept": "ELE",
+        "vendor": 4,
+        "price": 2.99,
+        "cost": 1.20,
+        "qty": 60,
+        "min": 20,
+        "unit": "roll",
+    },
     # === TOOLS (Pro Tool Warehouse) ===
-    {"name": "20V Cordless Drill Kit", "dept": "TOL", "vendor": 5, "price": 129.99, "cost": 78.00, "qty": 8, "min": 3, "unit": "each"},
-    {"name": "25ft Tape Measure", "dept": "TOL", "vendor": 5, "price": 14.99, "cost": 7.50, "qty": 25, "min": 10, "unit": "each"},
-    {"name": "Speed Square 7in", "dept": "TOL", "vendor": 5, "price": 9.99, "cost": 5.00, "qty": 20, "min": 8, "unit": "each"},
-    {"name": "Utility Knife Retractable", "dept": "TOL", "vendor": 5, "price": 7.99, "cost": 3.80, "qty": 35, "min": 12, "unit": "each"},
-    {"name": "Framing Hammer 22oz", "dept": "TOL", "vendor": 5, "price": 24.99, "cost": 13.00, "qty": 15, "min": 5, "unit": "each"},
-    {"name": "Chalk Line Kit 100ft", "dept": "TOL", "vendor": 5, "price": 11.99, "cost": 6.00, "qty": 18, "min": 6, "unit": "each"},
-    {"name": "Level 48in Aluminum", "dept": "TOL", "vendor": 5, "price": 34.99, "cost": 19.00, "qty": 10, "min": 4, "unit": "each"},
+    {
+        "name": "20V Cordless Drill Kit",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 129.99,
+        "cost": 78.00,
+        "qty": 8,
+        "min": 3,
+        "unit": "each",
+    },
+    {
+        "name": "25ft Tape Measure",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 14.99,
+        "cost": 7.50,
+        "qty": 25,
+        "min": 10,
+        "unit": "each",
+    },
+    {
+        "name": "Speed Square 7in",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 9.99,
+        "cost": 5.00,
+        "qty": 20,
+        "min": 8,
+        "unit": "each",
+    },
+    {
+        "name": "Utility Knife Retractable",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 7.99,
+        "cost": 3.80,
+        "qty": 35,
+        "min": 12,
+        "unit": "each",
+    },
+    {
+        "name": "Framing Hammer 22oz",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 24.99,
+        "cost": 13.00,
+        "qty": 15,
+        "min": 5,
+        "unit": "each",
+    },
+    {
+        "name": "Chalk Line Kit 100ft",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 11.99,
+        "cost": 6.00,
+        "qty": 18,
+        "min": 6,
+        "unit": "each",
+    },
+    {
+        "name": "Level 48in Aluminum",
+        "dept": "TOL",
+        "vendor": 5,
+        "price": 34.99,
+        "cost": 19.00,
+        "qty": 10,
+        "min": 4,
+        "unit": "each",
+    },
 ]
 
 # Withdrawal scenarios — simulates contractor purchases over last 2 weeks
@@ -94,8 +584,10 @@ WITHDRAWAL_SCENARIOS = [
         "service_address": "1420 Oak Valley Dr",
         "days_ago": 12,
         "items": [
-            ("2x4x8 Stud SPF", 40), ("4x8 1/2in CDX Plywood", 8),
-            ("#8 x 2-1/2in Deck Screw 5lb", 3), ("16d Framing Nail 50lb", 1),
+            ("2x4x8 Stud SPF", 40),
+            ("4x8 1/2in CDX Plywood", 8),
+            ("#8 x 2-1/2in Deck Screw 5lb", 3),
+            ("16d Framing Nail 50lb", 1),
         ],
     },
     {
@@ -103,9 +595,12 @@ WITHDRAWAL_SCENARIOS = [
         "service_address": "1420 Oak Valley Dr",
         "days_ago": 9,
         "items": [
-            ("12/2 NM-B Romex 250ft", 2), ("Single Gang Old Work Box", 12),
-            ("Decora Switch White", 8), ("Decora Outlet 15A White", 10),
-            ("GFCI Outlet 15A White", 3), ("Wire Nuts Assorted 100pk", 2),
+            ("12/2 NM-B Romex 250ft", 2),
+            ("Single Gang Old Work Box", 12),
+            ("Decora Switch White", 8),
+            ("Decora Outlet 15A White", 10),
+            ("GFCI Outlet 15A White", 3),
+            ("Wire Nuts Assorted 100pk", 2),
         ],
     },
     {
@@ -113,8 +608,10 @@ WITHDRAWAL_SCENARIOS = [
         "service_address": "890 Maple Creek Ln",
         "days_ago": 7,
         "items": [
-            ("1/2in PEX Pipe 100ft", 3), ("SharkBite 1/2in Push Fitting", 8),
-            ("1/2in Copper Elbow 90deg", 15), ("Teflon Tape 1/2in x 520in", 5),
+            ("1/2in PEX Pipe 100ft", 3),
+            ("SharkBite 1/2in Push Fitting", 8),
+            ("1/2in Copper Elbow 90deg", 15),
+            ("Teflon Tape 1/2in x 520in", 5),
             ("PVC Cement 16oz", 2),
         ],
     },
@@ -123,8 +620,10 @@ WITHDRAWAL_SCENARIOS = [
         "service_address": "2250 Birch Hill Ct",
         "days_ago": 5,
         "items": [
-            ("5 Gal Interior Flat White", 3), ("Primer 5 Gal", 2),
-            ("2in Angle Sash Brush", 6), ("9in Roller Cover 3/8nap 3pk", 4),
+            ("5 Gal Interior Flat White", 3),
+            ("Primer 5 Gal", 2),
+            ("2in Angle Sash Brush", 6),
+            ("9in Roller Cover 3/8nap 3pk", 4),
             ("Painters Tape Blue 1.88in x 60yd", 8),
         ],
     },
@@ -133,7 +632,8 @@ WITHDRAWAL_SCENARIOS = [
         "service_address": "1420 Oak Valley Dr",
         "days_ago": 3,
         "items": [
-            ("2x4x8 Stud SPF", 20), ("2x6x12 Douglas Fir", 10),
+            ("2x4x8 Stud SPF", 20),
+            ("2x6x12 Douglas Fir", 10),
             ("Construction Adhesive 10oz", 4),
         ],
     },
@@ -142,7 +642,8 @@ WITHDRAWAL_SCENARIOS = [
         "service_address": "505 Elm Park Way",
         "days_ago": 1,
         "items": [
-            ("1x6x8 Cedar Fence Board", 80), ("4x4x8 Post Treated", 6),
+            ("1x6x8 Cedar Fence Board", 80),
+            ("4x4x8 Post Treated", 6),
             ("#8 x 2-1/2in Deck Screw 5lb", 4),
         ],
     },
@@ -152,9 +653,11 @@ WITHDRAWAL_SCENARIOS = [
 async def main():
     import sys
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
     from shared.infrastructure.database import get_connection, init_db
+
     await init_db()
 
     from catalog.application.product_lifecycle import create_product
@@ -167,6 +670,7 @@ async def main():
     from inventory.application.inventory_service import process_import_stock_changes
     from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
     from operations.infrastructure.withdrawal_repo import withdrawal_repo
+
     set_withdrawal_getter(withdrawal_repo.get_by_id)
 
     org_id = "default"
@@ -188,7 +692,9 @@ async def main():
     departments = await list_departments(org_id)
     dept_by_code = {d["code"]: d for d in departments}
     if not dept_by_code:
-        logger.error("No departments found. Start the server first to run seed_standard_departments().")
+        logger.error(
+            "No departments found. Start the server first to run seed_standard_departments()."
+        )
         return
 
     # 1. Create vendors
@@ -197,11 +703,15 @@ async def main():
     for v in VENDORS:
         vid = str(uuid4())
         vendor_ids.append(vid)
-        await vendor_repo.insert({
-            "id": vid, **v, "product_count": 0,
-            "created_at": datetime.now(UTC).isoformat(),
-            "organization_id": org_id,
-        })
+        await vendor_repo.insert(
+            {
+                "id": vid,
+                **v,
+                "product_count": 0,
+                "created_at": datetime.now(UTC).isoformat(),
+                "organization_id": org_id,
+            }
+        )
         logger.info("  Vendor: %s", v["name"])
 
     # 2. Create products
@@ -239,7 +749,11 @@ async def main():
         except (ValueError, RuntimeError, OSError) as e:
             logger.warning("  Skip %s: %s", p["name"], e)
 
-    logger.info("--- %d unique products, %d total (with vendor overlaps) ---", len(product_map), len(PRODUCTS))
+    logger.info(
+        "--- %d unique products, %d total (with vendor overlaps) ---",
+        len(product_map),
+        len(PRODUCTS),
+    )
 
     # 3. Create withdrawals (simulating contractor purchases over 2 weeks)
     logger.info("--- Creating withdrawals ---")
@@ -253,15 +767,17 @@ async def main():
             if not prod:
                 logger.warning("  Withdrawal skip: product '%s' not found", prod_name)
                 continue
-            items.append(WithdrawalItem(
-                product_id=prod.id,
-                sku=prod.sku,
-                name=prod.name,
-                quantity=qty,
-                price=prod.price,
-                cost=prod.cost,
-                subtotal=round(prod.price * qty, 2),
-            ))
+            items.append(
+                WithdrawalItem(
+                    product_id=prod.id,
+                    sku=prod.sku,
+                    name=prod.name,
+                    quantity=qty,
+                    price=prod.price,
+                    cost=prod.cost,
+                    subtotal=round(prod.price * qty, 2),
+                )
+            )
 
         if not items:
             continue
@@ -272,7 +788,10 @@ async def main():
             job_id=scenario["job_id"],
             service_address=scenario["service_address"],
             notes="",
-            subtotal=0, tax=0, total=0, cost_total=0,
+            subtotal=0,
+            tax=0,
+            total=0,
+            cost_total=0,
             contractor_id=contractor["id"],
             contractor_name=contractor.get("name", ""),
             contractor_company=contractor.get("company", ""),
@@ -299,8 +818,14 @@ async def main():
 
         item_summary = ", ".join(f"{i.name} x{i.quantity}" for i in items[:3])
         if len(items) > 3:
-            item_summary += f" +{len(items)-3} more"
-        logger.info("  %s @ %s | $%.2f | %s", scenario["job_id"], scenario["service_address"][:25], withdrawal.total, item_summary)
+            item_summary += f" +{len(items) - 3} more"
+        logger.info(
+            "  %s @ %s | $%.2f | %s",
+            scenario["job_id"],
+            scenario["service_address"][:25],
+            withdrawal.total,
+            item_summary,
+        )
 
     # 4. Create invoices from some withdrawals
     logger.info("--- Creating invoices ---")
@@ -309,7 +834,8 @@ async def main():
         for wid in withdrawal_ids[:4]:
             try:
                 inv = await invoice_repo.create_from_withdrawals(
-                    [wid], organization_id=org_id,
+                    [wid],
+                    organization_id=org_id,
                 )
                 logger.info("  Invoice %s... for withdrawal %s...", inv["id"][:8], wid[:8])
             except (ValueError, RuntimeError, OSError) as e:
@@ -348,7 +874,9 @@ async def main():
     total_products = (await cur.fetchone())[0]
     cur = await conn.execute("SELECT COUNT(*) FROM vendors WHERE organization_id = ?", (org_id,))
     total_vendors = (await cur.fetchone())[0]
-    cur = await conn.execute("SELECT COUNT(*) FROM withdrawals WHERE organization_id = ?", (org_id,))
+    cur = await conn.execute(
+        "SELECT COUNT(*) FROM withdrawals WHERE organization_id = ?", (org_id,)
+    )
     total_withdrawals = (await cur.fetchone())[0]
     cur = await conn.execute("SELECT COUNT(*) FROM invoices WHERE organization_id = ?", (org_id,))
     total_invoices = (await cur.fetchone())[0]

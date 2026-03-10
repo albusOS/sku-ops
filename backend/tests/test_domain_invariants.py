@@ -31,35 +31,42 @@ from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
 
 # ── 1. UOM conversion correctness ────────────────────────────────────────────
 
+
 class TestUOMConversion:
     """Convert between units — verify mathematical correctness."""
 
-    @pytest.mark.parametrize(("from_u", "to_u", "qty", "expected"), [
-        ("foot", "inch", 1.0, 12.0),
-        ("inch", "foot", 12.0, 1.0),
-        ("yard", "foot", 1.0, 3.0),
-        ("foot", "yard", 3.0, 1.0),
-        ("yard", "inch", 1.0, 36.0),
-        ("inch", "yard", 36.0, 1.0),
-        ("gallon", "quart", 1.0, 4.0),
-        ("quart", "pint", 1.0, 2.0),
-        ("gallon", "pint", 1.0, 8.0),
-        ("pound", "ounce", 1.0, 16.0),
-        ("ounce", "pound", 16.0, 1.0),
-    ])
+    @pytest.mark.parametrize(
+        ("from_u", "to_u", "qty", "expected"),
+        [
+            ("foot", "inch", 1.0, 12.0),
+            ("inch", "foot", 12.0, 1.0),
+            ("yard", "foot", 1.0, 3.0),
+            ("foot", "yard", 3.0, 1.0),
+            ("yard", "inch", 1.0, 36.0),
+            ("inch", "yard", 36.0, 1.0),
+            ("gallon", "quart", 1.0, 4.0),
+            ("quart", "pint", 1.0, 2.0),
+            ("gallon", "pint", 1.0, 8.0),
+            ("pound", "ounce", 1.0, 16.0),
+            ("ounce", "pound", 16.0, 1.0),
+        ],
+    )
     def test_exact_conversions(self, from_u, to_u, qty, expected):
         result = convert_quantity(qty, from_u, to_u)
         assert result == pytest.approx(expected, rel=1e-4), (
             f"{qty} {from_u} → {to_u}: expected {expected}, got {result}"
         )
 
-    @pytest.mark.parametrize(("from_u", "to_u", "qty"), [
-        ("foot", "inch", 2.5),
-        ("gallon", "pint", 0.25),
-        ("pound", "ounce", 0.125),
-        ("yard", "inch", 3.7),
-        ("meter", "foot", 1.5),
-    ])
+    @pytest.mark.parametrize(
+        ("from_u", "to_u", "qty"),
+        [
+            ("foot", "inch", 2.5),
+            ("gallon", "pint", 0.25),
+            ("pound", "ounce", 0.125),
+            ("yard", "inch", 3.7),
+            ("meter", "foot", 1.5),
+        ],
+    )
     def test_round_trip_preserves_quantity(self, from_u, to_u, qty):
         """Converting A→B→A must return the original quantity (within fp tolerance)."""
         intermediate = convert_quantity(qty, from_u, to_u)
@@ -75,12 +82,15 @@ class TestUOMConversion:
     def test_case_insensitive(self):
         assert convert_quantity(1, "Foot", "INCH") == pytest.approx(12.0)
 
-    @pytest.mark.parametrize(("from_u", "to_u"), [
-        ("foot", "gallon"),
-        ("pound", "inch"),
-        ("pint", "ounce"),
-        ("sqft", "foot"),
-    ])
+    @pytest.mark.parametrize(
+        ("from_u", "to_u"),
+        [
+            ("foot", "gallon"),
+            ("pound", "inch"),
+            ("pint", "ounce"),
+            ("sqft", "foot"),
+        ],
+    )
     def test_cross_family_raises(self, from_u, to_u):
         """Converting between incompatible families must raise ValueError."""
         with pytest.raises(ValueError, match="Cannot convert"):
@@ -108,6 +118,7 @@ class TestUOMConversion:
 
 # ── 2. Unit family completeness ──────────────────────────────────────────────
 
+
 class TestUnitFamilyCompleteness:
     """Every allowed base unit must belong to exactly one family."""
 
@@ -120,9 +131,7 @@ class TestUnitFamilyCompleteness:
         seen: dict[str, str] = {}
         for family, units in UNIT_FAMILIES.items():
             for unit in units:
-                assert unit not in seen, (
-                    f"'{unit}' in both '{seen[unit]}' and '{family}'"
-                )
+                assert unit not in seen, f"'{unit}' in both '{seen[unit]}' and '{family}'"
                 seen[unit] = family
 
     def test_family_for_unit_returns_correct_family(self):
@@ -137,6 +146,7 @@ class TestUnitFamilyCompleteness:
 
 
 # ── 3. Quantity type contracts ────────────────────────────────────────────────
+
 
 class TestQuantityTypeContracts:
     """Domain models must accept and preserve float quantities — never truncate to int."""
@@ -153,8 +163,12 @@ class TestQuantityTypeContracts:
 
     def test_product_accepts_float_quantity(self):
         p = Product(
-            name="Wire", quantity=10.5, price=1.0,
-            department_id="d1", department_name="HW", sku="HW-001",
+            name="Wire",
+            quantity=10.5,
+            price=1.0,
+            department_id="d1",
+            department_name="HW",
+            sku="HW-001",
         )
         assert isinstance(p.quantity, float)
         assert p.quantity == 10.5
@@ -175,8 +189,12 @@ class TestQuantityTypeContracts:
 
     def test_stock_transaction_quantities_are_float(self):
         tx = StockTransaction(
-            product_id="p1", sku="S", product_name="X",
-            quantity_delta=-2.5, quantity_before=10.0, quantity_after=7.5,
+            product_id="p1",
+            sku="S",
+            product_name="X",
+            quantity_delta=-2.5,
+            quantity_before=10.0,
+            quantity_after=7.5,
             transaction_type=StockTransactionType.WITHDRAWAL,
             user_id="u1",
         )
@@ -187,8 +205,12 @@ class TestQuantityTypeContracts:
     def test_stock_transaction_arithmetic_consistency(self):
         """quantity_after must equal quantity_before + quantity_delta."""
         tx = StockTransaction(
-            product_id="p1", sku="S", product_name="X",
-            quantity_delta=-2.5, quantity_before=10.0, quantity_after=7.5,
+            product_id="p1",
+            sku="S",
+            product_name="X",
+            quantity_delta=-2.5,
+            quantity_before=10.0,
+            quantity_after=7.5,
             transaction_type=StockTransactionType.WITHDRAWAL,
             user_id="u1",
         )
@@ -197,8 +219,8 @@ class TestQuantityTypeContracts:
 
 # ── 4. LineItem computed fields ───────────────────────────────────────────────
 
-class TestLineItemArithmetic:
 
+class TestLineItemArithmetic:
     def test_subtotal_with_fractional_quantity(self):
         li = LineItem(product_id="p1", sku="S", name="Pipe", quantity=2.5, unit_price=4.0)
         assert li.subtotal == 10.0
@@ -223,8 +245,8 @@ class TestLineItemArithmetic:
 
 # ── 5. Stock decrement invariants ─────────────────────────────────────────────
 
-class TestStockDecrementInvariants:
 
+class TestStockDecrementInvariants:
     def test_default_unit_is_each(self):
         sd = StockDecrement(product_id="p1", sku="S", name="X", quantity=1)
         assert sd.unit == "each"
@@ -236,8 +258,8 @@ class TestStockDecrementInvariants:
 
 # ── 6. Error model contracts ─────────────────────────────────────────────────
 
-class TestErrorContracts:
 
+class TestErrorContracts:
     def test_insufficient_stock_stores_float_quantities(self):
         err = InsufficientStockError(sku="W-001", requested=2.5, available=1.0)
         assert isinstance(err.requested, float)
@@ -252,17 +274,27 @@ class TestErrorContracts:
 
 # ── 7. Withdrawal model invariants ───────────────────────────────────────────
 
-class TestWithdrawalInvariants:
 
+class TestWithdrawalInvariants:
     def test_compute_totals_with_fractional_items(self):
         items = [
-            WithdrawalItem(product_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0),
-            WithdrawalItem(product_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0),
+            WithdrawalItem(
+                product_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0
+            ),
+            WithdrawalItem(
+                product_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0
+            ),
         ]
         w = MaterialWithdrawal(
-            items=items, job_id="J", service_address="X",
-            subtotal=0, tax=0, total=0, cost_total=0,
-            contractor_id="c1", processed_by_id="u1",
+            items=items,
+            job_id="J",
+            service_address="X",
+            subtotal=0,
+            tax=0,
+            total=0,
+            cost_total=0,
+            contractor_id="c1",
+            processed_by_id="u1",
         )
         w.compute_totals(tax_rate=0.10)
         expected_subtotal = 2.5 * 4.0 + 0.75 * 10.0  # 10.0 + 7.5 = 17.5

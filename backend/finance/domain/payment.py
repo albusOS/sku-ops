@@ -1,4 +1,5 @@
 """Payment domain models — first-class record of money received."""
+
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -16,6 +17,7 @@ class PaymentMethod(StrEnum):
 
 class Payment(AuditedEntity):
     """A payment received against one or more withdrawals/invoices."""
+
     invoice_id: str | None = None
     billing_entity_id: str | None = None
     amount: float

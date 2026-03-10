@@ -1,4 +1,5 @@
 """Fiscal period management routes."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -85,10 +86,17 @@ async def close_fiscal_period(
     )
     await conn.commit()
     await audit_log(
-        user_id=current_user.id, action="fiscal_period.close",
-        resource_type="fiscal_period", resource_id=period_id,
-        details={"name": period.get("name"), "start_date": period.get("start_date"), "end_date": period.get("end_date")},
-        request=request, org_id=org_id,
+        user_id=current_user.id,
+        action="fiscal_period.close",
+        resource_type="fiscal_period",
+        resource_id=period_id,
+        details={
+            "name": period.get("name"),
+            "start_date": period.get("start_date"),
+            "end_date": period.get("end_date"),
+        },
+        request=request,
+        org_id=org_id,
     )
     return await _get_period(period_id, org_id)
 
@@ -106,4 +114,6 @@ async def check_period_open(entry_date: str, organization_id: str) -> None:
     row = await cursor.fetchone()
     if row:
         period = dict(row)
-        raise ValueError(f"Cannot create entries in closed fiscal period '{period.get('name', period['id'])}'")
+        raise ValueError(
+            f"Cannot create entries in closed fiscal period '{period.get('name', period['id'])}'"
+        )

@@ -1,4 +1,5 @@
 """Department repository."""
+
 from datetime import UTC, datetime
 
 from catalog.domain.department import Department
@@ -73,7 +74,9 @@ async def insert(department: Department | dict) -> None:
     await conn.commit()
 
 
-async def update(dept_id: str, name: str, description: str, conn=None, organization_id: str | None = None) -> dict | None:
+async def update(
+    dept_id: str, name: str, description: str, conn=None, organization_id: str | None = None
+) -> dict | None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     params: list = [name, description or "", dept_id]
@@ -122,7 +125,9 @@ async def delete(dept_id: str, organization_id: str | None = None) -> int:
     return cursor.rowcount
 
 
-async def increment_product_count(dept_id: str, delta: int, conn=None, organization_id: str | None = None) -> None:
+async def increment_product_count(
+    dept_id: str, delta: int, conn=None, organization_id: str | None = None
+) -> None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     params: list = [delta, dept_id]

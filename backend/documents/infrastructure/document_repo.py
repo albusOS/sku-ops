@@ -1,4 +1,5 @@
 """Document repository — persistence for uploaded/parsed documents."""
+
 import contextlib
 import json
 from datetime import UTC
@@ -31,12 +32,20 @@ async def insert(doc: Document | dict, conn=None) -> None:
         "INSERT INTO documents (" + _COLUMNS + ")"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
-            d["id"], d["filename"], d.get("document_type", "other"),
-            d.get("vendor_name"), d.get("file_hash", ""),
-            d.get("file_size", 0), d.get("mime_type", ""),
-            parsed, d.get("po_id"),
-            d.get("status", "parsed"), d["uploaded_by_id"],
-            d["organization_id"], d["created_at"], d["updated_at"],
+            d["id"],
+            d["filename"],
+            d.get("document_type", "other"),
+            d.get("vendor_name"),
+            d.get("file_hash", ""),
+            d.get("file_size", 0),
+            d.get("mime_type", ""),
+            parsed,
+            d.get("po_id"),
+            d.get("status", "parsed"),
+            d["uploaded_by_id"],
+            d["organization_id"],
+            d["created_at"],
+            d["updated_at"],
         ),
     )
     if not in_tx:
@@ -80,6 +89,7 @@ async def list_documents(
 
 async def update_status(doc_id: str, status: str, po_id: str | None = None, conn=None) -> None:
     from datetime import datetime
+
     in_tx = conn is not None
     conn = conn or get_connection()
     if po_id:

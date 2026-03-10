@@ -3,6 +3,7 @@
 Every tool that agents, DAG, and lookups can invoke is registered here once.
 Consumers resolve tools by canonical name or (domain, lookup_key) pair.
 """
+
 from __future__ import annotations
 
 import logging

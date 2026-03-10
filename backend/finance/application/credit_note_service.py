@@ -34,6 +34,7 @@ async def apply_credit_note(
     cn = await _repo.apply_credit_note(credit_note_id, organization_id)
 
     from finance.application.ledger_service import record_credit_note_application
+
     await record_credit_note_application(
         credit_note_id=credit_note_id,
         amount=float(cn.get("total", 0)),
@@ -61,5 +62,7 @@ async def list_credit_notes(
     )
 
 
-async def get_credit_note_by_id(credit_note_id: str, organization_id: str | None = None) -> dict | None:
+async def get_credit_note_by_id(
+    credit_note_id: str, organization_id: str | None = None
+) -> dict | None:
     return await _repo.get_by_id(credit_note_id, organization_id=organization_id)

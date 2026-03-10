@@ -1,4 +1,5 @@
 """Org settings API — Xero account codes and connection status."""
+
 from fastapi import APIRouter
 
 from identity.domain.org_settings import OrgSettings, OrgSettingsUpdate

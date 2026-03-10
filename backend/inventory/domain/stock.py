@@ -1,4 +1,5 @@
 """Stock ledger - immutable inventory transaction records."""
+
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from kernel.entity import Entity
 
 class StockDecrement(BaseModel):
     """What inventory needs to know to reduce stock — no pricing or billing."""
+
     product_id: str
     sku: str
     name: str
@@ -17,16 +19,18 @@ class StockDecrement(BaseModel):
 
 class StockTransactionType(StrEnum):
     """Types of stock movements."""
-    WITHDRAWAL = "withdrawal"      # POS sale / contractor withdrawal
-    RECEIVING = "receiving"       # Goods received from vendor
-    ADJUSTMENT = "adjustment"     # Manual count correction
-    RETURN = "return"             # Customer/vendor return
-    TRANSFER = "transfer"         # Inter-location transfer (future)
-    IMPORT = "import"             # Bulk import (receipt/PDF)
+
+    WITHDRAWAL = "withdrawal"  # POS sale / contractor withdrawal
+    RECEIVING = "receiving"  # Goods received from vendor
+    ADJUSTMENT = "adjustment"  # Manual count correction
+    RETURN = "return"  # Customer/vendor return
+    TRANSFER = "transfer"  # Inter-location transfer (future)
+    IMPORT = "import"  # Bulk import (receipt/PDF)
 
 
 class StockTransaction(Entity):
     """Immutable record of a single product quantity change."""
+
     product_id: str
     sku: str
     product_name: str = ""

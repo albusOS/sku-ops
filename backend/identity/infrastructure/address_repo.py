@@ -1,4 +1,5 @@
 """Address repository — persistence for the address book."""
+
 from datetime import UTC
 
 from shared.infrastructure.database import get_connection
@@ -22,12 +23,18 @@ async def insert(address: dict, conn=None) -> None:
     await conn.execute(
         ins_q,
         (
-            address["id"], address.get("label", ""),
-            address.get("line1", ""), address.get("line2", ""),
-            address.get("city", ""), address.get("state", ""),
-            address.get("postal_code", ""), address.get("country", "US"),
-            address.get("billing_entity_id"), address.get("job_id"),
-            address["organization_id"], address["created_at"],
+            address["id"],
+            address.get("label", ""),
+            address.get("line1", ""),
+            address.get("line2", ""),
+            address.get("city", ""),
+            address.get("state", ""),
+            address.get("postal_code", ""),
+            address.get("country", "US"),
+            address.get("billing_entity_id"),
+            address.get("job_id"),
+            address["organization_id"],
+            address["created_at"],
         ),
     )
     if not in_tx:
@@ -98,6 +105,7 @@ async def ensure_address(display_text: str, organization_id: str, conn=None) -> 
         return existing[0]
     from datetime import datetime
     from uuid import uuid4
+
     address = {
         "id": str(uuid4()),
         "label": text[:80],

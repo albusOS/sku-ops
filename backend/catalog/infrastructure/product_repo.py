@@ -1,16 +1,37 @@
 """Product repository."""
+
 from datetime import UTC, datetime
 
 from catalog.domain.product import Product
 from shared.infrastructure.database import get_connection
 
 # Whitelist for get_by_id(columns=) to prevent SQL injection
-_PRODUCT_COLUMNS = frozenset({
-    "id", "sku", "name", "description", "price", "cost", "quantity", "min_stock",
-    "department_id", "department_name", "vendor_id", "vendor_name", "original_sku",
-    "barcode", "vendor_barcode", "base_unit", "sell_uom", "pack_qty", "product_group",
-    "organization_id", "created_at", "updated_at",
-})
+_PRODUCT_COLUMNS = frozenset(
+    {
+        "id",
+        "sku",
+        "name",
+        "description",
+        "price",
+        "cost",
+        "quantity",
+        "min_stock",
+        "department_id",
+        "department_name",
+        "vendor_id",
+        "vendor_name",
+        "original_sku",
+        "barcode",
+        "vendor_barcode",
+        "base_unit",
+        "sell_uom",
+        "pack_qty",
+        "product_group",
+        "organization_id",
+        "created_at",
+        "updated_at",
+    }
+)
 
 
 def _row_to_dict(row) -> dict | None:
@@ -97,7 +118,9 @@ def _sanitize_columns(columns: str) -> str:
     return ", ".join(parts)
 
 
-async def get_by_id(product_id: str, columns: str | None = "*", organization_id: str | None = None, conn=None) -> dict | None:
+async def get_by_id(
+    product_id: str, columns: str | None = "*", organization_id: str | None = None, conn=None
+) -> dict | None:
     conn = conn or get_connection()
     sel = _sanitize_columns(columns or "*")
     if organization_id:
@@ -114,7 +137,9 @@ async def get_by_id(product_id: str, columns: str | None = "*", organization_id:
     return _row_to_dict(row)
 
 
-async def list_by_vendor(vendor_id: str, limit: int = 200, organization_id: str | None = None) -> list:
+async def list_by_vendor(
+    vendor_id: str, limit: int = 200, organization_id: str | None = None
+) -> list:
     if not vendor_id:
         return []
     conn = get_connection()
@@ -132,7 +157,12 @@ async def list_by_vendor(vendor_id: str, limit: int = 200, organization_id: str 
     return [_row_to_dict(r) for r in rows]
 
 
-async def find_by_barcode(barcode: str, exclude_product_id: str | None = None, organization_id: str | None = None, conn=None) -> dict | None:
+async def find_by_barcode(
+    barcode: str,
+    exclude_product_id: str | None = None,
+    organization_id: str | None = None,
+    conn=None,
+) -> dict | None:
     """Find product by barcode. Optionally exclude a product (for update uniqueness check)."""
     b = barcode.strip() if barcode else ""
     if not b:
@@ -231,15 +261,32 @@ async def insert(product: Product | dict, conn=None) -> None:
         await conn.commit()
 
 
-async def update(product_id: str, updates: dict, conn=None, organization_id: str | None = None) -> dict | None:
+async def update(
+    product_id: str, updates: dict, conn=None, organization_id: str | None = None
+) -> dict | None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     set_parts = ["updated_at = ?"]
     values = [updates.get("updated_at", "")]
-    for key in ("name", "description", "price", "cost", "quantity", "min_stock",
-                 "department_id", "department_name", "vendor_id", "vendor_name", "barcode",
-                 "vendor_barcode", "base_unit", "sell_uom", "pack_qty", "original_sku",
-                 "product_group"):
+    for key in (
+        "name",
+        "description",
+        "price",
+        "cost",
+        "quantity",
+        "min_stock",
+        "department_id",
+        "department_name",
+        "vendor_id",
+        "vendor_name",
+        "barcode",
+        "vendor_barcode",
+        "base_unit",
+        "sell_uom",
+        "pack_qty",
+        "original_sku",
+        "product_group",
+    ):
         if key in updates and updates[key] is not None:
             set_parts.append(f"{key} = ?")
             values.append(updates[key])
@@ -282,7 +329,9 @@ async def delete(product_id: str, conn=None, organization_id: str | None = None)
     return cursor.rowcount
 
 
-async def atomic_decrement(product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None) -> dict | None:
+async def atomic_decrement(
+    product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None
+) -> dict | None:
     """Decrement quantity only if >= requested. Returns updated row or None if insufficient."""
     in_transaction = conn is not None
     conn = conn or get_connection()
@@ -301,7 +350,9 @@ async def atomic_decrement(product_id: str, quantity: float, updated_at: str, co
     return await get_by_id(product_id, conn=conn)
 
 
-async def increment_quantity(product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None) -> None:
+async def increment_quantity(
+    product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None
+) -> None:
     """Rollback: add quantity back."""
     in_transaction = conn is not None
     conn = conn or get_connection()
@@ -317,7 +368,9 @@ async def increment_quantity(product_id: str, quantity: float, updated_at: str, 
         await conn.commit()
 
 
-async def add_quantity(product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None) -> dict | None:
+async def add_quantity(
+    product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None
+) -> dict | None:
     """Add quantity (receiving) and return updated row."""
     in_transaction = conn is not None
     conn = conn or get_connection()
@@ -334,7 +387,13 @@ async def add_quantity(product_id: str, quantity: float, updated_at: str, conn=N
     return await get_by_id(product_id)
 
 
-async def atomic_adjust(product_id: str, quantity_delta: float, updated_at: str, conn=None, organization_id: str | None = None) -> dict | None:
+async def atomic_adjust(
+    product_id: str,
+    quantity_delta: float,
+    updated_at: str,
+    conn=None,
+    organization_id: str | None = None,
+) -> dict | None:
     """Atomically adjust quantity by delta (+ or -).
     Returns updated row or None if adjustment would result in negative stock.
     """

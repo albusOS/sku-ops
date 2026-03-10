@@ -4,6 +4,7 @@ These are the atoms that every domain module shares. If you're moving
 a quantity of a product through the system, you use LineItem. If you're
 identifying the authenticated caller, you use CurrentUser.
 """
+
 from decimal import ROUND_HALF_EVEN, Decimal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -25,6 +26,7 @@ class LineItem(BaseModel):
     Used by withdrawals, material requests, and as the conversion target
     for PO items when they are received into inventory.
     """
+
     model_config = ConfigDict(extra="ignore")
 
     product_id: str
@@ -53,6 +55,7 @@ class LineItem(BaseModel):
 
 class Address(BaseModel):
     """Structured address value object."""
+
     model_config = ConfigDict(extra="ignore")
     line1: str = ""
     line2: str = ""
@@ -70,6 +73,7 @@ class Address(BaseModel):
 
 class CurrentUser(BaseModel):
     """Authenticated user context threaded through every request."""
+
     model_config = ConfigDict(extra="ignore")
 
     id: str

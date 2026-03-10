@@ -6,6 +6,7 @@ Modules:
     errors  — DomainError, ResourceNotFoundError, InvalidTransitionError
     events  — Event, SHUTDOWN, is_shutdown, event type constants
 """
+
 from kernel import events
 from kernel.entity import AuditedEntity, Entity
 from kernel.errors import DomainError, InvalidTransitionError, ResourceNotFoundError
@@ -13,15 +14,15 @@ from kernel.events import Event
 from kernel.types import Address, CurrentUser, LineItem, round_money
 
 __all__ = [
-    "Entity",
+    "Address",
     "AuditedEntity",
     "CurrentUser",
-    "LineItem",
-    "Address",
-    "round_money",
     "DomainError",
-    "ResourceNotFoundError",
-    "InvalidTransitionError",
+    "Entity",
     "Event",
+    "InvalidTransitionError",
+    "LineItem",
+    "ResourceNotFoundError",
     "events",
+    "round_money",
 ]

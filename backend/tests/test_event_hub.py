@@ -1,12 +1,13 @@
 """Tests for the event hub (pub/sub) — covers the in-process fallback path
 and, when REDIS_URL is set, the Redis pub/sub path.
 """
+
 import os
 
 import pytest
 
 from kernel.events import SHUTDOWN, Event, is_shutdown
-from shared.infrastructure.event_hub import _Hub, _deserialize, _serialize
+from shared.infrastructure.event_hub import _deserialize, _Hub, _serialize
 
 _REDIS_URL = os.environ.get("REDIS_URL", "")
 
@@ -75,7 +76,9 @@ class TestEventHub:
             event.type = "changed"
 
     async def test_serialize_deserialize_round_trip(self):
-        original = Event(type="inventory.updated", org_id="org-1", user_id="u-1", data={"ids": [1, 2]})
+        original = Event(
+            type="inventory.updated", org_id="org-1", user_id="u-1", data={"ids": [1, 2]}
+        )
         raw = _serialize(original)
         restored = _deserialize(raw)
         assert restored.type == original.type

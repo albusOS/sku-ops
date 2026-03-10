@@ -1,4 +1,5 @@
 """Job domain models — master record for job/project tracking."""
+
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ class JobStatus(StrEnum):
 
 class Job(AuditedEntity):
     """A job/project that withdrawals, returns, and invoices are charged against."""
+
     code: str
     name: str = ""
     billing_entity_id: str | None = None

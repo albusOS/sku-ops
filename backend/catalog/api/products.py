@@ -23,21 +23,30 @@ from shared.infrastructure.middleware.audit import audit_log
 router = APIRouter(prefix="/products", tags=["products"])
 
 _CONTRACTOR_HIDDEN_FIELDS = {
-    "cost", "sell_cost", "vendor_id", "vendor_name", "min_stock",
-    "original_sku", "vendor_barcode", "pack_qty", "organization_id",
+    "cost",
+    "sell_cost",
+    "vendor_id",
+    "vendor_name",
+    "min_stock",
+    "original_sku",
+    "vendor_barcode",
+    "pack_qty",
+    "organization_id",
 }
 
 
 def _enrich_sell_fields(product: dict) -> dict:
     """Add pre-computed sell_price, sell_cost, sell_quantity for POS display."""
-    product.update(compute_sell_fields(
-        price=product.get("price", 0.0),
-        cost=product.get("cost", 0.0),
-        quantity=product.get("quantity", 0),
-        base_unit=product.get("base_unit", "each"),
-        sell_uom=product.get("sell_uom", "each"),
-        pack_qty=product.get("pack_qty", 1),
-    ))
+    product.update(
+        compute_sell_fields(
+            price=product.get("price", 0.0),
+            cost=product.get("cost", 0.0),
+            quantity=product.get("quantity", 0),
+            base_unit=product.get("base_unit", "each"),
+            sell_uom=product.get("sell_uom", "each"),
+            pack_qty=product.get("pack_qty", 1),
+        )
+    )
     return product
 
 
@@ -120,9 +129,7 @@ async def rename_group(
     new = new_name.strip()
     if not old or not new:
         raise HTTPException(status_code=400, detail="Both old_name and new_name are required")
-    products = await product_repo.list_products(
-        product_group=old, organization_id=org_id
-    )
+    products = await product_repo.list_products(product_group=old, organization_id=org_id)
     updated = 0
     for p in products:
         await product_repo.update(
@@ -184,6 +191,7 @@ async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
     gen_text = None
     if LLM_AVAILABLE:
         from assistant.application.llm import generate_text
+
         gen_text = generate_text
     result = await classify_uom(data.name, data.description, generate_text=gen_text)
     return result
@@ -265,10 +273,12 @@ async def delete_product(product_id: str, request: Request, current_user: AdminD
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     await audit_log(
-        user_id=current_user.id, action="product.delete",
-        resource_type="product", resource_id=product_id,
+        user_id=current_user.id,
+        action="product.delete",
+        resource_type="product",
+        resource_id=product_id,
         details={"sku": product.get("sku"), "name": product.get("name")},
-        request=request, org_id=org_id,
+        request=request,
+        org_id=org_id,
     )
     return {"message": "Product deleted"}
-

@@ -1,4 +1,5 @@
 """Shared dependency type injected into all agent tool calls."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

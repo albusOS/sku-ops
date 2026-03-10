@@ -53,10 +53,15 @@ async def adjust_stock(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     await audit_log(
-        user_id=current_user.id, action="stock.adjust",
-        resource_type="product", resource_id=product_id,
+        user_id=current_user.id,
+        action="stock.adjust",
+        resource_type="product",
+        resource_id=product_id,
         details={"quantity_delta": data.quantity_delta, "reason": data.reason},
-        request=request, org_id=current_user.organization_id,
+        request=request,
+        org_id=current_user.organization_id,
     )
-    await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id, ids=[product_id])
+    await event_hub.emit(
+        events.INVENTORY_UPDATED, org_id=current_user.organization_id, ids=[product_id]
+    )
     return {"message": "Stock adjusted"}

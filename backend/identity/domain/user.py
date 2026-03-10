@@ -1,4 +1,5 @@
 """User and auth models."""
+
 import re
 
 from pydantic import BaseModel, field_validator
@@ -26,6 +27,7 @@ def _validate_password(v: str) -> str:
 
 class UserCreate(BaseModel):
     """Public self-registration — no role or org selection allowed."""
+
     email: str
     password: str
     name: str
@@ -39,6 +41,7 @@ class UserCreate(BaseModel):
 
 class AdminUserCreate(BaseModel):
     """Admin-only user creation with explicit role and org assignment."""
+
     email: str
     password: str
     name: str

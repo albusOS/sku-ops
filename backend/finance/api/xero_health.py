@@ -1,4 +1,5 @@
 """Xero sync health — surfaces unsynced documents, failures, and mismatches."""
+
 import asyncio
 import logging
 
@@ -20,6 +21,7 @@ _LOCK_TTL = 3600
 
 def _use_redis() -> bool:
     from shared.infrastructure.redis import is_redis_available
+
     return is_redis_available()
 
 
@@ -29,7 +31,16 @@ async def get_xero_health(
 ):
     """Return a snapshot of all Xero sync exceptions for the sync health dashboard."""
     org_id = current_user.organization_id
-    unsynced_invoices, unsynced_credits, unsynced_pos, mismatch_invoices, mismatch_credits, failed_invoices, failed_credits, failed_pos = (
+    (
+        unsynced_invoices,
+        unsynced_credits,
+        unsynced_pos,
+        mismatch_invoices,
+        mismatch_credits,
+        failed_invoices,
+        failed_credits,
+        failed_pos,
+    ) = (
         await invoice_repo.list_unsynced_invoices(org_id),
         await credit_note_repo.list_unsynced_credit_notes(org_id),
         await list_unsynced_po_bills(org_id),
@@ -65,6 +76,7 @@ async def trigger_sync(current_user: AdminDep):
 
     if _use_redis():
         from shared.infrastructure.redis import get_redis
+
         r = get_redis()
         lock_key = f"{_LOCK_PREFIX}{org_id}"
         acquired = await r.set(lock_key, "1", nx=True, ex=_LOCK_TTL)
@@ -105,6 +117,7 @@ async def get_sync_status(current_user: AdminDep):
 
     if _use_redis():
         from shared.infrastructure.redis import get_redis
+
         exists = await get_redis().exists(f"{_LOCK_PREFIX}{org_id}")
         return {"status": "in_progress" if exists else "idle"}
 

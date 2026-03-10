@@ -5,6 +5,7 @@ to bootstrap a *fresh* database (SQLite or PostgreSQL) in one shot.
 Each context owns its own table definitions; this module collects them
 in dependency order (identity first, then catalog, inventory, etc.).
 """
+
 from assistant.infrastructure.schema import (
     INDEXES as _assistant_indexes,
 )

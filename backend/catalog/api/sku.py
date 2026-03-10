@@ -14,7 +14,7 @@ SKU_FORMAT = "DEPT-SLUG-XXXXX"
 
 @router.get("/sku/preview")
 async def get_sku_preview(
-    current_user: CurrentUserDep,
+    _current_user: CurrentUserDep,
     department_id: str,
     product_name: str | None = None,
 ):
@@ -31,7 +31,7 @@ async def get_sku_preview(
 
 @router.get("/sku/overview")
 async def get_sku_overview(
-    current_user: CurrentUserDep,
+    _current_user: CurrentUserDep,
     product_name: str | None = None,
 ):
     """SKU system overview: format, departments with next available SKU."""
@@ -41,9 +41,11 @@ async def get_sku_overview(
     depts_with_next = []
     for d in departments:
         code = d["code"]
-        next_num = (counters.get(code, 0) + 1)
-        depts_with_next.append({
-            **d,
-            "next_sku": f"{code}-{slug}-{str(next_num).zfill(6)}",
-        })
+        next_num = counters.get(code, 0) + 1
+        depts_with_next.append(
+            {
+                **d,
+                "next_sku": f"{code}-{slug}-{str(next_num).zfill(6)}",
+            }
+        )
     return {"format": SKU_FORMAT, "departments": depts_with_next}

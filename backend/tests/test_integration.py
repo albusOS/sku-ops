@@ -4,6 +4,7 @@ Integration tests — smoke tests and authenticated workflow tests.
 Smoke tests use the TestClient without the full lifespan (no DB needed for auth
 rejection checks). Workflow tests use the ``db`` fixture for real DB operations.
 """
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -34,6 +35,7 @@ PROTECTED_ENDPOINTS = [
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _admin_headers() -> dict:
     token = create_token("user-1", "test@test.com", "admin", "default")
     return {"Authorization": f"Bearer {token}"}
@@ -45,6 +47,7 @@ def _contractor_headers() -> dict:
 
 
 # ── No-auth endpoints ─────────────────────────────────────────────────────────
+
 
 def test_root_endpoint(client):
     """API root returns 200 and a message."""
@@ -68,6 +71,7 @@ def test_ai_health_configured(client):
 
 # ── Auth enforcement ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.parametrize(("method", "path"), PROTECTED_ENDPOINTS)
 def test_endpoint_requires_auth(client, method, path):
     """Every protected endpoint must reject unauthenticated requests with 401 or 403."""
@@ -79,6 +83,7 @@ def test_endpoint_requires_auth(client, method, path):
 
 
 # ── Router mount verification ─────────────────────────────────────────────────
+
 
 def test_all_context_routers_mounted(client):
     """
@@ -101,9 +106,8 @@ def test_all_context_routers_mounted(client):
         if resp.status_code == 404:
             not_mounted.append(f"{ctx}: {method} {path}")
 
-    assert not not_mounted, (
-        "These context routers appear unmounted (got 404):\n"
-        + "\n".join(f"  {m}" for m in not_mounted)
+    assert not not_mounted, "These context routers appear unmounted (got 404):\n" + "\n".join(
+        f"  {m}" for m in not_mounted
     )
 
 
@@ -114,7 +118,6 @@ class TestProductWorkflow:
     """Create a product and verify it appears in listings."""
 
     async def test_create_and_list_product(self, db):
-        from starlette.testclient import TestClient
 
         from server import app
 
@@ -149,7 +152,6 @@ class TestWithdrawalWorkflow:
     """Create a product, withdraw stock, verify inventory decrements."""
 
     async def test_withdrawal_decrements_stock(self, db):
-        from starlette.testclient import TestClient
 
         from server import app
 
@@ -170,14 +172,16 @@ class TestWithdrawalWorkflow:
         sku = product["sku"]
 
         withdrawal_data = {
-            "items": [{
-                "product_id": pid,
-                "sku": sku,
-                "name": "Withdrawal Test Item",
-                "quantity": 5,
-                "unit_price": 5.00,
-                "cost": 2.00,
-            }],
+            "items": [
+                {
+                    "product_id": pid,
+                    "sku": sku,
+                    "name": "Withdrawal Test Item",
+                    "quantity": 5,
+                    "unit_price": 5.00,
+                    "cost": 2.00,
+                }
+            ],
             "job_id": "JOB-001",
             "service_address": "123 Test St",
         }
@@ -196,7 +200,6 @@ class TestMaterialRequestWorkflow:
     """Contractor submits request, admin processes it into a withdrawal."""
 
     async def test_contractor_request_to_withdrawal(self, db):
-        from starlette.testclient import TestClient
 
         from server import app
 
@@ -216,14 +219,16 @@ class TestMaterialRequestWorkflow:
         product = resp.json()
 
         request_data = {
-            "items": [{
-                "product_id": product["id"],
-                "sku": product["sku"],
-                "name": "Mat Request Test Item",
-                "quantity": 3,
-                "unit_price": 10.00,
-                "cost": 4.00,
-            }],
+            "items": [
+                {
+                    "product_id": product["id"],
+                    "sku": product["sku"],
+                    "name": "Mat Request Test Item",
+                    "quantity": 3,
+                    "unit_price": 10.00,
+                    "cost": 4.00,
+                }
+            ],
             "notes": "Need for site work",
         }
         resp = client.post("/api/material-requests", json=request_data, headers=contractor_h)
@@ -239,14 +244,15 @@ class TestMaterialRequestWorkflow:
         )
         assert resp.status_code == 200, f"Process request failed: {resp.text}"
         result = resp.json()
-        assert result.get("id"), f"Expected processed withdrawal to have an id, got keys: {list(result.keys())}"
+        assert result.get("id"), (
+            f"Expected processed withdrawal to have an id, got keys: {list(result.keys())}"
+        )
 
 
 class TestInvoiceWorkflow:
     """Create a withdrawal, then verify invoice listing includes it."""
 
     async def test_withdrawal_appears_in_invoices(self, db):
-        from starlette.testclient import TestClient
 
         from server import app
 
@@ -265,14 +271,16 @@ class TestInvoiceWorkflow:
         product = resp.json()
 
         withdrawal_data = {
-            "items": [{
-                "product_id": product["id"],
-                "sku": product["sku"],
-                "name": "Invoice Test Item",
-                "quantity": 2,
-                "unit_price": 20.00,
-                "cost": 8.00,
-            }],
+            "items": [
+                {
+                    "product_id": product["id"],
+                    "sku": product["sku"],
+                    "name": "Invoice Test Item",
+                    "quantity": 2,
+                    "unit_price": 20.00,
+                    "cost": 8.00,
+                }
+            ],
             "job_id": "JOB-003",
             "service_address": "789 Invoice St",
         }

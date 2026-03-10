@@ -1,4 +1,5 @@
 """Cycle count domain — snapshot-based physical inventory counting."""
+
 from enum import StrEnum
 
 from kernel.entity import Entity
@@ -11,6 +12,7 @@ class CycleCountStatus(StrEnum):
 
 class CycleCount(Entity):
     """A counting session scoped to an org (and optionally a department)."""
+
     organization_id: str
     status: CycleCountStatus = CycleCountStatus.OPEN
     # None = full warehouse count; a department name scopes to that dept only.
@@ -23,6 +25,7 @@ class CycleCount(Entity):
 
 class CycleCountItem(Entity):
     """One product line within a cycle count session."""
+
     cycle_count_id: str
     product_id: str
     sku: str

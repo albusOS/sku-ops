@@ -1,4 +1,5 @@
 """Tests for product lifecycle service."""
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product, delete_product, update_product

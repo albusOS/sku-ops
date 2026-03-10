@@ -3,6 +3,7 @@
 Adds defense-in-depth HTTP headers to every response.
 HSTS is only added in deployed environments (staging/production).
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -28,7 +29,6 @@ _HSTS = "max-age=63072000; includeSubDomains; preload"
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
         for header, value in _COMMON_HEADERS.items():

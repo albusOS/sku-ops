@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures."""
+
 import os
 
 import pytest
@@ -20,6 +21,7 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-dummy-key-not-real")
 def client():
     """HTTP client for in-process API tests (no network)."""
     from server import app
+
     return TestClient(app)
 
 
@@ -27,6 +29,7 @@ def client():
 async def db():
     """Initialize in-memory DB, seed minimal data. Cleanup on teardown."""
     from shared.infrastructure.database import close_db, get_connection, init_db
+
     await init_db()
     conn = get_connection()
     await conn.execute(
@@ -46,6 +49,7 @@ async def db():
     # Wire cross-domain DI (server.py does this in lifespan; tests bypass lifespan)
     from finance.infrastructure.invoice_repo import set_withdrawal_getter
     from operations.application.queries import get_withdrawal_by_id
+
     set_withdrawal_getter(get_withdrawal_by_id)
 
     yield

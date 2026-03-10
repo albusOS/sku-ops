@@ -10,6 +10,7 @@ Lifecycle:
 The snapshot (snapshot_qty) is frozen at open time and never changed.
 Inventory is only touched at commit — never during the counting phase.
 """
+
 from datetime import UTC, datetime
 
 from catalog.application.queries import list_products
@@ -131,7 +132,8 @@ async def commit_cycle_count(
 
     items = await cycle_count_repo.list_items(count_id)
     items_to_adjust = [
-        i for i in items
+        i
+        for i in items
         if i.get("counted_qty") is not None and i.get("variance") not in (None, 0, 0.0)
     ]
 

@@ -1,9 +1,10 @@
 """Audit log read API — exposes the audit trail for admin review and export."""
+
 import contextlib
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
@@ -49,9 +50,7 @@ async def _query_audit_log(
         where += " AND created_at <= ?"
         params.append(end_date)
 
-    count_cursor = await conn.execute(
-        "SELECT COUNT(*) FROM audit_log " + where, params
-    )
+    count_cursor = await conn.execute("SELECT COUNT(*) FROM audit_log " + where, params)
     count_row = await count_cursor.fetchone()
     total = count_row[0] if count_row else 0
 
@@ -138,27 +137,37 @@ async def export_audit_log(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "ID", "Timestamp", "User ID", "Action",
-        "Resource Type", "Resource ID", "Details", "IP Address",
-    ])
+    writer.writerow(
+        [
+            "ID",
+            "Timestamp",
+            "User ID",
+            "Action",
+            "Resource Type",
+            "Resource ID",
+            "Details",
+            "IP Address",
+        ]
+    )
     for e in entries:
         details = e.get("details", "")
         if isinstance(details, dict):
             details = json.dumps(details)
-        writer.writerow([
-            e.get("id", ""),
-            e.get("created_at", ""),
-            e.get("user_id", ""),
-            e.get("action", ""),
-            e.get("resource_type", ""),
-            e.get("resource_id", ""),
-            details,
-            e.get("ip_address", ""),
-        ])
+        writer.writerow(
+            [
+                e.get("id", ""),
+                e.get("created_at", ""),
+                e.get("user_id", ""),
+                e.get("action", ""),
+                e.get("resource_type", ""),
+                e.get("resource_id", ""),
+                details,
+                e.get("ip_address", ""),
+            ]
+        )
 
     output.seek(0)
-    filename = f"audit_log_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"audit_log_{datetime.now(UTC).strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

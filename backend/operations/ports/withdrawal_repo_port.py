@@ -1,4 +1,5 @@
 """Withdrawal repository port — testable contract for withdrawal persistence."""
+
 from typing import Protocol, runtime_checkable
 
 from operations.domain.withdrawal import MaterialWithdrawal
@@ -6,7 +7,6 @@ from operations.domain.withdrawal import MaterialWithdrawal
 
 @runtime_checkable
 class WithdrawalRepoPort(Protocol):
-
     async def insert(self, withdrawal: MaterialWithdrawal, conn=None) -> None: ...
 
     async def list_withdrawals(
@@ -22,14 +22,20 @@ class WithdrawalRepoPort(Protocol):
     ) -> list[dict]: ...
 
     async def get_by_id(
-        self, withdrawal_id: str, organization_id: str | None = None,
+        self,
+        withdrawal_id: str,
+        organization_id: str | None = None,
     ) -> dict | None: ...
 
     async def mark_paid(
-        self, withdrawal_id: str, paid_at: str,
+        self,
+        withdrawal_id: str,
+        paid_at: str,
     ) -> dict | None: ...
 
     async def bulk_mark_paid(
-        self, withdrawal_ids: list[str], paid_at: str,
+        self,
+        withdrawal_ids: list[str],
+        paid_at: str,
         organization_id: str | None = None,
     ) -> int: ...

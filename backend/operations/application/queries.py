@@ -19,14 +19,20 @@ async def list_withdrawals(
     organization_id: str | None = None,
 ) -> list:
     return await _wd_repo.list_withdrawals(
-        contractor_id=contractor_id, payment_status=payment_status,
-        billing_entity=billing_entity, start_date=start_date,
-        end_date=end_date, limit=limit, offset=offset,
+        contractor_id=contractor_id,
+        payment_status=payment_status,
+        billing_entity=billing_entity,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
         organization_id=organization_id,
     )
 
 
-async def get_withdrawal_by_id(withdrawal_id: str, organization_id: str | None = None) -> dict | None:
+async def get_withdrawal_by_id(
+    withdrawal_id: str, organization_id: str | None = None
+) -> dict | None:
     return await _wd_repo.get_by_id(withdrawal_id, organization_id=organization_id)
 
 
@@ -43,9 +49,12 @@ async def list_returns(
     organization_id: str | None = None,
 ) -> list:
     return await _ret_repo.list_returns(
-        contractor_id=contractor_id, withdrawal_id=withdrawal_id,
-        start_date=start_date, end_date=end_date,
-        limit=limit, organization_id=organization_id,
+        contractor_id=contractor_id,
+        withdrawal_id=withdrawal_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        organization_id=organization_id,
     )
 
 

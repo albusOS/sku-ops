@@ -4,6 +4,7 @@ The catalog is loaded once and cached.  All pricing and tier resolution
 flows through here so the rest of the codebase never hard-codes model names
 or prices.
 """
+
 from __future__ import annotations
 
 import logging

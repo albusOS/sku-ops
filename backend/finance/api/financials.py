@@ -3,10 +3,11 @@
 Summary reads from the financial_ledger (immutable event log).
 Export still reads individual withdrawals for line-level CSV output.
 """
+
 import asyncio
 import csv
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -110,35 +111,52 @@ async def export_financials(
     output = io.StringIO()
     writer = csv.writer(output)
 
-    writer.writerow([
-        "Transaction ID", "Date", "Contractor", "Company", "Billing Entity",
-        "Job ID", "Service Address", "Subtotal", "Tax", "Total",
-        "Cost", "Margin", "Payment Status", "Items"
-    ])
+    writer.writerow(
+        [
+            "Transaction ID",
+            "Date",
+            "Contractor",
+            "Company",
+            "Billing Entity",
+            "Job ID",
+            "Service Address",
+            "Subtotal",
+            "Tax",
+            "Total",
+            "Cost",
+            "Margin",
+            "Payment Status",
+            "Items",
+        ]
+    )
 
     for w in withdrawals:
         items_str = "; ".join([f"{i['name']} x{i['quantity']}" for i in w.get("items", [])])
-        writer.writerow([
-            w.get("id", ""),
-            w.get("created_at", "")[:10],
-            w.get("contractor_name", ""),
-            w.get("contractor_company", ""),
-            w.get("billing_entity", ""),
-            w.get("job_id", ""),
-            w.get("service_address", ""),
-            w.get("subtotal", 0),
-            w.get("tax", 0),
-            w.get("total", 0),
-            w.get("cost_total", 0),
-            round_money(w.get("total", 0) - w.get("cost_total", 0)),
-            w.get("payment_status", ""),
-            items_str
-        ])
+        writer.writerow(
+            [
+                w.get("id", ""),
+                w.get("created_at", "")[:10],
+                w.get("contractor_name", ""),
+                w.get("contractor_company", ""),
+                w.get("billing_entity", ""),
+                w.get("job_id", ""),
+                w.get("service_address", ""),
+                w.get("subtotal", 0),
+                w.get("tax", 0),
+                w.get("total", 0),
+                w.get("cost_total", 0),
+                round_money(w.get("total", 0) - w.get("cost_total", 0)),
+                w.get("payment_status", ""),
+                items_str,
+            ]
+        )
 
     output.seek(0)
 
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=financials_{datetime.now().strftime('%Y%m%d')}.csv"}
+        headers={
+            "Content-Disposition": f"attachment; filename=financials_{datetime.now(UTC).strftime('%Y%m%d')}.csv"
+        },
     )

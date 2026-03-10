@@ -11,6 +11,7 @@ a transaction with the wrong delta), these tests catch it.
 
 Also tests organization isolation — org A's data must never leak into org B's views.
 """
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product
@@ -25,7 +26,9 @@ from inventory.application.inventory_service import (
 from inventory.domain.stock import StockDecrement
 
 
-async def _create_product(name, quantity, base_unit="each", org_id="default", dept_id="dept-1", **kw):
+async def _create_product(
+    name, quantity, base_unit="each", org_id="default", dept_id="dept-1", **kw
+):
     return await create_product(
         department_id=dept_id,
         department_name="Hardware",
@@ -43,35 +46,49 @@ async def _create_product(name, quantity, base_unit="each", org_id="default", de
 
 # ── Ledger balance invariant ─────────────────────────────────────────────────
 
+
 class TestLedgerBalanceInvariant:
     """For any product, current quantity must equal the sum of all ledger deltas."""
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_balance_after_mixed_operations(self, _db):
+    async def test_balance_after_mixed_operations(self):
         """Create → withdraw → receive → adjust → verify balance."""
         product = await _create_product("Copper Fitting", 20.0, base_unit="foot")
 
         # Withdraw 3.5 ft
         await process_withdrawal_stock_changes(
-            items=[StockDecrement(
-                product_id=product.id, sku=product.sku,
-                name=product.name, quantity=3.5,
-            )],
+            items=[
+                StockDecrement(
+                    product_id=product.id,
+                    sku=product.sku,
+                    name=product.name,
+                    quantity=3.5,
+                )
+            ],
             withdrawal_id="w-ledger-1",
-            user_id="user-1", user_name="Test",
+            user_id="user-1",
+            user_name="Test",
         )
 
         # Receive 12 inches = 1 foot
         await process_receiving_stock_changes(
-            product_id=product.id, sku=product.sku,
-            product_name=product.name, quantity=12.0, unit="inch",
-            user_id="user-1", user_name="Test",
+            product_id=product.id,
+            sku=product.sku,
+            product_name=product.name,
+            quantity=12.0,
+            unit="inch",
+            user_id="user-1",
+            user_name="Test",
         )
 
         # Adjust -2.25
         await process_adjustment_stock_changes(
-            product_id=product.id, quantity_delta=-2.25,
-            reason="damaged", user_id="user-1", user_name="Test",
+            product_id=product.id,
+            quantity_delta=-2.25,
+            reason="damaged",
+            user_id="user-1",
+            user_name="Test",
         )
 
         # Verify: 20.0 - 3.5 + 1.0 - 2.25 = 15.25
@@ -86,19 +103,25 @@ class TestLedgerBalanceInvariant:
             f"ledger sum={ledger_sum}"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_failed_withdrawal_preserves_ledger_balance(self, _db):
+    async def test_failed_withdrawal_preserves_ledger_balance(self):
         """A failed withdrawal must not leave orphan transactions."""
         product = await _create_product("Valve", 5.0)
 
         with pytest.raises(Exception):
             await process_withdrawal_stock_changes(
-                items=[StockDecrement(
-                    product_id=product.id, sku=product.sku,
-                    name=product.name, quantity=10.0,
-                )],
+                items=[
+                    StockDecrement(
+                        product_id=product.id,
+                        sku=product.sku,
+                        name=product.name,
+                        quantity=10.0,
+                    )
+                ],
                 withdrawal_id="w-fail",
-                user_id="user-1", user_name="Test",
+                user_id="user-1",
+                user_name="Test",
             )
 
         current = await product_repo.get_by_id(product.id)
@@ -110,19 +133,25 @@ class TestLedgerBalanceInvariant:
         ledger_sum = sum(tx["quantity_delta"] for tx in history)
         assert current["quantity"] == pytest.approx(ledger_sum)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_multiple_withdrawals_ledger_consistency(self, _db):
+    async def test_multiple_withdrawals_ledger_consistency(self):
         """Three successive fractional withdrawals — ledger must stay balanced."""
         product = await _create_product("Wire Spool", 100.0)
 
         for i, qty in enumerate([12.5, 7.75, 0.25]):
             await process_withdrawal_stock_changes(
-                items=[StockDecrement(
-                    product_id=product.id, sku=product.sku,
-                    name=product.name, quantity=qty,
-                )],
+                items=[
+                    StockDecrement(
+                        product_id=product.id,
+                        sku=product.sku,
+                        name=product.name,
+                        quantity=qty,
+                    )
+                ],
                 withdrawal_id=f"w-multi-{i}",
-                user_id="user-1", user_name="Test",
+                user_id="user-1",
+                user_name="Test",
             )
 
         current = await product_repo.get_by_id(product.id)
@@ -136,11 +165,13 @@ class TestLedgerBalanceInvariant:
 
 # ── Transaction field completeness ───────────────────────────────────────────
 
+
 class TestTransactionFieldCompleteness:
     """Every stock transaction must have complete, correctly-typed fields."""
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_transaction_fields_are_float(self, _db):
+    async def test_transaction_fields_are_float(self):
         """quantity_delta, quantity_before, quantity_after must be float, not int."""
         product = await _create_product("Test Float Fields", 10.5)
         history = await get_stock_history(product.id)
@@ -152,17 +183,24 @@ class TestTransactionFieldCompleteness:
                 f"stock_transaction.{field} is {type(tx[field]).__name__}, expected float"
             )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_transaction_has_unit_field(self, _db):
+    async def test_transaction_has_unit_field(self):
         """Every stock transaction must record the unit."""
         product = await _create_product("Piping", 50.0, base_unit="foot")
         await process_withdrawal_stock_changes(
-            items=[StockDecrement(
-                product_id=product.id, sku=product.sku,
-                name=product.name, quantity=6.0, unit="inch",
-            )],
+            items=[
+                StockDecrement(
+                    product_id=product.id,
+                    sku=product.sku,
+                    name=product.name,
+                    quantity=6.0,
+                    unit="inch",
+                )
+            ],
             withdrawal_id="w-unit-check",
-            user_id="user-1", user_name="Test",
+            user_id="user-1",
+            user_name="Test",
         )
         history = await get_stock_history(product.id)
         withdrawal_txs = [t for t in history if t.get("transaction_type") == "withdrawal"]
@@ -170,22 +208,31 @@ class TestTransactionFieldCompleteness:
         assert "unit" in withdrawal_txs[0], "Stock transaction missing 'unit' field"
         assert withdrawal_txs[0]["unit"] == "foot", "Unit should be the product's base_unit"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_transaction_before_after_arithmetic(self, _db):
+    async def test_transaction_before_after_arithmetic(self):
         """For every transaction: quantity_after == quantity_before + quantity_delta."""
         product = await _create_product("Audit Product", 25.0)
 
         await process_withdrawal_stock_changes(
-            items=[StockDecrement(
-                product_id=product.id, sku=product.sku,
-                name=product.name, quantity=3.5,
-            )],
+            items=[
+                StockDecrement(
+                    product_id=product.id,
+                    sku=product.sku,
+                    name=product.name,
+                    quantity=3.5,
+                )
+            ],
             withdrawal_id="w-arith",
-            user_id="user-1", user_name="Test",
+            user_id="user-1",
+            user_name="Test",
         )
         await process_adjustment_stock_changes(
-            product_id=product.id, quantity_delta=1.25,
-            reason="found", user_id="user-1", user_name="Test",
+            product_id=product.id,
+            quantity_delta=1.25,
+            reason="found",
+            user_id="user-1",
+            user_name="Test",
         )
 
         history = await get_stock_history(product.id, limit=100)
@@ -199,12 +246,14 @@ class TestTransactionFieldCompleteness:
 
 # ── Organization isolation ───────────────────────────────────────────────────
 
-class TestOrganizationIsolation:
 
+class TestOrganizationIsolation:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_product_isolated_by_org(self, _db):
+    async def test_product_isolated_by_org(self):
         """Products from org-A must not appear in org-B queries."""
         from shared.infrastructure.database import get_connection
+
         conn = get_connection()
         for org in ("org-a", "org-b"):
             await conn.execute(

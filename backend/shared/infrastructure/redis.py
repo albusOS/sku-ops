@@ -4,6 +4,7 @@ Provides a single shared ``redis.asyncio.Redis`` connection for pub/sub,
 session storage, and distributed locks.  If ``REDIS_URL`` is empty (local dev
 or test), ``init_redis()`` is a no-op and ``is_redis_available()`` returns False.
 """
+
 from __future__ import annotations
 
 import logging

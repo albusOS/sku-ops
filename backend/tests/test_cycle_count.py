@@ -38,6 +38,7 @@ from shared.infrastructure.database import get_connection
 
 # ── Fixtures / helpers ────────────────────────────────────────────────────────
 
+
 async def _make_product(name="Widget", qty=100.0, cost=5.0, dept="Hardware", org="default"):
     return await create_product(
         department_id="dept-1",
@@ -89,8 +90,8 @@ async def _update(count_id, item_id, counted_qty, notes=None, org="default"):
 
 # ── 1. Domain model — pure, no DB ─────────────────────────────────────────────
 
-class TestCycleCountDomain:
 
+class TestCycleCountDomain:
     def test_status_enum_values(self):
         assert CycleCountStatus.OPEN == "open"
         assert CycleCountStatus.COMMITTED == "committed"
@@ -118,10 +119,11 @@ class TestCycleCountDomain:
 
 # ── 2. open_cycle_count ───────────────────────────────────────────────────────
 
-class TestOpenCycleCount:
 
+class TestOpenCycleCount:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_snapshots_current_qty(self, _db):
+    async def test_open_snapshots_current_qty(self):
         """Each item's snapshot_qty must equal the product's current quantity at open time."""
         p1 = await _make_product("Bolt", qty=50.0)
         p2 = await _make_product("Nut", qty=25.0)
@@ -133,14 +135,16 @@ class TestOpenCycleCount:
         assert item_map[p1.id]["snapshot_qty"] == pytest.approx(50.0)
         assert item_map[p2.id]["snapshot_qty"] == pytest.approx(25.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_sets_status_open(self, _db):
+    async def test_open_sets_status_open(self):
         await _make_product("Screw", qty=10.0)
         count = await _open()
         assert count["status"] == CycleCountStatus.OPEN
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_with_scope_filters_by_department(self, _db):
+    async def test_open_with_scope_filters_by_department(self):
         """Only products from the scoped department appear in items."""
         conn = get_connection()
         await conn.execute(
@@ -151,9 +155,14 @@ class TestOpenCycleCount:
 
         hw = await _make_product("Hammer", dept="Hardware")
         pl = await create_product(
-            department_id="dept-plumbing", department_name="Plumbing",
-            name="Pipe", quantity=30.0, price=5.0, cost=2.0,
-            user_id="user-1", user_name="Test",
+            department_id="dept-plumbing",
+            department_name="Plumbing",
+            name="Pipe",
+            quantity=30.0,
+            price=5.0,
+            cost=2.0,
+            user_id="user-1",
+            user_name="Test",
             organization_id="default",
             on_stock_import=process_import_stock_changes,
         )
@@ -165,8 +174,9 @@ class TestOpenCycleCount:
         assert hw.id in product_ids, "Hardware product must be in count"
         assert pl.id not in product_ids, "Plumbing product must NOT be in scoped Hardware count"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_no_scope_includes_all_departments(self, _db):
+    async def test_open_no_scope_includes_all_departments(self):
         conn = get_connection()
         await conn.execute(
             """INSERT OR REPLACE INTO departments (id, name, code, description, product_count, created_at)
@@ -176,9 +186,14 @@ class TestOpenCycleCount:
 
         hw = await _make_product("Bolt", dept="Hardware")
         el = await create_product(
-            department_id="dept-elec", department_name="Electrical",
-            name="Wire", quantity=200.0, price=1.0, cost=0.5,
-            user_id="user-1", user_name="Test",
+            department_id="dept-elec",
+            department_name="Electrical",
+            name="Wire",
+            quantity=200.0,
+            price=1.0,
+            cost=0.5,
+            user_id="user-1",
+            user_name="Test",
             organization_id="default",
             on_stock_import=process_import_stock_changes,
         )
@@ -190,23 +205,26 @@ class TestOpenCycleCount:
         assert hw.id in product_ids
         assert el.id in product_ids
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_empty_scope_raises(self, _db):
+    async def test_open_empty_scope_raises(self):
         """A scope with no matching products must raise ValueError."""
         await _make_product("Bolt", dept="Hardware")
         with pytest.raises(ValueError, match="No products found"):
             await _open(scope="Nonexistent Department")
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_appears_in_list(self, _db):
+    async def test_open_appears_in_list(self):
         await _make_product("Washer", qty=10.0)
         count = await _open()
         counts = await list_cycle_counts("default")
         ids = [c["id"] for c in counts]
         assert count["id"] in ids
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_open_list_filter_by_status(self, _db):
+    async def test_open_list_filter_by_status(self):
         await _make_product("Nail", qty=10.0)
         count = await _open()
 
@@ -222,10 +240,11 @@ class TestOpenCycleCount:
 
 # ── 3. Snapshot isolation ─────────────────────────────────────────────────────
 
-class TestSnapshotIsolation:
 
+class TestSnapshotIsolation:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_snapshot_not_changed_by_subsequent_withdrawal(self, _db):
+    async def test_snapshot_not_changed_by_subsequent_withdrawal(self):
         """Withdrawing stock after opening must not alter snapshot_qty."""
         p = await _make_product("Pipe", qty=100.0)
         count = await _open()
@@ -238,7 +257,8 @@ class TestSnapshotIsolation:
         await process_withdrawal_stock_changes(
             items=[StockDecrement(product_id=p.id, sku=p.sku, name=p.name, quantity=20.0)],
             withdrawal_id="w-snap-test",
-            user_id="user-1", user_name="Test",
+            user_id="user-1",
+            user_name="Test",
         )
 
         detail_after = await get_count_detail(count["id"], "default")
@@ -254,10 +274,11 @@ class TestSnapshotIsolation:
 
 # ── 4. update_counted_qty ─────────────────────────────────────────────────────
 
-class TestUpdateCountedQty:
 
+class TestUpdateCountedQty:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_update_stores_counted_qty_and_variance(self, _db):
+    async def test_update_stores_counted_qty_and_variance(self):
         p = await _make_product("Valve", qty=50.0)
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
@@ -268,8 +289,9 @@ class TestUpdateCountedQty:
         assert updated["counted_qty"] == pytest.approx(47.0)
         assert updated["variance"] == pytest.approx(-3.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_update_positive_variance(self, _db):
+    async def test_update_positive_variance(self):
         p = await _make_product("Flange", qty=10.0)
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
@@ -279,8 +301,9 @@ class TestUpdateCountedQty:
 
         assert updated["variance"] == pytest.approx(3.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_update_zero_variance(self, _db):
+    async def test_update_zero_variance(self):
         p = await _make_product("Clamp", qty=20.0)
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
@@ -290,8 +313,9 @@ class TestUpdateCountedQty:
 
         assert updated["variance"] == pytest.approx(0.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_update_stores_notes(self, _db):
+    async def test_update_stores_notes(self):
         p = await _make_product("Elbow", qty=5.0)
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
@@ -300,8 +324,9 @@ class TestUpdateCountedQty:
         updated = await _update(count["id"], item["id"], counted_qty=5.0, notes="damaged box")
         assert updated["notes"] == "damaged box"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_update_rejects_committed_count(self, _db):
+    async def test_update_rejects_committed_count(self):
         """Updating an item on a committed count must raise ValueError."""
         p = await _make_product("Cap", qty=10.0)
         count = await _open()
@@ -313,8 +338,9 @@ class TestUpdateCountedQty:
         with pytest.raises(ValueError, match="committed"):
             await _update(count["id"], item["id"], counted_qty=9.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_update_nonexistent_item_raises(self, _db):
+    async def test_update_nonexistent_item_raises(self):
         await _make_product("Tee", qty=10.0)
         count = await _open()
         with pytest.raises(ResourceNotFoundError):
@@ -323,10 +349,11 @@ class TestUpdateCountedQty:
 
 # ── 5. commit_cycle_count ─────────────────────────────────────────────────────
 
-class TestCommitCycleCount:
 
+class TestCommitCycleCount:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_applies_negative_variance(self, _db):
+    async def test_commit_applies_negative_variance(self):
         """Shortage: product quantity should decrease by |variance|."""
         p = await _make_product("Rod", qty=100.0)
         count = await _open()
@@ -339,8 +366,9 @@ class TestCommitCycleCount:
         updated = await product_repo.get_by_id(p.id)
         assert updated["quantity"] == pytest.approx(90.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_applies_positive_variance(self, _db):
+    async def test_commit_applies_positive_variance(self):
         """Overage: product quantity should increase by variance."""
         p = await _make_product("Rivet", qty=50.0)
         count = await _open()
@@ -353,8 +381,9 @@ class TestCommitCycleCount:
         updated = await product_repo.get_by_id(p.id)
         assert updated["quantity"] == pytest.approx(55.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_skips_uncounted_items(self, _db):
+    async def test_commit_skips_uncounted_items(self):
         """Items without a counted_qty must not be adjusted."""
         p_counted = await _make_product("Bolt A", qty=30.0)
         p_skipped = await _make_product("Bolt B", qty=40.0)
@@ -375,8 +404,9 @@ class TestCommitCycleCount:
             "Uncounted item must not be adjusted"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_skips_zero_variance_items(self, _db):
+    async def test_commit_skips_zero_variance_items(self):
         """Items counted at exactly snapshot_qty must not produce a stock transaction."""
         p = await _make_product("Pin", qty=15.0)
         count = await _open()
@@ -392,8 +422,9 @@ class TestCommitCycleCount:
         adjustment_txs = [t for t in history if t["transaction_type"] == "adjustment"]
         assert len(adjustment_txs) == 0, "Zero-variance item should produce no adjustment"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_sets_status_committed(self, _db):
+    async def test_commit_sets_status_committed(self):
         p = await _make_product("Stud", qty=10.0)
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
@@ -405,8 +436,9 @@ class TestCommitCycleCount:
         detail_after = await get_count_detail(count["id"], "default")
         assert detail_after["status"] == CycleCountStatus.COMMITTED
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_records_committer_and_timestamp(self, _db):
+    async def test_commit_records_committer_and_timestamp(self):
         p = await _make_product("Bracket", qty=10.0)
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
@@ -418,8 +450,9 @@ class TestCommitCycleCount:
         assert result["committed_by_id"] == "user-1"
         assert result["committed_at"] is not None
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_rejects_already_committed(self, _db):
+    async def test_commit_rejects_already_committed(self):
         """Second commit attempt must raise ValueError."""
         p = await _make_product("Stud B", qty=10.0)
         count = await _open()
@@ -431,8 +464,9 @@ class TestCommitCycleCount:
         with pytest.raises(ValueError, match="already committed"):
             await _commit(count["id"])
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_writes_stock_transactions_with_reason_count(self, _db):
+    async def test_commit_writes_stock_transactions_with_reason_count(self):
         """Each adjusted item must produce a stock transaction with reason='count'."""
         p = await _make_product("Bushing", qty=20.0)
         count = await _open()
@@ -449,8 +483,9 @@ class TestCommitCycleCount:
         assert adj_txs[0]["reason"] == "count"
         assert adj_txs[0]["quantity_delta"] == pytest.approx(-3.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_writes_ledger_entries(self, _db):
+    async def test_commit_writes_ledger_entries(self):
         """A negative variance must produce INVENTORY (decrease) + SHRINKAGE (increase) entries."""
         p = await _make_product("Coupler", qty=50.0, cost=4.0)
         count = await _open()
@@ -464,18 +499,19 @@ class TestCommitCycleCount:
         assert Account.SHRINKAGE.value in tb, "Shrinkage ledger entry expected"
         assert Account.INVENTORY.value in tb, "Inventory ledger entry expected"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_commit_items_adjusted_count(self, _db):
+    async def test_commit_items_adjusted_count(self):
         """items_adjusted in the result must reflect only items with non-zero variance."""
         p1 = await _make_product("Anchor A", qty=10.0)
         p2 = await _make_product("Anchor B", qty=20.0)
-        p3 = await _make_product("Anchor C", qty=30.0)
+        await _make_product("Anchor C", qty=30.0)
 
         count = await _open()
         detail = await get_count_detail(count["id"], "default")
         items = {i["product_id"]: i for i in detail["items"]}
 
-        await _update(count["id"], items[p1.id]["id"], counted_qty=9.0)   # -1 → adjusted
+        await _update(count["id"], items[p1.id]["id"], counted_qty=9.0)  # -1 → adjusted
         await _update(count["id"], items[p2.id]["id"], counted_qty=20.0)  # 0 → skipped
         # p3: no entry → skipped
 
@@ -485,10 +521,11 @@ class TestCommitCycleCount:
 
 # ── 6. Atomicity ──────────────────────────────────────────────────────────────
 
-class TestCommitAtomicity:
 
+class TestCommitAtomicity:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_partial_failure_rolls_back_entire_commit(self, _db):
+    async def test_partial_failure_rolls_back_entire_commit(self):
         """If any adjustment fails (NegativeStockError), no adjustments are persisted."""
         p_ok = await _make_product("Safe Product", qty=50.0)
         p_bad = await _make_product("Undersupply Product", qty=5.0)
@@ -512,9 +549,7 @@ class TestCommitAtomicity:
         assert p_ok_after["quantity"] == pytest.approx(50.0), (
             "Safe product should be unchanged after rolled-back commit"
         )
-        assert p_bad_after["quantity"] == pytest.approx(5.0), (
-            "Failing product should be unchanged"
-        )
+        assert p_bad_after["quantity"] == pytest.approx(5.0), "Failing product should be unchanged"
 
         # Count must still be open — not partially committed
         detail_after = await get_count_detail(count["id"], "default")
@@ -522,8 +557,9 @@ class TestCommitAtomicity:
             "Count must remain open after a failed commit"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_successful_commit_is_durable(self, _db):
+    async def test_successful_commit_is_durable(self):
         """After a successful commit, all adjustments are visible in the DB."""
         p = await _make_product("Durable Widget", qty=100.0)
         count = await _open()
@@ -543,10 +579,11 @@ class TestCommitAtomicity:
 
 # ── 7. Post-commit ledger balance invariant ───────────────────────────────────
 
-class TestPostCommitLedgerBalance:
 
+class TestPostCommitLedgerBalance:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_product_qty_equals_ledger_sum_after_commit(self, _db):
+    async def test_product_qty_equals_ledger_sum_after_commit(self):
         """After commit: product.quantity == sum of all stock_transaction deltas."""
         p = await _make_product("Auditee", qty=80.0)
         count = await _open()
@@ -565,12 +602,12 @@ class TestPostCommitLedgerBalance:
             f"ledger sum={ledger_sum}"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_multi_product_commit_all_balances_preserved(self, _db):
+    async def test_multi_product_commit_all_balances_preserved(self):
         """Multiple products adjusted in one commit all maintain ledger balance."""
         products = [
-            await _make_product(f"Ledger Product {i}", qty=float(10 * (i + 1)))
-            for i in range(3)
+            await _make_product(f"Ledger Product {i}", qty=float(10 * (i + 1))) for i in range(3)
         ]
         counted_qtys = [5.0, 22.0, 28.0]  # mix of shortage, overage, overage
 

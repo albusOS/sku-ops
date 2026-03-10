@@ -51,7 +51,9 @@ async def summary_by_account(
     if end_date:
         date_filter += " AND created_at <= ?"
         params.append(end_date)
-    dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
+    dim_filter = _build_dimension_filter(
+        params, job_id=job_id, department=department, billing_entity=billing_entity
+    )
 
     query = (
         "SELECT account, ROUND(SUM(amount), 2) AS total"
@@ -100,14 +102,16 @@ async def summary_by_department(
         revenue = row["revenue"]
         cost = row["cost"]
         profit = round(revenue - cost, 2)
-        result.append({
-            "department": row["department"],
-            "revenue": revenue,
-            "cost": cost,
-            "shrinkage": row["shrinkage"],
-            "profit": profit,
-            "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-        })
+        result.append(
+            {
+                "department": row["department"],
+                "revenue": revenue,
+                "cost": cost,
+                "shrinkage": row["shrinkage"],
+                "profit": profit,
+                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
+            }
+        )
     return result
 
 
@@ -168,15 +172,17 @@ async def summary_by_job(
         revenue = row["revenue"]
         cost = row["cost"]
         profit = round(revenue - cost, 2)
-        result.append({
-            "job_id": row["job_id"],
-            "billing_entity": row["billing_entity"],
-            "revenue": revenue,
-            "cost": cost,
-            "profit": profit,
-            "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-            "withdrawal_count": row["transaction_count"],
-        })
+        result.append(
+            {
+                "job_id": row["job_id"],
+                "billing_entity": row["billing_entity"],
+                "revenue": revenue,
+                "cost": cost,
+                "profit": profit,
+                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
+                "withdrawal_count": row["transaction_count"],
+            }
+        )
     return {"rows": result, "total": total, "all_revenue": all_revenue, "all_cost": all_cost}
 
 
@@ -216,14 +222,16 @@ async def summary_by_billing_entity(
         revenue = row["revenue"]
         cost = row["cost"]
         profit = round(revenue - cost, 2)
-        result.append({
-            "billing_entity": row["billing_entity"],
-            "revenue": revenue,
-            "cost": cost,
-            "profit": profit,
-            "ar_balance": row["ar_balance"],
-            "transaction_count": row["transaction_count"],
-        })
+        result.append(
+            {
+                "billing_entity": row["billing_entity"],
+                "revenue": revenue,
+                "cost": cost,
+                "profit": profit,
+                "ar_balance": row["ar_balance"],
+                "transaction_count": row["transaction_count"],
+            }
+        )
     return result
 
 
@@ -282,7 +290,9 @@ async def trend_series(
     if end_date:
         date_filter += " AND created_at <= ?"
         params.append(end_date)
-    dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
+    dim_filter = _build_dimension_filter(
+        params, job_id=job_id, department=department, billing_entity=billing_entity
+    )
 
     query = "SELECT "
     query += period_expr
@@ -306,14 +316,16 @@ async def trend_series(
         revenue = row["revenue"]
         cost = row["cost"]
         profit = round(revenue - cost - row["shrinkage"], 2)
-        series.append({
-            "date": row["period"],
-            "revenue": revenue,
-            "cost": cost,
-            "shrinkage": row["shrinkage"],
-            "profit": profit,
-            "transaction_count": row["transaction_count"],
-        })
+        series.append(
+            {
+                "date": row["period"],
+                "revenue": revenue,
+                "cost": cost,
+                "shrinkage": row["shrinkage"],
+                "profit": profit,
+                "transaction_count": row["transaction_count"],
+            }
+        )
     return series
 
 
@@ -377,7 +389,9 @@ async def product_margins(
     if end_date:
         date_filter += " AND created_at <= ?"
         params.append(end_date)
-    dim_filter = _build_dimension_filter(params, job_id=job_id, department=department, billing_entity=billing_entity)
+    dim_filter = _build_dimension_filter(
+        params, job_id=job_id, department=department, billing_entity=billing_entity
+    )
 
     query = (
         "SELECT product_id,"
@@ -398,13 +412,15 @@ async def product_margins(
         revenue = row["revenue"]
         cost = row["cost"]
         profit = round(revenue - cost, 2)
-        result.append({
-            "product_id": row["product_id"],
-            "revenue": revenue,
-            "cost": cost,
-            "profit": profit,
-            "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-        })
+        result.append(
+            {
+                "product_id": row["product_id"],
+                "revenue": revenue,
+                "cost": cost,
+                "profit": profit,
+                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
+            }
+        )
     return result
 
 

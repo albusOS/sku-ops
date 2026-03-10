@@ -12,7 +12,6 @@ TABLES: list[str] = [
         deleted_at TEXT,
         UNIQUE(organization_id, code)
     )""",
-
     """CREATE TABLE IF NOT EXISTS vendors (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -25,7 +24,6 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL,
         deleted_at TEXT
     )""",
-
     """CREATE TABLE IF NOT EXISTS products (
         id TEXT PRIMARY KEY,
         sku TEXT NOT NULL,
@@ -51,7 +49,6 @@ TABLES: list[str] = [
         updated_at TEXT NOT NULL,
         deleted_at TEXT
     )""",
-
     """CREATE TABLE IF NOT EXISTS sku_counters (
         department_code TEXT PRIMARY KEY,
         counter INTEGER NOT NULL DEFAULT 0

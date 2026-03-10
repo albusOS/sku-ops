@@ -7,19 +7,23 @@ Usage in server.py:
 All log records automatically include request_id / user_id / org_id when
 the request_id middleware has set them in contextvars.
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import sys
 from contextvars import ContextVar
+from typing import ClassVar
 
 _BaseJsonFormatter: type
 try:
     from pythonjsonlogger.json import JsonFormatter
+
     _BaseJsonFormatter = JsonFormatter
 except ImportError:
     from pythonjsonlogger import jsonlogger
+
     _BaseJsonFormatter = jsonlogger.JsonFormatter
 
 # ── Context vars (set by request_id middleware and agent orchestration) ────────
@@ -33,6 +37,7 @@ operation_var: ContextVar[str] = ContextVar("operation", default="")
 
 
 # ── Custom JSON formatter ─────────────────────────────────────────────────────
+
 
 class ContextJsonFormatter(_BaseJsonFormatter):
     """Injects request context into every JSON log line."""
@@ -63,14 +68,15 @@ class ContextJsonFormatter(_BaseJsonFormatter):
 
 # ── Pretty formatter for development ─────────────────────────────────────────
 
+
 class DevFormatter(logging.Formatter):
     """Human-readable colored output for local development."""
 
-    COLORS = {
-        "DEBUG": "\033[36m",     # cyan
-        "INFO": "\033[32m",      # green
-        "WARNING": "\033[33m",   # yellow
-        "ERROR": "\033[31m",     # red
+    COLORS: ClassVar[dict[str, str]] = {
+        "DEBUG": "\033[36m",  # cyan
+        "INFO": "\033[32m",  # green
+        "WARNING": "\033[33m",  # yellow
+        "ERROR": "\033[31m",  # red
         "CRITICAL": "\033[1;31m",  # bold red
     }
     RESET = "\033[0m"
@@ -93,6 +99,7 @@ class DevFormatter(logging.Formatter):
 
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
+
 
 def setup_logging() -> None:
     """Configure root logger. Call once at startup before any other logging."""

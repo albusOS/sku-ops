@@ -1,4 +1,5 @@
 """Job repository — persistence for job master data."""
+
 from datetime import UTC
 
 from jobs.domain.job import Job
@@ -24,10 +25,16 @@ async def insert(job: Job | dict, conn=None) -> None:
     await conn.execute(
         ins_q,
         (
-            d["id"], d["code"], d.get("name", ""), d.get("billing_entity_id"),
-            d.get("status", "active"), d.get("service_address", ""),
-            d.get("notes"), d["organization_id"],
-            d["created_at"], d["updated_at"],
+            d["id"],
+            d["code"],
+            d.get("name", ""),
+            d.get("billing_entity_id"),
+            d.get("status", "active"),
+            d.get("service_address", ""),
+            d.get("notes"),
+            d["organization_id"],
+            d["created_at"],
+            d["updated_at"],
         ),
     )
     if not in_tx:
@@ -88,6 +95,7 @@ async def update(job_id: str, updates: dict, organization_id: str) -> dict | Non
     if not set_clauses:
         return await get_by_id(job_id, organization_id)
     from datetime import datetime
+
     set_clauses.append("updated_at = ?")
     params.append(datetime.now(UTC).isoformat())
     params.extend([job_id, organization_id])

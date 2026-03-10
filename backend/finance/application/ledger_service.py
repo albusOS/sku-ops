@@ -7,6 +7,7 @@ you write a correcting entry (never delete).
 Every event produces a set of entries grouped under a single journal_id
 so the transaction can be verified as balanced.
 """
+
 from datetime import UTC
 from uuid import uuid4
 
@@ -18,9 +19,11 @@ from kernel.types import round_money
 async def _check_fiscal_period(organization_id: str) -> None:
     """Check that the current date is not in a closed fiscal period."""
     from datetime import datetime
+
     now = datetime.now(UTC).isoformat()
     try:
         from finance.api.fiscal_periods import check_period_open
+
         await check_period_open(now, organization_id)
     except ImportError:
         pass
@@ -76,41 +79,69 @@ async def _record_sale_event(
     journal_id = str(uuid4())
     common = {
         "journal_id": journal_id,
-        "job_id": job_id, "billing_entity": billing_entity, "contractor_id": contractor_id,
+        "job_id": job_id,
+        "billing_entity": billing_entity,
+        "contractor_id": contractor_id,
         "performed_by_user_id": performed_by_user_id,
-        "reference_type": reference_type, "reference_id": reference_id, "organization_id": organization_id,
+        "reference_type": reference_type,
+        "reference_id": reference_id,
+        "organization_id": organization_id,
     }
     entries: list[FinancialEntry] = []
 
     for item in items:
         qty, unit, unit_price, _cost, sell_cost, sell_uom, dept, pid = _extract_item(item)
-        entries.append(FinancialEntry(
-            account=Account.REVENUE,
-            amount=round_money(sign * unit_price * qty),
-            quantity=qty, unit=unit, unit_cost=unit_price,
-            department=dept, product_id=pid, **common,
-        ))
-        entries.append(FinancialEntry(
-            account=Account.COGS,
-            amount=round_money(sign * sell_cost * qty),
-            quantity=qty, unit=sell_uom, unit_cost=sell_cost,
-            department=dept, product_id=pid, **common,
-        ))
-        entries.append(FinancialEntry(
-            account=Account.INVENTORY,
-            amount=round_money(-sign * sell_cost * qty),
-            quantity=qty, unit=sell_uom, unit_cost=sell_cost,
-            department=dept, product_id=pid, **common,
-        ))
+        entries.append(
+            FinancialEntry(
+                account=Account.REVENUE,
+                amount=round_money(sign * unit_price * qty),
+                quantity=qty,
+                unit=unit,
+                unit_cost=unit_price,
+                department=dept,
+                product_id=pid,
+                **common,
+            )
+        )
+        entries.append(
+            FinancialEntry(
+                account=Account.COGS,
+                amount=round_money(sign * sell_cost * qty),
+                quantity=qty,
+                unit=sell_uom,
+                unit_cost=sell_cost,
+                department=dept,
+                product_id=pid,
+                **common,
+            )
+        )
+        entries.append(
+            FinancialEntry(
+                account=Account.INVENTORY,
+                amount=round_money(-sign * sell_cost * qty),
+                quantity=qty,
+                unit=sell_uom,
+                unit_cost=sell_cost,
+                department=dept,
+                product_id=pid,
+                **common,
+            )
+        )
 
-    entries.append(FinancialEntry(
-        account=Account.TAX_COLLECTED,
-        amount=round_money(sign * tax), **common,
-    ))
-    entries.append(FinancialEntry(
-        account=Account.ACCOUNTS_RECEIVABLE,
-        amount=round_money(sign * total), **common,
-    ))
+    entries.append(
+        FinancialEntry(
+            account=Account.TAX_COLLECTED,
+            amount=round_money(sign * tax),
+            **common,
+        )
+    )
+    entries.append(
+        FinancialEntry(
+            account=Account.ACCOUNTS_RECEIVABLE,
+            amount=round_money(sign * total),
+            **common,
+        )
+    )
 
     if created_at:
         for e in entries:
@@ -137,9 +168,13 @@ async def record_withdrawal(
         reference_id=withdrawal_id,
         reference_type=ReferenceType.WITHDRAWAL,
         sign=+1,
-        items=items, tax=tax, total=total,
-        job_id=job_id, billing_entity=billing_entity,
-        contractor_id=contractor_id, organization_id=organization_id,
+        items=items,
+        tax=tax,
+        total=total,
+        job_id=job_id,
+        billing_entity=billing_entity,
+        contractor_id=contractor_id,
+        organization_id=organization_id,
         performed_by_user_id=performed_by_user_id,
         conn=conn,
         created_at=created_at,
@@ -164,9 +199,13 @@ async def record_return(
         reference_id=return_id,
         reference_type=ReferenceType.RETURN,
         sign=-1,
-        items=items, tax=tax, total=total,
-        job_id=job_id, billing_entity=billing_entity,
-        contractor_id=contractor_id, organization_id=organization_id,
+        items=items,
+        tax=tax,
+        total=total,
+        job_id=job_id,
+        billing_entity=billing_entity,
+        contractor_id=contractor_id,
+        organization_id=organization_id,
         performed_by_user_id=performed_by_user_id,
         conn=conn,
         created_at=created_at,
@@ -199,22 +238,40 @@ async def record_po_receipt(
         base_unit = item.get("base_unit") or "each"
         dept = item.get("department") or item.get("suggested_department")
         pid = item.get("product_id")
-        entries.append(FinancialEntry(
-            account=Account.INVENTORY, amount=amount,
-            quantity=delivered, unit=base_unit, unit_cost=cost,
-            journal_id=journal_id,
-            department=dept, vendor_name=vendor_name, product_id=pid,
-            performed_by_user_id=performed_by_user_id,
-            reference_type=ReferenceType.PO_RECEIPT, reference_id=po_id, organization_id=organization_id,
-        ))
-        entries.append(FinancialEntry(
-            account=Account.ACCOUNTS_PAYABLE, amount=amount,
-            quantity=delivered, unit=base_unit, unit_cost=cost,
-            journal_id=journal_id,
-            department=dept, vendor_name=vendor_name, product_id=pid,
-            performed_by_user_id=performed_by_user_id,
-            reference_type=ReferenceType.PO_RECEIPT, reference_id=po_id, organization_id=organization_id,
-        ))
+        entries.append(
+            FinancialEntry(
+                account=Account.INVENTORY,
+                amount=amount,
+                quantity=delivered,
+                unit=base_unit,
+                unit_cost=cost,
+                journal_id=journal_id,
+                department=dept,
+                vendor_name=vendor_name,
+                product_id=pid,
+                performed_by_user_id=performed_by_user_id,
+                reference_type=ReferenceType.PO_RECEIPT,
+                reference_id=po_id,
+                organization_id=organization_id,
+            )
+        )
+        entries.append(
+            FinancialEntry(
+                account=Account.ACCOUNTS_PAYABLE,
+                amount=amount,
+                quantity=delivered,
+                unit=base_unit,
+                unit_cost=cost,
+                journal_id=journal_id,
+                department=dept,
+                vendor_name=vendor_name,
+                product_id=pid,
+                performed_by_user_id=performed_by_user_id,
+                reference_type=ReferenceType.PO_RECEIPT,
+                reference_id=po_id,
+                organization_id=organization_id,
+            )
+        )
 
     if created_at:
         for e in entries:
@@ -264,18 +321,26 @@ async def record_adjustment(
     offset_account = _offset_account_for_reason(reason)
     entries = [
         FinancialEntry(
-            account=Account.INVENTORY, amount=sign * amount,
+            account=Account.INVENTORY,
+            amount=sign * amount,
             journal_id=journal_id,
-            department=department, product_id=product_id,
+            department=department,
+            product_id=product_id,
             performed_by_user_id=performed_by_user_id,
-            reference_type=ReferenceType.ADJUSTMENT, reference_id=adjustment_ref_id, organization_id=organization_id,
+            reference_type=ReferenceType.ADJUSTMENT,
+            reference_id=adjustment_ref_id,
+            organization_id=organization_id,
         ),
         FinancialEntry(
-            account=offset_account, amount=-sign * amount,
+            account=offset_account,
+            amount=-sign * amount,
             journal_id=journal_id,
-            department=department, product_id=product_id,
+            department=department,
+            product_id=product_id,
             performed_by_user_id=performed_by_user_id,
-            reference_type=ReferenceType.ADJUSTMENT, reference_id=adjustment_ref_id, organization_id=organization_id,
+            reference_type=ReferenceType.ADJUSTMENT,
+            reference_id=adjustment_ref_id,
+            organization_id=organization_id,
         ),
     ]
     if created_at:
@@ -327,16 +392,19 @@ async def record_credit_note_application(
     if await entries_exist(ReferenceType.CREDIT_NOTE.value, credit_note_id, conn=conn):
         return
     journal_id = str(uuid4())
-    await insert_entries([
-        FinancialEntry(
-            account=Account.ACCOUNTS_RECEIVABLE,
-            amount=-round_money(amount),
-            journal_id=journal_id,
-            billing_entity=billing_entity,
-            contractor_id=contractor_id,
-            performed_by_user_id=performed_by_user_id,
-            reference_type=ReferenceType.CREDIT_NOTE,
-            reference_id=credit_note_id,
-            organization_id=organization_id,
-        ),
-    ], conn=conn)
+    await insert_entries(
+        [
+            FinancialEntry(
+                account=Account.ACCOUNTS_RECEIVABLE,
+                amount=-round_money(amount),
+                journal_id=journal_id,
+                billing_entity=billing_entity,
+                contractor_id=contractor_id,
+                performed_by_user_id=performed_by_user_id,
+                reference_type=ReferenceType.CREDIT_NOTE,
+                reference_id=credit_note_id,
+                organization_id=organization_id,
+            ),
+        ],
+        conn=conn,
+    )

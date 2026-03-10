@@ -19,6 +19,7 @@ Architecture:
   The schema.py files remain the source of truth for fresh databases.
   Migrations are only needed for evolving an existing database.
 """
+
 import importlib
 import logging
 import pkgutil

@@ -1,4 +1,5 @@
 """Invoice models."""
+
 from datetime import datetime, timedelta
 from typing import ClassVar
 from uuid import uuid4
@@ -33,6 +34,7 @@ class InvoiceLineItem(BaseModel):
     the operational names on LineItem (unit_price, subtotal). The underlying
     data is the same — unit_price * quantity = amount.
     """
+
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid4()))
     invoice_id: str = ""
@@ -76,16 +78,19 @@ class InvoiceLineItem(BaseModel):
 
 class InvoiceCreate(BaseModel):
     """Payload for creating invoice from withdrawal IDs."""
+
     withdrawal_ids: list[str]
 
 
 class InvoiceSyncXeroBulk(BaseModel):
     """Payload for bulk sync to Xero."""
+
     invoice_ids: list[str]
 
 
 class InvoiceUpdate(BaseModel):
     """Payload for updating invoice."""
+
     billing_entity: str | None = None
     contact_name: str | None = None
     contact_email: str | None = None
@@ -140,5 +145,6 @@ class Invoice(AuditedEntity):
 
 class InvoiceWithDetails(Invoice):
     """Invoice with line items and linked withdrawals."""
-    line_items: list[InvoiceLineItem] = []
-    withdrawal_ids: list[str] = []
+
+    line_items: list[InvoiceLineItem] = Field(default_factory=list)
+    withdrawal_ids: list[str] = Field(default_factory=list)

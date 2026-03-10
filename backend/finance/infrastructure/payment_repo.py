@@ -13,7 +13,9 @@ def _row_to_dict(row) -> dict | None:
 _COLUMNS = "id, invoice_id, billing_entity_id, amount, method, reference, payment_date, notes, recorded_by_id, xero_payment_id, organization_id, created_at, updated_at"
 
 
-async def insert(payment: Payment | dict, withdrawal_ids: list[str] | None = None, conn=None) -> None:
+async def insert(
+    payment: Payment | dict, withdrawal_ids: list[str] | None = None, conn=None
+) -> None:
     d = payment if isinstance(payment, dict) else payment.model_dump()
     in_tx = conn is not None
     conn = conn or get_connection()
@@ -23,14 +25,22 @@ async def insert(payment: Payment | dict, withdrawal_ids: list[str] | None = Non
     await conn.execute(
         ins_q,
         (
-            d["id"], d.get("invoice_id"), d.get("billing_entity_id"),
-            d["amount"], d.get("method", "bank_transfer"), d.get("reference", ""),
-            d["payment_date"], d.get("notes"),
-            d["recorded_by_id"], d.get("xero_payment_id"),
-            d["organization_id"], d["created_at"], d["updated_at"],
+            d["id"],
+            d.get("invoice_id"),
+            d.get("billing_entity_id"),
+            d["amount"],
+            d.get("method", "bank_transfer"),
+            d.get("reference", ""),
+            d["payment_date"],
+            d.get("notes"),
+            d["recorded_by_id"],
+            d.get("xero_payment_id"),
+            d["organization_id"],
+            d["created_at"],
+            d["updated_at"],
         ),
     )
-    for wid in (withdrawal_ids or []):
+    for wid in withdrawal_ids or []:
         await conn.execute(
             "INSERT INTO payment_withdrawals (payment_id, withdrawal_id) VALUES (?, ?)",
             (d["id"], wid),
@@ -94,7 +104,9 @@ async def list_for_invoice(invoice_id: str, organization_id: str) -> list:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
-    sel_q += " FROM payments WHERE invoice_id = ? AND organization_id = ? ORDER BY payment_date DESC"
+    sel_q += (
+        " FROM payments WHERE invoice_id = ? AND organization_id = ? ORDER BY payment_date DESC"
+    )
     cursor = await conn.execute(sel_q, (invoice_id, organization_id))
     return [_row_to_dict(r) for r in await cursor.fetchall()]
 

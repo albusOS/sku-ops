@@ -1,4 +1,5 @@
 """InventoryAgent: product search, stock levels, reorders, departments, vendors."""
+
 import logging
 
 from pydantic_ai import Agent, RunContext
@@ -43,19 +44,25 @@ _agent = Agent(
 @_agent.tool
 async def search_products(ctx: RunContext[AgentDeps], query: str, limit: int = 20) -> str:
     """Search products by name, SKU, or barcode. Returns matching products with SKU, name, quantity, min_stock, department."""
-    return budget_tool_result(await _search_products({"query": query, "limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _search_products({"query": query, "limit": limit}, ctx.deps.org_id)
+    )
 
 
 @_agent.tool
 async def search_semantic(ctx: RunContext[AgentDeps], query: str, limit: int = 10) -> str:
     """Semantic/concept search for products. Use when exact search fails or query is descriptive (e.g. 'something for fixing pipes', 'waterproof coating')."""
-    return budget_tool_result(await _search_semantic({"query": query, "limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _search_semantic({"query": query, "limit": limit}, ctx.deps.org_id)
+    )
 
 
 @_agent.tool
 async def get_product_details(ctx: RunContext[AgentDeps], sku: str) -> str:
     """Get full details for one product by SKU: price, cost, vendor, UOM, barcode, reorder point."""
-    return budget_tool_result(await _get_product_details({"sku": sku}, ctx.deps.org_id), max_tokens=400)
+    return budget_tool_result(
+        await _get_product_details({"sku": sku}, ctx.deps.org_id), max_tokens=400
+    )
 
 
 @_agent.tool
@@ -85,13 +92,17 @@ async def list_vendors(ctx: RunContext[AgentDeps]) -> str:
 @_agent.tool
 async def get_usage_velocity(ctx: RunContext[AgentDeps], sku: str, days: int = 30) -> str:
     """How fast a product moves: total and average daily withdrawals over the last N days."""
-    return budget_tool_result(await _get_usage_velocity({"sku": sku, "days": days}, ctx.deps.org_id), max_tokens=300)
+    return budget_tool_result(
+        await _get_usage_velocity({"sku": sku, "days": days}, ctx.deps.org_id), max_tokens=300
+    )
 
 
 @_agent.tool
 async def get_reorder_suggestions(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
     """Priority reorder list: low-stock products ranked by urgency (days until stockout based on usage velocity)."""
-    return budget_tool_result(await _get_reorder_suggestions({"limit": limit}, ctx.deps.org_id), max_tokens=600)
+    return budget_tool_result(
+        await _get_reorder_suggestions({"limit": limit}, ctx.deps.org_id), max_tokens=600
+    )
 
 
 @_agent.tool
@@ -103,35 +114,54 @@ async def get_department_health(ctx: RunContext[AgentDeps]) -> str:
 @_agent.tool
 async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int = 30) -> str:
     """Products with stock on hand but very low or zero withdrawal activity — dead or slow-moving stock tying up inventory."""
-    return budget_tool_result(await _get_slow_movers({"limit": limit, "days": days}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _get_slow_movers({"limit": limit, "days": days}, ctx.deps.org_id)
+    )
 
 
 @_agent.tool
-async def get_top_products(ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10) -> str:
+async def get_top_products(
+    ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10
+) -> str:
     """Top products ranked by units withdrawn or revenue generated over the last N days. by: 'volume' or 'revenue'."""
-    return budget_tool_result(await _get_top_products({"days": days, "by": by, "limit": limit}, ctx.deps.org_id))
+    return budget_tool_result(
+        await _get_top_products({"days": days, "by": by, "limit": limit}, ctx.deps.org_id)
+    )
 
 
 @_agent.tool
-async def get_department_activity(ctx: RunContext[AgentDeps], dept_code: str, days: int = 30) -> str:
+async def get_department_activity(
+    ctx: RunContext[AgentDeps], dept_code: str, days: int = 30
+) -> str:
     """Stock movement summary for a department over the last N days (withdrawals, receiving, net change)."""
-    return budget_tool_result(await _get_department_activity({"dept_code": dept_code, "days": days}, ctx.deps.org_id), max_tokens=400)
+    return budget_tool_result(
+        await _get_department_activity({"dept_code": dept_code, "days": days}, ctx.deps.org_id),
+        max_tokens=400,
+    )
 
 
 @_agent.tool
 async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
     """Products predicted to run out soonest based on recent withdrawal velocity. Returns days-until-zero estimates."""
-    return budget_tool_result(await _forecast_stockout({"limit": limit}, ctx.deps.org_id), max_tokens=600)
+    return budget_tool_result(
+        await _forecast_stockout({"limit": limit}, ctx.deps.org_id), max_tokens=600
+    )
 
 
-async def run(user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = "") -> dict:
+async def run(
+    user_message: str, history: list[dict] | None, deps: AgentDeps, session_id: str = ""
+) -> dict:
     model_settings = build_model_settings(_config)
 
     return await run_specialist(
-        _agent, user_message,
-        msg_history=build_message_history(history), deps=deps,
+        _agent,
+        user_message,
+        msg_history=build_message_history(history),
+        deps=deps,
         model_settings=model_settings,
-        agent_name="InventoryAgent", agent_label="inventory",
-        session_id=session_id, history=history,
+        agent_name="InventoryAgent",
+        agent_label="inventory",
+        session_id=session_id,
+        history=history,
         config=_config,
     )

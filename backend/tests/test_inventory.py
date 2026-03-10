@@ -1,4 +1,5 @@
 """Tests for inventory service and withdrawal stock changes."""
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product

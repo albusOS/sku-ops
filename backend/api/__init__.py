@@ -1,6 +1,7 @@
 """
 API package - aggregates all routers for the main app.
 """
+
 from fastapi import APIRouter
 
 from assistant.api.chat import router as chat_router
@@ -67,6 +68,7 @@ api_router.include_router(jobs_router)
 if is_development or is_test:
     try:
         from devtools.api.seed import router as seed_router
+
         api_router.include_router(seed_router)
     except ImportError:
         pass

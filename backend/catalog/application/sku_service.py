@@ -1,4 +1,5 @@
 """SKU generation — slug derivation and sequential counter management."""
+
 import re
 
 from catalog.infrastructure.sku_repo import sku_repo

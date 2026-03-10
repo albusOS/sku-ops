@@ -2,6 +2,7 @@
 Product search index. Uses OpenAI text-embedding-3-small for semantic search when
 OPENAI_API_KEY is set; falls back to BM25 keyword search otherwise.
 """
+
 import asyncio
 import logging
 import re
@@ -40,7 +41,7 @@ class ProductSearchIndex:
     def __init__(self):
         self._products: list[dict] = []
         # Semantic (OpenAI embeddings)
-        self._embeddings: np.ndarray | None = None   # shape (N, EMBEDDING_DIM)
+        self._embeddings: np.ndarray | None = None  # shape (N, EMBEDDING_DIM)
         # Keyword fallback (BM25)
         self._bm25 = None
 
@@ -62,13 +63,14 @@ class ProductSearchIndex:
     async def _build_embeddings(self, products: list[dict], api_key: str) -> None:
         try:
             from openai import AsyncOpenAI
+
             client = AsyncOpenAI(api_key=api_key)
             texts = [_product_text(p) for p in products]
             # Batch into chunks of 500 (API limit is 2048 inputs)
             all_vectors: list[list[float]] = []
             batch_size = 500
             for i in range(0, len(texts), batch_size):
-                batch = texts[i:i + batch_size]
+                batch = texts[i : i + batch_size]
                 resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
                 all_vectors.extend(item.embedding for item in resp.data)
             mat = np.array(all_vectors, dtype=np.float32)
@@ -103,6 +105,7 @@ class ProductSearchIndex:
             return self.search_bm25(query, limit)
         try:
             from openai import AsyncOpenAI
+
             client = AsyncOpenAI(api_key=api_key)
             resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
             qvec = np.array(resp.data[0].embedding, dtype=np.float32)

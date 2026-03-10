@@ -8,6 +8,7 @@ Covers:
   5. Xero adapter builds per-line itemized COGS journal (not one aggregate entry)
   6. Xero adapter uses sell_cost over cost when available
 """
+
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -17,6 +18,7 @@ from finance.adapters.xero_adapter import XeroAdapter
 from identity.domain.org_settings import OrgSettings
 
 # ── 1. cost_per_sell_unit ─────────────────────────────────────────────────────
+
 
 class TestCostPerSellUnit:
     def test_same_unit_same_pack(self):
@@ -59,6 +61,7 @@ class TestCostPerSellUnit:
 
 # ── 2. Withdrawal service computes sell_cost ──────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_withdrawal_sell_cost_same_unit(db):
     """When base_unit == sell_uom and pack_qty == 1, sell_cost == cost."""
@@ -88,17 +91,26 @@ async def test_withdrawal_sell_cost_same_unit(db):
     )
 
     data = MaterialWithdrawalCreate(
-        items=[WithdrawalItem(
-            product_id=product.id, sku=product.sku, name=product.name,
-            quantity=5, price=2.0, cost=1.0,
-        )],
-        job_id="JOB-001", service_address="123 Main",
+        items=[
+            WithdrawalItem(
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=5,
+                price=2.0,
+                cost=1.0,
+            )
+        ],
+        job_id="JOB-001",
+        service_address="123 Main",
     )
     user = CurrentUser(id="user-1", email="t@t.com", name="T", role="admin")
     contractor = {"id": "contractor-1", "name": "C"}
 
     result = await create_withdrawal(
-        data, contractor, user,
+        data,
+        contractor,
+        user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
     )
@@ -138,17 +150,26 @@ async def test_withdrawal_sell_cost_unit_conversion(db):
     )
 
     data = MaterialWithdrawalCreate(
-        items=[WithdrawalItem(
-            product_id=product.id, sku=product.sku, name=product.name,
-            quantity=10, price=0.12, unit="inch",
-        )],
-        job_id="JOB-002", service_address="456 Oak",
+        items=[
+            WithdrawalItem(
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=10,
+                price=0.12,
+                unit="inch",
+            )
+        ],
+        job_id="JOB-002",
+        service_address="456 Oak",
     )
     user = CurrentUser(id="user-1", email="t@t.com", name="T", role="admin")
     contractor = {"id": "contractor-1", "name": "C"}
 
     result = await create_withdrawal(
-        data, contractor, user,
+        data,
+        contractor,
+        user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
     )
@@ -161,6 +182,7 @@ async def test_withdrawal_sell_cost_unit_conversion(db):
 
 
 # ── 3. Ledger entries carry quantity, unit, unit_cost ─────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_ledger_cogs_entry_has_quantity_and_unit_cost(db):
@@ -192,17 +214,26 @@ async def test_ledger_cogs_entry_has_quantity_and_unit_cost(db):
     )
 
     data = MaterialWithdrawalCreate(
-        items=[WithdrawalItem(
-            product_id=product.id, sku=product.sku, name=product.name,
-            quantity=24, price=0.20, unit="inch",
-        )],
-        job_id="JOB-003", service_address="789 Elm",
+        items=[
+            WithdrawalItem(
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=24,
+                price=0.20,
+                unit="inch",
+            )
+        ],
+        job_id="JOB-003",
+        service_address="789 Elm",
     )
     user = CurrentUser(id="user-1", email="t@t.com", name="T", role="admin")
     contractor = {"id": "contractor-1", "name": "C"}
 
     result = await create_withdrawal(
-        data, contractor, user,
+        data,
+        contractor,
+        user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
     )
@@ -253,17 +284,25 @@ async def test_ledger_revenue_entry_has_quantity_and_unit_cost(db):
     )
 
     data = MaterialWithdrawalCreate(
-        items=[WithdrawalItem(
-            product_id=product.id, sku=product.sku, name=product.name,
-            quantity=3, price=5.0,
-        )],
-        job_id="JOB-004", service_address="1 A St",
+        items=[
+            WithdrawalItem(
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=3,
+                price=5.0,
+            )
+        ],
+        job_id="JOB-004",
+        service_address="1 A St",
     )
     user = CurrentUser(id="user-1", email="t@t.com", name="T", role="admin")
     contractor = {"id": "contractor-1", "name": "C"}
 
     result = await create_withdrawal(
-        data, contractor, user,
+        data,
+        contractor,
+        user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
     )
@@ -281,6 +320,7 @@ async def test_ledger_revenue_entry_has_quantity_and_unit_cost(db):
 
 
 # ── 4. Invoice line items carry unit + sell_cost ──────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_invoice_line_items_carry_sell_cost(db):
@@ -315,24 +355,31 @@ async def test_invoice_line_items_carry_sell_cost(db):
     )
 
     data = MaterialWithdrawalCreate(
-        items=[WithdrawalItem(
-            product_id=product.id, sku=product.sku, name=product.name,
-            quantity=36, price=0.15, unit="inch",
-        )],
-        job_id="JOB-005", service_address="2 B St",
+        items=[
+            WithdrawalItem(
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=36,
+                price=0.15,
+                unit="inch",
+            )
+        ],
+        job_id="JOB-005",
+        service_address="2 B St",
     )
     user = CurrentUser(id="user-1", email="t@t.com", name="T", role="admin")
     contractor = {"id": "contractor-1", "name": "C", "billing_entity": "ACME Inc"}
 
     withdrawal = await create_withdrawal(
-        data, contractor, user,
+        data,
+        contractor,
+        user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
     )
 
-    inv = await create_invoice_from_withdrawals(
-        [withdrawal["id"]], organization_id="default"
-    )
+    inv = await create_invoice_from_withdrawals([withdrawal["id"]], organization_id="default")
     full_inv = await get_invoice(inv["id"], "default")
 
     line_items = full_inv.get("line_items", [])
@@ -345,15 +392,14 @@ async def test_invoice_line_items_carry_sell_cost(db):
 
 # ── 5 & 6. Xero adapter: per-line COGS journal ────────────────────────────────
 
+
 def _settings(**overrides) -> OrgSettings:
     base = {
         "organization_id": "org-1",
         "xero_access_token": "tok-valid",
         "xero_refresh_token": "refresh-valid",
         "xero_tenant_id": "tenant-abc",
-        "xero_token_expiry": (
-            datetime.now(UTC) + timedelta(hours=1)
-        ).isoformat(),
+        "xero_token_expiry": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
         "xero_sales_account_code": "200",
         "xero_cogs_account_code": "500",
         "xero_inventory_account_code": "630",

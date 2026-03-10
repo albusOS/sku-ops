@@ -46,9 +46,12 @@ async def delete_vendor(vendor_id: str, request: Request, current_user: AdminDep
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Vendor not found")
     await audit_log(
-        user_id=current_user.id, action="vendor.delete",
-        resource_type="vendor", resource_id=vendor_id,
+        user_id=current_user.id,
+        action="vendor.delete",
+        resource_type="vendor",
+        resource_id=vendor_id,
         details={"name": existing.get("name")},
-        request=request, org_id=org_id,
+        request=request,
+        org_id=org_id,
     )
     return {"message": "Vendor deleted"}

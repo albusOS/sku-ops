@@ -24,9 +24,7 @@ async def get_by_id(user_id: str) -> dict | None:
 
 async def get_by_email(email: str) -> dict | None:
     conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT * FROM users WHERE email = ?", (email,)
-    )
+    cursor = await conn.execute("SELECT * FROM users WHERE email = ?", (email,))
     row = await cursor.fetchone()
     return _row_to_dict(row)
 

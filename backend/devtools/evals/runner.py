@@ -6,6 +6,7 @@ Usage:
     python -m devtools.evals.runner --suite all
     python -m devtools.evals.runner --suite all --compare "anthropic/claude-sonnet-4-6,anthropic/claude-haiku-4-5"
 """
+
 import argparse
 import asyncio
 import json
@@ -34,6 +35,7 @@ _AVAILABLE_SUITES = ("routing", "inventory", "ops", "finance")
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class EvalCaseResult:
@@ -68,6 +70,7 @@ class EvalReport:
 
 # ── Dataset loading ───────────────────────────────────────────────────────────
 
+
 def load_dataset(suite: str) -> list[dict]:
     path = _DATASETS_DIR / f"{suite}.yaml"
     if not path.exists():
@@ -77,6 +80,7 @@ def load_dataset(suite: str) -> list[dict]:
 
 
 # ── Routing eval ──────────────────────────────────────────────────────────────
+
 
 async def _eval_routing_case(case: dict) -> EvalCaseResult:
     """Run a single routing classification test against the new 4-path dispatch.
@@ -103,11 +107,13 @@ async def _eval_routing_case(case: dict) -> EvalCaseResult:
         return EvalCaseResult(
             case_id=case["id"],
             passed=passed,
-            assertions=[{
-                "name": f"expected_path:{expected}",
-                "passed": passed,
-                "detail": f"got {actual}" if not passed else "",
-            }],
+            assertions=[
+                {
+                    "name": f"expected_path:{expected}",
+                    "passed": passed,
+                    "detail": f"got {actual}" if not passed else "",
+                }
+            ],
             latency_ms=latency,
         )
     except (ValueError, KeyError, RuntimeError, OSError) as e:
@@ -116,7 +122,10 @@ async def _eval_routing_case(case: dict) -> EvalCaseResult:
 
 # ── Agent eval ────────────────────────────────────────────────────────────────
 
-async def _eval_agent_case(case: dict, agent_type: str, _model_override: str | None = None) -> EvalCaseResult:
+
+async def _eval_agent_case(
+    case: dict, agent_type: str, _model_override: str | None = None
+) -> EvalCaseResult:
     """Run a single agent test case through the full chat pipeline."""
     t0 = time.monotonic()
     try:
@@ -141,8 +150,7 @@ async def _eval_agent_case(case: dict, agent_type: str, _model_override: str | N
             case_id=card.case_id,
             passed=card.passed,
             assertions=[
-                {"name": a.name, "passed": a.passed, "detail": a.detail}
-                for a in card.assertions
+                {"name": a.name, "passed": a.passed, "detail": a.detail} for a in card.assertions
             ],
             input_tokens=card.total_input_tokens,
             output_tokens=card.total_output_tokens,
@@ -152,10 +160,13 @@ async def _eval_agent_case(case: dict, agent_type: str, _model_override: str | N
         )
     except (ValueError, KeyError, RuntimeError, OSError) as e:
         latency = int((time.monotonic() - t0) * 1000)
-        return EvalCaseResult(case_id=case.get("id", "?"), passed=False, error=str(e), latency_ms=latency)
+        return EvalCaseResult(
+            case_id=case.get("id", "?"), passed=False, error=str(e), latency_ms=latency
+        )
 
 
 # ── Suite runner ──────────────────────────────────────────────────────────────
+
 
 async def run_eval_suite(suite: str, model_override: str | None = None) -> EvalReport:
     """Run all test cases in a dataset."""
@@ -209,7 +220,9 @@ def _print_summary(report: EvalReport) -> None:
     print(f"  Suite: {report.suite}  |  Model: {report.model}")
     print(f"  Pass rate: {report.passed_cases}/{report.total_cases} ({rate:.0f}%)")
     if report.total_cost_usd > 0:
-        print(f"  Cost: ${report.total_cost_usd:.6f}  |  Tokens: {report.total_input_tokens}in + {report.total_output_tokens}out")
+        print(
+            f"  Cost: ${report.total_cost_usd:.6f}  |  Tokens: {report.total_input_tokens}in + {report.total_output_tokens}out"
+        )
     if report.avg_latency_ms > 0:
         print(f"  Avg latency: {report.avg_latency_ms:.0f}ms")
     print(f"{'=' * 60}\n")
@@ -217,9 +230,12 @@ def _print_summary(report: EvalReport) -> None:
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 async def _main():
     parser = argparse.ArgumentParser(description="Run agent eval suites")
-    parser.add_argument("--suite", required=True, help=f"Suite name: {', '.join(_AVAILABLE_SUITES)} or 'all'")
+    parser.add_argument(
+        "--suite", required=True, help=f"Suite name: {', '.join(_AVAILABLE_SUITES)} or 'all'"
+    )
     parser.add_argument("--model", default=None, help="Override model (OpenRouter format)")
     parser.add_argument("--compare", default=None, help="Comma-separated models to A/B compare")
     parser.add_argument("--save", action="store_true", help="Save report to JSON")

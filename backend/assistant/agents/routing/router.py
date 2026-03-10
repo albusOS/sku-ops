@@ -4,6 +4,7 @@ Two public functions:
   is_trivial(message) -> bool   — greetings, help, thanks
   classify_domain(message) -> str — "inventory" | "ops" | "finance"
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,10 +12,25 @@ logger = logging.getLogger(__name__)
 
 # ── Trivial detection ─────────────────────────────────────────────────────────
 
-_TRIVIAL_SIGNALS = frozenset((
-    "hi", "hello", "hey", "thanks", "thank you", "help", "ok", "okay",
-    "sure", "yes", "no", "bye", "goodbye", "good morning", "good afternoon",
-))
+_TRIVIAL_SIGNALS = frozenset(
+    (
+        "hi",
+        "hello",
+        "hey",
+        "thanks",
+        "thank you",
+        "help",
+        "ok",
+        "okay",
+        "sure",
+        "yes",
+        "no",
+        "bye",
+        "goodbye",
+        "good morning",
+        "good afternoon",
+    )
+)
 
 
 def is_trivial(message: str) -> bool:
@@ -26,20 +42,55 @@ def is_trivial(message: str) -> bool:
 # ── Domain classification ─────────────────────────────────────────────────────
 
 _INVENTORY_WORDS = (
-    "stock", "reorder", "sku", "barcode", "product", "low stock", "out of stock",
-    "department", "vendor", "inventory", "slow mover", "dead stock",
-    "top sell", "best sell", "top product", "forecast", "stockout",
-    "velocity", "trend", "analytics",
+    "stock",
+    "reorder",
+    "sku",
+    "barcode",
+    "product",
+    "low stock",
+    "out of stock",
+    "department",
+    "vendor",
+    "inventory",
+    "slow mover",
+    "dead stock",
+    "top sell",
+    "best sell",
+    "top product",
+    "forecast",
+    "stockout",
+    "velocity",
+    "trend",
+    "analytics",
 )
 
 _OPS_WORDS = (
-    "withdrawal", "material request", "contractor", "job", "service address",
-    "pulled", "who took", "pending request", "taken",
+    "withdrawal",
+    "material request",
+    "contractor",
+    "job",
+    "service address",
+    "pulled",
+    "who took",
+    "pending request",
+    "taken",
 )
 
 _FINANCE_WORDS = (
-    "revenue", "invoice", "payment", "p&l", "profit", "margin", "outstanding",
-    "owes", "xero", "balance", "sales", "gross", "unpaid", "billing",
+    "revenue",
+    "invoice",
+    "payment",
+    "p&l",
+    "profit",
+    "margin",
+    "outstanding",
+    "owes",
+    "xero",
+    "balance",
+    "sales",
+    "gross",
+    "unpaid",
+    "billing",
 )
 
 

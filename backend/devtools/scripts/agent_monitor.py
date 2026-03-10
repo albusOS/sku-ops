@@ -8,11 +8,12 @@ Usage:
     python -m devtools.scripts.agent_monitor --minutes 30 # only show last 30 min
     python -m devtools.scripts.agent_monitor --once        # single snapshot, no live refresh
 """
+
 import argparse
 import asyncio
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Ensure backend is on sys.path
@@ -39,10 +40,10 @@ def _format_cost(cost: float) -> Text:
 
 def _format_duration(ms: int) -> Text:
     if ms > 30000:
-        return Text(f"{ms/1000:.1f}s", style="bold red")
+        return Text(f"{ms / 1000:.1f}s", style="bold red")
     if ms > 10000:
-        return Text(f"{ms/1000:.1f}s", style="yellow")
-    return Text(f"{ms/1000:.1f}s", style="green")
+        return Text(f"{ms / 1000:.1f}s", style="yellow")
+    return Text(f"{ms / 1000:.1f}s", style="green")
 
 
 def _format_tokens(inp: int, out: int) -> str:
@@ -73,7 +74,7 @@ def _build_stats_panel(stats: dict) -> Panel:
         f"  Runs: [bold]{total_runs}[/]    Errors: [{'red' if total_errors else 'green'}]{total_errors}[/]",
         f"  Cost: [bold]{_format_cost(total_cost)}[/]",
         f"  Tokens: [dim]{total_in:,}[/] in  [dim]{total_out:,}[/] out",
-        f"  Avg latency: {avg_dur/1000:.1f}s",
+        f"  Avg latency: {avg_dur / 1000:.1f}s",
     ]
 
     return Panel(
@@ -98,7 +99,9 @@ def _build_agent_breakdown(stats: dict) -> Panel:
         table.add_row(
             Text(name, style=_agent_color(name)),
             str(row.get("runs", 0)),
-            _format_tokens(row.get("total_input_tokens", 0) or 0, row.get("total_output_tokens", 0) or 0),
+            _format_tokens(
+                row.get("total_input_tokens", 0) or 0, row.get("total_output_tokens", 0) or 0
+            ),
             _format_cost(row.get("total_cost", 0) or 0),
             str(int(row.get("avg_duration_ms", 0) or 0)),
             Text(str(row.get("errors", 0) or 0), style="red" if row.get("errors") else "green"),
@@ -166,7 +169,10 @@ def _build_display(stats: dict, runs: list[dict]) -> Layout:
         Layout(name="runs"),
     )
     layout["header"].update(
-        Text(f" SKU-Ops Agent Monitor  •  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", style="bold white on blue")
+        Text(
+            f" SKU-Ops Agent Monitor  •  {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')}",
+            style="bold white on blue",
+        )
     )
     layout["top"].split_row(
         Layout(_build_stats_panel(stats), name="stats", ratio=1),
@@ -178,6 +184,7 @@ def _build_display(stats: dict, runs: list[dict]) -> Layout:
 
 async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
     from assistant.infrastructure.agent_run_repo import get_stats, list_runs
+
     stats = await get_stats(hours=max(1, minutes // 60) or 1)
     runs = await list_runs(minutes=minutes, limit=limit)
     return stats, runs
@@ -185,6 +192,7 @@ async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
 
 async def _run(interval: int, minutes: int, limit: int, once: bool):
     from shared.infrastructure.database import close_db, init_db
+
     await init_db()
 
     try:
@@ -207,8 +215,12 @@ async def _run(interval: int, minutes: int, limit: int, once: bool):
 
 def main():
     parser = argparse.ArgumentParser(description="Live agent monitoring dashboard")
-    parser.add_argument("--interval", type=int, default=5, help="Refresh interval in seconds (default: 5)")
-    parser.add_argument("--minutes", type=int, default=60, help="Show runs from last N minutes (default: 60)")
+    parser.add_argument(
+        "--interval", type=int, default=5, help="Refresh interval in seconds (default: 5)"
+    )
+    parser.add_argument(
+        "--minutes", type=int, default=60, help="Show runs from last N minutes (default: 60)"
+    )
     parser.add_argument("--limit", type=int, default=30, help="Max runs to show (default: 30)")
     parser.add_argument("--once", action="store_true", help="Single snapshot, no live refresh")
     args = parser.parse_args()

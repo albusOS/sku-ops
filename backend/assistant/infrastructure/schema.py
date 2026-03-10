@@ -13,7 +13,6 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL,
         expires_at TEXT
     )""",
-
     """CREATE TABLE IF NOT EXISTS agent_runs (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,

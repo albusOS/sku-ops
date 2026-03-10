@@ -1,4 +1,5 @@
 """Pagination cap tests — verify all list endpoints reject unbounded limits."""
+
 import pytest
 
 AUTH_REJECT = (401, 403)

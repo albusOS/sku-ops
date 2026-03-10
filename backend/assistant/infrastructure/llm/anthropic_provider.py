@@ -1,4 +1,5 @@
 """Direct Anthropic SDK provider adapter — used when OpenRouter is not configured."""
+
 from __future__ import annotations
 
 import logging
@@ -33,12 +34,15 @@ class AnthropicProvider:
         output_tokens: int,
     ) -> float:
         from assistant.infrastructure.llm.catalog import get_model_pricing
+
         pricing = get_model_pricing(model_id)
         if not pricing:
             return 0.0
         return round(
-            (input_tokens * pricing["input_price_per_m"]
-             + output_tokens * pricing["output_price_per_m"])
+            (
+                input_tokens * pricing["input_price_per_m"]
+                + output_tokens * pricing["output_price_per_m"]
+            )
             / 1_000_000,
             6,
         )
@@ -46,6 +50,7 @@ class AnthropicProvider:
     def get_raw_client(self) -> Any:
         try:
             import anthropic
+
             return anthropic.Anthropic(api_key=self._api_key)
         except ImportError:
             logger.warning("anthropic package not installed. Run: pip install anthropic")

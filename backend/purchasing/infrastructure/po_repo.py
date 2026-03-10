@@ -10,7 +10,6 @@ def _row(row) -> dict | None:
 
 
 class PgPORepo(PORepoPort):
-
     async def insert_po(self, po: PurchaseOrder) -> None:
         conn = get_connection()
         d = po.model_dump()
@@ -21,11 +20,21 @@ class PgPORepo(PORepoPort):
                 created_at, updated_at, organization_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                d["id"], d["vendor_id"], d["vendor_name"], d.get("document_date"),
-                d.get("total"), d["status"], d.get("notes"),
-                d["created_by_id"], d["created_by_name"],
-                d.get("received_at"), d.get("received_by_id"), d.get("received_by_name"),
-                d["created_at"], d["updated_at"], d["organization_id"],
+                d["id"],
+                d["vendor_id"],
+                d["vendor_name"],
+                d.get("document_date"),
+                d.get("total"),
+                d["status"],
+                d.get("notes"),
+                d["created_by_id"],
+                d["created_by_name"],
+                d.get("received_at"),
+                d.get("received_by_id"),
+                d.get("received_by_name"),
+                d["created_at"],
+                d["updated_at"],
+                d["organization_id"],
             ),
         )
         await conn.commit()
@@ -40,12 +49,20 @@ class PgPORepo(PORepoPort):
                     base_unit, sell_uom, pack_qty, suggested_department, status, product_id, organization_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    d["id"], d["po_id"], d["name"], d.get("original_sku"),
-                    d["ordered_qty"], d["delivered_qty"],
-                    d["unit_price"], d["cost"],
-                    d["base_unit"], d["sell_uom"],
-                    d["pack_qty"], d["suggested_department"],
-                    d["status"], d.get("product_id"),
+                    d["id"],
+                    d["po_id"],
+                    d["name"],
+                    d.get("original_sku"),
+                    d["ordered_qty"],
+                    d["delivered_qty"],
+                    d["unit_price"],
+                    d["cost"],
+                    d["base_unit"],
+                    d["sell_uom"],
+                    d["pack_qty"],
+                    d["suggested_department"],
+                    d["status"],
+                    d.get("product_id"),
                     d["organization_id"],
                 ),
             )

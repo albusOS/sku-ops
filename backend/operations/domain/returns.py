@@ -1,4 +1,5 @@
 """Return models — reversing all or part of a material withdrawal."""
+
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -17,6 +18,7 @@ class ReturnReason(StrEnum):
 
 class ReturnItem(BaseModel):
     """A line on a return — references the original withdrawal item."""
+
     model_config = ConfigDict(extra="ignore")
 
     product_id: str
@@ -40,6 +42,7 @@ class ReturnItem(BaseModel):
 
 class ReturnCreate(BaseModel):
     """API payload to create a return."""
+
     withdrawal_id: str
     items: list[ReturnItem]
     reason: ReturnReason = ReturnReason.OTHER
@@ -48,6 +51,7 @@ class ReturnCreate(BaseModel):
 
 class MaterialReturn(AuditedEntity):
     """A return against a previous withdrawal."""
+
     withdrawal_id: str
     contractor_id: str
     contractor_name: str = ""

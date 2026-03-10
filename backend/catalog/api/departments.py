@@ -39,7 +39,9 @@ async def update_department(dept_id: str, data: DepartmentCreate, current_user: 
     existing = await department_repo.get_by_id(dept_id, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Department not found")
-    result = await department_repo.update(dept_id, data.name, data.description or "", organization_id=org_id)
+    result = await department_repo.update(
+        dept_id, data.name, data.description or "", organization_id=org_id
+    )
     return result
 
 
@@ -49,7 +51,9 @@ async def delete_department(dept_id: str, request: Request, current_user: AdminD
     existing = await department_repo.get_by_id(dept_id, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Department not found")
-    product_count = await department_repo.count_products_by_department(dept_id, organization_id=org_id)
+    product_count = await department_repo.count_products_by_department(
+        dept_id, organization_id=org_id
+    )
     if product_count > 0:
         raise HTTPException(status_code=400, detail="Cannot delete department with products")
 
@@ -57,9 +61,12 @@ async def delete_department(dept_id: str, request: Request, current_user: AdminD
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Department not found")
     await audit_log(
-        user_id=current_user.id, action="department.delete",
-        resource_type="department", resource_id=dept_id,
+        user_id=current_user.id,
+        action="department.delete",
+        resource_type="department",
+        resource_id=dept_id,
         details={"name": existing.get("name"), "code": existing.get("code")},
-        request=request, org_id=org_id,
+        request=request,
+        org_id=org_id,
     )
     return {"message": "Department deleted"}

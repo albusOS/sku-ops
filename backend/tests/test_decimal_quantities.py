@@ -9,6 +9,7 @@ verify the database state, stock transactions, and returned values.
 Every test uses at least one non-integer quantity. If any layer truncates
 to int, these fail.
 """
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product
@@ -43,10 +44,11 @@ async def _create_product(name, quantity, base_unit="each", **kw):
 
 # ── Fractional product creation ──────────────────────────────────────────────
 
-class TestFractionalProductCreation:
 
+class TestFractionalProductCreation:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_create_product_with_fractional_quantity(self, _db):
+    async def test_create_product_with_fractional_quantity(self):
         """Product created with 10.5 must store 10.5, not 10."""
         product = await _create_product("Half Widget", 10.5)
         assert product.quantity == 10.5
@@ -56,8 +58,9 @@ class TestFractionalProductCreation:
             f"DB stored {persisted['quantity']}, expected 10.5 — int truncation?"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_stock_transaction_records_fractional_quantity(self, _db):
+    async def test_stock_transaction_records_fractional_quantity(self):
         """The initial IMPORT stock transaction must record the fractional quantity."""
         product = await _create_product("Fractional Import", 7.25)
         history = await get_stock_history(product.id)
@@ -69,24 +72,28 @@ class TestFractionalProductCreation:
 
 # ── Fractional withdrawal ────────────────────────────────────────────────────
 
-class TestFractionalWithdrawal:
 
+class TestFractionalWithdrawal:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_withdraw_fractional_quantity(self, _db):
+    async def test_withdraw_fractional_quantity(self):
         """Withdraw 2.5 from 10.0 → 7.5 remaining."""
         product = await _create_product("Wire", 10.0)
         decrements = [
             StockDecrement(product_id=product.id, sku=product.sku, name=product.name, quantity=2.5),
         ]
         await process_withdrawal_stock_changes(
-            items=decrements, withdrawal_id="w-1",
-            user_id="user-1", user_name="Test",
+            items=decrements,
+            withdrawal_id="w-1",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(7.5)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_withdraw_fractional_insufficient_stock(self, _db):
+    async def test_withdraw_fractional_insufficient_stock(self):
         """Withdraw 5.5 from 5.0 must raise, not silently truncate to 5."""
         product = await _create_product("Wire", 5.0)
         decrements = [
@@ -94,25 +101,34 @@ class TestFractionalWithdrawal:
         ]
         with pytest.raises(InsufficientStockError) as exc_info:
             await process_withdrawal_stock_changes(
-                items=decrements, withdrawal_id="w-2",
-                user_id="user-1", user_name="Test",
+                items=decrements,
+                withdrawal_id="w-2",
+                user_id="user-1",
+                user_name="Test",
             )
         assert exc_info.value.requested == 5.5
         assert exc_info.value.available == pytest.approx(5.0)
 
         unchanged = await product_repo.get_by_id(product.id)
-        assert unchanged["quantity"] == pytest.approx(5.0), "Stock should be unchanged after failed withdrawal"
+        assert unchanged["quantity"] == pytest.approx(5.0), (
+            "Stock should be unchanged after failed withdrawal"
+        )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_withdraw_exactly_all_stock(self, _db):
+    async def test_withdraw_exactly_all_stock(self):
         """Withdraw 3.75 from 3.75 → exactly 0 remaining."""
         product = await _create_product("Sealant", 3.75)
         decrements = [
-            StockDecrement(product_id=product.id, sku=product.sku, name=product.name, quantity=3.75),
+            StockDecrement(
+                product_id=product.id, sku=product.sku, name=product.name, quantity=3.75
+            ),
         ]
         await process_withdrawal_stock_changes(
-            items=decrements, withdrawal_id="w-3",
-            user_id="user-1", user_name="Test",
+            items=decrements,
+            withdrawal_id="w-3",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(0.0)
@@ -120,78 +136,102 @@ class TestFractionalWithdrawal:
 
 # ── UOM conversion in withdrawals ────────────────────────────────────────────
 
-class TestUOMConversionWithdrawal:
 
+class TestUOMConversionWithdrawal:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_withdraw_inches_from_feet_product(self, _db):
+    async def test_withdraw_inches_from_feet_product(self):
         """Product stored in feet (100). Withdraw 18 inches = 1.5 feet deducted."""
         product = await _create_product("Copper Pipe", 100.0, base_unit="foot")
 
         decrements = [
             StockDecrement(
-                product_id=product.id, sku=product.sku, name=product.name,
-                quantity=18.0, unit="inch",
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=18.0,
+                unit="inch",
             ),
         ]
         await process_withdrawal_stock_changes(
-            items=decrements, withdrawal_id="w-uom-1",
-            user_id="user-1", user_name="Test",
+            items=decrements,
+            withdrawal_id="w-uom-1",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(98.5), (
             f"100 ft - 18 in should be 98.5 ft, got {updated['quantity']}"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_withdraw_yards_from_feet_product(self, _db):
+    async def test_withdraw_yards_from_feet_product(self):
         """Product stored in feet (30). Withdraw 2 yards = 6 feet deducted."""
         product = await _create_product("Rope", 30.0, base_unit="foot")
 
         decrements = [
             StockDecrement(
-                product_id=product.id, sku=product.sku, name=product.name,
-                quantity=2.0, unit="yard",
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=2.0,
+                unit="yard",
             ),
         ]
         await process_withdrawal_stock_changes(
-            items=decrements, withdrawal_id="w-uom-2",
-            user_id="user-1", user_name="Test",
+            items=decrements,
+            withdrawal_id="w-uom-2",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(24.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_withdraw_pints_from_gallon_product(self, _db):
+    async def test_withdraw_pints_from_gallon_product(self):
         """Product stored in gallons (5). Withdraw 4 pints = 0.5 gallons."""
         product = await _create_product("Paint", 5.0, base_unit="gallon")
 
         decrements = [
             StockDecrement(
-                product_id=product.id, sku=product.sku, name=product.name,
-                quantity=4.0, unit="pint",
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=4.0,
+                unit="pint",
             ),
         ]
         await process_withdrawal_stock_changes(
-            items=decrements, withdrawal_id="w-uom-3",
-            user_id="user-1", user_name="Test",
+            items=decrements,
+            withdrawal_id="w-uom-3",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(4.5)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_stock_transaction_records_base_unit(self, _db):
+    async def test_stock_transaction_records_base_unit(self):
         """Stock transaction should record the converted quantity in base_unit."""
         product = await _create_product("Chain", 50.0, base_unit="foot")
 
         decrements = [
             StockDecrement(
-                product_id=product.id, sku=product.sku, name=product.name,
-                quantity=24.0, unit="inch",
+                product_id=product.id,
+                sku=product.sku,
+                name=product.name,
+                quantity=24.0,
+                unit="inch",
             ),
         ]
         await process_withdrawal_stock_changes(
-            items=decrements, withdrawal_id="w-uom-tx",
-            user_id="user-1", user_name="Test",
+            items=decrements,
+            withdrawal_id="w-uom-tx",
+            user_id="user-1",
+            user_name="Test",
         )
         history = await get_stock_history(product.id)
         withdrawal_txs = [t for t in history if t.get("transaction_type") == "withdrawal"]
@@ -203,17 +243,22 @@ class TestUOMConversionWithdrawal:
 
 # ── UOM conversion in receiving ──────────────────────────────────────────────
 
-class TestUOMConversionReceiving:
 
+class TestUOMConversionReceiving:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_receive_inches_into_feet_product(self, _db):
+    async def test_receive_inches_into_feet_product(self):
         """Product stored in feet (50). Receive 36 inches = 3 feet added."""
         product = await _create_product("Tubing", 50.0, base_unit="foot")
 
         await process_receiving_stock_changes(
-            product_id=product.id, sku=product.sku, product_name=product.name,
-            quantity=36.0, unit="inch",
-            user_id="user-1", user_name="Test",
+            product_id=product.id,
+            sku=product.sku,
+            product_name=product.name,
+            quantity=36.0,
+            unit="inch",
+            user_id="user-1",
+            user_name="Test",
             reference_id="po-1",
         )
         updated = await product_repo.get_by_id(product.id)
@@ -221,15 +266,20 @@ class TestUOMConversionReceiving:
             f"50 ft + 36 in should be 53 ft, got {updated['quantity']}"
         )
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_receive_ounces_into_pounds_product(self, _db):
+    async def test_receive_ounces_into_pounds_product(self):
         """Product stored in pounds (10). Receive 32 ounces = 2 pounds added."""
         product = await _create_product("Solder", 10.0, base_unit="pound")
 
         await process_receiving_stock_changes(
-            product_id=product.id, sku=product.sku, product_name=product.name,
-            quantity=32.0, unit="ounce",
-            user_id="user-1", user_name="Test",
+            product_id=product.id,
+            sku=product.sku,
+            product_name=product.name,
+            quantity=32.0,
+            unit="ounce",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(12.0)
@@ -237,44 +287,60 @@ class TestUOMConversionReceiving:
 
 # ── Stock adjustment with decimals ───────────────────────────────────────────
 
-class TestFractionalAdjustment:
 
+class TestFractionalAdjustment:
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_positive_adjustment_with_decimal(self, _db):
+    async def test_positive_adjustment_with_decimal(self):
         product = await _create_product("Bolts", 10.0)
         await process_adjustment_stock_changes(
-            product_id=product.id, quantity_delta=0.5,
-            reason="found extra", user_id="user-1", user_name="Test",
+            product_id=product.id,
+            quantity_delta=0.5,
+            reason="found extra",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(10.5)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_negative_adjustment_with_decimal(self, _db):
+    async def test_negative_adjustment_with_decimal(self):
         product = await _create_product("Nuts", 10.0)
         await process_adjustment_stock_changes(
-            product_id=product.id, quantity_delta=-3.25,
-            reason="damaged", user_id="user-1", user_name="Test",
+            product_id=product.id,
+            quantity_delta=-3.25,
+            reason="damaged",
+            user_id="user-1",
+            user_name="Test",
         )
         updated = await product_repo.get_by_id(product.id)
         assert updated["quantity"] == pytest.approx(6.75)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_adjustment_that_would_go_negative_raises(self, _db):
+    async def test_adjustment_that_would_go_negative_raises(self):
         product = await _create_product("Screws", 2.0)
         with pytest.raises(NegativeStockError):
             await process_adjustment_stock_changes(
-                product_id=product.id, quantity_delta=-3.0,
-                reason="correction", user_id="user-1", user_name="Test",
+                product_id=product.id,
+                quantity_delta=-3.0,
+                reason="correction",
+                user_id="user-1",
+                user_name="Test",
             )
         unchanged = await product_repo.get_by_id(product.id)
         assert unchanged["quantity"] == pytest.approx(2.0)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_zero_adjustment_raises(self, _db):
+    async def test_zero_adjustment_raises(self):
         product = await _create_product("Washers", 5.0)
         with pytest.raises(ValueError, match="zero"):
             await process_adjustment_stock_changes(
-                product_id=product.id, quantity_delta=0,
-                reason="oops", user_id="user-1", user_name="Test",
+                product_id=product.id,
+                quantity_delta=0,
+                reason="oops",
+                user_id="user-1",
+                user_name="Test",
             )

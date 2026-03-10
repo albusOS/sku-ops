@@ -7,9 +7,11 @@ back to in-process asyncio queues (fine for single-worker dev/test).
 Domain types (``Event``, ``SHUTDOWN``, ``is_shutdown``) live in
 ``kernel.events`` — re-exported here for backward compatibility.
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from typing import Any
@@ -20,23 +22,36 @@ logger = logging.getLogger(__name__)
 
 # Re-export so existing ``from shared.infrastructure.event_hub import Event``
 # continues to work.
-__all__ = ["Event", "SHUTDOWN", "is_shutdown", "subscribe", "unsubscribe",
-           "emit", "emit_sync", "activate_redis"]
+__all__ = [
+    "SHUTDOWN",
+    "Event",
+    "activate_redis",
+    "emit",
+    "emit_sync",
+    "is_shutdown",
+    "subscribe",
+    "unsubscribe",
+]
 
 _CHANNEL = "sku_ops:events"
 
 
 def _serialize(event: Event) -> str:
-    return json.dumps({
-        "type": event.type, "org_id": event.org_id,
-        "user_id": event.user_id, "data": event.data,
-    })
+    return json.dumps(
+        {
+            "type": event.type,
+            "org_id": event.org_id,
+            "user_id": event.user_id,
+            "data": event.data,
+        }
+    )
 
 
 def _deserialize(raw: str) -> Event:
     d = json.loads(raw)
-    return Event(type=d["type"], org_id=d["org_id"],
-                 user_id=d.get("user_id", ""), data=d.get("data", {}))
+    return Event(
+        type=d["type"], org_id=d["org_id"], user_id=d.get("user_id", ""), data=d.get("data", {})
+    )
 
 
 class _Hub:
@@ -63,10 +78,8 @@ class _Hub:
     def subscribe(self) -> asyncio.Queue[Event]:
         q: asyncio.Queue[Event] = asyncio.Queue(maxsize=256)
         self._subscribers.add(q)
-        try:
+        with contextlib.suppress(RuntimeError):
             self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            pass
         if self._use_redis:
             task = asyncio.create_task(self._redis_reader(q))
             self._reader_tasks[id(q)] = task
@@ -84,6 +97,7 @@ class _Hub:
         if self._use_redis:
             try:
                 from shared.infrastructure.redis import get_redis
+
                 await get_redis().publish(_CHANNEL, _serialize(event))
             except Exception:
                 logger.warning("Redis publish failed — broadcasting in-process only", exc_info=True)
@@ -123,14 +137,10 @@ class _Hub:
                 logger.warning("Dropping slow WebSocket subscriber (queue full)")
         for q in dead:
             self._subscribers.discard(q)
-            try:
+            with contextlib.suppress(asyncio.QueueEmpty):
                 q.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
-            try:
+            with contextlib.suppress(asyncio.QueueFull):
                 q.put_nowait(SHUTDOWN)
-            except asyncio.QueueFull:
-                pass
 
     async def _redis_reader(self, q: asyncio.Queue[Event]) -> None:
         """Subscribe to the Redis channel and forward messages to *q*."""
@@ -155,14 +165,10 @@ class _Hub:
                     q.put_nowait(event)
                 except asyncio.QueueFull:
                     self._subscribers.discard(q)
-                    try:
+                    with contextlib.suppress(asyncio.QueueEmpty):
                         q.get_nowait()
-                    except asyncio.QueueEmpty:
-                        pass
-                    try:
+                    with contextlib.suppress(asyncio.QueueFull):
                         q.put_nowait(SHUTDOWN)
-                    except asyncio.QueueFull:
-                        pass
                     return
         except asyncio.CancelledError:
             pass

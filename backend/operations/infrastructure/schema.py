@@ -25,7 +25,6 @@ TABLES: list[str] = [
         organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS material_requests (
         id TEXT PRIMARY KEY,
         contractor_id TEXT NOT NULL,
@@ -41,7 +40,6 @@ TABLES: list[str] = [
         processed_by_id TEXT,
         organization_id TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS returns (
         id TEXT PRIMARY KEY,
         withdrawal_id TEXT NOT NULL,
@@ -79,7 +77,6 @@ TABLES: list[str] = [
         sell_uom TEXT NOT NULL DEFAULT 'each',
         sell_cost REAL NOT NULL DEFAULT 0
     )""",
-
     """CREATE TABLE IF NOT EXISTS return_items (
         id TEXT PRIMARY KEY,
         return_id TEXT NOT NULL REFERENCES returns(id),

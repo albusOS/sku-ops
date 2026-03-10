@@ -4,6 +4,7 @@ All messages are routed to the unified agent which handles inventory, ops, and
 finance in a single agent. The previous 4-path dispatch (trivial/lookup/DAG/specialist)
 is preserved below but not used — kept for reference and potential re-enablement.
 """
+
 import asyncio
 import importlib
 import json
@@ -34,8 +35,8 @@ LLM_NOT_CONFIGURED_MSG = (
 
 _AGENT_MODULES = {
     "inventory": "assistant.agents.inventory",
-    "ops":       "assistant.agents.ops",
-    "finance":   "assistant.agents.finance",
+    "ops": "assistant.agents.ops",
+    "finance": "assistant.agents.finance",
 }
 
 
@@ -43,7 +44,7 @@ async def chat(
     user_message: str,
     history: list[dict] | None,
     ctx: dict | None = None,
-    agent_type: str = "auto",
+    _agent_type: str = "auto",
     session_id: str = "",
 ) -> dict:
     """Route all messages to the unified agent."""
@@ -57,13 +58,16 @@ async def chat(
         user_name=ctx.get("user_name", ""),
     )
 
-    result = await _unified_agent.run(user_message, history=history, deps=deps, session_id=session_id)
+    result = await _unified_agent.run(
+        user_message, history=history, deps=deps, session_id=session_id
+    )
     result["routed_to"] = ["unified"]
     return result
 
 
 # ── Previous 4-path dispatch — preserved but not active ──────────────────────
 # To re-enable, replace the chat() body above with the logic below.
+
 
 async def _chat_multipath(
     user_message: str,
@@ -141,6 +145,7 @@ def _trivial_response(user_message: str) -> dict:
 
 # ── DAG report dispatch ───────────────────────────────────────────────────────
 
+
 async def _dag_dispatch(user_message: str, plan, deps: AgentDeps, _session_id: str) -> dict:
     """Execute a structured DAG plan — parallel tool calls, cheap LLM synthesis."""
     dag_result = await execute_plan(plan, run_tool, deps.org_id)
@@ -200,6 +205,7 @@ def _format_dag_sections(sections: dict) -> str:
 
 # ── Agent dispatch ────────────────────────────────────────────────────────────
 
+
 async def _run_agent(
     agent_name: str,
     user_message: str,
@@ -211,7 +217,10 @@ async def _run_agent(
     module_path = _AGENT_MODULES.get(agent_name, _AGENT_MODULES["inventory"])
     agent_module = importlib.import_module(module_path)
     result = await agent_module.run(
-        user_message, history=history, deps=deps, session_id=session_id,
+        user_message,
+        history=history,
+        deps=deps,
+        session_id=session_id,
     )
     result["routed_to"] = [agent_name]
     return result
@@ -219,15 +228,24 @@ async def _run_agent(
 
 # ── Memory facade (keeps agent imports out of the API layer) ──────────────────
 
+
 async def recall_memory(org_id: str, user_id: str) -> str:
     """Return formatted memory context for session injection. Empty string if none."""
     return await recall(org_id=org_id, user_id=user_id)
 
 
 def schedule_memory_extraction(
-    org_id: str, user_id: str, session_id: str, history: list[dict],
+    org_id: str,
+    user_id: str,
+    session_id: str,
+    history: list[dict],
 ) -> None:
     """Fire-and-forget background task to extract memory artifacts from conversation."""
-    asyncio.create_task(extract_and_save(
-        org_id=org_id, user_id=user_id, session_id=session_id, history=history,
-    ))
+    asyncio.create_task(
+        extract_and_save(
+            org_id=org_id,
+            user_id=user_id,
+            session_id=session_id,
+            history=history,
+        )
+    )

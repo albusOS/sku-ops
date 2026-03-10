@@ -1,4 +1,5 @@
 """Tests for withdrawal service."""
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product
@@ -25,7 +26,9 @@ async def create_withdrawal(data, contractor, current_user):
     if isinstance(current_user, dict):
         current_user = CurrentUser(**{"email": "test@test.com", "role": "admin", **current_user})
     return await _create_withdrawal(
-        data, contractor, current_user,
+        data,
+        contractor,
+        current_user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
         create_invoice=create_invoice_from_withdrawals,
@@ -64,7 +67,12 @@ async def test_create_withdrawal_success(db):
         service_address="123 Main St",
         notes="Test",
     )
-    contractor = {"id": "contractor-1", "name": "Contractor User", "company": "ACME", "billing_entity": "ACME Inc"}
+    contractor = {
+        "id": "contractor-1",
+        "name": "Contractor User",
+        "company": "ACME",
+        "billing_entity": "ACME Inc",
+    }
     current_user = {"id": "user-1", "name": "Test User"}
 
     result = await create_withdrawal(data, contractor, current_user)

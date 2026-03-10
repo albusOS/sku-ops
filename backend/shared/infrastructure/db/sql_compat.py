@@ -4,18 +4,23 @@ Only needed for the handful of queries that use SQLite-specific functions.
 Import ``dialect`` from the db package, then call these helpers to get the
 correct SQL string for the active backend.
 """
+
 from __future__ import annotations
 
 
 def _get_dialect() -> str:
     from shared.infrastructure.db import _state
+
     backend = _state["backend"]
     return backend.dialect if backend else "sqlite"
 
 
 # ── Time window filters ──────────────────────────────────────────────────────
 
-def time_ago_expr(column: str, *, minutes: int = 0, hours: int = 0, days: int = 0) -> tuple[str, list]:
+
+def time_ago_expr(
+    column: str, *, minutes: int = 0, hours: int = 0, days: int = 0
+) -> tuple[str, list]:
     """Return (sql_fragment, params) for a ``column >= NOW() - interval`` filter.
 
     SQLite:     ``created_at >= datetime('now', '-60 minutes')``
@@ -43,6 +48,7 @@ def time_ago_expr(column: str, *, minutes: int = 0, hours: int = 0, days: int = 
 
 
 # ── Date formatting / grouping ────────────────────────────────────────────────
+
 
 def date_group_expr(column: str, grain: str) -> str:
     """Return a SQL expression that groups a timestamp column by grain.

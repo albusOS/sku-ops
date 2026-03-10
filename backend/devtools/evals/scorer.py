@@ -3,6 +3,7 @@
 Every assertion is a pure function: (test_case, eval_result) -> (passed, detail).
 No LLM calls.  Fully unit-testable.
 """
+
 import re
 from dataclasses import dataclass, field
 
@@ -36,6 +37,7 @@ class ScoreCard:
 
 
 # ── Individual assertion functions ────────────────────────────────────────────
+
 
 def assert_tool_called(tool_name: str, tool_calls: list[dict]) -> AssertionResult:
     """Check that a specific tool was invoked."""
@@ -73,7 +75,9 @@ def assert_response_contains(terms: list[str], response: str) -> AssertionResult
 def assert_response_has_sections(headers: list[str], response: str) -> AssertionResult:
     """Check that the response has markdown section headers matching the given list."""
     lower = response.lower()
-    missing = [h for h in headers if f"## {h.lower()}" not in lower and f"**{h.lower()}" not in lower]
+    missing = [
+        h for h in headers if f"## {h.lower()}" not in lower and f"**{h.lower()}" not in lower
+    ]
     return AssertionResult(
         name=f"response_has_sections:{headers}",
         passed=len(missing) == 0,
@@ -110,7 +114,9 @@ def assert_no_ungrounded_numbers(response: str, tool_results: list[dict]) -> Ass
 
     tool_nums = _numbers_from_tool_results(tool_results)
     if not tool_nums:
-        return AssertionResult(name="no_ungrounded_numbers", passed=True, detail="no tool numbers to compare")
+        return AssertionResult(
+            name="no_ungrounded_numbers", passed=True, detail="no tool numbers to compare"
+        )
 
     grounded = resp_nums & tool_nums
     ratio = len(grounded) / len(resp_nums) if resp_nums else 1.0
@@ -153,6 +159,7 @@ def assert_cost_under(usd: float, actual_usd: float) -> AssertionResult:
 
 
 # ── Score a full test case ────────────────────────────────────────────────────
+
 
 def score_case(
     case: dict,

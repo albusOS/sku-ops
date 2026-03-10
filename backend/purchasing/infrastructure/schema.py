@@ -21,7 +21,6 @@ TABLES: list[str] = [
         updated_at TEXT,
         organization_id TEXT
     )""",
-
     """CREATE TABLE IF NOT EXISTS purchase_order_items (
         id TEXT PRIMARY KEY,
         po_id TEXT NOT NULL REFERENCES purchase_orders(id),

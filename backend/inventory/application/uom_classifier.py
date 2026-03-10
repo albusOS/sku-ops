@@ -3,12 +3,14 @@ UOM classification for hardware/building-supply products.
 Uses LLM when a generate_text callable is provided; otherwise falls back to rule-based inference.
 Cross-domain dependencies (LLM, rule parser) are injected by callers.
 """
+
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import re
 from collections.abc import Callable
-from typing import Optional
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
 from shared.infrastructure.prompt_loader import load_prompt
@@ -16,8 +18,9 @@ from shared.infrastructure.prompt_loader import load_prompt
 logger = logging.getLogger(__name__)
 
 # Type aliases for injected dependencies
-GenerateTextFn = Optional[Callable[[str, str | None], str | None]]
+GenerateTextFn = Callable[[str, str | None], str | None] | None
 RuleInferFn = Callable[[str], tuple[str, str, int]]
+
 
 def _default_rule_infer(_name: str) -> tuple[str, str, int]:
     """Fallback: everything is 'each'."""
@@ -31,18 +34,56 @@ def _normalize_unit(raw: str) -> str:
     v = raw.lower().strip()
     # Common LLM variations and abbreviations
     mapping = {
-        "gal": "gallon", "gals": "gallon", "gallons": "gallon", "gal.": "gallon",
-        "qts": "quart", "quarts": "quart", "qt": "quart", "qt.": "quart",
-        "pt": "pint", "pints": "pint", "pts": "pint", "pt.": "pint",
-        "lbs": "pound", "lb": "pound", "pounds": "pound", "lb.": "pound",
-        "oz": "ounce", "ozs": "ounce", "ounces": "ounce", "oz.": "ounce",
-        "ft": "foot", "feet": "foot", "lf": "foot", "lnft": "foot", "ln ft": "foot", "linear foot": "foot",
-        "in": "inch", "in.": "inch", "inches": "inch", "inch": "inch",
-        "m": "meter", "meters": "meter", "metres": "meter",
-        "yd": "yard", "yards": "yard", "yds": "yard",
-        "sq ft": "sqft", "sqft": "sqft", "square feet": "sqft", "sq. ft": "sqft",
-        "bx": "box", "cs": "case", "pk": "pack", "pkg": "pack", "pkgs": "pack",
-        "ea": "each", "pc": "each", "pcs": "each", "piece": "each", "pieces": "each",
+        "gal": "gallon",
+        "gals": "gallon",
+        "gallons": "gallon",
+        "gal.": "gallon",
+        "qts": "quart",
+        "quarts": "quart",
+        "qt": "quart",
+        "qt.": "quart",
+        "pt": "pint",
+        "pints": "pint",
+        "pts": "pint",
+        "pt.": "pint",
+        "lbs": "pound",
+        "lb": "pound",
+        "pounds": "pound",
+        "lb.": "pound",
+        "oz": "ounce",
+        "ozs": "ounce",
+        "ounces": "ounce",
+        "oz.": "ounce",
+        "ft": "foot",
+        "feet": "foot",
+        "lf": "foot",
+        "lnft": "foot",
+        "ln ft": "foot",
+        "linear foot": "foot",
+        "in": "inch",
+        "in.": "inch",
+        "inches": "inch",
+        "inch": "inch",
+        "m": "meter",
+        "meters": "meter",
+        "metres": "meter",
+        "yd": "yard",
+        "yards": "yard",
+        "yds": "yard",
+        "sq ft": "sqft",
+        "sqft": "sqft",
+        "square feet": "sqft",
+        "sq. ft": "sqft",
+        "bx": "box",
+        "cs": "case",
+        "pk": "pack",
+        "pkg": "pack",
+        "pkgs": "pack",
+        "ea": "each",
+        "pc": "each",
+        "pcs": "each",
+        "piece": "each",
+        "pieces": "each",
     }
     v = mapping.get(v, v)
     return v if v in ALLOWED_BASE_UNITS else "each"
@@ -76,7 +117,7 @@ async def classify_uom(
     units_str = ", ".join(sorted(ALLOWED_BASE_UNITS))
     prompt = f"""Classify the unit of measure for this hardware/building-supply product.
 Product name: {product_name}
-{f'Description: {description}' if description else ''}
+{f"Description: {description}" if description else ""}
 
 Allowed units: {units_str}
 

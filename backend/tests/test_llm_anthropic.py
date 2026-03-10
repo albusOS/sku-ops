@@ -1,4 +1,5 @@
 """Tests for Anthropic LLM config, health, and AI features."""
+
 import base64
 from unittest.mock import MagicMock, patch
 
@@ -147,8 +148,9 @@ class TestChatStatus:
         response = client.get("/api/chat/status")
         assert response.status_code in (401, 403)
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_chat_status_unavailable_without_key(self, client, _db):
+    async def test_chat_status_unavailable_without_key(self, client):
         """Chat status reports available=false when no API key."""
         headers = self._auth_headers(client)
         with patch("assistant.api.chat.ANTHROPIC_AVAILABLE", False):
@@ -160,8 +162,9 @@ class TestChatStatus:
         assert data["provider"] is None
         assert data["setup_url"] == "https://console.anthropic.com/"
 
+    @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_chat_status_available_when_configured(self, client, _db):
+    async def test_chat_status_available_when_configured(self, client):
         """Chat status reports available=true when Anthropic configured."""
         headers = self._auth_headers(client)
         with patch("assistant.api.chat.ANTHROPIC_AVAILABLE", True):
@@ -177,7 +180,8 @@ class TestChatStatus:
 class TestAssistant:
     """Test chat assistant service."""
 
-    async def test_chat_returns_setup_message_without_key(self, _db):
+    @pytest.mark.usefixtures("_db")
+    async def test_chat_returns_setup_message_without_key(self):
         """When no API key, chat returns setup instructions."""
         from assistant.application.assistant import chat
 
@@ -186,7 +190,8 @@ class TestAssistant:
         assert "ANTHROPIC_API_KEY" in result["response"] or "Anthropic" in result["response"]
         assert result["tool_calls"] == []
 
-    async def test_chat_dispatches_to_unified_agent(self, _db):
+    @pytest.mark.usefixtures("_db")
+    async def test_chat_dispatches_to_unified_agent(self):
         """assistant.chat() routes all messages through the unified agent."""
         from unittest.mock import AsyncMock
 
@@ -201,8 +206,13 @@ class TestAssistant:
             "agent": "unified",
         }
 
-        with patch("assistant.application.assistant.ANTHROPIC_AVAILABLE", True), \
-             patch("assistant.application.assistant._unified_agent.run", new=AsyncMock(return_value=expected)):
+        with (
+            patch("assistant.application.assistant.ANTHROPIC_AVAILABLE", True),
+            patch(
+                "assistant.application.assistant._unified_agent.run",
+                new=AsyncMock(return_value=expected),
+            ),
+        ):
             result = await chat(
                 "What's our inventory count?",
                 history=None,

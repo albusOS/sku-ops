@@ -4,6 +4,7 @@ PurchaseOrder and PurchaseOrderItem are the canonical entities.
 POItemCreate is the typed DTO for incoming line items (from document parse or API).
 Status enums and transition rules live here — no free-form strings.
 """
+
 from enum import StrEnum
 from typing import ClassVar
 
@@ -13,6 +14,7 @@ from kernel.entity import AuditedEntity, Entity
 
 # ── Status enums ───────────────────────────────────────────────────────────────
 
+
 class POStatus(StrEnum):
     ORDERED = "ordered"
     PARTIAL = "partial"
@@ -21,11 +23,12 @@ class POStatus(StrEnum):
 
 class POItemStatus(StrEnum):
     ORDERED = "ordered"
-    PENDING = "pending"    # delivery arrived at dock, not yet received into inventory
-    ARRIVED = "arrived"    # received into inventory
+    PENDING = "pending"  # delivery arrived at dock, not yet received into inventory
+    ARRIVED = "arrived"  # received into inventory
 
 
 # ── Entities ───────────────────────────────────────────────────────────────────
+
 
 class PurchaseOrder(AuditedEntity):
     vendor_id: str
@@ -79,8 +82,10 @@ class PurchaseOrderItem(Entity):
 
 # ── Request DTOs ───────────────────────────────────────────────────────────────
 
+
 class POItemCreate(BaseModel):
     """Typed input for a single PO line item (from document parse or manual entry)."""
+
     name: str
     original_sku: str | None = None
     quantity: float = 1

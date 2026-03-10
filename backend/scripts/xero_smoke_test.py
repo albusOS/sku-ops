@@ -20,6 +20,7 @@ Exit codes:
 
 The script is deliberately sequential and verbose so every failure is obvious.
 """
+
 import argparse
 import asyncio
 import logging
@@ -38,7 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("xero_smoke_test")
 
-_PASS_ICON = "\033[32m✓\033[0m"
+_PASS_ICON = "\033[32m✓\033[0m"  # noqa: S105
 _FAIL_ICON = "\033[31m✗\033[0m"
 _SKIP_ICON = "\033[33m–\033[0m"
 
@@ -67,10 +68,13 @@ class SmokeTestRunner:
 
     async def _load(self):
         from shared.infrastructure.database import init_db
+
         await init_db()
         from identity.application.org_service import get_org_settings
+
         self.settings = await get_org_settings(self.org_id)
         from finance.adapters.xero_adapter import XeroAdapter
+
         self.adapter = XeroAdapter()
 
     # ── Check 1 — Token valid / refresh works ─────────────────────────────────
@@ -159,7 +163,9 @@ class SmokeTestRunner:
             if abs(data["total"] - 115.0) > 0.05:
                 self._fail(name, f"Total mismatch: expected 115.0, got {data['total']}")
                 return False
-            self._ok(name, f"total={data['total']}, lines={data['line_count']}, status={data['status']}")
+            self._ok(
+                name, f"total={data['total']}, lines={data['line_count']}, status={data['status']}"
+            )
             return True
         except (httpx.HTTPError, RuntimeError, OSError, ValueError) as e:
             self._fail(name, str(e))
@@ -174,11 +180,14 @@ class SmokeTestRunner:
             return True
         try:
             import httpx
+
             void_payload = {
-                "Invoices": [{
-                    "InvoiceID": self.created_invoice_id,
-                    "Status": "VOIDED",
-                }]
+                "Invoices": [
+                    {
+                        "InvoiceID": self.created_invoice_id,
+                        "Status": "VOIDED",
+                    }
+                ]
             }
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
@@ -229,6 +238,7 @@ class SmokeTestRunner:
             return False
         try:
             import httpx
+
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     f"https://api.xero.com/api.xro/2.0/Invoices/{self.created_bill_id}",
@@ -242,7 +252,10 @@ class SmokeTestRunner:
                 return False
             bill_type = invoices[0].get("Type")
             if bill_type != "ACCPAY":
-                self._fail(name, f"Expected ACCPAY, got {bill_type!r}. This is NOT a Bill — it's not creating AP liability.")
+                self._fail(
+                    name,
+                    f"Expected ACCPAY, got {bill_type!r}. This is NOT a Bill — it's not creating AP liability.",
+                )
                 return False
             contact_name = invoices[0].get("Contact", {}).get("Name", "")
             self._ok(name, f"type={bill_type}, contact={contact_name!r}")
@@ -260,6 +273,7 @@ class SmokeTestRunner:
             return True
         try:
             import httpx
+
             void_payload = {"Invoices": [{"InvoiceID": self.created_bill_id, "Status": "VOIDED"}]}
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
@@ -318,7 +332,10 @@ class SmokeTestRunner:
             return True
         try:
             import httpx
-            void_payload = {"CreditNotes": [{"CreditNoteID": self.created_cn_id, "Status": "VOIDED"}]}
+
+            void_payload = {
+                "CreditNotes": [{"CreditNoteID": self.created_cn_id, "Status": "VOIDED"}]
+            }
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     "https://api.xero.com/api.xro/2.0/CreditNotes",
@@ -361,26 +378,31 @@ class SmokeTestRunner:
         logger.info("=" * 60)
         if self.failed == 0:
             logger.info(
-                "%s  All %d checks passed. Xero integration is ready.",
-                _PASS_ICON, self.passed
+                "%s  All %d checks passed. Xero integration is ready.", _PASS_ICON, self.passed
             )
             return 0
         logger.error(
             "%d passed  %d FAILED — fix failures before enabling live sync.",
-            self.passed, self.failed,
+            self.passed,
+            self.failed,
         )
         # Emergency: if we failed to clean up, remind the operator
         if self.created_invoice_id:
-            logger.warning("ACTION REQUIRED: Manually void invoice %s in Xero", self.created_invoice_id)
+            logger.warning(
+                "ACTION REQUIRED: Manually void invoice %s in Xero", self.created_invoice_id
+            )
         if self.created_bill_id:
             logger.warning("ACTION REQUIRED: Manually void bill %s in Xero", self.created_bill_id)
         if self.created_cn_id:
-            logger.warning("ACTION REQUIRED: Manually void credit note %s in Xero", self.created_cn_id)
+            logger.warning(
+                "ACTION REQUIRED: Manually void credit note %s in Xero", self.created_cn_id
+            )
         return 1
 
 
 async def _main(org_id: str) -> int:
     from shared.infrastructure.database import close_db
+
     runner = SmokeTestRunner(org_id)
     exit_code = await runner.run()
     await close_db()
@@ -390,7 +412,8 @@ async def _main(org_id: str) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Xero sandbox smoke test")
     parser.add_argument(
-        "--org-id", default="default",
+        "--org-id",
+        default="default",
         help="Organization ID to test against (default: 'default')",
     )
     args = parser.parse_args()

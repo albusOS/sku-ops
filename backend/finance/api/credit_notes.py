@@ -57,10 +57,13 @@ async def apply_credit_note_to_invoice(
             performed_by_user_id=current_user.id,
         )
         await audit_log(
-            user_id=current_user.id, action="credit_note.apply",
-            resource_type="credit_note", resource_id=credit_note_id,
+            user_id=current_user.id,
+            action="credit_note.apply",
+            resource_type="credit_note",
+            resource_id=credit_note_id,
             details={"invoice_id": cn.get("invoice_id"), "total": cn.get("total")},
-            request=request, org_id=org_id,
+            request=request,
+            org_id=org_id,
         )
         return cn
     except ValueError as e:

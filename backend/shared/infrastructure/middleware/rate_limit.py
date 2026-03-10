@@ -8,9 +8,13 @@ nginx enforces:
 This module is kept as a stub so that any import references survive without
 error during the transition. Nothing here applies runtime limits.
 """
+
 from __future__ import annotations
 
-from fastapi import FastAPI
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 
 def setup_rate_limiting(app: FastAPI) -> None:

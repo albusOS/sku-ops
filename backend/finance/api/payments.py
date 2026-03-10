@@ -1,4 +1,5 @@
 """Payment routes — record and list payments."""
+
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
@@ -7,8 +8,8 @@ from finance.application.invoice_service import mark_paid_for_withdrawal
 from finance.application.ledger_service import record_payment as _record_ledger_payment
 from finance.domain.payment import Payment, PaymentCreate
 from finance.infrastructure.payment_repo import payment_repo
-from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
 from kernel import events
+from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
 from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 
@@ -88,9 +89,12 @@ async def list_payments(
 ):
     return await payment_repo.list_payments(
         organization_id=current_user.organization_id,
-        invoice_id=invoice_id, billing_entity_id=billing_entity_id,
-        start_date=start_date, end_date=end_date,
-        limit=limit, offset=offset,
+        invoice_id=invoice_id,
+        billing_entity_id=billing_entity_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
     )
 
 

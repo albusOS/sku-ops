@@ -1,4 +1,5 @@
 """Tests for PO receive flow: stock, WAC, ledger, status, cost fallback."""
+
 import pytest
 
 from catalog.application.product_lifecycle import create_product
@@ -29,32 +30,51 @@ def _user():
     return CurrentUser(id="user-1", email="test@test.com", name="Test User", role="admin")
 
 
-async def _create_test_product(name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id="dept-1"):
+async def _create_test_product(
+    name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id="dept-1"
+):
     return await create_product(
-        department_id=dept_id, department_name="Hardware",
-        name=name, quantity=quantity, price=price, cost=cost,
-        user_id="user-1", user_name="Test",
+        department_id=dept_id,
+        department_name="Hardware",
+        name=name,
+        quantity=quantity,
+        price=price,
+        cost=cost,
+        user_id="user-1",
+        user_name="Test",
         on_stock_import=process_import_stock_changes,
     )
 
 
 async def _create_po_with_item(
-    product_id=None, cost=None, unit_price=10.0, ordered_qty=50.0,
-    name="Widget", status=POItemStatus.PENDING,
+    product_id=None,
+    cost=None,
+    unit_price=10.0,
+    ordered_qty=50.0,
+    name="Widget",
+    status=POItemStatus.PENDING,
 ):
     po = PurchaseOrder(
-        vendor_id="v1", vendor_name="Acme Corp",
+        vendor_id="v1",
+        vendor_name="Acme Corp",
         status=POStatus.ORDERED,
-        created_by_id="user-1", created_by_name="Test",
+        created_by_id="user-1",
+        created_by_name="Test",
     )
     await po_repo.insert_po(po)
 
     item = PurchaseOrderItem(
-        po_id=po.id, name=name,
-        ordered_qty=ordered_qty, delivered_qty=0,
-        unit_price=unit_price, cost=cost or 0,
-        base_unit="each", sell_uom="each", pack_qty=1,
-        suggested_department="HDW", status=status,
+        po_id=po.id,
+        name=name,
+        ordered_qty=ordered_qty,
+        delivered_qty=0,
+        unit_price=unit_price,
+        cost=cost or 0,
+        base_unit="each",
+        sell_uom="each",
+        pack_qty=1,
+        suggested_department="HDW",
+        status=status,
         product_id=product_id,
     )
     await po_repo.insert_items([item])
@@ -74,12 +94,16 @@ def _stub_deps():
         update_product,
     )
     from documents.application.import_parser import infer_uom, suggest_department
+
     async def _noop_enrich(items, *a, **kw):
         return items
+
     async def _noop_classify(items):
         return items
+
     async def _noop_create(**kw):
         return await create_product(**kw, on_stock_import=process_receiving_stock_changes)
+
     return PurchasingDeps(
         list_departments=list_departments,
         get_department_by_code=get_department_by_code,
@@ -103,7 +127,6 @@ def _stub_deps():
 
 
 class TestResolvePOItemCost:
-
     def test_cost_present(self):
         assert _resolve_po_item_cost({"cost": 5.0}) == 5.0
 
@@ -169,7 +192,10 @@ async def test_receive_cost_fallback_from_unit_price(db):
     """When item has unit_price but no cost, cost_total and ledger must still be non-zero."""
     product = await _create_test_product(quantity=100.0, cost=8.0)
     po, item = await _create_po_with_item(
-        product_id=product.id, cost=None, unit_price=10.0, ordered_qty=50,
+        product_id=product.id,
+        cost=None,
+        unit_price=10.0,
+        ordered_qty=50,
     )
 
     result = await receive_po_items(
@@ -259,7 +285,9 @@ async def test_receive_rejects_ordered_items(db):
     """Items still in 'ordered' status (not yet at dock) should be rejected."""
     product = await _create_test_product(quantity=100.0)
     po, item = await _create_po_with_item(
-        product_id=product.id, cost=5.0, ordered_qty=10,
+        product_id=product.id,
+        cost=5.0,
+        ordered_qty=10,
         status=POItemStatus.ORDERED,
     )
 
@@ -301,17 +329,22 @@ async def test_receive_cost_override_affects_wac(db):
 async def test_receive_creates_product_with_overridden_name(db):
     """When no product match, overrides (name, department) apply to the new product."""
     po, item = await _create_po_with_item(
-        product_id=None, cost=5.0, ordered_qty=10, name="Generic Widget",
+        product_id=None,
+        cost=5.0,
+        ordered_qty=10,
+        name="Generic Widget",
     )
 
     result = await receive_po_items(
         po_id=po.id,
-        item_updates=[{
-            "id": item.id,
-            "delivered_qty": 10,
-            "name": "Corrected Widget Name",
-            "suggested_department": "HDW",
-        }],
+        item_updates=[
+            {
+                "id": item.id,
+                "delivered_qty": 10,
+                "name": "Corrected Widget Name",
+                "suggested_department": "HDW",
+            }
+        ],
         deps=_stub_deps(),
         current_user=_user(),
     )
@@ -335,7 +368,9 @@ async def test_receive_product_id_override_matches_explicit(db):
     product_a = await _create_test_product(name="Widget A", quantity=50.0, cost=10.0)
     product_b = await _create_test_product(name="Widget B", quantity=30.0, cost=12.0)
     po, item = await _create_po_with_item(
-        product_id=product_a.id, cost=8.0, ordered_qty=20,
+        product_id=product_a.id,
+        cost=8.0,
+        ordered_qty=20,
     )
 
     result = await receive_po_items(

@@ -1,4 +1,5 @@
 """Dashboard stats routes."""
+
 import asyncio
 from datetime import UTC, datetime, timedelta
 
@@ -46,8 +47,12 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
             rev_buckets[created] += w.get("total", 0)
             cost_buckets[created] += w.get("cost_total", 0)
     return [
-        {"date": k, "revenue": round(rev_buckets[k], 2), "cost": round(cost_buckets[k], 2),
-         "profit": round(rev_buckets[k] - cost_buckets[k], 2)}
+        {
+            "date": k,
+            "revenue": round(rev_buckets[k], 2),
+            "cost": round(cost_buckets[k], 2),
+            "profit": round(rev_buckets[k] - cost_buckets[k], 2),
+        }
         for k in sorted(rev_buckets)
     ]
 
@@ -64,11 +69,16 @@ async def get_dashboard_stats(
 
     if current_user.role == "contractor":
         my_withdrawals = await list_withdrawals(
-            contractor_id=current_user.id, start_date=sd, end_date=ed,
-            limit=1000, organization_id=org_id,
+            contractor_id=current_user.id,
+            start_date=sd,
+            end_date=ed,
+            limit=1000,
+            organization_id=org_id,
         )
         total_spent = sum(w.get("total", 0) for w in my_withdrawals)
-        unpaid = sum(w.get("total", 0) for w in my_withdrawals if w.get("payment_status") == "unpaid")
+        unpaid = sum(
+            w.get("total", 0) for w in my_withdrawals if w.get("payment_status") == "unpaid"
+        )
         return {
             "total_withdrawals": len(my_withdrawals),
             "total_spent": round(total_spent, 2),
@@ -88,7 +98,9 @@ async def get_dashboard_stats(
         by_department,
     ) = await asyncio.gather(
         list_withdrawals(start_date=sd, end_date=ed, limit=10000, organization_id=org_id),
-        list_withdrawals(payment_status="unpaid", start_date=sd, end_date=ed, limit=10000, organization_id=org_id),
+        list_withdrawals(
+            payment_status="unpaid", start_date=sd, end_date=ed, limit=10000, organization_id=org_id
+        ),
         list_products(organization_id=org_id),
         count_all_products(org_id),
         count_low_stock(org_id),
@@ -111,13 +123,15 @@ async def get_dashboard_stats(
     # Department margins from the ledger (for the selected period)
     dept_margins = []
     for d in by_department:
-        dept_margins.append({
-            "department": d["department"],
-            "revenue": round_money(d["revenue"]),
-            "cost": round_money(d["cost"]),
-            "profit": round_money(d["profit"]),
-            "margin_pct": d["margin_pct"],
-        })
+        dept_margins.append(
+            {
+                "department": d["department"],
+                "revenue": round_money(d["revenue"]),
+                "cost": round_money(d["cost"]),
+                "profit": round_money(d["profit"]),
+                "margin_pct": d["margin_pct"],
+            }
+        )
     dept_margins.sort(key=lambda x: x["revenue"], reverse=True)
 
     # PO summary
@@ -129,10 +143,13 @@ async def get_dashboard_stats(
         (org_id,),
     )
     po_rows = await po_cursor.fetchall()
-    po_summary = {r["status"]: {"count": r["cnt"], "total": round_money(r["total"])} for r in po_rows}
+    po_summary = {
+        r["status"]: {"count": r["cnt"], "total": round_money(r["total"])} for r in po_rows
+    }
 
     chart_start = (
-        _parse_iso(sd) if sd
+        _parse_iso(sd)
+        if sd
         else (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
     )
     chart_end = _parse_iso(ed) if ed else now

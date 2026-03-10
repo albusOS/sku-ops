@@ -1,4 +1,5 @@
 """Invoicing gateway port — provider-agnostic abstraction for accounting integrations."""
+
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -23,11 +24,17 @@ class InvoicingGateway(Protocol):
     Implementations: XeroAdapter, StubXeroAdapter.
     """
 
-    async def sync_invoice(self, invoice: InvoiceWithDetails, settings: OrgSettings) -> InvoiceSyncResult: ...
+    async def sync_invoice(
+        self, invoice: InvoiceWithDetails, settings: OrgSettings
+    ) -> InvoiceSyncResult: ...
 
-    async def sync_po_receipt(self, po: dict, cost_total: float, settings: OrgSettings) -> InvoiceSyncResult: ...
+    async def sync_po_receipt(
+        self, po: dict, cost_total: float, settings: OrgSettings
+    ) -> InvoiceSyncResult: ...
 
-    async def sync_credit_note(self, credit_note: dict, settings: OrgSettings) -> InvoiceSyncResult: ...
+    async def sync_credit_note(
+        self, credit_note: dict, settings: OrgSettings
+    ) -> InvoiceSyncResult: ...
 
     async def fetch_invoice(self, xero_invoice_id: str, settings: OrgSettings) -> dict: ...
 

@@ -1,4 +1,5 @@
 """PostgreSQL backend using asyncpg with connection pooling."""
+
 from __future__ import annotations
 
 import logging
@@ -50,6 +51,7 @@ def _convert_sql(sql: str) -> str:
 
 # ── Cursor wrapper ────────────────────────────────────────────────────────────
 
+
 class PgCursor:
     __slots__ = ("_rows", "_status")
 
@@ -75,9 +77,11 @@ class PgCursor:
 
 # ── Pool proxy (auto-acquire per statement) ───────────────────────────────────
 
+
 class PgPoolProxy:
     """Returned by ``get_connection()`` — acquires per-execute, auto-commits."""
-    __slots__ = ("_pool", "_acquire_timeout")
+
+    __slots__ = ("_acquire_timeout", "_pool")
 
     def __init__(self, pool: asyncpg.Pool, acquire_timeout: float):
         self._pool = pool
@@ -106,6 +110,7 @@ class PgPoolProxy:
 
 # ── Transaction proxy (holds single connection) ──────────────────────────────
 
+
 class PgTransactionProxy:
     """Used inside ``transaction()`` context — single connection, explicit commit.
 
@@ -115,6 +120,7 @@ class PgTransactionProxy:
     inside the ``async with transaction()`` block (matching SQLite's lenient
     commit semantics).
     """
+
     __slots__ = ("_conn",)
 
     def __init__(self, conn: asyncpg.Connection):
@@ -140,6 +146,7 @@ class PgTransactionProxy:
 
 
 # ── Backend lifecycle ─────────────────────────────────────────────────────────
+
 
 class PostgresBackend:
     dialect = "postgresql"

@@ -7,7 +7,6 @@ TABLES: list[str] = [
         slug TEXT UNIQUE NOT NULL,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
@@ -22,7 +21,6 @@ TABLES: list[str] = [
         organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS org_settings (
         organization_id TEXT PRIMARY KEY,
         default_tax_rate REAL NOT NULL DEFAULT 0.10,
@@ -38,7 +36,6 @@ TABLES: list[str] = [
         xero_tax_type TEXT NOT NULL DEFAULT '',
         updated_at TEXT
     )""",
-
     """CREATE TABLE IF NOT EXISTS refresh_tokens (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -47,13 +44,11 @@ TABLES: list[str] = [
         revoked INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS oauth_states (
         state TEXT PRIMARY KEY,
         org_id TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS audit_log (
         id TEXT PRIMARY KEY,
         user_id TEXT,
@@ -65,7 +60,6 @@ TABLES: list[str] = [
         organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS billing_entities (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -80,7 +74,6 @@ TABLES: list[str] = [
         updated_at TEXT NOT NULL,
         UNIQUE(organization_id, name)
     )""",
-
     """CREATE TABLE IF NOT EXISTS addresses (
         id TEXT PRIMARY KEY,
         label TEXT NOT NULL DEFAULT '',
@@ -95,7 +88,6 @@ TABLES: list[str] = [
         organization_id TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS fiscal_periods (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,

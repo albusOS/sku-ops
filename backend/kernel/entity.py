@@ -1,4 +1,5 @@
 """Base entity types — the mechanical pattern every domain entity shares."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 

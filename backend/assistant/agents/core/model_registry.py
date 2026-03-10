@@ -6,6 +6,7 @@ All agents use Haiku for fast, reliable responses.
 Env-var overrides still work:
     MODEL_REGISTRY_AGENT_INVENTORY=anthropic/claude-opus-4-6
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,11 +21,11 @@ logger = logging.getLogger(__name__)
 # ── Per-task model assignments ────────────────────────────────────────────────
 
 _DEFAULTS: dict[str, str] = {
-    "agent:unified":         "anthropic/claude-haiku-4-5",
-    "agent:inventory":       "anthropic/claude-haiku-4-5",
-    "agent:ops":             "anthropic/claude-haiku-4-5",
-    "agent:finance":         "anthropic/claude-haiku-4-5",
-    "infra:synthesis":       "meta-llama/llama-3.3-70b-instruct",
+    "agent:unified": "anthropic/claude-haiku-4-5",
+    "agent:inventory": "anthropic/claude-haiku-4-5",
+    "agent:ops": "anthropic/claude-haiku-4-5",
+    "agent:finance": "anthropic/claude-haiku-4-5",
+    "infra:synthesis": "meta-llama/llama-3.3-70b-instruct",
 }
 
 

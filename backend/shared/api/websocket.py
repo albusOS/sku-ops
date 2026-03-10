@@ -8,6 +8,7 @@ The endpoint is mounted directly on the FastAPI app (not behind the /api
 router) because FastAPI WebSocket routes are registered differently from
 HTTP routes. The ``mount_websocket`` helper wires it up in server.py.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -73,6 +74,7 @@ async def _relay_loop(
     user_id: str = "",
 ) -> None:
     """Forward hub events to the client, with periodic heartbeats."""
+
     async def _sender():
         while True:
             ev = await queue.get()

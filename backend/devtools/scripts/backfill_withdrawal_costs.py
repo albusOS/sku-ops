@@ -6,6 +6,7 @@ Uses current product catalog cost as a proxy for historical cost.
 Run from the backend directory:
     uv run python scripts/backfill_withdrawal_costs.py
 """
+
 import asyncio
 import json
 import os

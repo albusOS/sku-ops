@@ -4,6 +4,7 @@ The primary chat path is the WebSocket endpoint at /api/ws/chat which provides
 real-time token streaming. This POST endpoint is the fallback for environments
 where WebSocket connections are unreliable (e.g. some corporate proxies).
 """
+
 import asyncio
 import uuid
 
@@ -29,7 +30,11 @@ async def chat_status(_current_user: AdminDep):
     available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
     return {
         "available": available,
-        "provider": "anthropic" if ANTHROPIC_AVAILABLE else "openrouter" if OPENROUTER_AVAILABLE else None,
+        "provider": "anthropic"
+        if ANTHROPIC_AVAILABLE
+        else "openrouter"
+        if OPENROUTER_AVAILABLE
+        else None,
         "setup_url": LLM_SETUP_URL if not available else None,
     }
 
@@ -98,7 +103,7 @@ async def chat_assistant(
             ),
             timeout=120,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {
             "response": "The AI assistant took too long to respond. Please try again.",
             "tool_calls": [],
@@ -126,10 +131,15 @@ async def chat_assistant(
     # Background memory extraction every 4 turns (8 messages = 4 user+assistant pairs)
     if len(new_history) % 8 == 0:
         schedule_memory_extraction(
-            org_id=org_id, user_id=user_id,
-            session_id=session_id, history=new_history,
+            org_id=org_id,
+            user_id=user_id,
+            session_id=session_id,
+            history=new_history,
         )
 
     result["session_id"] = session_id
-    result["usage"] = {**result.get("usage", {}), "session_cost_usd": await session_store.get_cost(session_id)}
+    result["usage"] = {
+        **result.get("usage", {}),
+        "session_cost_usd": await session_store.get_cost(session_id),
+    }
     return result

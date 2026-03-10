@@ -1,13 +1,17 @@
 """Tests for invoice repository."""
+
 import pytest
 
 from finance.infrastructure.invoice_repo import invoice_repo
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 
 
-async def _create_withdrawal_with_items(contractor_id: str, billing_entity: str, items: list) -> str:
+async def _create_withdrawal_with_items(
+    contractor_id: str, billing_entity: str, items: list
+) -> str:
     """Helper to create a withdrawal and return its id."""
     from uuid import uuid4
+
     withdrawal_id = str(uuid4())
     subtotal = sum(i.get("subtotal", i["quantity"] * i["price"]) for i in items)
     tax = round(subtotal * 0.08, 2)
@@ -46,8 +50,24 @@ async def test_create_from_withdrawals(db):
         contractor_id="contractor-1",
         billing_entity="ACME Inc",
         items=[
-            {"product_id": "p1", "sku": "HDW-X-000001", "name": "Item A", "quantity": 2, "price": 10.0, "cost": 5.0, "subtotal": 20.0},
-            {"product_id": "p2", "sku": "HDW-Y-000002", "name": "Item B", "quantity": 1, "price": 15.0, "cost": 8.0, "subtotal": 15.0},
+            {
+                "product_id": "p1",
+                "sku": "HDW-X-000001",
+                "name": "Item A",
+                "quantity": 2,
+                "price": 10.0,
+                "cost": 5.0,
+                "subtotal": 20.0,
+            },
+            {
+                "product_id": "p2",
+                "sku": "HDW-Y-000002",
+                "name": "Item B",
+                "quantity": 1,
+                "price": 15.0,
+                "cost": 8.0,
+                "subtotal": 15.0,
+            },
         ],
     )
 
@@ -73,12 +93,30 @@ async def test_create_from_withdrawals_different_billing_entity_raises(db):
     wid1 = await _create_withdrawal_with_items(
         contractor_id="contractor-1",
         billing_entity="ACME Inc",
-        items=[{"product_id": "p1", "sku": "X", "name": "A", "quantity": 1, "price": 10.0, "subtotal": 10.0}],
+        items=[
+            {
+                "product_id": "p1",
+                "sku": "X",
+                "name": "A",
+                "quantity": 1,
+                "price": 10.0,
+                "subtotal": 10.0,
+            }
+        ],
     )
     wid2 = await _create_withdrawal_with_items(
         contractor_id="contractor-1",
         billing_entity="Other Corp",
-        items=[{"product_id": "p2", "sku": "Y", "name": "B", "quantity": 1, "price": 10.0, "subtotal": 10.0}],
+        items=[
+            {
+                "product_id": "p2",
+                "sku": "Y",
+                "name": "B",
+                "quantity": 1,
+                "price": 10.0,
+                "subtotal": 10.0,
+            }
+        ],
     )
 
     with pytest.raises(ValueError) as exc_info:
@@ -93,7 +131,16 @@ async def test_delete_draft_unlinks_withdrawals(db):
     wid = await _create_withdrawal_with_items(
         contractor_id="contractor-1",
         billing_entity="ACME Inc",
-        items=[{"product_id": "p1", "sku": "X", "name": "A", "quantity": 1, "price": 10.0, "subtotal": 10.0}],
+        items=[
+            {
+                "product_id": "p1",
+                "sku": "X",
+                "name": "A",
+                "quantity": 1,
+                "price": 10.0,
+                "subtotal": 10.0,
+            }
+        ],
     )
     inv = await invoice_repo.create_from_withdrawals([wid])
     inv_id = inv["id"]
@@ -116,7 +163,16 @@ async def test_update_invoice(db):
     wid = await _create_withdrawal_with_items(
         contractor_id="contractor-1",
         billing_entity="Original Corp",
-        items=[{"product_id": "p1", "sku": "X", "name": "A", "quantity": 1, "price": 10.0, "subtotal": 10.0}],
+        items=[
+            {
+                "product_id": "p1",
+                "sku": "X",
+                "name": "A",
+                "quantity": 1,
+                "price": 10.0,
+                "subtotal": 10.0,
+            }
+        ],
     )
     inv = await invoice_repo.create_from_withdrawals([wid])
 

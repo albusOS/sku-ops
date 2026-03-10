@@ -19,7 +19,10 @@ async def list_billing_entities(
 ):
     return await billing_entity_repo.list_billing_entities(
         organization_id=current_user.organization_id,
-        is_active=is_active, q=q, limit=limit, offset=offset,
+        is_active=is_active,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -33,7 +36,8 @@ async def search_billing_entities(
     if not q.strip():
         return await billing_entity_repo.list_billing_entities(
             organization_id=current_user.organization_id,
-            is_active=True, limit=limit,
+            is_active=True,
+            limit=limit,
         )
     return await billing_entity_repo.search(q, current_user.organization_id, limit=limit)
 

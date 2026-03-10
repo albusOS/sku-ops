@@ -10,8 +10,8 @@ from inventory.application.cycle_count_service import (
     open_cycle_count,
     update_counted_qty,
 )
-from kernel.errors import ResourceNotFoundError
 from kernel import events
+from kernel.errors import ResourceNotFoundError
 from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
@@ -45,10 +45,13 @@ async def open_count(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     await audit_log(
-        user_id=current_user.id, action="cycle_count.open",
-        resource_type="cycle_count", resource_id=count["id"],
+        user_id=current_user.id,
+        action="cycle_count.open",
+        resource_type="cycle_count",
+        resource_id=count["id"],
         details={"scope": data.scope},
-        request=request, org_id=current_user.organization_id,
+        request=request,
+        org_id=current_user.organization_id,
     )
     return count
 
@@ -115,10 +118,13 @@ async def commit_count(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     await audit_log(
-        user_id=current_user.id, action="cycle_count.commit",
-        resource_type="cycle_count", resource_id=count_id,
+        user_id=current_user.id,
+        action="cycle_count.commit",
+        resource_type="cycle_count",
+        resource_id=count_id,
         details={"items_adjusted": result.get("items_adjusted", 0)},
-        request=request, org_id=current_user.organization_id,
+        request=request,
+        org_id=current_user.organization_id,
     )
     await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id)
     return result

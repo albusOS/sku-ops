@@ -3,6 +3,7 @@
 Called fire-and-forget via asyncio.create_task(). Never raises — failures are
 logged as warnings and silently discarded so they never affect the user.
 """
+
 import json
 import logging
 

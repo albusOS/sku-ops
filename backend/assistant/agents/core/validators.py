@@ -3,6 +3,7 @@
 Replaces the Haiku-based reflect_on_response with fast, testable assertions
 that check tool coverage, data grounding, format compliance, and token efficiency.
 """
+
 import logging
 import re
 from dataclasses import dataclass, field
@@ -20,19 +21,60 @@ class ValidationResult:
 
 
 # ── Words that signal a data question (expect tool calls) ────────────────────
-_DATA_SIGNALS = frozenset((
-    "how many", "how much", "show me", "list", "what", "which",
-    "search", "find", "lookup", "look up", "do we have",
-    "stock", "inventory", "revenue", "balance", "outstanding",
-    "forecast", "trend", "top", "low stock", "reorder",
-    "withdrawal", "request", "contractor", "job", "department",
-    "invoice", "payment", "p&l", "profit", "margin", "vendor",
-))
+_DATA_SIGNALS = frozenset(
+    (
+        "how many",
+        "how much",
+        "show me",
+        "list",
+        "what",
+        "which",
+        "search",
+        "find",
+        "lookup",
+        "look up",
+        "do we have",
+        "stock",
+        "inventory",
+        "revenue",
+        "balance",
+        "outstanding",
+        "forecast",
+        "trend",
+        "top",
+        "low stock",
+        "reorder",
+        "withdrawal",
+        "request",
+        "contractor",
+        "job",
+        "department",
+        "invoice",
+        "payment",
+        "p&l",
+        "profit",
+        "margin",
+        "vendor",
+    )
+)
 
-_TRIVIAL_SIGNALS = frozenset((
-    "hi", "hello", "hey", "thanks", "thank you", "help", "ok", "okay",
-    "sure", "yes", "no", "bye", "goodbye",
-))
+_TRIVIAL_SIGNALS = frozenset(
+    (
+        "hi",
+        "hello",
+        "hey",
+        "thanks",
+        "thank you",
+        "help",
+        "ok",
+        "okay",
+        "sure",
+        "yes",
+        "no",
+        "bye",
+        "goodbye",
+    )
+)
 
 _NUMBER_RE = re.compile(r"\b\d[\d,]*\.?\d*\b")
 
@@ -51,9 +93,7 @@ def _get_domain_tool_sets() -> dict[str, set[str]]:
     mapping: dict[str, set[str]] = {}
     for entry in all_tools().values():
         mapping.setdefault(entry.domain, set()).add(entry.name)
-    mapping.setdefault("inventory_analytics", set()).update(
-        mapping.get("inventory", set())
-    )
+    mapping.setdefault("inventory_analytics", set()).update(mapping.get("inventory", set()))
     _domain_tool_cache["value"] = mapping
     return mapping
 
@@ -153,7 +193,7 @@ def validate_response(
             scores["uom_compliance"] = 1.0
 
     # ── 6. Domain mismatch: response doesn't address the question domain ─
-    _DOMAIN_SIGNALS = {
+    _domain_signals = {
         "inventory": ("product", "stock", "sku", "reorder", "department", "vendor"),
         "ops": ("withdrawal", "contractor", "job", "material request"),
         "finance": ("revenue", "invoice", "payment", "balance", "margin", "p&l"),
@@ -162,7 +202,7 @@ def validate_response(
     if tool_calls:
         tool_names = {tc.get("tool", "") for tc in tool_calls}
         question_domains = set()
-        for domain, signals in _DOMAIN_SIGNALS.items():
+        for domain, signals in _domain_signals.items():
             if any(s in m for s in signals):
                 question_domains.add(domain)
         if question_domains:

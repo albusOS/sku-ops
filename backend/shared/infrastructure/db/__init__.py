@@ -8,6 +8,7 @@ Public API (unchanged from the original):
 
 The backend (SQLite vs PostgreSQL) is selected automatically from DATABASE_URL.
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -26,8 +27,10 @@ _state: dict[str, DatabaseBackend | None] = {"backend": None}
 def _make_backend(url: str) -> DatabaseBackend:
     if url.startswith(("postgresql://", "postgres://")):
         from shared.infrastructure.db.postgres import PostgresBackend
+
         return PostgresBackend()
     from shared.infrastructure.db.sqlite import SqliteBackend
+
     return SqliteBackend()
 
 
@@ -37,6 +40,7 @@ async def init_db() -> None:
     await _state["backend"].connect(DATABASE_URL)
 
     from shared.infrastructure.migrations.runner import run_migrations
+
     await run_migrations(_state["backend"])
 
 

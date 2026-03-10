@@ -1,4 +1,5 @@
 """SQLite backend using aiosqlite — wraps the existing single-connection pattern."""
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
 # ── Cursor wrapper ────────────────────────────────────────────────────────────
+
 
 class SqliteCursor:
     __slots__ = ("_cursor",)
@@ -35,8 +37,10 @@ class SqliteCursor:
 
 # ── Connection wrapper ────────────────────────────────────────────────────────
 
+
 class SqliteConnection:
     """Thin wrapper around aiosqlite.Connection that satisfies the protocol."""
+
     __slots__ = ("_conn",)
 
     def __init__(self, conn: aiosqlite.Connection):
@@ -61,6 +65,7 @@ class SqliteConnection:
 
 
 # ── Backend lifecycle ─────────────────────────────────────────────────────────
+
 
 class SqliteBackend:
     dialect = "sqlite"

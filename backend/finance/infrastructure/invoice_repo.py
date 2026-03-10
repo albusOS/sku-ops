@@ -1,4 +1,5 @@
 """Invoice repository."""
+
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -317,7 +318,9 @@ async def update(
     return await get_by_id(invoice_id)
 
 
-async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id: str | None = None) -> dict | None:
+async def add_withdrawals(
+    invoice_id: str, withdrawal_ids: list, organization_id: str | None = None
+) -> dict | None:
     """Link withdrawals to invoice. Validates: unpaid, same billing_entity, not already on another invoice."""
     if not withdrawal_ids:
         return await get_by_id(invoice_id)
@@ -355,7 +358,12 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
         if not inv.get("billing_entity") and billing_entity:
             await conn.execute(
                 "UPDATE invoices SET billing_entity = ?, contact_name = ?, updated_at = ? WHERE id = ?",
-                (billing_entity, contact_name or inv.get("contact_name", ""), datetime.now(UTC).isoformat(), invoice_id),
+                (
+                    billing_entity,
+                    contact_name or inv.get("contact_name", ""),
+                    datetime.now(UTC).isoformat(),
+                    invoice_id,
+                ),
             )
 
         total_subtotal = 0.0
@@ -406,7 +414,9 @@ async def add_withdrawals(invoice_id: str, withdrawal_ids: list, organization_id
     return await get_by_id(invoice_id)
 
 
-async def create_from_withdrawals(withdrawal_ids: list, organization_id: str | None = None, conn=None) -> dict:
+async def create_from_withdrawals(
+    withdrawal_ids: list, organization_id: str | None = None, conn=None
+) -> dict:
     """Create new invoice from unpaid withdrawals. All must share same billing_entity."""
     if not withdrawal_ids:
         raise ValueError("At least one withdrawal required")
@@ -449,11 +459,32 @@ async def create_from_withdrawals(withdrawal_ids: list, organization_id: str | N
            approved_by_id, approved_at,
            xero_invoice_id, organization_id, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (inv_id, invoice_number, billing_entity or "", contact_name, contact_email or "", "draft",
-         0, 0, first_tax_rate, 0, 0, None,
-         now, due_date, payment_terms, "", "", "USD",
-         None, None,
-         None, org_id, now, now),
+        (
+            inv_id,
+            invoice_number,
+            billing_entity or "",
+            contact_name,
+            contact_email or "",
+            "draft",
+            0,
+            0,
+            first_tax_rate,
+            0,
+            0,
+            None,
+            now,
+            due_date,
+            payment_terms,
+            "",
+            "",
+            "USD",
+            None,
+            None,
+            None,
+            org_id,
+            now,
+            now,
+        ),
     )
 
     for w in withdrawals:
@@ -533,7 +564,12 @@ async def set_xero_invoice_id(
 ) -> None:
     """Store the Xero invoice ID (and optional COGS journal ID) and mark as synced."""
     conn = get_connection()
-    params: list = [xero_invoice_id, xero_cogs_journal_id, datetime.now(UTC).isoformat(), invoice_id]
+    params: list = [
+        xero_invoice_id,
+        xero_cogs_journal_id,
+        datetime.now(UTC).isoformat(),
+        invoice_id,
+    ]
     where = "WHERE id = ?"
     if organization_id:
         where += " AND organization_id = ?"
@@ -544,7 +580,9 @@ async def set_xero_invoice_id(
     await conn.commit()
 
 
-async def set_xero_sync_status(invoice_id: str, status: str, organization_id: str | None = None) -> None:
+async def set_xero_sync_status(
+    invoice_id: str, status: str, organization_id: str | None = None
+) -> None:
     """Update the Xero sync status for an invoice."""
     conn = get_connection()
     params: list = [status, datetime.now(UTC).isoformat(), invoice_id]

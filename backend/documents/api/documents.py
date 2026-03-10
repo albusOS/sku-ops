@@ -1,4 +1,5 @@
 """Document parse/import routes."""
+
 import asyncio
 import json
 import logging
@@ -45,9 +46,12 @@ _PARSE_RETRY_DELAYS = (5, 15)  # seconds on rate limit
 _DOCUMENT_PARSE_SYSTEM = load_prompt(__file__, "document_parse_prompt.md")
 
 
-async def _persist_parsed_document(extracted: dict, filename: str, content_type: str, file_size: int, current_user: CurrentUser) -> dict:
+async def _persist_parsed_document(
+    extracted: dict, filename: str, content_type: str, file_size: int, current_user: CurrentUser
+) -> dict:
     """Save parsed document to the archive and return the extracted data with document_id."""
     import hashlib
+
     doc = Document(
         filename=filename,
         document_type="other",
@@ -97,6 +101,7 @@ async def parse_document(
         def _do_parse():
             if is_pdf:
                 from assistant.application.llm import generate_with_pdf
+
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tf:
                     tf.write(contents)
                     temp_path = tf.name
@@ -111,6 +116,7 @@ async def parse_document(
                         os.unlink(temp_path)
             else:
                 from assistant.application.llm import generate_with_image
+
                 return generate_with_image(
                     "Extract all product and vendor information. Return only valid JSON.",
                     contents,
@@ -131,7 +137,10 @@ async def parse_document(
                     raise
 
         if not response or not str(response).strip():
-            raise HTTPException(status_code=500, detail="Claude returned no content. The document may be unreadable or blocked.")
+            raise HTTPException(
+                status_code=500,
+                detail="Claude returned no content. The document may be unreadable or blocked.",
+            )
 
         json_match = re.search(r"\{[\s\S]*\}", response)
         extracted = json.loads(json_match.group()) if json_match else json.loads(response)
@@ -148,7 +157,9 @@ async def parse_document(
             # Signal downstream: skip redundant LLM re-enrichment
             p["_ai_parsed"] = True
 
-        return await _persist_parsed_document(extracted, filename, content_type, len(contents), current_user)
+        return await _persist_parsed_document(
+            extracted, filename, content_type, len(contents), current_user
+        )
     except json.JSONDecodeError as e:
         logger.exception("Document parse JSON error")
         raise HTTPException(status_code=422, detail="Could not parse document data") from e
@@ -174,8 +185,11 @@ async def list_documents(
     """List uploaded/parsed documents."""
     return await document_repo.list_documents(
         organization_id=current_user.organization_id,
-        status=status, vendor_name=vendor_name, po_id=po_id,
-        limit=limit, offset=offset,
+        status=status,
+        vendor_name=vendor_name,
+        po_id=po_id,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -183,8 +197,9 @@ async def list_documents(
 async def get_document(doc_id: str, current_user: AdminDep):
     doc = await document_repo.get_by_id(doc_id, current_user.organization_id)
     if not doc:
-        from fastapi import HTTPException as _E
-        raise _E(status_code=404, detail="Document not found")
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Document not found")
     return doc
 
 
@@ -193,6 +208,7 @@ async def _wired_classify_uom_batch(products):
     gen_text = None
     if _LLM_AVAILABLE:
         from assistant.application.llm import generate_text
+
         gen_text = generate_text
     return await _classify_uom_batch(products, generate_text=gen_text, rule_infer=rule_infer_uom)
 
@@ -214,7 +230,9 @@ async def import_document(
         find_product_by_name_and_vendor=find_product_by_name_and_vendor,
         update_product=update_product,
         validate_barcode=validate_barcode,
-        create_product=lambda **kw: lifecycle_create(**kw, on_stock_import=process_receiving_stock_changes),
+        create_product=lambda **kw: lifecycle_create(
+            **kw, on_stock_import=process_receiving_stock_changes
+        ),
         process_receiving_stock_changes=process_receiving_stock_changes,
         classify_uom_batch=_wired_classify_uom_batch,
     )
@@ -231,4 +249,6 @@ async def import_document(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception("Document import failed")
-        raise HTTPException(status_code=500, detail="Import failed — please check the file and try again") from e
+        raise HTTPException(
+            status_code=500, detail="Import failed — please check the file and try again"
+        ) from e

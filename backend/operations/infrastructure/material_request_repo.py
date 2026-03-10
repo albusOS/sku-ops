@@ -1,4 +1,5 @@
 """Material request repository."""
+
 import json
 
 from kernel.errors import InvalidTransitionError
@@ -20,7 +21,9 @@ async def insert(request: MaterialRequest | dict, conn=None) -> None:
     in_transaction = conn is not None
     conn = conn or get_connection()
     org_id = request_dict.get("organization_id") or "default"
-    items_json = json.dumps([i if isinstance(i, dict) else i.model_dump() for i in request_dict["items"]])
+    items_json = json.dumps(
+        [i if isinstance(i, dict) else i.model_dump() for i in request_dict["items"]]
+    )
     await conn.execute(
         """INSERT INTO material_requests (id, contractor_id, contractor_name, items, status, withdrawal_id,
            job_id, service_address, notes, created_at, processed_at, processed_by_id, organization_id)
@@ -67,7 +70,9 @@ async def list_pending(organization_id: str | None = None, limit: int = 100) -> 
     return [_row_to_dict(r) for r in rows]
 
 
-async def list_by_contractor(contractor_id: str, organization_id: str | None = None, limit: int = 100) -> list:
+async def list_by_contractor(
+    contractor_id: str, organization_id: str | None = None, limit: int = 100
+) -> list:
     conn = get_connection()
     org_id = organization_id or "default"
     cursor = await conn.execute(

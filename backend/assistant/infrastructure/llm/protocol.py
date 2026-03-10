@@ -3,6 +3,7 @@
 Mirrors the pattern in shared/infrastructure/db/protocol.py: a runtime-checkable
 Protocol that each provider adapter must satisfy.
 """
+
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable

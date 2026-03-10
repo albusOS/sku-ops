@@ -19,7 +19,10 @@ async def list_jobs(
 ):
     return await job_repo.list_jobs(
         organization_id=current_user.organization_id,
-        status=status, q=q, limit=limit, offset=offset,
+        status=status,
+        q=q,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -33,7 +36,8 @@ async def search_jobs(
     if not q.strip():
         return await job_repo.list_jobs(
             organization_id=current_user.organization_id,
-            status="active", limit=limit,
+            status="active",
+            limit=limit,
         )
     return await job_repo.search(q, current_user.organization_id, limit=limit)
 
@@ -64,6 +68,7 @@ async def create_job(
         raise HTTPException(status_code=409, detail=f"Job with code '{code}' already exists")
 
     from jobs.domain.job import Job
+
     job = Job(
         code=code,
         name=data.name or code,
@@ -90,7 +95,9 @@ async def update_job(
     if "status" in updates:
         valid = {s.value for s in JobStatus}
         if updates["status"] not in valid:
-            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid)}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid)}"
+            )
 
     result = await job_repo.update(job_id, updates, org_id)
     return result

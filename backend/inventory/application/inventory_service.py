@@ -5,6 +5,7 @@ Every quantity change creates an immutable StockTransaction record.
 Withdrawals use atomic UPDATE with quantity guard to prevent overselling.
 Unit conversion happens here — stock is always stored in the product's base_unit.
 """
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -81,7 +82,9 @@ async def process_withdrawal_stock_changes(
 
     try:
         for item in items:
-            product = await get_product_by_id(item.product_id, "quantity, sku, base_unit", conn=conn)
+            product = await get_product_by_id(
+                item.product_id, "quantity, sku, base_unit", conn=conn
+            )
             base_unit = (product.get("base_unit", "each") if product else "each").lower()
             requested_unit = (item.unit or "each").lower()
 
@@ -90,9 +93,7 @@ async def process_withdrawal_stock_changes(
             else:
                 canonical_qty = item.quantity
 
-            result = await atomic_decrement_product(
-                item.product_id, canonical_qty, now, conn=conn
-            )
+            result = await atomic_decrement_product(item.product_id, canonical_qty, now, conn=conn)
 
             if not result:
                 available = product.get("quantity", 0) if product else 0

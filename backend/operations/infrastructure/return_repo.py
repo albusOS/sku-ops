@@ -1,4 +1,5 @@
 """Return repository."""
+
 import json
 from uuid import uuid4
 
@@ -53,7 +54,11 @@ async def insert(ret: MaterialReturn | dict, conn=None) -> None:
     )
     # Write normalized items
     for item in ret_dict["items"]:
-        i = item if isinstance(item, dict) else (item.model_dump() if hasattr(item, "model_dump") else item)
+        i = (
+            item
+            if isinstance(item, dict)
+            else (item.model_dump() if hasattr(item, "model_dump") else item)
+        )
         qty = float(i.get("quantity", 0))
         price = float(i.get("unit_price") or i.get("price") or 0)
         cost = float(i.get("cost", 0))
@@ -61,10 +66,19 @@ async def insert(ret: MaterialReturn | dict, conn=None) -> None:
             """INSERT INTO return_items
                (id, return_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (str(uuid4()), ret_dict["id"],
-             i.get("product_id", ""), i.get("sku", ""), i.get("name", ""),
-             qty, price, cost, i.get("unit", "each"),
-             round(qty * price, 2), round(qty * cost, 2)),
+            (
+                str(uuid4()),
+                ret_dict["id"],
+                i.get("product_id", ""),
+                i.get("sku", ""),
+                i.get("name", ""),
+                qty,
+                price,
+                cost,
+                i.get("unit", "each"),
+                round(qty * price, 2),
+                round(qty * cost, 2),
+            ),
         )
 
     if not in_transaction:

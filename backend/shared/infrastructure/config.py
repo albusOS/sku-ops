@@ -9,6 +9,7 @@ Set ENV to control behavior:
 
 When ENV is unset, defaults to development.
 """
+
 import os
 from pathlib import Path
 
@@ -23,6 +24,7 @@ def _find_backend_root() -> Path:
         d = d.parent
     return Path.cwd()
 
+
 PROJECT_ROOT = _find_backend_root()
 
 # Resolve the runtime environment from the real process environment first.
@@ -36,6 +38,7 @@ _ENV = _requested_env or "development"
 _env_file = PROJECT_ROOT / ".env"
 if _ENV in {"development", "test"} and _env_file.exists():
     from dotenv import load_dotenv
+
     load_dotenv(_env_file)
 
 
@@ -70,6 +73,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 # Auth
 _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
 
+
 def _resolve_jwt_secret() -> str:
     raw = os.environ.get("JWT_SECRET", "").strip()
     if is_production and (not raw or raw == _DEV_JWT_FALLBACK):
@@ -81,6 +85,7 @@ def _resolve_jwt_secret() -> str:
         )
     return raw or _DEV_JWT_FALLBACK
 
+
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", "15"))
@@ -91,22 +96,23 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 cors_is_permissive = CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
 cors_warn_in_deployed = is_deployed and cors_is_permissive
 
+
 def _enforce_cors() -> None:
     if is_production and cors_is_permissive:
         raise RuntimeError(
-            "CORS_ORIGINS must not be '*' in production. "
-            "Set CORS_ORIGINS=https://your-domain.com"
+            "CORS_ORIGINS must not be '*' in production. Set CORS_ORIGINS=https://your-domain.com"
         )
     if is_staging and cors_is_permissive:
         raise RuntimeError(
-            "CORS_ORIGINS must not be '*' in staging. "
-            "Set CORS_ORIGINS to your staging domain(s)."
+            "CORS_ORIGINS must not be '*' in staging. Set CORS_ORIGINS to your staging domain(s)."
         )
+
 
 _enforce_cors()
 
 # Sentry (optional — set SENTRY_DSN to enable)
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+
 
 # Demo / seed
 def _demo_email() -> str:
@@ -115,11 +121,13 @@ def _demo_email() -> str:
         return env_val
     return "admin@demo.local" if is_development else ""
 
+
 def _demo_password() -> str:
     env_val = os.environ.get("DEMO_USER_PASSWORD", "").strip()
     if env_val:
         return env_val
     return "demo123" if is_development else ""
+
 
 DEMO_USER_EMAIL = _demo_email()
 DEMO_USER_PASSWORD = _demo_password()
@@ -134,8 +142,12 @@ ALLOW_RESET = is_development or is_test
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
 # Keep bare model names for non-agent services (OCR, UOM classification, enrichment)
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
-ANTHROPIC_FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+ANTHROPIC_MODEL = (
+    os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+)
+ANTHROPIC_FAST_MODEL = (
+    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+)
 
 # OpenAI — used for product semantic search embeddings (text-embedding-3-small)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -146,6 +158,7 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
 OPENROUTER_AVAILABLE = bool(OPENROUTER_API_KEY)
 
+
 # ── Agent model — single source of truth ─────────────────────────────────────
 # Priority: env AGENT_PRIMARY_MODEL > models.yaml > built-in default
 def _load_agent_model() -> str:
@@ -154,6 +167,7 @@ def _load_agent_model() -> str:
         return env_override
     try:
         import yaml
+
         _yaml_path = PROJECT_ROOT / "models.yaml"
         if _yaml_path.exists():
             data = yaml.safe_load(_yaml_path.read_text()) or {}
@@ -163,6 +177,7 @@ def _load_agent_model() -> str:
     except (OSError, ValueError, KeyError):
         pass
     return "anthropic:claude-sonnet-4-6"
+
 
 AGENT_PRIMARY_MODEL: str = _load_agent_model()
 LLM_SETUP_URL = "https://console.anthropic.com/"

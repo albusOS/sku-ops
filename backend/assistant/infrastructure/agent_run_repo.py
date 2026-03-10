@@ -1,4 +1,5 @@
 """Repository for agent_runs — insert + query for monitoring."""
+
 import json
 import uuid
 from datetime import UTC, datetime
@@ -39,12 +40,26 @@ async def log_agent_run(
             attempts, error, error_kind, parent_run_id, handoff_from, created_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            run_id, session_id, org_id, user_id, agent_name, model, mode,
+            run_id,
+            session_id,
+            org_id,
+            user_id,
+            agent_name,
+            model,
+            mode,
             (user_message or "")[:2000],
             (response_text or "")[:4000],
             json.dumps(tool_calls or []),
-            input_tokens, output_tokens, round(cost_usd, 6), duration_ms,
-            attempts, error, error_kind, parent_run_id, handoff_from, now,
+            input_tokens,
+            output_tokens,
+            round(cost_usd, 6),
+            duration_ms,
+            attempts,
+            error,
+            error_kind,
+            parent_run_id,
+            handoff_from,
+            now,
         ),
     )
     await conn.commit()
@@ -98,8 +113,7 @@ async def get_stats(*, hours: int = 24) -> dict:
         " MAX(duration_ms) as max_duration_ms,"
         " SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) as errors"
         " FROM agent_runs"
-        " WHERE " + since_expr +
-        " GROUP BY agent_name"
+        " WHERE " + since_expr + " GROUP BY agent_name"
         " ORDER BY runs DESC",
         list(since_params),
     )
@@ -122,8 +136,7 @@ async def get_stats(*, hours: int = 24) -> dict:
 
     cur = await conn.execute(
         "SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost"
-        " FROM agent_runs WHERE " + since_expr +
-        " GROUP BY model ORDER BY cost DESC",
+        " FROM agent_runs WHERE " + since_expr + " GROUP BY model ORDER BY cost DESC",
         list(since_params),
     )
     by_model = await cur.fetchall()

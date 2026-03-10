@@ -19,6 +19,7 @@ Protocol (server -> client):
       "usage": {...} }
     { "type": "chat.error",      "detail": "..." }
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -139,16 +140,24 @@ def mount_chat_websocket(app: FastAPI) -> None:
 
                     if msg_type == "chat":
                         if generation_task and not generation_task.done():
-                            await _send(ws, {
-                                "type": "chat.error",
-                                "detail": "Already generating a response. Send 'cancel' first.",
-                            })
+                            await _send(
+                                ws,
+                                {
+                                    "type": "chat.error",
+                                    "detail": "Already generating a response. Send 'cancel' first.",
+                                },
+                            )
                             continue
 
                         cancel_event = asyncio.Event()
                         generation_task = asyncio.create_task(
                             _handle_chat(
-                                websocket, msg, org_id, user_id, user_name, cancel_event,
+                                websocket,
+                                msg,
+                                org_id,
+                                user_id,
+                                user_name,
+                                cancel_event,
                             )
                         )
 
@@ -199,13 +208,22 @@ async def _handle_chat(
         return
 
     if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
-        await _send(ws, {
-            "type": "chat.done",
-            "response": f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat.",
-            "tool_calls": [], "thinking": [], "agent": None,
-            "session_id": session_id,
-            "usage": {"cost_usd": 0, "capped": True, "session_cost_usd": await session_store.get_cost(session_id)},
-        })
+        await _send(
+            ws,
+            {
+                "type": "chat.done",
+                "response": f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat.",
+                "tool_calls": [],
+                "thinking": [],
+                "agent": None,
+                "session_id": session_id,
+                "usage": {
+                    "cost_usd": 0,
+                    "capped": True,
+                    "session_cost_usd": await session_store.get_cost(session_id),
+                },
+            },
+        )
         return
 
     history = await session_store.get_or_create(session_id)
@@ -264,7 +282,9 @@ async def _handle_chat(
 
             elif isinstance(event, AgentRunResultEvent):
                 result = event.result
-                response_text = result.output if isinstance(result.output, str) else str(result.output)
+                response_text = (
+                    result.output if isinstance(result.output, str) else str(result.output)
+                )
 
                 if not full_text:
                     full_text = response_text
@@ -292,77 +312,106 @@ async def _handle_chat(
 
                 if len(new_history) % 8 == 0:
                     schedule_memory_extraction(
-                        org_id=org_id, user_id=user_id,
-                        session_id=session_id, history=new_history,
+                        org_id=org_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                        history=new_history,
                     )
 
                 logger.info(
                     "Chat stream done: user=%s session=%s cost=%.4f tokens=%d+%d",
-                    user_id, session_id, cost, usage.input_tokens, usage.output_tokens,
+                    user_id,
+                    session_id,
+                    cost,
+                    usage.input_tokens,
+                    usage.output_tokens,
                 )
 
-                await _send(ws, {
-                    "type": "chat.done",
-                    "response": full_text,
-                    "agent": agent_label,
-                    "tool_calls": tool_calls_final,
-                    "thinking": [],
-                    "session_id": session_id,
-                    "usage": {
-                        "cost_usd": cost,
-                        "input_tokens": usage.input_tokens,
-                        "output_tokens": usage.output_tokens,
-                        "model": model_name,
-                        "session_cost_usd": await session_store.get_cost(session_id),
+                await _send(
+                    ws,
+                    {
+                        "type": "chat.done",
+                        "response": full_text,
+                        "agent": agent_label,
+                        "tool_calls": tool_calls_final,
+                        "thinking": [],
+                        "session_id": session_id,
+                        "usage": {
+                            "cost_usd": cost,
+                            "input_tokens": usage.input_tokens,
+                            "output_tokens": usage.output_tokens,
+                            "model": model_name,
+                            "session_cost_usd": await session_store.get_cost(session_id),
+                        },
                     },
-                })
+                )
                 return
 
         if cancel_event.is_set():
             response = full_text or "Generation cancelled."
             await _save_turn(session_id, history, user_message, response)
-            await _send(ws, {
-                "type": "chat.done",
-                "response": response,
-                "agent": agent_label,
-                "tool_calls": tool_calls_seen,
-                "thinking": [],
-                "session_id": session_id,
-                "usage": {"cost_usd": 0, "session_cost_usd": await session_store.get_cost(session_id)},
-                "cancelled": True,
-            })
+            await _send(
+                ws,
+                {
+                    "type": "chat.done",
+                    "response": response,
+                    "agent": agent_label,
+                    "tool_calls": tool_calls_seen,
+                    "thinking": [],
+                    "session_id": session_id,
+                    "usage": {
+                        "cost_usd": 0,
+                        "session_cost_usd": await session_store.get_cost(session_id),
+                    },
+                    "cancelled": True,
+                },
+            )
         elif full_text:
             await _save_turn(session_id, history, user_message, full_text)
-            await _send(ws, {
-                "type": "chat.done",
-                "response": full_text,
-                "agent": agent_label,
-                "tool_calls": tool_calls_seen,
-                "thinking": [],
-                "session_id": session_id,
-                "usage": {"cost_usd": 0, "session_cost_usd": await session_store.get_cost(session_id)},
-            })
+            await _send(
+                ws,
+                {
+                    "type": "chat.done",
+                    "response": full_text,
+                    "agent": agent_label,
+                    "tool_calls": tool_calls_seen,
+                    "thinking": [],
+                    "session_id": session_id,
+                    "usage": {
+                        "cost_usd": 0,
+                        "session_cost_usd": await session_store.get_cost(session_id),
+                    },
+                },
+            )
 
     except asyncio.CancelledError:
         logger.debug("Chat generation task cancelled: session=%s", session_id)
         if full_text:
             await _save_turn(session_id, history, user_message, full_text)
-            await _send(ws, {
-                "type": "chat.done",
-                "response": full_text,
-                "agent": agent_label,
-                "tool_calls": tool_calls_seen,
-                "thinking": [],
-                "session_id": session_id,
-                "usage": {"cost_usd": 0, "session_cost_usd": await session_store.get_cost(session_id)},
-                "cancelled": True,
-            })
-    except Exception as e:
-        logger.error("Chat stream error for user=%s session=%s: %s", user_id, session_id, e, exc_info=True)
+            await _send(
+                ws,
+                {
+                    "type": "chat.done",
+                    "response": full_text,
+                    "agent": agent_label,
+                    "tool_calls": tool_calls_seen,
+                    "thinking": [],
+                    "session_id": session_id,
+                    "usage": {
+                        "cost_usd": 0,
+                        "session_cost_usd": await session_store.get_cost(session_id),
+                    },
+                    "cancelled": True,
+                },
+            )
+    except Exception:
+        logger.exception("Chat stream error for user=%s session=%s", user_id, session_id)
         await _send(ws, {"type": "chat.error", "detail": "Something went wrong. Please try again."})
 
 
-async def _save_turn(session_id: str, history: list[dict] | None, user_msg: str, assistant_msg: str) -> None:
+async def _save_turn(
+    session_id: str, history: list[dict] | None, user_msg: str, assistant_msg: str
+) -> None:
     """Persist a user+assistant turn to the session store."""
     new_history = list(history or [])
     new_history.append({"role": "user", "content": user_msg})

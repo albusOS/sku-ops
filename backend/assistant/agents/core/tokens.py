@@ -3,6 +3,7 @@
 Uses cl100k_base encoding as an approximation for both Anthropic and
 OpenRouter models.  Not exact, but close enough for budget decisions.
 """
+
 import json
 import logging
 
@@ -22,16 +23,30 @@ def count_tokens(text: str) -> int:
 
 # ── Tool result budgeting ─────────────────────────────────────────────────────
 # Fields to drop first when trimming (low information density)
-_LOW_VALUE_FIELDS = frozenset((
-    "_note", "method", "sell_uom", "base_unit", "pack_qty",
-    "original_sku", "barcode",
-))
+_LOW_VALUE_FIELDS = frozenset(
+    (
+        "_note",
+        "method",
+        "sell_uom",
+        "base_unit",
+        "pack_qty",
+        "original_sku",
+        "barcode",
+    )
+)
 
 # JSON keys that typically contain list items
 _LIST_KEYS = (
-    "products", "forecast", "suggestions", "slow_movers",
-    "withdrawals", "balances", "pending_requests", "departments",
-    "vendors", "items",
+    "products",
+    "forecast",
+    "suggestions",
+    "slow_movers",
+    "withdrawals",
+    "balances",
+    "pending_requests",
+    "departments",
+    "vendors",
+    "items",
 )
 
 
@@ -50,7 +65,7 @@ def budget_tool_result(raw_json: str, max_tokens: int = 500) -> str:
     try:
         data = json.loads(raw_json)
     except (json.JSONDecodeError, TypeError):
-        return raw_json[:max_tokens * 4]  # ~4 chars per token fallback
+        return raw_json[: max_tokens * 4]  # ~4 chars per token fallback
 
     # Phase 1: drop low-value fields from list items
     for key in _LIST_KEYS:
@@ -58,7 +73,8 @@ def budget_tool_result(raw_json: str, max_tokens: int = 500) -> str:
         if isinstance(items, list):
             data[key] = [
                 {k: v for k, v in item.items() if k not in _LOW_VALUE_FIELDS}
-                if isinstance(item, dict) else item
+                if isinstance(item, dict)
+                else item
                 for item in items
             ]
 
@@ -71,7 +87,10 @@ def budget_tool_result(raw_json: str, max_tokens: int = 500) -> str:
         items = data.get(key)
         if isinstance(items, list) and len(items) > 3:
             original_count = len(items)
-            while len(items) > 3 and count_tokens(json.dumps(data, separators=(",", ":"))) > max_tokens:
+            while (
+                len(items) > 3
+                and count_tokens(json.dumps(data, separators=(",", ":"))) > max_tokens
+            ):
                 items.pop()
             data[key] = items
             data[f"_{key}_truncated"] = f"{len(items)}/{original_count} shown"
@@ -107,6 +126,7 @@ def estimate_turn_tokens(
 
 
 # ── History compression ───────────────────────────────────────────────────────
+
 
 def compress_history(
     history: list[dict] | None,

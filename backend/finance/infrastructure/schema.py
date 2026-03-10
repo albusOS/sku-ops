@@ -31,13 +31,11 @@ TABLES: list[str] = [
         updated_at TEXT NOT NULL,
         deleted_at TEXT
     )""",
-
     """CREATE TABLE IF NOT EXISTS invoice_withdrawals (
         invoice_id TEXT NOT NULL REFERENCES invoices(id),
         withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
         PRIMARY KEY (invoice_id, withdrawal_id)
     )""",
-
     """CREATE TABLE IF NOT EXISTS invoice_line_items (
         id TEXT PRIMARY KEY,
         invoice_id TEXT NOT NULL REFERENCES invoices(id),
@@ -51,12 +49,10 @@ TABLES: list[str] = [
         unit TEXT NOT NULL DEFAULT 'each',
         sell_cost REAL NOT NULL DEFAULT 0
     )""",
-
     """CREATE TABLE IF NOT EXISTS invoice_counters (
         key TEXT PRIMARY KEY,
         counter INTEGER NOT NULL DEFAULT 0
     )""",
-
     """CREATE TABLE IF NOT EXISTS credit_notes (
         id TEXT PRIMARY KEY,
         credit_note_number TEXT UNIQUE NOT NULL,
@@ -75,7 +71,6 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS credit_note_line_items (
         id TEXT PRIMARY KEY,
         credit_note_id TEXT NOT NULL REFERENCES credit_notes(id),
@@ -88,7 +83,6 @@ TABLES: list[str] = [
         unit TEXT NOT NULL DEFAULT 'each',
         sell_cost REAL NOT NULL DEFAULT 0
     )""",
-
     """CREATE TABLE IF NOT EXISTS payments (
         id TEXT PRIMARY KEY,
         invoice_id TEXT,
@@ -104,13 +98,11 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""",
-
     """CREATE TABLE IF NOT EXISTS payment_withdrawals (
         payment_id TEXT NOT NULL REFERENCES payments(id),
         withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
         PRIMARY KEY (payment_id, withdrawal_id)
     )""",
-
     """CREATE TABLE IF NOT EXISTS financial_ledger (
         id TEXT PRIMARY KEY,
         journal_id TEXT,

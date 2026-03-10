@@ -6,6 +6,7 @@ dev/test).
 
 All public functions are async to support both paths transparently.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,24 +17,27 @@ logger = logging.getLogger(__name__)
 
 _SESSIONS: dict = {}
 _SESSION_TTL = 1800  # 30 min
-_MAX_TURNS = 20      # keep last N user+assistant pairs (= 2N messages)
+_MAX_TURNS = 20  # keep last N user+assistant pairs (= 2N messages)
 
 _KEY_PREFIX = "sku_ops:session:"
 
 
 def _redis():
     from shared.infrastructure.redis import get_redis
+
     return get_redis()
 
 
 def _use_redis() -> bool:
     from shared.infrastructure.redis import is_redis_available
+
     return is_redis_available()
 
 
 # --------------------------------------------------------------------------
 # Public API — async
 # --------------------------------------------------------------------------
+
 
 async def get_or_create(session_id: str) -> list[dict]:
     """Return existing message history or initialise a new empty session."""
@@ -58,7 +62,7 @@ async def get_cost(session_id: str) -> float:
 
 async def update(session_id: str, history: list[dict], cost_usd: float = 0.0) -> None:
     """Replace session history (windowed) and accumulate cost."""
-    trimmed = history[-(_MAX_TURNS * 2):]
+    trimmed = history[-(_MAX_TURNS * 2) :]
     if _use_redis():
         await _redis_update(session_id, trimmed, cost_usd)
         return
@@ -80,6 +84,7 @@ async def clear(session_id: str) -> None:
 # --------------------------------------------------------------------------
 # Redis implementation
 # --------------------------------------------------------------------------
+
 
 async def _redis_get_or_create(session_id: str) -> list[dict]:
     r = _redis()
@@ -110,16 +115,20 @@ async def _redis_update(session_id: str, trimmed: list[dict], cost_usd: float) -
     r = _redis()
     key = f"{_KEY_PREFIX}{session_id}"
     prev_cost = await _redis_get_cost(session_id)
-    await r.hset(key, mapping={
-        "history": json.dumps(trimmed),
-        "cost_usd": str(prev_cost + cost_usd),
-    })
+    await r.hset(
+        key,
+        mapping={
+            "history": json.dumps(trimmed),
+            "cost_usd": str(prev_cost + cost_usd),
+        },
+    )
     await r.expire(key, _SESSION_TTL)
 
 
 # --------------------------------------------------------------------------
 # Fallback helpers
 # --------------------------------------------------------------------------
+
 
 def _lazy_cleanup() -> None:
     now = time.monotonic()

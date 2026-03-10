@@ -1,4 +1,5 @@
 """Per-org settings repository."""
+
 from datetime import UTC, datetime
 
 from identity.domain.org_settings import OrgSettings

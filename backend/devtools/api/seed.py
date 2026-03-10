@@ -1,4 +1,5 @@
 """Seed API routes. Business logic lives in scripts/seed.py to avoid cross-domain imports."""
+
 import logging
 from datetime import UTC, datetime
 
@@ -23,7 +24,9 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 
 @router.post("/departments")
 async def seed_departments(current_user: AdminDep):
-    org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
+    org_id = getattr(current_user, "organization_id", None) or (
+        current_user.get("organization_id") if isinstance(current_user, dict) else "default"
+    )
     await seed_standard_departments(org_id)
     return {"message": "Departments ready"}
 
@@ -56,7 +59,9 @@ async def _clear_all_tables(conn) -> None:
 async def reset_all():
     """Reset core tables and reseed demo tenants."""
     if not ALLOW_RESET:
-        raise HTTPException(status_code=403, detail="Reset not allowed. Set ALLOW_RESET=true or ENV=development.")
+        raise HTTPException(
+            status_code=403, detail="Reset not allowed. Set ALLOW_RESET=true or ENV=development."
+        )
     conn = get_connection()
     try:
         await _clear_all_tables(conn)
@@ -65,14 +70,18 @@ async def reset_all():
         logger.exception("Reset failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
     await seed_demo_tenants()
-    return {"message": "Reset complete. Demo tenants (North, South) seeded with users and inventory."}
+    return {
+        "message": "Reset complete. Demo tenants (North, South) seeded with users and inventory."
+    }
 
 
 @router.post("/reset-empty")
 async def reset_empty():
     """Clear all data and reseed minimal (default org, demo user, departments)."""
     if not ALLOW_RESET:
-        raise HTTPException(status_code=403, detail="Reset not allowed. Set ALLOW_RESET=true or ENV=development.")
+        raise HTTPException(
+            status_code=403, detail="Reset not allowed. Set ALLOW_RESET=true or ENV=development."
+        )
     conn = get_connection()
     try:
         await _clear_all_tables(conn)
@@ -81,10 +90,14 @@ async def reset_empty():
         logger.exception("Reset failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
     now = datetime.now(UTC).isoformat()
-    await organization_repo.insert({"id": "default", "name": "Default", "slug": "default", "created_at": now})
+    await organization_repo.insert(
+        {"id": "default", "name": "Default", "slug": "default", "created_at": now}
+    )
     await seed_mock_user()
     await seed_standard_departments("default")
-    return {"message": "Reset complete. Empty state. Log in with demo credentials (admin@demo.local / demo123)."}
+    return {
+        "message": "Reset complete. Empty state. Log in with demo credentials (admin@demo.local / demo123)."
+    }
 
 
 @router.post("/backfill-ledger")
@@ -113,19 +126,23 @@ async def backfill_ledger(current_user: AdminDep):
     withdrawals = await list_withdrawals(limit=100000, organization_id=org_id)
     for w in withdrawals:
         items = [
-            {**i, "department_name": dept_map.get(i.get("product_id"))}
-            for i in w.get("items", [])
+            {**i, "department_name": dept_map.get(i.get("product_id"))} for i in w.get("items", [])
         ]
         await record_withdrawal(
-            withdrawal_id=w["id"], items=items,
-            tax=w.get("tax", 0), total=w.get("total", 0),
-            job_id=w.get("job_id", ""), billing_entity=w.get("billing_entity", ""),
-            contractor_id=w.get("contractor_id", ""), organization_id=org_id,
+            withdrawal_id=w["id"],
+            items=items,
+            tax=w.get("tax", 0),
+            total=w.get("total", 0),
+            job_id=w.get("job_id", ""),
+            billing_entity=w.get("billing_entity", ""),
+            contractor_id=w.get("contractor_id", ""),
+            organization_id=org_id,
             performed_by_user_id=w.get("processed_by_id"),
         )
         if w.get("payment_status") == "paid":
             await record_payment(
-                withdrawal_id=w["id"], amount=w.get("total", 0),
+                withdrawal_id=w["id"],
+                amount=w.get("total", 0),
                 billing_entity=w.get("billing_entity", ""),
                 contractor_id=w.get("contractor_id", ""),
                 organization_id=org_id,
@@ -135,14 +152,17 @@ async def backfill_ledger(current_user: AdminDep):
     returns = await list_returns(limit=100000, organization_id=org_id)
     for r in returns:
         items = [
-            {**i, "department_name": dept_map.get(i.get("product_id"))}
-            for i in r.get("items", [])
+            {**i, "department_name": dept_map.get(i.get("product_id"))} for i in r.get("items", [])
         ]
         await record_return(
-            return_id=r["id"], items=items,
-            tax=r.get("tax", 0), total=r.get("total", 0),
-            job_id=r.get("job_id", ""), billing_entity=r.get("billing_entity", ""),
-            contractor_id=r.get("contractor_id", ""), organization_id=org_id,
+            return_id=r["id"],
+            items=items,
+            tax=r.get("tax", 0),
+            total=r.get("total", 0),
+            job_id=r.get("job_id", ""),
+            billing_entity=r.get("billing_entity", ""),
+            contractor_id=r.get("contractor_id", ""),
+            organization_id=org_id,
             performed_by_user_id=r.get("processed_by_id"),
         )
 
@@ -166,7 +186,8 @@ async def backfill_ledger(current_user: AdminDep):
         po_items.setdefault(po_id, []).append(r)
     for po_id, items in po_items.items():
         await record_po_receipt(
-            po_id=po_id, items=items,
+            po_id=po_id,
+            items=items,
             vendor_name=po_vendors.get(po_id, ""),
             organization_id=org_id,
             performed_by_user_id=po_receivers.get(po_id) or None,
@@ -184,7 +205,8 @@ async def backfill_ledger(current_user: AdminDep):
         r = dict(row)
         pid = r["product_id"]
         await record_adjustment(
-            adjustment_ref_id=pid, product_id=pid,
+            adjustment_ref_id=pid,
+            product_id=pid,
             product_cost=cost_map.get(pid, 0),
             quantity_delta=r["quantity_delta"],
             department=dept_map.get(pid),
@@ -215,9 +237,12 @@ async def seed_full():
     withdrawals, POs, invoices, returns, credit notes, material requests,
     stock transactions, and financial ledger entries."""
     if not ALLOW_RESET:
-        raise HTTPException(status_code=403, detail="Seed not allowed. Set ALLOW_RESET=true or ENV=development.")
+        raise HTTPException(
+            status_code=403, detail="Seed not allowed. Set ALLOW_RESET=true or ENV=development."
+        )
     try:
         from devtools.scripts.seed_full import main as run_full_seed
+
         counts = await run_full_seed()
         return {"message": "Full seed complete", "counts": counts or {}}
     except Exception as e:
@@ -228,7 +253,9 @@ async def seed_full():
 @router.post("/reset-inventory")
 async def reset_and_reseed_inventory(current_user: AdminDep):
     """Reset products and stock, then re-run demo seed."""
-    org_id = getattr(current_user, "organization_id", None) or (current_user.get("organization_id") if isinstance(current_user, dict) else "default")
+    org_id = getattr(current_user, "organization_id", None) or (
+        current_user.get("organization_id") if isinstance(current_user, dict) else "default"
+    )
     conn = get_connection()
     try:
         await conn.execute("DELETE FROM stock_transactions")

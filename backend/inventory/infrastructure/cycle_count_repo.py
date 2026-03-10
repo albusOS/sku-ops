@@ -20,9 +20,15 @@ async def insert_count(count: CycleCount, conn=None) -> None:
             committed_by_id, committed_at, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            d["id"], d["organization_id"], d["status"], d.get("scope"),
-            d["created_by_id"], d.get("created_by_name", ""),
-            d.get("committed_by_id"), d.get("committed_at"), d["created_at"],
+            d["id"],
+            d["organization_id"],
+            d["status"],
+            d.get("scope"),
+            d["created_by_id"],
+            d.get("created_by_name", ""),
+            d.get("committed_by_id"),
+            d.get("committed_at"),
+            d["created_at"],
         ),
     )
     if not in_tx:
@@ -39,10 +45,17 @@ async def insert_item(item: CycleCountItem, conn=None) -> None:
             snapshot_qty, counted_qty, variance, unit, notes, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            d["id"], d["cycle_count_id"], d["product_id"], d["sku"],
-            d.get("product_name", ""), d["snapshot_qty"],
-            d.get("counted_qty"), d.get("variance"),
-            d.get("unit", "each"), d.get("notes"), d["created_at"],
+            d["id"],
+            d["cycle_count_id"],
+            d["product_id"],
+            d["sku"],
+            d.get("product_name", ""),
+            d["snapshot_qty"],
+            d.get("counted_qty"),
+            d.get("variance"),
+            d.get("unit", "each"),
+            d.get("notes"),
+            d["created_at"],
         ),
     )
     if not in_tx:

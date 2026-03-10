@@ -1,25 +1,32 @@
 """Withdrawal service: encapsulates creation of material withdrawals with transaction."""
+
+from __future__ import annotations
+
 from collections.abc import Awaitable, Callable
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from catalog.domain.units import are_compatible, convert_quantity, cost_per_sell_unit
 from finance.application.ledger_service import record_withdrawal as _record_ledger
 from identity.application.billing_entity_service import ensure_billing_entity
 from inventory.domain.stock import StockDecrement
 from jobs.application.job_service import ensure_job as _ensure_job
-from kernel.types import CurrentUser
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from operations.infrastructure.withdrawal_repo import withdrawal_repo as _default_withdrawal_repo
-from operations.ports.withdrawal_repo_port import WithdrawalRepoPort
 from shared.infrastructure.database import transaction
 
-CreateInvoiceFn = Optional[Callable[..., Awaitable[dict]]]
+if TYPE_CHECKING:
+    from kernel.types import CurrentUser
+    from operations.ports.withdrawal_repo_port import WithdrawalRepoPort
+
+CreateInvoiceFn = Callable[..., Awaitable[dict]] | None
 ListProductsFn = Callable[..., Awaitable[list]]
 StockChangesFn = Callable[..., Awaitable[None]]
 
 
 def _convert_price_per_unit(
-    price_per_base: float, base_unit: str, requested_unit: str,
+    price_per_base: float,
+    base_unit: str,
+    requested_unit: str,
 ) -> float:
     """Convert a per-base_unit price to a per-requested_unit price.
 
@@ -72,8 +79,12 @@ async def create_withdrawal(
 
         if item.unit_price == 0.0 and p.get("price", 0):
             updates["unit_price"] = _convert_price_per_unit(p["price"], base_unit, req_unit)
-        elif item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
-            updates["unit_price"] = _convert_price_per_unit(p.get("price", item.unit_price), base_unit, req_unit)
+        elif (
+            item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit)
+        ):
+            updates["unit_price"] = _convert_price_per_unit(
+                p.get("price", item.unit_price), base_unit, req_unit
+            )
 
         # Sell-unit normalized cost: always derived from the canonical base_unit cost
         updates["sell_uom"] = sell_uom
@@ -96,7 +107,10 @@ async def create_withdrawal(
         job_id=data.job_id,
         service_address=data.service_address,
         notes=data.notes,
-        subtotal=0, tax=0, total=0, cost_total=0,
+        subtotal=0,
+        tax=0,
+        total=0,
+        cost_total=0,
         contractor_id=contractor["id"],
         contractor_name=contractor.get("name", ""),
         contractor_company=contractor.get("company", ""),
@@ -111,8 +125,11 @@ async def create_withdrawal(
     async def _do_create(tx_conn):
         decrements = [
             StockDecrement(
-                product_id=i.product_id, sku=i.sku, name=i.name,
-                quantity=i.quantity, unit=i.unit or "each",
+                product_id=i.product_id,
+                sku=i.sku,
+                name=i.name,
+                quantity=i.quantity,
+                unit=i.unit or "each",
             )
             for i in data.items
         ]

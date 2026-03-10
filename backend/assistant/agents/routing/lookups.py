@@ -5,6 +5,7 @@ Handles ~60% of queries at zero LLM cost. Each pattern maps to:
 
 try_lookup() returns a formatted markdown response string or None.
 """
+
 import json
 import logging
 import re
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Arg extractors ────────────────────────────────────────────────────────────
+
 
 def _extract_sku(m: re.Match, _msg: str) -> dict:
     sku = (m.group("sku") if "sku" in m.groupdict() else "").strip().upper()
@@ -52,13 +54,16 @@ def _extract_limit(_m: re.Match, _msg: str) -> dict:
 
 # ── Response templates ────────────────────────────────────────────────────────
 
+
 def _format_product_search(data: dict) -> str:
     products = data.get("products", [])
     if not products:
         return "No products found matching your search."
     lines = ["| SKU | Name | On Hand | Dept |", "|-----|------|---------|------|"]
     for p in products[:20]:
-        lines.append(f"| {p.get('sku', '')} | {p.get('name', '')} | {p.get('quantity', '')} | {p.get('department', '')} |")
+        lines.append(
+            f"| {p.get('sku', '')} | {p.get('name', '')} | {p.get('quantity', '')} | {p.get('department', '')} |"
+        )
     return f"**{data.get('count', 0)} product(s) found:**\n\n" + "\n".join(lines)
 
 
@@ -83,8 +88,12 @@ def _format_low_stock(data: dict) -> str:
         return "No products are below their reorder point right now."
     lines = ["| SKU | Name | On Hand | Min | Dept |", "|-----|------|---------|-----|------|"]
     for p in products[:20]:
-        lines.append(f"| {p.get('sku', '')} | {p.get('name', '')} | {p.get('quantity', '')} | {p.get('min_stock', '')} | {p.get('department', '')} |")
-    return f"**{data.get('count', 0)} product(s) at or below reorder point:**\n\n" + "\n".join(lines)
+        lines.append(
+            f"| {p.get('sku', '')} | {p.get('name', '')} | {p.get('quantity', '')} | {p.get('min_stock', '')} | {p.get('department', '')} |"
+        )
+    return f"**{data.get('count', 0)} product(s) at or below reorder point:**\n\n" + "\n".join(
+        lines
+    )
 
 
 def _format_stats(data: dict) -> str:
@@ -123,7 +132,9 @@ def _format_pending_requests(data: dict) -> str:
         return "No pending material requests."
     lines = ["| Contractor | Job | Items | Requested |", "|-----------|-----|-------|-----------|"]
     for r in reqs:
-        lines.append(f"| {r.get('contractor', '')} | {r.get('job_id', '')} | {r.get('item_count', 0)} | {r.get('requested_at', '')} |")
+        lines.append(
+            f"| {r.get('contractor', '')} | {r.get('job_id', '')} | {r.get('item_count', 0)} | {r.get('requested_at', '')} |"
+        )
     return f"**{data.get('count', 0)} pending request(s):**\n\n" + "\n".join(lines)
 
 
@@ -131,10 +142,18 @@ def _format_outstanding(data: dict) -> str:
     balances = data.get("balances", [])
     if not balances:
         return "No outstanding balances."
-    lines = ["| Entity | Balance | Withdrawals | Oldest |", "|--------|---------|-------------|--------|"]
+    lines = [
+        "| Entity | Balance | Withdrawals | Oldest |",
+        "|--------|---------|-------------|--------|",
+    ]
     for b in balances:
-        lines.append(f"| {b.get('entity', '')} | ${b.get('balance', 0):,.2f} | {b.get('withdrawal_count', 0)} | {b.get('oldest_unpaid', '')} |")
-    return f"**${data.get('total_outstanding', 0):,.2f} outstanding across {data.get('entity_count', 0)} entities:**\n\n" + "\n".join(lines)
+        lines.append(
+            f"| {b.get('entity', '')} | ${b.get('balance', 0):,.2f} | {b.get('withdrawal_count', 0)} | {b.get('oldest_unpaid', '')} |"
+        )
+    return (
+        f"**${data.get('total_outstanding', 0):,.2f} outstanding across {data.get('entity_count', 0)} entities:**\n\n"
+        + "\n".join(lines)
+    )
 
 
 def _format_contractor(data: dict) -> str:
@@ -143,10 +162,13 @@ def _format_contractor(data: dict) -> str:
         return f"No withdrawals found for '{data.get('contractor_search', '')}'."
     lines = ["| Date | Job | Total | Status |", "|------|-----|-------|--------|"]
     for w in ws[:15]:
-        lines.append(f"| {w.get('date', '')} | {w.get('job_id', '')} | ${w.get('total', 0):,.2f} | {w.get('payment_status', '')} |")
+        lines.append(
+            f"| {w.get('date', '')} | {w.get('job_id', '')} | ${w.get('total', 0):,.2f} | {w.get('payment_status', '')} |"
+        )
     return (
         f"**{data.get('contractor_search', '')}** — {data.get('count', 0)} withdrawal(s), "
-        f"${data.get('total_spent', 0):,.2f} total, ${data.get('unpaid_balance', 0):,.2f} unpaid\n\n" + "\n".join(lines)
+        f"${data.get('total_spent', 0):,.2f} total, ${data.get('unpaid_balance', 0):,.2f} unpaid\n\n"
+        + "\n".join(lines)
     )
 
 
@@ -156,7 +178,9 @@ def _format_job_materials(data: dict) -> str:
     items = data.get("items", [])
     lines = ["| SKU | Name | Qty | Subtotal |", "|-----|------|-----|----------|"]
     for i in items:
-        lines.append(f"| {i.get('sku', '')} | {i.get('name', '')} | {i.get('quantity', 0)} | ${i.get('subtotal', 0):,.2f} |")
+        lines.append(
+            f"| {i.get('sku', '')} | {i.get('name', '')} | {i.get('quantity', 0)} | ${i.get('subtotal', 0):,.2f} |"
+        )
     return (
         f"**Job {data.get('job_id', '')}** — {data.get('contractor', '')}, "
         f"${data.get('total', 0):,.2f} total\n\n" + "\n".join(lines)
@@ -168,40 +192,98 @@ def _format_job_materials(data: dict) -> str:
 
 _LOOKUP_PATTERNS: list[tuple[re.Pattern, str, str, Callable, Callable]] = [
     # Inventory lookups
-    (re.compile(r"(?:do we have|search for|find|look up|lookup)\s+(?P<query>.+)", re.IGNORECASE),
-     "inventory", "search_products", _extract_query, _format_product_search),
-
-    (re.compile(r"(?:details?|info|tell me about)\s+(?:for\s+)?(?:sku\s+)?(?P<sku>[A-Z]{2,4}-\w+-\w+)", re.IGNORECASE),
-     "inventory", "product_details", _extract_sku, _format_product_details),
-
-    (re.compile(r"(?:low stock|below reorder|needs? reorder)", re.IGNORECASE),
-     "inventory", "low_stock", _no_args, _format_low_stock),
-
-    (re.compile(r"(?:inventory stats?|how many products?|catalogue size|catalog size|how many skus?)", re.IGNORECASE),
-     "inventory", "stats", _no_args, _format_stats),
-
-    (re.compile(r"(?:list|show|what)\s+departments?", re.IGNORECASE),
-     "inventory", "departments", _no_args, _format_departments),
-
-    (re.compile(r"(?:list|show|what)\s+vendors?|(?:who are|list)\s+(?:our\s+)?suppliers?", re.IGNORECASE),
-     "inventory", "vendors", _no_args, _format_vendors),
-
+    (
+        re.compile(r"(?:do we have|search for|find|look up|lookup)\s+(?P<query>.+)", re.IGNORECASE),
+        "inventory",
+        "search_products",
+        _extract_query,
+        _format_product_search,
+    ),
+    (
+        re.compile(
+            r"(?:details?|info|tell me about)\s+(?:for\s+)?(?:sku\s+)?(?P<sku>[A-Z]{2,4}-\w+-\w+)",
+            re.IGNORECASE,
+        ),
+        "inventory",
+        "product_details",
+        _extract_sku,
+        _format_product_details,
+    ),
+    (
+        re.compile(r"(?:low stock|below reorder|needs? reorder)", re.IGNORECASE),
+        "inventory",
+        "low_stock",
+        _no_args,
+        _format_low_stock,
+    ),
+    (
+        re.compile(
+            r"(?:inventory stats?|how many products?|catalogue size|catalog size|how many skus?)",
+            re.IGNORECASE,
+        ),
+        "inventory",
+        "stats",
+        _no_args,
+        _format_stats,
+    ),
+    (
+        re.compile(r"(?:list|show|what)\s+departments?", re.IGNORECASE),
+        "inventory",
+        "departments",
+        _no_args,
+        _format_departments,
+    ),
+    (
+        re.compile(
+            r"(?:list|show|what)\s+vendors?|(?:who are|list)\s+(?:our\s+)?suppliers?", re.IGNORECASE
+        ),
+        "inventory",
+        "vendors",
+        _no_args,
+        _format_vendors,
+    ),
     # Ops lookups
-    (re.compile(r"pending\s+(?:material\s+)?requests?|requests?\s+awaiting", re.IGNORECASE),
-     "ops", "pending_requests", _no_args, _format_pending_requests),
-
-    (re.compile(r"(?:history|withdrawals?)\s+(?:for|by)\s+(?P<name>[\w\s]+?)(?:\s*$|\s+(?:last|this|in))", re.IGNORECASE),
-     "ops", "contractor_history", _extract_name, _format_contractor),
-
-    (re.compile(r"(?:what\s+(?:was\s+)?(?:pulled|used)|materials?)\s+(?:for|on)\s+(?:job\s+)?(?P<job>[\w-]+)", re.IGNORECASE),
-     "ops", "job_materials", _extract_job, _format_job_materials),
-
+    (
+        re.compile(r"pending\s+(?:material\s+)?requests?|requests?\s+awaiting", re.IGNORECASE),
+        "ops",
+        "pending_requests",
+        _no_args,
+        _format_pending_requests,
+    ),
+    (
+        re.compile(
+            r"(?:history|withdrawals?)\s+(?:for|by)\s+(?P<name>[\w\s]+?)(?:\s*$|\s+(?:last|this|in))",
+            re.IGNORECASE,
+        ),
+        "ops",
+        "contractor_history",
+        _extract_name,
+        _format_contractor,
+    ),
+    (
+        re.compile(
+            r"(?:what\s+(?:was\s+)?(?:pulled|used)|materials?)\s+(?:for|on)\s+(?:job\s+)?(?P<job>[\w-]+)",
+            re.IGNORECASE,
+        ),
+        "ops",
+        "job_materials",
+        _extract_job,
+        _format_job_materials,
+    ),
     # Finance lookups
-    (re.compile(r"(?:who owes|outstanding\s+balance|unpaid\s+accounts?|unpaid\s+balance)", re.IGNORECASE),
-     "finance", "outstanding", _no_args, _format_outstanding),
+    (
+        re.compile(
+            r"(?:who owes|outstanding\s+balance|unpaid\s+accounts?|unpaid\s+balance)", re.IGNORECASE
+        ),
+        "finance",
+        "outstanding",
+        _no_args,
+        _format_outstanding,
+    ),
 ]
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 async def try_lookup(message: str, org_id: str) -> str | None:
     """Try to answer the message with a single tool call + template.

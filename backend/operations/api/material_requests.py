@@ -1,4 +1,5 @@
 """Material request routes - contractor pick list, staff processes into withdrawal."""
+
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
@@ -8,6 +9,7 @@ from finance.application.invoice_service import create_invoice_from_withdrawals
 from identity.application.org_service import get_org_settings
 from identity.application.user_service import get_user_by_id
 from inventory.application.inventory_service import process_withdrawal_stock_changes
+from kernel import events
 from kernel.types import CurrentUser
 from operations.application.withdrawal_service import create_withdrawal as _do_create_withdrawal
 from operations.domain.material_request import (
@@ -17,7 +19,6 @@ from operations.domain.material_request import (
 )
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
 from operations.infrastructure.material_request_repo import material_request_repo
-from kernel import events
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.database import transaction
@@ -26,13 +27,16 @@ from shared.infrastructure.database import transaction
 async def do_create_withdrawal(data, contractor, current_user: CurrentUser, conn=None):
     settings = await get_org_settings(current_user.organization_id)
     return await _do_create_withdrawal(
-        data, contractor, current_user,
+        data,
+        contractor,
+        current_user,
         list_products=list_products,
         process_stock_changes=process_withdrawal_stock_changes,
         create_invoice=create_invoice_from_withdrawals,
         tax_rate=settings.default_tax_rate,
         conn=conn,
     )
+
 
 router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
@@ -124,7 +128,9 @@ async def process_material_request(
     )
 
     async with transaction() as conn:
-        withdrawal = await do_create_withdrawal(withdrawal_data, contractor, current_user, conn=conn)
+        withdrawal = await do_create_withdrawal(
+            withdrawal_data, contractor, current_user, conn=conn
+        )
         await material_request_repo.mark_processed(
             request_id=request_id,
             withdrawal_id=withdrawal["id"],
@@ -132,7 +138,12 @@ async def process_material_request(
             processed_at=datetime.now(UTC).isoformat(),
             conn=conn,
         )
-    await event_hub.emit(events.MATERIAL_REQUEST_PROCESSED, org_id=org_id, id=request_id, withdrawal_id=withdrawal["id"])
+    await event_hub.emit(
+        events.MATERIAL_REQUEST_PROCESSED,
+        org_id=org_id,
+        id=request_id,
+        withdrawal_id=withdrawal["id"],
+    )
     await event_hub.emit(events.WITHDRAWAL_CREATED, org_id=org_id, id=withdrawal["id"])
     await event_hub.emit(events.INVENTORY_UPDATED, org_id=org_id)
     return withdrawal
