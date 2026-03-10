@@ -15,11 +15,7 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-client";
-import {
-  useCycleCount,
-  useUpdateCountItem,
-  useCommitCycleCount,
-} from "@/hooks/useCycleCounts";
+import { useCycleCount, useUpdateCountItem, useCommitCycleCount } from "@/hooks/useCycleCounts";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -33,17 +29,12 @@ function formatDate(iso) {
 }
 
 function VarianceCell({ variance }) {
-  if (variance == null)
-    return <span className="text-muted-foreground/60">—</span>;
-  if (variance === 0)
-    return <span className="text-muted-foreground tabular-nums">0</span>;
+  if (variance == null) return <span className="text-muted-foreground/60">—</span>;
+  if (variance === 0) return <span className="text-muted-foreground tabular-nums">0</span>;
   const positive = variance > 0;
   return (
     <span
-      className={cn(
-        "tabular-nums font-semibold",
-        positive ? "text-success" : "text-destructive",
-      )}
+      className={cn("tabular-nums font-semibold", positive ? "text-success" : "text-destructive")}
     >
       {positive ? "+" : ""}
       {variance}
@@ -52,9 +43,7 @@ function VarianceCell({ variance }) {
 }
 
 function CountInput({ item, countId, disabled }) {
-  const [value, setValue] = useState(
-    item.counted_qty != null ? String(item.counted_qty) : "",
-  );
+  const [value, setValue] = useState(item.counted_qty != null ? String(item.counted_qty) : "");
   const [saving, setSaving] = useState(false);
   const updateMutation = useUpdateCountItem(countId);
 
@@ -142,12 +131,7 @@ function VarianceSummary({ items }) {
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
             {label}
           </p>
-          <p
-            className={cn(
-              "text-2xl font-semibold tabular-nums text-foreground",
-              color,
-            )}
-          >
+          <p className={cn("text-2xl font-semibold tabular-nums text-foreground", color)}>
             {value}
           </p>
         </div>
@@ -165,18 +149,10 @@ export default function CycleCountDetailPage() {
   const isOpen = count?.status === "open";
   const items = useMemo(() => count?.items ?? [], [count]);
 
-  const canCommit = useMemo(
-    () => items.some((i) => i.counted_qty != null),
-    [items],
-  );
+  const canCommit = useMemo(() => items.some((i) => i.counted_qty != null), [items]);
 
   const handleCommit = () => {
-    if (
-      !window.confirm(
-        "Apply all variances as stock adjustments? This cannot be undone.",
-      )
-    )
-      return;
+    if (!window.confirm("Apply all variances as stock adjustments? This cannot be undone.")) return;
 
     commitMutation.mutate(countId, {
       onSuccess: (result) => {
@@ -217,9 +193,7 @@ export default function CycleCountDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-semibold text-foreground">
-                Cycle Count
-              </h1>
+              <h1 className="text-xl font-semibold text-foreground">Cycle Count</h1>
               <StatusBadge status={count.status} />
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -230,11 +204,8 @@ export default function CycleCountDetailPage() {
               ) : (
                 "Full warehouse"
               )}
-              {" · "}Opened {formatDate(count.created_at)} by{" "}
-              {count.created_by_name || "—"}
-              {count.committed_at && (
-                <> · Committed {formatDate(count.committed_at)}</>
-              )}
+              {" · "}Opened {formatDate(count.created_at)} by {count.created_by_name || "—"}
+              {count.committed_at && <> · Committed {formatDate(count.committed_at)}</>}
             </p>
           </div>
         </div>
@@ -261,9 +232,8 @@ export default function CycleCountDetailPage() {
       {isOpen && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-warning/10 border border-warning/30 rounded-lg px-4 py-2.5">
           <AlertTriangle className="w-3.5 h-3.5 text-accent shrink-0" />
-          Enter the physical count for each line. Changes save automatically on
-          blur. Committing will apply all non-zero variances as stock
-          adjustments.
+          Enter the physical count for each line. Changes save automatically on blur. Committing
+          will apply all non-zero variances as stock adjustments.
         </div>
       )}
 
@@ -309,15 +279,11 @@ export default function CycleCountDetailPage() {
                     key={item.id}
                     className={cn(
                       "hover:bg-muted/60 transition-colors",
-                      item.variance != null &&
-                        item.variance !== 0 &&
-                        "bg-warning/10",
+                      item.variance != null && item.variance !== 0 && "bg-warning/10",
                     )}
                   >
                     <TableCell className="px-4 py-2.5">
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {item.sku}
-                      </span>
+                      <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>
                     </TableCell>
                     <TableCell className="px-4 py-2.5 text-sm text-foreground max-w-xs truncate">
                       {item.product_name}
@@ -327,11 +293,7 @@ export default function CycleCountDetailPage() {
                     </TableCell>
                     <TableCell className="px-4 py-2.5 text-right">
                       <div className="flex justify-end">
-                        <CountInput
-                          item={item}
-                          countId={countId}
-                          disabled={!isOpen}
-                        />
+                        <CountInput item={item} countId={countId} disabled={!isOpen} />
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-2.5 text-right">

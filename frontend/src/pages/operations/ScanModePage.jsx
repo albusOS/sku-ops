@@ -30,9 +30,16 @@ const ScanModePage = () => {
   const [jobId, setJobId] = useState("");
   const [serviceAddress, setServiceAddress] = useState("");
 
-  const { items, addItem, updateQuantity, removeItem, clear: clearCart, total: subtotal } = useCart({ persist: true });
+  const {
+    items,
+    addItem,
+    updateQuantity,
+    removeItem,
+    clear: clearCart,
+    total: subtotal,
+  } = useCart({ persist: true });
   const { data: productsData } = useProducts();
-  const allProducts = Array.isArray(productsData) ? productsData : (productsData?.items || []);
+  const allProducts = Array.isArray(productsData) ? productsData : productsData?.items || [];
   const createWithdrawal = useCreateWithdrawal();
 
   const scanner = useBarcodeScanner({
@@ -56,15 +63,30 @@ const ScanModePage = () => {
   });
 
   const handleSubmit = async () => {
-    if (items.length === 0) { toast.error("Cart is empty"); return; }
-    if (!jobId.trim()) { toast.error("Job ID is required"); return; }
-    if (!serviceAddress.trim()) { toast.error("Service address is required"); return; }
+    if (items.length === 0) {
+      toast.error("Cart is empty");
+      return;
+    }
+    if (!jobId.trim()) {
+      toast.error("Job ID is required");
+      return;
+    }
+    if (!serviceAddress.trim()) {
+      toast.error("Service address is required");
+      return;
+    }
     setSubmitting(true);
     try {
       await createWithdrawal.mutateAsync({
         items: items.map(({ product_id, sku, name, quantity, unit_price, unit }) => ({
-          product_id, sku, name, quantity, unit_price, cost: 0,
-          subtotal: quantity * unit_price, unit: unit || "each",
+          product_id,
+          sku,
+          name,
+          quantity,
+          unit_price,
+          cost: 0,
+          subtotal: quantity * unit_price,
+          unit: unit || "each",
         })),
         job_id: jobId.trim(),
         service_address: serviceAddress.trim(),
@@ -88,10 +110,26 @@ const ScanModePage = () => {
   };
 
   const statusConfig = {
-    added:        { color: "text-success", bg: "bg-success/10 border-success/30", label: "Added" },
-    not_found:    { color: "text-accent",  bg: "bg-warning/10 border-warning/30", label: "Not found" },
-    invalid:      { color: "text-destructive", bg: "bg-destructive/10 border-destructive/30", label: "Invalid barcode" },
-    out_of_stock: { color: "text-muted-foreground", bg: "bg-muted border-border", label: "Out of stock" },
+    added: {
+      color: "text-success",
+      bg: "bg-success/10 border-success/30",
+      label: "Added",
+    },
+    not_found: {
+      color: "text-accent",
+      bg: "bg-warning/10 border-warning/30",
+      label: "Not found",
+    },
+    invalid: {
+      color: "text-destructive",
+      bg: "bg-destructive/10 border-destructive/30",
+      label: "Invalid barcode",
+    },
+    out_of_stock: {
+      color: "text-muted-foreground",
+      bg: "bg-muted border-border",
+      label: "Out of stock",
+    },
   };
 
   const status = lastScanned ? statusConfig[lastScanned.status] : null;
@@ -99,7 +137,6 @@ const ScanModePage = () => {
 
   return (
     <div className="flex flex-col h-screen bg-muted">
-
       {/* ── Job details + scan mode ── */}
       <div className="flex-shrink-0 bg-card border-b border-border px-6 pt-4 pb-3">
         <div className="max-w-xl mx-auto space-y-3">
@@ -109,7 +146,9 @@ const ScanModePage = () => {
               <JobPicker value={jobId} onChange={setJobId} required />
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs font-medium mb-1 block">Address *</Label>
+              <Label className="text-muted-foreground text-xs font-medium mb-1 block">
+                Address *
+              </Label>
               <AddressPicker value={serviceAddress} onChange={setServiceAddress} required />
             </div>
           </div>
@@ -119,18 +158,24 @@ const ScanModePage = () => {
             <button
               onClick={() => setCameraMode(true)}
               className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                cameraMode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                cameraMode
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Camera className="w-4 h-4" />Camera
+              <Camera className="w-4 h-4" />
+              Camera
             </button>
             <button
               onClick={() => setCameraMode(false)}
               className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                !cameraMode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                !cameraMode
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Keyboard className="w-4 h-4" />Manual
+              <Keyboard className="w-4 h-4" />
+              Manual
             </button>
           </div>
         </div>
@@ -147,10 +192,16 @@ const ScanModePage = () => {
             />
           ) : (
             <>
-              <div className={`rounded-2xl border-2 p-5 mb-2 transition-colors ${status ? status.bg : "bg-muted border-border"}`}>
+              <div
+                className={`rounded-2xl border-2 p-5 mb-2 transition-colors ${status ? status.bg : "bg-muted border-border"}`}
+              >
                 <div className="flex items-center gap-3 mb-3">
-                  <ScanLine className={`w-6 h-6 ${status ? status.color : "text-muted-foreground"}`} />
-                  <span className={`font-semibold text-lg ${status ? status.color : "text-muted-foreground"}`}>
+                  <ScanLine
+                    className={`w-6 h-6 ${status ? status.color : "text-muted-foreground"}`}
+                  />
+                  <span
+                    className={`font-semibold text-lg ${status ? status.color : "text-muted-foreground"}`}
+                  >
                     {lastScanned
                       ? `${status?.label}: ${lastScanned.name || lastScanned.sku}`
                       : "Ready to scan…"}
@@ -176,7 +227,9 @@ const ScanModePage = () => {
 
           {/* Status badge for camera mode */}
           {cameraMode && lastScanned && status && (
-            <div className={`mt-3 rounded-xl border-2 px-4 py-2.5 flex items-center gap-2 ${status.bg}`}>
+            <div
+              className={`mt-3 rounded-xl border-2 px-4 py-2.5 flex items-center gap-2 ${status.bg}`}
+            >
               <ScanLine className={`w-4 h-4 ${status.color}`} />
               <span className={`text-sm font-medium ${status.color}`}>
                 {status.label}: {lastScanned.name || lastScanned.sku}
@@ -197,7 +250,10 @@ const ScanModePage = () => {
           ) : (
             <div className="space-y-2">
               {items.map((item) => (
-                <div key={item.product_id} className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3">
+                <div
+                  key={item.product_id}
+                  className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="font-mono text-[10px] text-muted-foreground">{item.sku}</p>
                     <p className="font-medium text-foreground truncate">{item.name}</p>
@@ -207,7 +263,10 @@ const ScanModePage = () => {
                     onChange={(v) => updateQuantity(item.product_id, v)}
                     max={item.max_quantity}
                   />
-                  <button onClick={() => removeItem(item.product_id)} className="text-muted-foreground/60 hover:text-destructive transition-colors p-1">
+                  <button
+                    onClick={() => removeItem(item.product_id)}
+                    className="text-muted-foreground/60 hover:text-destructive transition-colors p-1"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -221,7 +280,9 @@ const ScanModePage = () => {
       <div className="flex-shrink-0 bg-card border-t border-border p-4 safe-area-bottom">
         <div className="max-w-xl mx-auto flex items-center gap-4">
           <div className="flex-1">
-            <p className="text-xs text-muted-foreground">{items.length} item{items.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-muted-foreground">
+              {items.length} item{items.length !== 1 ? "s" : ""}
+            </p>
             <p className="font-semibold text-foreground tabular-nums">${subtotal.toFixed(2)}</p>
           </div>
           <Button
@@ -229,21 +290,35 @@ const ScanModePage = () => {
             disabled={!canSubmit || submitting}
             className="btn-primary h-14 px-10 text-base"
           >
-            {submitting
-              ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing…</>
-              : <><Send className="w-5 h-5 mr-2" />Checkout</>}
+            {submitting ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Processing…
+              </>
+            ) : (
+              <>
+                <Send className="w-5 h-5 mr-2" />
+                Checkout
+              </>
+            )}
           </Button>
         </div>
       </div>
 
       <UnknownBarcodeSheet
         open={!!unknownBarcode}
-        onOpenChange={(open) => { if (!open) setUnknownBarcode(null); }}
+        onOpenChange={(open) => {
+          if (!open) setUnknownBarcode(null);
+        }}
         barcode={unknownBarcode}
         products={allProducts}
         onAddProduct={(product) => {
           addItem(product);
-          setLastScanned({ sku: product.sku, name: product.name, status: "added" });
+          setLastScanned({
+            sku: product.sku,
+            name: product.name,
+            status: "added",
+          });
           toast.success(`Added: ${product.sku} (+1)`);
           setUnknownBarcode(null);
         }}

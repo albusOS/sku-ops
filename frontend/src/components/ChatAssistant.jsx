@@ -52,26 +52,14 @@ const AGENT_META = {
 
 function agentTypeFromPath(pathname) {
   if (
-    [
-      "/inventory",
-      "/vendors",
-      "/departments",
-      "/import",
-      "/purchase-orders",
-    ].some((p) => pathname.startsWith(p))
+    ["/inventory", "/vendors", "/departments", "/import", "/purchase-orders"].some((p) =>
+      pathname.startsWith(p),
+    )
   )
     return "inventory";
-  if (
-    ["/pos", "/pending-requests", "/contractors"].some((p) =>
-      pathname.startsWith(p),
-    )
-  )
+  if (["/pos", "/pending-requests", "/contractors"].some((p) => pathname.startsWith(p)))
     return "ops";
-  if (
-    ["/invoices", "/payments", "/billing-entities"].some((p) =>
-      pathname.startsWith(p),
-    )
-  )
+  if (["/invoices", "/payments", "/billing-entities"].some((p) => pathname.startsWith(p)))
     return "finance";
   return "auto";
 }
@@ -148,8 +136,7 @@ const AGENT_SUGGESTIONS = {
     },
     {
       label: "This month's P&L",
-      prompt:
-        "Show me the profit and loss for the last 30 days including gross margin",
+      prompt: "Show me the profit and loss for the last 30 days including gross margin",
     },
     {
       label: "Weekly sales report",
@@ -201,16 +188,10 @@ const mdComponents = {
       </td>
     );
   },
-  p: ({ children }) => (
-    <p className="mb-1.5 last:mb-0 leading-relaxed text-[13px]">{children}</p>
-  ),
-  strong: ({ children }) => (
-    <strong className="font-semibold text-foreground">{children}</strong>
-  ),
+  p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed text-[13px]">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
   ul: ({ children }) => (
-    <ul className="mb-1.5 space-y-0.5 pl-4 list-disc marker:text-muted-foreground">
-      {children}
-    </ul>
+    <ul className="mb-1.5 space-y-0.5 pl-4 list-disc marker:text-muted-foreground">{children}</ul>
   ),
   ol: ({ children }) => (
     <ol className="mb-1.5 space-y-0.5 pl-4 list-decimal marker:text-muted-foreground">
@@ -218,24 +199,16 @@ const mdComponents = {
     </ol>
   ),
   li: ({ children }) => (
-    <li className="text-foreground/90 leading-relaxed text-[13px]">
-      {children}
-    </li>
+    <li className="text-foreground/90 leading-relaxed text-[13px]">{children}</li>
   ),
   h1: ({ children }) => (
-    <h1 className="font-bold text-foreground text-sm mb-1 mt-2.5 first:mt-0">
-      {children}
-    </h1>
+    <h1 className="font-bold text-foreground text-sm mb-1 mt-2.5 first:mt-0">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="font-semibold text-foreground text-[13px] mb-1 mt-2.5 first:mt-0">
-      {children}
-    </h2>
+    <h2 className="font-semibold text-foreground text-[13px] mb-1 mt-2.5 first:mt-0">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="font-medium text-foreground text-xs mb-0.5 mt-2 first:mt-0">
-      {children}
-    </h3>
+    <h3 className="font-medium text-foreground text-xs mb-0.5 mt-2 first:mt-0">{children}</h3>
   ),
   pre: ({ children }) => (
     <pre className="my-2 p-2.5 bg-sidebar/80 rounded-lg overflow-x-auto text-[11px] text-foreground/80 font-mono leading-relaxed border border-border/40">
@@ -273,9 +246,7 @@ function AgentBubble({ msg, thinkingOpen, onToggleThinking }) {
       {(meta || toolCalls.length > 0 || thinking.length > 0) && (
         <div className="flex items-center gap-1.5 flex-wrap px-1">
           {meta && (
-            <span
-              className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${meta.cls}`}
-            >
+            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${meta.cls}`}>
               {meta.label}
             </span>
           )}
@@ -363,20 +334,14 @@ export default function ChatAssistant() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
     try {
-      return (
-        JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.messages ??
-        []
-      );
+      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.messages ?? [];
     } catch {
       return [];
     }
   });
   const [sessionId, setSessionId] = useState(() => {
     try {
-      return (
-        JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.sessionId ??
-        null
-      );
+      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.sessionId ?? null;
     } catch {
       return null;
     }
@@ -397,8 +362,7 @@ export default function ChatAssistant() {
 
   const handleDone = useCallback((result) => {
     if (result.session_id) setSessionId(result.session_id);
-    if (result.usage?.session_cost_usd != null)
-      setSessionCost(result.usage.session_cost_usd);
+    if (result.usage?.session_cost_usd != null) setSessionCost(result.usage.session_cost_usd);
     setMessages((m) => [
       ...m,
       {
@@ -412,10 +376,7 @@ export default function ChatAssistant() {
   }, []);
 
   const handleError = useCallback((detail) => {
-    setMessages((m) => [
-      ...m,
-      { role: "model", content: detail || "Failed to get response." },
-    ]);
+    setMessages((m) => [...m, { role: "model", content: detail || "Failed to get response." }]);
   }, []);
 
   const {
@@ -459,10 +420,7 @@ export default function ChatAssistant() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ messages, sessionId }),
-      );
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId }));
     } catch {
       /* sessionStorage may be full or disabled */
     }
@@ -502,11 +460,7 @@ export default function ChatAssistant() {
           });
           handleDone(data);
         } catch (err) {
-          handleError(
-            err.response?.data?.detail ||
-              err.message ||
-              "Failed to get response.",
-          );
+          handleError(err.response?.data?.detail || err.message || "Failed to get response.");
         }
       }
     },
@@ -547,9 +501,7 @@ export default function ChatAssistant() {
                   <Sparkles className="w-3.5 h-3.5 text-accent" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-foreground text-sm leading-none">
-                    Assistant
-                  </h2>
+                  <h2 className="font-semibold text-foreground text-sm leading-none">Assistant</h2>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {connected ? (
                       <Wifi className="w-2.5 h-2.5 text-success" />
@@ -557,9 +509,7 @@ export default function ChatAssistant() {
                       <WifiOff className="w-2.5 h-2.5 text-muted-foreground" />
                     )}
                     {sessionCost > 0 && (
-                      <p className="text-[9px] text-muted-foreground">
-                        ${sessionCost.toFixed(4)}
-                      </p>
+                      <p className="text-[9px] text-muted-foreground">${sessionCost.toFixed(4)}</p>
                     )}
                   </div>
                 </div>
@@ -624,9 +574,7 @@ export default function ChatAssistant() {
                     <div className="w-10 h-10 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-center mx-auto mb-3">
                       <Sparkles className="w-5 h-5 text-accent" />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {AGENT_PLACEHOLDER[agentType]}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{AGENT_PLACEHOLDER[agentType]}</p>
                   </div>
                   <div className="grid grid-cols-1 gap-1.5">
                     {suggestions.map((s) => (

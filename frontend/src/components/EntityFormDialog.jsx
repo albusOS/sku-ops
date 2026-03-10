@@ -6,13 +6,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 /**
  * Shared create/edit dialog for CRUD entities.
@@ -84,10 +78,7 @@ export function EntityFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="sm:max-w-md"
-        data-testid={`${testIdPrefix}-dialog`}
-      >
+      <DialogContent className="sm:max-w-md" data-testid={`${testIdPrefix}-dialog`}>
         <DialogHeader>
           <DialogTitle className="font-heading font-bold text-xl uppercase tracking-wider">
             {isEditing ? `Edit ${title}` : `Add New ${title}`}
@@ -97,9 +88,7 @@ export function EntityFormDialog({
           {fields.map((field) => {
             const error = form.formState.errors[field.name];
             const isDisabled =
-              typeof field.disabled === "function"
-                ? field.disabled(isEditing)
-                : field.disabled;
+              typeof field.disabled === "function" ? field.disabled(isEditing) : field.disabled;
 
             return (
               <div key={field.name}>
@@ -152,15 +141,9 @@ export function EntityFormDialog({
                   />
                 )}
                 {field.note && isEditing && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {field.note}
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">{field.note}</p>
                 )}
-                {error && (
-                  <p className="text-xs text-destructive mt-1">
-                    {error.message}
-                  </p>
-                )}
+                {error && <p className="text-xs text-destructive mt-1">{error.message}</p>}
               </div>
             );
           })}

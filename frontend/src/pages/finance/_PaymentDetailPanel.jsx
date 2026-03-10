@@ -7,7 +7,8 @@ import { PAYMENT_METHODS } from "@/lib/constants";
 export function PaymentDetailPanel({ paymentId, open, onOpenChange, onViewInvoice }) {
   const { data: payment, isLoading } = usePayment(paymentId);
 
-  const methodLabel = PAYMENT_METHODS.find((m) => m.value === payment?.method)?.label || payment?.method || "—";
+  const methodLabel =
+    PAYMENT_METHODS.find((m) => m.value === payment?.method)?.label || payment?.method || "—";
 
   return (
     <DetailPanel
@@ -36,7 +37,11 @@ export function PaymentDetailPanel({ paymentId, open, onOpenChange, onViewInvoic
           </div>
           <DetailField
             label="Payment Date"
-            value={payment?.payment_date ? format(new Date(payment.payment_date), "MMM d, yyyy") : undefined}
+            value={
+              payment?.payment_date
+                ? format(new Date(payment.payment_date), "MMM d, yyyy")
+                : undefined
+            }
           />
           <DetailField label="Reference" value={payment?.reference} mono />
         </div>
@@ -65,7 +70,11 @@ export function PaymentDetailPanel({ paymentId, open, onOpenChange, onViewInvoic
         <div className="grid grid-cols-2 gap-4">
           <DetailField
             label="Recorded"
-            value={payment?.created_at ? format(new Date(payment.created_at), "MMM d, yyyy h:mm a") : undefined}
+            value={
+              payment?.created_at
+                ? format(new Date(payment.created_at), "MMM d, yyyy h:mm a")
+                : undefined
+            }
           />
           <DetailField label="Xero ID" value={payment?.xero_payment_id} mono />
         </div>

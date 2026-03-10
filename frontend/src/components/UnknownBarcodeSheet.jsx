@@ -26,15 +26,15 @@ import { Button } from "@/components/ui/button";
 export function UnknownBarcodeSheet({ open, onOpenChange, barcode, products = [], onAddProduct }) {
   const [search, setSearch] = useState("");
 
-  const results = search.trim().length > 1
-    ? products.filter((p) => {
-        const q = search.toLowerCase();
-        return (
-          p.name?.toLowerCase().includes(q) ||
-          p.sku?.toLowerCase().includes(q)
-        );
-      }).slice(0, 8)
-    : [];
+  const results =
+    search.trim().length > 1
+      ? products
+          .filter((p) => {
+            const q = search.toLowerCase();
+            return p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q);
+          })
+          .slice(0, 8)
+      : [];
 
   function handleAdd(product) {
     onAddProduct?.(product);

@@ -20,10 +20,7 @@ import { GaugeRing } from "@/components/charts/GaugeRing";
 import { ProductBubblePlot } from "@/components/charts/ProductBubblePlot";
 import { LollipopChart } from "@/components/charts/LollipopChart";
 import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
-import {
-  ChartExplainer,
-  BubbleChartGuide,
-} from "@/components/charts/ChartExplainer";
+import { ChartExplainer, BubbleChartGuide } from "@/components/charts/ChartExplainer";
 import { Panel, SectionHead as SectionHeadBase } from "@/components/Panel";
 import { LowStockList } from "./ReportHelpers";
 
@@ -52,14 +49,10 @@ export function InventoryTab({ dateParams, onProductClick }) {
     () => ({ product_id: heatmapProductId || undefined }),
     [heatmapProductId],
   );
-  const { data: productActivityData } =
-    useReportProductActivity(activityParams);
+  const { data: productActivityData } = useReportProductActivity(activityParams);
 
   const productPerf = perfData?.products || [];
-  const reorderProducts = useMemo(
-    () => reorderData?.products || [],
-    [reorderData],
-  );
+  const reorderProducts = useMemo(() => reorderData?.products || [], [reorderData]);
 
   const lollipopData = useMemo(
     () =>
@@ -121,13 +114,9 @@ export function InventoryTab({ dateParams, onProductClick }) {
         <Stat
           label="Unrealized Margin"
           value={valueFormatter(
-            inventoryReport?.unrealized_margin ||
-              inventoryReport?.potential_profit ||
-              0,
+            inventoryReport?.unrealized_margin || inventoryReport?.potential_profit || 0,
           )}
-          note={
-            inventoryReport?.margin_pct ? `${inventoryReport.margin_pct}%` : ""
-          }
+          note={inventoryReport?.margin_pct ? `${inventoryReport.margin_pct}%` : ""}
           icon={TrendingUp}
           accent="amber"
         />
@@ -202,16 +191,8 @@ export function InventoryTab({ dateParams, onProductClick }) {
               </span>
             }
           />
-          <ChartExplainer
-            title="Product Portfolio"
-            wide
-            content={<BubbleChartGuide />}
-          >
-            <ProductBubblePlot
-              products={productPerf}
-              onBubbleClick={onProductClick}
-              height={420}
-            />
+          <ChartExplainer title="Product Portfolio" wide content={<BubbleChartGuide />}>
+            <ProductBubblePlot products={productPerf} onBubbleClick={onProductClick} height={420} />
           </ChartExplainer>
         </Panel>
       )}
@@ -224,9 +205,8 @@ export function InventoryTab({ dateParams, onProductClick }) {
               lollipopData.length > 0 && (
                 <span className="text-xs font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full border border-destructive/30">
                   {
-                    lollipopData.filter(
-                      (d) => d.urgency === "critical" || d.urgency === "high",
-                    ).length
+                    lollipopData.filter((d) => d.urgency === "critical" || d.urgency === "high")
+                      .length
                   }{" "}
                   urgent
                 </span>
@@ -270,9 +250,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
               height={Math.max(200, departmentChartData.length * 40)}
             />
           ) : (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No data
-            </p>
+            <p className="text-sm text-muted-foreground py-8 text-center">No data</p>
           )}
         </Panel>
       </div>
@@ -282,9 +260,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
           <SectionHead
             title="Product Groups"
             action={
-              <span className="text-xs text-muted-foreground">
-                {productGroups.length} groups
-              </span>
+              <span className="text-xs text-muted-foreground">{productGroups.length} groups</span>
             }
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -292,24 +268,16 @@ export function InventoryTab({ dateParams, onProductClick }) {
               <button
                 key={g.product_group}
                 className="border border-border rounded-lg p-3 bg-card text-left hover:border-accent/50 hover:bg-accent/5 transition-colors cursor-pointer"
-                onClick={() =>
-                  navigate(
-                    `/inventory?group=${encodeURIComponent(g.product_group)}`,
-                  )
-                }
+                onClick={() => navigate(`/inventory?group=${encodeURIComponent(g.product_group)}`)}
               >
-                <p className="font-medium text-sm truncate">
-                  {g.product_group}
-                </p>
+                <p className="font-medium text-sm truncate">{g.product_group}</p>
                 <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
                   <span>
                     {g.product_count} variant{g.product_count !== 1 ? "s" : ""}
                   </span>
                   <span>
                     Total qty:{" "}
-                    <strong className="tabular-nums">
-                      {Math.round(g.total_quantity)}
-                    </strong>
+                    <strong className="tabular-nums">{Math.round(g.total_quantity)}</strong>
                   </span>
                 </div>
               </button>
@@ -332,9 +300,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
             height={Math.max(200, Math.min(margins.length, 10) * 36)}
           />
         ) : (
-          <p className="text-sm text-muted-foreground py-8 text-center">
-            No data
-          </p>
+          <p className="text-sm text-muted-foreground py-8 text-center">No data</p>
         )}
       </Panel>
 
@@ -382,10 +348,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
       <Panel>
         <SectionHead title="Stock Health" />
         <div className="flex h-5 rounded-lg overflow-hidden gap-px mb-3">
-          <div
-            className="bg-success"
-            style={{ width: `${(inStock / totalP) * 100}%` }}
-          />
+          <div className="bg-success" style={{ width: `${(inStock / totalP) * 100}%` }} />
           <div
             className="bg-category-5"
             style={{
@@ -406,17 +369,11 @@ export function InventoryTab({ dateParams, onProductClick }) {
           </span>
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <span className="w-2 h-2 rounded-full bg-category-5 inline-block" />
-            Low{" "}
-            <strong className="tabular-nums">
-              {inventoryReport?.low_stock_count || 0}
-            </strong>
+            Low <strong className="tabular-nums">{inventoryReport?.low_stock_count || 0}</strong>
           </span>
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <span className="w-2 h-2 rounded-full bg-destructive inline-block" />
-            Out{" "}
-            <strong className="tabular-nums">
-              {inventoryReport?.out_of_stock_count || 0}
-            </strong>
+            Out <strong className="tabular-nums">{inventoryReport?.out_of_stock_count || 0}</strong>
           </span>
         </div>
       </Panel>

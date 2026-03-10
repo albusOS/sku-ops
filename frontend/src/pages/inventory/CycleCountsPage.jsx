@@ -3,12 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClipboardCheck, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -68,9 +63,7 @@ function OpenCountDialog({ open, onOpenChange }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">
-                  Full warehouse (all departments)
-                </SelectItem>
+                <SelectItem value="__all__">Full warehouse (all departments)</SelectItem>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.name}>
                     {d.name}
@@ -91,11 +84,7 @@ function OpenCountDialog({ open, onOpenChange }) {
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={openMutation.isPending}
-              className="flex-1"
-            >
+            <Button type="submit" disabled={openMutation.isPending} className="flex-1">
               {openMutation.isPending ? "Opening…" : "Open Count"}
             </Button>
           </div>
@@ -114,10 +103,7 @@ const COLUMNS = [
   {
     key: "scope",
     label: "Scope",
-    render: (row) =>
-      row.scope || (
-        <span className="text-muted-foreground">Full warehouse</span>
-      ),
+    render: (row) => row.scope || <span className="text-muted-foreground">Full warehouse</span>,
   },
   {
     key: "status",
@@ -145,9 +131,7 @@ export default function CycleCountsPage() {
     <div className="flex-1 p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Cycle Counts
-          </h1>
+          <h1 className="text-xl font-semibold text-foreground">Cycle Counts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Physical inventory counts — snapshot, count, reconcile.
           </p>

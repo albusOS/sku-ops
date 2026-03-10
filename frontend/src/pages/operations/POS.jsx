@@ -11,26 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Search,
-  Trash2,
-  Check,
-  HardHat,
-  Clock,
-  Loader2,
-  ScanLine,
-  Plus,
-} from "lucide-react";
+import { Search, Trash2, Check, HardHat, Clock, Loader2, ScanLine, Plus } from "lucide-react";
 import { JobPicker } from "@/components/JobPicker";
 import { AddressPicker } from "@/components/AddressPicker";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QuantityControl } from "@/components/QuantityControl";
 import { useProducts } from "@/hooks/useProducts";
 import { useContractors } from "@/hooks/useContractors";
-import {
-  useCreateWithdrawal,
-  useCreateWithdrawalForContractor,
-} from "@/hooks/useWithdrawals";
+import { useCreateWithdrawal, useCreateWithdrawalForContractor } from "@/hooks/useWithdrawals";
 import { useCart } from "@/hooks/useCart";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
@@ -44,19 +32,15 @@ const IssueMaterials = () => {
 
   const isContractor = user?.role === ROLES.CONTRACTOR;
   const { data: productsData, isLoading: productsLoading } = useProducts();
-  const { data: contractorsData, isLoading: contractorsLoading } =
-    useContractors();
+  const { data: contractorsData, isLoading: contractorsLoading } = useContractors();
   const createWithdrawal = useCreateWithdrawal();
   const createForContractor = useCreateWithdrawalForContractor();
 
   const allProducts = useMemo(
-    () =>
-      Array.isArray(productsData) ? productsData : productsData?.items || [],
+    () => (Array.isArray(productsData) ? productsData : productsData?.items || []),
     [productsData],
   );
-  const contractors = (contractorsData || []).filter(
-    (c) => c.is_active !== false,
-  );
+  const contractors = (contractorsData || []).filter((c) => c.is_active !== false);
 
   const {
     items,
@@ -97,8 +81,7 @@ const IssueMaterials = () => {
       setSearch("");
       setShowDropdown(false);
     },
-    onInvalidCheckDigit: (barcode) =>
-      toast.error(`Invalid barcode — bad check digit (${barcode})`),
+    onInvalidCheckDigit: (barcode) => toast.error(`Invalid barcode — bad check digit (${barcode})`),
   });
 
   useEffect(() => {
@@ -107,10 +90,7 @@ const IssueMaterials = () => {
 
   useEffect(() => {
     const handler = (e) => {
-      if (
-        !searchRef.current?.contains(e.target) &&
-        !dropdownRef.current?.contains(e.target)
-      )
+      if (!searchRef.current?.contains(e.target) && !dropdownRef.current?.contains(e.target))
         setShowDropdown(false);
     };
     document.addEventListener("mousedown", handler);
@@ -123,10 +103,7 @@ const IssueMaterials = () => {
           .filter((p) => (p.sell_quantity ?? p.quantity) > 0)
           .filter((p) => {
             const q = search.toLowerCase();
-            return (
-              p.name.toLowerCase().includes(q) ||
-              p.sku.toLowerCase().includes(q)
-            );
+            return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
           })
           .slice(0, 8)
       : [];
@@ -149,9 +126,7 @@ const IssueMaterials = () => {
         return;
       }
       if (searchResults.length > 0) {
-        const exact = searchResults.find(
-          (p) => p.sku.toLowerCase() === val.toLowerCase(),
-        );
+        const exact = searchResults.find((p) => p.sku.toLowerCase() === val.toLowerCase());
         handleAddItem(exact || searchResults[0]);
       }
     }
@@ -161,8 +136,7 @@ const IssueMaterials = () => {
     }
   };
 
-  const isSubmitting =
-    createWithdrawal.isPending || createForContractor.isPending;
+  const isSubmitting = createWithdrawal.isPending || createForContractor.isPending;
 
   const handleSubmit = async () => {
     if (items.length === 0) {
@@ -225,38 +199,28 @@ const IssueMaterials = () => {
     }
   };
 
-  if (productsLoading || (!isContractor && contractorsLoading))
-    return <PageSkeleton />;
+  if (productsLoading || (!isContractor && contractorsLoading)) return <PageSkeleton />;
 
   return (
     <>
       <div className="max-w-3xl mx-auto p-8" data-testid="pos-page">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            Issue Materials
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Log materials going out for a job
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Issue Materials</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Log materials going out for a job</p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6 mb-4 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-4">
             Job Details
           </p>
-          <div
-            className={`grid gap-4 ${!isContractor ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
-          >
+          <div className={`grid gap-4 ${!isContractor ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             {!isContractor && (
               <div>
                 <Label className="text-muted-foreground font-medium text-sm mb-2 block">
                   <HardHat className="w-4 h-4 inline mr-1" />
                   Contractor
                 </Label>
-                <Select
-                  value={selectedContractor}
-                  onValueChange={setSelectedContractor}
-                >
+                <Select value={selectedContractor} onValueChange={setSelectedContractor}>
                   <SelectTrigger data-testid="select-contractor">
                     <SelectValue placeholder="Select contractor" />
                   </SelectTrigger>
@@ -265,9 +229,7 @@ const IssueMaterials = () => {
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                         {c.company && (
-                          <span className="text-muted-foreground text-xs ml-1">
-                            · {c.company}
-                          </span>
+                          <span className="text-muted-foreground text-xs ml-1">· {c.company}</span>
                         )}
                       </SelectItem>
                     ))}
@@ -285,11 +247,7 @@ const IssueMaterials = () => {
               <Label className="text-muted-foreground font-medium text-sm mb-2 block">
                 Service Address *
               </Label>
-              <AddressPicker
-                value={serviceAddress}
-                onChange={setServiceAddress}
-                required
-              />
+              <AddressPicker value={serviceAddress} onChange={setServiceAddress} required />
             </div>
           </div>
         </div>
@@ -334,16 +292,11 @@ const IssueMaterials = () => {
                         <span className="font-mono text-xs text-muted-foreground mr-2">
                           {product.sku}
                         </span>
-                        <span className="font-medium text-foreground">
-                          {product.name}
-                        </span>
+                        <span className="font-medium text-foreground">{product.name}</span>
                       </div>
                       <div className="flex items-center gap-4 shrink-0 ml-4">
                         <span className="text-xs text-muted-foreground">
-                          {Math.floor(
-                            product.sell_quantity ?? product.quantity,
-                          )}{" "}
-                          in stock
+                          {Math.floor(product.sell_quantity ?? product.quantity)} in stock
                         </span>
                         <span className="font-semibold text-foreground tabular-nums">
                           ${(product.sell_price ?? product.price).toFixed(2)}
@@ -380,12 +333,8 @@ const IssueMaterials = () => {
                   data-testid={`item-row-${item.sku}`}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {item.sku}
-                    </p>
-                    <p className="font-medium text-foreground truncate">
-                      {item.name}
-                    </p>
+                    <p className="font-mono text-xs text-muted-foreground">{item.sku}</p>
+                    <p className="font-medium text-foreground truncate">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
                       ${item.unit_price.toFixed(2)} / {item.unit}
                     </p>
@@ -430,9 +379,7 @@ const IssueMaterials = () => {
             <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border border-border">
               <Clock className="w-5 h-5 text-muted-foreground shrink-0" />
               <div>
-                <span className="font-semibold text-foreground text-sm">
-                  Charge to Account
-                </span>
+                <span className="font-semibold text-foreground text-sm">Charge to Account</span>
                 <p className="text-xs text-muted-foreground">
                   Tax and totals computed by backend. Invoice later via Xero.
                 </p>
@@ -442,9 +389,7 @@ const IssueMaterials = () => {
               <div className="space-y-1 text-sm">
                 <div className="flex gap-6 text-muted-foreground">
                   <span className="w-20">Est. Subtotal</span>
-                  <span className="font-mono tabular-nums">
-                    ${displaySubtotal.toFixed(2)}
-                  </span>
+                  <span className="font-mono tabular-nums">${displaySubtotal.toFixed(2)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Final total (incl. tax) calculated on submit

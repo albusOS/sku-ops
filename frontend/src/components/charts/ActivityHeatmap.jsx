@@ -10,12 +10,7 @@ import { themeColors } from "../../lib/chartTheme";
  * @param {(v: number) => string} [tooltipExtra] - optional extra tooltip per day
  * @param {number} [height=164]
  */
-export function ActivityHeatmap({
-  data = [],
-  label = "transactions",
-  tooltipExtra,
-  height = 164,
-}) {
+export function ActivityHeatmap({ data = [], label = "transactions", tooltipExtra, height = 164 }) {
   const { option } = useMemo(() => {
     const t = themeColors();
     if (!data.length) return { calendarRange: null, option: {} };

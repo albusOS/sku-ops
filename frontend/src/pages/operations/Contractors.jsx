@@ -104,8 +104,7 @@ const Contractors = () => {
   };
 
   const visibleFields = useMemo(
-    () =>
-      editingContractor ? FIELDS.filter((f) => f.name !== "password") : FIELDS,
+    () => (editingContractor ? FIELDS.filter((f) => f.name !== "password") : FIELDS),
     [editingContractor],
   );
 
@@ -145,9 +144,7 @@ const Contractors = () => {
       { id: contractor.id, data: { is_active: !contractor.is_active } },
       {
         onSuccess: () =>
-          toast.success(
-            contractor.is_active ? "Contractor disabled" : "Contractor enabled",
-          ),
+          toast.success(contractor.is_active ? "Contractor disabled" : "Contractor enabled"),
         onError: () => toast.error("Failed to update contractor status"),
       },
     );
@@ -190,9 +187,7 @@ const Contractors = () => {
         <div className="card-workshop p-12 text-center">
           <HardHat className="w-16 h-16 mx-auto mb-4 text-muted-foreground/60" />
           <p className="text-muted-foreground font-medium">
-            {search.trim()
-              ? "No contractors match your search"
-              : "No contractors yet"}
+            {search.trim() ? "No contractors match your search" : "No contractors yet"}
           </p>
           <p className="text-muted-foreground text-sm mb-4">
             {search.trim()
@@ -224,9 +219,7 @@ const Contractors = () => {
                       className={`w-6 h-6 ${contractor.is_active ? "text-success" : "text-muted-foreground"}`}
                     />
                   </div>
-                  {!contractor.is_active && (
-                    <span className="badge-error text-xs">Disabled</span>
-                  )}
+                  {!contractor.is_active && <span className="badge-error text-xs">Disabled</span>}
                 </div>
                 <div className="flex gap-1">
                   <button
@@ -280,9 +273,7 @@ const Contractors = () => {
                 {contractor.billing_entity && (
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4" />
-                    <span className="text-xs">
-                      Bills to: {contractor.billing_entity}
-                    </span>
+                    <span className="text-xs">Bills to: {contractor.billing_entity}</span>
                   </div>
                 )}
               </div>

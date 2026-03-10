@@ -21,20 +21,46 @@ const vendorSchema = z.object({
 });
 
 const FIELDS = [
-  { name: "name", label: "Company Name *", placeholder: "e.g., ABC Hardware Supply" },
-  { name: "contact_name", label: "Contact Name", placeholder: "e.g., John Smith" },
-  { name: "email", label: "Email", type: "email", placeholder: "vendor@example.com" },
+  {
+    name: "name",
+    label: "Company Name *",
+    placeholder: "e.g., ABC Hardware Supply",
+  },
+  {
+    name: "contact_name",
+    label: "Contact Name",
+    placeholder: "e.g., John Smith",
+  },
+  {
+    name: "email",
+    label: "Email",
+    type: "email",
+    placeholder: "vendor@example.com",
+  },
   { name: "phone", label: "Phone", placeholder: "(555) 123-4567" },
-  { name: "address", label: "Address", placeholder: "123 Main St, City, State" },
+  {
+    name: "address",
+    label: "Address",
+    placeholder: "123 Main St, City, State",
+  },
 ];
 
-const DEFAULTS = { name: "", contact_name: "", email: "", phone: "", address: "" };
+const DEFAULTS = {
+  name: "",
+  contact_name: "",
+  email: "",
+  phone: "",
+  address: "",
+};
 
 const Vendors = () => {
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, vendor: null });
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    open: false,
+    vendor: null,
+  });
 
   const { data: vendors = [], isLoading } = useVendors();
   const createMutation = useCreateVendor();
@@ -82,11 +108,20 @@ const Vendors = () => {
         subtitle={`${vendors.length} vendors`}
         action={
           <div className="flex gap-2">
-            <Button onClick={() => navigate("/import")} variant="outline" className="h-12 px-6" data-testid="import-document-btn">
+            <Button
+              onClick={() => navigate("/import")}
+              variant="outline"
+              className="h-12 px-6"
+              data-testid="import-document-btn"
+            >
               <FileUp className="w-5 h-5 mr-2" />
               Import Document
             </Button>
-            <Button onClick={() => openDialog()} className="btn-primary h-12 px-6" data-testid="add-vendor-btn">
+            <Button
+              onClick={() => openDialog()}
+              className="btn-primary h-12 px-6"
+              data-testid="add-vendor-btn"
+            >
               <Plus className="w-5 h-5 mr-2" />
               Add Vendor
             </Button>
@@ -109,31 +144,67 @@ const Vendors = () => {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="vendors-grid">
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          data-testid="vendors-grid"
+        >
           {vendors.map((vendor) => (
-            <div key={vendor.id} className="card-workshop p-6" data-testid={`vendor-card-${vendor.id}`}>
+            <div
+              key={vendor.id}
+              className="card-workshop p-6"
+              data-testid={`vendor-card-${vendor.id}`}
+            >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 bg-muted rounded-sm flex items-center justify-center">
                   <Users className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => openDialog(vendor)} className="p-2 text-muted-foreground hover:text-accent hover:bg-warning/10 rounded-sm transition-colors" data-testid={`edit-vendor-${vendor.id}`}>
+                  <button
+                    onClick={() => openDialog(vendor)}
+                    className="p-2 text-muted-foreground hover:text-accent hover:bg-warning/10 rounded-sm transition-colors"
+                    data-testid={`edit-vendor-${vendor.id}`}
+                  >
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setDeleteConfirm({ open: true, vendor })} className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors" data-testid={`delete-vendor-${vendor.id}`}>
+                  <button
+                    onClick={() => setDeleteConfirm({ open: true, vendor })}
+                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors"
+                    data-testid={`delete-vendor-${vendor.id}`}
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <h3 className="font-heading font-bold text-xl text-foreground uppercase tracking-wide mb-2">{vendor.name}</h3>
-              {vendor.contact_name && <p className="text-muted-foreground mb-3">{vendor.contact_name}</p>}
+              <h3 className="font-heading font-bold text-xl text-foreground uppercase tracking-wide mb-2">
+                {vendor.name}
+              </h3>
+              {vendor.contact_name && (
+                <p className="text-muted-foreground mb-3">{vendor.contact_name}</p>
+              )}
               <div className="space-y-2 text-sm text-muted-foreground">
-                {vendor.email && <div className="flex items-center gap-2"><Mail className="w-4 h-4" /><span>{vendor.email}</span></div>}
-                {vendor.phone && <div className="flex items-center gap-2"><Phone className="w-4 h-4" /><span>{vendor.phone}</span></div>}
-                {vendor.address && <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span className="truncate">{vendor.address}</span></div>}
+                {vendor.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    <span>{vendor.email}</span>
+                  </div>
+                )}
+                {vendor.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    <span>{vendor.phone}</span>
+                  </div>
+                )}
+                {vendor.address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span className="truncate">{vendor.address}</span>
+                  </div>
+                )}
               </div>
               <div className="mt-4 pt-4 border-t border-border">
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">{vendor.product_count || 0} products</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                  {vendor.product_count || 0} products
+                </span>
               </div>
             </div>
           ))}
@@ -157,7 +228,11 @@ const Vendors = () => {
         open={deleteConfirm.open}
         onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
         title="Delete vendor"
-        description={deleteConfirm.vendor ? `Delete "${deleteConfirm.vendor.name}"? This cannot be undone.` : ""}
+        description={
+          deleteConfirm.vendor
+            ? `Delete "${deleteConfirm.vendor.name}"? This cannot be undone.`
+            : ""
+        }
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onConfirm={handleDeleteConfirm}

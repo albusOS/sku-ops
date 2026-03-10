@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -17,18 +13,14 @@ import { cn } from "@/lib/utils";
 
 function getOptions(col, data) {
   if (col.filterValues) {
-    return col.filterValues.map((v) =>
-      typeof v === "object" ? v : { value: v, label: v },
-    );
+    return col.filterValues.map((v) => (typeof v === "object" ? v : { value: v, label: v }));
   }
   if (!data?.length) return [];
   const unique = [
     ...new Set(
       data
         .map((row) => {
-          const raw = col.filterAccessor
-            ? col.filterAccessor(row)
-            : row[col.key];
+          const raw = col.filterAccessor ? col.filterAccessor(row) : row[col.key];
           return raw != null ? String(raw) : null;
         })
         .filter(Boolean),
@@ -76,10 +68,7 @@ function PillFilter({ label, value, onChange, options }) {
 
 function DropdownFilter({ label, value, onChange, options }) {
   return (
-    <Select
-      value={value || "__all__"}
-      onValueChange={(v) => onChange(v === "__all__" ? null : v)}
-    >
+    <Select value={value || "__all__"} onValueChange={(v) => onChange(v === "__all__" ? null : v)}>
       <SelectTrigger className="h-7 text-xs w-auto min-w-[100px]">
         <SelectValue placeholder={`All ${label}`} />
       </SelectTrigger>
@@ -101,9 +90,7 @@ function SortDropdown({ columns, sortBy, sortDir, onSortChange }) {
     <div className="flex items-center gap-1">
       <Select
         value={sortBy || "__none__"}
-        onValueChange={(v) =>
-          onSortChange(v === "__none__" ? null : v, sortDir)
-        }
+        onValueChange={(v) => onSortChange(v === "__none__" ? null : v, sortDir)}
       >
         <SelectTrigger className="h-7 text-xs w-auto min-w-[90px]">
           <SelectValue placeholder="Sort by…" />
@@ -119,9 +106,7 @@ function SortDropdown({ columns, sortBy, sortDir, onSortChange }) {
       </Select>
       {sortBy && (
         <button
-          onClick={() =>
-            onSortChange(sortBy, sortDir === "asc" ? "desc" : "asc")
-          }
+          onClick={() => onSortChange(sortBy, sortDir === "asc" ? "desc" : "asc")}
           className="h-7 w-7 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title={sortDir === "asc" ? "Ascending" : "Descending"}
         >
@@ -192,14 +177,7 @@ function ColumnsPopover({ columns, hiddenColumns, onToggle, onShowAll }) {
  * Simple view toolbar: search, pill/dropdown filters, sort, column visibility.
  * Designed for warehouse workers, not data analysts.
  */
-export function ViewToolbar({
-  controller,
-  columns,
-  data = [],
-  resultCount,
-  actions,
-  className,
-}) {
+export function ViewToolbar({ controller, columns, data = [], resultCount, actions, className }) {
   const {
     search,
     setSearch,
@@ -215,22 +193,14 @@ export function ViewToolbar({
     hasActiveFilters,
   } = controller;
 
-  const filterableColumns = columns.filter(
-    (c) => c.type === "enum" && c.filterable !== false,
-  );
+  const filterableColumns = columns.filter((c) => c.type === "enum" && c.filterable !== false);
   const sortableColumns = columns.filter((c) => c.sortable !== false);
 
   const totalCount = data.length;
-  const showResultCount =
-    resultCount != null && hasActiveFilters && resultCount !== totalCount;
+  const showResultCount = resultCount != null && hasActiveFilters && resultCount !== totalCount;
 
   return (
-    <div
-      className={cn(
-        "bg-card border border-border rounded-xl shadow-sm",
-        className,
-      )}
-    >
+    <div className={cn("bg-card border border-border rounded-xl shadow-sm", className)}>
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-2.5">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -247,8 +217,7 @@ export function ViewToolbar({
 
         {filterableColumns.map((col) => {
           const options = getOptions(col, data);
-          const style =
-            col.filterStyle || (options.length <= 5 ? "pills" : "dropdown");
+          const style = col.filterStyle || (options.length <= 5 ? "pills" : "dropdown");
 
           if (style === "pills") {
             return (

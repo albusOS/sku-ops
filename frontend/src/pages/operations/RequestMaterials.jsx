@@ -46,24 +46,16 @@ const RequestMaterials = () => {
     search: search || undefined,
     department_id: selectedDept !== "all" ? selectedDept : undefined,
   };
-  const { data: productsData, isLoading: productsLoading } =
-    useProducts(productParams);
+  const { data: productsData, isLoading: productsLoading } = useProducts(productParams);
   const { data: allProductsData } = useProducts();
   const { data: departmentsData, isLoading: deptsLoading } = useDepartments();
   const createRequest = useCreateMaterialRequest();
 
   const departments = departmentsData || [];
-  const rawProducts = Array.isArray(productsData)
-    ? productsData
-    : productsData?.items || [];
-  const products = rawProducts.filter(
-    (p) => (p.sell_quantity ?? p.quantity) > 0,
-  );
+  const rawProducts = Array.isArray(productsData) ? productsData : productsData?.items || [];
+  const products = rawProducts.filter((p) => (p.sell_quantity ?? p.quantity) > 0);
   const allProducts = useMemo(
-    () =>
-      Array.isArray(allProductsData)
-        ? allProductsData
-        : allProductsData?.items || [],
+    () => (Array.isArray(allProductsData) ? allProductsData : allProductsData?.items || []),
     [allProductsData],
   );
 
@@ -81,25 +73,22 @@ const RequestMaterials = () => {
       toast.success(`Added: ${product.sku} (+1)`);
     },
     onNotFound: ({ barcode }) => setUnknownBarcode(barcode),
-    onInvalidCheckDigit: (barcode) =>
-      toast.error(`Invalid barcode — bad check digit (${barcode})`),
+    onInvalidCheckDigit: (barcode) => toast.error(`Invalid barcode — bad check digit (${barcode})`),
   });
 
   const handleSubmitRequest = async () => {
     try {
       await createRequest.mutateAsync({
-        items: cart.map(
-          ({ product_id, sku, name, quantity, unit_price, unit }) => ({
-            product_id,
-            sku,
-            name,
-            quantity,
-            unit_price,
-            cost: 0,
-            subtotal: quantity * unit_price,
-            unit: unit || "each",
-          }),
-        ),
+        items: cart.map(({ product_id, sku, name, quantity, unit_price, unit }) => ({
+          product_id,
+          sku,
+          name,
+          quantity,
+          unit_price,
+          cost: 0,
+          subtotal: quantity * unit_price,
+          unit: unit || "each",
+        })),
         job_id: jobId.trim() || null,
         service_address: serviceAddress.trim() || null,
         notes: notes.trim() || null,
@@ -122,23 +111,14 @@ const RequestMaterials = () => {
       <div className="w-80 bg-card border-r border-border flex flex-col shadow-sm">
         <div className="p-5 border-b border-border">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-foreground">
-              My Request
-            </h2>
+            <h2 className="text-base font-semibold text-foreground">My Request</h2>
             {cart.length > 0 && (
-              <button
-                onClick={clearCart}
-                className="text-xs text-destructive hover:underline"
-              >
+              <button onClick={clearCart} className="text-xs text-destructive hover:underline">
                 Clear
               </button>
             )}
           </div>
-          {user?.company && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {user.company}
-            </p>
-          )}
+          {user?.company && <p className="text-xs text-muted-foreground mt-0.5">{user.company}</p>}
         </div>
 
         <div className="p-3 border-b border-border bg-muted/80">
@@ -167,18 +147,11 @@ const RequestMaterials = () => {
           ) : (
             <div className="space-y-2">
               {cart.map((item) => (
-                <div
-                  key={item.product_id}
-                  className="bg-muted border border-border rounded-lg p-3"
-                >
+                <div key={item.product_id} className="bg-muted border border-border rounded-lg p-3">
                   <div className="flex justify-between items-start mb-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-mono text-[10px] text-muted-foreground">
-                        {item.sku}
-                      </p>
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {item.name}
-                      </p>
+                      <p className="font-mono text-[10px] text-muted-foreground">{item.sku}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
                     </div>
                     <button
                       onClick={() => removeItem(item.product_id)}
@@ -206,16 +179,10 @@ const RequestMaterials = () => {
         <div className="p-4 border-t border-border bg-muted/80">
           <div className="flex justify-between text-sm text-muted-foreground mb-3">
             <span>Subtotal</span>
-            <span className="font-mono font-semibold tabular-nums">
-              ${subtotal.toFixed(2)}
-            </span>
+            <span className="font-mono font-semibold tabular-nums">${subtotal.toFixed(2)}</span>
           </div>
           <Button
-            onClick={() =>
-              cart.length > 0
-                ? setSubmitOpen(true)
-                : toast.error("Cart is empty")
-            }
+            onClick={() => (cart.length > 0 ? setSubmitOpen(true) : toast.error("Cart is empty"))}
             disabled={cart.length === 0}
             className="w-full btn-primary h-11"
             data-testid="submit-request-btn"
@@ -270,17 +237,12 @@ const RequestMaterials = () => {
                 >
                   <div className="aspect-[4/3] bg-muted flex items-center justify-center border-b border-border/50">
                     <span className="font-mono text-xl text-muted-foreground/60 font-bold">
-                      {product.department_name?.slice(0, 3).toUpperCase() ||
-                        "---"}
+                      {product.department_name?.slice(0, 3).toUpperCase() || "---"}
                     </span>
                   </div>
                   <div className="p-3">
-                    <p className="font-mono text-[10px] text-muted-foreground">
-                      {product.sku}
-                    </p>
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {product.name}
-                    </p>
+                    <p className="font-mono text-[10px] text-muted-foreground">{product.sku}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="font-semibold text-foreground tabular-nums">
                         ${(product.sell_price ?? product.price).toFixed(2)}
@@ -289,8 +251,7 @@ const RequestMaterials = () => {
                         </span>
                       </span>
                       <span className="text-[10px] text-muted-foreground">
-                        {Math.floor(product.sell_quantity ?? product.quantity)}{" "}
-                        avail
+                        {Math.floor(product.sell_quantity ?? product.quantity)} avail
                       </span>
                     </div>
                   </div>

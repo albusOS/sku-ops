@@ -71,7 +71,8 @@ export function useCameraScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
         { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.333 },
         (decodedText) => {
           const now = Date.now();
-          if (decodedText === lastCodeRef.current && now - lastTimeRef.current < DEBOUNCE_MS) return;
+          if (decodedText === lastCodeRef.current && now - lastTimeRef.current < DEBOUNCE_MS)
+            return;
           lastCodeRef.current = decodedText;
           lastTimeRef.current = now;
           onScanRef.current?.(decodedText);
@@ -97,7 +98,9 @@ export function useCameraScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
           const state = scannerRef.current.getState();
           if (state === 2) scannerRef.current.stop();
           scannerRef.current.clear();
-        } catch { /* unmount cleanup — best effort */ }
+        } catch {
+          /* unmount cleanup — best effort */
+        }
         scannerRef.current = null;
       }
     };

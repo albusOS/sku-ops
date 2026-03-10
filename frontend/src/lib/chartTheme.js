@@ -8,7 +8,9 @@ function hslToHex(hslStr) {
   const f = (n) => {
     const k = (n + h / 30) % 12;
     const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * c).toString(16).padStart(2, "0");
+    return Math.round(255 * c)
+      .toString(16)
+      .padStart(2, "0");
   };
   return `#${f(0)}${f(8)}${f(4)}`;
 }
@@ -73,8 +75,14 @@ export function themePalette() {
   try {
     const t = themeColors();
     return [
-      t.category1, t.category2, t.category3, t.category5,
-      t.category4, t.category6, t.category7, t.category8,
+      t.category1,
+      t.category2,
+      t.category3,
+      t.category5,
+      t.category4,
+      t.category6,
+      t.category7,
+      t.category8,
     ];
   } catch {
     return PALETTE;
@@ -110,8 +118,7 @@ echarts.registerTheme("skuops", {
     borderColor: resolved.border,
     borderWidth: 1,
     textStyle: { fontSize: 12, color: resolved.sidebarForeground },
-    extraCssText:
-      "border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:10px 14px;",
+    extraCssText: "border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:10px 14px;",
   },
   grid: {
     left: 12,

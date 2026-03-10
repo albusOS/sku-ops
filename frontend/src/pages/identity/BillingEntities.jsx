@@ -21,7 +21,12 @@ const createSchema = z.object({
 const FIELDS = [
   { name: "name", label: "Name *", placeholder: "e.g. Acme Construction LLC" },
   { name: "contact_name", label: "Contact Name", placeholder: "Optional" },
-  { name: "contact_email", label: "Contact Email", type: "email", placeholder: "Optional" },
+  {
+    name: "contact_email",
+    label: "Contact Email",
+    type: "email",
+    placeholder: "Optional",
+  },
 ];
 
 const DEFAULTS = { name: "", contact_name: "", contact_email: "" };
@@ -35,7 +40,7 @@ const BillingEntities = () => {
 
   const activeCount = useMemo(
     () => entities.filter((e) => e.is_active !== false).length,
-    [entities]
+    [entities],
   );
 
   const handleCreate = async (data) => {
@@ -113,7 +118,8 @@ const BillingEntities = () => {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
-                Created {entity.created_at ? format(new Date(entity.created_at), "MMM d, yyyy") : "—"}
+                Created{" "}
+                {entity.created_at ? format(new Date(entity.created_at), "MMM d, yyyy") : "—"}
               </p>
             </button>
           ))}

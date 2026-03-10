@@ -4,12 +4,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
@@ -34,9 +29,7 @@ const COLUMNS = [
     key: "name",
     label: "Name",
     type: "text",
-    render: (row) => (
-      <span className="text-foreground">{row.name || "—"}</span>
-    ),
+    render: (row) => <span className="text-foreground">{row.name || "—"}</span>,
   },
   {
     key: "status",
@@ -114,7 +107,11 @@ const Jobs = () => {
         title="Jobs"
         subtitle={`${jobs.length} job${jobs.length !== 1 ? "s" : ""}`}
         action={
-          <Button onClick={() => setCreateOpen(true)} className="gap-2" data-testid="create-job-btn">
+          <Button
+            onClick={() => setCreateOpen(true)}
+            className="gap-2"
+            data-testid="create-job-btn"
+          >
             <Plus className="w-4 h-4" />
             New Job
           </Button>
@@ -127,7 +124,9 @@ const Jobs = () => {
             key={status}
             className="px-3 py-1.5 rounded-lg border text-xs bg-muted border-border text-foreground"
           >
-            <span className="font-semibold capitalize">{count} {status}</span>
+            <span className="font-semibold capitalize">
+              {count} {status}
+            </span>
           </div>
         ))}
       </div>
@@ -185,7 +184,14 @@ const Jobs = () => {
               />
             </div>
             <div className="flex gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} className="flex-1">Cancel</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
               <Button type="submit" disabled={createJob.isPending} className="flex-1">
                 {createJob.isPending ? "Creating…" : "Create Job"}
               </Button>

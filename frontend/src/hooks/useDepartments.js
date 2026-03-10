@@ -3,9 +3,16 @@ import api from "@/lib/api-client";
 import { createEntityHooks } from "./useEntityHooks";
 import { keys } from "./queryKeys";
 
-const { useList, useCreate, useUpdate, useDelete } = createEntityHooks("departments", api.departments);
+const { useList, useCreate, useUpdate, useDelete } = createEntityHooks(
+  "departments",
+  api.departments,
+);
 
-export { useCreate as useCreateDepartment, useUpdate as useUpdateDepartment, useDelete as useDeleteDepartment };
+export {
+  useCreate as useCreateDepartment,
+  useUpdate as useUpdateDepartment,
+  useDelete as useDeleteDepartment,
+};
 
 export function useDepartments() {
   return useList();

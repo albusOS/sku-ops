@@ -20,20 +20,14 @@ const COLUMNS = [
     key: "invoice_number",
     label: "Invoice #",
     type: "text",
-    render: (row) => (
-      <span className="font-mono text-xs font-medium">
-        {row.invoice_number}
-      </span>
-    ),
+    render: (row) => <span className="font-mono text-xs font-medium">{row.invoice_number}</span>,
     exportValue: (row) => row.invoice_number,
   },
   {
     key: "billing_entity",
     label: "Entity",
     type: "enum",
-    render: (row) => (
-      <span className="text-muted-foreground">{row.billing_entity || "—"}</span>
-    ),
+    render: (row) => <span className="text-muted-foreground">{row.billing_entity || "—"}</span>,
   },
   {
     key: "total",
@@ -41,9 +35,7 @@ const COLUMNS = [
     type: "number",
     align: "right",
     render: (row) => (
-      <span className="font-semibold tabular-nums">
-        ${(row.total ?? 0).toFixed(2)}
-      </span>
+      <span className="font-semibold tabular-nums">${(row.total ?? 0).toFixed(2)}</span>
     ),
     exportValue: (row) => (row.total ?? 0).toFixed(2),
   },
@@ -75,8 +67,7 @@ const COLUMNS = [
     type: "date",
     render: (row) => {
       if (!row.due_date) return "—";
-      const overdue =
-        row.status !== "paid" && new Date(row.due_date) < new Date();
+      const overdue = row.status !== "paid" && new Date(row.due_date) < new Date();
       return (
         <span
           className={`font-mono text-xs ${overdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}
@@ -93,9 +84,7 @@ const COLUMNS = [
     type: "number",
     align: "right",
     render: (row) => (
-      <span className="font-mono text-muted-foreground">
-        {row.withdrawal_count ?? 0}
-      </span>
+      <span className="font-mono text-muted-foreground">{row.withdrawal_count ?? 0}</span>
     ),
   },
 ];
@@ -109,16 +98,19 @@ const Invoices = () => {
 
   const syncFiltersToURL = useCallback(
     (updates) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        for (const [key, val] of Object.entries(updates)) {
-          if (val) next.set(key, val);
-          else next.delete(key);
-        }
-        return next;
-      }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, val] of Object.entries(updates)) {
+            if (val) next.set(key, val);
+            else next.delete(key);
+          }
+          return next;
+        },
+        { replace: true },
+      );
     },
-    [setSearchParams]
+    [setSearchParams],
   );
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailInvoiceId, setDetailInvoiceId] = useState(null);
@@ -129,7 +121,7 @@ const Invoices = () => {
       start_date: dateToISO(dateRange.from),
       end_date: endOfDayISO(dateRange.to),
     }),
-    [dateRange]
+    [dateRange],
   );
 
   const { data: invoices = [], isLoading } = useInvoices(dateParams);
@@ -180,9 +172,7 @@ const Invoices = () => {
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-              Invoices
-            </h1>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Invoices</h1>
             <Link
               to="/"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-1 transition-colors"
@@ -222,10 +212,7 @@ const Invoices = () => {
               paid: "bg-success/10 border-success/30 text-success",
             }[status];
             return (
-              <div
-                key={status}
-                className={`px-3 py-1.5 rounded-lg border text-xs ${cls}`}
-              >
+              <div key={status} className={`px-3 py-1.5 rounded-lg border text-xs ${cls}`}>
                 <span className="font-semibold">
                   {count} {status}
                 </span>
@@ -246,15 +233,9 @@ const Invoices = () => {
 
       {selectedIds.size > 0 && (
         <div className="bg-info/10 border border-info/30 rounded-xl p-4 mb-4 flex items-center justify-between">
-          <span className="text-sm font-semibold text-foreground">
-            {selectedIds.size} selected
-          </span>
+          <span className="text-sm font-semibold text-foreground">{selectedIds.size} selected</span>
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedIds(new Set())}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
               Clear
             </Button>
             <Button
@@ -264,9 +245,7 @@ const Invoices = () => {
               className="bg-info hover:bg-info text-white gap-1"
             >
               <Send className="w-3.5 h-3.5" />
-              {bulkSyncXero.isPending
-                ? "Sending…"
-                : `Xero (${selectedIds.size})`}
+              {bulkSyncXero.isPending ? "Sending…" : `Xero (${selectedIds.size})`}
             </Button>
           </div>
         </div>

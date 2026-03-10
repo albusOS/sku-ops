@@ -9,11 +9,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useProductGroups } from "@/hooks/useProducts";
 
@@ -39,7 +35,7 @@ export function GroupCombobox({ value, onChange, className, compact, disabled })
   }, [groups, search]);
 
   const exactMatch = groups.some(
-    (g) => g.product_group.toLowerCase() === search.trim().toLowerCase()
+    (g) => g.product_group.toLowerCase() === search.trim().toLowerCase(),
   );
 
   const handleSelect = (groupName) => {
@@ -111,13 +107,14 @@ export function GroupCombobox({ value, onChange, className, compact, disabled })
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === g.product_group ? "opacity-100" : "opacity-0"
+                      value === g.product_group ? "opacity-100" : "opacity-0",
                     )}
                   />
                   <div className="flex-1 min-w-0">
                     <span className="truncate block">{g.product_group}</span>
                     <span className="text-xs text-muted-foreground">
-                      {g.product_count} product{g.product_count !== 1 ? "s" : ""}
+                      {g.product_count} product
+                      {g.product_count !== 1 ? "s" : ""}
                       {" · "}qty {Math.round(g.total_quantity)}
                     </span>
                   </div>

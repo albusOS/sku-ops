@@ -19,10 +19,22 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !email || !password) { toast.error("Please fill in all fields"); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("Please enter a valid email address"); return; }
-    if (password !== confirmPassword) { toast.error("Passwords do not match"); return; }
-    if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (!name || !email || !password) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
     setLoading(true);
     try {
       await register(email, password, name);
@@ -40,29 +52,80 @@ const Register = () => {
       <h2 className="text-lg font-semibold text-foreground mb-6">Create your account</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label htmlFor="name" className="text-muted-foreground font-medium text-sm">Full name</Label>
-          <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" className="input-field mt-2" data-testid="register-name-input" />
+          <Label htmlFor="name" className="text-muted-foreground font-medium text-sm">
+            Full name
+          </Label>
+          <Input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="John Doe"
+            className="input-field mt-2"
+            data-testid="register-name-input"
+          />
         </div>
         <div>
-          <Label htmlFor="email" className="text-muted-foreground font-medium text-sm">Email</Label>
-          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className="input-field mt-2" data-testid="register-email-input" />
+          <Label htmlFor="email" className="text-muted-foreground font-medium text-sm">
+            Email
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            className="input-field mt-2"
+            data-testid="register-email-input"
+          />
         </div>
         <div>
-          <Label htmlFor="password" className="text-muted-foreground font-medium text-sm">Password</Label>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field mt-2" data-testid="register-password-input" />
+          <Label htmlFor="password" className="text-muted-foreground font-medium text-sm">
+            Password
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="input-field mt-2"
+            data-testid="register-password-input"
+          />
         </div>
         <div>
-          <Label htmlFor="confirmPassword" className="text-muted-foreground font-medium text-sm">Confirm password</Label>
-          <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className="input-field mt-2" data-testid="register-confirm-password-input" />
+          <Label htmlFor="confirmPassword" className="text-muted-foreground font-medium text-sm">
+            Confirm password
+          </Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="••••••••"
+            className="input-field mt-2"
+            data-testid="register-confirm-password-input"
+          />
         </div>
-        <Button type="submit" disabled={loading} className="w-full btn-primary h-11 text-sm" data-testid="register-submit-btn">
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full btn-primary h-11 text-sm"
+          data-testid="register-submit-btn"
+        >
           <UserPlus className="w-4 h-4 mr-2" />
           {loading ? "Creating account…" : "Create account"}
         </Button>
       </form>
       <p className="text-center mt-6 text-muted-foreground text-sm">
         Already have an account?{" "}
-        <Link to="/login" className="text-accent font-medium hover:text-accent transition-colors" data-testid="login-link">Sign in</Link>
+        <Link
+          to="/login"
+          className="text-accent font-medium hover:text-accent transition-colors"
+          data-testid="login-link"
+        >
+          Sign in
+        </Link>
       </p>
     </AuthLayout>
   );

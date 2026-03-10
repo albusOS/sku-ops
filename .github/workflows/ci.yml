@@ -66,7 +66,7 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npx eslint src/
+        run: npx eslint --max-warnings=0 src/
 
       - name: Format check
         run: npx prettier --check src/

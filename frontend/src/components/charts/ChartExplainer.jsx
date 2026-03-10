@@ -27,8 +27,7 @@ export function ChartExplainer({
   const hasContent = content || bullets.length > 0;
   if (!hasContent) return children;
 
-  const posClass =
-    position === "top-left" ? "left-2 right-auto" : "right-2 left-auto";
+  const posClass = position === "top-left" ? "left-2 right-auto" : "right-2 left-auto";
 
   return (
     <div className="relative">
@@ -50,9 +49,7 @@ export function ChartExplainer({
           className={`absolute top-8 z-20 bg-card border border-border rounded-xl shadow-lg p-4 ${posClass} ${wide ? "w-[420px]" : "w-72"}`}
         >
           <div className="flex items-start justify-between mb-2">
-            <h4 className="text-xs font-bold text-foreground uppercase tracking-wide">
-              {title}
-            </h4>
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wide">{title}</h4>
             <button
               onClick={() => setOpen(false)}
               className="text-muted-foreground/60 hover:text-muted-foreground -mt-0.5"
@@ -97,19 +94,50 @@ export function BubbleChartGuide() {
         <text x="155" y="175" textAnchor="middle" fontSize="9" fill="#94a3b8">
           Sell-through % →
         </text>
-        <text x="12" y="85" textAnchor="middle" fontSize="9" fill="#94a3b8" transform="rotate(-90 12 85)">
+        <text
+          x="12"
+          y="85"
+          textAnchor="middle"
+          fontSize="9"
+          fill="#94a3b8"
+          transform="rotate(-90 12 85)"
+        >
           Margin % →
         </text>
 
         {/* quadrant labels */}
-        <text x="70" y="25" fontSize="8" fill="#fca5a5" fontWeight="600">Slow Movers</text>
-        <text x="210" y="25" fontSize="8" fill="#86efac" fontWeight="600">★ Stars</text>
-        <text x="60" y="148" fontSize="8" fill="#fca5a5">Review</text>
-        <text x="190" y="148" fontSize="8" fill="#cbd5e1">Volume Drivers</text>
+        <text x="70" y="25" fontSize="8" fill="#fca5a5" fontWeight="600">
+          Slow Movers
+        </text>
+        <text x="210" y="25" fontSize="8" fill="#86efac" fontWeight="600">
+          ★ Stars
+        </text>
+        <text x="60" y="148" fontSize="8" fill="#fca5a5">
+          Review
+        </text>
+        <text x="190" y="148" fontSize="8" fill="#cbd5e1">
+          Volume Drivers
+        </text>
 
         {/* quadrant dividers (dashed) */}
-        <line x1="155" y1="10" x2="155" y2="155" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 3" />
-        <line x1="40" y1="82" x2="270" y2="82" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 3" />
+        <line
+          x1="155"
+          y1="10"
+          x2="155"
+          y2="155"
+          stroke="#f1f5f9"
+          strokeWidth="1"
+          strokeDasharray="4 3"
+        />
+        <line
+          x1="40"
+          y1="82"
+          x2="270"
+          y2="82"
+          stroke="#f1f5f9"
+          strokeWidth="1"
+          strokeDasharray="4 3"
+        />
 
         {/* example bubbles */}
         <circle cx="220" cy="35" r="18" fill="#10b981" opacity="0.6" />
@@ -121,34 +149,51 @@ export function BubbleChartGuide() {
 
         {/* annotation lines */}
         <line x1="220" y1="53" x2="220" y2="68" stroke="#475569" strokeWidth="0.7" />
-        <text x="222" y="78" fontSize="7.5" fill="#475569" fontWeight="600">Big bubble</text>
-        <text x="222" y="87" fontSize="7" fill="#94a3b8">= high revenue</text>
+        <text x="222" y="78" fontSize="7.5" fill="#475569" fontWeight="600">
+          Big bubble
+        </text>
+        <text x="222" y="87" fontSize="7" fill="#94a3b8">
+          = high revenue
+        </text>
 
         <line x1="80" y1="127" x2="80" y2="140" stroke="#475569" strokeWidth="0.7" />
-        <text x="58" y="138" fontSize="7" fill="#94a3b8">needs attention</text>
+        <text x="58" y="138" fontSize="7" fill="#94a3b8">
+          needs attention
+        </text>
       </svg>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1 border-t border-border/50">
         <div className="flex items-start gap-2">
           <span className="text-accent mt-0.5 shrink-0">&bull;</span>
-          <span><b className="text-muted-foreground">Position</b> — right = selling fast, top = high margin</span>
+          <span>
+            <b className="text-muted-foreground">Position</b> — right = selling fast, top = high
+            margin
+          </span>
         </div>
         <div className="flex items-start gap-2">
           <span className="text-accent mt-0.5 shrink-0">&bull;</span>
-          <span><b className="text-muted-foreground">Size</b> — bigger bubble = more revenue generated</span>
+          <span>
+            <b className="text-muted-foreground">Size</b> — bigger bubble = more revenue generated
+          </span>
         </div>
         <div className="flex items-start gap-2">
           <span className="text-accent mt-0.5 shrink-0">&bull;</span>
-          <span><b className="text-muted-foreground">Color</b> — each color is a department</span>
+          <span>
+            <b className="text-muted-foreground">Color</b> — each color is a department
+          </span>
         </div>
         <div className="flex items-start gap-2">
           <span className="text-accent mt-0.5 shrink-0">&bull;</span>
-          <span><b className="text-muted-foreground">Click</b> — tap any bubble to see full product details</span>
+          <span>
+            <b className="text-muted-foreground">Click</b> — tap any bubble to see full product
+            details
+          </span>
         </div>
       </div>
 
       <p className="text-[10px] text-muted-foreground pt-1">
-        Top-right products are your <b className="text-success">stars</b>. Bottom-left products need <b className="text-destructive">review</b> — low sales and low margin.
+        Top-right products are your <b className="text-success">stars</b>. Bottom-left products need{" "}
+        <b className="text-destructive">review</b> — low sales and low margin.
       </p>
     </div>
   );

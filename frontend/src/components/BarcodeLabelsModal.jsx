@@ -26,8 +26,7 @@ export function BarcodeLabelsModal({ products, open, onOpenChange }) {
           <DialogTitle>Print Barcode Labels</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          {products?.length || 0} labels · Standard 2×1&quot; layout · Use
-          browser Print
+          {products?.length || 0} labels · Standard 2×1&quot; layout · Use browser Print
         </p>
 
         <div className="flex-1 overflow-auto border rounded-lg bg-card p-4">

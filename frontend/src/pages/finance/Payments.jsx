@@ -77,15 +77,12 @@ const Payments = () => {
       start_date: dateToISO(dateRange.from),
       end_date: endOfDayISO(dateRange.to),
     }),
-    [dateRange]
+    [dateRange],
   );
 
   const { data: payments = [], isLoading } = usePayments(dateParams);
 
-  const totalAmount = useMemo(
-    () => payments.reduce((s, p) => s + (p.amount || 0), 0),
-    [payments]
-  );
+  const totalAmount = useMemo(() => payments.reduce((s, p) => s + (p.amount || 0), 0), [payments]);
 
   const view = useViewController({ columns: COLUMNS });
   const processed = view.apply(payments);
@@ -124,7 +121,6 @@ const Payments = () => {
         open={!!detailPaymentId}
         onOpenChange={(open) => !open && setDetailPaymentId(null)}
       />
-
     </div>
   );
 };

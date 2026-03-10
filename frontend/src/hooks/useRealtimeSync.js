@@ -39,10 +39,7 @@ const EVENT_KEY_MAP = {
     ["reports", "sales"],
     ["financials"],
   ],
-  "material_request.created": [
-    keys.materialRequests.all,
-    ["dashboard", "stats"],
-  ],
+  "material_request.created": [keys.materialRequests.all, ["dashboard", "stats"]],
   "material_request.processed": [
     keys.materialRequests.all,
     keys.withdrawals.all,
@@ -102,10 +99,7 @@ export function useRealtimeSync() {
 
   const scheduleReconnect = useCallback(() => {
     if (timerRef.current) return;
-    const delay = Math.min(
-      RECONNECT_BASE_MS * 2 ** retriesRef.current,
-      RECONNECT_MAX_MS,
-    );
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** retriesRef.current, RECONNECT_MAX_MS);
     retriesRef.current += 1;
     timerRef.current = setTimeout(() => {
       timerRef.current = null;

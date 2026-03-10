@@ -49,40 +49,83 @@ export function RecordPaymentModal({ open, onOpenChange, withdrawalIds = [], def
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset();
+        onOpenChange(v);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Record Payment</DialogTitle>
+        </DialogHeader>
         <div className="space-y-4 pt-2">
           <p className="text-sm text-muted-foreground">
-            Recording payment for <strong>{withdrawalIds.length}</strong> withdrawal{withdrawalIds.length !== 1 ? "s" : ""}
+            Recording payment for <strong>{withdrawalIds.length}</strong> withdrawal
+            {withdrawalIds.length !== 1 ? "s" : ""}
           </p>
           <div>
             <Label className="text-sm">Amount</Label>
-            <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={defaultAmount ? defaultAmount.toFixed(2) : "Total"} className="mt-1.5" />
-            <p className="text-xs text-muted-foreground mt-1">Leave blank to use withdrawal total</p>
+            <Input
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={defaultAmount ? defaultAmount.toFixed(2) : "Total"}
+              className="mt-1.5"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Leave blank to use withdrawal total
+            </p>
           </div>
           <div>
             <Label className="text-sm">Method</Label>
             <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                {PAYMENT_METHODS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label className="text-sm">Reference (check #, txn ID, etc.)</Label>
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" className="mt-1.5" />
+            <Input
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Optional"
+              className="mt-1.5"
+            />
           </div>
           <div>
             <Label className="text-sm">Payment date</Label>
-            <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="mt-1.5" />
+            <Input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="mt-1.5"
+            />
           </div>
           <div>
             <Label className="text-sm">Notes (optional)</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes..." className="mt-1.5" />
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Additional notes..."
+              className="mt-1.5"
+            />
           </div>
-          <Button onClick={handleSubmit} disabled={createPayment.isPending || !withdrawalIds.length} className="w-full h-11">
+          <Button
+            onClick={handleSubmit}
+            disabled={createPayment.isPending || !withdrawalIds.length}
+            className="w-full h-11"
+          >
             {createPayment.isPending ? "Recording..." : "Record Payment"}
           </Button>
         </div>

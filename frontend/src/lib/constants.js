@@ -31,8 +31,23 @@ export const DOCUMENT_STATUSES = {
 };
 
 export const UOM_OPTIONS = [
-  "each", "case", "box", "pack", "bag", "roll", "gallon", "quart", "pint",
-  "liter", "pound", "ounce", "foot", "meter", "yard", "sqft", "kit",
+  "each",
+  "case",
+  "box",
+  "pack",
+  "bag",
+  "roll",
+  "gallon",
+  "quart",
+  "pint",
+  "liter",
+  "pound",
+  "ounce",
+  "foot",
+  "meter",
+  "yard",
+  "sqft",
+  "kit",
 ];
 
 export const ADJUST_REASONS = [
@@ -55,7 +70,10 @@ export const TX_TYPE_LABELS = {
 export const DATE_PRESETS = [
   {
     label: "Today",
-    getValue: () => { const d = new Date(); return { from: d, to: d }; },
+    getValue: () => {
+      const d = new Date();
+      return { from: d, to: d };
+    },
   },
   {
     label: "Last 7 days",

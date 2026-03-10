@@ -53,7 +53,7 @@ export function useReportPL(params) {
 export function useReportArAging(params) {
   return useQuery({
     queryKey: keys.reports.arAging(params),
-    queryFn: () => params ? api.reports.arAging(params) : api.reports.arAging(),
+    queryFn: () => (params ? api.reports.arAging(params) : api.reports.arAging()),
     ...reportOpts,
   });
 }

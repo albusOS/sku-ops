@@ -45,14 +45,11 @@ const buildColumns = (onViewJob) => [
         <HardHat className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         <div>
           <p className="font-medium text-foreground">{row.contractor_name}</p>
-          <p className="text-[10px] text-muted-foreground">
-            {row.contractor_company}
-          </p>
+          <p className="text-[10px] text-muted-foreground">{row.contractor_company}</p>
         </div>
       </div>
     ),
-    exportValue: (row) =>
-      `${row.contractor_name} (${row.contractor_company || ""})`,
+    exportValue: (row) => `${row.contractor_name} (${row.contractor_company || ""})`,
   },
   {
     key: "job_id",
@@ -85,9 +82,7 @@ const buildColumns = (onViewJob) => [
     type: "number",
     align: "right",
     render: (row) => (
-      <span className="font-semibold tabular-nums">
-        ${(row.total || 0).toFixed(2)}
-      </span>
+      <span className="font-semibold tabular-nums">${(row.total || 0).toFixed(2)}</span>
     ),
     exportValue: (row) => (row.total || 0).toFixed(2),
   },
@@ -125,11 +120,7 @@ const buildColumns = (onViewJob) => [
     filterable: false,
     render: (row) =>
       row.invoice_id ? (
-        <Link
-          to="/invoices"
-          className="inline-block"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <Link to="/invoices" className="inline-block" onClick={(e) => e.stopPropagation()}>
           <StatusBadge status="invoiced" />
         </Link>
       ) : (
@@ -176,10 +167,8 @@ const Financials = () => {
     [dateRange],
   );
 
-  const { data: summary, isLoading: summaryLoading } =
-    useFinancialSummary(dateParams);
-  const { data: withdrawals = [], isLoading: wdLoading } =
-    useWithdrawals(dateParams);
+  const { data: summary, isLoading: summaryLoading } = useFinancialSummary(dateParams);
+  const { data: withdrawals = [], isLoading: wdLoading } = useWithdrawals(dateParams);
   const { data: arAging } = useReportArAging();
 
   const arAgingByEntity = useMemo(() => {
@@ -192,9 +181,7 @@ const Financials = () => {
   }, [arAging]);
 
   const selectAllUninvoiced = () => {
-    setSelectedIds(
-      new Set(withdrawals.filter((w) => !w.invoice_id).map((w) => w.id)),
-    );
+    setSelectedIds(new Set(withdrawals.filter((w) => !w.invoice_id).map((w) => w.id)));
   };
 
   const selectedUninvoicedIds = useMemo(
@@ -227,12 +214,8 @@ const Financials = () => {
       <div className="flex flex-col gap-4 mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-              Financials
-            </h1>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Invoicing, margins, and exports
-            </p>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Financials</h1>
+            <p className="text-muted-foreground mt-1 text-sm">Invoicing, margins, and exports</p>
           </div>
           <div className="flex gap-2">
             <Link to="/invoices">
@@ -255,10 +238,7 @@ const Financials = () => {
         />
       </div>
 
-      <div
-        className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
-        data-testid="summary-cards"
-      >
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" data-testid="summary-cards">
         <StatCard
           label="Uninvoiced"
           value={valueFormatter(invoiceTotals.uninvoicedTotal)}
@@ -269,10 +249,7 @@ const Financials = () => {
           value={valueFormatter(invoiceTotals.invoicedTotal)}
           accent="blue"
         />
-        <StatCard
-          label="Total Revenue"
-          value={valueFormatter(summary?.total_revenue || 0)}
-        />
+        <StatCard label="Total Revenue" value={valueFormatter(summary?.total_revenue || 0)} />
         <StatCard
           label="Gross Margin"
           value={valueFormatter(summary?.gross_margin || 0)}
@@ -286,10 +263,7 @@ const Financials = () => {
             <SectionHead title="Top Contractors by Spend" variant="report" />
             <HorizontalBarChart
               data={[...summary.by_contractor]
-                .sort(
-                  (a, b) =>
-                    (b.revenue ?? b.total ?? 0) - (a.revenue ?? a.total ?? 0),
-                )
+                .sort((a, b) => (b.revenue ?? b.total ?? 0) - (a.revenue ?? a.total ?? 0))
                 .slice(0, 10)
                 .map((c) => ({
                   name: c.name || c.company || c.contractor_id || "Unknown",
@@ -304,10 +278,7 @@ const Financials = () => {
                 },
               ]}
               valueFormatter={valueFormatter}
-              height={Math.max(
-                200,
-                Math.min(summary.by_contractor.length, 10) * 36,
-              )}
+              height={Math.max(200, Math.min(summary.by_contractor.length, 10) * 36)}
             />
           </Panel>
         )}
@@ -341,83 +312,71 @@ const Financials = () => {
         )}
       </div>
 
-      {summary?.by_billing_entity &&
-        Object.keys(summary.by_billing_entity).length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm mb-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-3">
-              By Billing Entity
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {Object.entries(summary.by_billing_entity).map(
-                ([entity, data]) => {
-                  const aging = arAgingByEntity[entity];
-                  const hasOverdue90 =
-                    aging &&
-                    ((aging.overdue_61_90 || 0) > 0 ||
-                      (aging.overdue_90_plus || 0) > 0);
-                  const hasOverdue30 = aging && (aging.overdue_31_60 || 0) > 0;
-                  const hasOverdue = aging && (aging.overdue_1_30 || 0) > 0;
-                  const badgeColor = hasOverdue90
-                    ? "bg-destructive/15 text-destructive border-destructive/30"
-                    : hasOverdue30
-                      ? "bg-warning/15 text-category-5 border-warning/30"
-                      : hasOverdue
-                        ? "bg-warning/15 text-accent border-warning/30"
-                        : null;
-                  const badgeLabel = hasOverdue90
-                    ? "60d+ overdue"
-                    : hasOverdue30
-                      ? "31–60d overdue"
-                      : hasOverdue
-                        ? "1–30d overdue"
-                        : null;
-                  return (
-                    <div
-                      key={entity}
-                      className="p-3 bg-muted rounded-lg border border-border/50"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-sm font-semibold text-foreground flex-1 truncate">
-                          {entity}
-                        </span>
-                        {badgeColor && (
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}`}
-                          >
-                            {badgeLabel}
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-0.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Revenue</span>
-                          <span className="font-mono tabular-nums">
-                            ${(data.total ?? 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            AR Balance
-                          </span>
-                          <span className="font-mono tabular-nums text-accent">
-                            ${(data.ar_balance ?? 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Txns</span>
-                          <span className="font-mono tabular-nums">
-                            {data.count}
-                          </span>
-                        </div>
-                      </div>
+      {summary?.by_billing_entity && Object.keys(summary.by_billing_entity).length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-5 shadow-sm mb-6">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-3">
+            By Billing Entity
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {Object.entries(summary.by_billing_entity).map(([entity, data]) => {
+              const aging = arAgingByEntity[entity];
+              const hasOverdue90 =
+                aging && ((aging.overdue_61_90 || 0) > 0 || (aging.overdue_90_plus || 0) > 0);
+              const hasOverdue30 = aging && (aging.overdue_31_60 || 0) > 0;
+              const hasOverdue = aging && (aging.overdue_1_30 || 0) > 0;
+              const badgeColor = hasOverdue90
+                ? "bg-destructive/15 text-destructive border-destructive/30"
+                : hasOverdue30
+                  ? "bg-warning/15 text-category-5 border-warning/30"
+                  : hasOverdue
+                    ? "bg-warning/15 text-accent border-warning/30"
+                    : null;
+              const badgeLabel = hasOverdue90
+                ? "60d+ overdue"
+                : hasOverdue30
+                  ? "31–60d overdue"
+                  : hasOverdue
+                    ? "1–30d overdue"
+                    : null;
+              return (
+                <div key={entity} className="p-3 bg-muted rounded-lg border border-border/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-foreground flex-1 truncate">
+                      {entity}
+                    </span>
+                    {badgeColor && (
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}`}
+                      >
+                        {badgeLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Revenue</span>
+                      <span className="font-mono tabular-nums">
+                        ${(data.total ?? 0).toFixed(2)}
+                      </span>
                     </div>
-                  );
-                },
-              )}
-            </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">AR Balance</span>
+                      <span className="font-mono tabular-nums text-accent">
+                        ${(data.ar_balance ?? 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Txns</span>
+                      <span className="font-mono tabular-nums">{data.count}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
+        </div>
+      )}
 
       <ViewToolbar
         controller={view}
@@ -437,15 +396,9 @@ const Financials = () => {
 
       {selectedIds.size > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-4 flex items-center justify-between">
-          <span className="text-sm font-semibold text-accent">
-            {selectedIds.size} selected
-          </span>
+          <span className="text-sm font-semibold text-accent">{selectedIds.size} selected</span>
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedIds(new Set())}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
               Clear
             </Button>
             {selectedUninvoicedIds.length > 0 && (

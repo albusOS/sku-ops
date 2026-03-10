@@ -13,11 +13,15 @@ import { useCameraScanner } from "@/hooks/useCameraScanner";
  * @param {{ onScan: (code: string) => void, onClose: () => void, scanning?: boolean }} props
  */
 export function CameraScanner({ onScan, onClose, scanning = false }) {
-  const { elementId, start, stop, active, error } = useCameraScanner({ onScan });
+  const { elementId, start, stop, active, error } = useCameraScanner({
+    onScan,
+  });
 
   useEffect(() => {
     start();
-    return () => { stop(); };
+    return () => {
+      stop();
+    };
   }, [start, stop]);
 
   return (
@@ -35,7 +39,8 @@ export function CameraScanner({ onScan, onClose, scanning = false }) {
           <CameraOff className="w-10 h-10 text-muted-foreground" />
           <p className="text-sm text-muted-foreground max-w-xs">{error}</p>
           <Button variant="outline" size="sm" onClick={start}>
-            <Camera className="w-4 h-4 mr-2" />Try Again
+            <Camera className="w-4 h-4 mr-2" />
+            Try Again
           </Button>
         </div>
       )}
@@ -47,7 +52,10 @@ export function CameraScanner({ onScan, onClose, scanning = false }) {
       )}
 
       <button
-        onClick={() => { stop(); onClose(); }}
+        onClick={() => {
+          stop();
+          onClose();
+        }}
         className="absolute top-3 right-3 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors"
       >
         <X className="w-4 h-4" />

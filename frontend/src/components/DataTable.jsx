@@ -106,9 +106,7 @@ export function DataTable({
   const selectable = !!onSelectionChange;
   const selectedSet = useMemo(
     () =>
-      controlledSelected instanceof Set
-        ? controlledSelected
-        : new Set(controlledSelected ?? []),
+      controlledSelected instanceof Set ? controlledSelected : new Set(controlledSelected ?? []),
     [controlledSelected],
   );
 
@@ -146,20 +144,13 @@ export function DataTable({
   }, [filteredData, sortKey, sortDir, disableSort]);
 
   const isServerPaged = !!serverPagination;
-  const effectivePageSize = isServerPaged
-    ? serverPagination.pageSize
-    : pageSize;
+  const effectivePageSize = isServerPaged ? serverPagination.pageSize : pageSize;
   const totalItems = isServerPaged ? serverPagination.total : sortedData.length;
   const totalPages = Math.ceil(totalItems / effectivePageSize) || 1;
-  const currentPage = isServerPaged
-    ? serverPagination.page + 1
-    : Math.min(page, totalPages);
+  const currentPage = isServerPaged ? serverPagination.page + 1 : Math.min(page, totalPages);
   const paginatedData = isServerPaged
     ? sortedData
-    : sortedData.slice(
-        (currentPage - 1) * effectivePageSize,
-        currentPage * effectivePageSize,
-      );
+    : sortedData.slice((currentPage - 1) * effectivePageSize, currentPage * effectivePageSize);
 
   const goToPage = (p) => {
     if (isServerPaged) {
@@ -191,21 +182,15 @@ export function DataTable({
   );
 
   const toggleAll = useCallback(() => {
-    const selectableRows = isSelectable
-      ? filteredData.filter(isSelectable)
-      : filteredData;
+    const selectableRows = isSelectable ? filteredData.filter(isSelectable) : filteredData;
     const allSelected =
-      selectableRows.length > 0 &&
-      selectableRows.every((r) => selectedSet.has(r.id));
-    onSelectionChange?.(
-      allSelected ? new Set() : new Set(selectableRows.map((r) => r.id)),
-    );
+      selectableRows.length > 0 && selectableRows.every((r) => selectedSet.has(r.id));
+    onSelectionChange?.(allSelected ? new Set() : new Set(selectableRows.map((r) => r.id)));
   }, [filteredData, selectedSet, isSelectable, onSelectionChange]);
 
   const SortIcon = ({ col }) => {
     if (disableSort || col.sortable === false) return null;
-    if (sortKey !== col.key)
-      return <ArrowUpDown className="w-3.5 h-3.5 ml-1 opacity-40" />;
+    if (sortKey !== col.key) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 opacity-40" />;
     return sortDir === "asc" ? (
       <ArrowUp className="w-3.5 h-3.5 ml-1" />
     ) : (
@@ -216,9 +201,7 @@ export function DataTable({
   const showHeader = title || headerActions || exportable || searchable;
 
   if (data.length === 0 && !showHeader) {
-    return (
-      <EmptyState icon={emptyIcon} title={emptyMessage} className={className} />
-    );
+    return <EmptyState icon={emptyIcon} title={emptyMessage} className={className} />;
   }
 
   return (
@@ -280,10 +263,9 @@ export function DataTable({
                       className="text-muted-foreground hover:text-foreground"
                     >
                       {filteredData.length > 0 &&
-                      (isSelectable
-                        ? filteredData.filter(isSelectable)
-                        : filteredData
-                      ).every((r) => selectedSet.has(r.id)) ? (
+                      (isSelectable ? filteredData.filter(isSelectable) : filteredData).every((r) =>
+                        selectedSet.has(r.id),
+                      ) ? (
                         <CheckSquare className="w-4 h-4 text-info" />
                       ) : (
                         <Square className="w-4 h-4" />
@@ -303,11 +285,7 @@ export function DataTable({
                         "cursor-pointer select-none hover:text-foreground",
                       col.className,
                     )}
-                    onClick={() =>
-                      !disableSort &&
-                      col.sortable !== false &&
-                      handleSort(col.key)
-                    }
+                    onClick={() => !disableSort && col.sortable !== false && handleSort(col.key)}
                   >
                     <span
                       className={cn(
@@ -327,16 +305,10 @@ export function DataTable({
               {paginatedData.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={
-                      columns.length +
-                      (selectable ? 1 : 0) +
-                      (rowActions ? 1 : 0)
-                    }
+                    colSpan={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
                     className="text-center py-12 text-muted-foreground text-sm"
                   >
-                    {searchLower
-                      ? "No results match your search"
-                      : emptyMessage}
+                    {searchLower ? "No results match your search" : emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -354,10 +326,7 @@ export function DataTable({
                       onClick={() => onRowClick?.(row)}
                     >
                       {selectable && (
-                        <TableCell
-                          className="px-3 py-2.5"
-                          onClick={(e) => toggleRow(row.id, e)}
-                        >
+                        <TableCell className="px-3 py-2.5" onClick={(e) => toggleRow(row.id, e)}>
                           {rowSelectable ? (
                             isSelected ? (
                               <CheckSquare className="w-4 h-4 text-info" />
@@ -383,9 +352,7 @@ export function DataTable({
                         </TableCell>
                       ))}
                       {rowActions && (
-                        <TableCell className="px-3 py-2.5 text-right">
-                          {rowActions(row)}
-                        </TableCell>
+                        <TableCell className="px-3 py-2.5 text-right">{rowActions(row)}</TableCell>
                       )}
                     </TableRow>
                   );
@@ -399,8 +366,7 @@ export function DataTable({
           <div className="flex items-center justify-between px-5 py-3 border-t border-border/50">
             <p className="text-xs text-muted-foreground tabular-nums">
               {(currentPage - 1) * effectivePageSize + 1}–
-              {Math.min(currentPage * effectivePageSize, totalItems)} of{" "}
-              {totalItems}
+              {Math.min(currentPage * effectivePageSize, totalItems)} of {totalItems}
             </p>
             <div className="flex items-center gap-1.5">
               <Button

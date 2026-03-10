@@ -4,7 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ExternalLink, Filter, X } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import api from "@/lib/api-client";
 import { keys } from "@/hooks/queryKeys";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
@@ -35,7 +41,9 @@ export function RecentTransactions({ dateRange, onProductStockHistory, onWithdra
 
   useEffect(() => {
     if (!data) return;
-    setAllRows((prev) => (offset === 0 ? (data.withdrawals || []) : [...prev, ...(data.withdrawals || [])]));
+    setAllRows((prev) =>
+      offset === 0 ? data.withdrawals || [] : [...prev, ...(data.withdrawals || [])],
+    );
   }, [data, offset]);
 
   useEffect(() => {
@@ -52,7 +60,10 @@ export function RecentTransactions({ dateRange, onProductStockHistory, onWithdra
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 mb-6 shadow-sm" data-testid="recent-transactions-terminal">
+    <div
+      className="bg-card border border-border rounded-xl p-6 mb-6 shadow-sm"
+      data-testid="recent-transactions-terminal"
+    >
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">Recent Transactions</h2>
         <Link
@@ -69,18 +80,30 @@ export function RecentTransactions({ dateRange, onProductStockHistory, onWithdra
           <span className="text-xs font-medium uppercase tracking-wide">Filter</span>
         </div>
 
-        <Select value={contractorId || "all"} onValueChange={(v) => setContractorId(v === "all" ? "" : v)}>
-          <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="All contractors" /></SelectTrigger>
+        <Select
+          value={contractorId || "all"}
+          onValueChange={(v) => setContractorId(v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="h-8 w-[160px]">
+            <SelectValue placeholder="All contractors" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All contractors</SelectItem>
             {(contractors || []).map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={invoiceStatus || "all"} onValueChange={(v) => setInvoiceStatus(v === "all" ? "" : v)}>
-          <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
+        <Select
+          value={invoiceStatus || "all"}
+          onValueChange={(v) => setInvoiceStatus(v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="h-8 w-[140px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="unpaid">Uninvoiced</SelectItem>
@@ -141,9 +164,7 @@ export function RecentTransactions({ dateRange, onProductStockHistory, onWithdra
 
 function WithdrawalBlock({ withdrawal: w, onProductStockHistory, onClick }) {
   const isInvoiced = !!w.invoice_id;
-  const statusClass = isInvoiced
-    ? "bg-info/15 text-info"
-    : "bg-warning/15 text-accent";
+  const statusClass = isInvoiced ? "bg-info/15 text-info" : "bg-warning/15 text-accent";
   const statusLabel = isInvoiced ? "invoiced" : "uninvoiced";
 
   return (
@@ -154,9 +175,7 @@ function WithdrawalBlock({ withdrawal: w, onProductStockHistory, onClick }) {
         className="w-full flex items-center justify-between px-4 py-3 bg-muted border-b border-border/50 hover:bg-muted transition-colors text-left cursor-pointer"
       >
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-foreground font-semibold truncate">
-            {w.contractor_name || "—"}
-          </span>
+          <span className="text-foreground font-semibold truncate">{w.contractor_name || "—"}</span>
           <span className="text-muted-foreground text-xs">
             {format(new Date(w.created_at), "MMM d, h:mm a")} · Job {w.job_id || "—"}
           </span>
@@ -197,7 +216,11 @@ function WithdrawalItem({ item, onProductStockHistory }) {
         type="button"
         onClick={() =>
           item.product_id &&
-          onProductStockHistory?.({ id: item.product_id, sku: item.sku, name: item.name })
+          onProductStockHistory?.({
+            id: item.product_id,
+            sku: item.sku,
+            name: item.name,
+          })
         }
         className="truncate text-left text-foreground hover:text-foreground text-sm flex-1 min-w-0"
         title="View stock history"

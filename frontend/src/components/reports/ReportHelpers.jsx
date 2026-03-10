@@ -51,10 +51,7 @@ export const PaymentStrip = ({ data = [] }) => {
 export const LowStockList = ({ items = [] }) => (
   <div className="divide-y divide-border/50">
     {items.map((item, i) => {
-      const pct =
-        item.min_stock > 0
-          ? Math.min((item.quantity / item.min_stock) * 100, 100)
-          : 0;
+      const pct = item.min_stock > 0 ? Math.min((item.quantity / item.min_stock) * 100, 100) : 0;
       const isEmpty = item.quantity === 0;
       return (
         <div key={i} className="py-3 flex items-center gap-3">
@@ -63,9 +60,7 @@ export const LowStockList = ({ items = [] }) => (
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-medium text-foreground truncate">
-                {item.name}
-              </p>
+              <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
               <span
                 className={`text-sm font-bold tabular-nums ml-3 shrink-0 ${isEmpty ? "text-destructive" : "text-category-5"}`}
               >
@@ -105,13 +100,7 @@ const PL_COLUMNS = {
   product: { label: "Product", key: "name" },
 };
 
-export const PLBreakdownTable = ({
-  plDimension,
-  rows,
-  onRowClick,
-  selectedId,
-  totalRows,
-}) => {
+export const PLBreakdownTable = ({ plDimension, rows, onRowClick, selectedId, totalRows }) => {
   const colCfg = PL_COLUMNS[plDimension];
   const columns = useMemo(() => {
     const cols = [
@@ -165,9 +154,7 @@ export const PLBreakdownTable = ({
         label: "COGS",
         align: "right",
         render: (row) => (
-          <span className="tabular-nums text-muted-foreground">
-            {valueFormatter(row.cost)}
-          </span>
+          <span className="tabular-nums text-muted-foreground">{valueFormatter(row.cost)}</span>
         ),
       },
       {
@@ -204,10 +191,7 @@ export const PLBreakdownTable = ({
     () => rows.map((r, i) => ({ ...r, id: r[colCfg?.key] || i })),
     [rows, colCfg],
   );
-  const selectedSet = useMemo(
-    () => (selectedId ? new Set([selectedId]) : new Set()),
-    [selectedId],
-  );
+  const selectedSet = useMemo(() => (selectedId ? new Set([selectedId]) : new Set()), [selectedId]);
 
   return (
     <DataTable
@@ -229,18 +213,14 @@ const AR_AGING_COLUMNS = [
   {
     key: "billing_entity",
     label: "Entity",
-    render: (row) => (
-      <span className="font-medium text-foreground">{row.billing_entity}</span>
-    ),
+    render: (row) => <span className="font-medium text-foreground">{row.billing_entity}</span>,
   },
   {
     key: "total_ar",
     label: "Total AR",
     align: "right",
     render: (row) => (
-      <span className="tabular-nums font-semibold">
-        {valueFormatter(row.total_ar)}
-      </span>
+      <span className="tabular-nums font-semibold">{valueFormatter(row.total_ar)}</span>
     ),
   },
   {
@@ -258,9 +238,7 @@ const AR_AGING_COLUMNS = [
     label: "1\u201330d",
     align: "right",
     render: (row) => (
-      <span className="tabular-nums text-accent">
-        {valueFormatter(row.overdue_1_30)}
-      </span>
+      <span className="tabular-nums text-accent">{valueFormatter(row.overdue_1_30)}</span>
     ),
   },
   {
@@ -268,9 +246,7 @@ const AR_AGING_COLUMNS = [
     label: "31\u201360d",
     align: "right",
     render: (row) => (
-      <span className="tabular-nums text-accent">
-        {valueFormatter(row.overdue_31_60)}
-      </span>
+      <span className="tabular-nums text-accent">{valueFormatter(row.overdue_31_60)}</span>
     ),
   },
   {
@@ -278,9 +254,7 @@ const AR_AGING_COLUMNS = [
     label: "61\u201390d",
     align: "right",
     render: (row) => (
-      <span className="tabular-nums text-category-5">
-        {valueFormatter(row.overdue_61_90)}
-      </span>
+      <span className="tabular-nums text-category-5">{valueFormatter(row.overdue_61_90)}</span>
     ),
   },
   {
@@ -317,12 +291,7 @@ const SectionHead = ({ title, action }) => (
   <SectionHeadBase title={title} action={action} variant="report" />
 );
 
-export const FinanceTab = ({
-  financialSummary,
-  arAging,
-  arAgingOpen,
-  setArAgingOpen,
-}) => {
+export const FinanceTab = ({ financialSummary, arAging, arAgingOpen, setArAgingOpen }) => {
   const t = themeColors();
   const arAgingByEntity = useMemo(() => {
     if (!arAging) return {};
@@ -363,73 +332,62 @@ export const FinanceTab = ({
           <Panel>
             <SectionHead title="By Billing Entity" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {Object.entries(financialSummary.by_billing_entity).map(
-                ([entity, data]) => {
-                  const aging = arAgingByEntity[entity];
-                  const hasOverdue90 =
-                    aging &&
-                    ((aging.overdue_61_90 || 0) > 0 ||
-                      (aging.overdue_90_plus || 0) > 0);
-                  const hasOverdue30 = aging && (aging.overdue_31_60 || 0) > 0;
-                  const hasOverdue = aging && (aging.overdue_1_30 || 0) > 0;
-                  const badgeColor = hasOverdue90
-                    ? "bg-destructive/15 text-destructive border-destructive/30"
-                    : hasOverdue30
-                      ? "bg-category-5/15 text-category-5 border-category-5/30"
-                      : hasOverdue
-                        ? "bg-accent/15 text-accent border-accent/30"
-                        : null;
-                  const badgeLabel = hasOverdue90
-                    ? "60d+ overdue"
-                    : hasOverdue30
-                      ? "31\u201360d overdue"
-                      : hasOverdue
-                        ? "1\u201330d overdue"
-                        : null;
-                  return (
-                    <div
-                      key={entity}
-                      className="p-3 bg-muted rounded-lg border border-border/50"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-sm font-semibold text-foreground flex-1 truncate">
-                          {entity}
+              {Object.entries(financialSummary.by_billing_entity).map(([entity, data]) => {
+                const aging = arAgingByEntity[entity];
+                const hasOverdue90 =
+                  aging && ((aging.overdue_61_90 || 0) > 0 || (aging.overdue_90_plus || 0) > 0);
+                const hasOverdue30 = aging && (aging.overdue_31_60 || 0) > 0;
+                const hasOverdue = aging && (aging.overdue_1_30 || 0) > 0;
+                const badgeColor = hasOverdue90
+                  ? "bg-destructive/15 text-destructive border-destructive/30"
+                  : hasOverdue30
+                    ? "bg-category-5/15 text-category-5 border-category-5/30"
+                    : hasOverdue
+                      ? "bg-accent/15 text-accent border-accent/30"
+                      : null;
+                const badgeLabel = hasOverdue90
+                  ? "60d+ overdue"
+                  : hasOverdue30
+                    ? "31\u201360d overdue"
+                    : hasOverdue
+                      ? "1\u201330d overdue"
+                      : null;
+                return (
+                  <div key={entity} className="p-3 bg-muted rounded-lg border border-border/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-sm font-semibold text-foreground flex-1 truncate">
+                        {entity}
+                      </span>
+                      {badgeColor && (
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}`}
+                        >
+                          {badgeLabel}
                         </span>
-                        {badgeColor && (
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}`}
-                          >
-                            {badgeLabel}
-                          </span>
-                        )}
+                      )}
+                    </div>
+                    <div className="space-y-0.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Revenue</span>
+                        <span className="font-mono tabular-nums">
+                          ${(data.total ?? 0).toFixed(2)}
+                        </span>
                       </div>
-                      <div className="space-y-0.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Revenue</span>
-                          <span className="font-mono tabular-nums">
-                            ${(data.total ?? 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            AR Balance
-                          </span>
-                          <span className="font-mono tabular-nums text-accent">
-                            ${(data.ar_balance ?? 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Txns</span>
-                          <span className="font-mono tabular-nums">
-                            {data.count}
-                          </span>
-                        </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">AR Balance</span>
+                        <span className="font-mono tabular-nums text-accent">
+                          ${(data.ar_balance ?? 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Txns</span>
+                        <span className="font-mono tabular-nums">{data.count}</span>
                       </div>
                     </div>
-                  );
-                },
-              )}
+                  </div>
+                );
+              })}
             </div>
           </Panel>
         )}
@@ -492,13 +450,10 @@ export const PLStatement = ({ summary }) => {
   const shrinkage = summary.shrinkage || 0;
   const netProfit = grossProfit - tax - shrinkage;
   const marginPct =
-    summary.margin_pct ||
-    (revenue > 0 ? ((grossProfit / revenue) * 100).toFixed(1) : 0);
+    summary.margin_pct || (revenue > 0 ? ((grossProfit / revenue) * 100).toFixed(1) : 0);
 
   const Line = ({ label, value, bold, indent, muted }) => (
-    <div
-      className={`flex items-center justify-between py-2 ${indent ? "pl-6" : ""}`}
-    >
+    <div className={`flex items-center justify-between py-2 ${indent ? "pl-6" : ""}`}>
       <span
         className={`text-sm ${bold ? "font-semibold text-foreground" : muted ? "text-muted-foreground" : "text-muted-foreground"}`}
       >
@@ -518,9 +473,7 @@ export const PLStatement = ({ summary }) => {
       <Line label="Cost of Goods Sold" value={cogs} indent />
       <div className="border-t border-border my-1" />
       <div className="flex items-center justify-between py-2">
-        <span className="text-sm font-semibold text-foreground">
-          GROSS PROFIT
-        </span>
+        <span className="text-sm font-semibold text-foreground">GROSS PROFIT</span>
         <div className="flex items-center gap-3">
           <span className="text-sm tabular-nums font-mono font-bold text-foreground">
             {valueFormatter(grossProfit)}
@@ -533,9 +486,7 @@ export const PLStatement = ({ summary }) => {
         </div>
       </div>
       {tax > 0 && <Line label="Tax Collected" value={tax} indent muted />}
-      {shrinkage > 0 && (
-        <Line label="Shrinkage" value={shrinkage} indent muted />
-      )}
+      {shrinkage > 0 && <Line label="Shrinkage" value={shrinkage} indent muted />}
       {(tax > 0 || shrinkage > 0) && (
         <>
           <div className="border-t border-border my-1" />

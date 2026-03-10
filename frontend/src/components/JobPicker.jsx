@@ -8,7 +8,12 @@ import { toast } from "sonner";
  * Autocomplete combobox for selecting or creating jobs.
  * @param {{ value: string, onChange: (code: string) => void, placeholder?: string, required?: boolean }} props
  */
-export function JobPicker({ value, onChange, placeholder = "e.g. JOB-2024-001", required = false }) {
+export function JobPicker({
+  value,
+  onChange,
+  placeholder = "e.g. JOB-2024-001",
+  required = false,
+}) {
   const [query, setQuery] = useState(value || "");
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -98,7 +103,9 @@ export function JobPicker({ value, onChange, placeholder = "e.g. JOB-2024-001", 
               className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-success/10 text-left text-success"
             >
               <Plus className="w-4 h-4 shrink-0" />
-              <span className="text-sm">Create <strong>{query.trim()}</strong></span>
+              <span className="text-sm">
+                Create <strong>{query.trim()}</strong>
+              </span>
             </button>
           )}
         </div>

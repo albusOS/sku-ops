@@ -28,10 +28,7 @@ export const AuthProvider = ({ children }) => {
     const interceptor = axios.interceptors.response.use(
       (res) => res,
       (error) => {
-        if (
-          error.response?.status === 401 &&
-          !isAuthEndpoint(error.config?.url)
-        ) {
+        if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
           logoutRef.current?.();
         }
         return Promise.reject(error);
@@ -89,9 +86,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{ user, token, loading, login, register, logout }}
-    >
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

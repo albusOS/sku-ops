@@ -66,7 +66,9 @@ export function ProductMatchPicker({
         <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
         <span className="font-mono text-success font-medium">{matched.sku}</span>
         <span className="text-muted-foreground truncate flex-1">{matched.name}</span>
-        <span className="text-muted-foreground tabular-nums shrink-0">qty: {matched.quantity ?? 0}</span>
+        <span className="text-muted-foreground tabular-nums shrink-0">
+          qty: {matched.quantity ?? 0}
+        </span>
         <button
           type="button"
           onClick={handleClear}
@@ -91,7 +93,9 @@ export function ProductMatchPicker({
           <Input
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            onFocus={() => { if (options.length > 0 || query.length >= 2) setShowDropdown(true); }}
+            onFocus={() => {
+              if (options.length > 0 || query.length >= 2) setShowDropdown(true);
+            }}
             placeholder="Search existing product…"
             className="h-8 text-xs pl-7 pr-2"
           />
@@ -112,7 +116,9 @@ export function ProductMatchPicker({
             >
               <span className="font-mono font-medium text-foreground shrink-0">{product.sku}</span>
               <span className="text-muted-foreground truncate flex-1">{product.name}</span>
-              <span className="text-muted-foreground tabular-nums shrink-0">qty: {product.quantity ?? 0}</span>
+              <span className="text-muted-foreground tabular-nums shrink-0">
+                qty: {product.quantity ?? 0}
+              </span>
             </button>
           ))}
         </div>

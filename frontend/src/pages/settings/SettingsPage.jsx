@@ -1,19 +1,27 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import {
-  CheckCircle2, AlertTriangle, Link2, Link2Off, RefreshCw, Save,
-} from "lucide-react";
+import { CheckCircle2, AlertTriangle, Link2, Link2Off, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Panel, SectionHead } from "@/components/Panel";
 import { API } from "@/lib/api-client";
@@ -38,7 +46,9 @@ function ConnectionSection({ settings }) {
       const expiry = new Date(settings.xero_token_expiry);
       const hoursLeft = (expiry - Date.now()) / 3_600_000;
       return hoursLeft < 24 && hoursLeft > 0;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }, [settings?.xero_token_expiry]);
 
   const handleConnect = () => {
@@ -77,7 +87,9 @@ function ConnectionSection({ settings }) {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">Not connected</p>
-                  <p className="text-xs text-muted-foreground">Connect a Xero organisation to enable invoice and bill sync</p>
+                  <p className="text-xs text-muted-foreground">
+                    Connect a Xero organisation to enable invoice and bill sync
+                  </p>
                 </div>
               </>
             )}
@@ -87,7 +99,11 @@ function ConnectionSection({ settings }) {
             {connected ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  >
                     <Link2Off className="w-4 h-4 mr-2" />
                     Disconnect
                   </Button>
@@ -96,12 +112,16 @@ function ConnectionSection({ settings }) {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Disconnect Xero?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will remove all OAuth tokens. Invoices, credit notes, and PO bills will stop syncing until you reconnect.
+                      This will remove all OAuth tokens. Invoices, credit notes, and PO bills will
+                      stop syncing until you reconnect.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDisconnect} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    <AlertDialogAction
+                      onClick={handleDisconnect}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
                       Disconnect
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -129,7 +149,9 @@ function ConnectionSection({ settings }) {
 
 function TenantTrackingSection({ settings }) {
   const { data: tenantsData, isLoading: tenantsLoading } = useXeroTenants(settings?.xero_connected);
-  const { data: categoriesData, isLoading: catsLoading } = useXeroTrackingCategories(settings?.xero_connected);
+  const { data: categoriesData, isLoading: catsLoading } = useXeroTrackingCategories(
+    settings?.xero_connected,
+  );
   const selectTenant = useSelectTenant();
   const selectCategory = useSelectTrackingCategory();
 
@@ -226,7 +248,10 @@ function AccountCodesSection({ settings }) {
       xero_cogs_account_code: settings.xero_cogs_account_code || "",
       xero_inventory_account_code: settings.xero_inventory_account_code || "",
       xero_ap_account_code: settings.xero_ap_account_code || "",
-      default_tax_rate: settings.default_tax_rate != null ? String(Math.round(settings.default_tax_rate * 100)) : "",
+      default_tax_rate:
+        settings.default_tax_rate != null
+          ? String(Math.round(settings.default_tax_rate * 100))
+          : "",
       xero_tax_type: settings.xero_tax_type || "",
     });
     setDirty(false);
@@ -249,16 +274,35 @@ function AccountCodesSection({ settings }) {
     if (!isNaN(rate)) payload.default_tax_rate = rate / 100;
 
     update.mutate(payload, {
-      onSuccess: () => { toast.success("Settings saved"); setDirty(false); },
+      onSuccess: () => {
+        toast.success("Settings saved");
+        setDirty(false);
+      },
       onError: () => toast.error("Failed to save settings"),
     });
   };
 
   const FIELDS = [
-    { key: "xero_sales_account_code", label: "Sales / Revenue Account", hint: "Xero account code for revenue lines (e.g. 200)" },
-    { key: "xero_cogs_account_code", label: "COGS Account", hint: "Cost of goods sold journal debit (e.g. 500)" },
-    { key: "xero_inventory_account_code", label: "Inventory Account", hint: "Inventory asset — credited on COGS journals, debited on PO bills (e.g. 630)" },
-    { key: "xero_ap_account_code", label: "Accounts Payable Account", hint: "Trade creditors / AP account (e.g. 800)" },
+    {
+      key: "xero_sales_account_code",
+      label: "Sales / Revenue Account",
+      hint: "Xero account code for revenue lines (e.g. 200)",
+    },
+    {
+      key: "xero_cogs_account_code",
+      label: "COGS Account",
+      hint: "Cost of goods sold journal debit (e.g. 500)",
+    },
+    {
+      key: "xero_inventory_account_code",
+      label: "Inventory Account",
+      hint: "Inventory asset — credited on COGS journals, debited on PO bills (e.g. 630)",
+    },
+    {
+      key: "xero_ap_account_code",
+      label: "Accounts Payable Account",
+      hint: "Trade creditors / AP account (e.g. 800)",
+    },
   ];
 
   return (
@@ -267,7 +311,9 @@ function AccountCodesSection({ settings }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         {FIELDS.map((f) => (
           <div key={f.key}>
-            <Label htmlFor={f.key} className="text-muted-foreground text-sm font-medium">{f.label}</Label>
+            <Label htmlFor={f.key} className="text-muted-foreground text-sm font-medium">
+              {f.label}
+            </Label>
             <Input
               id={f.key}
               value={form[f.key]}
@@ -280,7 +326,9 @@ function AccountCodesSection({ settings }) {
         ))}
 
         <div>
-          <Label htmlFor="default_tax_rate" className="text-muted-foreground text-sm font-medium">Default Tax Rate (%)</Label>
+          <Label htmlFor="default_tax_rate" className="text-muted-foreground text-sm font-medium">
+            Default Tax Rate (%)
+          </Label>
           <Input
             id="default_tax_rate"
             type="number"
@@ -292,25 +340,35 @@ function AccountCodesSection({ settings }) {
             className="input-field mt-2 font-mono"
             placeholder="10"
           />
-          <p className="text-xs text-muted-foreground mt-1">Applied to new invoices (e.g. 10 for 10% GST)</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Applied to new invoices (e.g. 10 for 10% GST)
+          </p>
         </div>
 
         <div>
-          <Label htmlFor="xero_tax_type" className="text-muted-foreground text-sm font-medium">Xero Tax Type</Label>
+          <Label htmlFor="xero_tax_type" className="text-muted-foreground text-sm font-medium">
+            Xero Tax Type
+          </Label>
           <Input
             id="xero_tax_type"
             value={form.xero_tax_type}
             onChange={(e) => handleChange("xero_tax_type", e.target.value)}
             className="input-field mt-2 font-mono"
-            placeholder='e.g. OUTPUT2'
+            placeholder="e.g. OUTPUT2"
           />
-          <p className="text-xs text-muted-foreground mt-1">Xero tax type tag on invoice lines (leave empty for no tax tagging)</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Xero tax type tag on invoice lines (leave empty for no tax tagging)
+          </p>
         </div>
       </div>
 
       <div className="flex justify-end mt-6">
         <Button onClick={handleSave} disabled={!dirty || update.isPending} className="gap-2">
-          {update.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {update.isPending ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
           {update.isPending ? "Saving..." : "Save Settings"}
         </Button>
       </div>

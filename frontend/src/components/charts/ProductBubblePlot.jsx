@@ -10,11 +10,7 @@ import { themeColors } from "../../lib/chartTheme";
  * @param {function} [onBubbleClick] - callback(product) when bubble clicked
  * @param {number} [height=420]
  */
-export function ProductBubblePlot({
-  products = [],
-  onBubbleClick,
-  height = 420,
-}) {
+export function ProductBubblePlot({ products = [], onBubbleClick, height = 420 }) {
   const option = useMemo(() => {
     const t = themeColors();
     if (!products.length) return {};
@@ -31,9 +27,7 @@ export function ProductBubblePlot({
     };
     const FALLBACK_COLOR = t.mutedForeground;
 
-    const departments = [
-      ...new Set(products.map((p) => p.department || "Other")),
-    ];
+    const departments = [...new Set(products.map((p) => p.department || "Other"))];
     const maxRevenue = Math.max(...products.map((p) => p.revenue || 0), 1);
 
     const seriesList = departments.map((dept) => ({
@@ -69,8 +63,7 @@ export function ProductBubblePlot({
     return {
       tooltip: {
         formatter: (params) => {
-          const [sellThrough, margin, revenue, name, sku, units, stock] =
-            params.value;
+          const [sellThrough, margin, revenue, name, sku, units, stock] = params.value;
           return `<div style="font-size:12px">
             <b>${name}</b> <span style="color:${t.mutedForeground}">${sku}</span><br/>
             Margin: <b>${margin.toFixed(1)}%</b><br/>

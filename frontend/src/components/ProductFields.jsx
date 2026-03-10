@@ -7,11 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { UOM_OPTIONS } from "@/lib/constants";
 import { GroupCombobox } from "@/components/GroupCombobox";
@@ -54,12 +50,8 @@ export function ProductFields({
   compact = false,
   uomAction,
 }) {
-  const h =
-    hiddenFields instanceof Set ? hiddenFields : new Set(hiddenFields || []);
-  const ro =
-    readOnlyFields instanceof Set
-      ? readOnlyFields
-      : new Set(readOnlyFields || []);
+  const h = hiddenFields instanceof Set ? hiddenFields : new Set(hiddenFields || []);
+  const ro = readOnlyFields instanceof Set ? readOnlyFields : new Set(readOnlyFields || []);
 
   const inputCls = compact ? "input-field h-9 text-sm" : "input-workshop mt-2";
   const labelCls = compact
@@ -201,8 +193,8 @@ export function ProductFields({
             Min stock{!compact && " level"}
             {!compact && (
               <FieldTip>
-                Alert threshold — item shows as Low Stock when quantity falls to
-                or below this number.
+                Alert threshold — item shows as Low Stock when quantity falls to or below this
+                number.
               </FieldTip>
             )}
           </Label>
@@ -231,8 +223,7 @@ export function ProductFields({
               Base Unit
               {!compact && (
                 <FieldTip>
-                  The physical unit this product is stored and counted in (e.g.
-                  each, roll, gallon).
+                  The physical unit this product is stored and counted in (e.g. each, roll, gallon).
                 </FieldTip>
               )}
             </Label>
@@ -259,9 +250,7 @@ export function ProductFields({
               <Label className={labelCls}>
                 Sell Unit
                 {!compact && (
-                  <FieldTip>
-                    The unit shown to customers and used when issuing materials.
-                  </FieldTip>
+                  <FieldTip>The unit shown to customers and used when issuing materials.</FieldTip>
                 )}
               </Label>
               <Select
@@ -289,8 +278,7 @@ export function ProductFields({
                 Pack Qty
                 {!compact && (
                   <FieldTip>
-                    How many Base Units are in one Sell Unit. E.g. a box of 12
-                    screws = 12.
+                    How many Base Units are in one Sell Unit. E.g. a box of 12 screws = 12.
                   </FieldTip>
                 )}
               </Label>
@@ -315,9 +303,8 @@ export function ProductFields({
             Product Group
             {!compact && (
               <FieldTip>
-                Group related variants together (e.g. &quot;1/2 PEX
-                Tubing&quot;) so you can view combined stock across sizes and
-                vendors.
+                Group related variants together (e.g. &quot;1/2 PEX Tubing&quot;) so you can view
+                combined stock across sizes and vendors.
               </FieldTip>
             )}
           </Label>
@@ -336,11 +323,7 @@ export function ProductFields({
           <Input
             value={field("barcode")}
             onChange={(e) => set("barcode", e.target.value)}
-            placeholder={
-              compact
-                ? "UPC / barcode"
-                : "UPC (12 digits) or leave blank to use SKU"
-            }
+            placeholder={compact ? "UPC / barcode" : "UPC (12 digits) or leave blank to use SKU"}
             className={inputCls}
             readOnly={isReadOnly(ro, "barcode")}
             data-testid="pf-barcode"

@@ -50,14 +50,23 @@ export function JobDetailPanel({ jobId, open, onOpenChange }) {
       actions={
         editing ? (
           <>
-            <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleSave} disabled={updateJob.isPending} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={updateJob.isPending}
+              className="gap-1.5"
+            >
               <Save className="w-3.5 h-3.5" />
               {updateJob.isPending ? "Saving…" : "Save"}
             </Button>
           </>
         ) : (
-          <Button variant="outline" size="sm" onClick={startEditing}>Edit</Button>
+          <Button variant="outline" size="sm" onClick={startEditing}>
+            Edit
+          </Button>
         )
       }
     >
@@ -67,22 +76,37 @@ export function JobDetailPanel({ jobId, open, onOpenChange }) {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-muted-foreground">Name</label>
-                <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="mt-1" />
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className="mt-1"
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Status</label>
-                <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {statusOptions.map((s) => (
-                      <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                      <SelectItem key={s} value={s}>
+                        {s.charAt(0).toUpperCase() + s.slice(1)}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Notes</label>
-                <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className="mt-1 min-h-[80px]" />
+                <Textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="mt-1 min-h-[80px]"
+                />
               </div>
             </div>
           </DetailSection>
@@ -118,11 +142,19 @@ export function JobDetailPanel({ jobId, open, onOpenChange }) {
             <div className="grid grid-cols-2 gap-4">
               <DetailField
                 label="Created"
-                value={job?.created_at ? format(new Date(job.created_at), "MMM d, yyyy h:mm a") : undefined}
+                value={
+                  job?.created_at
+                    ? format(new Date(job.created_at), "MMM d, yyyy h:mm a")
+                    : undefined
+                }
               />
               <DetailField
                 label="Updated"
-                value={job?.updated_at ? format(new Date(job.updated_at), "MMM d, yyyy h:mm a") : undefined}
+                value={
+                  job?.updated_at
+                    ? format(new Date(job.updated_at), "MMM d, yyyy h:mm a")
+                    : undefined
+                }
               />
             </div>
           </DetailSection>

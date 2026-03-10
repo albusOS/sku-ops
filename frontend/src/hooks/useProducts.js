@@ -5,7 +5,11 @@ import { keys } from "./queryKeys";
 
 const { useList, useCreate, useUpdate, useDelete } = createEntityHooks("products", api.products);
 
-export { useCreate as useCreateProduct, useUpdate as useUpdateProduct, useDelete as useDeleteProduct };
+export {
+  useCreate as useCreateProduct,
+  useUpdate as useUpdateProduct,
+  useDelete as useDeleteProduct,
+};
 
 export function useProducts(params) {
   return useList(params);

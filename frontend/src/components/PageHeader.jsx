@@ -13,10 +13,7 @@ export function PageHeader({ title, subtitle, breadcrumbs, action, className }) 
           {breadcrumbs.map((item, i) => (
             <span key={i} className="flex items-center gap-2">
               {item.href ? (
-                <Link
-                  to={item.href}
-                  className="hover:text-foreground transition-colors"
-                >
+                <Link to={item.href} className="hover:text-foreground transition-colors">
                   {item.label}
                 </Link>
               ) : (
@@ -34,9 +31,7 @@ export function PageHeader({ title, subtitle, breadcrumbs, action, className }) 
           <h1 className="text-2xl md:text-[1.75rem] font-semibold text-foreground tracking-tight">
             {title}
           </h1>
-          {subtitle && (
-            <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
-          )}
+          {subtitle && <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>}
         </div>
         {action && <div className="flex-shrink-0">{action}</div>}
       </div>

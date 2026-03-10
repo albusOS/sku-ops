@@ -12,14 +12,7 @@ import { themeColors } from "../../lib/chartTheme";
  * @param {{ max: number, color: string }[]} [zones] - color zone breakpoints as fraction of max
  * @param {number} [size=160]
  */
-export function GaugeRing({
-  value = 0,
-  max = 100,
-  label = "",
-  unit = "",
-  zones,
-  size = 160,
-}) {
+export function GaugeRing({ value = 0, max = 100, label = "", unit = "", zones, size = 160 }) {
   const option = useMemo(() => {
     const t = themeColors();
     const resolvedZones = zones ?? [

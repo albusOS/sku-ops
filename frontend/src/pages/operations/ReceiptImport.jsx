@@ -64,9 +64,7 @@ const ReceiptImport = () => {
     if (!file) return false;
     const t = file.type?.toLowerCase() || "";
     const n = (file.name || "").toLowerCase();
-    return (
-      t.startsWith("image/") || t === "application/pdf" || n.endsWith(".pdf")
-    );
+    return t.startsWith("image/") || t === "application/pdf" || n.endsWith(".pdf");
   };
 
   const handleFileChange = (e) => {
@@ -78,9 +76,7 @@ const ReceiptImport = () => {
       }
       setFile(selectedFile);
       setPreview(
-        selectedFile.type?.startsWith("image/")
-          ? URL.createObjectURL(selectedFile)
-          : null,
+        selectedFile.type?.startsWith("image/") ? URL.createObjectURL(selectedFile) : null,
       );
       setExtractedData(null);
       setEditedProducts([]);
@@ -96,11 +92,7 @@ const ReceiptImport = () => {
         return;
       }
       setFile(droppedFile);
-      setPreview(
-        droppedFile.type?.startsWith("image/")
-          ? URL.createObjectURL(droppedFile)
-          : null,
-      );
+      setPreview(droppedFile.type?.startsWith("image/") ? URL.createObjectURL(droppedFile) : null);
       setExtractedData(null);
       setEditedProducts([]);
     }
@@ -141,8 +133,7 @@ const ReceiptImport = () => {
       toast.success("Document extracted successfully!");
       autoMatch(mapped);
     } catch (error) {
-      const detail =
-        error.response?.data?.detail || "Failed to extract document";
+      const detail = error.response?.data?.detail || "Failed to extract document";
       if (error.response?.status === 503) {
         toast.error(
           "AI not configured — add ANTHROPIC_API_KEY to backend/.env, or use free OCR instead",
@@ -156,16 +147,12 @@ const ReceiptImport = () => {
   };
 
   const updateProduct = (id, field, value) => {
-    setEditedProducts(
-      editedProducts.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
-    );
+    setEditedProducts(editedProducts.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
   };
 
   const toggleProduct = (id) => {
     setEditedProducts(
-      editedProducts.map((p) =>
-        p.id === id ? { ...p, selected: !p.selected } : p,
-      ),
+      editedProducts.map((p) => (p.id === id ? { ...p, selected: !p.selected } : p)),
     );
   };
 
@@ -186,13 +173,9 @@ const ReceiptImport = () => {
         name: p.name,
         quantity: parseFloat(p.quantity) || 1,
         ordered_qty:
-          p.ordered_qty != null
-            ? parseFloat(p.ordered_qty)
-            : parseFloat(p.quantity) || 1,
+          p.ordered_qty != null ? parseFloat(p.ordered_qty) : parseFloat(p.quantity) || 1,
         delivered_qty:
-          p.delivered_qty != null
-            ? parseFloat(p.delivered_qty)
-            : parseFloat(p.quantity) || 1,
+          p.delivered_qty != null ? parseFloat(p.delivered_qty) : parseFloat(p.quantity) || 1,
         price: parseFloat(p.price) || 0,
         cost: p.cost != null ? parseFloat(p.cost) : undefined,
         original_sku: p.original_sku,
@@ -222,9 +205,7 @@ const ReceiptImport = () => {
         products: productsToSave,
       });
 
-      toast.success(
-        `Purchase order saved — ${productsToSave.length} item(s) pending receipt`,
-      );
+      toast.success(`Purchase order saved — ${productsToSave.length} item(s) pending receipt`);
       setFile(null);
       setPreview(null);
       setExtractedData(null);
@@ -249,9 +230,7 @@ const ReceiptImport = () => {
 
   const handleConfirmMatch = (itemId, product) => {
     setEditedProducts((prev) =>
-      prev.map((p) =>
-        p.id === itemId ? { ...p, matched_product: product } : p,
-      ),
+      prev.map((p) => (p.id === itemId ? { ...p, matched_product: product } : p)),
     );
     confirmMatch(itemId, product);
   };
@@ -303,12 +282,9 @@ const ReceiptImport = () => {
   return (
     <div className="p-8" data-testid="receipt-import-page">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-          Receive / Import
-        </h1>
+        <h1 className="text-2xl font-semibold text-foreground tracking-tight">Receive / Import</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Upload a delivery receipt or vendor invoice to add products, or bulk
-          import from CSV
+          Upload a delivery receipt or vendor invoice to add products, or bulk import from CSV
         </p>
       </div>
 
@@ -321,10 +297,7 @@ const ReceiptImport = () => {
         <TabsContent value="receipt">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Upload Section */}
-            <div
-              className="card-elevated p-6 border-primary/20"
-              data-testid="upload-section"
-            >
+            <div className="card-elevated p-6 border-primary/20" data-testid="upload-section">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <span className="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center text-sm font-bold">
                   1
@@ -337,9 +310,7 @@ const ReceiptImport = () => {
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   className="border-2 border-dashed border-border rounded-2xl p-12 text-center hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
-                  onClick={() =>
-                    document.getElementById("receipt-input").click()
-                  }
+                  onClick={() => document.getElementById("receipt-input").click()}
                   data-testid="upload-dropzone"
                 >
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/15 to-warning/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
@@ -348,9 +319,7 @@ const ReceiptImport = () => {
                   <p className="text-muted-foreground font-medium">
                     Drop document here or click to browse
                   </p>
-                  <p className="text-muted-foreground text-sm mt-2">
-                    Supports JPG, PNG, WEBP, PDF
-                  </p>
+                  <p className="text-muted-foreground text-sm mt-2">Supports JPG, PNG, WEBP, PDF</p>
                   <input
                     id="receipt-input"
                     type="file"
@@ -373,12 +342,8 @@ const ReceiptImport = () => {
                     ) : (
                       <div className="w-full h-48 bg-muted flex flex-col items-center justify-center gap-2">
                         <FileText className="w-12 h-12 text-muted-foreground" />
-                        <span className="text-muted-foreground font-medium">
-                          {file.name}
-                        </span>
-                        <span className="text-muted-foreground text-sm">
-                          PDF document
-                        </span>
+                        <span className="text-muted-foreground font-medium">{file.name}</span>
+                        <span className="text-muted-foreground text-sm">PDF document</span>
                       </div>
                     )}
                     <button
@@ -391,18 +356,11 @@ const ReceiptImport = () => {
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {preview ? (
-                      <FileImage className="w-4 h-4" />
-                    ) : (
-                      <FileText className="w-4 h-4" />
-                    )}
+                    {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                     <span>{file?.name}</span>
                   </div>
 
-                  <div
-                    className="grid grid-cols-2 gap-2"
-                    data-testid="extract-btn"
-                  >
+                  <div className="grid grid-cols-2 gap-2" data-testid="extract-btn">
                     <Button
                       onClick={() => extractReceipt(true)}
                       disabled={extracting}
@@ -447,16 +405,12 @@ const ReceiptImport = () => {
                   <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
                     <Package className="w-7 h-7 text-muted-foreground" />
                   </div>
-                  <p className="font-medium">
-                    Upload and extract a document to see products
-                  </p>
+                  <p className="font-medium">Upload and extract a document to see products</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-muted-foreground font-medium text-sm">
-                      Vendor *
-                    </Label>
+                    <Label className="text-muted-foreground font-medium text-sm">Vendor *</Label>
                     <Input
                       value={vendorName}
                       onChange={(e) => setVendorName(e.target.value)}
@@ -470,9 +424,7 @@ const ReceiptImport = () => {
                     <Checkbox
                       id="create-vendor"
                       checked={createVendorIfMissing}
-                      onCheckedChange={(c) =>
-                        setCreateVendorIfMissing(c === true)
-                      }
+                      onCheckedChange={(c) => setCreateVendorIfMissing(c === true)}
                     />
                     <Label
                       htmlFor="create-vendor"
@@ -488,20 +440,13 @@ const ReceiptImport = () => {
                     </Label>
                     <Select
                       value={selectedDept || "none"}
-                      onValueChange={(v) =>
-                        setSelectedDept(v === "none" ? "" : v)
-                      }
+                      onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}
                     >
-                      <SelectTrigger
-                        className="input-field mt-2"
-                        data-testid="import-dept-select"
-                      >
+                      <SelectTrigger className="input-field mt-2" data-testid="import-dept-select">
                         <SelectValue placeholder="Use suggested per product" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">
-                          Use suggested per product
-                        </SelectItem>
+                        <SelectItem value="none">Use suggested per product</SelectItem>
                         {departments.map((dept) => (
                           <SelectItem key={dept.id} value={dept.id}>
                             {dept.name} ({dept.code})
@@ -517,8 +462,7 @@ const ReceiptImport = () => {
                   >
                     {editedProducts.map((product) => {
                       const matchState = productMatches[product.id] || {};
-                      const matched =
-                        matchState.matched || product.matched_product;
+                      const matched = matchState.matched || product.matched_product;
 
                       return (
                         <div
@@ -561,9 +505,7 @@ const ReceiptImport = () => {
                                 options={matchState.options || []}
                                 searching={matchState.searching || false}
                                 onSearch={(q) => searchMatch(product.id, q)}
-                                onConfirm={(p) =>
-                                  handleConfirmMatch(product.id, p)
-                                }
+                                onConfirm={(p) => handleConfirmMatch(product.id, p)}
                                 onClear={() => handleClearMatch(product.id)}
                               />
 
@@ -577,25 +519,15 @@ const ReceiptImport = () => {
                                       <Input
                                         type="number"
                                         step="any"
-                                        value={
-                                          product.delivered_qty ??
-                                          product.quantity ??
-                                          1
-                                        }
+                                        value={product.delivered_qty ?? product.quantity ?? 1}
                                         onChange={(e) =>
-                                          updateProduct(
-                                            product.id,
-                                            "delivered_qty",
-                                            e.target.value,
-                                          )
+                                          updateProduct(product.id, "delivered_qty", e.target.value)
                                         }
                                         className="input-field h-9 text-sm"
                                       />
                                     </div>
                                     <div>
-                                      <Label className="text-xs text-muted-foreground">
-                                        Cost
-                                      </Label>
+                                      <Label className="text-xs text-muted-foreground">Cost</Label>
                                       <Input
                                         type="number"
                                         step="0.01"
@@ -604,9 +536,7 @@ const ReceiptImport = () => {
                                           updateProduct(
                                             product.id,
                                             "cost",
-                                            e.target.value
-                                              ? parseFloat(e.target.value)
-                                              : null,
+                                            e.target.value ? parseFloat(e.target.value) : null,
                                           )
                                         }
                                         className="input-field h-9 text-sm"
@@ -630,12 +560,8 @@ const ReceiptImport = () => {
                                     sell_uom: product.sell_uom || "each",
                                     pack_qty: product.pack_qty ?? 1,
                                     barcode: product.barcode || "",
-                                    department_id:
-                                      product.suggested_department || "",
-                                    quantity:
-                                      product.delivered_qty ??
-                                      product.quantity ??
-                                      1,
+                                    department_id: product.suggested_department || "",
+                                    quantity: product.delivered_qty ?? product.quantity ?? 1,
                                   }}
                                   onChange={(field, value) => {
                                     const mapped =
@@ -673,10 +599,8 @@ const ReceiptImport = () => {
 
                   <div className="p-4 bg-muted/80 rounded-xl border border-border">
                     <p className="text-sm text-muted-foreground">
-                      <strong>
-                        {editedProducts.filter((p) => p.selected).length}
-                      </strong>{" "}
-                      of {editedProducts.length} products selected for import
+                      <strong>{editedProducts.filter((p) => p.selected).length}</strong> of{" "}
+                      {editedProducts.length} products selected for import
                     </p>
                   </div>
 
@@ -711,15 +635,13 @@ const ReceiptImport = () => {
               Bulk import from CSV
             </h2>
             <p className="text-muted-foreground text-sm mb-4">
-              Supply Yard format: Product, SKU, Barcode, On hand, Reorder point,
-              Unit cost, Retail price, Department
+              Supply Yard format: Product, SKU, Barcode, On hand, Reorder point, Unit cost, Retail
+              price, Department
             </p>
 
             <div className="space-y-4">
               <div>
-                <Label className="text-muted-foreground font-medium text-sm">
-                  Department *
-                </Label>
+                <Label className="text-muted-foreground font-medium text-sm">Department *</Label>
                 <Select value={selectedDept} onValueChange={setSelectedDept}>
                   <SelectTrigger className="input-field mt-2">
                     <SelectValue placeholder="Select department" />
@@ -738,10 +660,7 @@ const ReceiptImport = () => {
                 <Label className="text-muted-foreground font-medium text-sm">
                   Vendor (optional)
                 </Label>
-                <Select
-                  value={selectedVendor}
-                  onValueChange={setSelectedVendor}
-                >
+                <Select value={selectedVendor} onValueChange={setSelectedVendor}>
                   <SelectTrigger className="input-field mt-2">
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
@@ -855,8 +774,7 @@ const ReceiptImport = () => {
               1
             </span>
             <p>
-              Upload a receipt, invoice, or PDF from any hardware store (Home
-              Depot, Lowes, etc.)
+              Upload a receipt, invoice, or PDF from any hardware store (Home Depot, Lowes, etc.)
             </p>
           </div>
           <div className="flex items-start gap-4">
@@ -864,17 +782,15 @@ const ReceiptImport = () => {
               2
             </span>
             <p>
-              <strong className="text-foreground">AI extracts</strong> vendor,
-              items, UOM, costs, and quantities
+              <strong className="text-foreground">AI extracts</strong> vendor, items, UOM, costs,
+              and quantities
             </p>
           </div>
           <div className="flex items-start gap-4">
             <span className="w-9 h-9 bg-success/15 text-success rounded-xl flex items-center justify-center font-semibold shrink-0">
               3
             </span>
-            <p>
-              Products get new SKUs in your system and are added to inventory
-            </p>
+            <p>Products get new SKUs in your system and are added to inventory</p>
           </div>
         </div>
       </div>

@@ -30,12 +30,7 @@ export function StackedBarChart({
       data: data.map((d) => d[def.key] ?? 0),
       itemStyle: {
         color: def.color,
-        borderRadius:
-          i === 0
-            ? [3, 0, 0, 3]
-            : i === seriesDefs.length - 1
-              ? [0, 3, 3, 0]
-              : 0,
+        borderRadius: i === 0 ? [3, 0, 0, 3] : i === seriesDefs.length - 1 ? [0, 3, 3, 0] : 0,
       },
       emphasis: {
         focus: "series",

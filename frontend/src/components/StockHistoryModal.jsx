@@ -1,9 +1,4 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -34,7 +29,9 @@ export function StockHistoryModal({ product, open, onOpenChange }) {
         <div className="flex-1 overflow-auto mt-4">
           {isLoading ? (
             <div className="space-y-2">
-              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
             </div>
           ) : history.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No transactions yet</p>
@@ -54,13 +51,22 @@ export function StockHistoryModal({ product, open, onOpenChange }) {
               <TableBody>
                 {history.map((tx) => (
                   <TableRow key={tx.id}>
-                    <TableCell className="text-sm">{tx.created_at ? format(new Date(tx.created_at), "MMM d, yyyy HH:mm") : "—"}</TableCell>
-                    <TableCell>{TX_TYPE_LABELS[tx.transaction_type] || tx.transaction_type}</TableCell>
-                    <TableCell className="text-right font-mono">{tx.quantity_delta > 0 ? "+" : ""}{tx.quantity_delta}</TableCell>
+                    <TableCell className="text-sm">
+                      {tx.created_at ? format(new Date(tx.created_at), "MMM d, yyyy HH:mm") : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {TX_TYPE_LABELS[tx.transaction_type] || tx.transaction_type}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {tx.quantity_delta > 0 ? "+" : ""}
+                      {tx.quantity_delta}
+                    </TableCell>
                     <TableCell className="text-right font-mono">{tx.quantity_before}</TableCell>
                     <TableCell className="text-right font-mono">{tx.quantity_after}</TableCell>
                     <TableCell className="text-sm">{tx.user_name || "—"}</TableCell>
-                    <TableCell className="text-sm font-mono text-muted-foreground">{tx.reference_id?.slice(0, 8) || tx.reason || "—"}</TableCell>
+                    <TableCell className="text-sm font-mono text-muted-foreground">
+                      {tx.reference_id?.slice(0, 8) || tx.reason || "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

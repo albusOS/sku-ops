@@ -12,11 +12,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
 import { GroupCombobox } from "@/components/GroupCombobox";
-import {
-  useProducts,
-  useDeleteProduct,
-  useAssignGroup,
-} from "@/hooks/useProducts";
+import { useProducts, useDeleteProduct, useAssignGroup } from "@/hooks/useProducts";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useVendors } from "@/hooks/useVendors";
 import { useViewController } from "@/hooks/useViewController";
@@ -51,8 +47,7 @@ const InventoryPage = () => {
   const { data: vendors = [] } = useVendors();
 
   const allProducts = useMemo(
-    () =>
-      productsData?.items ?? (Array.isArray(productsData) ? productsData : []),
+    () => productsData?.items ?? (Array.isArray(productsData) ? productsData : []),
     [productsData],
   );
   const loading = productsLoading || deptsLoading;
@@ -80,9 +75,7 @@ const InventoryPage = () => {
           <div>
             <p className="font-semibold">{row.name}</p>
             {row.original_sku && (
-              <p className="text-xs text-muted-foreground">
-                Orig: {row.original_sku}
-              </p>
+              <p className="text-xs text-muted-foreground">Orig: {row.original_sku}</p>
             )}
           </div>
         ),
@@ -134,9 +127,7 @@ const InventoryPage = () => {
               </span>
             )}
             {row.sell_uom === row.base_unit && (row.pack_qty || 1) > 1 && (
-              <span className="block text-xs text-muted-foreground">
-                ×{row.pack_qty}
-              </span>
+              <span className="block text-xs text-muted-foreground">×{row.pack_qty}</span>
             )}
           </span>
         ),
@@ -146,9 +137,7 @@ const InventoryPage = () => {
         label: "Price",
         type: "number",
         align: "right",
-        render: (row) => (
-          <span className="font-mono">${row.price.toFixed(2)}</span>
-        ),
+        render: (row) => <span className="font-mono">${row.price.toFixed(2)}</span>,
         exportValue: (row) => row.price.toFixed(2),
       },
       {
@@ -157,9 +146,7 @@ const InventoryPage = () => {
         type: "number",
         align: "right",
         render: (row) => (
-          <span className="font-mono text-muted-foreground">
-            ${(row.cost || 0).toFixed(2)}
-          </span>
+          <span className="font-mono text-muted-foreground">${(row.cost || 0).toFixed(2)}</span>
         ),
         exportValue: (row) => (row.cost || 0).toFixed(2),
       },
@@ -269,17 +256,12 @@ const InventoryPage = () => {
   const activeGroupFilter = view.filters?.product_group || null;
   const groupSummary = useMemo(() => {
     if (!activeGroupFilter) return null;
-    const grouped = allProducts.filter(
-      (p) => p.product_group === activeGroupFilter,
-    );
+    const grouped = allProducts.filter((p) => p.product_group === activeGroupFilter);
     return {
       name: activeGroupFilter,
       count: grouped.length,
       totalQty: grouped.reduce((sum, p) => sum + (p.quantity || 0), 0),
-      totalValue: grouped.reduce(
-        (sum, p) => sum + (p.price || 0) * (p.quantity || 0),
-        0,
-      ),
+      totalValue: grouped.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0),
     };
   }, [activeGroupFilter, allProducts]);
 
@@ -352,36 +334,22 @@ const InventoryPage = () => {
 
         {selectedIds.size > 0 && (
           <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-muted px-4 py-2.5">
-            <span className="text-sm font-medium">
-              {selectedIds.size} selected
-            </span>
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
             <div className="flex items-center gap-2 ml-auto">
               {bulkGroupOpen ? (
                 <div className="flex items-center gap-2">
                   <GroupCombobox value="" onChange={handleBulkAssign} compact />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setBulkGroupOpen(false)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setBulkGroupOpen(false)}>
                     Cancel
                   </Button>
                 </div>
               ) : (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBulkGroupOpen(true)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setBulkGroupOpen(true)}>
                     <Layers className="w-3.5 h-3.5 mr-1.5" />
                     Assign Group
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleBulkAssign("")}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleBulkAssign("")}>
                     <X className="w-3.5 h-3.5 mr-1.5" />
                     Remove Group
                   </Button>

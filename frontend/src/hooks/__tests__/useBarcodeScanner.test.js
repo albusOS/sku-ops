@@ -60,7 +60,9 @@ describe("useBarcodeScanner", () => {
 
   it("calls onNotFound with barcode when product is not in DB", async () => {
     api.products.byBarcode.mockRejectedValue({
-      response: { data: { detail: { code: "not_found", barcode: "HDW-ITM-999999" } } },
+      response: {
+        data: { detail: { code: "not_found", barcode: "HDW-ITM-999999" } },
+      },
     });
     const handlers = makeHandlers();
     const { result } = renderHook(() => useBarcodeScanner(handlers));
@@ -69,14 +71,20 @@ describe("useBarcodeScanner", () => {
       await result.current.submit("HDW-ITM-999999");
     });
 
-    expect(handlers.onNotFound).toHaveBeenCalledWith({ barcode: "HDW-ITM-999999" });
+    expect(handlers.onNotFound).toHaveBeenCalledWith({
+      barcode: "HDW-ITM-999999",
+    });
     expect(handlers.onSuccess).not.toHaveBeenCalled();
     expect(result.current.value).toBe("");
   });
 
   it("calls onInvalidCheckDigit when backend returns invalid_check_digit", async () => {
     api.products.byBarcode.mockRejectedValue({
-      response: { data: { detail: { code: "invalid_check_digit", barcode: "042100005265" } } },
+      response: {
+        data: {
+          detail: { code: "invalid_check_digit", barcode: "042100005265" },
+        },
+      },
     });
     const handlers = makeHandlers();
     const { result } = renderHook(() => useBarcodeScanner(handlers));
@@ -100,12 +108,20 @@ describe("useBarcodeScanner", () => {
     await act(async () => {
       result.current.setValue("HDW-ITM-000001");
       // Non-Enter key — should not trigger submit
-      result.current.onKeyDown({ key: "a", target: { value: "HDW-ITM-000001" }, preventDefault });
+      result.current.onKeyDown({
+        key: "a",
+        target: { value: "HDW-ITM-000001" },
+        preventDefault,
+      });
     });
     expect(handlers.onSuccess).not.toHaveBeenCalled();
 
     await act(async () => {
-      result.current.onKeyDown({ key: "Enter", target: { value: "HDW-ITM-000001" }, preventDefault });
+      result.current.onKeyDown({
+        key: "Enter",
+        target: { value: "HDW-ITM-000001" },
+        preventDefault,
+      });
     });
     expect(preventDefault).toHaveBeenCalled();
     expect(handlers.onSuccess).toHaveBeenCalledWith(PRODUCT);

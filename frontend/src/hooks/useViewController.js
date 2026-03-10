@@ -62,7 +62,7 @@ export function useViewController({ columns }) {
 
   const visibleColumns = useMemo(
     () => columns.filter((c) => !hiddenColumns.has(c.key)),
-    [columns, hiddenColumns]
+    [columns, hiddenColumns],
   );
 
   const apply = useCallback(
@@ -72,15 +72,13 @@ export function useViewController({ columns }) {
 
       if (search.trim()) {
         const q = search.toLowerCase().trim();
-        const searchKeys = columns
-          .filter((c) => c.searchable !== false)
-          .map((c) => c.key);
+        const searchKeys = columns.filter((c) => c.searchable !== false).map((c) => c.key);
         result = result.filter((row) =>
           searchKeys.some((key) =>
             String(row[key] ?? "")
               .toLowerCase()
-              .includes(q)
-          )
+              .includes(q),
+          ),
         );
       }
 
@@ -88,9 +86,7 @@ export function useViewController({ columns }) {
         const col = columns.find((c) => c.key === key);
         if (!col) continue;
         result = result.filter((row) => {
-          const rv = col.filterAccessor
-            ? col.filterAccessor(row)
-            : row[key];
+          const rv = col.filterAccessor ? col.filterAccessor(row) : row[key];
           return String(rv ?? "") === value;
         });
       }
@@ -98,12 +94,8 @@ export function useViewController({ columns }) {
       if (sortBy) {
         const col = columns.find((c) => c.key === sortBy);
         result = [...result].sort((a, b) => {
-          const va = col?.filterAccessor
-            ? col.filterAccessor(a)
-            : a[sortBy];
-          const vb = col?.filterAccessor
-            ? col.filterAccessor(b)
-            : b[sortBy];
+          const va = col?.filterAccessor ? col.filterAccessor(a) : a[sortBy];
+          const vb = col?.filterAccessor ? col.filterAccessor(b) : b[sortBy];
           const cmp = compareValues(va, vb);
           return sortDir === "asc" ? cmp : -cmp;
         });
@@ -111,11 +103,10 @@ export function useViewController({ columns }) {
 
       return result;
     },
-    [search, filters, sortBy, sortDir, columns]
+    [search, filters, sortBy, sortDir, columns],
   );
 
-  const hasActiveFilters =
-    Object.keys(filters).length > 0 || search.trim() !== "";
+  const hasActiveFilters = Object.keys(filters).length > 0 || search.trim() !== "";
 
   return {
     search,

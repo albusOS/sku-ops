@@ -11,15 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DetailPanel,
-  DetailSection,
-  DetailField,
-} from "@/components/DetailPanel";
-import {
-  useBillingEntity,
-  useUpdateBillingEntity,
-} from "@/hooks/useBillingEntities";
+import { DetailPanel, DetailSection, DetailField } from "@/components/DetailPanel";
+import { useBillingEntity, useUpdateBillingEntity } from "@/hooks/useBillingEntities";
 
 export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
   const { data: entity, isLoading } = useBillingEntity(entityId);
@@ -60,11 +53,7 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
       actions={
         editing ? (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditing(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
               Cancel
             </Button>
             <Button
@@ -88,46 +77,32 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
         <DetailSection label="Details">
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground">
-                Contact Name
-              </label>
+              <label className="text-xs text-muted-foreground">Contact Name</label>
               <Input
                 value={form.contact_name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, contact_name: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">
-                Contact Email
-              </label>
+              <label className="text-xs text-muted-foreground">Contact Email</label>
               <Input
                 type="email"
                 value={form.contact_email}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, contact_email: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">
-                Billing Address
-              </label>
+              <label className="text-xs text-muted-foreground">Billing Address</label>
               <Input
                 value={form.billing_address}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, billing_address: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, billing_address: e.target.value }))}
                 className="mt-1"
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">
-                Payment Terms
-              </label>
+              <label className="text-xs text-muted-foreground">Payment Terms</label>
               <Select
                 value={form.payment_terms || "none"}
                 onValueChange={(v) =>
@@ -152,14 +127,10 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
               </Select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">
-                Xero Contact ID
-              </label>
+              <label className="text-xs text-muted-foreground">Xero Contact ID</label>
               <Input
                 value={form.xero_contact_id}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, xero_contact_id: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, xero_contact_id: e.target.value }))}
                 className="mt-1"
                 placeholder="Optional"
               />
@@ -174,9 +145,7 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
                 <p className="text-xs text-muted-foreground">Contact Name</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <User className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-sm text-foreground">
-                    {entity?.contact_name || "—"}
-                  </span>
+                  <span className="text-sm text-foreground">{entity?.contact_name || "—"}</span>
                 </div>
               </div>
               <div>
@@ -200,10 +169,7 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
 
           <DetailSection label="Billing">
             <div className="grid grid-cols-2 gap-4">
-              <DetailField
-                label="Billing Address"
-                value={entity?.billing_address}
-              />
+              <DetailField label="Billing Address" value={entity?.billing_address} />
               <div>
                 <p className="text-xs text-muted-foreground">Payment Terms</p>
                 <div className="flex items-center gap-2 mt-0.5">
@@ -218,11 +184,7 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
 
           {entity?.xero_contact_id && (
             <DetailSection label="Integrations">
-              <DetailField
-                label="Xero Contact ID"
-                value={entity.xero_contact_id}
-                mono
-              />
+              <DetailField label="Xero Contact ID" value={entity.xero_contact_id} mono />
             </DetailSection>
           )}
 

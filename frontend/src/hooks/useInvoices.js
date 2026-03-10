@@ -3,9 +3,16 @@ import api from "@/lib/api-client";
 import { createEntityHooks } from "./useEntityHooks";
 import { keys } from "./queryKeys";
 
-const { useList, useDetail, useCreate, useUpdate, useDelete } = createEntityHooks("invoices", api.invoices);
+const { useList, useDetail, useCreate, useUpdate, useDelete } = createEntityHooks(
+  "invoices",
+  api.invoices,
+);
 
-export { useCreate as useCreateInvoice, useUpdate as useUpdateInvoice, useDelete as useDeleteInvoice };
+export {
+  useCreate as useCreateInvoice,
+  useUpdate as useUpdateInvoice,
+  useDelete as useDeleteInvoice,
+};
 
 export function useInvoices(params) {
   return useList(params);

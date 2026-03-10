@@ -7,7 +7,7 @@ export function AuthLayout({ children, testId, wide = false }) {
       data-testid={testId}
     >
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-accent/10 via-transparent to-transparent" />
-        <div className={`w-full relative ${wide ? "max-w-3xl" : "max-w-md"}`}>
+      <div className={`w-full relative ${wide ? "max-w-3xl" : "max-w-md"}`}>
         <div className="text-center mb-10">
           <div className="w-14 h-14 bg-gradient-to-br from-accent-gradient-from to-accent-gradient-to rounded-xl mx-auto flex items-center justify-center mb-5 shadow-soft">
             <Wrench className="w-7 h-7 text-accent-foreground" />

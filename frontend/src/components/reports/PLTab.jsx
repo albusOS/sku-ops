@@ -1,7 +1,14 @@
 import { useState, useMemo, useCallback } from "react";
 import {
-  TrendingUp, DollarSign, Layers, Package, Briefcase, Receipt,
-  ChevronDown, ChevronRight, X,
+  TrendingUp,
+  DollarSign,
+  Layers,
+  Package,
+  Briefcase,
+  Receipt,
+  ChevronDown,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import { valueFormatter } from "@/lib/chartConfig";
 import { themeColors } from "@/lib/chartTheme";
@@ -14,7 +21,9 @@ import { Panel, SectionHead as SectionHeadBase } from "@/components/Panel";
 import { PL_DIMENSIONS, PLBreakdownTable, ARAgingTable, PLStatement } from "./ReportHelpers";
 
 const Stat = StatCard;
-const SectionHead = ({ title, action }) => <SectionHeadBase title={title} action={action} variant="report" />;
+const SectionHead = ({ title, action }) => (
+  <SectionHeadBase title={title} action={action} variant="report" />
+);
 
 export function PLTab({ reportFilters, dateParams }) {
   const t = themeColors();
@@ -27,7 +36,13 @@ export function PLTab({ reportFilters, dateParams }) {
   const [selectedEntity, setSelectedEntity] = useState(null);
 
   const activeDrillLabel = selectedJobId || selectedDepartment || selectedEntity || null;
-  const activeDrillDimension = selectedJobId ? "Job" : selectedDepartment ? "Department" : selectedEntity ? "Entity" : null;
+  const activeDrillDimension = selectedJobId
+    ? "Job"
+    : selectedDepartment
+      ? "Department"
+      : selectedEntity
+        ? "Entity"
+        : null;
 
   const clearDrill = useCallback(() => {
     setSelectedJobId(null);
@@ -35,29 +50,46 @@ export function PLTab({ reportFilters, dateParams }) {
     setSelectedEntity(null);
   }, []);
 
-  const handleDimensionChange = useCallback((dim) => {
-    setPlDimension(dim);
-    clearDrill();
-  }, [clearDrill]);
+  const handleDimensionChange = useCallback(
+    (dim) => {
+      setPlDimension(dim);
+      clearDrill();
+    },
+    [clearDrill],
+  );
 
-  const drillFilters = useMemo(() => ({
-    ...reportFilters,
-    job_id: selectedJobId || reportFilters.job_id,
-    department: selectedDepartment || reportFilters.department,
-    billing_entity: selectedEntity || reportFilters.billing_entity,
-  }), [reportFilters, selectedJobId, selectedDepartment, selectedEntity]);
+  const drillFilters = useMemo(
+    () => ({
+      ...reportFilters,
+      job_id: selectedJobId || reportFilters.job_id,
+      department: selectedDepartment || reportFilters.department,
+      billing_entity: selectedEntity || reportFilters.billing_entity,
+    }),
+    [reportFilters, selectedJobId, selectedDepartment, selectedEntity],
+  );
 
-  const plParams = useMemo(() => ({ ...drillFilters, group_by: plDimension }), [drillFilters, plDimension]);
+  const plParams = useMemo(
+    () => ({ ...drillFilters, group_by: plDimension }),
+    [drillFilters, plDimension],
+  );
   const { data: plData } = useReportPL(plParams);
-  const { data: trendsReport } = useReportTrends({ ...drillFilters, group_by: trendsGroupBy });
+  const { data: trendsReport } = useReportTrends({
+    ...drillFilters,
+    group_by: trendsGroupBy,
+  });
   const { data: kpis } = useReportKpis(drillFilters);
   const { data: arAging } = useReportArAging(dateParams);
 
-  const handleRowDrill = useCallback((row) => {
-    if (plDimension === "job" && row.job_id) setSelectedJobId(row.job_id);
-    else if (plDimension === "department" && row.department) setSelectedDepartment(row.department);
-    else if (plDimension === "entity" && row.billing_entity) setSelectedEntity(row.billing_entity);
-  }, [plDimension]);
+  const handleRowDrill = useCallback(
+    (row) => {
+      if (plDimension === "job" && row.job_id) setSelectedJobId(row.job_id);
+      else if (plDimension === "department" && row.department)
+        setSelectedDepartment(row.department);
+      else if (plDimension === "entity" && row.billing_entity)
+        setSelectedEntity(row.billing_entity);
+    },
+    [plDimension],
+  );
 
   const waterfallItems = useMemo(() => {
     if (!plData?.summary) return [];
@@ -65,13 +97,28 @@ export function PLTab({ reportFilters, dateParams }) {
     const items = [{ label: "Revenue", value: s.revenue || 0, type: "total" }];
     if (s.cogs) items.push({ label: "COGS", value: -(s.cogs || 0), type: "decrease" });
     if (plDimension === "overall" && !activeDrillLabel) {
-      if (s.shrinkage) items.push({ label: "Shrinkage", value: -(s.shrinkage || 0), type: "decrease" });
-      if (s.tax_collected) items.push({ label: "Tax", value: -(s.tax_collected || 0), type: "decrease" });
+      if (s.shrinkage)
+        items.push({
+          label: "Shrinkage",
+          value: -(s.shrinkage || 0),
+          type: "decrease",
+        });
+      if (s.tax_collected)
+        items.push({
+          label: "Tax",
+          value: -(s.tax_collected || 0),
+          type: "decrease",
+        });
     }
-    const net = (plDimension === "overall" && !activeDrillLabel)
-      ? (s.revenue || 0) - (s.cogs || 0) - (s.shrinkage || 0) - (s.tax_collected || 0)
-      : s.gross_profit || ((s.revenue || 0) - (s.cogs || 0));
-    items.push({ label: (plDimension === "overall" && !activeDrillLabel) ? "Net Profit" : "Gross Profit", value: net, type: "total" });
+    const net =
+      plDimension === "overall" && !activeDrillLabel
+        ? (s.revenue || 0) - (s.cogs || 0) - (s.shrinkage || 0) - (s.tax_collected || 0)
+        : s.gross_profit || (s.revenue || 0) - (s.cogs || 0);
+    items.push({
+      label: plDimension === "overall" && !activeDrillLabel ? "Net Profit" : "Gross Profit",
+      value: net,
+      type: "total",
+    });
     return items;
   }, [plData, plDimension, activeDrillLabel]);
 
@@ -82,16 +129,26 @@ export function PLTab({ reportFilters, dateParams }) {
     <div className="space-y-6">
       {/* Dimension selector */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">View</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+          View
+        </span>
         <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
           {PL_DIMENSIONS.map((d) => (
-            <button key={d.value} onClick={() => handleDimensionChange(d.value)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all ${plDimension === d.value ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`} data-testid={`pl-dim-${d.value}`}>
+            <button
+              key={d.value}
+              onClick={() => handleDimensionChange(d.value)}
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all ${plDimension === d.value ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              data-testid={`pl-dim-${d.value}`}
+            >
               {d.label}
             </button>
           ))}
         </div>
         {activeDrillLabel && (
-          <button onClick={clearDrill} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition-colors">
+          <button
+            onClick={clearDrill}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition-colors"
+          >
             {activeDrillDimension}: {activeDrillLabel}
             <X className="w-3 h-3" />
           </button>
@@ -120,13 +177,40 @@ export function PLTab({ reportFilters, dateParams }) {
       {(plDimension === "overall" || activeDrillLabel) && plData?.summary && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Revenue" value={valueFormatter(plData.summary.revenue)} icon={DollarSign} accent="blue" />
-            <Stat label="COGS" value={valueFormatter(plData.summary.cogs)} icon={DollarSign} accent="orange" />
-            <Stat label="Gross Profit" value={valueFormatter(plData.summary.gross_profit)} icon={TrendingUp} accent="emerald" note={`${plData.summary.margin_pct}% margin`} />
-            {plData.summary.tax_collected != null && plData.summary.tax_collected > 0
-              ? <Stat label="Tax Collected" value={valueFormatter(plData.summary.tax_collected)} icon={Receipt} accent="slate" />
-              : <Stat label="Margin" value={`${plData.summary.margin_pct}%`} icon={TrendingUp} accent="violet" />
-            }
+            <Stat
+              label="Revenue"
+              value={valueFormatter(plData.summary.revenue)}
+              icon={DollarSign}
+              accent="blue"
+            />
+            <Stat
+              label="COGS"
+              value={valueFormatter(plData.summary.cogs)}
+              icon={DollarSign}
+              accent="orange"
+            />
+            <Stat
+              label="Gross Profit"
+              value={valueFormatter(plData.summary.gross_profit)}
+              icon={TrendingUp}
+              accent="emerald"
+              note={`${plData.summary.margin_pct}% margin`}
+            />
+            {plData.summary.tax_collected != null && plData.summary.tax_collected > 0 ? (
+              <Stat
+                label="Tax Collected"
+                value={valueFormatter(plData.summary.tax_collected)}
+                icon={Receipt}
+                accent="slate"
+              />
+            ) : (
+              <Stat
+                label="Margin"
+                value={`${plData.summary.margin_pct}%`}
+                icon={TrendingUp}
+                accent="violet"
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -134,7 +218,15 @@ export function PLTab({ reportFilters, dateParams }) {
             {waterfallItems.length > 0 && (
               <Panel>
                 <SectionHead title="P&L Waterfall" />
-                <ChartExplainer title="Waterfall Chart" bullets={["Starts with total Revenue on the left", "Each red bar shows a deduction dropping from the running total", "The final bar shows what's left after all deductions", "Taller red bars mean bigger cost drains to investigate"]}>
+                <ChartExplainer
+                  title="Waterfall Chart"
+                  bullets={[
+                    "Starts with total Revenue on the left",
+                    "Each red bar shows a deduction dropping from the running total",
+                    "The final bar shows what's left after all deductions",
+                    "Taller red bars mean bigger cost drains to investigate",
+                  ]}
+                >
                   <WaterfallChart items={waterfallItems} height={260} />
                 </ChartExplainer>
               </Panel>
@@ -146,13 +238,26 @@ export function PLTab({ reportFilters, dateParams }) {
       {/* Revenue, Cost & Profit time-series */}
       {trendsReport?.series?.length > 0 && (
         <Panel>
-          <SectionHead title={activeDrillLabel ? `Revenue, Cost & Profit — ${activeDrillLabel}` : "Revenue, Cost & Profit Over Time"} action={
-            <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
-              {["day", "week", "month"].map((g) => (
-                <button key={g} onClick={() => setTrendsGroupBy(g)} className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all ${trendsGroupBy === g ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{g.charAt(0).toUpperCase() + g.slice(1)}</button>
-              ))}
-            </div>
-          } />
+          <SectionHead
+            title={
+              activeDrillLabel
+                ? `Revenue, Cost & Profit — ${activeDrillLabel}`
+                : "Revenue, Cost & Profit Over Time"
+            }
+            action={
+              <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
+                {["day", "week", "month"].map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setTrendsGroupBy(g)}
+                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all ${trendsGroupBy === g ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                  </button>
+                ))}
+              </div>
+            }
+          />
           <MultiLineChart
             data={trendsReport.series}
             xKey="date"
@@ -171,19 +276,45 @@ export function PLTab({ reportFilters, dateParams }) {
       {/* KPI metrics — overall only */}
       {plDimension === "overall" && !activeDrillLabel && kpis && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Stat label="Inventory Turnover" value={`${kpis.inventory_turnover}×`} icon={Layers} accent="blue" note={`${kpis.period_days} day period`} />
-          <Stat label="Days in Inventory" value={`${kpis.dio} days`} icon={Package} accent="slate" />
-          <Stat label="Avg Transaction" value={valueFormatter(kpis.total_revenue / Math.max(kpis.total_units_sold, 1))} icon={DollarSign} accent="violet" note={`${kpis.total_units_sold} units sold`} />
+          <Stat
+            label="Inventory Turnover"
+            value={`${kpis.inventory_turnover}×`}
+            icon={Layers}
+            accent="blue"
+            note={`${kpis.period_days} day period`}
+          />
+          <Stat
+            label="Days in Inventory"
+            value={`${kpis.dio} days`}
+            icon={Package}
+            accent="slate"
+          />
+          <Stat
+            label="Avg Transaction"
+            value={valueFormatter(kpis.total_revenue / Math.max(kpis.total_units_sold, 1))}
+            icon={DollarSign}
+            accent="violet"
+            note={`${kpis.total_units_sold} units sold`}
+          />
         </div>
       )}
 
       {/* AR Aging */}
       {arAging?.length > 0 && (
         <div>
-          <button onClick={() => setArAgingOpen(!arAgingOpen)} className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-foreground mb-3">
-            {arAgingOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          <button
+            onClick={() => setArAgingOpen(!arAgingOpen)}
+            className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-foreground mb-3"
+          >
+            {arAgingOpen ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
             Accounts Receivable Aging
-            <span className="text-xs font-normal text-muted-foreground">({arAging.length} entities)</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              ({arAging.length} entities)
+            </span>
           </button>
           {arAgingOpen && <ARAgingTable data={arAging} />}
         </div>

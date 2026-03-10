@@ -2,12 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sparkles, ChevronDown } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-client";
@@ -32,13 +27,18 @@ const INITIAL_FORM = {
 };
 
 const ADVANCED_FIELDS = new Set([
-  "description", "cost", "min_stock", "vendor_id",
-  "base_unit", "sell_uom", "pack_qty", "product_group", "barcode",
+  "description",
+  "cost",
+  "min_stock",
+  "vendor_id",
+  "base_unit",
+  "sell_uom",
+  "pack_qty",
+  "product_group",
+  "barcode",
 ]);
 
-const ESSENTIAL_FIELDS = new Set([
-  "name", "department_id", "price", "quantity",
-]);
+const ESSENTIAL_FIELDS = new Set(["name", "department_id", "price", "quantity"]);
 
 export function ProductFormDialog({
   open,
@@ -99,28 +99,31 @@ export function ProductFormDialog({
     };
   }, []);
 
-  const handleNameChange = useCallback((v) => {
-    setForm((f) => ({ ...f, name: v }));
-    if (suggestTimeout.current) clearTimeout(suggestTimeout.current);
-    if (!editingProduct && v.trim().length >= 3) {
-      suggestTimeout.current = setTimeout(() => {
-        suggestMutation.mutate(
-          { name: v.trim() },
-          {
-            onSuccess: (data) => {
-              setForm((f) => ({
-                ...f,
-                base_unit: data.base_unit || "each",
-                sell_uom: data.sell_uom || "each",
-                pack_qty: String(data.pack_qty ?? 1),
-              }));
+  const handleNameChange = useCallback(
+    (v) => {
+      setForm((f) => ({ ...f, name: v }));
+      if (suggestTimeout.current) clearTimeout(suggestTimeout.current);
+      if (!editingProduct && v.trim().length >= 3) {
+        suggestTimeout.current = setTimeout(() => {
+          suggestMutation.mutate(
+            { name: v.trim() },
+            {
+              onSuccess: (data) => {
+                setForm((f) => ({
+                  ...f,
+                  base_unit: data.base_unit || "each",
+                  sell_uom: data.sell_uom || "each",
+                  pack_qty: String(data.pack_qty ?? 1),
+                }));
+              },
             },
-          }
-        );
-        suggestTimeout.current = null;
-      }, 600);
-    }
-  }, [editingProduct, suggestMutation]);
+          );
+          suggestTimeout.current = null;
+        }, 600);
+      }
+    },
+    [editingProduct, suggestMutation],
+  );
 
   const suggestUnit = useCallback(() => {
     if (!form.name?.trim()) {
@@ -128,7 +131,10 @@ export function ProductFormDialog({
       return;
     }
     suggestMutation.mutate(
-      { name: form.name.trim(), description: form.description?.trim() || undefined },
+      {
+        name: form.name.trim(),
+        description: form.description?.trim() || undefined,
+      },
       {
         onSuccess: (data) => {
           setForm((f) => ({
@@ -140,21 +146,27 @@ export function ProductFormDialog({
           toast.success("Unit suggested");
         },
         onError: (err) => toast.error(getErrorMessage(err)),
-      }
+      },
     );
   }, [form.name, form.description, suggestMutation]);
 
   const handleFieldChange = useCallback(
     (name, value) => {
-      if (name === "name") { handleNameChange(value); return; }
+      if (name === "name") {
+        handleNameChange(value);
+        return;
+      }
       setForm((f) => ({ ...f, [name]: value }));
     },
     [handleNameChange],
   );
 
   const hasAdvancedValues =
-    !!form.description || !!form.cost || !!form.vendor_id ||
-    !!form.barcode || !!form.product_group ||
+    !!form.description ||
+    !!form.cost ||
+    !!form.vendor_id ||
+    !!form.barcode ||
+    !!form.product_group ||
     (form.base_unit && form.base_unit !== "each") ||
     (form.sell_uom && form.sell_uom !== "each") ||
     (form.pack_qty && form.pack_qty !== "1") ||
@@ -198,7 +210,9 @@ export function ProductFormDialog({
 
     mutation.mutate(mutationArg, {
       onSuccess: (result) => {
-        toast.success(editingProduct ? "Product updated!" : `Product created with SKU ${result?.sku ?? ""}`);
+        toast.success(
+          editingProduct ? "Product updated!" : `Product created with SKU ${result?.sku ?? ""}`,
+        );
         onOpenChange(false);
       },
       onError: (err) => toast.error(getErrorMessage(err)),
@@ -215,19 +229,29 @@ export function ProductFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className={`rounded-lg px-4 py-3 ${editingProduct ? "bg-warning/10 border border-warning/30" : "bg-muted border border-border"}`}>
+          <div
+            className={`rounded-lg px-4 py-3 ${editingProduct ? "bg-warning/10 border border-warning/30" : "bg-muted border border-border"}`}
+          >
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SKU</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                SKU
+              </p>
               {editingProduct && (
-                <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Cannot be changed</span>
+                <span className="text-[10px] font-medium text-accent uppercase tracking-wider">
+                  Cannot be changed
+                </span>
               )}
             </div>
             {editingProduct ? (
-              <p className="font-mono text-lg font-semibold text-foreground">{editingProduct.sku}</p>
+              <p className="font-mono text-lg font-semibold text-foreground">
+                {editingProduct.sku}
+              </p>
             ) : skuPreview ? (
               <p className="font-mono text-lg font-semibold text-foreground">
                 {skuPreview}
-                <span className="text-xs font-normal text-muted-foreground ml-2">(assigned on save)</span>
+                <span className="text-xs font-normal text-muted-foreground ml-2">
+                  (assigned on save)
+                </span>
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">Select a department to see SKU</p>
@@ -250,7 +274,9 @@ export function ProductFormDialog({
                 type="button"
                 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
               >
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? "rotate-0" : "-rotate-90"}`} />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? "rotate-0" : "-rotate-90"}`}
+                />
                 Advanced fields
                 {!advancedOpen && hasAdvancedValues && (
                   <span className="w-1.5 h-1.5 rounded-full bg-accent ml-1" />
@@ -286,10 +312,21 @@ export function ProductFormDialog({
           </Collapsible>
 
           <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 btn-secondary h-12" data-testid="product-cancel-btn">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="flex-1 btn-secondary h-12"
+              data-testid="product-cancel-btn"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving} className="flex-1 btn-primary h-12" data-testid="product-save-btn">
+            <Button
+              type="submit"
+              disabled={saving}
+              className="flex-1 btn-primary h-12"
+              data-testid="product-save-btn"
+            >
               {saving ? "Saving..." : editingProduct ? "Update Product" : "Create Product"}
             </Button>
           </div>

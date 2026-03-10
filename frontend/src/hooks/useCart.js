@@ -10,7 +10,9 @@ function loadPersistedCart() {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
-  } catch { /* corrupted data — start fresh */ }
+  } catch {
+    /* corrupted data — start fresh */
+  }
   return [];
 }
 
@@ -42,9 +44,7 @@ export function useCart({ getPrice, persist = false } = {}) {
         return;
       }
       setItems((prev) =>
-        prev.map((i) =>
-          i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i
-        )
+        prev.map((i) => (i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i)),
       );
     } else {
       setItems((prev) => [
@@ -74,7 +74,7 @@ export function useCart({ getPrice, persist = false } = {}) {
           }
           return { ...item, quantity: newQty };
         })
-        .filter(Boolean)
+        .filter(Boolean),
     );
   }
 
@@ -96,11 +96,19 @@ export function useCart({ getPrice, persist = false } = {}) {
         if (!fresh) return item;
         const newMax = fresh.sell_quantity ?? fresh.quantity;
         return { ...item, max_quantity: newMax };
-      })
+      }),
     );
   }, []);
 
   const total = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
 
-  return { items, addItem, updateQuantity, removeItem, clear, syncStock, total };
+  return {
+    items,
+    addItem,
+    updateQuantity,
+    removeItem,
+    clear,
+    syncStock,
+    total,
+  };
 }

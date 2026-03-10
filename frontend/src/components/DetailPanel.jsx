@@ -41,10 +41,7 @@ export function DetailPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className={`${widthClass} w-full p-0 flex flex-col`}
-      >
+      <SheetContent side="right" className={`${widthClass} w-full p-0 flex flex-col`}>
         <div className="px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 min-w-0">
@@ -111,9 +108,7 @@ export function DetailField({ label, value, mono = false, className = "" }) {
   return (
     <div className={className}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={`text-sm text-foreground mt-0.5 ${mono ? "font-mono tabular-nums" : ""}`}
-      >
+      <p className={`text-sm text-foreground mt-0.5 ${mono ? "font-mono tabular-nums" : ""}`}>
         {value || "—"}
       </p>
     </div>

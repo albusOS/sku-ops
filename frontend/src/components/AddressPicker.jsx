@@ -8,7 +8,12 @@ import { toast } from "sonner";
  * Autocomplete combobox for selecting or creating addresses.
  * @param {{ value: string, onChange: (text: string) => void, placeholder?: string, required?: boolean }} props
  */
-export function AddressPicker({ value, onChange, placeholder = "Where are these going?", required = false }) {
+export function AddressPicker({
+  value,
+  onChange,
+  placeholder = "Where are these going?",
+  required = false,
+}) {
   const [query, setQuery] = useState(value || "");
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -45,7 +50,10 @@ export function AddressPicker({ value, onChange, placeholder = "Where are these 
     const text = query.trim();
     if (!text) return;
     try {
-      await createAddress.mutateAsync({ line1: text, label: text.slice(0, 80) });
+      await createAddress.mutateAsync({
+        line1: text,
+        label: text.slice(0, 80),
+      });
       toast.success("Address saved");
       select(text);
     } catch {
@@ -53,7 +61,9 @@ export function AddressPicker({ value, onChange, placeholder = "Where are these 
     }
   };
 
-  const exactMatch = results.some((a) => (a.line1 || "").toLowerCase() === query.trim().toLowerCase());
+  const exactMatch = results.some(
+    (a) => (a.line1 || "").toLowerCase() === query.trim().toLowerCase(),
+  );
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -82,9 +92,14 @@ export function AddressPicker({ value, onChange, placeholder = "Where are these 
                 <MapPin className="w-4 h-4 text-muted-foreground/60 shrink-0" />
               )}
               <div className="min-w-0">
-                <span className="text-sm font-medium text-foreground">{addr.label || addr.line1}</span>
+                <span className="text-sm font-medium text-foreground">
+                  {addr.label || addr.line1}
+                </span>
                 {addr.city && (
-                  <span className="text-xs text-muted-foreground ml-2">{addr.city}{addr.state ? `, ${addr.state}` : ""}</span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {addr.city}
+                    {addr.state ? `, ${addr.state}` : ""}
+                  </span>
                 )}
               </div>
             </button>
@@ -96,7 +111,13 @@ export function AddressPicker({ value, onChange, placeholder = "Where are these 
               className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-success/10 text-left text-success"
             >
               <Plus className="w-4 h-4 shrink-0" />
-              <span className="text-sm">Save <strong>{query.trim().slice(0, 40)}{query.trim().length > 40 ? "..." : ""}</strong></span>
+              <span className="text-sm">
+                Save{" "}
+                <strong>
+                  {query.trim().slice(0, 40)}
+                  {query.trim().length > 40 ? "..." : ""}
+                </strong>
+              </span>
             </button>
           )}
         </div>

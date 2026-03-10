@@ -38,7 +38,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-muted flex items-center justify-center">
-        <div className="text-muted-foreground font-heading text-xl uppercase tracking-wider">Loading...</div>
+        <div className="text-muted-foreground font-heading text-xl uppercase tracking-wider">
+          Loading...
+        </div>
       </div>
     );
   }
@@ -69,31 +71,182 @@ function App() {
                     <RealtimeSync />
                     <Layout>
                       <ErrorBoundary>
-                        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center"><div className="text-muted-foreground font-heading text-sm uppercase tracking-wider">Loading...</div></div>}>
-                        <Routes>
-                          <Route path="/" element={<Dashboard />} />
-                          <Route path="/pos" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><POS /></ProtectedRoute>} />
-                          <Route path="/request-materials" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}><RequestMaterials /></ProtectedRoute>} />
-                          <Route path="/scan" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR, ROLES.ADMIN]}><ScanModePage /></ProtectedRoute>} />
-                          <Route path="/pending-requests" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PendingRequests /></ProtectedRoute>} />
-                          <Route path="/inventory" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Inventory /></ProtectedRoute>} />
-                          <Route path="/cycle-counts" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><CycleCountsPage /></ProtectedRoute>} />
-                          <Route path="/cycle-counts/:countId" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><CycleCountDetailPage /></ProtectedRoute>} />
-                          <Route path="/vendors" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Vendors /></ProtectedRoute>} />
-                          <Route path="/departments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Departments /></ProtectedRoute>} />
-                          <Route path="/import" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><ReceiptImport /></ProtectedRoute>} />
-                          <Route path="/purchase-orders" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PurchaseOrders /></ProtectedRoute>} />
-                          <Route path="/reports" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Reports /></ProtectedRoute>} />
-                          <Route path="/contractors" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Contractors /></ProtectedRoute>} />
-                          <Route path="/jobs" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Jobs /></ProtectedRoute>} />
-                          <Route path="/financials" element={<Navigate to="/reports" replace />} />
-                          <Route path="/invoices" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Invoices /></ProtectedRoute>} />
-                          <Route path="/payments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Payments /></ProtectedRoute>} />
-                          <Route path="/billing-entities" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><BillingEntities /></ProtectedRoute>} />
-                          <Route path="/xero-health" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><XeroHealthPage /></ProtectedRoute>} />
-                          <Route path="/settings" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><SettingsPage /></ProtectedRoute>} />
-                          <Route path="/my-history" element={<ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}><MyHistory /></ProtectedRoute>} />
-                        </Routes>
+                        <Suspense
+                          fallback={
+                            <div className="min-h-[50vh] flex items-center justify-center">
+                              <div className="text-muted-foreground font-heading text-sm uppercase tracking-wider">
+                                Loading...
+                              </div>
+                            </div>
+                          }
+                        >
+                          <Routes>
+                            <Route path="/" element={<Dashboard />} />
+                            <Route
+                              path="/pos"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <POS />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/request-materials"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}>
+                                  <RequestMaterials />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/scan"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.CONTRACTOR, ROLES.ADMIN]}>
+                                  <ScanModePage />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/pending-requests"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <PendingRequests />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/inventory"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Inventory />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/cycle-counts"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <CycleCountsPage />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/cycle-counts/:countId"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <CycleCountDetailPage />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/vendors"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Vendors />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/departments"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Departments />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/import"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <ReceiptImport />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/purchase-orders"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <PurchaseOrders />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/reports"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Reports />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/contractors"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Contractors />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/jobs"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Jobs />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/financials"
+                              element={<Navigate to="/reports" replace />}
+                            />
+                            <Route
+                              path="/invoices"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Invoices />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/payments"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <Payments />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/billing-entities"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <BillingEntities />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/xero-health"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <XeroHealthPage />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/settings"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                  <SettingsPage />
+                                </ProtectedRoute>
+                              }
+                            />
+                            <Route
+                              path="/my-history"
+                              element={
+                                <ProtectedRoute allowedRoles={[ROLES.CONTRACTOR]}>
+                                  <MyHistory />
+                                </ProtectedRoute>
+                              }
+                            />
+                          </Routes>
                         </Suspense>
                       </ErrorBoundary>
                     </Layout>

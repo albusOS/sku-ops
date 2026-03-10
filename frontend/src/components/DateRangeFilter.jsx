@@ -20,7 +20,10 @@ export function DateRangeFilter({ value, onChange }) {
   const activePreset = useMemo(() => {
     for (const preset of DATE_PRESETS) {
       const pv = preset.getValue();
-      if (toDateStr(pv.from) === toDateStr(value.from) && toDateStr(pv.to) === toDateStr(value.to)) {
+      if (
+        toDateStr(pv.from) === toDateStr(value.from) &&
+        toDateStr(pv.to) === toDateStr(value.to)
+      ) {
         return preset.label;
       }
     }

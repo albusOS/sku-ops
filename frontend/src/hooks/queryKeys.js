@@ -75,9 +75,9 @@ export const keys = {
     transactions: (params) => ["dashboard", "transactions", params],
   },
   cycleCounts: {
-    all:    ["cycleCounts"],
-    list:   (params) => ["cycleCounts", "list", params],
-    detail: (id)     => ["cycleCounts", "detail", id],
+    all: ["cycleCounts"],
+    list: (params) => ["cycleCounts", "list", params],
+    detail: (id) => ["cycleCounts", "detail", id],
   },
   reports: {
     sales: (params) => ["reports", "sales", params],

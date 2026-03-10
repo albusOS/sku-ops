@@ -19,12 +19,22 @@ export function useProductMatch() {
         if (!name) return;
         try {
           const data = await api.products.list({ search: name, limit: 5 });
-          const options = Array.isArray(data) ? data : (data?.items || []);
-          updates[key] = { matched: null, options, searching: false, query: "" };
+          const options = Array.isArray(data) ? data : data?.items || [];
+          updates[key] = {
+            matched: null,
+            options,
+            searching: false,
+            query: "",
+          };
         } catch {
-          updates[key] = { matched: null, options: [], searching: false, query: "" };
+          updates[key] = {
+            matched: null,
+            options: [],
+            searching: false,
+            query: "",
+          };
         }
-      })
+      }),
     );
     setMatches((prev) => ({ ...prev, ...updates }));
   }, []);
@@ -36,7 +46,7 @@ export function useProductMatch() {
     }));
     try {
       const data = await api.products.list({ search: query, limit: 5 });
-      const options = Array.isArray(data) ? data : (data?.items || []);
+      const options = Array.isArray(data) ? data : data?.items || [];
       setMatches((prev) => ({
         ...prev,
         [itemId]: { ...prev[itemId], options, searching: false },

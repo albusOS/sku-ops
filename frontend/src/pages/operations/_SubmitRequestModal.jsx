@@ -22,23 +22,38 @@ export function SubmitRequestModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Submit material request</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Submit material request</DialogTitle>
+        </DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
             <Label className="text-sm">Job ID *</Label>
             <div className="mt-1.5">
-              <JobPicker value={jobId} onChange={onJobIdChange} placeholder="Job or reference number" />
+              <JobPicker
+                value={jobId}
+                onChange={onJobIdChange}
+                placeholder="Job or reference number"
+              />
             </div>
           </div>
           <div>
             <Label className="text-sm">Service address *</Label>
             <div className="mt-1.5">
-              <AddressPicker value={serviceAddress} onChange={onServiceAddressChange} placeholder="Pickup or delivery location" />
+              <AddressPicker
+                value={serviceAddress}
+                onChange={onServiceAddressChange}
+                placeholder="Pickup or delivery location"
+              />
             </div>
           </div>
           <div>
             <Label className="text-sm">Notes (optional)</Label>
-            <Input value={notes} onChange={(e) => onNotesChange(e.target.value)} placeholder="Additional notes..." className="mt-1.5" />
+            <Input
+              value={notes}
+              onChange={(e) => onNotesChange(e.target.value)}
+              placeholder="Additional notes..."
+              className="mt-1.5"
+            />
           </div>
           <Button onClick={onSubmit} disabled={isPending || !canSubmit} className="w-full h-11">
             {isPending ? "Submitting…" : "Submit Request"}

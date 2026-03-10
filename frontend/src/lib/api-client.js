@@ -29,7 +29,7 @@ axios.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 const api = {
@@ -45,8 +45,14 @@ const api = {
     stockHistory: (id) => axios.get(`${API}/stock/${id}/history`).then((r) => r.data),
     groups: () => axios.get(`${API}/products/groups`).then((r) => r.data),
     assignGroup: (data) => axios.post(`${API}/products/groups/assign`, data).then((r) => r.data),
-    renameGroup: (oldName, newName) => axios.post(`${API}/products/groups/rename`, null, { params: { old_name: oldName, new_name: newName } }).then((r) => r.data),
-    byBarcode: (barcode) => axios.get(`${API}/products/by-barcode`, { params: { barcode } }).then((r) => r.data),
+    renameGroup: (oldName, newName) =>
+      axios
+        .post(`${API}/products/groups/rename`, null, {
+          params: { old_name: oldName, new_name: newName },
+        })
+        .then((r) => r.data),
+    byBarcode: (barcode) =>
+      axios.get(`${API}/products/by-barcode`, { params: { barcode } }).then((r) => r.data),
     importCsv: (formData) => axios.post(`${API}/products/import-csv`, formData).then((r) => r.data),
   },
 
@@ -86,7 +92,11 @@ const api = {
     get: (id) => axios.get(`${API}/withdrawals/${id}`).then((r) => r.data),
     create: (data) => axios.post(`${API}/withdrawals`, data).then((r) => r.data),
     createForContractor: (contractorId, data) =>
-      axios.post(`${API}/withdrawals/for-contractor`, data, { params: { contractor_id: contractorId } }).then((r) => r.data),
+      axios
+        .post(`${API}/withdrawals/for-contractor`, data, {
+          params: { contractor_id: contractorId },
+        })
+        .then((r) => r.data),
   },
 
   // ── Returns ─────────────────────────────────────────────────────────
@@ -98,7 +108,8 @@ const api = {
   materialRequests: {
     list: (params) => axios.get(`${API}/material-requests`, { params }).then((r) => r.data),
     create: (data) => axios.post(`${API}/material-requests`, data).then((r) => r.data),
-    process: (id, data) => axios.post(`${API}/material-requests/${id}/process`, data).then((r) => r.data),
+    process: (id, data) =>
+      axios.post(`${API}/material-requests/${id}/process`, data).then((r) => r.data),
   },
 
   // ── Purchase Orders ─────────────────────────────────────────────────
@@ -106,8 +117,10 @@ const api = {
     list: (params) => axios.get(`${API}/purchase-orders`, { params }).then((r) => r.data),
     get: (id) => axios.get(`${API}/purchase-orders/${id}`).then((r) => r.data),
     create: (data) => axios.post(`${API}/purchase-orders`, data).then((r) => r.data),
-    markDelivery: (id, data) => axios.post(`${API}/purchase-orders/${id}/delivery`, data).then((r) => r.data),
-    receive: (id, data) => axios.post(`${API}/purchase-orders/${id}/receive`, data).then((r) => r.data),
+    markDelivery: (id, data) =>
+      axios.post(`${API}/purchase-orders/${id}/delivery`, data).then((r) => r.data),
+    receive: (id, data) =>
+      axios.post(`${API}/purchase-orders/${id}/receive`, data).then((r) => r.data),
   },
 
   // ── Payments ───────────────────────────────────────────────────────
@@ -120,7 +133,8 @@ const api = {
   // ── Financials ──────────────────────────────────────────────────────
   financials: {
     summary: (params) => axios.get(`${API}/financials/summary`, { params }).then((r) => r.data),
-    export: (params) => axios.get(`${API}/financials/export`, { params, responseType: "blob" }).then((r) => r.data),
+    export: (params) =>
+      axios.get(`${API}/financials/export`, { params, responseType: "blob" }).then((r) => r.data),
   },
 
   // ── Invoices ────────────────────────────────────────────────────────
@@ -131,7 +145,8 @@ const api = {
     update: (id, data) => axios.put(`${API}/invoices/${id}`, data).then((r) => r.data),
     delete: (id) => axios.delete(`${API}/invoices/${id}`),
     syncXero: (id) => axios.post(`${API}/invoices/${id}/sync-xero`).then((r) => r.data),
-    bulkSyncXero: (ids) => axios.post(`${API}/invoices/sync-xero-bulk`, { invoice_ids: ids }).then((r) => r.data),
+    bulkSyncXero: (ids) =>
+      axios.post(`${API}/invoices/sync-xero-bulk`, { invoice_ids: ids }).then((r) => r.data),
   },
 
   // ── Addresses ──────────────────────────────────────────────────────
@@ -165,13 +180,16 @@ const api = {
     list: (params) => axios.get(`${API}/documents`, { params }).then((r) => r.data),
     get: (id) => axios.get(`${API}/documents/${id}`).then((r) => r.data),
     parse: (formData, useAi) =>
-      axios.post(`${API}/documents/parse${useAi ? "?use_ai=true" : ""}`, formData).then((r) => r.data),
+      axios
+        .post(`${API}/documents/parse${useAi ? "?use_ai=true" : ""}`, formData)
+        .then((r) => r.data),
   },
 
   // ── Dashboard ───────────────────────────────────────────────────────
   dashboard: {
     stats: (params) => axios.get(`${API}/dashboard/stats`, { params }).then((r) => r.data),
-    transactions: (params) => axios.get(`${API}/dashboard/transactions`, { params }).then((r) => r.data),
+    transactions: (params) =>
+      axios.get(`${API}/dashboard/transactions`, { params }).then((r) => r.data),
   },
 
   // ── Reports ─────────────────────────────────────────────────────────
@@ -179,24 +197,28 @@ const api = {
     sales: (params) => axios.get(`${API}/reports/sales`, { params }).then((r) => r.data),
     inventory: () => axios.get(`${API}/reports/inventory`).then((r) => r.data),
     trends: (params) => axios.get(`${API}/reports/trends`, { params }).then((r) => r.data),
-    productMargins: (params) => axios.get(`${API}/reports/product-margins`, { params }).then((r) => r.data),
+    productMargins: (params) =>
+      axios.get(`${API}/reports/product-margins`, { params }).then((r) => r.data),
     jobPl: (params) => axios.get(`${API}/reports/job-pl`, { params }).then((r) => r.data),
     kpis: (params) => axios.get(`${API}/reports/kpis`, { params }).then((r) => r.data),
-    productPerformance: (params) => axios.get(`${API}/reports/product-performance`, { params }).then((r) => r.data),
+    productPerformance: (params) =>
+      axios.get(`${API}/reports/product-performance`, { params }).then((r) => r.data),
     pl: (params) => axios.get(`${API}/reports/pl`, { params }).then((r) => r.data),
     arAging: (params) => axios.get(`${API}/reports/ar-aging`, { params }).then((r) => r.data),
-    reorderUrgency: (params) => axios.get(`${API}/reports/reorder-urgency`, { params }).then((r) => r.data),
-    productActivity: (params) => axios.get(`${API}/reports/product-activity`, { params }).then((r) => r.data),
+    reorderUrgency: (params) =>
+      axios.get(`${API}/reports/reorder-urgency`, { params }).then((r) => r.data),
+    productActivity: (params) =>
+      axios.get(`${API}/reports/product-activity`, { params }).then((r) => r.data),
   },
 
   // ── Cycle Counts ────────────────────────────────────────────────────
   cycleCounts: {
-    list:       (params) => axios.get(`${API}/cycle-counts`, { params }).then((r) => r.data),
-    get:        (id)     => axios.get(`${API}/cycle-counts/${id}`).then((r) => r.data),
-    open:       (data)   => axios.post(`${API}/cycle-counts`, data).then((r) => r.data),
+    list: (params) => axios.get(`${API}/cycle-counts`, { params }).then((r) => r.data),
+    get: (id) => axios.get(`${API}/cycle-counts/${id}`).then((r) => r.data),
+    open: (data) => axios.post(`${API}/cycle-counts`, data).then((r) => r.data),
     updateItem: (countId, itemId, data) =>
       axios.patch(`${API}/cycle-counts/${countId}/items/${itemId}`, data).then((r) => r.data),
-    commit:     (id)     => axios.post(`${API}/cycle-counts/${id}/commit`).then((r) => r.data),
+    commit: (id) => axios.post(`${API}/cycle-counts/${id}/commit`).then((r) => r.data),
   },
 
   // ── Chat ────────────────────────────────────────────────────────────
@@ -229,10 +251,18 @@ const api = {
     triggerSync: () => axios.post(`${API}/xero/sync`).then((r) => r.data),
     syncStatus: () => axios.get(`${API}/xero/sync-status`).then((r) => r.data),
     tenants: () => axios.get(`${API}/xero/tenants`).then((r) => r.data),
-    selectTenant: (id) => axios.post(`${API}/xero/select-tenant`, null, { params: { tenant_id: id } }).then((r) => r.data),
+    selectTenant: (id) =>
+      axios
+        .post(`${API}/xero/select-tenant`, null, { params: { tenant_id: id } })
+        .then((r) => r.data),
     disconnect: () => axios.post(`${API}/xero/disconnect`).then((r) => r.data),
     trackingCategories: () => axios.get(`${API}/xero/tracking-categories`).then((r) => r.data),
-    selectTrackingCategory: (id) => axios.post(`${API}/xero/select-tracking-category`, null, { params: { tracking_category_id: id } }).then((r) => r.data),
+    selectTrackingCategory: (id) =>
+      axios
+        .post(`${API}/xero/select-tracking-category`, null, {
+          params: { tracking_category_id: id },
+        })
+        .then((r) => r.data),
   },
 };
 

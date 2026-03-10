@@ -3,24 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Calendar } from "../components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../components/ui/popover";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../components/ui/tabs";
-import {
-  Package,
-  DollarSign,
-  Calendar as CalendarIcon,
-  Download,
-  Activity,
-} from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Package, DollarSign, Calendar as CalendarIcon, Download, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { DATE_PRESETS } from "@/lib/constants";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
@@ -116,9 +101,7 @@ const Reports = () => {
           ],
           ...rows,
         ]
-          .map((r) =>
-            r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","),
-          )
+          .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
           .join("\n");
         const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
@@ -141,9 +124,7 @@ const Reports = () => {
     <div className="p-4 md:p-8" data-testid="reports-page">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            Reports
-          </h1>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Reports</h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Financial, operational, and stock analytics
           </p>
@@ -162,12 +143,7 @@ const Reports = () => {
           </div>
           <Popover>
             <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                data-testid="date-range-btn"
-              >
+              <Button variant="outline" size="sm" className="gap-2" data-testid="date-range-btn">
                 <CalendarIcon className="w-4 h-4" />
                 {dateRange.from
                   ? dateRange.to
@@ -206,11 +182,7 @@ const Reports = () => {
         </div>
       </div>
 
-      <Tabs
-        value={activeTab}
-        onValueChange={handleTabChange}
-        className="space-y-6"
-      >
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList
           className="bg-transparent border-b border-border rounded-none p-0 h-auto gap-0 w-full justify-start overflow-x-auto"
           data-testid="report-tabs"
@@ -228,31 +200,16 @@ const Reports = () => {
           ))}
         </TabsList>
 
-        <TabsContent
-          value="pl"
-          className="mt-6"
-          data-testid="pl-report-content"
-        >
+        <TabsContent value="pl" className="mt-6" data-testid="pl-report-content">
           <PLTab reportFilters={reportFilters} dateParams={dateParams} />
         </TabsContent>
 
-        <TabsContent
-          value="operations"
-          className="mt-6"
-          data-testid="operations-report-content"
-        >
+        <TabsContent value="operations" className="mt-6" data-testid="operations-report-content">
           <OperationsTab reportFilters={reportFilters} />
         </TabsContent>
 
-        <TabsContent
-          value="inventory"
-          className="mt-6"
-          data-testid="inventory-report-content"
-        >
-          <InventoryTab
-            dateParams={dateParams}
-            onProductClick={handleProductClick}
-          />
+        <TabsContent value="inventory" className="mt-6" data-testid="inventory-report-content">
+          <InventoryTab dateParams={dateParams} onProductClick={handleProductClick} />
         </TabsContent>
       </Tabs>
 

@@ -14,12 +14,7 @@ import { themeColors } from "../../lib/chartTheme";
  * @param {function} [onDotClick] - callback(dataItem) when a dot is clicked
  * @param {number} [height=320]
  */
-export function LollipopChart({
-  data = [],
-  valueLabel = "days",
-  onDotClick,
-  height = 320,
-}) {
+export function LollipopChart({ data = [], valueLabel = "days", onDotClick, height = 320 }) {
   const option = useMemo(() => {
     const t = themeColors();
     if (!data.length) return {};
@@ -48,8 +43,7 @@ export function LollipopChart({
         formatter: (params) => {
           const item = sorted[params.dataIndex];
           if (!item) return "";
-          const val =
-            item.value == null ? "Unknown" : `${item.value.toFixed(0)} ${valueLabel}`;
+          const val = item.value == null ? "Unknown" : `${item.value.toFixed(0)} ${valueLabel}`;
           return `<div style="font-size:12px"><b>${item.name}</b><br/>${val}<br/><span style="color:${URGENCY_COLORS[item.urgency] || URGENCY_COLORS.no_data}">${item.urgency || "no data"}</span></div>`;
         },
       },
@@ -71,7 +65,12 @@ export function LollipopChart({
         inverse: true,
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { fontSize: 11, color: t.foreground, width: 140, overflow: "truncate" },
+        axisLabel: {
+          fontSize: 11,
+          color: t.foreground,
+          width: 140,
+          overflow: "truncate",
+        },
       },
       series: [
         {
@@ -102,8 +101,7 @@ export function LollipopChart({
             position: "right",
             fontSize: 11,
             color: t.foreground,
-            formatter: (p) =>
-              p.value != null ? `${Math.round(p.value)}d` : "?",
+            formatter: (p) => (p.value != null ? `${Math.round(p.value)}d` : "?"),
           },
           emphasis: {
             itemStyle: {
@@ -120,9 +118,7 @@ export function LollipopChart({
 
   const handleEvents = useCallback(() => {
     if (!onDotClick) return undefined;
-    const sorted = [...data].sort(
-      (a, b) => (a.value ?? Infinity) - (b.value ?? Infinity),
-    );
+    const sorted = [...data].sort((a, b) => (a.value ?? Infinity) - (b.value ?? Infinity));
     return {
       click: (params) => {
         const item = sorted[params.dataIndex];

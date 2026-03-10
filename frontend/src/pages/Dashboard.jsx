@@ -40,7 +40,14 @@ const POSummaryStrip = ({ summary = {} }) => {
         {statuses.map((s) => {
           const val = summary[s.key]?.total || 0;
           if (!val) return null;
-          return <div key={s.key} className={s.color} style={{ width: `${(val / total) * 100}%` }} title={`${s.label}: ${valueFormatter(val)}`} />;
+          return (
+            <div
+              key={s.key}
+              className={s.color}
+              style={{ width: `${(val / total) * 100}%` }}
+              title={`${s.label}: ${valueFormatter(val)}`}
+            />
+          );
         })}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -52,7 +59,9 @@ const POSummaryStrip = ({ summary = {} }) => {
               <div className={`w-2 h-2 rounded-full ${s.color}`} />
               <span className="text-xs text-muted-foreground">{s.label}</span>
               <span className="text-xs font-bold text-foreground tabular-nums">{v.count}</span>
-              <span className="text-[10px] text-muted-foreground tabular-nums">({valueFormatter(v.total)})</span>
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                ({valueFormatter(v.total)})
+              </span>
             </div>
           );
         })}
@@ -81,7 +90,9 @@ const Dashboard = () => {
   // Derive pending-request count from the materialRequests cache so it stays
   // in sync with the real-time invalidations on keys.materialRequests.all.
   const pendingRequests = useMemo(() => {
-    const cached = queryClient.getQueriesData({ queryKey: keys.materialRequests.all });
+    const cached = queryClient.getQueriesData({
+      queryKey: keys.materialRequests.all,
+    });
     for (const [, data] of cached) {
       if (Array.isArray(data)) {
         const pending = data.filter((r) => r.status === "pending");
@@ -107,15 +118,25 @@ const Dashboard = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground mt-1 text-sm">Welcome back, {user?.name} · {user?.company || "Independent"}</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Welcome back, {user?.name} · {user?.company || "Independent"}
+            </p>
           </div>
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard label="Total Withdrawals" value={stats?.total_withdrawals || 0} />
-          <StatCard label="Total Value" value={valueFormatter(stats?.total_spent || 0)} accent="emerald" />
-          <StatCard label="Uninvoiced" value={valueFormatter(stats?.unpaid_balance || 0)} accent="amber" />
+          <StatCard
+            label="Total Value"
+            value={valueFormatter(stats?.total_spent || 0)}
+            accent="emerald"
+          />
+          <StatCard
+            label="Uninvoiced"
+            value={valueFormatter(stats?.unpaid_balance || 0)}
+            accent="amber"
+          />
         </div>
 
         <Panel>
@@ -127,16 +148,25 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-mono text-xs text-muted-foreground">Job: {w.job_id}</p>
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold text-foreground tabular-nums">${w.total?.toFixed(2)}</span>
+                      <span className="font-semibold text-foreground tabular-nums">
+                        ${w.total?.toFixed(2)}
+                      </span>
                       <StatusBadge status={w.invoice_id ? "invoiced" : "uninvoiced"} />
                     </div>
                   </div>
                   {w.items?.length > 0 && (
                     <div className="space-y-1 mt-2 border-t border-border/50 pt-2">
                       {w.items.map((item, j) => (
-                        <div key={j} className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span className="truncate max-w-[200px]">{item.name || item.product_name || "Item"}</span>
-                          <span className="tabular-nums text-muted-foreground">{item.quantity} × ${(item.unit_price ?? 0).toFixed(2)}</span>
+                        <div
+                          key={j}
+                          className="flex items-center justify-between text-xs text-muted-foreground"
+                        >
+                          <span className="truncate max-w-[200px]">
+                            {item.name || item.product_name || "Item"}
+                          </span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {item.quantity} × ${(item.unit_price ?? 0).toFixed(2)}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -156,7 +186,8 @@ const Dashboard = () => {
   }
 
   const hasPOs = stats?.po_summary && Object.keys(stats.po_summary).length > 0;
-  const openPOCount = (stats?.po_summary?.ordered?.count || 0) + (stats?.po_summary?.partial?.count || 0);
+  const openPOCount =
+    (stats?.po_summary?.ordered?.count || 0) + (stats?.po_summary?.partial?.count || 0);
 
   return (
     <div className="p-8" data-testid="dashboard-page">
@@ -172,14 +203,20 @@ const Dashboard = () => {
       {(stats?.low_stock_count > 0 || (pendingRequests ?? 0) > 0) && (
         <div className="flex flex-wrap gap-2 mb-6">
           {(pendingRequests ?? 0) > 0 && (
-            <Link to="/pending-requests" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-info/10 border border-info/30 text-info hover:bg-info/15 text-sm">
+            <Link
+              to="/pending-requests"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-info/10 border border-info/30 text-info hover:bg-info/15 text-sm"
+            >
               <ClipboardList className="w-4 h-4" />
               <span>{pendingRequests} pending requests</span>
               <ArrowRight className="w-3.5 h-3.5 text-info" />
             </Link>
           )}
           {stats?.low_stock_count > 0 && (
-            <Link to="/inventory?low_stock=1" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border text-foreground hover:bg-muted text-sm">
+            <Link
+              to="/inventory?low_stock=1"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border text-foreground hover:bg-muted text-sm"
+            >
               <AlertTriangle className="w-4 h-4 text-accent" />
               <span>{stats.low_stock_count} items low on stock</span>
               <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
@@ -190,31 +227,102 @@ const Dashboard = () => {
 
       {/* ── Financial KPI row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <StatCard label="Revenue" value={valueFormatter(stats?.range_revenue || 0)} icon={DollarSign} accent="blue" note={`${stats?.range_transactions || 0} transactions`} href="/reports" />
-        <StatCard label="Gross Profit" value={valueFormatter(stats?.range_gross_profit || 0)} icon={TrendingUp} accent={stats?.range_gross_profit > 0 ? "emerald" : "slate"} note={stats?.range_margin_pct != null ? `${stats.range_margin_pct}% margin` : undefined} href="/reports" />
-        <StatCard label="Uninvoiced" value={valueFormatter(stats?.unpaid_total || 0)} icon={FileText} accent={stats?.unpaid_total > 0 ? "amber" : "slate"} note="outstanding balance" href="/invoices" />
-        <StatCard label="Inventory Cost" value={valueFormatter(stats?.inventory_cost || 0)} icon={Package} accent="slate" note={`${stats?.inventory_units || 0} units on hand`} href="/inventory" />
+        <StatCard
+          label="Revenue"
+          value={valueFormatter(stats?.range_revenue || 0)}
+          icon={DollarSign}
+          accent="blue"
+          note={`${stats?.range_transactions || 0} transactions`}
+          href="/reports"
+        />
+        <StatCard
+          label="Gross Profit"
+          value={valueFormatter(stats?.range_gross_profit || 0)}
+          icon={TrendingUp}
+          accent={stats?.range_gross_profit > 0 ? "emerald" : "slate"}
+          note={stats?.range_margin_pct != null ? `${stats.range_margin_pct}% margin` : undefined}
+          href="/reports"
+        />
+        <StatCard
+          label="Uninvoiced"
+          value={valueFormatter(stats?.unpaid_total || 0)}
+          icon={FileText}
+          accent={stats?.unpaid_total > 0 ? "amber" : "slate"}
+          note="outstanding balance"
+          href="/invoices"
+        />
+        <StatCard
+          label="Inventory Cost"
+          value={valueFormatter(stats?.inventory_cost || 0)}
+          icon={Package}
+          accent="slate"
+          note={`${stats?.inventory_units || 0} units on hand`}
+          href="/inventory"
+        />
       </div>
 
       {/* ── Operational KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Pending Requests" value={pendingRequests ?? 0} icon={ClipboardList} accent="blue" note={pendingRequests > 0 ? "awaiting processing" : "all clear"} href="/pending-requests" />
-        <StatCard label="Low Stock Alerts" value={stats?.low_stock_count || 0} icon={Package} accent={stats?.low_stock_count > 0 ? "amber" : "slate"} note={`${stats?.inventory_units || 0} total units`} href="/inventory?low_stock=1" />
-        <StatCard label="Total Contractors" value={stats?.total_contractors || 0} icon={ClipboardList} accent="slate" note={`${stats?.total_vendors || 0} vendors`} href="/contractors" />
-        <StatCard label="Open POs" value={openPOCount} icon={Truck} accent={openPOCount > 0 ? "violet" : "slate"} note={hasPOs ? valueFormatter((stats?.po_summary?.ordered?.total || 0) + (stats?.po_summary?.partial?.total || 0)) + " in progress" : "none in progress"} href="/purchase-orders" />
+        <StatCard
+          label="Pending Requests"
+          value={pendingRequests ?? 0}
+          icon={ClipboardList}
+          accent="blue"
+          note={pendingRequests > 0 ? "awaiting processing" : "all clear"}
+          href="/pending-requests"
+        />
+        <StatCard
+          label="Low Stock Alerts"
+          value={stats?.low_stock_count || 0}
+          icon={Package}
+          accent={stats?.low_stock_count > 0 ? "amber" : "slate"}
+          note={`${stats?.inventory_units || 0} total units`}
+          href="/inventory?low_stock=1"
+        />
+        <StatCard
+          label="Total Contractors"
+          value={stats?.total_contractors || 0}
+          icon={ClipboardList}
+          accent="slate"
+          note={`${stats?.total_vendors || 0} vendors`}
+          href="/contractors"
+        />
+        <StatCard
+          label="Open POs"
+          value={openPOCount}
+          icon={Truck}
+          accent={openPOCount > 0 ? "violet" : "slate"}
+          note={
+            hasPOs
+              ? valueFormatter(
+                  (stats?.po_summary?.ordered?.total || 0) +
+                    (stats?.po_summary?.partial?.total || 0),
+                ) + " in progress"
+              : "none in progress"
+          }
+          href="/purchase-orders"
+        />
       </div>
 
       {/* ── PO Activity + Low Stock ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {hasPOs && (
           <Panel>
-            <SectionHead title="Purchase orders" action={
-              <Link to="/purchase-orders" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                All POs <Truck className="w-3 h-3" />
-              </Link>
-            } />
+            <SectionHead
+              title="Purchase orders"
+              action={
+                <Link
+                  to="/purchase-orders"
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  All POs <Truck className="w-3 h-3" />
+                </Link>
+              }
+            />
             <div className="mb-4">
-              <span className="text-lg font-bold text-foreground tabular-nums">{openPOCount} open</span>
+              <span className="text-lg font-bold text-foreground tabular-nums">
+                {openPOCount} open
+              </span>
               <span className="text-xs text-muted-foreground ml-2">purchase orders</span>
             </div>
             <POSummaryStrip summary={stats.po_summary} />
@@ -223,14 +331,24 @@ const Dashboard = () => {
 
         {stats?.low_stock_alerts?.length > 0 && (
           <Panel>
-            <SectionHead title="Low stock items" action={
-              <Link to="/inventory?low_stock=1" className="text-xs text-muted-foreground hover:text-foreground">
-                {stats.low_stock_count} items →
-              </Link>
-            } />
+            <SectionHead
+              title="Low stock items"
+              action={
+                <Link
+                  to="/inventory?low_stock=1"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {stats.low_stock_count} items →
+                </Link>
+              }
+            />
             <div className="space-y-2 max-h-[260px] overflow-auto -mx-6 px-6">
               {stats.low_stock_alerts.map((product, i) => (
-                <Link key={product.id || i} to="/inventory" className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted">
+                <Link
+                  key={product.id || i}
+                  to="/inventory"
+                  className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted"
+                >
                   <div>
                     <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>
                     <p className="text-sm text-foreground truncate max-w-[200px]">{product.name}</p>
@@ -250,7 +368,11 @@ const Dashboard = () => {
       {!isContractor && <TransactionsTable dateParams={statsParams} />}
 
       {!isContractor && (
-        <StockHistoryModal product={stockHistoryProduct} open={!!stockHistoryProduct} onOpenChange={(open) => !open && setStockHistoryProduct(null)} />
+        <StockHistoryModal
+          product={stockHistoryProduct}
+          open={!!stockHistoryProduct}
+          onOpenChange={(open) => !open && setStockHistoryProduct(null)}
+        />
       )}
     </div>
   );

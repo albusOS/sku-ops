@@ -33,9 +33,7 @@ const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(SIDEBAR_KEY) === "true",
-  );
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "true");
 
   const toggleSidebar = () => {
     setCollapsed((prev) => {
@@ -149,10 +147,7 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div
-      className="min-h-screen bg-background text-foreground flex"
-      data-testid="app-layout"
-    >
+    <div className="min-h-screen bg-background text-foreground flex" data-testid="app-layout">
       <aside
         className={`${collapsed ? "w-16" : "w-64"} bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border/80 shadow-soft transition-[width] duration-200 ease-in-out overflow-hidden shrink-0`}
         data-testid="sidebar"
@@ -168,9 +163,7 @@ const Layout = ({ children }) => {
                 <h1 className="font-semibold text-sidebar-foreground tracking-tight truncate">
                   Supply Yard
                 </h1>
-                <p className="text-xs text-sidebar-muted truncate">
-                  Material management
-                </p>
+                <p className="text-xs text-sidebar-muted truncate">Material management</p>
               </div>
             </div>
           )}
@@ -224,15 +217,10 @@ const Layout = ({ children }) => {
                     title={collapsed ? item.label : undefined}
                     className={({ isActive }) => {
                       if (item.path.startsWith("/reports?")) {
-                        const activeTab = new URLSearchParams(
-                          item.path.split("?")[1],
-                        ).get("tab");
-                        const currentTab = new URLSearchParams(
-                          location.search,
-                        ).get("tab");
+                        const activeTab = new URLSearchParams(item.path.split("?")[1]).get("tab");
+                        const currentTab = new URLSearchParams(location.search).get("tab");
                         const isReportActive =
-                          location.pathname === "/reports" &&
-                          currentTab === activeTab;
+                          location.pathname === "/reports" && currentTab === activeTab;
                         return `sidebar-link ${isReportActive ? "active" : ""} ${collapsed ? "justify-center px-0 w-10 mx-auto" : ""}`;
                       }
                       return `sidebar-link ${isActive ? "active" : ""} ${collapsed ? "justify-center px-0 w-10 mx-auto" : ""}`;
@@ -240,9 +228,7 @@ const Layout = ({ children }) => {
                     data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
                     <item.icon className="w-5 h-5 shrink-0" />
-                    {!collapsed && (
-                      <span className="font-medium text-sm">{item.label}</span>
-                    )}
+                    {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
                   </NavLink>
                 ))}
               </div>
@@ -264,21 +250,13 @@ const Layout = ({ children }) => {
           ) : (
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm text-sidebar-foreground truncate">
-                  {user?.name}
-                </p>
+                <p className="font-medium text-sm text-sidebar-foreground truncate">{user?.name}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`}
-                  />
-                  <p className="text-xs text-sidebar-muted truncate">
-                    {getRoleLabel()}
-                  </p>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`} />
+                  <p className="text-xs text-sidebar-muted truncate">{getRoleLabel()}</p>
                 </div>
                 {user?.company && (
-                  <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">
-                    {user.company}
-                  </p>
+                  <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">{user.company}</p>
                 )}
               </div>
               <button

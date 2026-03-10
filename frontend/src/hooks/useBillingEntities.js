@@ -3,7 +3,10 @@ import api from "@/lib/api-client";
 import { createEntityHooks } from "./useEntityHooks";
 import { keys } from "./queryKeys";
 
-const { useList, useDetail, useCreate, useUpdate } = createEntityHooks("billingEntities", api.billingEntities);
+const { useList, useDetail, useCreate, useUpdate } = createEntityHooks(
+  "billingEntities",
+  api.billingEntities,
+);
 
 export { useCreate as useCreateBillingEntity, useUpdate as useUpdateBillingEntity };
 

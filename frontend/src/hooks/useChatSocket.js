@@ -31,13 +31,7 @@ function buildWsUrl(token) {
  *   lastError     — last error message from the server
  *   clearResult() — reset lastResult/lastError
  */
-export function useChatSocket({
-  onDelta,
-  onToolStart,
-  onDone,
-  onError,
-  enabled = true,
-} = {}) {
+export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled = true } = {}) {
   const { token } = useAuth();
   const wsRef = useRef(null);
   const retriesRef = useRef(0);
@@ -155,10 +149,7 @@ export function useChatSocket({
 
   const scheduleReconnect = useCallback(() => {
     if (timerRef.current) return;
-    const delay = Math.min(
-      RECONNECT_BASE_MS * 2 ** retriesRef.current,
-      RECONNECT_MAX_MS,
-    );
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** retriesRef.current, RECONNECT_MAX_MS);
     retriesRef.current += 1;
     timerRef.current = setTimeout(() => {
       timerRef.current = null;

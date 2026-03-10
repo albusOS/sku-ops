@@ -1,18 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 import { useWithdrawals } from "@/hooks/useWithdrawals";
 import { useCreateInvoice } from "@/hooks/useInvoices";
@@ -22,7 +11,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreated, preselectedI
   const [selectedIds, setSelectedIds] = useState(new Set(preselectedIds));
 
   const { data: withdrawals = [], isLoading } = useWithdrawals(
-    open ? { payment_status: "unpaid" } : null
+    open ? { payment_status: "unpaid" } : null,
   );
   const createInvoice = useCreateInvoice();
 
@@ -38,7 +27,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreated, preselectedI
     });
     return {
       entities: Object.keys(byEntity).sort(),
-      filtered: entityFilter ? (byEntity[entityFilter] || []) : withdrawals,
+      filtered: entityFilter ? byEntity[entityFilter] || [] : withdrawals,
     };
   }, [withdrawals, entityFilter]);
 
@@ -77,14 +66,29 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreated, preselectedI
 
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium">Billing Entity</label>
-          <Select value={entityFilter || "all"} onValueChange={(v) => setEntityFilter(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="All entities" /></SelectTrigger>
+          <Select
+            value={entityFilter || "all"}
+            onValueChange={(v) => setEntityFilter(v === "all" ? "" : v)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All entities" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All entities</SelectItem>
-              {entities.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              {entities.map((e) => (
+                <SelectItem key={e} value={e}>
+                  {e}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => setSelectedIds((prev) => new Set([...prev, ...eligible.map((w) => w.id)]))}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setSelectedIds((prev) => new Set([...prev, ...eligible.map((w) => w.id)]))
+            }
+          >
             Select all in list
           </Button>
         </div>
@@ -94,7 +98,8 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreated, preselectedI
             <div className="p-6 text-center text-muted-foreground">Loading…</div>
           ) : eligible.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground">
-              No uninvoiced withdrawals{entityFilter ? ` for ${entityFilter}` : ""}
+              No uninvoiced withdrawals
+              {entityFilter ? ` for ${entityFilter}` : ""}
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -111,12 +116,21 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreated, preselectedI
                 {eligible.map((w) => (
                   <tr key={w.id} className="border-b border-border/50 hover:bg-muted">
                     <td className="px-3 py-2">
-                      <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} className="w-4 h-4 rounded border-border" />
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(w.id)}
+                        onChange={() => toggleSelect(w.id)}
+                        className="w-4 h-4 rounded border-border"
+                      />
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {new Date(w.created_at).toLocaleDateString()}
+                    </td>
                     <td className="px-3 py-2 font-mono">{w.job_id}</td>
                     <td className="px-3 py-2">{w.billing_entity || "—"}</td>
-                    <td className="px-3 py-2 text-right font-mono">${w.total?.toFixed(2) || "0.00"}</td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      ${w.total?.toFixed(2) || "0.00"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -125,10 +139,17 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreated, preselectedI
         </div>
 
         <div className="flex justify-between items-center pt-4 border-t">
-          <span className="text-sm text-muted-foreground">{selectedIds.size} withdrawal(s) selected</span>
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size} withdrawal(s) selected
+          </span>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={selectedIds.size === 0 || createInvoice.isPending}>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              disabled={selectedIds.size === 0 || createInvoice.isPending}
+            >
               {createInvoice.isPending ? "Creating…" : "Create Invoice"}
             </Button>
           </div>

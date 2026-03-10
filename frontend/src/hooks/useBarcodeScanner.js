@@ -19,39 +19,45 @@ export function useBarcodeScanner({ onSuccess, onNotFound, onInvalidCheckDigit }
   const [value, setValue] = useState("");
   const [scanning, setScanning] = useState(false);
 
-  const submit = useCallback(async (code) => {
-    const trimmed = code.trim();
-    if (!trimmed) return;
+  const submit = useCallback(
+    async (code) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
 
-    setScanning(true);
-    try {
-      const product = await api.products.byBarcode(trimmed);
-      onSuccess?.(product);
-    } catch (err) {
-      const detail = err?.response?.data?.detail;
-      const errorCode = typeof detail === "object" ? detail?.code : null;
+      setScanning(true);
+      try {
+        const product = await api.products.byBarcode(trimmed);
+        onSuccess?.(product);
+      } catch (err) {
+        const detail = err?.response?.data?.detail;
+        const errorCode = typeof detail === "object" ? detail?.code : null;
 
-      if (errorCode === "invalid_check_digit") {
-        onInvalidCheckDigit?.(trimmed);
-      } else {
-        // not_found or any unexpected error
-        onNotFound?.({ barcode: trimmed });
+        if (errorCode === "invalid_check_digit") {
+          onInvalidCheckDigit?.(trimmed);
+        } else {
+          // not_found or any unexpected error
+          onNotFound?.({ barcode: trimmed });
+        }
+      } finally {
+        setScanning(false);
+        setValue("");
+        // Re-focus immediately so the next scan is captured without the
+        // contractor needing to tap the input again.
+        requestAnimationFrame(() => inputRef.current?.focus());
       }
-    } finally {
-      setScanning(false);
-      setValue("");
-      // Re-focus immediately so the next scan is captured without the
-      // contractor needing to tap the input again.
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [onSuccess, onNotFound, onInvalidCheckDigit]);
+    },
+    [onSuccess, onNotFound, onInvalidCheckDigit],
+  );
 
-  const onKeyDown = useCallback((e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      submit(e.target.value);
-    }
-  }, [submit]);
+  const onKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit(e.target.value);
+      }
+    },
+    [submit],
+  );
 
   return { inputRef, value, setValue, onKeyDown, scanning, submit };
 }
