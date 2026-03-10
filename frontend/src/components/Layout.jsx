@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "@/lib/constants";
 import {
@@ -33,6 +33,7 @@ const SIDEBAR_KEY = "sidebar-collapsed";
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(SIDEBAR_KEY) === "true"
   );
@@ -66,45 +67,45 @@ const Layout = ({ children }) => {
       ];
     }
 
-    const operationsItems = [
+    const dailyItems = [
       { path: "/pos", icon: ShoppingCart, label: "Issue Materials" },
       { path: "/pending-requests", icon: ClipboardList, label: "Pending Requests" },
-      { path: "/contractors", icon: HardHat, label: "Contractors" },
-      { path: "/jobs", icon: Briefcase, label: "Jobs" },
+      { path: "/import", icon: Truck, label: "Receive / Import" },
+      { path: "/reports?tab=operations", icon: BarChart3, label: "Operations Report" },
+    ];
+
+    const catalogItems = [
+      { path: "/inventory", icon: Package, label: "Products" },
+      { path: "/departments", icon: Layers, label: "Departments" },
+      { path: "/vendors", icon: Users, label: "Vendors" },
     ];
 
     const inventoryItems = [
-      { path: "/inventory", icon: Package, label: "Inventory" },
-      { path: "/cycle-counts", icon: ClipboardCheck, label: "Cycle Counts" },
-      { path: "/vendors", icon: Users, label: "Vendors" },
-      { path: "/departments", icon: Layers, label: "Departments" },
-      { path: "/import", icon: Truck, label: "Receive / Import" },
+      { path: "/cycle-counts", icon: ClipboardCheck, label: "Stock Counts" },
       { path: "/purchase-orders", icon: ClipboardList, label: "Purchase Orders" },
+      { path: "/reports?tab=inventory", icon: BarChart3, label: "Stock Report" },
     ];
 
-    const analyticsItems = [
-      { path: "/reports", icon: BarChart3, label: "Reports" },
+    const financeItems = [
+      { path: "/invoices", icon: FileText, label: "Invoices" },
+      { path: "/payments", icon: CreditCard, label: "Payments" },
+      { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
+      { path: "/reports?tab=pl", icon: BarChart3, label: "Financials" },
     ];
-
-    if (role === ROLES.ADMIN) {
-      analyticsItems.push(
-        { path: "/invoices", icon: FileText, label: "Invoices" },
-        { path: "/payments", icon: CreditCard, label: "Payments" },
-        { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
-      );
-    }
 
     const groups = [
       { items: [{ path: "/", icon: LayoutDashboard, label: "Dashboard" }] },
-      { section: "Operations", items: operationsItems },
+      { section: "Daily", items: dailyItems },
+      { section: "Catalog", items: catalogItems },
       { section: "Inventory", items: inventoryItems },
-      { section: "Analytics & Finance", items: analyticsItems },
+      { section: "Finance", items: financeItems },
     ];
 
     if (role === ROLES.ADMIN) {
       groups.push({
         section: "System",
         items: [
+          { path: "/contractors", icon: HardHat, label: "Contractors" },
           { path: "/settings", icon: Settings, label: "Settings" },
           { path: "/xero-health", icon: ShieldCheck, label: "Xero Sync Health" },
         ],
@@ -188,9 +189,15 @@ const Layout = ({ children }) => {
                     to={item.path}
                     end={item.path === "/"}
                     title={collapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      `sidebar-link ${isActive ? "active" : ""} ${collapsed ? "justify-center px-0 w-10 mx-auto" : ""}`
-                    }
+                    className={({ isActive }) => {
+                      if (item.path.startsWith("/reports?")) {
+                        const activeTab = new URLSearchParams(item.path.split("?")[1]).get("tab");
+                        const currentTab = new URLSearchParams(location.search).get("tab");
+                        const isReportActive = location.pathname === "/reports" && currentTab === activeTab;
+                        return `sidebar-link ${isReportActive ? "active" : ""} ${collapsed ? "justify-center px-0 w-10 mx-auto" : ""}`;
+                      }
+                      return `sidebar-link ${isActive ? "active" : ""} ${collapsed ? "justify-center px-0 w-10 mx-auto" : ""}`;
+                    }}
                     data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
                     <item.icon className="w-5 h-5 shrink-0" />

@@ -94,6 +94,36 @@ async def _xero_sync_loop() -> None:
             logger.exception("Unexpected error in Xero sync loop")
 
 
+async def _ensure_demo_users() -> None:
+    """Create admin + contractor demo accounts if they don't already exist."""
+    import uuid
+    from datetime import datetime, UTC
+    from identity.infrastructure.user_repo import get_by_email, insert
+    from identity.application.auth_service import hash_password
+    from shared.infrastructure.config import DEMO_USER_EMAIL, DEMO_USER_PASSWORD
+
+    demo_users = [
+        {"email": DEMO_USER_EMAIL, "name": "Admin", "role": "admin"},
+        {"email": "contractor@demo.local", "name": "Demo Contractor", "role": "contractor", "company": "ABC Plumbing"},
+    ]
+    for u in demo_users:
+        existing = await get_by_email(u["email"])
+        if existing:
+            continue
+        await insert({
+            "id": str(uuid.uuid4()),
+            "email": u["email"],
+            "password": hash_password(DEMO_USER_PASSWORD),
+            "name": u["name"],
+            "role": u["role"],
+            "company": u.get("company", ""),
+            "is_active": True,
+            "organization_id": "default",
+            "created_at": datetime.now(UTC).isoformat(),
+        })
+        logger.info("Created demo user: %s (%s)", u["email"], u["role"])
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize DB and seed data on startup; close DB on shutdown."""
@@ -116,6 +146,11 @@ async def lifespan(app: FastAPI):
         logger.warning("CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for staging/production.")
     await init_db()
     logger.info("Database initialized")
+
+    from shared.infrastructure.config import seed_on_startup
+    if seed_on_startup:
+        await _ensure_demo_users()
+
     from assistant.infrastructure.llm import init_llm
     init_llm()
     logger.info("LLM provider initialized")

@@ -5,13 +5,17 @@
 services:
   db:
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
   backend:
     ports:
       - "8000:8000"
     environment:
       ENV: development
+
+  nginx:
+    profiles:
+      - production-only
 
   certbot:
     profiles:

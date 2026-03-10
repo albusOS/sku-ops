@@ -6,6 +6,7 @@ import { StatCard } from "@/components/StatCard";
 import { useReportSales, useReportPL, useReportTrends } from "@/hooks/useReports";
 import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
 import { DotColumnChart } from "@/components/charts/DotColumnChart";
+import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
 import { ChartExplainer } from "@/components/charts/ChartExplainer";
 import { Panel, SectionHead as SectionHeadBase } from "@/components/Panel";
 import { PaymentStrip } from "./ReportHelpers";
@@ -27,6 +28,22 @@ export function OperationsTab({ reportFilters }) {
     if (!dailyTrends?.series) return [];
     return dailyTrends.series.map((d) => ({ date: d.date, value: d.transaction_count || 0 }));
   }, [dailyTrends]);
+
+  const trailing365 = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 365);
+    return { start_date: start.toISOString(), end_date: end.toISOString(), group_by: "day" };
+  }, []);
+  const { data: heatmapTrends } = useReportTrends(trailing365);
+  const heatmapData = useMemo(() => {
+    if (!heatmapTrends?.series) return [];
+    return heatmapTrends.series.map((d) => ({
+      date: d.date,
+      value: d.transaction_count || 0,
+      revenue: d.revenue || 0,
+    }));
+  }, [heatmapTrends]);
 
   const paymentChartData = salesReport?.by_payment_status
     ? Object.entries(salesReport.by_payment_status).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value: parseFloat(value.toFixed(2)) }))
@@ -86,6 +103,35 @@ export function OperationsTab({ reportFilters }) {
           } />
           <ChartExplainer title="Activity Pattern" bullets={["Each dot is one day — columns are months", "Darker/brighter dots = more transactions that day", "Look for patterns: consistent activity, quiet periods, or spikes", "Gaps or pale columns may indicate supply issues or seasonal slowdowns"]}>
             <DotColumnChart data={dotColumnData} height={260} />
+          </ChartExplainer>
+        </Panel>
+      )}
+
+      {heatmapData.length > 0 && (
+        <Panel>
+          <SectionHead title="Transaction Activity — Last 12 Months" action={
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {heatmapData.reduce((s, d) => s + d.value, 0).toLocaleString()} transactions
+            </span>
+          } />
+          <ChartExplainer
+            title="Activity Heatmap"
+            bullets={[
+              "Each square is one day — brighter = more transactions",
+              "Rows are days of the week (Mon–Sun), columns are weeks",
+              "Hover over any square to see the exact count and revenue",
+              "Look for busy periods, quiet weeks, or seasonal patterns",
+            ]}
+          >
+            <ActivityHeatmap
+              data={heatmapData}
+              label="transactions"
+              tooltipExtra={(d) =>
+                d?.revenue
+                  ? `Revenue: $${d.revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                  : ""
+              }
+            />
           </ChartExplainer>
         </Panel>
       )}

@@ -1,33 +1,44 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
-  TrendingUp, Package, DollarSign, Calendar as CalendarIcon,
-  Download, Receipt, Activity,
+  Package, DollarSign, Calendar as CalendarIcon,
+  Download, Activity,
 } from "lucide-react";
 import { format } from "date-fns";
 import { DATE_PRESETS } from "@/lib/constants";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
-import { PageSkeleton } from "@/components/LoadingSkeleton";
-import { useFinancialSummary } from "@/hooks/useFinancials";
-import { useReportArAging } from "@/hooks/useReports";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
-import { FinanceTab } from "@/components/reports/ReportHelpers";
 import { PLTab } from "@/components/reports/PLTab";
 import { OperationsTab } from "@/components/reports/OperationsTab";
 import { InventoryTab } from "@/components/reports/InventoryTab";
-import { TrendsTab } from "@/components/reports/TrendsTab";
 import api from "@/lib/api-client";
 
+const TABS = [
+  { value: "pl", label: "Financials", icon: DollarSign },
+  { value: "operations", label: "Operations", icon: Activity },
+  { value: "inventory", label: "Stock", icon: Package },
+];
+
 const Reports = () => {
-  const [activeTab, setActiveTab] = useState("pl");
-  const [trendsGroupBy, setTrendsGroupBy] = useState("day");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "pl");
   const [dateRange, setDateRange] = useState({ from: null, to: null });
-  const [arAgingOpen, setArAgingOpen] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && tab !== activeTab) setActiveTab(tab);
+  }, [searchParams]);
+
+  const handleTabChange = (value) => {
+    setActiveTab(value);
+    setSearchParams({ tab: value }, { replace: true });
+  };
 
   const dateParams = useMemo(() => ({
     start_date: dateToISO(dateRange.from),
@@ -35,9 +46,6 @@ const Reports = () => {
   }), [dateRange]);
 
   const reportFilters = useMemo(() => ({ ...dateParams }), [dateParams]);
-
-  const { data: financialSummary } = useFinancialSummary(dateParams);
-  const { data: arAging } = useReportArAging(dateParams);
 
   const handleProductClick = (product) => {
     setSelectedProduct({ id: product.product_id || product.id, name: product.name, sku: product.sku });
@@ -47,7 +55,7 @@ const Reports = () => {
     try {
       const filename = `report-${activeTab}-${format(new Date(), "yyyy-MM-dd")}.csv`;
 
-      if (activeTab === "pl" || activeTab === "finance") {
+      if (activeTab === "pl") {
         const blob = await api.financials.export({
           start_date: dateParams.start_date || undefined,
           end_date: dateParams.end_date || undefined,
@@ -83,7 +91,7 @@ const Reports = () => {
         return;
       }
 
-      toast.info("Export is available for P&L, Finance, and Inventory tabs");
+      toast.info("Export is available for the Financials and Stock tabs");
     } catch (err) {
       toast.error("Export failed — please try again");
     }
@@ -94,7 +102,7 @@ const Reports = () => {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-foreground tracking-tight">Reports</h1>
-          <p className="text-muted-foreground mt-1 text-sm">P&L, operations, inventory, and trend analytics</p>
+          <p className="text-muted-foreground mt-1 text-sm">Financial, operational, and stock analytics</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
@@ -116,15 +124,9 @@ const Reports = () => {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="bg-transparent border-b border-border rounded-none p-0 h-auto gap-0 w-full justify-start overflow-x-auto" data-testid="report-tabs">
-          {[
-            { value: "pl", label: "P&L", icon: Receipt },
-            { value: "finance", label: "Finance", icon: DollarSign },
-            { value: "operations", label: "Operations", icon: Activity },
-            { value: "inventory", label: "Inventory", icon: Package },
-            { value: "trends", label: "Trends", icon: TrendingUp },
-          ].map(({ value, label, icon: Icon }) => (
+          {TABS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:text-foreground text-muted-foreground px-5 py-3 text-sm font-semibold gap-2 bg-transparent shadow-none shrink-0" data-testid={`${value}-tab`}>
               <Icon className="w-4 h-4" />{label}
             </TabsTrigger>
@@ -135,20 +137,12 @@ const Reports = () => {
           <PLTab reportFilters={reportFilters} dateParams={dateParams} />
         </TabsContent>
 
-        <TabsContent value="finance" className="mt-6" data-testid="finance-report-content">
-          <FinanceTab financialSummary={financialSummary} arAging={arAging} arAgingOpen={arAgingOpen} setArAgingOpen={setArAgingOpen} />
-        </TabsContent>
-
         <TabsContent value="operations" className="mt-6" data-testid="operations-report-content">
           <OperationsTab reportFilters={reportFilters} />
         </TabsContent>
 
         <TabsContent value="inventory" className="mt-6" data-testid="inventory-report-content">
           <InventoryTab dateParams={dateParams} onProductClick={handleProductClick} />
-        </TabsContent>
-
-        <TabsContent value="trends" className="mt-6" data-testid="trends-report-content">
-          <TrendsTab reportFilters={reportFilters} dateParams={dateParams} trendsGroupBy={trendsGroupBy} setTrendsGroupBy={setTrendsGroupBy} onProductClick={handleProductClick} />
         </TabsContent>
       </Tabs>
 

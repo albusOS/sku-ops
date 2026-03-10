@@ -10,7 +10,7 @@ RUN apt-get update && \
         poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+RUN pip install uv
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-editable

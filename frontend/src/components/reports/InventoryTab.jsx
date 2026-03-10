@@ -7,7 +7,7 @@ import { themeColors } from "@/lib/chartTheme";
 import { StatCard } from "@/components/StatCard";
 import {
   useReportInventory, useReportKpis, useReportProductPerformance,
-  useReportReorderUrgency, useReportProductActivity,
+  useReportReorderUrgency, useReportProductActivity, useReportMargins,
 } from "@/hooks/useReports";
 import { useProducts } from "@/hooks/useProducts";
 import api from "@/lib/api-client";
@@ -30,6 +30,8 @@ export function InventoryTab({ dateParams, onProductClick }) {
   const { data: kpis } = useReportKpis(dateParams);
   const { data: perfData } = useReportProductPerformance(dateParams);
   const { data: reorderData } = useReportReorderUrgency();
+  const { data: marginsReport } = useReportMargins(dateParams);
+  const margins = useMemo(() => marginsReport?.products || [], [marginsReport]);
   const { data: productsList } = useProducts();
   const { data: productGroups } = useQuery({
     queryKey: ["productGroups"],
@@ -124,6 +126,19 @@ export function InventoryTab({ dateParams, onProductClick }) {
           </div>
         </Panel>
       )}
+
+      <Panel>
+        <SectionHead title="Top Products by Revenue" />
+        {margins.length > 0 ? (
+          <HorizontalBarChart
+            data={margins.slice(0, 10).map((p) => ({ name: p.name || p.product_id, revenue: p.revenue }))}
+            categoryKey="name"
+            series={[{ key: "revenue", label: "Revenue", color: t.category1 }]}
+            valueFormatter={valueFormatter}
+            height={Math.max(200, Math.min(margins.length, 10) * 36)}
+          />
+        ) : <p className="text-sm text-muted-foreground py-8 text-center">No data</p>}
+      </Panel>
 
       <Panel>
         <SectionHead title="Product Activity" action={

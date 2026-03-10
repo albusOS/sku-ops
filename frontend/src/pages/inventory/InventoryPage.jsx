@@ -262,7 +262,7 @@ const InventoryPage = () => {
     <TooltipProvider delayDuration={300}>
       <div className="p-8" data-testid="inventory-page">
         <PageHeader
-          title="Inventory"
+          title="Products"
           subtitle={`${allProducts.length} products`}
           action={
             <div className="flex gap-2">
