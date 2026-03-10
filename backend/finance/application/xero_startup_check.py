@@ -15,7 +15,6 @@ _REQUIRED_ACCOUNT_CODES = [
     ("xero_sales_account_code", "Sales account code", "invoices will post to wrong account"),
     ("xero_cogs_account_code", "COGS account code", "COGS journal will be skipped"),
     ("xero_inventory_account_code", "Inventory account code", "PO Bills will fail"),
-    ("xero_ap_account_code", "AP account code", "vendor bills will have no AP posting"),
 ]
 
 

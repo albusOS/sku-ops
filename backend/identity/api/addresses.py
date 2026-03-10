@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from identity.infrastructure.address_repo import address_repo
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 
@@ -25,7 +25,7 @@ class AddressCreate(BaseModel):
 
 @router.get("")
 async def list_addresses(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     billing_entity_id: str | None = None,
     job_id: str | None = None,
     q: str | None = None,
@@ -54,7 +54,7 @@ async def search_addresses(
 
 
 @router.get("/{address_id}")
-async def get_address(address_id: str, current_user: ManagerDep):
+async def get_address(address_id: str, current_user: AdminDep):
     addr = await address_repo.get_by_id(address_id, current_user.organization_id)
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
@@ -64,7 +64,7 @@ async def get_address(address_id: str, current_user: ManagerDep):
 @router.post("")
 async def create_address(
     data: AddressCreate,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     if not data.line1.strip():
         raise HTTPException(status_code=400, detail="Address line 1 is required")

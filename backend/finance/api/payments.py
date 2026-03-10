@@ -9,7 +9,7 @@ from finance.domain.payment import Payment, PaymentCreate
 from finance.infrastructure.payment_repo import payment_repo
 from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
 from kernel import events
-from shared.api.deps import AdminDep, ManagerDep
+from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -78,7 +78,7 @@ async def create_payment(
 
 @router.get("")
 async def list_payments(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     invoice_id: str | None = None,
     billing_entity_id: str | None = None,
     start_date: str | None = None,
@@ -95,7 +95,7 @@ async def list_payments(
 
 
 @router.get("/{payment_id}")
-async def get_payment(payment_id: str, current_user: ManagerDep):
+async def get_payment(payment_id: str, current_user: AdminDep):
     p = await payment_repo.get_by_id(payment_id, current_user.organization_id)
     if not p:
         raise HTTPException(status_code=404, detail="Payment not found")

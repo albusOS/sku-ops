@@ -12,7 +12,7 @@ from inventory.application.cycle_count_service import (
 )
 from kernel.errors import ResourceNotFoundError
 from kernel import events
-from shared.api.deps import ManagerDep
+from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -32,7 +32,7 @@ class UpdateItemRequest(BaseModel):
 async def open_count(
     data: OpenCycleCountRequest,
     request: Request,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     try:
         count = await open_cycle_count(
@@ -55,7 +55,7 @@ async def open_count(
 
 @router.get("")
 async def list_counts(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     status: str | None = Query(None, description="Filter by status: open or committed"),
 ):
     return await list_cycle_counts(
@@ -67,7 +67,7 @@ async def list_counts(
 @router.get("/{count_id}")
 async def get_count(
     count_id: str,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     try:
         return await get_count_detail(count_id, current_user.organization_id)
@@ -80,7 +80,7 @@ async def update_item(
     count_id: str,
     item_id: str,
     data: UpdateItemRequest,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     try:
         return await update_counted_qty(
@@ -100,7 +100,7 @@ async def update_item(
 async def commit_count(
     count_id: str,
     request: Request,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     try:
         result = await commit_cycle_count(

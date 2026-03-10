@@ -45,6 +45,7 @@ TABLES: list[str] = [
         base_unit TEXT NOT NULL DEFAULT 'each',
         sell_uom TEXT NOT NULL DEFAULT 'each',
         pack_qty INTEGER NOT NULL DEFAULT 1,
+        product_group TEXT,
         organization_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -67,4 +68,5 @@ INDEXES: list[str] = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode) WHERE barcode IS NOT NULL AND TRIM(barcode) != ''",
     "CREATE INDEX IF NOT EXISTS idx_products_vendor_barcode ON products(vendor_barcode) WHERE vendor_barcode IS NOT NULL AND TRIM(vendor_barcode) != ''",
     "CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_products_group ON products(product_group) WHERE product_group IS NOT NULL",
 ]

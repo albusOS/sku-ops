@@ -34,7 +34,7 @@ See [docs/MULTI_TENANT_DEMO_SCRIPT.md](docs/MULTI_TENANT_DEMO_SCRIPT.md) for a f
 ## Features
 
 - **Contractors:** Request materials (search, barcode, cart) -> staff processes at pickup
-- **Admin / Warehouse:** Material Terminal (POS), Pending Requests, Inventory, Financials, Invoices
+- **Admin:** Material Terminal (POS), Pending Requests, Inventory, Financials, Invoices
 - **Document Import:** AI-powered receipt/invoice parsing (Claude) with OCR fallback
 - **Purchase Orders:** Review -> receive -> stock update workflow
 - **AI Assistant:** Multi-agent chat with streaming via WebSocket (inventory, finance, operations)

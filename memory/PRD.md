@@ -5,7 +5,7 @@ Build a complete hardware storefront, POS, and inventory management system with 
 
 ## User Choices & Requirements
 - JWT-based custom auth (email/password)
-- Multi-tenancy with 3 roles: Admin, Warehouse Manager, Contractor
+- Multi-tenancy with 2 roles: Admin, Contractor
 - "Charge to Account" — all withdrawals invoiced later via Xero
 - Standard hardware departments + custom departments
 - Sales/inventory reports
@@ -20,9 +20,8 @@ Build a complete hardware storefront, POS, and inventory management system with 
 - **Invoicing**: Xero integration for billing (Charge to Account)
 
 ## User Personas
-1. **Admin**: Full access - user management, financial dashboard, invoice exports
-2. **Warehouse Manager**: POS, inventory, vendors, receipt imports
-3. **Contractor**: Withdraw materials, view own history, charge to account
+1. **Admin**: Full access - user management, financial dashboard, invoice exports, POS, inventory, vendors, receipt imports
+2. **Contractor**: Withdraw materials, view own history, charge to account
 
 ## Core Requirements (Static)
 - [x] User authentication (register/login)
@@ -46,8 +45,8 @@ Format: `DEPT-SLUG-NNNNNN` (e.g., LUM-PIPE-000001, PLU-FITT-000002)
 ## What's Been Implemented
 
 ### Feb 23, 2026 - Multi-Tenancy & Core System
-1. **Authentication**: JWT-based login/register with 3 roles
-2. **Multi-Tenancy**: Admin, Warehouse Manager, Contractor roles with RBAC
+1. **Authentication**: JWT-based login/register with 2 roles
+2. **Multi-Tenancy**: Admin, Contractor roles with RBAC
 3. **Dashboard**: Role-specific stats and recent activity
 4. **POS**: Material Withdrawal Terminal with contractor selection
 5. **Inventory**: Full CRUD, SKU auto-generation, department filtering

@@ -20,7 +20,7 @@ from operations.application.withdrawal_service import create_withdrawal as _do_c
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from kernel import events
-from shared.api.deps import AdminDep, CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -59,9 +59,9 @@ async def create_withdrawal_for_contractor(
     contractor_id: str,
     data: MaterialWithdrawalCreate,
     request: Request,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
-    """Warehouse manager creates withdrawal on behalf of a contractor"""
+    """Admin creates withdrawal on behalf of a contractor."""
     org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
     if not contractor or contractor.get("role") != "contractor":

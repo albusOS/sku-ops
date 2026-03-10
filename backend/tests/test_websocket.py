@@ -88,11 +88,6 @@ class TestChatWebSocket:
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
             ws.close()
 
-    def test_accepts_warehouse_manager_token(self, client: TestClient):
-        token = _make_token(role="warehouse_manager")
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            ws.close()
-
     def test_empty_message_returns_error(self, client: TestClient):
         token = _make_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:

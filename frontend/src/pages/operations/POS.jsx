@@ -17,13 +17,14 @@ import { useCart } from "@/hooks/useCart";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
 import { getErrorMessage } from "@/lib/api-client";
+import { ROLES } from "@/lib/constants";
 
 const IssueMaterials = () => {
   const { user } = useAuth();
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const isContractor = user?.role === "contractor";
+  const isContractor = user?.role === ROLES.CONTRACTOR;
   const { data: productsData, isLoading: productsLoading } = useProducts();
   const { data: contractorsData, isLoading: contractorsLoading } = useContractors();
   const createWithdrawal = useCreateWithdrawal();

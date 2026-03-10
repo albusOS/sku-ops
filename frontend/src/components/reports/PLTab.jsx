@@ -16,69 +16,6 @@ import { PL_DIMENSIONS, PLBreakdownTable, ARAgingTable, PLStatement } from "./Re
 const Stat = StatCard;
 const SectionHead = ({ title, action }) => <SectionHeadBase title={title} action={action} variant="report" />;
 
-const DIMENSION_FILTER_KEY = {
-  job: "job_id",
-  department: "department",
-  entity: "billing_entity",
-};
-
-function ItemCard({ row, labelKey, dimension }) {
-  const label = row[labelKey] || "—";
-  const revenue = row.revenue || 0;
-  const cost = row.cost || 0;
-  const profit = row.profit ?? revenue - cost;
-  const margin = row.margin_pct ?? (revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : 0);
-  const marginNum = parseFloat(margin);
-  const badgeCls = marginNum >= 40
-    ? "bg-success/10 text-success"
-    : marginNum < 30
-      ? "bg-category-5/10 text-category-5"
-      : "bg-info/10 text-info";
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground truncate" title={label}>{label}</h3>
-        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${badgeCls}`}>
-          {margin}%
-        </span>
-      </div>
-      {dimension === "job" && row.billing_entity && (
-        <p className="text-xs text-muted-foreground mb-2 truncate">{row.billing_entity}</p>
-      )}
-      <div className="space-y-1.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Revenue</span>
-          <span className="tabular-nums font-semibold text-foreground">{valueFormatter(revenue)}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">COGS</span>
-          <span className="tabular-nums text-muted-foreground">{valueFormatter(cost)}</span>
-        </div>
-        <div className="border-t border-border/50 my-1" />
-        <div className="flex justify-between text-xs">
-          <span className="font-semibold text-foreground">Profit</span>
-          <span className={`tabular-nums font-bold ${profit >= 0 ? "text-success" : "text-destructive"}`}>
-            {valueFormatter(profit)}
-          </span>
-        </div>
-      </div>
-      {(row.withdrawal_count || row.transaction_count) && (
-        <p className="text-[10px] text-muted-foreground mt-2 tabular-nums">
-          {row.withdrawal_count || row.transaction_count} orders
-        </p>
-      )}
-    </div>
-  );
-}
-
-const LABEL_KEYS = {
-  job: "job_id",
-  department: "department",
-  entity: "billing_entity",
-  product: "name",
-};
-
 export function PLTab({ reportFilters, dateParams }) {
   const t = themeColors();
   const [plDimension, setPlDimension] = useState("overall");
@@ -138,9 +75,8 @@ export function PLTab({ reportFilters, dateParams }) {
     return items;
   }, [plData, plDimension, activeDrillLabel]);
 
-  const labelKey = LABEL_KEYS[plDimension];
   const rows = plData?.rows || [];
-  const showItemizedCards = plDimension !== "overall" && plDimension !== "product" && rows.length > 0 && !activeDrillLabel;
+  const showBreakdownTable = plDimension !== "overall" && rows.length > 0 && !activeDrillLabel;
 
   return (
     <div className="space-y-6">
@@ -162,32 +98,15 @@ export function PLTab({ reportFilters, dateParams }) {
         )}
       </div>
 
-      {/* ─── ITEMIZED CARDS for job/department/entity ─── */}
-      {showItemizedCards && (
-        <>
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">
-              {rows.length} {plDimension === "job" ? "Jobs" : plDimension === "department" ? "Departments" : "Entities"} — P&L Breakdown
-            </h2>
-            <p className="text-xs text-muted-foreground">Click any card for full detail</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {rows.map((row, i) => (
-              <button
-                key={row[labelKey] || i}
-                onClick={() => handleRowDrill(row)}
-                className="text-left w-full"
-              >
-                <ItemCard row={row} labelKey={labelKey} dimension={plDimension} />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ─── PRODUCT breakdown uses table (no item cards) ─── */}
-      {plDimension === "product" && rows.length > 0 && !activeDrillLabel && (
-        <PLBreakdownTable plDimension={plDimension} rows={rows} />
+      {/* ─── Breakdown table for job/department/entity/product ─── */}
+      {showBreakdownTable && (
+        <PLBreakdownTable
+          plDimension={plDimension}
+          rows={rows}
+          onRowClick={plDimension !== "product" ? handleRowDrill : undefined}
+          selectedId={activeDrillLabel}
+          totalRows={plData?.total_rows}
+        />
       )}
 
       {plDimension !== "overall" && rows.length === 0 && (

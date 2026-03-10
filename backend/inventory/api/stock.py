@@ -9,7 +9,7 @@ from inventory.application.inventory_service import (
     process_adjustment_stock_changes,
 )
 from kernel import events
-from shared.api.deps import ManagerDep
+from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -24,7 +24,7 @@ class AdjustStockRequest(BaseModel):
 @router.get("/{product_id}/history")
 async def get_product_stock_history(
     product_id: str,
-    current_user: ManagerDep,
+    current_user: AdminDep,
     limit: int = Query(50, ge=1, le=500),
 ):
     org_id = current_user.organization_id
@@ -40,7 +40,7 @@ async def adjust_stock(
     product_id: str,
     data: AdjustStockRequest,
     request: Request,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     try:
         await process_adjustment_stock_changes(

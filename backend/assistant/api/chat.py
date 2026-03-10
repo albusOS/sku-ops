@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from assistant.api.schemas import ChatRequest
 from assistant.application import session_store
 from assistant.application.assistant import chat, recall_memory, schedule_memory_extraction
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
     LLM_SETUP_URL,
@@ -24,7 +24,7 @@ router = APIRouter(tags=["chat"])
 
 
 @router.get("/chat/status")
-async def chat_status(_current_user: CurrentUserDep):
+async def chat_status(_current_user: AdminDep):
     """Return whether AI assistant is configured. Frontend can show setup prompt when false."""
     available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
     return {
@@ -35,7 +35,7 @@ async def chat_status(_current_user: CurrentUserDep):
 
 
 @router.delete("/chat/sessions/{session_id}", status_code=204)
-async def clear_session(session_id: str, current_user: CurrentUserDep):
+async def clear_session(session_id: str, current_user: AdminDep):
     """Clear a chat session's history. Triggers background memory extraction first."""
     history = await session_store.get_or_create(session_id)
     if len(history) >= 4:
@@ -51,7 +51,7 @@ async def clear_session(session_id: str, current_user: CurrentUserDep):
 @router.post("/chat")
 async def chat_assistant(
     data: ChatRequest,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     """Chat with AI assistant. Routes to specialist agents: inventory, ops, finance."""
     session_id = data.session_id or str(uuid.uuid4())

@@ -5,7 +5,7 @@ from pydantic import BaseModel, field_validator
 
 from kernel.entity import Entity
 
-ROLES = ["admin", "warehouse_manager", "contractor"]
+ROLES = ["admin", "contractor"]
 
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 _MIN_PASSWORD_LENGTH = 8
@@ -42,7 +42,7 @@ class AdminUserCreate(BaseModel):
     email: str
     password: str
     name: str
-    role: str = "warehouse_manager"
+    role: str = "admin"
     company: str | None = None
     billing_entity: str | None = None
     phone: str | None = None
@@ -74,7 +74,7 @@ class UserLogin(BaseModel):
 class User(Entity):
     email: str
     name: str
-    role: str = "warehouse_manager"
+    role: str = "admin"
     company: str | None = None
     billing_entity: str | None = None
     phone: str | None = None

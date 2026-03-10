@@ -22,11 +22,18 @@ const VARIANTS = {
   received:     "bg-success/15 text-success border border-success/30",
 };
 
+const DISPLAY_LABELS = {
+  ordered: "On Order",
+  partial: "At Dock",
+  received: "Received",
+};
+
 export function StatusBadge({ status, className }) {
   const variant = VARIANTS[status] || "bg-muted text-muted-foreground border border-border";
+  const label = DISPLAY_LABELS[status] || status;
   return (
     <span className={cn("inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold capitalize", variant, className)}>
-      {status}
+      {label}
     </span>
   );
 }

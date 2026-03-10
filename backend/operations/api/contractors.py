@@ -17,14 +17,14 @@ from identity.application.user_service import (
 from identity.application.user_service import (
     delete_contractor as do_delete_contractor,
 )
-from shared.api.deps import AdminDep, ManagerDep
+from shared.api.deps import AdminDep
 
 router = APIRouter(prefix="/contractors", tags=["contractors"])
 
 
 @router.get("")
 async def get_contractors(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     search: str | None = Query(None, description="Search by name, email, company, billing entity, or phone"),
 ):
     org_id = current_user.organization_id

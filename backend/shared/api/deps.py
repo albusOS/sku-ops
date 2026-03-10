@@ -13,4 +13,3 @@ from kernel.types import CurrentUser
 
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]
 AdminDep = Annotated[CurrentUser, Depends(require_role("admin"))]
-ManagerDep = Annotated[CurrentUser, Depends(require_role("admin", "warehouse_manager"))]

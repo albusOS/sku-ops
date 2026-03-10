@@ -1,10 +1,7 @@
 export const ROLES = {
   ADMIN: "admin",
-  WAREHOUSE_MANAGER: "warehouse_manager",
   CONTRACTOR: "contractor",
 };
-
-export const ADMIN_ROLES = [ROLES.ADMIN, ROLES.WAREHOUSE_MANAGER];
 
 export const JOB_STATUSES = {
   ACTIVE: "active",

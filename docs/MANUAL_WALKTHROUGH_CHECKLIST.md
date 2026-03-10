@@ -66,8 +66,6 @@ npm run dev
 | Admin | admin@demo.local | demo123 |
 | Contractor | contractor@demo.local | demo123 |
 
-**Gap:** No `warehouse_manager` in single-org seed. Multi-tenant has `wm@north.demo`, `wm@south.demo`.
-
 ---
 
 ## Act 1: Morning — Admin Sets Up the Yard
@@ -216,11 +214,11 @@ npm run dev
 | Empty cart | Submit with no items | Validation error |
 | Barcode scan | Enter barcode in input | Product found, added to cart |
 | Max quantity | Add up to product.quantity | Allowed; +1 blocked with toast |
-| No job ID / address | Omit (if optional) | Request created; WM must fill in Pending Requests |
+| No job ID / address | Omit (if optional) | Request created; Admin must fill in Pending Requests |
 
 ---
 
-### Scene 7b: Warehouse Manager Processes Request
+### Scene 7b: Admin Processes Request
 
 | Step | Action | Expected Outcome |
 |------|--------|-------------------|
@@ -241,7 +239,7 @@ npm run dev
 | Insufficient stock | Process when stock < requested | 400 or graceful error |
 | Urgent styling | Request > 48h old | Red border (if implemented) |
 
-**Gap (from user story):** WM re-enters job_id/service_address even if contractor provided them. Verify pre-fill from request.
+**Gap (from user story):** Admin re-enters job_id/service_address even if contractor provided them. Verify pre-fill from request.
 
 ---
 
@@ -279,7 +277,7 @@ npm run dev
 | 3 | Add items, submit | `POST /api/withdrawals` |
 | 4 | Charged to account | Withdrawal created, invoiced later |
 
-**Check:** Is POS visible to contractor in `App.jsx`? Current routes show POS under `ADMIN_ROLES` only.
+**Check:** Is POS visible to contractor in `App.jsx`? Current routes show POS under admin role only.
 
 ---
 
@@ -476,12 +474,12 @@ npm run dev
 
 | # | Gap | Manual Check |
 |---|-----|--------------|
-| 1 | No warehouse_manager in single-org seed | Use multi-tenant or add WM seed |
+| 1 | Two-role model (admin, contractor) | Single-org seed provides admin + contractor |
 | 2 | withdrawal_getter wiring | Invoice creation from withdrawal works |
 | 3 | Contractor POS | Role-based UX: contractor can/cannot access POS |
 | 4 | Document parse → PO → receive | Trace full flow, watch for silent failures |
 | 5 | Invoice auto-creation | Every withdrawal = 1 draft? Consolidation UX |
-| 6 | Material request process | Job ID/address pre-filled from contractor input? |
+| 6 | Material request process | Job ID/address pre-filled from contractor input? (Admin re-enters if not provided) |
 
 ---
 

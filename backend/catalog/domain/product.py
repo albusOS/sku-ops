@@ -28,6 +28,7 @@ class ProductCreate(BaseModel):
     base_unit: str = "each"
     sell_uom: str = "each"
     pack_qty: int = 1
+    product_group: str | None = None
 
     @field_validator("base_unit", "sell_uom")
     @classmethod
@@ -56,6 +57,7 @@ class ProductUpdate(BaseModel):
     base_unit: str | None = None
     sell_uom: str | None = None
     pack_qty: int | None = None
+    product_group: str | None = None
 
     @field_validator("base_unit", "sell_uom")
     @classmethod
@@ -90,6 +92,7 @@ class Product(AuditedEntity):
     base_unit: str = "each"
     sell_uom: str = "each"
     pack_qty: int = 1
+    product_group: str | None = None
 
     @property
     def is_low_stock(self) -> bool:

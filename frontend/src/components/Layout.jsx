@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "@/lib/constants";
@@ -20,12 +21,29 @@ import {
   Building2,
   CreditCard,
   ShieldCheck,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ScanBarcode,
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
+
+const SIDEBAR_KEY = "sidebar-collapsed";
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_KEY) === "true"
+  );
+
+  const toggleSidebar = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(SIDEBAR_KEY, String(next));
+      return next;
+    });
+  };
 
   const handleLogout = () => {
     logout();
@@ -41,6 +59,7 @@ const Layout = ({ children }) => {
           items: [
             { path: "/", icon: LayoutDashboard, label: "Dashboard" },
             { path: "/request-materials", icon: ShoppingCart, label: "Request Materials" },
+            { path: "/scan", icon: ScanBarcode, label: "Scan & Checkout" },
             { path: "/my-history", icon: History, label: "My History" },
           ],
         },
@@ -72,56 +91,95 @@ const Layout = ({ children }) => {
         { path: "/invoices", icon: FileText, label: "Invoices" },
         { path: "/payments", icon: CreditCard, label: "Payments" },
         { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
-        { path: "/xero-health", icon: ShieldCheck, label: "Xero Sync Health" },
       );
     }
 
-    return [
+    const groups = [
       { items: [{ path: "/", icon: LayoutDashboard, label: "Dashboard" }] },
       { section: "Operations", items: operationsItems },
       { section: "Inventory", items: inventoryItems },
       { section: "Analytics & Finance", items: analyticsItems },
     ];
+
+    if (role === ROLES.ADMIN) {
+      groups.push({
+        section: "System",
+        items: [
+          { path: "/settings", icon: Settings, label: "Settings" },
+          { path: "/xero-health", icon: ShieldCheck, label: "Xero Sync Health" },
+        ],
+      });
+    }
+
+    return groups;
   };
 
   const navGroups = getNavGroups();
 
   const getRoleBadge = () => {
-    const role = user?.role;
-    if (role === ROLES.ADMIN) return "bg-destructive";
-    if (role === ROLES.WAREHOUSE_MANAGER) return "bg-info";
-    return "bg-success";
+    return user?.role === ROLES.ADMIN ? "bg-destructive" : "bg-success";
   };
 
   const getRoleLabel = () => {
-    const role = user?.role;
-    if (role === ROLES.ADMIN) return "Admin";
-    if (role === ROLES.WAREHOUSE_MANAGER) return "Warehouse";
-    return "Contractor";
+    return user?.role === ROLES.ADMIN ? "Admin" : "Contractor";
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex" data-testid="app-layout">
-      <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border/80 shadow-soft" data-testid="sidebar">
-        <div className="p-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-accent-gradient-from to-accent-gradient-to rounded-xl flex items-center justify-center shadow-sm ring-1 ring-accent/40">
+      <aside
+        className={`${collapsed ? "w-16" : "w-64"} bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border/80 shadow-soft transition-[width] duration-200 ease-in-out overflow-hidden shrink-0`}
+        data-testid="sidebar"
+      >
+        {/* Header */}
+        <div className="p-3 border-b border-sidebar-border flex items-center justify-between gap-2 min-h-[64px]">
+          {!collapsed && (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 bg-gradient-to-br from-accent-gradient-from to-accent-gradient-to rounded-xl flex items-center justify-center shadow-sm ring-1 ring-accent/40 shrink-0">
+                <Wrench className="w-5 h-5 text-accent-foreground" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-semibold text-sidebar-foreground tracking-tight truncate">Supply Yard</h1>
+                <p className="text-xs text-sidebar-muted truncate">Material management</p>
+              </div>
+            </div>
+          )}
+          {collapsed && (
+            <div className="w-10 h-10 bg-gradient-to-br from-accent-gradient-from to-accent-gradient-to rounded-xl flex items-center justify-center shadow-sm ring-1 ring-accent/40 mx-auto">
               <Wrench className="w-5 h-5 text-accent-foreground" />
             </div>
-            <div>
-              <h1 className="font-semibold text-sidebar-foreground tracking-tight">Supply Yard</h1>
-              <p className="text-xs text-sidebar-muted">Material management</p>
-            </div>
-          </div>
+          )}
+          <button
+            onClick={toggleSidebar}
+            className={`p-1.5 text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors shrink-0 ${collapsed ? "hidden" : ""}`}
+            aria-label="Collapse sidebar"
+            data-testid="sidebar-toggle"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
         </div>
 
-        <nav className="flex-1 py-4 px-3 overflow-y-auto" data-testid="sidebar-nav">
+        {/* Nav */}
+        <nav className="flex-1 py-4 px-2 overflow-y-auto overflow-x-hidden" data-testid="sidebar-nav">
+          {/* Expand button when collapsed */}
+          {collapsed && (
+            <button
+              onClick={toggleSidebar}
+              className="w-10 h-10 mx-auto flex items-center justify-center text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors mb-3"
+              aria-label="Expand sidebar"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+          )}
+
           {navGroups.map((group, gi) => (
             <div key={gi} className={gi > 0 ? "mt-4" : ""}>
-              {group.section && (
+              {group.section && !collapsed && (
                 <p className="px-3 mb-1 text-[10px] font-semibold text-sidebar-muted uppercase tracking-[0.14em]">
                   {group.section}
                 </p>
+              )}
+              {group.section && collapsed && (
+                <div className="mx-auto w-6 border-t border-sidebar-border/50 mb-2 mt-1" />
               )}
               <div className="space-y-0.5">
                 {group.items.map((item) => (
@@ -129,11 +187,14 @@ const Layout = ({ children }) => {
                     key={item.path}
                     to={item.path}
                     end={item.path === "/"}
-                    className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+                    title={collapsed ? item.label : undefined}
+                    className={({ isActive }) =>
+                      `sidebar-link ${isActive ? "active" : ""} ${collapsed ? "justify-center px-0 w-10 mx-auto" : ""}`
+                    }
                     data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
                     <item.icon className="w-5 h-5 shrink-0" />
-                    <span className="font-medium text-sm">{item.label}</span>
+                    {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
                   </NavLink>
                 ))}
               </div>
@@ -141,24 +202,38 @@ const Layout = ({ children }) => {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-sm text-sidebar-foreground truncate">{user?.name}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`} />
-                <p className="text-xs text-sidebar-muted truncate">{getRoleLabel()}</p>
-              </div>
-              {user?.company && <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">{user.company}</p>}
-            </div>
+        {/* Footer */}
+        <div className="p-3 border-t border-sidebar-border">
+          {collapsed ? (
             <button
               onClick={handleLogout}
-              className="p-2 text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors shrink-0"
+              title="Sign out"
+              className="w-10 h-10 mx-auto flex items-center justify-center text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors"
               data-testid="logout-btn"
             >
               <LogOut className="w-5 h-5" />
             </button>
-          </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-sm text-sidebar-foreground truncate">{user?.name}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`} />
+                  <p className="text-xs text-sidebar-muted truncate">{getRoleLabel()}</p>
+                </div>
+                {user?.company && (
+                  <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">{user.company}</p>
+                )}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                data-testid="logout-btn"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 

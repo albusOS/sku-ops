@@ -11,7 +11,7 @@ from operations.application.queries import list_returns as _list_returns
 from operations.application.return_service import create_return
 from operations.domain.returns import ReturnCreate
 from kernel import events
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/returns", tags=["returns"])
 async def create_material_return(
     data: ReturnCreate,
     request: Request,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     """Process a return against a previous withdrawal. Restocks inventory and creates credit note."""
     settings = await get_org_settings(current_user.organization_id)
@@ -53,7 +53,7 @@ async def create_material_return(
 
 @router.get("")
 async def list_returns(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     contractor_id: str | None = None,
     withdrawal_id: str | None = None,
     start_date: str | None = None,

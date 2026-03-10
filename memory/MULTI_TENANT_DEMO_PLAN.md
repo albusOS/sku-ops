@@ -8,7 +8,7 @@
 ## 1. Current State Summary
 
 ### Data Model (No Tenant Segregation)
-- **Users** have `role` (admin, warehouse_manager, contractor), `company`, `billing_entity` — but no `org_id` / `tenant_id`
+- **Users** have `role` (admin, contractor), `company`, `billing_entity` — but no `org_id` / `tenant_id`
 - **Products, Departments, Vendors** — shared across all users; no tenant scoping
 - **Withdrawals** — linked to `contractor_id` (user); contractor sees own history
 - **Invoices** — linked to withdrawals via `billing_entity`; no tenant
@@ -19,7 +19,7 @@
 - "Mark Paid" vs invoice lifecycle — two paths, unclear flow
 - `payment_status` "invoiced" never set when adding to invoice (data bug)
 - Contractor My History — no "invoiced" state
-- Warehouse managers can't access Financials/Invoices
+- Admin has full access to Financials/Invoices
 
 ### Integrations
 - Xero — stub only
@@ -90,7 +90,7 @@ Add `organization_id TEXT NOT NULL` (or `org_id`) to:
 ### 4.1 Core User Flows
 | Flow | Actors | Steps |
 |------|--------|-------|
-| **Withdrawal → Charge to Account** | Contractor/WM | POS → unpaid withdrawal → invoice via Xero |
+| **Withdrawal → Charge to Account** | Contractor/Admin | POS → unpaid withdrawal → invoice via Xero |
 | **Unpaid → Invoice** | Admin | Financials → select withdrawals → Create Invoice |
 | **Invoice → Sent → Paid** | Admin | Invoices → Send to Xero → mark paid when paid |
 | **Contractor view** | Contractor | My History: see unpaid, invoiced, paid |
@@ -120,10 +120,8 @@ Add `organization_id TEXT NOT NULL` (or `org_id`) to:
 | Org | Role | Email | Purpose |
 |-----|------|-------|---------|
 | North | admin | admin@north.demo | Full access |
-| North | warehouse_manager | wm@north.demo | POS, inventory |
 | North | contractor | contractor@north.demo | Withdraw, pay/charge |
 | South | admin | admin@south.demo | Full access |
-| South | warehouse_manager | wm@south.demo | POS, inventory |
 | South | contractor | contractor@south.demo | Withdraw, pay/charge |
 
 ### 5.3 Demo Data (per org)

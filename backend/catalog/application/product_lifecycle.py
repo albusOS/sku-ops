@@ -37,6 +37,7 @@ async def create_product(
     base_unit: str = "each",
     sell_uom: str = "each",
     pack_qty: int = 1,
+    product_group: str | None = None,
     user_id: str | None = None,
     user_name: str = "",
     organization_id: str | None = None,
@@ -86,6 +87,7 @@ async def create_product(
         base_unit=base_unit,
         sell_uom=sell_uom,
         pack_qty=pack_qty,
+        product_group=product_group,
     )
 
     product.organization_id = org_id

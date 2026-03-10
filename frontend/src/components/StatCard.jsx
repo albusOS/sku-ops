@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const ACCENTS = {
@@ -10,20 +11,20 @@ const ACCENTS = {
   slate:   { bar: "bg-muted",        icon: "bg-muted text-muted-foreground" },
 };
 
-/**
- * Unified stat/metric card used across Dashboard, Financials, Reports, MyHistory.
- *
- * @param {string}  label   – Uppercase tiny label
- * @param {string}  value   – Big number / formatted value
- * @param {string}  [note]  – Small subtext below the value
- * @param {string}  [accent="slate"] – Color theme key
- * @param {React.ComponentType} [icon] – Optional Lucide icon
- * @param {string}  [className]
- */
-export function StatCard({ label, value, note, icon: Icon, accent = "slate", className }) {
+export function StatCard({ label, value, note, icon: Icon, accent = "slate", className, href }) {
   const cfg = ACCENTS[accent] || ACCENTS.slate;
+  const Wrapper = href ? Link : "div";
+  const wrapperProps = href ? { to: href } : {};
+
   return (
-    <div className={cn("bg-surface rounded-xl border border-border/80 p-5 relative overflow-hidden shadow-soft", className)}>
+    <Wrapper
+      {...wrapperProps}
+      className={cn(
+        "bg-surface rounded-xl border border-border/80 p-5 relative overflow-hidden shadow-soft block",
+        href && "hover:border-accent/40 hover:shadow-md transition-all cursor-pointer",
+        className,
+      )}
+    >
       <div className={cn("absolute top-0 left-0 right-0 h-[2px]", cfg.bar)} />
       <div className="flex items-start justify-between mb-3">
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
@@ -35,6 +36,6 @@ export function StatCard({ label, value, note, icon: Icon, accent = "slate", cla
       </div>
       <p className="text-2xl font-bold text-foreground tabular-nums leading-none">{value}</p>
       {note && <p className="text-xs text-muted-foreground mt-2">{note}</p>}
-    </div>
+    </Wrapper>
   );
 }

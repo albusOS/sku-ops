@@ -4,14 +4,14 @@ from fastapi import APIRouter, HTTPException
 
 from jobs.domain.job import JobCreate, JobStatus, JobUpdate
 from jobs.infrastructure.job_repo import job_repo
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.get("")
 async def list_jobs(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     status: str | None = None,
     q: str | None = None,
     limit: int = 200,
@@ -52,7 +52,7 @@ async def get_job(job_id: str, current_user: CurrentUserDep):
 @router.post("")
 async def create_job(
     data: JobCreate,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     code = data.code.strip()
@@ -79,7 +79,7 @@ async def create_job(
 async def update_job(
     job_id: str,
     data: JobUpdate,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     existing = await job_repo.get_by_id(job_id, org_id)

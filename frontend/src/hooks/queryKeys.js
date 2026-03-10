@@ -96,4 +96,8 @@ export const keys = {
     all: ["xeroHealth"],
     summary: () => ["xeroHealth", "summary"],
   },
+  settings: {
+    all: ["settings"],
+    xero: () => ["settings", "xero"],
+  },
 };

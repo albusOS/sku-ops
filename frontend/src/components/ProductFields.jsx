@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { UOM_OPTIONS } from "@/lib/constants";
+import { GroupCombobox } from "@/components/GroupCombobox";
 
 function FieldTip({ children }) {
   return (
@@ -260,6 +261,21 @@ export function ProductFields({
           )}
 
           {uomAction}
+        </div>
+      )}
+
+      {!isHidden(h, "product_group") && (
+        <div className="col-span-2" data-testid="pf-product-group">
+          <Label className={labelCls}>
+            Product Group
+            {!compact && <FieldTip>Group related variants together (e.g. "1/2 PEX Tubing") so you can view combined stock across sizes and vendors.</FieldTip>}
+          </Label>
+          <GroupCombobox
+            value={field("product_group")}
+            onChange={(v) => set("product_group", v)}
+            compact={compact}
+            disabled={isReadOnly(ro, "product_group")}
+          />
         </div>
       )}
 

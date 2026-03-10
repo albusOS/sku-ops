@@ -8,7 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Sparkles } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sparkles, ChevronDown } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-client";
 import api from "@/lib/api-client";
 import { useCreateProduct, useUpdateProduct, useSuggestUom } from "@/hooks/useProducts";
@@ -27,7 +28,17 @@ const INITIAL_FORM = {
   base_unit: "each",
   sell_uom: "each",
   pack_qty: "1",
+  product_group: "",
 };
+
+const ADVANCED_FIELDS = new Set([
+  "description", "cost", "min_stock", "vendor_id",
+  "base_unit", "sell_uom", "pack_qty", "product_group", "barcode",
+]);
+
+const ESSENTIAL_FIELDS = new Set([
+  "name", "department_id", "price", "quantity",
+]);
 
 export function ProductFormDialog({
   open,
@@ -37,6 +48,7 @@ export function ProductFormDialog({
   vendors = [],
 }) {
   const [form, setForm] = useState(INITIAL_FORM);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const suggestTimeout = useRef(null);
 
   const createMutation = useCreateProduct();
@@ -72,9 +84,12 @@ export function ProductFormDialog({
         base_unit: editingProduct.base_unit || "each",
         sell_uom: editingProduct.sell_uom || "each",
         pack_qty: String(editingProduct.pack_qty ?? 1),
+        product_group: editingProduct.product_group || "",
       });
+      setAdvancedOpen(true);
     } else {
       setForm(INITIAL_FORM);
+      setAdvancedOpen(false);
     }
   }, [open, editingProduct]);
 
@@ -84,7 +99,7 @@ export function ProductFormDialog({
     };
   }, []);
 
-  const handleNameChange = (v) => {
+  const handleNameChange = useCallback((v) => {
     setForm((f) => ({ ...f, name: v }));
     if (suggestTimeout.current) clearTimeout(suggestTimeout.current);
     if (!editingProduct && v.trim().length >= 3) {
@@ -105,7 +120,7 @@ export function ProductFormDialog({
         suggestTimeout.current = null;
       }, 600);
     }
-  };
+  }, [editingProduct, suggestMutation]);
 
   const suggestUnit = useCallback(() => {
     if (!form.name?.trim()) {
@@ -128,6 +143,22 @@ export function ProductFormDialog({
       }
     );
   }, [form.name, form.description, suggestMutation]);
+
+  const handleFieldChange = useCallback(
+    (name, value) => {
+      if (name === "name") { handleNameChange(value); return; }
+      setForm((f) => ({ ...f, [name]: value }));
+    },
+    [handleNameChange],
+  );
+
+  const hasAdvancedValues =
+    !!form.description || !!form.cost || !!form.vendor_id ||
+    !!form.barcode || !!form.product_group ||
+    (form.base_unit && form.base_unit !== "each") ||
+    (form.sell_uom && form.sell_uom !== "each") ||
+    (form.pack_qty && form.pack_qty !== "1") ||
+    (form.min_stock && form.min_stock !== "5");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -159,6 +190,7 @@ export function ProductFormDialog({
       base_unit: form.base_unit || "each",
       sell_uom: form.sell_uom || "each",
       pack_qty: parseInt(form.pack_qty) || 1,
+      product_group: form.product_group?.trim() || null,
     };
 
     const mutation = editingProduct ? updateMutation : createMutation;
@@ -202,32 +234,56 @@ export function ProductFormDialog({
             )}
           </div>
 
+          {/* Essentials: name, department, price, quantity */}
           <ProductFields
             fields={form}
-            onChange={(name, value) => {
-              if (name === "name") { handleNameChange(value); return; }
-              setForm((f) => ({ ...f, [name]: value }));
-            }}
+            onChange={handleFieldChange}
             departments={departments}
             vendors={vendors}
-            uomAction={
-              <Button
-                type="button"
-                variant="outline"
-                onClick={suggestUnit}
-                disabled={suggestMutation.isPending || !form.name?.trim()}
-                className="h-11 px-3 border-border mt-2"
-                title="Use AI to suggest unit from product name"
-              >
-                {suggestMutation.isPending ? (
-                  <span className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin block" />
-                ) : (
-                  <Sparkles className="w-5 h-5 text-accent" />
-                )}
-                <span className="ml-2 text-sm">Suggest unit</span>
-              </Button>
-            }
+            hiddenFields={ADVANCED_FIELDS}
           />
+
+          {/* Advanced: collapsible */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? "rotate-0" : "-rotate-90"}`} />
+                Advanced fields
+                {!advancedOpen && hasAdvancedValues && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent ml-1" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <ProductFields
+                fields={form}
+                onChange={handleFieldChange}
+                departments={departments}
+                vendors={vendors}
+                hiddenFields={ESSENTIAL_FIELDS}
+                uomAction={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={suggestUnit}
+                    disabled={suggestMutation.isPending || !form.name?.trim()}
+                    className="h-11 px-3 border-border mt-2"
+                    title="Use AI to suggest unit from product name"
+                  >
+                    {suggestMutation.isPending ? (
+                      <span className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin block" />
+                    ) : (
+                      <Sparkles className="w-5 h-5 text-accent" />
+                    )}
+                    <span className="ml-2 text-sm">Suggest unit</span>
+                  </Button>
+                }
+              />
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 btn-secondary h-12" data-testid="product-cancel-btn">

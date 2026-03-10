@@ -17,19 +17,21 @@ export function SubmitRequestModal({
   onSubmit,
   isPending,
 }) {
+  const canSubmit = jobId?.trim() && serviceAddress?.trim();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Submit material request</DialogTitle></DialogHeader>
         <div className="space-y-4 pt-2">
           <div>
-            <Label className="text-sm">Job ID (optional)</Label>
+            <Label className="text-sm">Job ID *</Label>
             <div className="mt-1.5">
               <JobPicker value={jobId} onChange={onJobIdChange} placeholder="Job or reference number" />
             </div>
           </div>
           <div>
-            <Label className="text-sm">Service address (optional)</Label>
+            <Label className="text-sm">Service address *</Label>
             <div className="mt-1.5">
               <AddressPicker value={serviceAddress} onChange={onServiceAddressChange} placeholder="Pickup or delivery location" />
             </div>
@@ -38,9 +40,14 @@ export function SubmitRequestModal({
             <Label className="text-sm">Notes (optional)</Label>
             <Input value={notes} onChange={(e) => onNotesChange(e.target.value)} placeholder="Additional notes..." className="mt-1.5" />
           </div>
-          <Button onClick={onSubmit} disabled={isPending} className="w-full h-11">
+          <Button onClick={onSubmit} disabled={isPending || !canSubmit} className="w-full h-11">
             {isPending ? "Submitting…" : "Submit Request"}
           </Button>
+          {!canSubmit && (
+            <p className="text-xs text-muted-foreground text-center">
+              Job and address are required so staff can process your request.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

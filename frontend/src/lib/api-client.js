@@ -43,6 +43,9 @@ const api = {
     adjust: (id, data) => axios.post(`${API}/stock/${id}/adjust`, data).then((r) => r.data),
     suggestUom: (data) => axios.post(`${API}/products/suggest-uom`, data).then((r) => r.data),
     stockHistory: (id) => axios.get(`${API}/stock/${id}/history`).then((r) => r.data),
+    groups: () => axios.get(`${API}/products/groups`).then((r) => r.data),
+    assignGroup: (data) => axios.post(`${API}/products/groups/assign`, data).then((r) => r.data),
+    renameGroup: (oldName, newName) => axios.post(`${API}/products/groups/rename`, null, { params: { old_name: oldName, new_name: newName } }).then((r) => r.data),
     byBarcode: (barcode) => axios.get(`${API}/products/by-barcode`, { params: { barcode } }).then((r) => r.data),
     importCsv: (formData) => axios.post(`${API}/products/import-csv`, formData).then((r) => r.data),
   },
@@ -214,11 +217,22 @@ const api = {
     departments: () => axios.post(`${API}/seed/departments`).then((r) => r.data),
   },
 
-  // ── Xero health ─────────────────────────────────────────────────────
+  // ── Org Settings ────────────────────────────────────────────────────
+  settings: {
+    xero: () => axios.get(`${API}/settings/xero`).then((r) => r.data),
+    updateXero: (data) => axios.put(`${API}/settings/xero`, data).then((r) => r.data),
+  },
+
+  // ── Xero ──────────────────────────────────────────────────────────────
   xero: {
     health: () => axios.get(`${API}/xero/health`).then((r) => r.data),
     triggerSync: () => axios.post(`${API}/xero/sync`).then((r) => r.data),
     syncStatus: () => axios.get(`${API}/xero/sync-status`).then((r) => r.data),
+    tenants: () => axios.get(`${API}/xero/tenants`).then((r) => r.data),
+    selectTenant: (id) => axios.post(`${API}/xero/select-tenant`, null, { params: { tenant_id: id } }).then((r) => r.data),
+    disconnect: () => axios.post(`${API}/xero/disconnect`).then((r) => r.data),
+    trackingCategories: () => axios.get(`${API}/xero/tracking-categories`).then((r) => r.data),
+    selectTrackingCategory: (id) => axios.post(`${API}/xero/select-tracking-category`, null, { params: { tracking_category_id: id } }).then((r) => r.data),
   },
 };
 

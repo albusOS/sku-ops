@@ -137,7 +137,7 @@ A minimal valid PNG (1x1) was sent with `use_ai=true`. The external AI provider 
 | Purchase Order delivery/receive | No POs in seed (empty list) |
 | Create Invoice from Financials | UI workflow |
 | Xero sync | Integration |
-| Contractor self-checkout (Scene 9) | POS gated by `ADMIN_ROLES` — contractor cannot access |
+| Contractor self-checkout (Scene 9) | POS gated by admin role — contractor cannot access |
 
 ---
 
@@ -157,5 +157,5 @@ A minimal valid PNG (1x1) was sent with `use_ai=true`. The external AI provider 
 1. **Material Request schema** — Clarify or relax `sku`/`name` requirements for API consumers.
 2. **API docs** — Add OpenAPI examples for `/material-requests` and `/withdrawals/for-contractor` (query vs body).
 3. **E2E trace** — Manually run Document Parse → PO → Mark at Dock → Receive with a real receipt.
-4. **Contractor POS** — Revisit whether contractors should have self-checkout; currently blocked by `ADMIN_ROLES`.
+4. **Contractor POS** — Revisit whether contractors should have self-checkout; currently blocked by admin role.
 5. **Chat route** — Fix any references to `/api/assistant/chat`; correct route is `/api/chat`.

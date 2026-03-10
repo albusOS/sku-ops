@@ -62,7 +62,7 @@ from shared.infrastructure.config import (
 logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 25
-_ALLOWED_ROLES = frozenset({"admin", "warehouse_manager"})
+_ALLOWED_ROLES = frozenset({"admin"})
 
 
 def _authenticate(token: str) -> dict | None:

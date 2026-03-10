@@ -26,11 +26,13 @@ export function ProductDetailModal({
   product,
   open,
   onOpenChange,
+  allProducts = [],
   onEdit,
   onAdjust,
   onDelete,
   onPrintLabels,
   onViewHistory,
+  onFilterByGroup,
 }) {
   const [printQty, setPrintQty] = useState(1);
 
@@ -116,6 +118,29 @@ export function ProductDetailModal({
                   )}
                 </p>
               </div>
+              {product.product_group && (
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Product Group</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="font-medium text-accent hover:underline text-left"
+                      onClick={() => onFilterByGroup?.(product.product_group)}
+                    >
+                      {product.product_group}
+                    </button>
+                    {(() => {
+                      const siblings = allProducts.filter(
+                        (p) => p.product_group === product.product_group && p.id !== product.id
+                      );
+                      return siblings.length > 0 ? (
+                        <span className="text-xs text-muted-foreground">
+                          ({siblings.length} other variant{siblings.length !== 1 ? "s" : ""})
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              )}
               {product.original_sku && (
                 <div className="col-span-2">
                   <p className="text-muted-foreground">Vendor / original SKU</p>

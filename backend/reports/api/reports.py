@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from catalog.application.queries import list_low_stock, list_products
 from finance.application import ledger_queries as ledger_repo
 from kernel.types import round_money
-from shared.api.deps import ManagerDep
+from shared.api.deps import AdminDep
 from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/sales")
 async def get_sales_report(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
     job_id: str | None = None,
@@ -67,7 +67,7 @@ async def get_sales_report(
 
 
 @router.get("/inventory")
-async def get_inventory_report(current_user: ManagerDep):
+async def get_inventory_report(current_user: AdminDep):
     org_id = current_user.organization_id
     products = await list_products(organization_id=org_id)
 
@@ -110,7 +110,7 @@ async def get_inventory_report(current_user: ManagerDep):
 
 @router.get("/trends")
 async def get_trends_report(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
     group_by: str = "day",
@@ -135,7 +135,7 @@ async def get_trends_report(
 
 @router.get("/product-margins")
 async def get_product_margins(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 20,
@@ -161,16 +161,20 @@ async def get_product_margins(
 
 @router.get("/job-pl")
 async def get_job_pl(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 100,
+    offset: int = 0,
+    search: str | None = None,
 ):
     """Per-job P&L from the ledger."""
     org_id = current_user.organization_id
-    jobs = await ledger_repo.summary_by_job(
-        org_id=org_id, start_date=start_date, end_date=end_date, limit=limit,
+    result = await ledger_repo.summary_by_job(
+        org_id=org_id, start_date=start_date, end_date=end_date,
+        limit=limit, offset=offset, search=search,
     )
+    jobs = result["rows"]
 
     total_revenue = sum(j["revenue"] for j in jobs)
     total_cost = sum(j["cost"] for j in jobs)
@@ -178,6 +182,7 @@ async def get_job_pl(
 
     return {
         "jobs": jobs,
+        "total": result["total"],
         "total_revenue": round_money(total_revenue),
         "total_cost": round_money(total_cost),
         "total_profit": round_money(total_profit),
@@ -187,11 +192,13 @@ async def get_job_pl(
 
 @router.get("/pl")
 async def get_pl(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     group_by: str = "overall",
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 100,
+    offset: int = 0,
+    search: str | None = None,
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
@@ -200,6 +207,7 @@ async def get_pl(
     org_id = current_user.organization_id
     date_kw = {"start_date": start_date, "end_date": end_date}
     dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
+    total_rows = None
 
     if group_by == "overall":
         accounts = await ledger_repo.summary_by_account(org_id, **date_kw, **dim_kw)
@@ -221,8 +229,17 @@ async def get_pl(
             "rows": [],
         }
 
+    all_revenue_override = None
+    all_cost_override = None
+
     if group_by == "job":
-        rows = await ledger_repo.summary_by_job(org_id, **date_kw, limit=limit)
+        result = await ledger_repo.summary_by_job(
+            org_id, **date_kw, limit=limit, offset=offset, search=search,
+        )
+        rows = result["rows"]
+        total_rows = result["total"]
+        all_revenue_override = result["all_revenue"]
+        all_cost_override = result["all_cost"]
         label_key = "job_id"
     elif group_by == "contractor":
         rows = await ledger_repo.summary_by_contractor(org_id, **date_kw)
@@ -247,11 +264,11 @@ async def get_pl(
         rows = []
         label_key = "name"
 
-    total_revenue = sum(r.get("revenue", 0) for r in rows)
-    total_cost = sum(r.get("cost", 0) for r in rows)
+    total_revenue = all_revenue_override if all_revenue_override is not None else sum(r.get("revenue", 0) for r in rows)
+    total_cost = all_cost_override if all_cost_override is not None else sum(r.get("cost", 0) for r in rows)
     total_profit = round_money(total_revenue - total_cost)
 
-    return {
+    resp = {
         "group_by": group_by,
         "summary": {
             "revenue": round_money(total_revenue),
@@ -262,11 +279,14 @@ async def get_pl(
         "rows": rows,
         "label_key": label_key,
     }
+    if total_rows is not None:
+        resp["total_rows"] = total_rows
+    return resp
 
 
 @router.get("/ar-aging")
 async def get_ar_aging(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
 ):
@@ -278,7 +298,7 @@ async def get_ar_aging(
 
 @router.get("/kpis")
 async def get_kpis(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
     job_id: str | None = None,
@@ -332,7 +352,7 @@ async def get_kpis(
 
 @router.get("/product-performance")
 async def get_product_performance(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 200,
@@ -378,7 +398,7 @@ async def get_product_performance(
 
 @router.get("/reorder-urgency")
 async def get_reorder_urgency(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     days: int = 30,
     limit: int = 50,
 ):
@@ -441,7 +461,7 @@ async def get_reorder_urgency(
 
 @router.get("/product-activity")
 async def get_product_activity(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     product_id: str | None = None,
     days: int = 365,
 ):

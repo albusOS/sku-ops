@@ -70,7 +70,7 @@ const PL_COLUMNS = {
   product: { label: "Product", key: "name" },
 };
 
-export const PLBreakdownTable = ({ plDimension, rows, onRowClick, selectedId }) => {
+export const PLBreakdownTable = ({ plDimension, rows, onRowClick, selectedId, totalRows }) => {
   const colCfg = PL_COLUMNS[plDimension];
   const columns = useMemo(() => {
     const cols = [
@@ -116,7 +116,7 @@ export const PLBreakdownTable = ({ plDimension, rows, onRowClick, selectedId }) 
     <DataTable
       data={dataWithId}
       columns={columns}
-      title={`Breakdown \u2014 ${PL_DIMENSIONS.find((d) => d.value === plDimension)?.label || plDimension}`}
+      title={`${PL_DIMENSIONS.find((d) => d.value === plDimension)?.label || plDimension}${totalRows != null ? ` \u2014 ${totalRows} total` : ""}`}
       emptyMessage="No P&L data"
       searchable
       exportable

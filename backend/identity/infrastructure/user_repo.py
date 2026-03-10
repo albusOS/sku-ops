@@ -45,7 +45,7 @@ async def insert(user_dict: dict) -> None:
             user_dict["email"],
             user_dict["password"],
             user_dict["name"],
-            user_dict.get("role", "warehouse_manager"),
+            user_dict.get("role", "admin"),
             user_dict.get("company") or "",
             user_dict.get("billing_entity") or "",
             user_dict.get("phone") or "",

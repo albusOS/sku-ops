@@ -116,8 +116,10 @@ async def summary_by_job(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 100,
-) -> list[dict]:
-    """Per-job P&L."""
+    offset: int = 0,
+    search: str | None = None,
+) -> dict:
+    """Per-job P&L with pagination and search. Returns {rows, total}."""
     conn = get_connection()
     params: list = [org_id]
     date_filter = ""
@@ -128,7 +130,7 @@ async def summary_by_job(
         date_filter += " AND created_at <= ?"
         params.append(end_date)
 
-    query = (
+    base = (
         "SELECT job_id,"
         " billing_entity,"
         " ROUND(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END), 2) AS revenue,"
@@ -139,10 +141,27 @@ async def summary_by_job(
         " AND account IN ('revenue', 'cogs')"
         " AND job_id IS NOT NULL"
     )
-    query += date_filter
-    query += " GROUP BY job_id, billing_entity ORDER BY revenue DESC LIMIT ?"
-    cursor = await conn.execute(query, [*params, limit])
+    base += date_filter
+    base += " GROUP BY job_id, billing_entity"
+
+    search_clause = ""
+    search_params: list = []
+    if search:
+        term = f"%{search}%"
+        search_clause = " HAVING job_id LIKE ? OR billing_entity LIKE ?"
+        search_params = [term, term]
+
+    count_query = f"SELECT COUNT(*) AS cnt, COALESCE(SUM(revenue), 0) AS total_revenue, COALESCE(SUM(cost), 0) AS total_cost FROM ({base}{search_clause})"
+    count_cursor = await conn.execute(count_query, [*params, *search_params])
+    agg = dict(await count_cursor.fetchone())
+    total = agg["cnt"]
+    all_revenue = float(agg["total_revenue"])
+    all_cost = float(agg["total_cost"])
+
+    data_query = f"{base}{search_clause} ORDER BY revenue DESC LIMIT ? OFFSET ?"
+    cursor = await conn.execute(data_query, [*params, *search_params, limit, offset])
     rows = await cursor.fetchall()
+
     result = []
     for r in rows:
         row = dict(r)
@@ -158,7 +177,7 @@ async def summary_by_job(
             "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
             "withdrawal_count": row["transaction_count"],
         })
-    return result
+    return {"rows": result, "total": total, "all_revenue": all_revenue, "all_cost": all_cost}
 
 
 async def summary_by_billing_entity(

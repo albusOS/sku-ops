@@ -30,7 +30,7 @@ from documents.infrastructure.document_repo import document_repo
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
 from kernel.types import CurrentUser
-from shared.api.deps import ManagerDep
+from shared.api.deps import AdminDep
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.prompt_loader import load_prompt
@@ -71,7 +71,7 @@ async def _persist_parsed_document(extracted: dict, filename: str, content_type:
 @router.post("/parse")
 async def parse_document(
     file: Annotated[UploadFile, File(...)],
-    current_user: ManagerDep,
+    current_user: AdminDep,
     use_ai: bool = False,
 ):
     """Parse image or PDF. use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR."""
@@ -164,7 +164,7 @@ async def parse_document(
 
 @router.get("")
 async def list_documents(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     status: str | None = None,
     vendor_name: str | None = None,
     po_id: str | None = None,
@@ -180,7 +180,7 @@ async def list_documents(
 
 
 @router.get("/{doc_id}")
-async def get_document(doc_id: str, current_user: ManagerDep):
+async def get_document(doc_id: str, current_user: AdminDep):
     doc = await document_repo.get_by_id(doc_id, current_user.organization_id)
     if not doc:
         from fastapi import HTTPException as _E
@@ -200,7 +200,7 @@ async def _wired_classify_uom_batch(products):
 @router.post("/import")
 async def import_document(
     data: DocumentImportRequest,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     """Import parsed products; create or match vendor."""
     deps = ImportDeps(

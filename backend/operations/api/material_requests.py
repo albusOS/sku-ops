@@ -18,7 +18,7 @@ from operations.domain.material_request import (
 from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
 from operations.infrastructure.material_request_repo import material_request_repo
 from kernel import events
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.database import transaction
 
@@ -64,7 +64,7 @@ async def create_material_request(data: MaterialRequestCreate, current_user: Cur
 
 @router.get("")
 async def list_material_requests(current_user: CurrentUserDep):
-    """Contractors see own requests; admin/WM see all pending."""
+    """Contractors see own requests; admins see all pending."""
     org_id = current_user.organization_id
     role = current_user.role
 
@@ -72,7 +72,7 @@ async def list_material_requests(current_user: CurrentUserDep):
         return await material_request_repo.list_by_contractor(
             contractor_id=current_user.id, organization_id=org_id
         )
-    if role in ("admin", "warehouse_manager"):
+    if role == "admin":
         return await material_request_repo.list_pending(organization_id=org_id)
     raise HTTPException(status_code=403, detail="Insufficient permissions")
 
@@ -93,7 +93,7 @@ async def get_material_request(request_id: str, current_user: CurrentUserDep):
 async def process_material_request(
     request_id: str,
     data: MaterialRequestProcess,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     """Convert a pending material request into a withdrawal. Staff supplies job_id and service_address."""
     org_id = current_user.organization_id

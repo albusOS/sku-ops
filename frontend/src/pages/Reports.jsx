@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
@@ -19,6 +20,7 @@ import { PLTab } from "@/components/reports/PLTab";
 import { OperationsTab } from "@/components/reports/OperationsTab";
 import { InventoryTab } from "@/components/reports/InventoryTab";
 import { TrendsTab } from "@/components/reports/TrendsTab";
+import api from "@/lib/api-client";
 
 const Reports = () => {
   const [activeTab, setActiveTab] = useState("pl");
@@ -41,11 +43,51 @@ const Reports = () => {
     setSelectedProduct({ id: product.product_id || product.id, name: product.name, sku: product.sku });
   };
 
-  const handleExportCSV = () => {
-    const a = document.createElement("a");
-    a.download = `report-${activeTab}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-  };
+  const handleExportCSV = useCallback(async () => {
+    try {
+      const filename = `report-${activeTab}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+
+      if (activeTab === "pl" || activeTab === "finance") {
+        const blob = await api.financials.export({
+          start_date: dateParams.start_date || undefined,
+          end_date: dateParams.end_date || undefined,
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("CSV downloaded");
+        return;
+      }
+
+      if (activeTab === "inventory") {
+        const products = await api.products.list({ limit: 10000 });
+        const rows = (products.items || products).map((p) => [
+          p.sku, p.name, p.department_name || "", p.quantity, p.min_stock,
+          p.price, p.cost || 0, p.product_group || "", p.vendor_name || "",
+        ]);
+        const csv = [
+          ["SKU", "Name", "Department", "Qty", "Min Stock", "Price", "Cost", "Product Group", "Vendor"],
+          ...rows,
+        ].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("CSV downloaded");
+        return;
+      }
+
+      toast.info("Export is available for P&L, Finance, and Inventory tabs");
+    } catch (err) {
+      toast.error("Export failed — please try again");
+    }
+  }, [activeTab, dateParams]);
 
   return (
     <div className="p-4 md:p-8" data-testid="reports-page">

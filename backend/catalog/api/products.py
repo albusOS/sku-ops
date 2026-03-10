@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from catalog.api.schemas import SuggestUomRequest
+from catalog.api.schemas import BulkGroupAssign, SuggestUomRequest
 from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.product_lifecycle import delete_product as lifecycle_delete
 from catalog.application.product_lifecycle import update_product as lifecycle_update
@@ -16,7 +16,7 @@ from catalog.infrastructure.vendor_repo import vendor_repo
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
 from kernel.errors import ResourceNotFoundError
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.config import LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -52,6 +52,7 @@ async def get_products(
     department_id: str | None = None,
     search: str | None = None,
     low_stock: bool = False,
+    product_group: str | None = None,
     limit: int | None = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -64,6 +65,7 @@ async def get_products(
         limit=limit,
         offset=offset,
         organization_id=org_id,
+        product_group=product_group,
     )
     items = [_enrich_sell_fields(p) for p in items]
     if is_contractor:
@@ -74,9 +76,62 @@ async def get_products(
             search=search,
             low_stock=low_stock,
             organization_id=org_id,
+            product_group=product_group,
         )
         return {"items": items, "total": total}
     return items
+
+
+@router.get("/groups")
+async def get_product_groups(current_user: AdminDep):
+    """Return distinct product groups with counts and total stock."""
+    org_id = current_user.organization_id
+    return await product_repo.list_product_groups(organization_id=org_id)
+
+
+@router.post("/groups/assign")
+async def bulk_assign_group(data: BulkGroupAssign, current_user: AdminDep):
+    """Assign or clear product_group for multiple products at once."""
+    org_id = current_user.organization_id
+    group_val = data.product_group.strip() if data.product_group else None
+    updated = 0
+    for pid in data.product_ids:
+        product = await product_repo.get_by_id(pid, organization_id=org_id)
+        if not product:
+            continue
+        await product_repo.update(
+            pid,
+            {"product_group": group_val, "updated_at": ""},
+            organization_id=org_id,
+        )
+        updated += 1
+    return {"updated": updated, "product_group": group_val}
+
+
+@router.post("/groups/rename")
+async def rename_group(
+    current_user: AdminDep,
+    old_name: str = Query(...),
+    new_name: str = Query(...),
+):
+    """Rename a product group across all products that have it."""
+    org_id = current_user.organization_id
+    old = old_name.strip()
+    new = new_name.strip()
+    if not old or not new:
+        raise HTTPException(status_code=400, detail="Both old_name and new_name are required")
+    products = await product_repo.list_products(
+        product_group=old, organization_id=org_id
+    )
+    updated = 0
+    for p in products:
+        await product_repo.update(
+            p["id"],
+            {"product_group": new, "updated_at": ""},
+            organization_id=org_id,
+        )
+        updated += 1
+    return {"updated": updated, "old_name": old, "new_name": new}
 
 
 @router.get("/by-barcode")
@@ -124,7 +179,7 @@ async def get_product(product_id: str, current_user: CurrentUserDep):
 
 
 @router.post("/suggest-uom")
-async def suggest_uom(data: SuggestUomRequest, _current_user: ManagerDep):
+async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
     gen_text = None
     if LLM_AVAILABLE:
@@ -135,7 +190,7 @@ async def suggest_uom(data: SuggestUomRequest, _current_user: ManagerDep):
 
 
 @router.post("")
-async def create_product(data: ProductCreate, current_user: ManagerDep):
+async def create_product(data: ProductCreate, current_user: AdminDep):
     org_id = current_user.organization_id
     department = await department_repo.get_by_id(data.department_id, org_id)
     if not department:
@@ -164,6 +219,7 @@ async def create_product(data: ProductCreate, current_user: ManagerDep):
             base_unit=getattr(data, "base_unit", "each"),
             sell_uom=getattr(data, "sell_uom", "each"),
             pack_qty=getattr(data, "pack_qty", 1),
+            product_group=data.product_group,
             user_id=current_user.id,
             user_name=current_user.name,
             organization_id=org_id,
@@ -177,13 +233,15 @@ async def create_product(data: ProductCreate, current_user: ManagerDep):
 
 
 @router.put("/{product_id}")
-async def update_product(product_id: str, data: ProductUpdate, current_user: ManagerDep):
+async def update_product(product_id: str, data: ProductUpdate, current_user: AdminDep):
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if "product_group" in data.model_fields_set and data.product_group is None:
+        update_data["product_group"] = None
     try:
         result = await lifecycle_update(product_id, update_data, current_product=product)
     except ResourceNotFoundError as e:
@@ -196,7 +254,7 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Man
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, request: Request, current_user: ManagerDep):
+async def delete_product(product_id: str, request: Request, current_user: AdminDep):
     org_id = current_user.organization_id
     product = await product_repo.get_by_id(product_id, organization_id=org_id)
     if not product:

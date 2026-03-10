@@ -68,52 +68,103 @@ class XeroAdapter:
         resp.raise_for_status()
         return resp.json()
 
+    async def _ensure_tracking_option(
+        self,
+        category_id: str,
+        option_name: str,
+        settings: OrgSettings,
+        client: httpx.AsyncClient,
+    ) -> None:
+        """Upsert a tracking option in Xero so it can be referenced on line items.
+
+        Xero rejects invoices and journals that reference a tracking Option value
+        that does not already exist in the category. Because job IDs are created
+        dynamically in this app, we must ensure the option exists before use.
+
+        GET to fetch existing options, PUT only when the option is absent — making
+        this call idempotent and low-overhead for the common (already-exists) case.
+        """
+        resp = await client.get(
+            f"{XERO_API}/TrackingCategories/{category_id}",
+            headers=self._auth_headers(settings),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        categories = resp.json().get("TrackingCategories", [])
+        existing_names = {
+            opt.get("Name", "")
+            for cat in categories
+            for opt in cat.get("Options", [])
+            if opt.get("Status") == "ACTIVE"
+        }
+        if option_name not in existing_names:
+            create_resp = await client.put(
+                f"{XERO_API}/TrackingCategories/{category_id}/Options",
+                headers=self._auth_headers(settings),
+                json={"Options": [{"Name": option_name}]},
+                timeout=15,
+            )
+            create_resp.raise_for_status()
+            logger.info("Created Xero tracking option %r in category %s", option_name, category_id)
+
     async def sync_invoice(self, invoice: dict, settings: OrgSettings) -> InvoiceSyncResult:
         if self._is_token_expired(settings):
             settings = await self.refresh_token(settings)
 
         line_items = invoice.get("line_items", [])
-        xero_line_items = []
-        for li in line_items:
-            line: dict = {
-                "Description": li.get("description", ""),
-                "Quantity": li.get("quantity", 1),
-                "UnitAmount": li.get("unit_price", 0),
-                "LineAmount": li.get("amount", 0),
-                "AccountCode": settings.xero_sales_account_code,
-            }
-            if settings.xero_tax_type:
-                line["TaxType"] = settings.xero_tax_type
-            if settings.xero_tracking_category_id and li.get("job_id"):
-                line["Tracking"] = [{
-                    "TrackingCategoryID": settings.xero_tracking_category_id,
-                    "Name": li["job_id"],
-                }]
-            xero_line_items.append(line)
-
-        xero_invoice: dict = {
-            "Type": "ACCREC",
-            "Contact": {"Name": invoice.get("billing_entity", "")},
-            "InvoiceNumber": invoice.get("invoice_number", ""),
-            "Status": _xero_status(invoice.get("status", "draft")),
-            "CurrencyCode": invoice.get("currency", "USD"),
-            "LineItems": xero_line_items,
-        }
-        if invoice.get("due_date"):
-            xero_invoice["DueDate"] = invoice["due_date"][:10]
-        if invoice.get("invoice_date"):
-            xero_invoice["Date"] = invoice["invoice_date"][:10]
-        if invoice.get("po_reference"):
-            xero_invoice["Reference"] = invoice["po_reference"]
-        if not settings.xero_tax_type:
-            xero_invoice["SubTotal"] = invoice.get("subtotal", 0)
-            xero_invoice["TotalTax"] = invoice.get("tax", 0)
-            xero_invoice["Total"] = invoice.get("total", 0)
-
-        headers = self._auth_headers(settings)
-        existing_xero_id = invoice.get("xero_invoice_id")
 
         async with httpx.AsyncClient() as client:
+            # Ensure all referenced job tracking options exist in Xero before building payloads.
+            if settings.xero_tracking_category_id:
+                job_ids = {li["job_id"] for li in line_items if li.get("job_id")}
+                for job_id in job_ids:
+                    try:
+                        await self._ensure_tracking_option(
+                            settings.xero_tracking_category_id, job_id, settings, client
+                        )
+                    except Exception as e:
+                        logger.warning("Could not ensure tracking option %r: %s", job_id, e)
+
+            xero_line_items = []
+            for li in line_items:
+                line: dict = {
+                    "Description": li.get("description", ""),
+                    "Quantity": li.get("quantity", 1),
+                    "UnitAmount": li.get("unit_price", 0),
+                    "LineAmount": li.get("amount", 0),
+                    "AccountCode": settings.xero_sales_account_code,
+                }
+                if settings.xero_tax_type:
+                    line["TaxType"] = settings.xero_tax_type
+                if settings.xero_tracking_category_id and li.get("job_id"):
+                    line["Tracking"] = [{
+                        "TrackingCategoryID": settings.xero_tracking_category_id,
+                        "Option": li["job_id"],
+                    }]
+                xero_line_items.append(line)
+
+            xero_invoice: dict = {
+                "Type": "ACCREC",
+                "Contact": {"Name": invoice.get("billing_entity", "")},
+                "InvoiceNumber": invoice.get("invoice_number", ""),
+                "Status": _xero_status(invoice.get("status", "draft")),
+                "CurrencyCode": invoice.get("currency", "USD"),
+                "LineItems": xero_line_items,
+                # Always send explicit totals — Xero does not auto-calculate tax from TaxType.
+                "SubTotal": invoice.get("subtotal", 0),
+                "TotalTax": invoice.get("tax", 0),
+                "Total": invoice.get("total", 0),
+            }
+            if invoice.get("due_date"):
+                xero_invoice["DueDate"] = invoice["due_date"][:10]
+            if invoice.get("invoice_date"):
+                xero_invoice["Date"] = invoice["invoice_date"][:10]
+            if invoice.get("po_reference"):
+                xero_invoice["Reference"] = invoice["po_reference"]
+
+            headers = self._auth_headers(settings)
+            existing_xero_id = invoice.get("xero_invoice_id")
+
             if existing_xero_id:
                 xero_invoice["InvoiceID"] = existing_xero_id
                 resp = await client.post(
@@ -166,7 +217,7 @@ class XeroAdapter:
 
         tracking: list = []
         if settings.xero_tracking_category_id and first_job_id:
-            tracking = [{"TrackingCategoryID": settings.xero_tracking_category_id, "Name": first_job_id}]
+            tracking = [{"TrackingCategoryID": settings.xero_tracking_category_id, "Option": first_job_id}]
 
         journal_lines: list = []
         cost_total = 0.0
@@ -209,19 +260,25 @@ class XeroAdapter:
         first_job_id: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> str | None:
-        journal_lines, cost_total = self._build_cogs_journal_lines(
-            invoice, settings, xero_invoice_id, first_job_id
-        )
-        if cost_total <= 0:
-            return None
+        async def _do_post(_client: httpx.AsyncClient) -> str | None:
+            # Ensure the tracking option exists before referencing it in the journal.
+            if settings.xero_tracking_category_id and first_job_id:
+                try:
+                    await self._ensure_tracking_option(
+                        settings.xero_tracking_category_id, first_job_id, settings, _client
+                    )
+                except Exception as e:
+                    logger.warning("Could not ensure COGS tracking option %r: %s", first_job_id, e)
 
-        narration = f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
-        journal = {
-            "Narration": narration,
-            "JournalLines": journal_lines,
-        }
-        if client is not None:
-            resp = await client.put(
+            journal_lines, cost_total = self._build_cogs_journal_lines(
+                invoice, settings, xero_invoice_id, first_job_id
+            )
+            if cost_total <= 0:
+                return None
+
+            narration = f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
+            journal = {"Narration": narration, "JournalLines": journal_lines}
+            resp = await _client.put(
                 f"{XERO_API}/ManualJournals",
                 headers=self._auth_headers(settings),
                 json={"ManualJournals": [journal]},
@@ -229,17 +286,12 @@ class XeroAdapter:
             )
             resp.raise_for_status()
             journals = resp.json().get("ManualJournals", [])
-        else:
-            async with httpx.AsyncClient() as _client:
-                resp = await _client.put(
-                    f"{XERO_API}/ManualJournals",
-                    headers=self._auth_headers(settings),
-                    json={"ManualJournals": [journal]},
-                    timeout=20,
-                )
-            resp.raise_for_status()
-            journals = resp.json().get("ManualJournals", [])
-        return journals[0].get("ManualJournalID") if journals else None
+            return journals[0].get("ManualJournalID") if journals else None
+
+        if client is not None:
+            return await _do_post(client)
+        async with httpx.AsyncClient() as _client:
+            return await _do_post(_client)
 
     async def repost_cogs_journal(
         self,

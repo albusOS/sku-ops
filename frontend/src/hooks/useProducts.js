@@ -32,3 +32,20 @@ export function useSuggestUom() {
     mutationFn: (data) => api.products.suggestUom(data),
   });
 }
+
+export function useProductGroups() {
+  return useQuery({
+    queryKey: [...keys.products.all, "groups"],
+    queryFn: () => api.products.groups(),
+  });
+}
+
+export function useAssignGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.products.assignGroup(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.products.all });
+    },
+  });
+}

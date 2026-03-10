@@ -31,7 +31,7 @@ Use this to demo the core flows. No seeding required—just start the app.
 | 1 | Login as **admin@demo.local** / demo123 | Full nav: Material Terminal, Pending Requests, Financials, Invoices, etc. |
 | 2 | **Dashboard** | Revenue, unpaid total, low stock, Recent Transactions (time filter, itemized) |
 | 3 | **Pending Requests** | Process contractor requests → enter Job ID + Service Address → creates withdrawal |
-| 4 | **Material Terminal (POS)** | Direct checkout (admin/WM only) |
+| 4 | **Material Terminal (POS)** | Direct checkout (admin only) |
 | 5 | **Financials** | Unpaid withdrawals grouped by billing entity |
 | 6 | **Invoices** | Invoice list; link from Invoiced withdrawals |
 

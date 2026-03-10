@@ -4,14 +4,14 @@ from fastapi import APIRouter, HTTPException
 
 from identity.domain.billing_entity import BillingEntity, BillingEntityCreate, BillingEntityUpdate
 from identity.infrastructure.billing_entity_repo import billing_entity_repo
-from shared.api.deps import ManagerDep
+from shared.api.deps import AdminDep
 
 router = APIRouter(prefix="/billing-entities", tags=["billing-entities"])
 
 
 @router.get("")
 async def list_billing_entities(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     is_active: bool | None = None,
     q: str | None = None,
     limit: int = 200,
@@ -25,7 +25,7 @@ async def list_billing_entities(
 
 @router.get("/search")
 async def search_billing_entities(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     q: str = "",
     limit: int = 20,
 ):
@@ -39,7 +39,7 @@ async def search_billing_entities(
 
 
 @router.get("/{entity_id}")
-async def get_billing_entity(entity_id: str, current_user: ManagerDep):
+async def get_billing_entity(entity_id: str, current_user: AdminDep):
     entity = await billing_entity_repo.get_by_id(entity_id, current_user.organization_id)
     if not entity:
         raise HTTPException(status_code=404, detail="Billing entity not found")
@@ -49,7 +49,7 @@ async def get_billing_entity(entity_id: str, current_user: ManagerDep):
 @router.post("")
 async def create_billing_entity(
     data: BillingEntityCreate,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     name = data.name.strip()
@@ -76,7 +76,7 @@ async def create_billing_entity(
 async def update_billing_entity(
     entity_id: str,
     data: BillingEntityUpdate,
-    current_user: ManagerDep,
+    current_user: AdminDep,
 ):
     org_id = current_user.organization_id
     existing = await billing_entity_repo.get_by_id(entity_id, org_id)

@@ -39,7 +39,6 @@ DEMO_TENANTS = [
 ]
 DEMO_USERS_PER_ORG = [
     {"email": "admin@{slug}.demo", "name": "Admin", "role": "admin"},
-    {"email": "wm@{slug}.demo", "name": "Warehouse Manager", "role": "warehouse_manager"},
     {"email": "contractor@{slug}.demo", "name": "Contractor", "role": "contractor"},
 ]
 DEMO_CONTRACTOR_EMAIL = "contractor@demo.local"

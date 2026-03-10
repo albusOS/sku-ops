@@ -13,8 +13,8 @@ import api, { getErrorMessage } from "@/lib/api-client";
 
 const PO_STATUSES = [
   { value: "", label: "All statuses" },
-  { value: "ordered", label: "Ordered" },
-  { value: "partial", label: "Partial" },
+  { value: "ordered", label: "On Order" },
+  { value: "partial", label: "At Dock" },
   { value: "received", label: "Received" },
 ];
 

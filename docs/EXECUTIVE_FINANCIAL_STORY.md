@@ -53,7 +53,7 @@ Sarah goes to `/invoices`. Creates an invoice from 3 unpaid withdrawals for "Smi
 
 ### Scene 3: A Contractor Returns Materials
 
-Contractor pulls 50 bags of concrete but the job was cancelled. WM processes a return.
+Contractor pulls 50 bags of concrete but the job was cancelled. Admin processes a return.
 
 | # | Criterion | What to Verify |
 |---|-----------|----------------|

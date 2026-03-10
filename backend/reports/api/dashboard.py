@@ -15,7 +15,7 @@ from finance.application import ledger_queries as ledger_repo
 from identity.application.user_service import count_contractors
 from kernel.types import round_money
 from operations.application.queries import list_withdrawals
-from shared.api.deps import CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -164,7 +164,7 @@ async def get_dashboard_stats(
 
 @router.get("/transactions")
 async def get_dashboard_transactions(
-    current_user: ManagerDep,
+    current_user: AdminDep,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     start_date: str | None = Query(None),

@@ -14,7 +14,7 @@ _REDACTED = "***"
 def _mask(settings: OrgSettings) -> dict:
     """Return settings dict with secrets masked."""
     d = settings.model_dump()
-    for key in ("xero_client_secret", "xero_access_token", "xero_refresh_token"):
+    for key in ("xero_access_token", "xero_refresh_token"):
         if d.get(key):
             d[key] = _REDACTED
     d["xero_connected"] = bool(settings.xero_tenant_id and settings.xero_access_token)

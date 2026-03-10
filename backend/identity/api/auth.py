@@ -40,7 +40,7 @@ async def register(data: UserCreate, request: Request):
     user = User(
         email=data.email,
         name=data.name,
-        role="warehouse_manager",
+        role="admin",
         company=data.company,
         billing_entity=data.billing_entity,
         phone=data.phone,

@@ -13,7 +13,7 @@ TABLES: list[str] = [
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         name TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'warehouse_manager',
+        role TEXT NOT NULL DEFAULT 'admin',
         company TEXT,
         billing_entity TEXT,
         billing_entity_id TEXT,
@@ -26,8 +26,6 @@ TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS org_settings (
         organization_id TEXT PRIMARY KEY,
         default_tax_rate REAL NOT NULL DEFAULT 0.10,
-        xero_client_id TEXT,
-        xero_client_secret TEXT,
         xero_tenant_id TEXT,
         xero_access_token TEXT,
         xero_refresh_token TEXT,

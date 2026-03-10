@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import {
   AlertTriangle,
@@ -10,10 +10,12 @@ import {
   FileText,
   ShoppingCart,
   Package,
+  TrendingUp,
+  DollarSign,
 } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
-import { ROLES, ADMIN_ROLES, DATE_PRESETS } from "@/lib/constants";
+import { ROLES, DATE_PRESETS } from "@/lib/constants";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { StatCard } from "@/components/StatCard";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
@@ -21,17 +23,14 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { TransactionsTable } from "@/components/TransactionsTable";
 import { useDashboardStats } from "@/hooks/useDashboard";
-import { useReportTrends } from "@/hooks/useReports";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { Panel, SectionHead } from "@/components/Panel";
-import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
-import { ChartExplainer } from "@/components/charts/ChartExplainer";
-import api from "@/lib/api-client";
+import { keys } from "@/hooks/queryKeys";
 
 const POSummaryStrip = ({ summary = {} }) => {
   const statuses = [
-    { key: "ordered", label: "Ordered", color: "bg-muted-foreground/40" },
-    { key: "partial", label: "Partial", color: "bg-muted-foreground/60" },
+    { key: "ordered", label: "On Order", color: "bg-muted-foreground/40" },
+    { key: "partial", label: "At Dock", color: "bg-muted-foreground/60" },
     { key: "received", label: "Received", color: "bg-muted-foreground/80" },
   ];
   const total = Object.values(summary).reduce((s, v) => s + (v?.total || 0), 0) || 1;
@@ -64,6 +63,7 @@ const POSummaryStrip = ({ summary = {} }) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const defaultRange = DATE_PRESETS[1].getValue();
   const [dateRange, setDateRange] = useState(defaultRange);
@@ -78,27 +78,18 @@ const Dashboard = () => {
 
   const { data: stats, isLoading } = useDashboardStats(statsParams);
 
-  const { data: pendingRequests } = useQuery({
-    queryKey: ["materialRequests", "pending-count"],
-    queryFn: () => api.materialRequests.list({ status: "pending" }).then((r) => r.length),
-    staleTime: 30_000,
-  });
-
-  const trailing365 = useMemo(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 365);
-    return { start_date: start.toISOString(), end_date: end.toISOString(), group_by: "day" };
-  }, []);
-  const { data: heatmapTrends } = useReportTrends(trailing365);
-  const heatmapData = useMemo(() => {
-    if (!heatmapTrends?.series) return [];
-    return heatmapTrends.series.map((d) => ({
-      date: d.date,
-      value: d.transaction_count || 0,
-      revenue: d.revenue || 0,
-    }));
-  }, [heatmapTrends]);
+  // Derive pending-request count from the materialRequests cache so it stays
+  // in sync with the real-time invalidations on keys.materialRequests.all.
+  const pendingRequests = useMemo(() => {
+    const cached = queryClient.getQueriesData({ queryKey: keys.materialRequests.all });
+    for (const [, data] of cached) {
+      if (Array.isArray(data)) {
+        const pending = data.filter((r) => r.status === "pending");
+        if (pending.length > 0 || data.length > 0) return pending.length;
+      }
+    }
+    return stats?.pending_requests_count ?? 0;
+  }, [queryClient, stats]);
 
   const isContractor = user?.role === ROLES.CONTRACTOR;
 
@@ -197,37 +188,21 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* ── Operational KPI cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Pending Requests" value={pendingRequests ?? 0} icon={ClipboardList} accent="blue" note={pendingRequests > 0 ? "awaiting processing" : "all clear"} />
-        <StatCard label="Low Stock Alerts" value={stats?.low_stock_count || 0} icon={Package} accent={stats?.low_stock_count > 0 ? "amber" : "slate"} note={`${stats?.inventory_units || 0} total units`} />
-        <StatCard label="Uninvoiced" value={valueFormatter(stats?.unpaid_total || 0)} icon={FileText} accent={stats?.unpaid_total > 0 ? "amber" : "slate"} note={`${stats?.range_transactions || 0} transactions`} />
-        <StatCard label="Open POs" value={openPOCount} icon={Truck} accent={openPOCount > 0 ? "violet" : "slate"} note={hasPOs ? valueFormatter((stats?.po_summary?.ordered?.total || 0) + (stats?.po_summary?.partial?.total || 0)) + " in progress" : "none in progress"} />
+      {/* ── Financial KPI row ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <StatCard label="Revenue" value={valueFormatter(stats?.range_revenue || 0)} icon={DollarSign} accent="blue" note={`${stats?.range_transactions || 0} transactions`} href="/reports" />
+        <StatCard label="Gross Profit" value={valueFormatter(stats?.range_gross_profit || 0)} icon={TrendingUp} accent={stats?.range_gross_profit > 0 ? "emerald" : "slate"} note={stats?.range_margin_pct != null ? `${stats.range_margin_pct}% margin` : undefined} href="/reports" />
+        <StatCard label="Uninvoiced" value={valueFormatter(stats?.unpaid_total || 0)} icon={FileText} accent={stats?.unpaid_total > 0 ? "amber" : "slate"} note="outstanding balance" href="/invoices" />
+        <StatCard label="Inventory Cost" value={valueFormatter(stats?.inventory_cost || 0)} icon={Package} accent="slate" note={`${stats?.inventory_units || 0} units on hand`} href="/inventory" />
       </div>
 
-      {/* ── Activity Heatmap ── */}
-      {heatmapData.length > 0 && (
-        <Panel className="mb-6">
-          <SectionHead title="Transaction Activity" action={
-            <span className="text-xs text-muted-foreground tabular-nums">{heatmapData.reduce((s, d) => s + d.value, 0).toLocaleString()} total</span>
-          } />
-          <ChartExplainer
-            title="Activity Heatmap"
-            bullets={[
-              "Each square is one day — brighter = more transactions",
-              "Rows are days of the week (Mon–Sun), columns are weeks",
-              "Hover over any square to see the exact count and revenue",
-              "Look for patterns: busy days, quiet weeks, or seasonal trends",
-            ]}
-          >
-            <ActivityHeatmap
-              data={heatmapData}
-              label="transactions"
-              tooltipExtra={(d) => d?.revenue ? `Revenue: $${d.revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : ""}
-            />
-          </ChartExplainer>
-        </Panel>
-      )}
+      {/* ── Operational KPI cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Pending Requests" value={pendingRequests ?? 0} icon={ClipboardList} accent="blue" note={pendingRequests > 0 ? "awaiting processing" : "all clear"} href="/pending-requests" />
+        <StatCard label="Low Stock Alerts" value={stats?.low_stock_count || 0} icon={Package} accent={stats?.low_stock_count > 0 ? "amber" : "slate"} note={`${stats?.inventory_units || 0} total units`} href="/inventory?low_stock=1" />
+        <StatCard label="Total Contractors" value={stats?.total_contractors || 0} icon={ClipboardList} accent="slate" note={`${stats?.total_vendors || 0} vendors`} href="/contractors" />
+        <StatCard label="Open POs" value={openPOCount} icon={Truck} accent={openPOCount > 0 ? "violet" : "slate"} note={hasPOs ? valueFormatter((stats?.po_summary?.ordered?.total || 0) + (stats?.po_summary?.partial?.total || 0)) + " in progress" : "none in progress"} href="/purchase-orders" />
+      </div>
 
       {/* ── PO Activity + Low Stock ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -272,9 +247,9 @@ const Dashboard = () => {
       </div>
 
       {/* ── Transactions Table ── */}
-      {ADMIN_ROLES.includes(user?.role) && <TransactionsTable dateParams={statsParams} />}
+      {!isContractor && <TransactionsTable dateParams={statsParams} />}
 
-      {ADMIN_ROLES.includes(user?.role) && (
+      {!isContractor && (
         <StockHistoryModal product={stockHistoryProduct} open={!!stockHistoryProduct} onOpenChange={(open) => !open && setStockHistoryProduct(null)} />
       )}
     </div>

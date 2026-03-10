@@ -8,7 +8,8 @@ from shared.infrastructure.database import get_connection
 _PRODUCT_COLUMNS = frozenset({
     "id", "sku", "name", "description", "price", "cost", "quantity", "min_stock",
     "department_id", "department_name", "vendor_id", "vendor_name", "original_sku",
-    "barcode", "vendor_barcode", "base_unit", "sell_uom", "pack_qty", "organization_id", "created_at", "updated_at",
+    "barcode", "vendor_barcode", "base_unit", "sell_uom", "pack_qty", "product_group",
+    "organization_id", "created_at", "updated_at",
 })
 
 
@@ -30,6 +31,7 @@ async def list_products(
     limit: int | None = None,
     offset: int = 0,
     organization_id: str | None = None,
+    product_group: str | None = None,
 ) -> list:
     conn = get_connection()
     org_id = organization_id or "default"
@@ -38,6 +40,9 @@ async def list_products(
     if department_id:
         base += " AND department_id = ?"
         params.append(department_id)
+    if product_group:
+        base += " AND product_group = ?"
+        params.append(product_group)
     if search:
         base += " AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ?)"
         term = f"%{search}%"
@@ -58,6 +63,7 @@ async def count_products(
     search: str | None = None,
     low_stock: bool = False,
     organization_id: str | None = None,
+    product_group: str | None = None,
 ) -> int:
     conn = get_connection()
     org_id = organization_id or "default"
@@ -66,6 +72,9 @@ async def count_products(
     if department_id:
         query += " AND department_id = ?"
         params.append(department_id)
+    if product_group:
+        query += " AND product_group = ?"
+        params.append(product_group)
     if search:
         query += " AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ?)"
         term = f"%{search}%"
@@ -191,8 +200,8 @@ async def insert(product: Product | dict, conn=None) -> None:
     await conn.execute(
         """INSERT INTO products (id, sku, name, description, price, cost, quantity, min_stock,
            department_id, department_name, vendor_id, vendor_name, original_sku, barcode, vendor_barcode,
-           base_unit, sell_uom, pack_qty, organization_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           base_unit, sell_uom, pack_qty, product_group, organization_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             product_dict["id"],
             product_dict["sku"],
@@ -212,6 +221,7 @@ async def insert(product: Product | dict, conn=None) -> None:
             product_dict.get("base_unit", "each"),
             product_dict.get("sell_uom", "each"),
             product_dict.get("pack_qty", 1),
+            product_dict.get("product_group"),
             org_id,
             product_dict.get("created_at", ""),
             product_dict.get("updated_at", ""),
@@ -228,7 +238,8 @@ async def update(product_id: str, updates: dict, conn=None, organization_id: str
     values = [updates.get("updated_at", "")]
     for key in ("name", "description", "price", "cost", "quantity", "min_stock",
                  "department_id", "department_name", "vendor_id", "vendor_name", "barcode",
-                 "vendor_barcode", "base_unit", "sell_uom", "pack_qty", "original_sku"):
+                 "vendor_barcode", "base_unit", "sell_uom", "pack_qty", "original_sku",
+                 "product_group"):
         if key in updates and updates[key] is not None:
             set_parts.append(f"{key} = ?")
             values.append(updates[key])
@@ -236,6 +247,8 @@ async def update(product_id: str, updates: dict, conn=None, organization_id: str
         set_parts.append("vendor_id = NULL")
         set_parts.append("vendor_name = ?")
         values.append("")
+    if "product_group" in updates and updates["product_group"] is None:
+        set_parts.append("product_group = NULL")
     if len(set_parts) <= 1:
         return await get_by_id(product_id)
     values.append(product_id)
@@ -375,6 +388,25 @@ async def list_low_stock(limit: int = 10, organization_id: str | None = None) ->
     return [_row_to_dict(r) for r in rows]
 
 
+async def list_product_groups(organization_id: str | None = None) -> list[dict]:
+    """Return distinct product groups with their product count."""
+    conn = get_connection()
+    org_id = organization_id or "default"
+    cursor = await conn.execute(
+        """SELECT product_group, COUNT(*) as product_count,
+                  SUM(quantity) as total_quantity
+           FROM products
+           WHERE product_group IS NOT NULL
+             AND (organization_id = ? OR organization_id IS NULL)
+             AND deleted_at IS NULL
+           GROUP BY product_group
+           ORDER BY product_group""",
+        (org_id,),
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
 class ProductRepo:
     list_products = staticmethod(list_products)
     count_products = staticmethod(count_products)
@@ -393,6 +425,7 @@ class ProductRepo:
     count_all = staticmethod(count_all)
     count_low_stock = staticmethod(count_low_stock)
     list_low_stock = staticmethod(list_low_stock)
+    list_product_groups = staticmethod(list_product_groups)
 
 
 product_repo = ProductRepo()

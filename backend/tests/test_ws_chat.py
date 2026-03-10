@@ -37,10 +37,6 @@ def _contractor_token() -> str:
     return create_token("contractor-1", "contractor@test.com", "contractor", "default")
 
 
-def _warehouse_manager_token() -> str:
-    return create_token("user-2", "wm@test.com", "warehouse_manager", "default")
-
-
 def _expired_token() -> str:
     payload = {
         "user_id": "user-1",
@@ -147,12 +143,6 @@ class TestWSChatAuth:
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
             # Should be able to receive the first ping
-            msg = json.loads(ws.receive_text())
-            assert msg["type"] == "ping"
-
-    def test_warehouse_manager_connects_successfully(self, client):
-        token = _warehouse_manager_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
             msg = json.loads(ws.receive_text())
             assert msg["type"] == "ping"
 

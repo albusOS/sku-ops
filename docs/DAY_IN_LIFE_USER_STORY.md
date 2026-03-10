@@ -15,8 +15,6 @@ The app seeds users on startup via `seed_mock_user()` in `scripts/seed.py`, trig
 
 Runs automatically when `DEMO_USER_EMAIL` is set (dev script sets via `ENV=development`). Standard departments are also seeded.
 
-**Gap:** No `warehouse_manager` user in single-org seed — only admin and contractor. For multi-tenant demo (`seed_demo_tenants`), `wm@north.demo` and `wm@south.demo` exist.
-
 ---
 
 ## Act 1: Morning — Admin Sets Up the Yard
@@ -68,15 +66,15 @@ Contractor navigates to `/request-materials`.
 3. `POST /api/material-requests` → status `pending`
 4. Contractor can see request in `/my-history`
 
-### Scene 7b: Warehouse Manager Processes Request
-Admin/WM goes to `/pending-requests`.
+### Scene 7b: Admin Processes Request
+Admin goes to `/pending-requests`.
 1. Sees contractor's pending request with items
 2. Reviews, enters job ID / service address if not set
 3. Clicks "Process" → `POST /api/material-requests/{id}/process`
 4. Backend: creates withdrawal (stock decremented), creates draft invoice, marks request processed
 
 ### Scene 8: Walk-Up POS (Synchronous flow)
-Contractor walks into the yard. WM goes to `/pos`.
+Contractor walks into the yard. Admin goes to `/pos`.
 1. Selects contractor from dropdown
 2. Scans barcode or searches products, adds to cart with quantities
 3. Enters job ID, service address
@@ -116,7 +114,7 @@ If Xero is connected (`/api/xero/connect` → OAuth flow → select tenant):
 ## Act 4: End of Day — Reports and AI
 
 ### Scene 13: Reports
-Admin or WM goes to `/reports`.
+Admin goes to `/reports`.
 - Sales report: withdrawals by period, contractor, job
 - Inventory report: stock levels, value, low stock
 - Revenue trends: time series
@@ -133,7 +131,7 @@ Anyone can open the chat (bottom-right).
 - Supports multi-domain queries that run parallel tool calls
 
 ### Scene 15: Product Performance
-Admin/WM goes to `/product-performance`.
+Admin goes to `/product-performance`.
 - Deep analysis of individual products: velocity, margin, trend
 
 ---
@@ -141,7 +139,7 @@ Admin/WM goes to `/product-performance`.
 ## Act 5: Periodic — Stock Corrections
 
 ### Scene 16: Stock Adjustment
-During a physical count, WM finds discrepancy. Goes to product detail in `/inventory`.
+During a physical count, Admin finds discrepancy. Goes to product detail in `/inventory`.
 1. Clicks "Adjust Stock"
 2. `POST /api/stock/{product_id}/adjust` with delta and reason
 3. Stock transaction recorded with `ADJUSTMENT` type
@@ -152,12 +150,11 @@ During a physical count, WM finds discrepancy. Goes to product detail in `/inven
 
 | # | Gap | Impact |
 |---|-----|--------|
-| 1 | No warehouse_manager seed (single-org) | Can't test WM role out of the box |
-| 2 | Test failures: `withdrawal_getter not wired` | Invoice-creation-from-withdrawal flow untested |
-| 3 | Contractor POS page | Role-based UX (self vs for-contractor) may have edge cases |
-| 4 | Document parse → PO → receive | Multi-step flow; silent failures can make items vanish |
-| 5 | Invoice auto-creation | Every withdrawal = 1 draft invoice; admin must consolidate manually |
-| 6 | Material request process | WM re-enters job_id/service_address even if contractor provided them |
+| 1 | Test failures: `withdrawal_getter not wired` | Invoice-creation-from-withdrawal flow untested |
+| 2 | Contractor POS page | Role-based UX (self vs for-contractor) may have edge cases |
+| 3 | Document parse → PO → receive | Multi-step flow; silent failures can make items vanish |
+| 4 | Invoice auto-creation | Every withdrawal = 1 draft invoice; admin must consolidate manually |
+| 5 | Material request process | Admin re-enters job_id/service_address even if contractor provided them |
 
 ---
 

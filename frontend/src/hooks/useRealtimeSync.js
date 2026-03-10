@@ -8,31 +8,52 @@ const RECONNECT_MAX_MS = 30_000;
 // Server sends pings every 30s; 45s gives 15s margin for network jitter.
 const HEARTBEAT_TIMEOUT_MS = 45_000;
 
+// Use bare prefix arrays (no params) so invalidation matches all
+// parameterized variants of each query (e.g. dashboard stats with any date range).
 const EVENT_KEY_MAP = {
   "inventory.updated": [
     keys.products.all,
-    keys.dashboard.stats({}),
-    keys.reports.inventory(),
+    ["dashboard", "stats"],
+    ["reports", "inventory"],
+    ["reports", "pl"],
+    ["reports", "sales"],
+    ["reports", "trends"],
+    ["reports", "kpis"],
   ],
   "withdrawal.created": [
     keys.withdrawals.all,
-    keys.dashboard.stats({}),
-    keys.dashboard.transactions({}),
     keys.products.all,
+    ["dashboard", "stats"],
+    ["dashboard", "transactions"],
+    ["reports", "pl"],
+    ["reports", "sales"],
+    ["reports", "trends"],
+    ["reports", "kpis"],
+    ["financials"],
   ],
   "withdrawal.updated": [
     keys.withdrawals.all,
-    keys.dashboard.stats({}),
+    ["dashboard", "stats"],
+    ["dashboard", "transactions"],
+    ["reports", "pl"],
+    ["reports", "sales"],
+    ["financials"],
   ],
   "material_request.created": [
     keys.materialRequests.all,
-    keys.dashboard.stats({}),
+    ["dashboard", "stats"],
   ],
   "material_request.processed": [
     keys.materialRequests.all,
     keys.withdrawals.all,
-    keys.dashboard.stats({}),
     keys.products.all,
+    ["dashboard", "stats"],
+    ["dashboard", "transactions"],
+    ["reports", "pl"],
+    ["reports", "sales"],
+    ["reports", "trends"],
+    ["reports", "kpis"],
+    ["financials"],
   ],
 };
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from catalog.domain.department import Department, DepartmentCreate
 from catalog.infrastructure.department_repo import department_repo
-from shared.api.deps import AdminDep, CurrentUserDep, ManagerDep
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/departments", tags=["departments"])
@@ -17,7 +17,7 @@ async def get_departments(current_user: CurrentUserDep):
 
 
 @router.post("", response_model=Department)
-async def create_department(data: DepartmentCreate, current_user: ManagerDep):
+async def create_department(data: DepartmentCreate, current_user: AdminDep):
     org_id = current_user.organization_id
     existing = await department_repo.get_by_code(data.code, org_id)
     if existing:
@@ -34,7 +34,7 @@ async def create_department(data: DepartmentCreate, current_user: ManagerDep):
 
 
 @router.put("/{dept_id}", response_model=Department)
-async def update_department(dept_id: str, data: DepartmentCreate, current_user: ManagerDep):
+async def update_department(dept_id: str, data: DepartmentCreate, current_user: AdminDep):
     org_id = current_user.organization_id
     existing = await department_repo.get_by_id(dept_id, org_id)
     if not existing:

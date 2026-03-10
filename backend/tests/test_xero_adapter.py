@@ -646,3 +646,235 @@ class TestRepostCogsJournal:
 
         assert result is None
         mock_client.put.assert_not_called()
+
+
+# ── 9. Tracking field name — must use "Option" not "Name" ─────────────────────
+
+def _settings_with_tracking(**overrides) -> OrgSettings:
+    """Settings fixture with a tracking category configured."""
+    return _settings(xero_tracking_category_id="cat-job-001", **overrides)
+
+
+def _mock_tracking_client(
+    invoice_response: dict,
+    journal_json: dict | None = None,
+    existing_options: list[str] | None = None,
+):
+    """Build a mock client for tests that involve tracking category calls.
+
+    sync_invoice with tracking enabled makes the following calls in order:
+      1. GET /TrackingCategories/{id}  — _ensure_tracking_option (pre-invoice)
+      2. PUT /TrackingCategories/{id}/Options  — only if option is absent (pre-invoice)
+      3. PUT /Invoices  — create/update invoice
+      4. GET /TrackingCategories/{id}  — _ensure_tracking_option (pre-COGS journal)
+         (no PUT here because the option now exists from step 2)
+      5. PUT /ManualJournals  — COGS journal
+
+    We default existing_options to include the job IDs from the standard _invoice()
+    fixture ("JOB-42") so the second ensure call is a no-op, keeping put calls to:
+      [PUT /Options, PUT /Invoices, PUT /ManualJournals] (3 total).
+
+    Pass existing_options=[] to test the creation path explicitly.
+    """
+    # By default treat JOB-42 as already existing so second ensure is a no-op.
+    resolved_options = existing_options if existing_options is not None else ["JOB-42"]
+    options = [{"Name": name, "Status": "ACTIVE"} for name in resolved_options]
+    tracking_resp = _mock_resp({
+        "TrackingCategories": [{"TrackingCategoryID": "cat-job-001", "Options": options}]
+    })
+    option_create_resp = _mock_resp({"Options": [{"TrackingOptionID": "opt-new", "Name": "JOB-42"}]})
+
+    inv_resp = _mock_resp(invoice_response)
+    jnl_resp = _mock_resp(journal_json or {"ManualJournals": []})
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=tracking_resp)
+    # With existing_options=["JOB-42"] (default): no option PUT, so put calls are
+    # [PUT /Invoices, PUT /ManualJournals]. With existing_options=[]: option PUT fires
+    # first, giving [PUT /Options, PUT /Invoices, PUT /ManualJournals].
+    if resolved_options:
+        mock_client.put = AsyncMock(side_effect=[inv_resp, jnl_resp])
+    else:
+        mock_client.put = AsyncMock(side_effect=[option_create_resp, inv_resp, jnl_resp])
+    mock_client.post = AsyncMock(return_value=inv_resp)
+    return mock_client
+
+
+class TestTrackingOptionField:
+    """Tracking dict on invoice and COGS journal lines must use 'Option', never 'Name'."""
+
+    @pytest.mark.asyncio
+    async def test_invoice_line_tracking_uses_option_key(self):
+        """Invoice line item Tracking entry must use 'Option' for the job value."""
+        adapter = XeroAdapter()
+        settings = _settings_with_tracking()
+        mock_client = _mock_tracking_client(
+            {"Invoices": [{"InvoiceID": "xero-inv-tracking", "LineItems": [{}]}]},
+            journal_json={"ManualJournals": [{"ManualJournalID": "jnl-1"}]},
+        )
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await adapter.sync_invoice(_invoice(), settings)
+
+        # Find the PUT /Invoices call among all put calls
+        invoice_put_call = next(
+            c for c in mock_client.put.call_args_list if "/Invoices" in c[0][0]
+        )
+        li = invoice_put_call[1]["json"]["Invoices"][0]["LineItems"][0]
+        tracking = li.get("Tracking", [])
+        assert tracking, "Tracking must be present on line items when job_id is set"
+        assert "Option" in tracking[0], (
+            f"Tracking entry must use 'Option' key, got keys: {list(tracking[0].keys())}"
+        )
+        assert "Name" not in tracking[0], (
+            "Tracking entry must NOT use 'Name' key — that key is silently ignored by Xero"
+        )
+        assert tracking[0]["Option"] == "JOB-42"
+
+    @pytest.mark.asyncio
+    async def test_cogs_journal_tracking_uses_option_key(self):
+        """COGS manual journal lines must also use 'Option', not 'Name', for tracking."""
+        adapter = XeroAdapter()
+        settings = _settings_with_tracking()
+        mock_client = _mock_tracking_client(
+            {"Invoices": [{"InvoiceID": "xero-inv-tracking", "LineItems": [{}]}]},
+            journal_json={"ManualJournals": [{"ManualJournalID": "jnl-1"}]},
+        )
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await adapter.sync_invoice(_invoice(), settings)
+
+        journal_put_call = next(
+            c for c in mock_client.put.call_args_list if "/ManualJournals" in c[0][0]
+        )
+        journal_lines = journal_put_call[1]["json"]["ManualJournals"][0]["JournalLines"]
+        assert journal_lines, "COGS journal must have lines"
+        lines_with_tracking = [jl for jl in journal_lines if jl.get("Tracking")]
+        assert lines_with_tracking, "At least one COGS journal line must have Tracking"
+        for jl in lines_with_tracking:
+            tracking = jl["Tracking"]
+            assert "Option" in tracking[0], (
+                f"COGS journal Tracking entry must use 'Option', got: {list(tracking[0].keys())}"
+            )
+            assert "Name" not in tracking[0]
+
+
+# ── 10. _ensure_tracking_option — idempotency and creation ────────────────────
+
+class TestEnsureTrackingOption:
+
+    def _make_tracking_client(self, existing_options: list[str]):
+        """Mock client for _ensure_tracking_option tests only."""
+        options = [{"Name": n, "Status": "ACTIVE"} for n in existing_options]
+        get_resp = _mock_resp({
+            "TrackingCategories": [{"TrackingCategoryID": "cat-1", "Options": options}]
+        })
+        put_resp = _mock_resp({"Options": [{"TrackingOptionID": "new-opt", "Name": "JOB-99"}]})
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.put = AsyncMock(return_value=put_resp)
+        return mock_client
+
+    @pytest.mark.asyncio
+    async def test_creates_option_when_absent(self):
+        """When the option does not exist, PUT to create it."""
+        adapter = XeroAdapter()
+        settings = _settings()
+        mock_client = self._make_tracking_client(existing_options=[])
+
+        await adapter._ensure_tracking_option("cat-1", "JOB-99", settings, mock_client)
+
+        mock_client.get.assert_called_once()
+        assert "/TrackingCategories/cat-1" in mock_client.get.call_args[0][0]
+        mock_client.put.assert_called_once()
+        assert "/TrackingCategories/cat-1/Options" in mock_client.put.call_args[0][0]
+        assert mock_client.put.call_args[1]["json"] == {"Options": [{"Name": "JOB-99"}]}
+
+    @pytest.mark.asyncio
+    async def test_skips_put_when_option_already_exists(self):
+        """When the option already exists, no PUT call must be made (idempotent)."""
+        adapter = XeroAdapter()
+        settings = _settings()
+        mock_client = self._make_tracking_client(existing_options=["JOB-42", "JOB-99"])
+
+        await adapter._ensure_tracking_option("cat-1", "JOB-42", settings, mock_client)
+
+        mock_client.get.assert_called_once()
+        mock_client.put.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_inactive_options_are_not_counted_as_existing(self):
+        """An option with Status != ACTIVE must be treated as absent and re-created."""
+        adapter = XeroAdapter()
+        settings = _settings()
+        options = [{"Name": "JOB-42", "Status": "ARCHIVED"}]
+        get_resp = _mock_resp({
+            "TrackingCategories": [{"TrackingCategoryID": "cat-1", "Options": options}]
+        })
+        put_resp = _mock_resp({"Options": [{"TrackingOptionID": "new", "Name": "JOB-42"}]})
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=get_resp)
+        mock_client.put = AsyncMock(return_value=put_resp)
+
+        await adapter._ensure_tracking_option("cat-1", "JOB-42", settings, mock_client)
+
+        mock_client.put.assert_called_once()
+
+
+# ── 11. TaxType — invoice header must always include explicit totals ───────────
+
+class TestTaxTypeExplicitTotals:
+
+    @pytest.mark.asyncio
+    async def test_invoice_header_includes_totals_without_tax_type(self):
+        """Without xero_tax_type, SubTotal/TotalTax/Total must still be sent."""
+        adapter = XeroAdapter()
+        settings = _settings()
+        mock_client = _mock_http_client(
+            {"Invoices": [{"InvoiceID": "x", "LineItems": [{}]}]}
+        )
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await adapter.sync_invoice(_invoice(), settings)
+
+        payload = mock_client.put.call_args_list[0][1]["json"]["Invoices"][0]
+        assert "SubTotal" in payload
+        assert "TotalTax" in payload
+        assert "Total" in payload
+
+    @pytest.mark.asyncio
+    async def test_invoice_header_includes_totals_with_tax_type(self):
+        """When xero_tax_type is set, SubTotal/TotalTax/Total must still be sent explicitly.
+
+        Xero does not auto-calculate tax from TaxType on the API — if the totals
+        are absent the amounts will be wrong.
+        """
+        adapter = XeroAdapter()
+        settings = _settings(xero_tax_type="OUTPUT2")
+        mock_client = _mock_http_client(
+            {"Invoices": [{"InvoiceID": "x", "LineItems": [{}]}]}
+        )
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await adapter.sync_invoice(_invoice(), settings)
+
+        payload = mock_client.put.call_args_list[0][1]["json"]["Invoices"][0]
+        assert "SubTotal" in payload, "SubTotal must be sent even when TaxType is set"
+        assert "TotalTax" in payload, "TotalTax must be sent even when TaxType is set"
+        assert "Total" in payload, "Total must be sent even when TaxType is set"
+        assert payload["SubTotal"] == 100.0
+        assert payload["TotalTax"] == 10.0
+        assert payload["Total"] == 110.0
+
+    @pytest.mark.asyncio
+    async def test_invoice_line_includes_tax_type_when_configured(self):
+        """When xero_tax_type is set, each line item must carry the TaxType field."""
+        adapter = XeroAdapter()
+        settings = _settings(xero_tax_type="OUTPUT2")
+        mock_client = _mock_http_client(
+            {"Invoices": [{"InvoiceID": "x", "LineItems": [{}]}]}
+        )
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await adapter.sync_invoice(_invoice(), settings)
+
+        payload = mock_client.put.call_args_list[0][1]["json"]["Invoices"][0]
+        li = payload["LineItems"][0]
+        assert li.get("TaxType") == "OUTPUT2"
