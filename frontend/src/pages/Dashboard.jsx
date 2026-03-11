@@ -288,7 +288,7 @@ const Dashboard = () => {
           href="/contractors"
         />
         <StatCard
-          label="Open POs"
+          label="Open Purchase Orders"
           value={openPOCount}
           icon={Truck}
           accent={openPOCount > 0 ? "violet" : "slate"}

@@ -166,6 +166,7 @@ async def delete_contractor(contractor_id: str, organization_id: str | None = No
 
 class UserRepo:
     get_by_id = staticmethod(get_by_id)
+    get_by_ids = staticmethod(get_by_ids)
     get_by_email = staticmethod(get_by_email)
     insert = staticmethod(insert)
     update = staticmethod(update)
