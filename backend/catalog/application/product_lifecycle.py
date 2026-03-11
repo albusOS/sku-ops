@@ -58,7 +58,7 @@ async def create_product(
     if not department:
         raise ResourceNotFoundError("Department", department_id)
 
-    sku = await generate_sku(department["code"], name, org_id)
+    sku = await generate_sku(department.code, name, org_id)
     barcode_val = (barcode or "").strip() or sku
 
     # Validate UPC/EAN if value looks numeric
@@ -72,7 +72,7 @@ async def create_product(
     # Check uniqueness (org-scoped)
     existing = await product_repo.find_by_barcode(barcode_val, organization_id=org_id)
     if existing:
-        raise DuplicateBarcodeError(barcode_val, existing.get("name", "Unknown"))
+        raise DuplicateBarcodeError(barcode_val, existing.name)
 
     product = Product(
         sku=sku,
@@ -95,15 +95,11 @@ async def create_product(
     )
 
     product.organization_id = org_id
-    async with transaction() as conn:
-        await product_repo.insert(product, conn=conn)
-        await department_repo.increment_product_count(
-            department_id, 1, conn=conn, organization_id=org_id
-        )
+    async with transaction():
+        await product_repo.insert(product)
+        await department_repo.increment_product_count(department_id, 1, organization_id=org_id)
         if vendor_id:
-            await vendor_repo.increment_product_count(
-                vendor_id, 1, conn=conn, organization_id=org_id
-            )
+            await vendor_repo.increment_product_count(vendor_id, 1, organization_id=org_id)
         if quantity > 0 and user_id and on_stock_import:
             await on_stock_import(
                 product_id=product.id,
@@ -113,7 +109,6 @@ async def create_product(
                 user_id=user_id,
                 user_name=user_name,
                 organization_id=org_id,
-                conn=conn,
             )
 
     return product
@@ -122,8 +117,8 @@ async def create_product(
 async def update_product(
     product_id: str,
     updates: dict[str, Any],
-    current_product: dict | None = None,
-) -> dict:
+    current_product: Product | None = None,
+) -> Product:
     """
     Update a product. Resolves department/vendor name and product_count changes.
     Runs in a transaction.
@@ -135,12 +130,11 @@ async def update_product(
     update_data = {k: v for k, v in updates.items() if v is not None}
     update_data["updated_at"] = datetime.now(UTC).isoformat()
 
-    # Normalize and validate barcode on update
     if "barcode" in update_data:
         barcode_raw = update_data["barcode"]
-        barcode_val = (barcode_raw or "").strip() or product.get("sku", "")
-        update_data["barcode"] = barcode_val or product.get("sku", "")
-        current_barcode = (product.get("barcode") or "").strip()
+        barcode_val = (barcode_raw or "").strip() or product.sku
+        update_data["barcode"] = barcode_val or product.sku
+        current_barcode = (product.barcode or "").strip()
         if update_data["barcode"] != current_barcode:
             if update_data["barcode"] and update_data["barcode"].isdigit():
                 valid, _ = validate_barcode(update_data["barcode"])
@@ -149,55 +143,51 @@ async def update_product(
                         update_data["barcode"],
                         "Invalid UPC (12 digits) or EAN-13 (13 digits) check digit",
                     )
-            org_id = product.get("organization_id") or DEFAULT_ORG_ID
+            org_id = product.organization_id or DEFAULT_ORG_ID
             existing = await product_repo.find_by_barcode(
                 update_data["barcode"], exclude_product_id=product_id, organization_id=org_id
             )
             if existing:
-                raise DuplicateBarcodeError(update_data["barcode"], existing.get("name", "Unknown"))
+                raise DuplicateBarcodeError(update_data["barcode"], existing.name)
 
-    org_id = product.get("organization_id") or DEFAULT_ORG_ID
+    org_id = product.organization_id or DEFAULT_ORG_ID
     if "department_id" in update_data:
         department = await department_repo.get_by_id(update_data["department_id"], org_id)
         if department:
-            update_data["department_name"] = department["name"]
+            update_data["department_name"] = department.name
     if "vendor_id" in update_data:
         if update_data["vendor_id"]:
             vendor = await vendor_repo.get_by_id(update_data["vendor_id"], org_id)
-            update_data["vendor_name"] = vendor.get("name", "") if vendor else ""
+            update_data["vendor_name"] = vendor.name if vendor else ""
         else:
             update_data["vendor_name"] = ""
 
-    async with transaction() as conn:
+    async with transaction():
         if "department_id" in update_data:
-            old_dept: str | None = product.get("department_id")
+            old_dept: str | None = product.department_id
             new_dept: str | None = update_data["department_id"]
             if old_dept != new_dept:
                 if old_dept:
                     await department_repo.increment_product_count(
-                        old_dept, -1, conn=conn, organization_id=org_id
+                        old_dept, -1, organization_id=org_id
                     )
                 if new_dept:
                     await department_repo.increment_product_count(
-                        new_dept, 1, conn=conn, organization_id=org_id
+                        new_dept, 1, organization_id=org_id
                     )
 
         if "vendor_id" in update_data:
-            old_vendor = product.get("vendor_id") or ""
+            old_vendor = product.vendor_id or ""
             new_vendor = update_data.get("vendor_id") or ""
             if old_vendor != new_vendor:
                 if old_vendor:
                     await vendor_repo.increment_product_count(
-                        old_vendor, -1, conn=conn, organization_id=org_id
+                        old_vendor, -1, organization_id=org_id
                     )
                 if new_vendor:
-                    await vendor_repo.increment_product_count(
-                        new_vendor, 1, conn=conn, organization_id=org_id
-                    )
+                    await vendor_repo.increment_product_count(new_vendor, 1, organization_id=org_id)
 
-        result = await product_repo.update(
-            product_id, update_data, conn=conn, organization_id=org_id
-        )
+        result = await product_repo.update(product_id, update_data, organization_id=org_id)
     if not result:
         raise ResourceNotFoundError("Product", product_id)
     return result
@@ -209,13 +199,59 @@ async def delete_product(product_id: str, organization_id: str | None = None) ->
     if not product:
         raise ResourceNotFoundError("Product", product_id)
 
-    org_id = organization_id or product.get("organization_id")
-    async with transaction() as conn:
-        await product_repo.delete(product_id, conn=conn, organization_id=org_id)
+    org_id = organization_id or product.organization_id
+    async with transaction():
+        await product_repo.delete(product_id, organization_id=org_id)
         await department_repo.increment_product_count(
-            product["department_id"], -1, conn=conn, organization_id=org_id
+            product.department_id, -1, organization_id=org_id
         )
-        if product.get("vendor_id"):
-            await vendor_repo.increment_product_count(
-                product["vendor_id"], -1, conn=conn, organization_id=org_id
-            )
+        if product.vendor_id:
+            await vendor_repo.increment_product_count(product.vendor_id, -1, organization_id=org_id)
+
+
+# ---------------------------------------------------------------------------
+# Product group operations
+# ---------------------------------------------------------------------------
+
+
+async def bulk_assign_product_group(
+    product_ids: list[str],
+    product_group: str | None,
+    organization_id: str,
+) -> int:
+    """Assign or clear product_group for multiple products. Returns count updated."""
+    group_val = product_group.strip() if product_group else None
+    updated = 0
+    for pid in product_ids:
+        product = await product_repo.get_by_id(pid, organization_id=organization_id)
+        if not product:
+            continue
+        await product_repo.update(
+            pid,
+            {"product_group": group_val, "updated_at": ""},
+            organization_id=organization_id,
+        )
+        updated += 1
+    return updated
+
+
+async def rename_product_group(
+    old_name: str,
+    new_name: str,
+    organization_id: str,
+) -> int:
+    """Rename a product group across all products that have it. Returns count updated."""
+    old = old_name.strip()
+    new = new_name.strip()
+    if not old or not new:
+        raise ValueError("Both old_name and new_name are required")
+    products = await product_repo.list_products(product_group=old, organization_id=organization_id)
+    updated = 0
+    for p in products:
+        await product_repo.update(
+            p.id,
+            {"product_group": new, "updated_at": ""},
+            organization_id=organization_id,
+        )
+        updated += 1
+    return updated

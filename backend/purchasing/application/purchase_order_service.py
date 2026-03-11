@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from catalog.domain.units import ALLOWED_BASE_UNITS
-from finance.application.ledger_service import record_po_receipt as _record_ledger
 from kernel.errors import ResourceNotFoundError
 from kernel.types import CurrentUser
 from purchasing.domain.purchase_order import (
@@ -61,6 +60,15 @@ def _resolve_vendor_dict(vendor_name: str, vendor_id: str) -> dict:
     }
 
 
+def _resolve_po_item_cost(item: dict) -> float:
+    """Derive item cost from cost field, falling back to 70% of unit_price/price."""
+    cost = float(item.get("cost") or 0)
+    if cost == 0:
+        price = float(item.get("unit_price") or item.get("price") or 0)
+        cost = round(price * 0.7, 4) if price else 0
+    return cost
+
+
 async def create_purchase_order(
     vendor_name: str,
     products: list[POItemCreate],
@@ -93,24 +101,23 @@ async def create_purchase_order(
         vendor_dict = _resolve_vendor_dict(vendor_name, vendor_id)
         vendor_dict["organization_id"] = org_id
         await deps.insert_vendor(vendor_dict)
-        vendor = {"id": vendor_id, "name": vendor_name}
         vendor_created = True
     else:
-        vendor_id = vendor["id"]
+        vendor_id = vendor.id
+        vendor_name = vendor.name
         vendor_created = False
 
     departments = await deps.list_departments(organization_id=org_id)
-    dept_by_id = {d["id"]: d for d in departments}
-    dept_by_code = {d["code"].upper(): d for d in departments}
+    dept_by_id = {d.id: d for d in departments}
+    dept_by_code = {d.code.upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
 
     override_dept_code = None
     if department_id and department_id in dept_by_id:
-        override_dept_code = dept_by_id[department_id]["code"].upper()
+        override_dept_code = dept_by_id[department_id].code.upper()
 
     selected = [p for p in products if p.selected]
 
-    # Convert typed DTOs to dicts for enrichment pipeline (enrichment mutates in place)
     selected_dicts = [p.model_dump() for p in selected]
 
     ai_parsed_items = [d for d in selected_dicts if d.get("ai_parsed")]
@@ -206,288 +213,23 @@ async def create_purchase_order(
     }
 
 
-async def mark_delivery_received(
-    po_id: str,
-    item_ids: list[str],
-    current_user: CurrentUser,
-    repo: PORepoPort = _default_repo,
-) -> dict:
-    """Transition selected 'ordered' items to 'pending' (delivery arrived at dock).
-
-    Does NOT update inventory — that happens on receive_po_items().
-    """
-    org_id = current_user.organization_id
-    po = await repo.get_po(po_id, org_id)
-    if not po:
-        raise ResourceNotFoundError("PurchaseOrder", po_id)
-
-    all_items = await repo.get_po_items(po_id)
-    items_by_id = {i["id"]: i for i in all_items}
-
-    transitioned = 0
-    for item_id in item_ids:
-        item = items_by_id.get(item_id)
-        if not item or item["status"] != POItemStatus.ORDERED.value:
-            continue
-        await repo.update_po_item(item_id, POItemStatus.PENDING)
-        transitioned += 1
-
-    return {"po_id": po_id, "status": po.get("status", "ordered"), "transitioned": transitioned}
-
-
-async def receive_po_items(
-    po_id: str,
-    item_updates: list,
-    deps: PurchasingDeps,
-    current_user: CurrentUser,
-    repo: PORepoPort = _default_repo,
-) -> dict:
-    """Mark selected items as arrived and update inventory stock.
-
-    New products are created for unmatched items; existing products get a
-    RECEIVING transaction.
-    """
-    org_id = current_user.organization_id
-    po = await repo.get_po(po_id, org_id)
-    if not po:
-        raise ResourceNotFoundError("PurchaseOrder", po_id)
-
-    vendor_id: str = po.get("vendor_id") or ""
-    departments = await deps.list_departments(organization_id=org_id)
-    default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (
-        departments[0] if departments else None
-    )
-    dept_by_code = {d["code"].upper(): d for d in departments}
-
-    all_items = await repo.get_po_items(po_id)
-    items_by_id = {item["id"]: item for item in all_items}
-    updates_by_id = {u["id"]: u for u in item_updates}
-
-    received = []
-    matched = []
-    errors = []
-    cost_total = 0.0
-    ledger_items: list[dict] = []
-
-    for item_id, update in updates_by_id.items():
-        item = items_by_id.get(item_id)
-        if not item:
-            errors.append({"item_id": item_id, "error": "Item not found"})
-            continue
-
-        current_status = POItemStatus(item["status"])
-        if current_status == POItemStatus.ARRIVED:
-            continue
-        if current_status == POItemStatus.ORDERED:
-            errors.append(
-                {"item": item.get("name"), "error": "Item not yet marked as received at dock"}
-            )
-            continue
-
-        # Apply field overrides from the review modal onto the stored PO item
-        _apply_overrides(item, update)
-
-        delivered = update.get("delivered_qty")
-        if delivered is None:
-            delivered = item.get("delivered_qty") or item.get("ordered_qty") or 1
-        delivered = max(0.0, float(delivered))
-
-        try:
-            # If the frontend explicitly set a product_id override, prefer that
-            if update.get("product_id"):
-                item["product_id"] = update["product_id"]
-
-            existing = await _match_product(item, vendor_id, org_id, deps)
-
-            resolved_pid = None
-            if existing:
-                resolved_pid = existing["id"]
-                await deps.process_receiving_stock_changes(
-                    product_id=existing["id"],
-                    sku=existing["sku"],
-                    product_name=existing["name"],
-                    quantity=delivered,
-                    user_id=current_user.id,
-                    user_name=current_user.name,
-                    reference_id=po_id,
-                    organization_id=org_id,
-                )
-                product_updates: dict = {}
-                if item.get("original_sku") and not existing.get("original_sku"):
-                    product_updates["original_sku"] = item["original_sku"]
-
-                po_item_cost = _resolve_po_item_cost(item)
-                old_qty = float(existing.get("quantity", 0))
-                old_cost = float(existing.get("cost", 0))
-                if (old_qty + delivered) > 0:
-                    new_cost = round(
-                        (old_qty * old_cost + delivered * po_item_cost) / (old_qty + delivered), 4
-                    )
-                    product_updates["cost"] = new_cost
-
-                if product_updates:
-                    await deps.update_product(existing["id"], product_updates)
-                await repo.update_po_item(
-                    item_id,
-                    POItemStatus.ARRIVED,
-                    product_id=existing["id"],
-                    delivered_qty=delivered,
-                )
-                updated = await deps.get_product_by_id(existing["id"])
-                matched.append(updated)
-            else:
-                dept = (
-                    dept_by_code.get((item.get("suggested_department") or "HDW").upper())
-                    or default_dept
-                )
-                if not dept:
-                    errors.append({"item": item.get("name"), "error": "No valid department"})
-                    continue
-
-                cost_val = _resolve_po_item_cost(item)
-                product = await deps.create_product(
-                    department_id=dept["id"],
-                    department_name=dept["name"],
-                    name=item.get("name", "Unknown"),
-                    description="",
-                    price=float(item.get("unit_price") or item.get("price") or 0),
-                    cost=round(cost_val, 2),
-                    quantity=delivered,
-                    min_stock=5,
-                    vendor_id=vendor_id,
-                    vendor_name=po.get("vendor_name", ""),
-                    original_sku=item.get("original_sku"),
-                    barcode=item.get("barcode") or None,
-                    base_unit=item.get("base_unit") or "each",
-                    sell_uom=item.get("sell_uom") or "each",
-                    pack_qty=int(item.get("pack_qty") or 1),
-                    user_id=current_user.id,
-                    user_name=current_user.name,
-                    organization_id=org_id,
-                )
-                resolved_pid = product.id
-                await repo.update_po_item(
-                    item_id, POItemStatus.ARRIVED, product_id=product.id, delivered_qty=delivered
-                )
-                received.append(product)
-
-            item_cost = _resolve_po_item_cost(item)
-            cost_total += item_cost * delivered
-            dept_code = (item.get("suggested_department") or "HDW").upper()
-            ledger_items.append(
-                {
-                    "cost": item_cost,
-                    "delivered_qty": delivered,
-                    "product_id": resolved_pid,
-                    "department": dept_by_code.get(dept_code, {}).get("name") or dept_code,
-                }
-            )
-        except (ValueError, RuntimeError, OSError, KeyError) as e:
-            errors.append({"item": item.get("name"), "error": str(e)})
-
-    if ledger_items:
-        await _record_ledger(
-            po_id=po_id,
-            items=ledger_items,
-            vendor_name=po.get("vendor_name", ""),
-            organization_id=org_id,
-            performed_by_user_id=current_user.id,
-        )
-
-    new_status = await _recompute_po_status(po_id, po, current_user, repo)
-    return {
-        "po_id": po_id,
-        "status": new_status,
-        "received": len(received),
-        "matched": len(matched),
-        "errors": len(errors),
-        "error_details": errors,
-        "cost_total": round(cost_total, 2),
-    }
-
-
-# ── Internal helpers ───────────────────────────────────────────────────────────
-
-_OVERRIDE_FIELDS = (
-    "name",
-    "cost",
-    "unit_price",
-    "suggested_department",
-    "base_unit",
-    "sell_uom",
-    "pack_qty",
-    "barcode",
+# Re-export receiving functions so existing imports from this module keep working
+from purchasing.application.po_receiving_service import (  # noqa: E402
+    _apply_overrides,
+    _match_product,
+    _recompute_po_status,
+    mark_delivery_received,
+    receive_po_items,
 )
 
-
-def _apply_overrides(item: dict, update: dict) -> None:
-    """Merge non-None override fields from the review modal into the PO item dict."""
-    for field in _OVERRIDE_FIELDS:
-        val = update.get(field)
-        if val is not None:
-            item[field] = val
-
-
-def _resolve_po_item_cost(item: dict) -> float:
-    """Derive item cost from cost field, falling back to 70% of unit_price/price."""
-    cost = float(item.get("cost") or 0)
-    if cost == 0:
-        price = float(item.get("unit_price") or item.get("price") or 0)
-        cost = round(price * 0.7, 4) if price else 0
-    return cost
-
-
-async def _match_product(item: dict, vendor_id: str, org_id: str, deps: PurchasingDeps):
-    """3-tier matching: explicit product_id → vendor SKU → name."""
-    if item.get("product_id"):
-        existing = await deps.get_product_by_id(item["product_id"], organization_id=org_id)
-        if existing:
-            return existing
-    if item.get("original_sku") and vendor_id:
-        existing = await deps.find_product_by_sku_and_vendor(
-            str(item["original_sku"]).strip(), vendor_id, organization_id=org_id
-        )
-        if existing:
-            return existing
-    if item.get("name") and vendor_id:
-        existing = await deps.find_product_by_name_and_vendor(
-            item["name"], vendor_id, organization_id=org_id
-        )
-        if existing:
-            return existing
-    return None
-
-
-async def _recompute_po_status(
-    po_id: str,
-    po: dict,
-    current_user: CurrentUser,
-    repo: PORepoPort,
-) -> str:
-    """Recompute PO header status from item statuses.
-
-    ordered  — no items arrived yet
-    partial  — some items arrived, some still outstanding
-    received — all items arrived
-    """
-    all_items = await repo.get_po_items(po_id)
-    arrived_count = sum(1 for i in all_items if i["status"] == POItemStatus.ARRIVED.value)
-    total = len(all_items)
-    now = datetime.now(UTC).isoformat()
-
-    if arrived_count == total and total > 0:
-        new_status = POStatus.RECEIVED.value
-        await repo.update_po_status(
-            po_id,
-            status=new_status,
-            received_at=now,
-            received_by_id=current_user.id,
-            received_by_name=current_user.name,
-        )
-    elif arrived_count > 0:
-        new_status = POStatus.PARTIAL.value
-        await repo.update_po_status(po_id, status=new_status)
-    else:
-        new_status = po.get("status", POStatus.ORDERED.value)
-
-    return new_status
+__all__ = [
+    "PurchasingDeps",
+    "_apply_overrides",
+    "_match_product",
+    "_recompute_po_status",
+    "_resolve_po_item_cost",
+    "_resolve_vendor_dict",
+    "create_purchase_order",
+    "mark_delivery_received",
+    "receive_po_items",
+]

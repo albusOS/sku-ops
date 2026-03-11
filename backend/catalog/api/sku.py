@@ -2,9 +2,8 @@
 
 from fastapi import APIRouter, HTTPException
 
+from catalog.application import queries as catalog_queries
 from catalog.application.sku_service import slug_from_name
-from catalog.infrastructure.department_repo import department_repo
-from catalog.infrastructure.sku_repo import sku_repo
 from shared.api.deps import CurrentUserDep
 
 router = APIRouter(tags=["sku"])
@@ -19,11 +18,11 @@ async def get_sku_preview(
     product_name: str | None = None,
 ):
     """Preview the next SKU for a department (without consuming it)."""
-    department = await department_repo.get_by_id(department_id)
+    department = await catalog_queries.get_department_by_id(department_id)
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
-    code = department["code"]
-    next_num = await sku_repo.get_next_number(code)
+    code = department.code
+    next_num = await catalog_queries.get_next_sku_number(code)
     slug = slug_from_name(product_name or "", max_len=6) if product_name else "ITM"
     next_sku = f"{code}-{slug}-{str(next_num).zfill(6)}"
     return {"next_sku": next_sku, "department_code": code, "format": SKU_FORMAT, "slug": slug}
@@ -35,8 +34,8 @@ async def get_sku_overview(
     product_name: str | None = None,
 ):
     """SKU system overview: format, departments with next available SKU."""
-    departments = await department_repo.list_all()
-    counters = await sku_repo.get_all_counters()
+    departments = await catalog_queries.list_departments()
+    counters = await catalog_queries.get_sku_counters()
     slug = slug_from_name(product_name or "", max_len=6) if product_name else "ITM"
     depts_with_next = []
     for d in departments:

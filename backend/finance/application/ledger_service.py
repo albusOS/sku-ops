@@ -8,9 +8,10 @@ Every event produces a set of entries grouped under a single journal_id
 so the transaction can be verified as balanced.
 """
 
-from datetime import UTC
+from datetime import UTC, datetime
 from uuid import uuid4
 
+from finance.application.fiscal_period_service import check_period_open
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
 from finance.infrastructure.ledger_repo import entries_exist, insert_entries
 from kernel.types import round_money
@@ -18,37 +19,24 @@ from kernel.types import round_money
 
 async def _check_fiscal_period(organization_id: str) -> None:
     """Check that the current date is not in a closed fiscal period."""
-    from datetime import datetime
-
     now = datetime.now(UTC).isoformat()
-    try:
-        from finance.api.fiscal_periods import check_period_open
-
-        await check_period_open(now, organization_id)
-    except ImportError:
-        pass
+    await check_period_open(now, organization_id)
 
 
 def _extract_item(item) -> tuple:
-    """Normalize a line item into (qty, unit, unit_price, cost, sell_cost, sell_uom, dept, product_id)."""
-    if isinstance(item, dict):
-        qty = item.get("quantity", 0)
-        unit = item.get("unit") or "each"
-        unit_price = item.get("unit_price") or item.get("price", 0)
-        cost = item.get("cost", 0)
-        sell_cost = item.get("sell_cost") or cost
-        sell_uom = item.get("sell_uom") or unit
-        dept = item.get("department_name")
-        pid = item.get("product_id")
-    else:
-        qty = item.quantity
-        unit = getattr(item, "unit", "each") or "each"
-        unit_price = item.unit_price
-        cost = item.cost
-        sell_cost = getattr(item, "sell_cost", None) or cost
-        sell_uom = getattr(item, "sell_uom", None) or unit
-        dept = getattr(item, "department_name", None)
-        pid = item.product_id
+    """Extract (qty, unit, unit_price, cost, sell_cost, sell_uom, dept, product_id) from a model or dict.
+
+    Accepts both Pydantic models (primary) and dicts (seed/test legacy).
+    """
+    _g = item.get if isinstance(item, dict) else lambda k, d=None: getattr(item, k, d)
+    qty = _g("quantity", 0)
+    unit = _g("unit", "each") or "each"
+    unit_price = _g("unit_price", 0) or _g("price", 0)
+    cost = _g("cost", 0)
+    sell_cost = _g("sell_cost", None) or cost
+    sell_uom = _g("sell_uom", None) or unit
+    dept = _g("department_name", None)
+    pid = _g("product_id", None)
     return qty, unit, unit_price, cost, sell_cost, sell_uom, dept, pid
 
 
@@ -64,7 +52,6 @@ async def _record_sale_event(
     contractor_id: str,
     organization_id: str,
     performed_by_user_id: str | None = None,
-    conn=None,
     created_at: str | None = None,
 ) -> None:
     """Shared logic for withdrawals (+1) and returns (-1).
@@ -73,7 +60,7 @@ async def _record_sale_event(
     Entries per event: TAX_COLLECTED, ACCOUNTS_RECEIVABLE.
     All entries share one journal_id.
     """
-    if await entries_exist(reference_type.value, reference_id, conn=conn):
+    if await entries_exist(reference_type.value, reference_id):
         return
     await _check_fiscal_period(organization_id)
     journal_id = str(uuid4())
@@ -147,7 +134,7 @@ async def _record_sale_event(
         for e in entries:
             e.created_at = created_at
 
-    await insert_entries(entries, conn=conn)
+    await insert_entries(entries)
 
 
 async def record_withdrawal(
@@ -160,7 +147,6 @@ async def record_withdrawal(
     contractor_id: str,
     organization_id: str,
     performed_by_user_id: str | None = None,
-    conn=None,
     created_at: str | None = None,
 ) -> None:
     """Write ledger entries for a new material withdrawal."""
@@ -176,7 +162,6 @@ async def record_withdrawal(
         contractor_id=contractor_id,
         organization_id=organization_id,
         performed_by_user_id=performed_by_user_id,
-        conn=conn,
         created_at=created_at,
     )
 
@@ -191,7 +176,6 @@ async def record_return(
     contractor_id: str,
     organization_id: str,
     performed_by_user_id: str | None = None,
-    conn=None,
     created_at: str | None = None,
 ) -> None:
     """Write reversing entries for a material return."""
@@ -207,7 +191,6 @@ async def record_return(
         contractor_id=contractor_id,
         organization_id=organization_id,
         performed_by_user_id=performed_by_user_id,
-        conn=conn,
         created_at=created_at,
     )
 
@@ -218,11 +201,10 @@ async def record_po_receipt(
     vendor_name: str,
     organization_id: str,
     performed_by_user_id: str | None = None,
-    conn=None,
     created_at: str | None = None,
 ) -> None:
     """Write inventory + AP entries for each received PO line item."""
-    if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id, conn=conn):
+    if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id):
         return
     await _check_fiscal_period(organization_id)
     journal_id = str(uuid4())
@@ -277,7 +259,7 @@ async def record_po_receipt(
         for e in entries:
             e.created_at = created_at
     if entries:
-        await insert_entries(entries, conn=conn)
+        await insert_entries(entries)
 
 
 _DAMAGE_REASONS = {"damage"}
@@ -300,7 +282,6 @@ async def record_adjustment(
     organization_id: str,
     reason: str | None = None,
     performed_by_user_id: str | None = None,
-    conn=None,
     created_at: str | None = None,
 ) -> None:
     """Write inventory + contra entries for a stock adjustment.
@@ -309,7 +290,7 @@ async def record_adjustment(
     Positive delta: INVENTORY increases, offset account decreases (found stock).
     The offset account is determined by reason: 'damage' → DAMAGE, everything else → SHRINKAGE.
     """
-    if await entries_exist(ReferenceType.ADJUSTMENT.value, adjustment_ref_id, conn=conn):
+    if await entries_exist(ReferenceType.ADJUSTMENT.value, adjustment_ref_id):
         return
     await _check_fiscal_period(organization_id)
     amount = round_money(abs(quantity_delta) * product_cost)
@@ -346,7 +327,7 @@ async def record_adjustment(
     if created_at:
         for e in entries:
             e.created_at = created_at
-    await insert_entries(entries, conn=conn)
+    await insert_entries(entries)
 
 
 async def record_payment(
@@ -356,11 +337,10 @@ async def record_payment(
     contractor_id: str,
     organization_id: str,
     performed_by_user_id: str | None = None,
-    conn=None,
     created_at: str | None = None,
 ) -> None:
     """Write AR reduction when a withdrawal is marked paid."""
-    if await entries_exist(ReferenceType.PAYMENT.value, withdrawal_id, conn=conn):
+    if await entries_exist(ReferenceType.PAYMENT.value, withdrawal_id):
         return
     journal_id = str(uuid4())
     entry = FinancialEntry(
@@ -376,7 +356,7 @@ async def record_payment(
     )
     if created_at:
         entry.created_at = created_at
-    await insert_entries([entry], conn=conn)
+    await insert_entries([entry])
 
 
 async def record_credit_note_application(
@@ -386,10 +366,9 @@ async def record_credit_note_application(
     contractor_id: str,
     organization_id: str,
     performed_by_user_id: str | None = None,
-    conn=None,
 ) -> None:
     """Write AR reduction when a credit note is applied to an invoice."""
-    if await entries_exist(ReferenceType.CREDIT_NOTE.value, credit_note_id, conn=conn):
+    if await entries_exist(ReferenceType.CREDIT_NOTE.value, credit_note_id):
         return
     journal_id = str(uuid4())
     await insert_entries(
@@ -406,5 +385,4 @@ async def record_credit_note_application(
                 organization_id=organization_id,
             ),
         ],
-        conn=conn,
     )

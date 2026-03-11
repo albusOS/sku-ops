@@ -7,21 +7,59 @@ Public API (unchanged from the original):
     close_db()       — call once at shutdown
 
 The backend (SQLite vs PostgreSQL) is selected automatically from DATABASE_URL.
+
+Unit of Work: a contextvar stores the ambient transactional connection.
+get_connection() returns it when inside a transaction() block, so repos
+that call get_connection() automatically participate in the ambient
+transaction without explicit conn threading.
 """
 
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 from shared.infrastructure.config import DATABASE_URL
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Sequence
 
     from shared.infrastructure.db.protocol import Connection, DatabaseBackend
 
 _state: dict[str, DatabaseBackend | None] = {"backend": None}
+
+_tx_conn: ContextVar[Connection | None] = ContextVar("_tx_conn", default=None)
+
+
+class _ManagedTxProxy:
+    """Wraps a transactional connection to suppress commit/rollback calls.
+
+    Repos that still call ``conn.commit()`` or ``conn.rollback()`` will
+    silently no-op when running inside a ``transaction()`` block — the
+    context manager owns the commit/rollback lifecycle.
+    """
+
+    __slots__ = ("_conn",)
+
+    def __init__(self, conn: Connection):
+        self._conn = conn
+
+    async def execute(self, sql: str, params: tuple | list = ()):
+        return await self._conn.execute(sql, params)
+
+    async def executemany(self, sql: str, params_list: Sequence[tuple | list]) -> None:
+        return await self._conn.executemany(sql, params_list)
+
+    async def executescript(self, sql: str) -> None:
+        if hasattr(self._conn, "executescript"):
+            await self._conn.executescript(sql)
+
+    async def commit(self) -> None:
+        pass
+
+    async def rollback(self) -> None:
+        pass
 
 
 def _make_backend(url: str) -> DatabaseBackend:
@@ -45,7 +83,12 @@ async def init_db() -> None:
 
 
 def get_connection() -> Connection:
-    """Return the database connection (pool proxy for PG, wrapper for SQLite)."""
+    """Return the ambient transactional connection if inside a transaction(),
+    otherwise fall back to the default connection (pool proxy for PG, wrapper
+    for SQLite)."""
+    tx = _tx_conn.get()
+    if tx is not None:
+        return tx
     if _state["backend"] is None:
         raise RuntimeError("Database not initialized. Call init_db() at startup.")
     return _state["backend"].connection()
@@ -53,11 +96,25 @@ def get_connection() -> Connection:
 
 @asynccontextmanager
 async def transaction() -> AsyncIterator[Connection]:
-    """Async context manager — commits on success, rolls back on exception."""
+    """Async context manager — commits on success, rolls back on exception.
+
+    Stores the transactional connection in a contextvar so that
+    get_connection() returns it for the duration of the block.
+    Nested calls reuse the existing ambient connection.
+    """
+    existing = _tx_conn.get()
+    if existing is not None:
+        yield existing
+        return
     if _state["backend"] is None:
         raise RuntimeError("Database not initialized. Call init_db() at startup.")
     async with _state["backend"].transaction() as conn:
-        yield conn
+        proxy = _ManagedTxProxy(conn)
+        token = _tx_conn.set(proxy)
+        try:
+            yield proxy
+        finally:
+            _tx_conn.reset(token)
 
 
 async def close_db() -> None:

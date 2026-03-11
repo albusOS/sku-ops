@@ -53,7 +53,7 @@ async def create_contractor(data: UserCreate, current_user: AdminDep):
     contractor_dict = contractor.model_dump()
     contractor_dict["password"] = hash_password(data.password)
     contractor_dict["organization_id"] = current_user.organization_id
-    contractor_dict["billing_entity_id"] = be.get("id") if be else None
+    contractor_dict["billing_entity_id"] = be.id if be else None
 
     await insert_user(contractor_dict)
 
@@ -64,23 +64,23 @@ async def create_contractor(data: UserCreate, current_user: AdminDep):
 async def update_contractor(contractor_id: str, data: UserUpdate, current_user: AdminDep):
     org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
-    if not contractor or contractor.get("role") != "contractor":
+    if not contractor or contractor.role != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
-    if contractor.get("organization_id") != org_id:
+    if contractor.organization_id != org_id:
         raise HTTPException(status_code=404, detail="Contractor not found")
 
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     result = await update_user(contractor_id, update_data, organization_id=org_id)
-    return {k: v for k, v in result.items() if k != "password"}
+    return result.model_dump(exclude={"password"}) if result else {}
 
 
 @router.delete("/{contractor_id}")
 async def delete_contractor(contractor_id: str, current_user: AdminDep):
     org_id = current_user.organization_id
     contractor = await get_user_by_id(contractor_id)
-    if not contractor or contractor.get("role") != "contractor":
+    if not contractor or contractor.role != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
-    if contractor.get("organization_id") != org_id:
+    if contractor.organization_id != org_id:
         raise HTTPException(status_code=404, detail="Contractor not found")
 
     deleted = await do_delete_contractor(contractor_id, organization_id=org_id)

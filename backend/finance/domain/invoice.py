@@ -43,6 +43,8 @@ class InvoiceLineItem(BaseModel):
     unit_price: float = 0.0
     amount: float = 0.0
     cost: float = 0.0
+    sell_cost: float = 0.0
+    unit: str | None = None
     product_id: str | None = None
     job_id: str | None = None
 
@@ -127,6 +129,11 @@ class Invoice(AuditedEntity):
     approved_by_id: str | None = None
     approved_at: str | None = None
     xero_invoice_id: str | None = None
+    xero_cogs_journal_id: str | None = None
+    xero_sync_status: str | None = None
+    deleted_at: str | None = None
+    withdrawal_count: int = 0
+    line_count: int = 0
 
     ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
         "draft": {"approved", "sent", "paid"},
@@ -148,3 +155,11 @@ class InvoiceWithDetails(Invoice):
 
     line_items: list[InvoiceLineItem] = Field(default_factory=list)
     withdrawal_ids: list[str] = Field(default_factory=list)
+
+
+class InvoiceCreated(BaseModel):
+    """Result of successful invoice creation."""
+
+    model_config = ConfigDict(frozen=True)
+    invoice: InvoiceWithDetails
+    linked_withdrawal_ids: list[str]

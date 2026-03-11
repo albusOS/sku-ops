@@ -32,7 +32,7 @@ async def get_product_stock_history(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     history = await get_stock_history(product_id=product_id, limit=limit)
-    return {"product_id": product_id, "sku": product.get("sku"), "history": history}
+    return {"product_id": product_id, "sku": product.sku, "history": history}
 
 
 @router.post("/{product_id}/adjust")

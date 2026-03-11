@@ -10,9 +10,8 @@ def _row(row) -> dict | None:
     return dict(row) if hasattr(row, "keys") else {}
 
 
-async def insert_count(count: CycleCount, conn=None) -> None:
-    in_tx = conn is not None
-    conn = conn or get_connection()
+async def insert_count(count: CycleCount) -> None:
+    conn = get_connection()
     d = count.model_dump()
     await conn.execute(
         """INSERT INTO cycle_counts
@@ -31,13 +30,11 @@ async def insert_count(count: CycleCount, conn=None) -> None:
             d["created_at"],
         ),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
-async def insert_item(item: CycleCountItem, conn=None) -> None:
-    in_tx = conn is not None
-    conn = conn or get_connection()
+async def insert_item(item: CycleCountItem) -> None:
+    conn = get_connection()
     d = item.model_dump()
     await conn.execute(
         """INSERT INTO cycle_count_items
@@ -58,8 +55,7 @@ async def insert_item(item: CycleCountItem, conn=None) -> None:
             d["created_at"],
         ),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
 async def update_item_counted(
@@ -67,10 +63,8 @@ async def update_item_counted(
     counted_qty: float,
     variance: float,
     notes: str | None,
-    conn=None,
 ) -> dict | None:
-    in_tx = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     cursor = await conn.execute(
         """UPDATE cycle_count_items
            SET counted_qty = ?, variance = ?, notes = ?
@@ -79,8 +73,7 @@ async def update_item_counted(
         (counted_qty, variance, notes, item_id),
     )
     row = await cursor.fetchone()
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
     return _row(row)
 
 
@@ -88,22 +81,19 @@ async def commit_count(
     count_id: str,
     committed_by_id: str,
     committed_at: str,
-    conn=None,
 ) -> None:
-    in_tx = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     await conn.execute(
         """UPDATE cycle_counts
            SET status = 'committed', committed_by_id = ?, committed_at = ?
            WHERE id = ?""",
         (committed_by_id, committed_at, count_id),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_count(count_id: str, organization_id: str, conn=None) -> dict | None:
-    conn = conn or get_connection()
+async def get_count(count_id: str, organization_id: str) -> dict | None:
+    conn = get_connection()
     cursor = await conn.execute(
         "SELECT * FROM cycle_counts WHERE id = ? AND organization_id = ?",
         (count_id, organization_id),
@@ -137,8 +127,8 @@ async def list_items(cycle_count_id: str) -> list:
     return [_row(r) for r in rows]
 
 
-async def get_item(item_id: str, cycle_count_id: str, conn=None) -> dict | None:
-    conn = conn or get_connection()
+async def get_item(item_id: str, cycle_count_id: str) -> dict | None:
+    conn = get_connection()
     cursor = await conn.execute(
         "SELECT * FROM cycle_count_items WHERE id = ? AND cycle_count_id = ?",
         (item_id, cycle_count_id),

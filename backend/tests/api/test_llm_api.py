@@ -1,0 +1,107 @@
+"""API tests for LLM health, chat status, and assistant endpoints."""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from tests.helpers.auth import admin_headers
+
+
+class TestHealthAI:
+    """Test /health/ai endpoint."""
+
+    def test_ai_health_unavailable_without_key(self, client):
+        with patch("reports.api.health.ANTHROPIC_AVAILABLE", False):
+            with patch("reports.api.health.LLM_SETUP_URL", "https://console.anthropic.com/"):
+                response = client.get("/api/health/ai")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unavailable"
+        assert "ANTHROPIC_API_KEY" in data["detail"]
+        assert "anthropic.com" in data["detail"]
+
+    def test_ai_health_ok_when_configured(self, client):
+        with patch("reports.api.health.ANTHROPIC_AVAILABLE", True):
+            with patch("reports.api.health.ANTHROPIC_MODEL", "claude-sonnet-4-6"):
+                response = client.get("/api/health/ai")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["provider"] == "anthropic"
+        assert "claude" in data["model"]
+
+
+class TestChatStatus:
+    """Test /chat/status endpoint (requires auth)."""
+
+    def test_chat_status_requires_auth(self, client):
+        response = client.get("/api/chat/status")
+        assert response.status_code in (401, 403)
+
+    @pytest.mark.usefixtures("_db")
+    @pytest.mark.asyncio
+    async def test_chat_status_unavailable_without_key(self, client):
+        headers = admin_headers()
+        with patch("assistant.api.chat.ANTHROPIC_AVAILABLE", False):
+            with patch("assistant.api.chat.LLM_SETUP_URL", "https://console.anthropic.com/"):
+                response = client.get("/api/chat/status", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["available"] is False
+        assert data["provider"] is None
+        assert data["setup_url"] == "https://console.anthropic.com/"
+
+    @pytest.mark.usefixtures("_db")
+    @pytest.mark.asyncio
+    async def test_chat_status_available_when_configured(self, client):
+        headers = admin_headers()
+        with patch("assistant.api.chat.ANTHROPIC_AVAILABLE", True):
+            response = client.get("/api/chat/status", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["available"] is True
+        assert data["provider"] == "anthropic"
+        assert data.get("setup_url") is None
+
+
+@pytest.mark.asyncio
+class TestAssistant:
+    """Test chat assistant service."""
+
+    @pytest.mark.usefixtures("_db")
+    async def test_chat_returns_setup_message_without_key(self):
+        from assistant.application.assistant import chat
+
+        with patch("assistant.application.assistant.ANTHROPIC_AVAILABLE", False):
+            result = await chat("How many products?", history=None)
+        assert "ANTHROPIC_API_KEY" in result["response"] or "Anthropic" in result["response"]
+        assert result["tool_calls"] == []
+
+    @pytest.mark.usefixtures("_db")
+    async def test_chat_dispatches_to_unified_agent(self):
+        from assistant.application.assistant import chat
+
+        expected = {
+            "response": "You have 0 products in inventory.",
+            "tool_calls": [{"tool": "get_inventory_stats"}],
+            "thinking": [],
+            "history": [],
+            "usage": {"cost_usd": 0.0, "model": "claude-haiku-4-5"},
+            "agent": "unified",
+        }
+
+        with (
+            patch("assistant.application.assistant.ANTHROPIC_AVAILABLE", True),
+            patch(
+                "assistant.application.assistant._unified_agent.run",
+                new=AsyncMock(return_value=expected),
+            ),
+        ):
+            result = await chat(
+                "What's our inventory count?",
+                history=None,
+            )
+
+        assert result["response"] == "You have 0 products in inventory."
+        assert result["agent"] == "unified"
+        assert result["routed_to"] == ["unified"]

@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from identity.infrastructure.address_repo import address_repo
+from identity.application.queries import address_repo
 from shared.api.deps import AdminDep, CurrentUserDep
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])

@@ -1,0 +1,144 @@
+# SKU-Ops — Agent Rules
+
+You are working on a launch-focused modular monolith (Python/FastAPI backend, React frontend). An expert architecture audit has been performed. A first remediation attempt produced incorrect results (code relocation, not correction). These rules exist to prevent repeating those mistakes.
+
+Read `.cursor/rules/architecture-audit-status.mdc` before any structural backend change. It tracks what was found, what was attempted, what failed, and what still needs proper correction.
+
+---
+
+## 1. Structural law
+
+### Layer dependencies (strict, not aspirational)
+
+```
+kernel/                     → zero deps (pure domain primitives)
+shared/infrastructure/      → kernel only
+{context}/domain/           → kernel + stdlib + pydantic only
+{context}/ports/            → domain + kernel only
+{context}/infrastructure/   → domain + shared/infrastructure
+{context}/application/      → own domain + own infra + other contexts' application facades
+{context}/api/              → own application + shared/api only
+```
+
+Violations of this graph are bugs, not tech debt.
+
+### Cross-context ownership
+
+Each bounded context owns its tables, state transitions, and invariants. Cross-context mutation goes through the owning context's application facade. The owning context controls its own data.
+
+```python
+# THIS IS A BUG — finance mutating operations' table
+await conn.execute("UPDATE withdrawals SET payment_status = 'invoiced' WHERE id = ?", (wid,))
+
+# THIS IS CORRECT — operations owns the mutation
+from operations.application.withdrawal_facade import link_to_invoice
+await link_to_invoice(withdrawal_ids, invoice_id, org_id)
+```
+
+### API routes are thin
+
+A route handler may only: parse request, call one application function, map result to response, log audit. No business logic, no orchestration, no raw SQL, no direct repo imports.
+
+### Repos are pure persistence
+
+Repos do CRUD and queries. No business validation, no orchestration, no cross-context access, no state machine logic.
+
+---
+
+## 2. Forbidden patterns
+
+These patterns have been identified as root causes of structural problems. Do not introduce or preserve them.
+
+| Pattern | Why forbidden | What to do instead |
+|---------|--------------|-------------------|
+| `_wiring = {}` / `set_*_getter()` | Mutable global state hiding circular deps | Fix the boundary design; use module-level imports from application facades |
+| `from x.infrastructure.y import z` inside function body | Service reaching through to infra details | Import collaborators at module level |
+| Giant service file (15+ functions, mixed concerns) | Dumping ground; untestable | One module per important use case under `application/use_cases/` |
+| `dict` as primary contract for mutation flows | No type safety, silent schema drift | Typed command/result dataclasses |
+| `conn=None` on port signatures | Infrastructure leaking through abstraction | Unit of Work (contextvar-based ambient transaction) |
+| Raw SQL in API routes | Persistence logic in transport layer | Delegate to application → infrastructure |
+| Cross-context raw SQL | Invisible coupling, ownership violation | Application facade on the owning context |
+| Claiming idempotency without defining mechanism | False safety guarantee | Define dedupe key, state guard, failure modes before implementation |
+
+---
+
+## 3. Required patterns for important flows
+
+Any mutation that crosses context boundaries or interacts with external systems must have:
+
+1. **Typed input** — command dataclass or explicit typed parameters
+2. **Typed result** — result dataclass, not dict
+3. **Module-level collaborators** — no runtime wiring, no function-body imports
+4. **Explicit transaction boundary** — `async with transaction():` owned by the use case
+5. **Explicit cross-context contract** — typed read models from the owning context's facade
+6. **Defined idempotency** — dedupe key, DB constraint or state guard, failure recovery
+
+---
+
+## 4. Infrastructure facts (must know before writing backend code)
+
+### Database layer
+
+- **SQLite (dev):** Single connection. `get_connection()` inside `transaction()` returns the same conn.
+- **Postgres (prod):** Pool proxy. `get_connection()` returns autocommitting pool proxy. `transaction()` yields a dedicated connection. **These are different objects.** Code that calls `get_connection()` inside a `transaction()` block is NOT in the transaction on Postgres.
+- **Consequence:** Until a contextvar-based Unit of Work is implemented, `conn` parameter threading is the only way to share a transaction. This is a known infrastructure debt, not a pattern to emulate.
+
+### Event hub
+
+Exists (`shared/infrastructure/event_hub.py`). Used for WebSocket/UI notifications. Not yet used for cross-context domain events. Available for future use but do not add event-driven patterns speculatively.
+
+### Adapter pattern
+
+Only one true port-and-adapter pair exists: `InvoicingGateway` (Xero). Port protocol, factory, real adapter, stub adapter. This is the reference implementation for the pattern.
+
+---
+
+## 5. Decision rules
+
+### Should I create a port?
+
+Only if ALL THREE: (1) multiple implementations exist or are plausible, (2) consumers need test isolation, (3) the boundary is stable. Otherwise keep it concrete.
+
+### Should I move logic to domain?
+
+Only if it's pure computation on entity state with no IO. If it coordinates aggregates, requires IO, or is use-case-specific, it stays in application.
+
+### Should I split a file?
+
+Split by dependency graph (different imports = different files), not by endpoint or alphabetical grouping.
+
+### Should I create a typed model?
+
+Yes for mutation flows and cross-context data transfer. No for simple pass-through read queries that map directly to API responses.
+
+---
+
+## 6. Current remediation status
+
+An architecture remediation is in progress. Consult `.cursor/rules/architecture-audit-status.mdc` for the detailed tracker. Summary:
+
+| Item | Status |
+|------|--------|
+| Fiscal periods vertical slice | Done, correct |
+| auth_service split (pure logic vs FastAPI deps) | Done, correct |
+| InvoiceSyncResult rename (xero_ → external_) | Done, correct |
+| OAuth state repo extraction | Done, correct |
+| Invoice service redesign | NOT DONE — first attempt produced a dumping ground. Needs complete redo. |
+| Unit of Work (contextvar ambient transactions) | NOT DONE — prerequisite for conn removal |
+| Fat controller extraction (6 files) | NOT DONE |
+| Reporting extraction | NOT DONE |
+| conn=None port cleanup | NOT DONE — blocked on Unit of Work |
+| Unused port deletion | NOT DONE |
+
+The corrected remediation plan is in `.cursor/plans/invoice_architecture_redesign_22752234.plan.md`. Follow that plan's sequencing.
+
+---
+
+## 7. What not to do
+
+- Do not relocate code and call it architecture. Moving a function from file A to file B without changing its dependency structure, contract shape, or boundary design is not a fix.
+- Do not preserve bad structure because it exists. If the current code violates these rules, the fix is to redesign, not to work around.
+- Do not rush. One correctly structured module is worth more than ten relocated functions.
+- Do not add abstraction layers that have one caller and one implementation. That is ceremony, not architecture.
+- Do not create generic patterns (Repository[T], Service[T]) in a codebase with 5-15 entities per context. They will never pay for themselves.
+- Do not decrease test coverage. If new abstractions are harder to test than the concrete code they replace, the abstraction is wrong.

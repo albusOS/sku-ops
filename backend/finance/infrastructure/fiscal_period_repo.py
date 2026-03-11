@@ -1,0 +1,65 @@
+"""Fiscal period repository — persistence for fiscal periods."""
+
+from shared.infrastructure.database import get_connection
+
+
+async def get_period(period_id: str, org_id: str) -> dict | None:
+    conn = get_connection()
+    cursor = await conn.execute(
+        "SELECT * FROM fiscal_periods WHERE id = ? AND organization_id = ?",
+        (period_id, org_id),
+    )
+    row = await cursor.fetchone()
+    return dict(row) if row else None
+
+
+async def list_periods(org_id: str, status: str | None = None) -> list[dict]:
+    conn = get_connection()
+    query = "SELECT * FROM fiscal_periods WHERE organization_id = ?"
+    params: list = [org_id]
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+    query += " ORDER BY start_date DESC"
+    cursor = await conn.execute(query, params)
+    return [dict(r) for r in await cursor.fetchall()]
+
+
+async def insert_period(
+    period_id: str,
+    name: str,
+    start_date: str,
+    end_date: str,
+    org_id: str,
+    created_at: str,
+) -> None:
+    conn = get_connection()
+    await conn.execute(
+        """INSERT INTO fiscal_periods (id, name, start_date, end_date, status, organization_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (period_id, name, start_date, end_date, "open", org_id, created_at),
+    )
+    await conn.commit()
+
+
+async def close_period(period_id: str, closed_by_id: str, closed_at: str) -> None:
+    conn = get_connection()
+    await conn.execute(
+        "UPDATE fiscal_periods SET status = 'closed', closed_by_id = ?, closed_at = ? WHERE id = ?",
+        (closed_by_id, closed_at, period_id),
+    )
+    await conn.commit()
+
+
+async def find_closed_period_covering(entry_date: str, organization_id: str) -> dict | None:
+    """Return a closed fiscal period that covers entry_date, or None."""
+    conn = get_connection()
+    cursor = await conn.execute(
+        """SELECT id, name FROM fiscal_periods
+           WHERE organization_id = ? AND status = 'closed'
+             AND ? >= start_date AND ? <= end_date
+           LIMIT 1""",
+        (organization_id, entry_date[:10], entry_date[:10]),
+    )
+    row = await cursor.fetchone()
+    return dict(row) if row else None

@@ -2,18 +2,18 @@
 
 from typing import Protocol, runtime_checkable
 
-from finance.domain.invoice import Invoice, InvoiceLineItem
+from finance.domain.invoice import Invoice, InvoiceWithDetails
 
 
 @runtime_checkable
 class InvoiceRepoPort(Protocol):
-    async def insert(self, invoice: Invoice | dict) -> dict | None: ...
+    async def insert(self, invoice: Invoice | dict) -> InvoiceWithDetails | None: ...
 
     async def get_by_id(
         self,
         invoice_id: str,
         organization_id: str | None = None,
-    ) -> dict | None: ...
+    ) -> InvoiceWithDetails | None: ...
 
     async def list_invoices(
         self,
@@ -23,33 +23,14 @@ class InvoiceRepoPort(Protocol):
         end_date: str | None = None,
         limit: int = 1000,
         organization_id: str | None = None,
-    ) -> list[dict]: ...
+    ) -> list[Invoice]: ...
 
-    async def update(
+    async def update_fields(
         self,
         invoice_id: str,
-        billing_entity: str | None = None,
-        contact_name: str | None = None,
-        contact_email: str | None = None,
-        status: str | None = None,
-        notes: str | None = None,
-        tax: float | None = None,
-        line_items: list[InvoiceLineItem] | None = None,
-    ) -> dict | None: ...
-
-    async def add_withdrawals(
-        self,
-        invoice_id: str,
-        withdrawal_ids: list[str],
+        updates: dict,
         organization_id: str | None = None,
-    ) -> dict | None: ...
-
-    async def create_from_withdrawals(
-        self,
-        withdrawal_ids: list[str],
-        organization_id: str | None = None,
-        conn=None,
-    ) -> dict: ...
+    ) -> InvoiceWithDetails | None: ...
 
     async def mark_paid_for_withdrawal(self, withdrawal_id: str) -> None: ...
 
@@ -57,6 +38,23 @@ class InvoiceRepoPort(Protocol):
         self,
         invoice_id: str,
         xero_invoice_id: str,
+        xero_cogs_journal_id: str | None = None,
+        organization_id: str | None = None,
     ) -> None: ...
 
-    async def delete_draft(self, invoice_id: str) -> bool: ...
+    async def set_xero_sync_status(
+        self,
+        invoice_id: str,
+        status: str,
+        organization_id: str | None = None,
+    ) -> None: ...
+
+    async def list_unsynced_invoices(self, organization_id: str) -> list[Invoice]: ...
+
+    async def list_invoices_needing_reconciliation(self, organization_id: str) -> list[Invoice]: ...
+
+    async def list_failed_invoices(self, organization_id: str) -> list[Invoice]: ...
+
+    async def list_mismatch_invoices(self, organization_id: str) -> list[Invoice]: ...
+
+    async def list_stale_cogs_invoices(self, organization_id: str) -> list[Invoice]: ...

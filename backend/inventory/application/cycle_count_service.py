@@ -35,7 +35,7 @@ async def open_cycle_count(
     """
     products = await list_products(organization_id=organization_id)
     if scope:
-        products = [p for p in products if p.get("department_name") == scope]
+        products = [p for p in products if p.department_name == scope]
 
     if not products:
         raise ValueError(
@@ -54,11 +54,11 @@ async def open_cycle_count(
     for p in products:
         item = CycleCountItem(
             cycle_count_id=count.id,
-            product_id=p["id"],
-            sku=p.get("sku", ""),
-            product_name=p.get("name", ""),
-            snapshot_qty=float(p.get("quantity", 0)),
-            unit=p.get("base_unit", "each") or "each",
+            product_id=p.id,
+            sku=p.sku,
+            product_name=p.name,
+            snapshot_qty=float(p.quantity),
+            unit=p.base_unit or "each",
         )
         await cycle_count_repo.insert_item(item)
 
@@ -139,7 +139,7 @@ async def commit_cycle_count(
 
     committed_at = datetime.now(UTC).isoformat()
 
-    async with transaction() as conn:
+    async with transaction():
         for item in items_to_adjust:
             await process_adjustment_stock_changes(
                 product_id=item["product_id"],
@@ -147,13 +147,11 @@ async def commit_cycle_count(
                 reason="count",
                 user_id=committed_by_id,
                 user_name=committed_by_name,
-                conn=conn,
             )
         await cycle_count_repo.commit_count(
             count_id=count_id,
             committed_by_id=committed_by_id,
             committed_at=committed_at,
-            conn=conn,
         )
 
     count["status"] = CycleCountStatus.COMMITTED

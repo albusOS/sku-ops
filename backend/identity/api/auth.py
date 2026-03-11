@@ -1,18 +1,19 @@
-"""Authentication routes."""
+"""Authentication routes — thin controllers delegating to auth_service."""
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from identity.application.auth_service import (
-    create_token,
-    hash_password,
-    verify_password,
+    admin_create_user as _admin_create_user,
 )
-from identity.domain.user import AdminUserCreate, User, UserCreate, UserLogin
-from identity.infrastructure.refresh_token_repo import refresh_token_repo
-from identity.infrastructure.user_repo import user_repo
+from identity.application.auth_service import (
+    login_user,
+    logout,
+    refresh_tokens,
+    register_user,
+)
+from identity.domain.user import AdminUserCreate, UserCreate, UserLogin
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure.config import ALLOW_RESET, DEFAULT_ORG_ID
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,132 +29,77 @@ class LogoutRequest(BaseModel):
 
 @router.post("/register")
 async def register(data: UserCreate, request: Request):
-    if not ALLOW_RESET:
-        raise HTTPException(
-            status_code=403,
-            detail="Public registration is disabled. Contact your administrator.",
-        )
-
-    existing = await user_repo.get_by_email(data.email)
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    user = User(
-        email=data.email,
-        name=data.name,
-        role="admin",
-        company=data.company,
-        billing_entity=data.billing_entity,
-        phone=data.phone,
-    )
-    user_dict = user.model_dump()
-    user_dict["password"] = hash_password(data.password)
-    user_dict["organization_id"] = DEFAULT_ORG_ID
-
-    await user_repo.insert(user_dict)
-
-    org_id = DEFAULT_ORG_ID
-    token = create_token(user.id, user.email, user.role, org_id)
-    raw_refresh, _ = await refresh_token_repo.create(user.id)
+    try:
+        result = await register_user(data)
+    except ValueError as e:
+        status = 403 if "disabled" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e)) from e
     await audit_log(
-        user_id=user.id,
+        user_id=result["user"]["id"],
         action="auth.register",
         resource_type="user",
-        resource_id=user.id,
+        resource_id=result["user"]["id"],
         request=request,
-        org_id=org_id,
+        org_id=result["user"].get("organization_id"),
     )
-    return {
-        "token": token,
-        "refresh_token": raw_refresh,
-        "user": {**user.model_dump(), "organization_id": org_id},
-    }
+    return result
 
 
 @router.post("/users")
-async def admin_create_user(
+async def admin_create_user_route(
     data: AdminUserCreate,
     request: Request,
     current_user: AdminDep,
 ):
     """Admin-only: create a user with explicit role in the admin's organization."""
-    existing = await user_repo.get_by_email(data.email)
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
     org_id = current_user.organization_id
-    user = User(
-        email=data.email,
-        name=data.name,
-        role=data.role,
-        company=data.company,
-        billing_entity=data.billing_entity,
-        phone=data.phone,
-    )
-    user_dict = user.model_dump()
-    user_dict["password"] = hash_password(data.password)
-    user_dict["organization_id"] = org_id
-
-    await user_repo.insert(user_dict)
-
+    try:
+        user_dict = await _admin_create_user(data, org_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     await audit_log(
         user_id=current_user.id,
         action="auth.admin_create_user",
         resource_type="user",
-        resource_id=user.id,
+        resource_id=user_dict.get("id"),
         request=request,
         org_id=org_id,
     )
-    return {k: v for k, v in user_dict.items() if k != "password"}
+    return user_dict
 
 
 @router.post("/login")
 async def login(data: UserLogin, request: Request):
-    user = await user_repo.get_by_email(data.email)
-    if not user or not verify_password(data.password, user.get("password", "")):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not user.get("is_active", True):
-        raise HTTPException(status_code=401, detail="Account is disabled")
-
-    org_id = user.get("organization_id") or DEFAULT_ORG_ID
-    token = create_token(user["id"], user["email"], user["role"], org_id)
-    raw_refresh, _ = await refresh_token_repo.create(user["id"])
-    user_response = {k: v for k, v in user.items() if k != "password"}
-    user_response["organization_id"] = org_id
+    try:
+        result = await login_user(data)
+    except ValueError as e:
+        detail = str(e)
+        status = 401
+        raise HTTPException(status_code=status, detail=detail) from e
     await audit_log(
-        user_id=user["id"],
+        user_id=result["user"]["id"],
         action="auth.login",
         resource_type="user",
-        resource_id=user["id"],
+        resource_id=result["user"]["id"],
         request=request,
-        org_id=org_id,
+        org_id=result["user"].get("organization_id"),
     )
-    return {"token": token, "refresh_token": raw_refresh, "user": user_response}
+    return result
 
 
 @router.post("/refresh")
 async def refresh(data: RefreshRequest, _request: Request):
     """Exchange a valid refresh token for a new access + refresh token pair (rotation)."""
-    result = await refresh_token_repo.validate_and_rotate(data.refresh_token)
-    if not result:
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
-
-    user = await user_repo.get_by_id(result["user_id"])
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    if not user.get("is_active", True):
-        raise HTTPException(status_code=401, detail="Account is disabled")
-
-    org_id = user.get("organization_id") or DEFAULT_ORG_ID
-    token = create_token(user["id"], user["email"], user["role"], org_id)
-    new_refresh, _ = await refresh_token_repo.create(user["id"])
-    return {"token": token, "refresh_token": new_refresh}
+    try:
+        return await refresh_tokens(data.refresh_token)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
 
 
 @router.post("/logout")
-async def logout(data: LogoutRequest, _request: Request):
+async def logout_route(data: LogoutRequest, _request: Request):
     """Revoke the refresh token."""
-    await refresh_token_repo.revoke(data.refresh_token)
+    await logout(data.refresh_token)
     return {"detail": "Logged out"}
 
 

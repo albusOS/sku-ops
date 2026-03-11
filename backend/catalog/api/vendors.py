@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, HTTPException, Request
 
+from catalog.application import queries as catalog_queries
 from catalog.domain.vendor import Vendor, VendorCreate
-from catalog.infrastructure.vendor_repo import vendor_repo
 from shared.api.deps import AdminDep
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -13,24 +13,26 @@ router = APIRouter(prefix="/vendors", tags=["vendors"])
 @router.get("", response_model=list[Vendor])
 async def get_vendors(current_user: AdminDep):
     org_id = current_user.organization_id
-    return await vendor_repo.list_all(org_id)
+    return await catalog_queries.list_vendors(organization_id=org_id)
 
 
 @router.post("", response_model=Vendor)
 async def create_vendor(data: VendorCreate, current_user: AdminDep):
     org_id = current_user.organization_id
     vendor = Vendor(**data.model_dump(), organization_id=org_id)
-    await vendor_repo.insert(vendor)
+    await catalog_queries.insert_vendor(vendor)
     return vendor
 
 
 @router.put("/{vendor_id}", response_model=Vendor)
 async def update_vendor(vendor_id: str, data: VendorCreate, current_user: AdminDep):
     org_id = current_user.organization_id
-    existing = await vendor_repo.get_by_id(vendor_id, org_id)
+    existing = await catalog_queries.get_vendor_by_id(vendor_id, organization_id=org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Vendor not found")
-    result = await vendor_repo.update(vendor_id, data.model_dump(), organization_id=org_id)
+    result = await catalog_queries.update_vendor(
+        vendor_id, data.model_dump(), organization_id=org_id
+    )
     if not result:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return result
@@ -39,10 +41,10 @@ async def update_vendor(vendor_id: str, data: VendorCreate, current_user: AdminD
 @router.delete("/{vendor_id}")
 async def delete_vendor(vendor_id: str, request: Request, current_user: AdminDep):
     org_id = current_user.organization_id
-    existing = await vendor_repo.get_by_id(vendor_id, org_id)
+    existing = await catalog_queries.get_vendor_by_id(vendor_id, organization_id=org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Vendor not found")
-    deleted = await vendor_repo.delete(vendor_id, organization_id=org_id)
+    deleted = await catalog_queries.delete_vendor(vendor_id, organization_id=org_id)
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Vendor not found")
     await audit_log(

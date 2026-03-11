@@ -1,6 +1,7 @@
 """Address repository — persistence for the address book."""
 
-from datetime import UTC
+from datetime import UTC, datetime
+from uuid import uuid4
 
 from shared.infrastructure.database import get_connection
 
@@ -14,9 +15,8 @@ def _row_to_dict(row) -> dict | None:
 _COLUMNS = "id, label, line1, line2, city, state, postal_code, country, billing_entity_id, job_id, organization_id, created_at"
 
 
-async def insert(address: dict, conn=None) -> None:
-    in_tx = conn is not None
-    conn = conn or get_connection()
+async def insert(address: dict) -> None:
+    conn = get_connection()
     ins_q = "INSERT INTO addresses ("
     ins_q += _COLUMNS
     ins_q += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -37,8 +37,7 @@ async def insert(address: dict, conn=None) -> None:
             address["created_at"],
         ),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
 async def get_by_id(address_id: str, organization_id: str) -> dict | None:
@@ -95,7 +94,7 @@ async def search(query: str, organization_id: str, limit: int = 20) -> list:
     return [_row_to_dict(r) for r in await cursor.fetchall()]
 
 
-async def ensure_address(display_text: str, organization_id: str, conn=None) -> dict:
+async def ensure_address(display_text: str, organization_id: str) -> dict:
     """Get or create an address from a freeform string. Best-effort parsing."""
     if not display_text or not display_text.strip():
         return {}
@@ -103,9 +102,6 @@ async def ensure_address(display_text: str, organization_id: str, conn=None) -> 
     existing = await search(text, organization_id, limit=1)
     if existing and existing[0].get("line1", "").lower() == text.lower():
         return existing[0]
-    from datetime import datetime
-    from uuid import uuid4
-
     address = {
         "id": str(uuid4()),
         "label": text[:80],
@@ -113,7 +109,7 @@ async def ensure_address(display_text: str, organization_id: str, conn=None) -> 
         "organization_id": organization_id,
         "created_at": datetime.now(UTC).isoformat(),
     }
-    await insert(address, conn=conn)
+    await insert(address)
     return address
 
 

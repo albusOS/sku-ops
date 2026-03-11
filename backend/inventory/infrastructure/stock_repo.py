@@ -5,16 +5,20 @@ from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> StockTransaction | None:
     if row is None:
         return None
-    return dict(row) if hasattr(row, "keys") else {}
+    d = dict(row) if hasattr(row, "keys") else {}
+    if not d:
+        return None
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return StockTransaction.model_validate(d)
 
 
-async def insert_transaction(transaction: StockTransaction | dict, conn=None) -> None:
+async def insert_transaction(transaction: StockTransaction | dict) -> None:
     tx_dict = transaction if isinstance(transaction, dict) else transaction.model_dump()
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     org_id = tx_dict.get("organization_id") or DEFAULT_ORG_ID
     await conn.execute(
         """INSERT INTO stock_transactions (id, product_id, sku, product_name, quantity_delta, quantity_before,
@@ -41,13 +45,12 @@ async def insert_transaction(transaction: StockTransaction | dict, conn=None) ->
             tx_dict.get("created_at", ""),
         ),
     )
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
 
 
 async def list_by_product(
     product_id: str, limit: int = 50, organization_id: str | None = None
-) -> list:
+) -> list[StockTransaction]:
     conn = get_connection()
     params: list = [product_id]
     where = "WHERE product_id = ?"
@@ -60,7 +63,7 @@ async def list_by_product(
         params,
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
 class StockRepo:

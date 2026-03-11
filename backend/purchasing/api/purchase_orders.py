@@ -18,6 +18,7 @@ from catalog.application.queries import (
 )
 from documents.application.enrichment_service import enrich_for_import
 from documents.application.import_parser import infer_uom, suggest_department
+from finance.application.po_sync_service import queue_po_for_sync
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
 from kernel import events
@@ -28,12 +29,12 @@ from purchasing.application.purchase_order_service import (
     mark_delivery_received,
     receive_po_items,
 )
+from purchasing.application.queries import get_po, get_po_items, list_pos
 from purchasing.domain.purchase_order import (
     CreatePORequest,
     MarkDeliveryRequest,
     ReceiveItemsRequest,
 )
-from purchasing.infrastructure.po_repo import po_repo
 from shared.api.deps import AdminDep
 from shared.infrastructure import event_hub
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
@@ -112,9 +113,9 @@ async def list_purchase_orders(
 ):
     """List purchase orders, optionally filtered by status (ordered/received)."""
     org_id = current_user.organization_id
-    pos = await po_repo.list_pos(org_id, status=status)
+    pos = await list_pos(org_id, status=status)
     for po in pos:
-        items = await po_repo.get_po_items(po["id"])
+        items = await get_po_items(po["id"])
         po["item_count"] = len(items)
         po["ordered_count"] = sum(1 for i in items if i["status"] == "ordered")
         po["pending_count"] = sum(1 for i in items if i["status"] == "pending")
@@ -129,10 +130,10 @@ async def get_purchase_order(
 ):
     """Get a purchase order with all its items."""
     org_id = current_user.organization_id
-    po = await po_repo.get_po(po_id, org_id)
+    po = await get_po(po_id, org_id)
     if not po:
         raise ResourceNotFoundError("PurchaseOrder", po_id)
-    items = await po_repo.get_po_items(po_id)
+    items = await get_po_items(po_id)
     return {**po, "items": items}
 
 
@@ -179,8 +180,6 @@ async def receive_items(
         org_id=org_id,
     )
     if result.get("cost_total", 0) > 0:
-        from finance.application.po_sync_service import queue_po_for_sync
-
         try:
             await queue_po_for_sync(po_id)
         except (RuntimeError, OSError, ValueError) as e:

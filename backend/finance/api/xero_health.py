@@ -5,9 +5,9 @@ import logging
 
 from fastapi import APIRouter
 
-from finance.application.po_sync_service import list_failed_po_bills, list_unsynced_po_bills
-from finance.infrastructure.credit_note_repo import credit_note_repo
-from finance.infrastructure.invoice_repo import invoice_repo
+from finance.application import queries as finance_queries
+from finance.application.xero_sync_job import run_sync
+from purchasing.application.queries import list_failed_po_bills, list_unsynced_po_bills
 from shared.api.deps import AdminDep
 
 logger = logging.getLogger(__name__)
@@ -41,13 +41,13 @@ async def get_xero_health(
         failed_credits,
         failed_pos,
     ) = (
-        await invoice_repo.list_unsynced_invoices(org_id),
-        await credit_note_repo.list_unsynced_credit_notes(org_id),
+        await finance_queries.list_unsynced_invoices(org_id),
+        await finance_queries.list_unsynced_credit_notes(org_id),
         await list_unsynced_po_bills(org_id),
-        await invoice_repo.list_mismatch_invoices(org_id),
-        await credit_note_repo.list_mismatch_credit_notes(org_id),
-        await invoice_repo.list_failed_invoices(org_id),
-        await credit_note_repo.list_failed_credit_notes(org_id),
+        await finance_queries.list_mismatch_invoices(org_id),
+        await finance_queries.list_mismatch_credit_notes(org_id),
+        await finance_queries.list_failed_invoices(org_id),
+        await finance_queries.list_failed_credit_notes(org_id),
         await list_failed_po_bills(org_id),
     )
     return {
@@ -70,8 +70,6 @@ async def get_xero_health(
 @router.post("/sync")
 async def trigger_sync(current_user: AdminDep):
     """Manually trigger a full Xero sync + reconciliation for the org (background)."""
-    from finance.application.xero_sync_job import run_sync
-
     org_id = current_user.organization_id
 
     if _use_redis():

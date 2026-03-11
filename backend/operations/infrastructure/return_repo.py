@@ -8,19 +8,20 @@ from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> MaterialReturn | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
-    if d and "items" in d and isinstance(d["items"], str):
+    if not d:
+        return None
+    if "items" in d and isinstance(d["items"], str):
         d["items"] = json.loads(d["items"]) if d["items"] else []
-    return d
+    return MaterialReturn.model_validate(d)
 
 
-async def insert(ret: MaterialReturn | dict, conn=None) -> None:
+async def insert(ret: MaterialReturn | dict) -> None:
     ret_dict = ret if isinstance(ret, dict) else ret.model_dump()
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     org_id = ret_dict.get("organization_id") or DEFAULT_ORG_ID
     items_json = json.dumps(
         [i if isinstance(i, dict) else i.model_dump() for i in ret_dict["items"]]
@@ -82,11 +83,10 @@ async def insert(ret: MaterialReturn | dict, conn=None) -> None:
             ),
         )
 
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_by_id(return_id: str, organization_id: str | None = None) -> dict | None:
+async def get_by_id(return_id: str, organization_id: str | None = None) -> MaterialReturn | None:
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
@@ -96,7 +96,7 @@ async def get_by_id(return_id: str, organization_id: str | None = None) -> dict 
     else:
         cursor = await conn.execute("SELECT * FROM returns WHERE id = ?", (return_id,))
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_model(row)
 
 
 async def list_returns(
@@ -106,7 +106,7 @@ async def list_returns(
     end_date: str | None = None,
     limit: int = 500,
     organization_id: str | None = None,
-) -> list:
+) -> list[MaterialReturn]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     query = "SELECT * FROM returns WHERE (organization_id = ? OR organization_id IS NULL)"
@@ -127,10 +127,12 @@ async def list_returns(
     params.append(limit)
     cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
-async def list_by_withdrawal(withdrawal_id: str, organization_id: str | None = None) -> list:
+async def list_by_withdrawal(
+    withdrawal_id: str, organization_id: str | None = None
+) -> list[MaterialReturn]:
     conn = get_connection()
     params: list = [withdrawal_id]
     where = "WHERE withdrawal_id = ?"
@@ -142,7 +144,17 @@ async def list_by_withdrawal(withdrawal_id: str, organization_id: str | None = N
         params,
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
+
+
+async def link_credit_note(return_id: str, credit_note_id: str) -> None:
+    """Set the credit_note_id on a return. Called by finance context via facade."""
+    conn = get_connection()
+    await conn.execute(
+        "UPDATE returns SET credit_note_id = ? WHERE id = ?",
+        (credit_note_id, return_id),
+    )
+    await conn.commit()
 
 
 class ReturnRepo:
@@ -150,6 +162,7 @@ class ReturnRepo:
     get_by_id = staticmethod(get_by_id)
     list_returns = staticmethod(list_returns)
     list_by_withdrawal = staticmethod(list_by_withdrawal)
+    link_credit_note = staticmethod(link_credit_note)
 
 
 return_repo = ReturnRepo()

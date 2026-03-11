@@ -8,19 +8,22 @@ from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> MaterialRequest | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
-    if d and "items" in d and isinstance(d["items"], str):
+    if not d:
+        return None
+    if d.get("items") and isinstance(d["items"], str):
         d["items"] = json.loads(d["items"]) if d["items"] else []
-    return d
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return MaterialRequest.model_validate(d)
 
 
-async def insert(request: MaterialRequest | dict, conn=None) -> None:
+async def insert(request: MaterialRequest | dict) -> None:
     request_dict = request if isinstance(request, dict) else request.model_dump()
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     org_id = request_dict.get("organization_id") or DEFAULT_ORG_ID
     items_json = json.dumps(
         [i if isinstance(i, dict) else i.model_dump() for i in request_dict["items"]]
@@ -45,11 +48,10 @@ async def insert(request: MaterialRequest | dict, conn=None) -> None:
             org_id,
         ),
     )
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_by_id(request_id: str, organization_id: str | None = None) -> dict | None:
+async def get_by_id(request_id: str, organization_id: str | None = None) -> MaterialRequest | None:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cursor = await conn.execute(
@@ -57,10 +59,12 @@ async def get_by_id(request_id: str, organization_id: str | None = None) -> dict
         (request_id, org_id),
     )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_model(row)
 
 
-async def list_pending(organization_id: str | None = None, limit: int = 100) -> list:
+async def list_pending(
+    organization_id: str | None = None, limit: int = 100
+) -> list[MaterialRequest]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cursor = await conn.execute(
@@ -68,12 +72,12 @@ async def list_pending(organization_id: str | None = None, limit: int = 100) -> 
         (org_id, limit),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
 async def list_by_contractor(
     contractor_id: str, organization_id: str | None = None, limit: int = 100
-) -> list:
+) -> list[MaterialRequest]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cursor = await conn.execute(
@@ -81,7 +85,7 @@ async def list_by_contractor(
         (contractor_id, org_id, limit),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
 async def mark_processed(
@@ -89,10 +93,8 @@ async def mark_processed(
     withdrawal_id: str,
     processed_by_id: str,
     processed_at: str,
-    conn=None,
 ) -> bool:
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     cursor = await conn.execute(
         """UPDATE material_requests SET status = 'processed', withdrawal_id = ?, processed_by_id = ?, processed_at = ?
            WHERE id = ? AND status = 'pending'""",
@@ -100,8 +102,7 @@ async def mark_processed(
     )
     if cursor.rowcount == 0:
         raise InvalidTransitionError("MaterialRequest", "processed", "processed")
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
     return True
 
 

@@ -1,24 +1,26 @@
 """Job repository — persistence for job master data."""
 
-from datetime import UTC
+from datetime import UTC, datetime
 
 from jobs.domain.job import Job
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> Job | None:
     if row is None:
         return None
-    return dict(row) if hasattr(row, "keys") else {}
+    d = dict(row) if hasattr(row, "keys") else {}
+    if not d:
+        return None
+    return Job.model_validate(d)
 
 
 _COLUMNS = "id, code, name, billing_entity_id, status, service_address, notes, organization_id, created_at, updated_at"
 
 
-async def insert(job: Job | dict, conn=None) -> None:
+async def insert(job: Job | dict) -> None:
     d = job if isinstance(job, dict) else job.model_dump()
-    in_tx = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     ins_q = "INSERT INTO jobs ("
     ins_q += _COLUMNS
     ins_q += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -37,26 +39,25 @@ async def insert(job: Job | dict, conn=None) -> None:
             d["updated_at"],
         ),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_by_id(job_id: str, organization_id: str) -> dict | None:
+async def get_by_id(job_id: str, organization_id: str) -> Job | None:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
     sel_q += " FROM jobs WHERE id = ? AND organization_id = ?"
     cursor = await conn.execute(sel_q, (job_id, organization_id))
-    return _row_to_dict(await cursor.fetchone())
+    return _row_to_model(await cursor.fetchone())
 
 
-async def get_by_code(code: str, organization_id: str) -> dict | None:
+async def get_by_code(code: str, organization_id: str) -> Job | None:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
     sel_q += " FROM jobs WHERE code = ? AND organization_id = ?"
     cursor = await conn.execute(sel_q, (code, organization_id))
-    return _row_to_dict(await cursor.fetchone())
+    return _row_to_model(await cursor.fetchone())
 
 
 async def list_jobs(
@@ -65,7 +66,7 @@ async def list_jobs(
     q: str | None = None,
     limit: int = 200,
     offset: int = 0,
-) -> list:
+) -> list[Job]:
     conn = get_connection()
     sql = "SELECT "
     sql += _COLUMNS
@@ -81,10 +82,10 @@ async def list_jobs(
     sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     cursor = await conn.execute(sql, params)
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
-async def update(job_id: str, updates: dict, organization_id: str) -> dict | None:
+async def update(job_id: str, updates: dict, organization_id: str) -> Job | None:
     conn = get_connection()
     set_clauses = []
     params = []
@@ -94,8 +95,6 @@ async def update(job_id: str, updates: dict, organization_id: str) -> dict | Non
             params.append(updates[key])
     if not set_clauses:
         return await get_by_id(job_id, organization_id)
-    from datetime import datetime
-
     set_clauses.append("updated_at = ?")
     params.append(datetime.now(UTC).isoformat())
     params.extend([job_id, organization_id])
@@ -107,7 +106,7 @@ async def update(job_id: str, updates: dict, organization_id: str) -> dict | Non
     return await get_by_id(job_id, organization_id)
 
 
-async def search(query: str, organization_id: str, limit: int = 20) -> list:
+async def search(query: str, organization_id: str, limit: int = 20) -> list[Job]:
     """Fast prefix/substring search for autocomplete."""
     conn = get_connection()
     like = f"%{query.lower()}%"
@@ -118,17 +117,17 @@ async def search(query: str, organization_id: str, limit: int = 20) -> list:
         " ORDER BY code LIMIT ?",
         (organization_id, like, like, limit),
     )
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
-async def ensure_job(code: str, organization_id: str, conn=None) -> dict:
+async def ensure_job(code: str, organization_id: str) -> Job:
     """Get existing job by code, or auto-create a minimal one. Used by write paths."""
     existing = await get_by_code(code, organization_id)
     if existing:
         return existing
     job = Job(code=code, name=code, organization_id=organization_id)
-    await insert(job, conn=conn)
-    return job.model_dump()
+    await insert(job)
+    return job
 
 
 class JobRepo:

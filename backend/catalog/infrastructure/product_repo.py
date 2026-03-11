@@ -1,49 +1,23 @@
-"""Product repository."""
-
-from datetime import UTC, datetime
+"""Product repository — read queries and class wrapper."""
 
 from catalog.domain.product import Product
 from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
-# Whitelist for get_by_id(columns=) to prevent SQL injection
-_PRODUCT_COLUMNS = frozenset(
-    {
-        "id",
-        "sku",
-        "name",
-        "description",
-        "price",
-        "cost",
-        "quantity",
-        "min_stock",
-        "department_id",
-        "department_name",
-        "vendor_id",
-        "vendor_name",
-        "original_sku",
-        "barcode",
-        "vendor_barcode",
-        "base_unit",
-        "sell_uom",
-        "pack_qty",
-        "product_group",
-        "organization_id",
-        "created_at",
-        "updated_at",
-    }
-)
 
-
-def _row_to_dict(row) -> dict | None:
+def _row_to_product(row) -> Product | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
-    if d and "quantity" in d:
+    if not d:
+        return None
+    if "quantity" in d:
         d["quantity"] = float(d["quantity"])
-    if d and "min_stock" in d:
+    if "min_stock" in d:
         d["min_stock"] = int(d["min_stock"])
-    return d
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return Product.model_validate(d)
 
 
 async def list_products(
@@ -54,7 +28,7 @@ async def list_products(
     offset: int = 0,
     organization_id: str | None = None,
     product_group: str | None = None,
-) -> list:
+) -> list[Product]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     base = "SELECT * FROM products WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL"
@@ -77,7 +51,7 @@ async def list_products(
         params.extend([limit, offset])
     cursor = await conn.execute(base, params)
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [p for r in rows if (p := _row_to_product(r)) is not None]
 
 
 async def count_products(
@@ -108,67 +82,69 @@ async def count_products(
     return row[0] if row else 0
 
 
-def _sanitize_columns(columns: str) -> str:
-    """Return validated column list for SELECT. Raises ValueError if invalid."""
-    if columns == "*":
-        return "*"
-    parts = [p.strip() for p in columns.split(",") if p.strip()]
-    invalid = [p for p in parts if p not in _PRODUCT_COLUMNS]
-    if invalid:
-        raise ValueError(f"Invalid product columns: {invalid}")
-    return ", ".join(parts)
-
-
 async def get_by_id(
-    product_id: str, columns: str | None = "*", organization_id: str | None = None, conn=None
-) -> dict | None:
-    conn = conn or get_connection()
-    sel = _sanitize_columns(columns or "*")
+    product_id: str, _columns: str | None = "*", organization_id: str | None = None
+) -> Product | None:
+    conn = get_connection()
     if organization_id:
-        query = "SELECT "
-        query += sel
-        query += " FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL"
-        cursor = await conn.execute(query, (product_id, organization_id))
+        cursor = await conn.execute(
+            "SELECT * FROM products WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
+            (product_id, organization_id),
+        )
     else:
-        query = "SELECT "
-        query += sel
-        query += " FROM products WHERE id = ? AND deleted_at IS NULL"
-        cursor = await conn.execute(query, (product_id,))
+        cursor = await conn.execute(
+            "SELECT * FROM products WHERE id = ? AND deleted_at IS NULL",
+            (product_id,),
+        )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_product(row)
 
 
 async def list_by_vendor(
     vendor_id: str, limit: int = 200, organization_id: str | None = None
-) -> list:
+) -> list[Product]:
     if not vendor_id:
         return []
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
-            "SELECT id, name, sku, original_sku FROM products WHERE vendor_id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY name LIMIT ?",
+            "SELECT * FROM products WHERE vendor_id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY name LIMIT ?",
             (vendor_id, organization_id, limit),
         )
     else:
         cursor = await conn.execute(
-            "SELECT id, name, sku, original_sku FROM products WHERE vendor_id = ? ORDER BY name LIMIT ?",
+            "SELECT * FROM products WHERE vendor_id = ? AND deleted_at IS NULL ORDER BY name LIMIT ?",
             (vendor_id, limit),
         )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [p for r in rows if (p := _row_to_product(r)) is not None]
+
+
+async def find_by_sku(sku: str, organization_id: str | None = None) -> Product | None:
+    """Exact case-insensitive SKU lookup."""
+    s = sku.strip().upper() if sku else ""
+    if not s:
+        return None
+    conn = get_connection()
+    org_id = organization_id or DEFAULT_ORG_ID
+    cursor = await conn.execute(
+        "SELECT * FROM products WHERE UPPER(sku) = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL",
+        (s, org_id),
+    )
+    row = await cursor.fetchone()
+    return _row_to_product(row)
 
 
 async def find_by_barcode(
     barcode: str,
     exclude_product_id: str | None = None,
     organization_id: str | None = None,
-    conn=None,
-) -> dict | None:
+) -> Product | None:
     """Find product by barcode. Optionally exclude a product (for update uniqueness check)."""
     b = barcode.strip() if barcode else ""
     if not b:
         return None
-    c = conn or get_connection()
+    c = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     if exclude_product_id:
         cursor = await c.execute(
@@ -181,12 +157,12 @@ async def find_by_barcode(
             (b, b, b, org_id),
         )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_product(row)
 
 
 async def find_by_original_sku_and_vendor(
     original_sku: str, vendor_id: str, organization_id: str | None = None
-) -> dict | None:
+) -> Product | None:
     """Find existing product by vendor's SKU and vendor. For matching incoming orders to inventory."""
     if not original_sku or not str(original_sku).strip() or not vendor_id:
         return None
@@ -200,12 +176,12 @@ async def find_by_original_sku_and_vendor(
         (vendor_id, norm, org_id),
     )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_product(row)
 
 
 async def find_by_name_and_vendor(
     name: str, vendor_id: str, organization_id: str | None = None
-) -> dict | None:
+) -> Product | None:
     """Find existing product by exact name (case-insensitive) and vendor.
     Name-based fallback when original_sku is absent — prevents duplicate product creation."""
     if not name or not str(name).strip() or not vendor_id:
@@ -220,199 +196,7 @@ async def find_by_name_and_vendor(
         (vendor_id, norm, org_id),
     )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
-
-
-async def insert(product: Product | dict, conn=None) -> None:
-    product_dict = product if isinstance(product, dict) else product.model_dump()
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    org_id = product_dict.get("organization_id") or DEFAULT_ORG_ID
-    await conn.execute(
-        """INSERT INTO products (id, sku, name, description, price, cost, quantity, min_stock,
-           department_id, department_name, vendor_id, vendor_name, original_sku, barcode, vendor_barcode,
-           base_unit, sell_uom, pack_qty, product_group, organization_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            product_dict["id"],
-            product_dict["sku"],
-            product_dict["name"],
-            product_dict.get("description", ""),
-            product_dict["price"],
-            product_dict.get("cost", 0),
-            product_dict.get("quantity", 0),
-            product_dict.get("min_stock", 5),
-            product_dict["department_id"],
-            product_dict.get("department_name", ""),
-            product_dict.get("vendor_id") or "",
-            product_dict.get("vendor_name", ""),
-            product_dict.get("original_sku"),
-            product_dict.get("barcode"),
-            product_dict.get("vendor_barcode"),
-            product_dict.get("base_unit", "each"),
-            product_dict.get("sell_uom", "each"),
-            product_dict.get("pack_qty", 1),
-            product_dict.get("product_group"),
-            org_id,
-            product_dict.get("created_at", ""),
-            product_dict.get("updated_at", ""),
-        ),
-    )
-    if not in_transaction:
-        await conn.commit()
-
-
-async def update(
-    product_id: str, updates: dict, conn=None, organization_id: str | None = None
-) -> dict | None:
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    set_parts = ["updated_at = ?"]
-    values = [updates.get("updated_at", "")]
-    for key in (
-        "name",
-        "description",
-        "price",
-        "cost",
-        "quantity",
-        "min_stock",
-        "department_id",
-        "department_name",
-        "vendor_id",
-        "vendor_name",
-        "barcode",
-        "vendor_barcode",
-        "base_unit",
-        "sell_uom",
-        "pack_qty",
-        "original_sku",
-        "product_group",
-    ):
-        if key in updates and updates[key] is not None:
-            set_parts.append(f"{key} = ?")
-            values.append(updates[key])
-    if "vendor_id" in updates and updates["vendor_id"] is None:
-        set_parts.append("vendor_id = NULL")
-        set_parts.append("vendor_name = ?")
-        values.append("")
-    if "product_group" in updates and updates["product_group"] is None:
-        set_parts.append("product_group = NULL")
-    if len(set_parts) <= 1:
-        return await get_by_id(product_id)
-    values.append(product_id)
-    where = "WHERE id = ?"
-    if organization_id:
-        where += " AND organization_id = ?"
-        values.append(organization_id)
-    query = "UPDATE products SET "
-    query += ", ".join(set_parts)
-    query += " " + where
-    await conn.execute(query, values)
-    if not in_transaction:
-        await conn.commit()
-    return await get_by_id(product_id, conn=conn)
-
-
-async def delete(product_id: str, conn=None, organization_id: str | None = None) -> int:
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    now = datetime.now(UTC).isoformat()
-    params: list = [now, product_id]
-    where = "WHERE id = ? AND deleted_at IS NULL"
-    if organization_id:
-        where += " AND organization_id = ?"
-        params.append(organization_id)
-    query = "UPDATE products SET deleted_at = ? "
-    query += where
-    cursor = await conn.execute(query, params)
-    if not in_transaction:
-        await conn.commit()
-    return cursor.rowcount
-
-
-async def atomic_decrement(
-    product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None
-) -> dict | None:
-    """Decrement quantity only if >= requested. Returns updated row or None if insufficient."""
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    params: list = [quantity, updated_at, product_id, quantity]
-    where = "WHERE id = ? AND quantity >= ?"
-    if organization_id:
-        where += " AND organization_id = ?"
-        params.append(organization_id)
-    query = "UPDATE products SET quantity = quantity - ?, updated_at = ? "
-    query += where
-    cursor = await conn.execute(query, params)
-    if not in_transaction:
-        await conn.commit()
-    if cursor.rowcount == 0:
-        return None
-    return await get_by_id(product_id, conn=conn)
-
-
-async def increment_quantity(
-    product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None
-) -> None:
-    """Rollback: add quantity back."""
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    params: list = [quantity, updated_at, product_id]
-    where = "WHERE id = ?"
-    if organization_id:
-        where += " AND organization_id = ?"
-        params.append(organization_id)
-    query = "UPDATE products SET quantity = quantity + ?, updated_at = ? "
-    query += where
-    await conn.execute(query, params)
-    if not in_transaction:
-        await conn.commit()
-
-
-async def add_quantity(
-    product_id: str, quantity: float, updated_at: str, conn=None, organization_id: str | None = None
-) -> dict | None:
-    """Add quantity (receiving) and return updated row."""
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    params: list = [quantity, updated_at, product_id]
-    where = "WHERE id = ?"
-    if organization_id:
-        where += " AND organization_id = ?"
-        params.append(organization_id)
-    query = "UPDATE products SET quantity = quantity + ?, updated_at = ? "
-    query += where
-    await conn.execute(query, params)
-    if not in_transaction:
-        await conn.commit()
-    return await get_by_id(product_id)
-
-
-async def atomic_adjust(
-    product_id: str,
-    quantity_delta: float,
-    updated_at: str,
-    conn=None,
-    organization_id: str | None = None,
-) -> dict | None:
-    """Atomically adjust quantity by delta (+ or -).
-    Returns updated row or None if adjustment would result in negative stock.
-    """
-    in_transaction = conn is not None
-    conn = conn or get_connection()
-    params: list = [quantity_delta, updated_at, product_id, quantity_delta]
-    where = "WHERE id = ? AND quantity + ? >= 0"
-    if organization_id:
-        where += " AND organization_id = ?"
-        params.append(organization_id)
-    query = "UPDATE products SET quantity = quantity + ?, updated_at = ? "
-    query += where
-    cursor = await conn.execute(query, params)
-    if not in_transaction:
-        await conn.commit()
-    if cursor.rowcount == 0:
-        return None
-    return await get_by_id(product_id, conn=conn)
+    return _row_to_product(row)
 
 
 async def count_all(organization_id: str | None = None) -> int:
@@ -437,7 +221,7 @@ async def count_low_stock(organization_id: str | None = None) -> int:
     return row[0] if row else 0
 
 
-async def list_low_stock(limit: int = 10, organization_id: str | None = None) -> list:
+async def list_low_stock(limit: int = 10, organization_id: str | None = None) -> list[Product]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cursor = await conn.execute(
@@ -445,7 +229,7 @@ async def list_low_stock(limit: int = 10, organization_id: str | None = None) ->
         (org_id, limit),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [p for r in rows if (p := _row_to_product(r)) is not None]
 
 
 async def list_product_groups(organization_id: str | None = None) -> list[dict]:
@@ -467,10 +251,23 @@ async def list_product_groups(organization_id: str | None = None) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# --- Mutation re-exports from sub-module ---
+from catalog.infrastructure.product_mutations import (  # noqa: E402
+    add_quantity,
+    atomic_adjust,
+    atomic_decrement,
+    delete,
+    increment_quantity,
+    insert,
+    update,
+)
+
+
 class ProductRepo:
     list_products = staticmethod(list_products)
     count_products = staticmethod(count_products)
     get_by_id = staticmethod(get_by_id)
+    find_by_sku = staticmethod(find_by_sku)
     find_by_barcode = staticmethod(find_by_barcode)
     find_by_original_sku_and_vendor = staticmethod(find_by_original_sku_and_vendor)
     find_by_name_and_vendor = staticmethod(find_by_name_and_vendor)

@@ -1,33 +1,64 @@
 """User repository."""
 
+from identity.domain.user import User
 from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> User | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
-    if d and "is_active" in d:
+    if not d:
+        return None
+    if "is_active" in d:
         d["is_active"] = bool(d["is_active"])
-    return d
+    d.pop("password", None)
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return User.model_validate(d)
 
 
-async def get_by_id(user_id: str) -> dict | None:
+async def get_by_id(user_id: str) -> User | None:
     conn = get_connection()
     cursor = await conn.execute(
         "SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at FROM users WHERE id = ?",
         (user_id,),
     )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_model(row)
+
+
+async def get_by_ids(user_ids: list[str]) -> dict[str, User]:
+    """Return {user_id: User} for a batch of IDs. Missing IDs are omitted."""
+    if not user_ids:
+        return {}
+    conn = get_connection()
+    placeholders = ",".join("?" * len(user_ids))
+    cursor = await conn.execute(
+        f"SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at FROM users WHERE id IN ({placeholders})",
+        tuple(user_ids),
+    )
+    rows = await cursor.fetchall()
+    result: dict[str, User] = {}
+    for row in rows:
+        user = _row_to_model(row)
+        if user:
+            result[user.id] = user
+    return result
 
 
 async def get_by_email(email: str) -> dict | None:
+    """Returns raw dict including password hash — for auth only."""
     conn = get_connection()
     cursor = await conn.execute("SELECT * FROM users WHERE email = ?", (email,))
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    if row is None:
+        return None
+    d = dict(row) if hasattr(row, "keys") else {}
+    if d and "is_active" in d:
+        d["is_active"] = bool(d["is_active"])
+    return d
 
 
 async def insert(user_dict: dict) -> None:
@@ -56,7 +87,7 @@ async def insert(user_dict: dict) -> None:
     await conn.commit()
 
 
-async def update(user_id: str, updates: dict, organization_id: str | None = None) -> dict | None:
+async def update(user_id: str, updates: dict, organization_id: str | None = None) -> User | None:
     conn = get_connection()
     set_clauses = []
     values = []
@@ -90,7 +121,9 @@ async def update(user_id: str, updates: dict, organization_id: str | None = None
     return await get_by_id(user_id)
 
 
-async def list_contractors(organization_id: str | None = None, search: str | None = None) -> list:
+async def list_contractors(
+    organization_id: str | None = None, search: str | None = None
+) -> list[User]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     base = """SELECT id, email, name, role, company, billing_entity, phone, is_active, organization_id, created_at
@@ -103,7 +136,7 @@ async def list_contractors(organization_id: str | None = None, search: str | Non
     base += " ORDER BY name"
     cursor = await conn.execute(base, params)
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [u for r in rows if (u := _row_to_model(r)) is not None]
 
 
 async def count_contractors(organization_id: str | None = None) -> int:

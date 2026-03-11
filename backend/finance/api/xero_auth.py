@@ -13,6 +13,8 @@ from finance.adapters.xero_adapter import XeroAdapter
 from identity.application.org_service import (
     clear_xero_tokens,
     get_org_settings,
+    pop_oauth_state,
+    save_oauth_state,
     upsert_org_settings,
 )
 from shared.api.deps import AdminDep
@@ -22,35 +24,12 @@ from shared.infrastructure.config import (
     XERO_CLIENT_SECRET,
     XERO_REDIRECT_URI,
 )
-from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/xero", tags=["xero"])
 
 XERO_AUTH_URL = "https://login.xero.com/identity/connect/authorize"
 XERO_OAUTH_URL = "https://identity.xero.com/connect/token"
 XERO_SCOPES = "openid profile email accounting.transactions accounting.contacts offline_access"
-
-
-async def _save_oauth_state(state: str, org_id: str) -> None:
-    conn = get_connection()
-    now = datetime.now(UTC).isoformat()
-    await conn.execute(
-        """INSERT INTO oauth_states (state, org_id, created_at) VALUES (?, ?, ?)
-           ON CONFLICT(state) DO UPDATE SET org_id = ?, created_at = ?""",
-        (state, org_id, now, org_id, now),
-    )
-    await conn.commit()
-
-
-async def _pop_oauth_state(state: str) -> str | None:
-    conn = get_connection()
-    cursor = await conn.execute("SELECT org_id FROM oauth_states WHERE state = ?", (state,))
-    row = await cursor.fetchone()
-    if not row:
-        return None
-    await conn.execute("DELETE FROM oauth_states WHERE state = ?", (state,))
-    await conn.commit()
-    return row[0]
 
 
 def _require_xero_configured():
@@ -67,7 +46,7 @@ async def xero_connect(current_user: AdminDep):
     _require_xero_configured()
     org_id = current_user.organization_id
     state = secrets.token_urlsafe(32)
-    await _save_oauth_state(state, org_id)
+    await save_oauth_state(state, org_id)
 
     params = {
         "response_type": "code",
@@ -87,7 +66,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     if error:
         raise HTTPException(status_code=400, detail=f"Xero OAuth error: {error}")
 
-    org_id = await _pop_oauth_state(state)
+    org_id = await pop_oauth_state(state)
     if not org_id:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 

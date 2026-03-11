@@ -17,7 +17,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from identity.application.auth_service import get_current_user, require_role
+from identity.api.auth_deps import get_current_user, require_role
 from kernel.types import CurrentUser
 
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]

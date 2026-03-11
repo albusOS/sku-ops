@@ -148,6 +148,7 @@ async def main():
     from catalog.application.product_lifecycle import create_product
     from catalog.application.queries import list_departments
     from catalog.infrastructure.vendor_repo import vendor_repo
+    from finance.application.invoice_service import create_invoice_from_withdrawals
     from finance.application.ledger_service import (
         record_adjustment,
         record_payment,
@@ -156,7 +157,6 @@ async def main():
         record_withdrawal,
     )
     from finance.infrastructure.credit_note_repo import credit_note_repo
-    from finance.infrastructure.invoice_repo import invoice_repo, set_withdrawal_getter
     from identity.application.auth_service import hash_password
     from identity.infrastructure.org_repo import organization_repo
     from identity.infrastructure.user_repo import user_repo
@@ -171,8 +171,6 @@ async def main():
     from operations.infrastructure.withdrawal_repo import withdrawal_repo
     from purchasing.domain.purchase_order import PurchaseOrder, PurchaseOrderItem
     from purchasing.infrastructure.po_repo import po_repo
-
-    set_withdrawal_getter(withdrawal_repo.get_by_id)
 
     org_id = "default"
     conn = get_connection()
@@ -618,7 +616,7 @@ async def main():
             batch = old_wrs[batch_start : batch_start + batch_size]
             wids = [w["id"] for w in batch]
             try:
-                inv = await invoice_repo.create_from_withdrawals(wids, organization_id=org_id)
+                inv = await create_invoice_from_withdrawals(wids, organization_id=org_id)
                 invoice_count += 1
                 logger.info(
                     "  INV %s | %s | %d w/d | $%.2f",

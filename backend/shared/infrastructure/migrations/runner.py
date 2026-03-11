@@ -128,7 +128,7 @@ async def run_migrations(backend) -> None:
     3. Apply pending versioned migrations.
     """
     conn = backend.connection()
-    from full_schema import FULL_SCHEMA
+    from shared.infrastructure.full_schema import FULL_SCHEMA
 
     is_fresh = not await _table_exists(conn, "users", dialect=backend.dialect)
     if is_fresh:

@@ -1,11 +1,24 @@
-"""Inventory agent tool implementations — DB queries and search helpers."""
+"""Inventory agent tool implementations — facade-backed queries and search helpers."""
 
 import json
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
 from assistant.agents.tools.search import get_index
+from catalog.application.queries import (
+    count_all_products as catalog_count_all,
+)
+from catalog.application.queries import (
+    count_low_stock as catalog_count_low_stock,
+)
+from catalog.application.queries import (
+    find_product_by_sku as catalog_find_by_sku,
+)
+from catalog.application.queries import (
+    get_department_by_code as catalog_get_dept_by_code,
+)
 from catalog.application.queries import (
     get_sku_counters,
 )
@@ -21,9 +34,9 @@ from catalog.application.queries import (
 from catalog.application.queries import (
     list_vendors as catalog_list_vendors,
 )
+from inventory.application.queries import withdrawal_velocity
 from operations.application.queries import list_withdrawals
 from shared.infrastructure.config import OPENAI_API_KEY
-from shared.infrastructure.database import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +47,12 @@ async def _search_products(args: dict, org_id: str) -> str:
     items = await catalog_list_products(search=query, limit=limit, organization_id=org_id)
     out = [
         {
-            "sku": p.get("sku"),
-            "name": p.get("name"),
-            "quantity": p.get("quantity"),
-            "sell_uom": p.get("sell_uom", "each"),
-            "min_stock": p.get("min_stock"),
-            "department": p.get("department_name"),
+            "sku": p.sku,
+            "name": p.name,
+            "quantity": p.quantity,
+            "sell_uom": p.sell_uom,
+            "min_stock": p.min_stock,
+            "department": p.department_name,
         }
         for p in items
     ]
@@ -72,61 +85,35 @@ async def _search_semantic(args: dict, org_id: str) -> str:
 
 async def _get_product_details(args: dict, org_id: str) -> str:
     sku = (args.get("sku") or "").strip().upper()
-    conn = get_connection()
-    cur = await conn.execute(
-        "SELECT * FROM products WHERE UPPER(sku) = ? AND (organization_id = ? OR organization_id IS NULL)",
-        (sku, org_id),
-    )
-    row = await cur.fetchone()
-    if not row:
+    p = await catalog_find_by_sku(sku, organization_id=org_id)
+    if not p:
         return json.dumps({"error": f"Product with SKU '{sku}' not found"})
-    p = dict(row)
     return json.dumps(
         {
-            "sku": p.get("sku"),
-            "name": p.get("name"),
-            "description": p.get("description"),
-            "price": p.get("price"),
-            "cost": p.get("cost"),
-            "quantity": p.get("quantity"),
-            "min_stock": p.get("min_stock"),
-            "department": p.get("department_name"),
-            "vendor": p.get("vendor_name"),
-            "original_sku": p.get("original_sku"),
-            "barcode": p.get("barcode"),
-            "base_unit": p.get("base_unit"),
-            "sell_uom": p.get("sell_uom"),
-            "pack_qty": p.get("pack_qty"),
+            "sku": p.sku,
+            "name": p.name,
+            "description": p.description,
+            "price": p.price,
+            "cost": p.cost,
+            "quantity": p.quantity,
+            "min_stock": p.min_stock,
+            "department": p.department_name,
+            "vendor": p.vendor_name,
+            "original_sku": p.original_sku,
+            "barcode": p.barcode,
+            "base_unit": p.base_unit,
+            "sell_uom": p.sell_uom,
+            "pack_qty": p.pack_qty,
         }
     )
 
 
 async def _get_inventory_stats(org_id: str) -> str:
-    conn = get_connection()
-    cur = await conn.execute(
-        "SELECT COUNT(*) FROM products WHERE (organization_id = ? OR organization_id IS NULL)",
-        (org_id,),
-    )
-    row = await cur.fetchone()
-    total_skus = row[0] if row else 0
-    cur = await conn.execute(
-        "SELECT COALESCE(SUM(quantity * cost), 0) FROM products WHERE (organization_id = ? OR organization_id IS NULL)",
-        (org_id,),
-    )
-    row = await cur.fetchone()
-    total_value = round(float(row[0] if row else 0), 2)
-    cur = await conn.execute(
-        "SELECT COUNT(*) FROM products WHERE quantity <= min_stock AND (organization_id = ? OR organization_id IS NULL)",
-        (org_id,),
-    )
-    row = await cur.fetchone()
-    low_count = row[0] if row else 0
-    cur = await conn.execute(
-        "SELECT COUNT(*) FROM products WHERE quantity = 0 AND (organization_id = ? OR organization_id IS NULL)",
-        (org_id,),
-    )
-    row = await cur.fetchone()
-    out_of_stock = row[0] if row else 0
+    total_skus = await catalog_count_all(organization_id=org_id)
+    low_count = await catalog_count_low_stock(organization_id=org_id)
+    products = await catalog_list_products(organization_id=org_id)
+    total_value = round(sum(p.quantity * p.cost for p in products), 2)
+    out_of_stock = sum(1 for p in products if p.quantity == 0)
     return json.dumps(
         {
             "total_skus": total_skus,
@@ -143,12 +130,12 @@ async def _list_low_stock(args: dict, org_id: str) -> str:
     items = await catalog_list_low_stock(limit=limit, organization_id=org_id)
     out = [
         {
-            "sku": p.get("sku"),
-            "name": p.get("name"),
-            "quantity": p.get("quantity"),
-            "sell_uom": p.get("sell_uom", "each"),
-            "min_stock": p.get("min_stock"),
-            "department": p.get("department_name"),
+            "sku": p.sku,
+            "name": p.name,
+            "quantity": p.quantity,
+            "sell_uom": p.sell_uom,
+            "min_stock": p.min_stock,
+            "department": p.department_name,
         }
         for p in items
     ]
@@ -160,14 +147,14 @@ async def _list_departments(org_id: str) -> str:
     counters = await get_sku_counters()
     out = []
     for d in depts:
-        code = d.get("code", "")
+        code = d.code
         next_num = counters.get(code, 0) + 1
         next_sku = f"{code}-ITM-{str(next_num).zfill(6)}"
         out.append(
             {
-                "name": d.get("name"),
+                "name": d.name,
                 "code": code,
-                "product_count": d.get("product_count", 0),
+                "product_count": d.product_count,
                 "next_sku": next_sku,
             }
         )
@@ -176,7 +163,7 @@ async def _list_departments(org_id: str) -> str:
 
 async def _list_vendors(org_id: str) -> str:
     vendors = await catalog_list_vendors(organization_id=org_id)
-    out = [{"name": v.get("name"), "product_count": v.get("product_count", 0)} for v in vendors]
+    out = [{"name": v.name, "product_count": v.product_count} for v in vendors]
     return json.dumps({"vendors": out})
 
 
@@ -184,40 +171,21 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
     sku = (args.get("sku") or "").strip().upper()
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    conn = get_connection()
-    cur = await conn.execute(
-        "SELECT id, name, quantity, sell_uom FROM products WHERE UPPER(sku) = ? AND (organization_id = ? OR organization_id IS NULL)",
-        (sku, org_id),
-    )
-    row = await cur.fetchone()
-    if not row:
+    p = await catalog_find_by_sku(sku, organization_id=org_id)
+    if not p:
         return json.dumps({"error": f"Product '{sku}' not found"})
-    product_id, product_name, current_qty, sell_uom = (
-        row["id"],
-        row["name"],
-        row["quantity"],
-        row["sell_uom"] or "each",
-    )
-    cur = await conn.execute(
-        """SELECT COUNT(*) as txn_count, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used
-           FROM stock_transactions
-           WHERE product_id = ? AND transaction_type = 'WITHDRAWAL' AND created_at >= ?""",
-        (product_id, since),
-    )
-    row = await cur.fetchone()
-    txn_count = row["txn_count"] if row else 0
-    total_used = float(row["total_used"]) if row else 0
+    vel = await withdrawal_velocity([p.id], since, org_id)
+    total_used = float(vel.get(p.id, 0))
     avg_daily = round(total_used / days, 2)
-    days_until_zero = round(current_qty / avg_daily, 1) if avg_daily > 0 else None
+    days_until_zero = round(p.quantity / avg_daily, 1) if avg_daily > 0 else None
     return json.dumps(
         {
             "sku": sku,
-            "name": product_name,
-            "sell_uom": sell_uom,
-            "current_quantity": current_qty,
+            "name": p.name,
+            "sell_uom": p.sell_uom or "each",
+            "current_quantity": p.quantity,
             "period_days": days,
             "total_withdrawn": total_used,
-            "withdrawal_transactions": txn_count,
             "avg_daily_use": avg_daily,
             "days_until_stockout": days_until_zero,
             "_note": None
@@ -230,27 +198,16 @@ async def _get_usage_velocity(args: dict, org_id: str) -> str:
 async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
     limit = min(int(args.get("limit") or 20), 50)
     since = (datetime.now(UTC) - timedelta(days=30)).isoformat()
-    conn = get_connection()
     low_stock = await catalog_list_low_stock(limit=100, organization_id=org_id)
     if not low_stock:
         return json.dumps({"count": 0, "suggestions": []})
-    product_ids = [p["id"] for p in low_stock]
-    placeholders = ",".join("?" * len(product_ids))
-    cur = await conn.execute(
-        "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
-        " FROM stock_transactions"
-        " WHERE product_id IN ("
-        + placeholders
-        + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
-        " GROUP BY product_id",
-        (*product_ids, since),
-    )
-    velocity_map = {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
+    product_ids = [p.id for p in low_stock]
+    velocity_map = await withdrawal_velocity(product_ids, since, org_id)
     suggestions = []
     for p in low_stock:
-        total_used = velocity_map.get(p["id"], 0)
+        total_used = float(velocity_map.get(p.id, 0))
         avg_daily = total_used / 30
-        qty = p.get("quantity", 0)
+        qty = p.quantity
         days_until_zero = round(qty / avg_daily, 1) if avg_daily > 0 else None
         urgency = (
             "critical"
@@ -263,11 +220,11 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
         )
         suggestions.append(
             {
-                "sku": p.get("sku"),
-                "name": p.get("name"),
+                "sku": p.sku,
+                "name": p.name,
                 "quantity": qty,
-                "sell_uom": p.get("sell_uom", "each"),
-                "min_stock": p.get("min_stock"),
+                "sell_uom": p.sell_uom,
+                "min_stock": p.min_stock,
                 "avg_daily_use": round(avg_daily, 2),
                 "days_until_stockout": days_until_zero,
                 "urgency": urgency,
@@ -289,22 +246,29 @@ async def _get_reorder_suggestions(args: dict, org_id: str) -> str:
 
 
 async def _get_department_health(org_id: str) -> str:
-    conn = get_connection()
-    cur = await conn.execute(
-        """SELECT d.name, d.code,
-                  COUNT(p.id) as product_count,
-                  SUM(CASE WHEN p.quantity = 0 THEN 1 ELSE 0 END) as out_of_stock,
-                  SUM(CASE WHEN p.quantity > 0 AND p.quantity <= p.min_stock THEN 1 ELSE 0 END) as low_stock,
-                  SUM(CASE WHEN p.quantity > p.min_stock THEN 1 ELSE 0 END) as healthy
-           FROM departments d
-           LEFT JOIN products p ON p.department_id = d.id
-             AND (p.organization_id = ? OR p.organization_id IS NULL)
-           WHERE (d.organization_id = ? OR d.organization_id IS NULL)
-           GROUP BY d.id, d.name, d.code
-           ORDER BY (out_of_stock + low_stock) DESC""",
-        (org_id, org_id),
-    )
-    rows = [dict(r) for r in await cur.fetchall()]
+    depts = await catalog_list_departments(organization_id=org_id)
+    all_products = await catalog_list_products(organization_id=org_id)
+    by_dept: dict[str, list] = defaultdict(list)
+    for p in all_products:
+        if p.department_id:
+            by_dept[p.department_id].append(p)
+    rows = []
+    for d in depts:
+        dept_products = by_dept.get(d.id, [])
+        out_of_stock = sum(1 for p in dept_products if p.quantity == 0)
+        low_stock = sum(1 for p in dept_products if p.quantity > 0 and p.quantity <= p.min_stock)
+        healthy = sum(1 for p in dept_products if p.quantity > p.min_stock)
+        rows.append(
+            {
+                "name": d.name,
+                "code": d.code,
+                "product_count": len(dept_products),
+                "out_of_stock": out_of_stock,
+                "low_stock": low_stock,
+                "healthy": healthy,
+            }
+        )
+    rows.sort(key=lambda r: (r["out_of_stock"] + r["low_stock"]), reverse=True)
     return json.dumps({"departments": rows})
 
 
@@ -318,11 +282,11 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     withdrawals = await list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     product_map: dict[str, dict] = {}
     for w in withdrawals:
-        for item in w.get("items") or []:
-            sku = item.get("sku") or item.get("name", "unknown")
-            name = item.get("name", sku)
-            qty = item.get("quantity", 0)
-            revenue = item.get("subtotal", 0)
+        for item in w.items:
+            sku = item.sku or item.name or "unknown"
+            name = item.name or sku
+            qty = item.quantity
+            revenue = item.subtotal
             if sku not in product_map:
                 product_map[sku] = {
                     "sku": sku,
@@ -345,50 +309,23 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
     dept_code = (args.get("dept_code") or "").strip().upper()
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    conn = get_connection()
-    cur = await conn.execute(
-        """SELECT p.id, p.sku, p.name, p.quantity, p.min_stock
-           FROM products p
-           JOIN departments d ON p.department_id = d.id
-           WHERE UPPER(d.code) = ?
-             AND (p.organization_id = ? OR p.organization_id IS NULL)""",
-        (dept_code, org_id),
-    )
-    products = [dict(r) for r in await cur.fetchall()]
+    dept = await catalog_get_dept_by_code(dept_code, organization_id=org_id)
+    if not dept:
+        return json.dumps({"error": f"Department '{dept_code}' not found or has no products"})
+    products = await catalog_list_products(department_id=dept.id, organization_id=org_id)
     if not products:
         return json.dumps({"error": f"Department '{dept_code}' not found or has no products"})
-    product_ids = [p["id"] for p in products]
-    placeholders = ",".join("?" * len(product_ids))
-    cur = await conn.execute(
-        "SELECT"
-        " transaction_type,"
-        " COUNT(*) as txn_count,"
-        " COALESCE(SUM(ABS(quantity_delta)), 0) as total_units"
-        " FROM stock_transactions"
-        " WHERE product_id IN (" + placeholders + ") AND created_at >= ?"
-        " GROUP BY transaction_type",
-        (*product_ids, since),
-    )
-    type_summary: dict[str, dict] = {}
-    for row in await cur.fetchall():
-        type_summary[row["transaction_type"]] = {
-            "transactions": row["txn_count"],
-            "units": float(row["total_units"]),
-        }
-    withdrawals = type_summary.get("WITHDRAWAL", {"transactions": 0, "units": 0})
-    receiving = type_summary.get("RECEIVING", {"transactions": 0, "units": 0})
-    imports = type_summary.get("IMPORT", {"transactions": 0, "units": 0})
-    low_stock_count = sum(1 for p in products if p["quantity"] <= p["min_stock"])
+    product_ids = [p.id for p in products]
+    vel = await withdrawal_velocity(product_ids, since, org_id)
+    total_withdrawn = sum(float(v) for v in vel.values())
+    low_stock_count = sum(1 for p in products if p.quantity <= p.min_stock)
     return json.dumps(
         {
             "dept_code": dept_code,
             "period_days": days,
             "product_count": len(products),
             "low_stock_count": low_stock_count,
-            "withdrawals": withdrawals,
-            "receiving": receiving,
-            "imports": imports,
-            "net_units": (receiving["units"] + imports["units"]) - withdrawals["units"],
+            "withdrawals": {"units": total_withdrawn},
         }
     )
 
@@ -396,45 +333,28 @@ async def _get_department_activity(args: dict, org_id: str) -> str:
 async def _forecast_stockout(args: dict, org_id: str) -> str:
     limit = min(int(args.get("limit") or 15), 50)
     since = (datetime.now(UTC) - timedelta(days=30)).isoformat()
-    conn = get_connection()
-    cur = await conn.execute(
-        """SELECT id, sku, name, quantity, min_stock, department_name
-           FROM products
-           WHERE quantity > 0
-             AND (organization_id = ? OR organization_id IS NULL)
-           ORDER BY quantity ASC
-           LIMIT 200""",
-        (org_id,),
-    )
-    products = [dict(r) for r in await cur.fetchall()]
-    if not products:
+    products = await catalog_list_products(organization_id=org_id)
+    in_stock = [p for p in products if p.quantity > 0]
+    in_stock.sort(key=lambda p: p.quantity)
+    in_stock = in_stock[:200]
+    if not in_stock:
         return json.dumps({"count": 0, "forecast": []})
-    product_ids = [p["id"] for p in products]
-    placeholders = ",".join("?" * len(product_ids))
-    cur = await conn.execute(
-        "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
-        " FROM stock_transactions"
-        " WHERE product_id IN ("
-        + placeholders
-        + ") AND transaction_type = 'WITHDRAWAL' AND created_at >= ?"
-        " GROUP BY product_id",
-        (*product_ids, since),
-    )
-    velocity_map = {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
+    product_ids = [p.id for p in in_stock]
+    velocity_map = await withdrawal_velocity(product_ids, since, org_id)
     forecast = []
-    for p in products:
-        total_used = velocity_map.get(p["id"], 0)
+    for p in in_stock:
+        total_used = float(velocity_map.get(p.id, 0))
         avg_daily = total_used / 30
         if avg_daily <= 0:
             continue
-        days_until_zero = round(p["quantity"] / avg_daily, 1)
+        days_until_zero = round(p.quantity / avg_daily, 1)
         forecast.append(
             {
-                "sku": p["sku"],
-                "name": p["name"],
-                "department": p["department_name"],
-                "quantity": p["quantity"],
-                "min_stock": p["min_stock"],
+                "sku": p.sku,
+                "name": p.name,
+                "department": p.department_name,
+                "quantity": p.quantity,
+                "min_stock": p.min_stock,
                 "avg_daily_use": round(avg_daily, 2),
                 "days_until_stockout": days_until_zero,
                 "risk": "critical"
@@ -452,35 +372,27 @@ async def _get_slow_movers(args: dict, org_id: str) -> str:
     limit = min(int(args.get("limit") or 20), 100)
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    conn = get_connection()
-    cur = await conn.execute(
-        """SELECT p.id, p.sku, p.name, p.quantity, p.sell_uom, p.min_stock,
-                  p.department_name,
-                  COALESCE(txn.total_used, 0) as units_withdrawn
-           FROM products p
-           LEFT JOIN (
-               SELECT product_id, SUM(ABS(quantity_delta)) as total_used
-               FROM stock_transactions
-               WHERE transaction_type = 'WITHDRAWAL' AND created_at >= ?
-               GROUP BY product_id
-           ) txn ON p.id = txn.product_id
-           WHERE (p.organization_id = ? OR p.organization_id IS NULL)
-             AND p.quantity > 0
-           ORDER BY COALESCE(txn.total_used, 0) ASC, p.quantity DESC
-           LIMIT ?""",
-        (since, org_id, limit),
-    )
-    rows = [dict(r) for r in await cur.fetchall()]
+    products = await catalog_list_products(organization_id=org_id)
+    in_stock = [p for p in products if p.quantity > 0]
+    if not in_stock:
+        return json.dumps({"period_days": days, "count": 0, "slow_movers": []})
+    product_ids = [p.id for p in in_stock]
+    velocity_map = await withdrawal_velocity(product_ids, since, org_id)
+    ranked = []
+    for p in in_stock:
+        withdrawn = float(velocity_map.get(p.id, 0))
+        ranked.append((withdrawn, -p.quantity, p, withdrawn))
+    ranked.sort(key=lambda t: (t[0], t[1]))
     out = [
         {
-            "sku": r["sku"],
-            "name": r["name"],
-            "quantity": r["quantity"],
-            "sell_uom": r["sell_uom"] or "each",
-            "department": r["department_name"],
-            "units_withdrawn_30d": float(r["units_withdrawn"]),
+            "sku": p.sku,
+            "name": p.name,
+            "quantity": p.quantity,
+            "sell_uom": p.sell_uom or "each",
+            "department": p.department_name,
+            "units_withdrawn_30d": withdrawn,
         }
-        for r in rows
+        for _, _, p, withdrawn in ranked[:limit]
     ]
     return json.dumps({"period_days": days, "count": len(out), "slow_movers": out})
 

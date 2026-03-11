@@ -186,12 +186,6 @@ async def lifespan(app: FastAPI):
 
     init_tools()
     logger.info("Tool registry initialized")
-    from finance.infrastructure.invoice_repo import set_withdrawal_getter
-    from operations.application.queries import get_withdrawal_by_id
-
-    set_withdrawal_getter(get_withdrawal_by_id)
-    logger.info("Cross-domain DI wired")
-
     org_ids = await _get_active_org_ids()
     for org_id in org_ids:
         try:

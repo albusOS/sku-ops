@@ -7,7 +7,7 @@ from operations.domain.withdrawal import MaterialWithdrawal
 
 @runtime_checkable
 class WithdrawalRepoPort(Protocol):
-    async def insert(self, withdrawal: MaterialWithdrawal, conn=None) -> None: ...
+    async def insert(self, withdrawal: MaterialWithdrawal) -> None: ...
 
     async def list_withdrawals(
         self,
@@ -25,13 +25,13 @@ class WithdrawalRepoPort(Protocol):
         self,
         withdrawal_id: str,
         organization_id: str | None = None,
-    ) -> dict | None: ...
+    ) -> MaterialWithdrawal | None: ...
 
     async def mark_paid(
         self,
         withdrawal_id: str,
         paid_at: str,
-    ) -> dict | None: ...
+    ) -> MaterialWithdrawal | None: ...
 
     async def bulk_mark_paid(
         self,

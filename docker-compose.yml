@@ -70,7 +70,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.rendered.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/nginx.rendered.conf:/etc/nginx/nginx.conf:ro
       - ./frontend/dist:/app/frontend:ro
       - certbot-webroot:/var/www/certbot:ro
       - certbot-certs:/etc/letsencrypt:ro

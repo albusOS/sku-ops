@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Query
 
-from assistant.infrastructure.agent_run_repo import (
+from assistant.application.queries import (
     get_cost_breakdown,
     get_session_trace,
     get_stats,

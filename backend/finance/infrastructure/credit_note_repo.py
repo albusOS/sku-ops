@@ -1,15 +1,15 @@
-"""Credit note repository."""
+"""Credit note repository — pure persistence for credit notes and line items."""
 
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from finance.domain.credit_note import CreditNote, CreditNoteLineItem
 from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection, transaction
 
 
-async def _next_credit_note_number(organization_id: str | None = None, conn=None) -> str:
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+async def _next_credit_note_number(organization_id: str | None = None) -> str:
+    conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     key = f"{org_id}|cn"
     await conn.execute(
@@ -19,14 +19,17 @@ async def _next_credit_note_number(organization_id: str | None = None, conn=None
     )
     cursor = await conn.execute("SELECT counter FROM invoice_counters WHERE key = ?", (key,))
     row = await cursor.fetchone()
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
     num = row[0] if row else 1
     return f"CN-{str(num).zfill(5)}"
 
 
-def _row_to_dict(row) -> dict:
+def _row_to_model(row) -> CreditNote | None:
+    if row is None:
+        return None
     d = dict(row) if hasattr(row, "keys") else {}
+    if not d:
+        return None
     for fld in (
         "quantity",
         "unit_price",
@@ -39,7 +42,17 @@ def _row_to_dict(row) -> dict:
     ):
         if fld in d and d[fld] is not None:
             d[fld] = float(d[fld])
-    return d
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return CreditNote.model_validate(d)
+
+
+def _row_to_line_item(row) -> CreditNoteLineItem:
+    d = dict(row) if hasattr(row, "keys") else {}
+    for fld in ("quantity", "unit_price", "amount", "cost"):
+        if fld in d and d[fld] is not None:
+            d[fld] = float(d[fld])
+    return CreditNoteLineItem.model_validate(d)
 
 
 async def insert_credit_note(
@@ -50,15 +63,17 @@ async def insert_credit_note(
     tax: float,
     total: float,
     organization_id: str | None = None,
-    conn=None,
-) -> dict:
-    """Create a credit note linked to a return and its original invoice."""
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+) -> CreditNote:
+    """Create a credit note linked to a return and its original invoice.
+
+    Pure persistence — does NOT update the return record (that's cross-context
+    orchestration owned by credit_note_service).
+    """
+    conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cn_id = str(uuid4())
     now = datetime.now(UTC).isoformat()
-    cn_number = await _next_credit_note_number(org_id, conn)
+    cn_number = await _next_credit_note_number(org_id)
 
     billing_entity = ""
     if invoice_id:
@@ -118,11 +133,7 @@ async def insert_credit_note(
             ),
         )
 
-    # Update the return record with the credit note ID
-    await conn.execute("UPDATE returns SET credit_note_id = ? WHERE id = ?", (cn_id, return_id))
-
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
 
     result = await get_by_id(cn_id)
     if not result:
@@ -130,7 +141,7 @@ async def insert_credit_note(
     return result
 
 
-async def get_by_id(credit_note_id: str, organization_id: str | None = None) -> dict | None:
+async def get_by_id(credit_note_id: str, organization_id: str | None = None) -> CreditNote | None:
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
@@ -142,14 +153,16 @@ async def get_by_id(credit_note_id: str, organization_id: str | None = None) -> 
     row = await cursor.fetchone()
     if not row:
         return None
-    cn = _row_to_dict(row)
+    cn = _row_to_model(row)
+    if cn is None:
+        return None
 
     cursor = await conn.execute(
         "SELECT * FROM credit_note_line_items WHERE credit_note_id = ? ORDER BY id",
         (credit_note_id,),
     )
     rows = await cursor.fetchall()
-    cn["line_items"] = [_row_to_dict(r) for r in rows]
+    cn.line_items = [_row_to_line_item(r) for r in rows]
     return cn
 
 
@@ -161,7 +174,7 @@ async def list_credit_notes(
     end_date: str | None = None,
     limit: int = 500,
     organization_id: str | None = None,
-) -> list:
+) -> list[CreditNote]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     query = "SELECT * FROM credit_notes WHERE (organization_id = ? OR organization_id IS NULL)"
@@ -185,27 +198,43 @@ async def list_credit_notes(
     params.append(limit)
     cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
-async def apply_credit_note(credit_note_id: str, organization_id: str | None = None) -> dict:
+class ApplyCreditNoteResult:
+    """Result of applying a credit note: the updated note plus metadata."""
+
+    __slots__ = ("auto_paid", "credit_note", "invoice_id")
+
+    def __init__(self, credit_note: CreditNote, auto_paid: bool, invoice_id: str):
+        self.credit_note = credit_note
+        self.auto_paid = auto_paid
+        self.invoice_id = invoice_id
+
+
+async def apply_credit_note(
+    credit_note_id: str, organization_id: str | None = None
+) -> ApplyCreditNoteResult:
     """Apply a draft credit note against its linked invoice.
 
     Increases invoices.amount_credited, sets credit note status to 'applied'.
-    If the invoice balance_due reaches 0, auto-marks the invoice as paid.
-    Returns the updated credit note.
+    If the invoice balance_due reaches 0, marks the invoice as paid.
+
+    NOTE: This is finance-only persistence. Cross-context orchestration
+    (marking withdrawals paid) is handled by credit_note_service.apply_credit_note().
     """
     cn = await get_by_id(credit_note_id, organization_id)
     if not cn:
         raise ValueError("Credit note not found")
-    if cn.get("status") != "draft":
-        raise ValueError(f"Credit note is already {cn.get('status')}")
-    if not cn.get("invoice_id"):
+    if cn.status != "draft":
+        raise ValueError(f"Credit note is already {cn.status}")
+    if not cn.invoice_id:
         raise ValueError("Credit note has no linked invoice")
 
-    inv_id = cn["invoice_id"]
-    cn_total = float(cn.get("total", 0))
+    inv_id = cn.invoice_id
+    cn_total = float(cn.total)
 
+    auto_paid = False
     async with transaction() as conn:
         cursor = await conn.execute(
             "SELECT total, amount_credited, status FROM invoices WHERE id = ?", (inv_id,)
@@ -228,17 +257,17 @@ async def apply_credit_note(credit_note_id: str, organization_id: str | None = N
                 "UPDATE invoices SET status = 'paid', updated_at = ? WHERE id = ?",
                 (now, inv_id),
             )
-            await conn.execute(
-                "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE invoice_id = ?",
-                (now, inv_id),
-            )
+            auto_paid = True
 
         await conn.execute(
             "UPDATE credit_notes SET status = 'applied', updated_at = ? WHERE id = ?",
             (now, credit_note_id),
         )
 
-    return (await get_by_id(credit_note_id)) or {}
+    updated = await get_by_id(credit_note_id)
+    if not updated:
+        raise RuntimeError(f"Credit note {credit_note_id} missing after apply")
+    return ApplyCreditNoteResult(credit_note=updated, auto_paid=auto_paid, invoice_id=inv_id)
 
 
 async def set_xero_credit_note_id(
@@ -277,7 +306,7 @@ async def set_credit_note_sync_status(
     await conn.commit()
 
 
-async def list_unsynced_credit_notes(organization_id: str) -> list:
+async def list_unsynced_credit_notes(organization_id: str) -> list[CreditNote]:
     """Return applied credit notes not yet synced to Xero."""
     conn = get_connection()
     cursor = await conn.execute(
@@ -290,10 +319,10 @@ async def list_unsynced_credit_notes(organization_id: str) -> list:
         (organization_id,),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
-async def list_credit_notes_needing_reconciliation(organization_id: str) -> list:
+async def list_credit_notes_needing_reconciliation(organization_id: str) -> list[CreditNote]:
     """Return credit notes that have a Xero ID and are not already flagged as mismatch."""
     conn = get_connection()
     cursor = await conn.execute(
@@ -308,10 +337,10 @@ async def list_credit_notes_needing_reconciliation(organization_id: str) -> list
         (organization_id,),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
-async def list_failed_credit_notes(organization_id: str) -> list:
+async def list_failed_credit_notes(organization_id: str) -> list[CreditNote]:
     conn = get_connection()
     cursor = await conn.execute(
         """SELECT id, credit_note_number, billing_entity, total, status, created_at
@@ -322,10 +351,10 @@ async def list_failed_credit_notes(organization_id: str) -> list:
         (organization_id,),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
-async def list_mismatch_credit_notes(organization_id: str) -> list:
+async def list_mismatch_credit_notes(organization_id: str) -> list[CreditNote]:
     conn = get_connection()
     cursor = await conn.execute(
         """SELECT id, credit_note_number, billing_entity, total, xero_credit_note_id, created_at
@@ -336,7 +365,7 @@ async def list_mismatch_credit_notes(organization_id: str) -> list:
         (organization_id,),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
 class CreditNoteRepo:

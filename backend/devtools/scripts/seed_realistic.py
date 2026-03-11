@@ -663,15 +663,11 @@ async def main():
     from catalog.application.product_lifecycle import create_product
     from catalog.application.queries import list_departments
     from catalog.infrastructure.vendor_repo import vendor_repo
-
-    # Wire cross-domain DI (same as server.py startup)
-    from finance.infrastructure.invoice_repo import invoice_repo, set_withdrawal_getter
+    from finance.application.invoice_service import create_invoice_from_withdrawals
     from identity.infrastructure.user_repo import user_repo
     from inventory.application.inventory_service import process_import_stock_changes
     from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
     from operations.infrastructure.withdrawal_repo import withdrawal_repo
-
-    set_withdrawal_getter(withdrawal_repo.get_by_id)
 
     org_id = "default"
     conn = get_connection()
@@ -833,7 +829,7 @@ async def main():
         # First 4 withdrawals get invoiced (older ones)
         for wid in withdrawal_ids[:4]:
             try:
-                inv = await invoice_repo.create_from_withdrawals(
+                inv = await create_invoice_from_withdrawals(
                     [wid],
                     organization_id=org_id,
                 )

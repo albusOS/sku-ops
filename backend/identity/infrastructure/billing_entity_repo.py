@@ -6,22 +6,23 @@ from identity.domain.billing_entity import BillingEntity
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> BillingEntity | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
+    if not d:
+        return None
     if "is_active" in d:
         d["is_active"] = bool(d["is_active"])
-    return d
+    return BillingEntity.model_validate(d)
 
 
 _COLUMNS = "id, name, contact_name, contact_email, billing_address, payment_terms, xero_contact_id, is_active, organization_id, created_at, updated_at"
 
 
-async def insert(entity: BillingEntity | dict, conn=None) -> None:
+async def insert(entity: BillingEntity | dict) -> None:
     d = entity if isinstance(entity, dict) else entity.model_dump()
-    in_tx = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     ins_q = "INSERT INTO billing_entities ("
     ins_q += _COLUMNS
     ins_q += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -41,26 +42,25 @@ async def insert(entity: BillingEntity | dict, conn=None) -> None:
             d["updated_at"],
         ),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_by_id(entity_id: str, organization_id: str) -> dict | None:
+async def get_by_id(entity_id: str, organization_id: str) -> BillingEntity | None:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
     sel_q += " FROM billing_entities WHERE id = ? AND organization_id = ?"
     cursor = await conn.execute(sel_q, (entity_id, organization_id))
-    return _row_to_dict(await cursor.fetchone())
+    return _row_to_model(await cursor.fetchone())
 
 
-async def get_by_name(name: str, organization_id: str) -> dict | None:
+async def get_by_name(name: str, organization_id: str) -> BillingEntity | None:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
     sel_q += " FROM billing_entities WHERE LOWER(TRIM(name)) = ? AND organization_id = ?"
     cursor = await conn.execute(sel_q, (name.strip().lower(), organization_id))
-    return _row_to_dict(await cursor.fetchone())
+    return _row_to_model(await cursor.fetchone())
 
 
 async def list_billing_entities(
@@ -85,10 +85,10 @@ async def list_billing_entities(
     sql += " ORDER BY name LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     cursor = await conn.execute(sql, params)
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [e for r in await cursor.fetchall() if (e := _row_to_model(r)) is not None]
 
 
-async def update(entity_id: str, updates: dict, organization_id: str) -> dict | None:
+async def update(entity_id: str, updates: dict, organization_id: str) -> BillingEntity | None:
     conn = get_connection()
     set_clauses = []
     params = []
@@ -132,19 +132,19 @@ async def search(query: str, organization_id: str, limit: int = 20) -> list:
         " ORDER BY name LIMIT ?"
     )
     cursor = await conn.execute(sel_q, (organization_id, like, like, limit))
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [e for r in await cursor.fetchall() if (e := _row_to_model(r)) is not None]
 
 
-async def ensure_billing_entity(name: str, organization_id: str, conn=None) -> dict:
+async def ensure_billing_entity(name: str, organization_id: str) -> BillingEntity | None:
     """Get existing entity by name, or auto-create a minimal one."""
     if not name or not name.strip():
-        return {}
+        return None
     existing = await get_by_name(name, organization_id)
     if existing:
         return existing
     entity = BillingEntity(name=name.strip(), organization_id=organization_id)
-    await insert(entity, conn=conn)
-    return entity.model_dump()
+    await insert(entity)
+    return entity
 
 
 class BillingEntityRepo:

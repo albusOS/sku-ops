@@ -7,13 +7,18 @@ from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> Department | None:
     if row is None:
         return None
-    return dict(row) if hasattr(row, "keys") else {}
+    d = dict(row) if hasattr(row, "keys") else {}
+    if not d:
+        return None
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return Department.model_validate(d)
 
 
-async def list_all(organization_id: str | None = None) -> list:
+async def list_all(organization_id: str | None = None) -> list[Department]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cursor = await conn.execute(
@@ -22,10 +27,10 @@ async def list_all(organization_id: str | None = None) -> list:
         (org_id,),
     )
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [d for r in rows if (d := _row_to_model(r)) is not None]
 
 
-async def get_by_id(dept_id: str, organization_id: str | None = None) -> dict | None:
+async def get_by_id(dept_id: str, organization_id: str | None = None) -> Department | None:
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
@@ -39,10 +44,10 @@ async def get_by_id(dept_id: str, organization_id: str | None = None) -> dict | 
             (dept_id,),
         )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_model(row)
 
 
-async def get_by_code(code: str, organization_id: str | None = None) -> dict | None:
+async def get_by_code(code: str, organization_id: str | None = None) -> Department | None:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     cursor = await conn.execute(
@@ -51,7 +56,7 @@ async def get_by_code(code: str, organization_id: str | None = None) -> dict | N
         (code.upper(), org_id),
     )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_model(row)
 
 
 async def insert(department: Department | dict) -> None:
@@ -76,10 +81,9 @@ async def insert(department: Department | dict) -> None:
 
 
 async def update(
-    dept_id: str, name: str, description: str, conn=None, organization_id: str | None = None
-) -> dict | None:
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    dept_id: str, name: str, description: str, organization_id: str | None = None
+) -> Department | None:
+    conn = get_connection()
     params: list = [name, description or "", dept_id]
     where = "WHERE id = ?"
     if organization_id:
@@ -92,8 +96,7 @@ async def update(
         "UPDATE products SET department_name = ? WHERE department_id = ?",
         (name, dept_id),
     )
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
     return await get_by_id(dept_id)
 
 
@@ -127,10 +130,9 @@ async def delete(dept_id: str, organization_id: str | None = None) -> int:
 
 
 async def increment_product_count(
-    dept_id: str, delta: int, conn=None, organization_id: str | None = None
+    dept_id: str, delta: int, organization_id: str | None = None
 ) -> None:
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     params: list = [delta, dept_id]
     where = "WHERE id = ?"
     if organization_id:
@@ -139,8 +141,7 @@ async def increment_product_count(
     query = "UPDATE departments SET product_count = product_count + ? "
     query += where
     await conn.execute(query, params)
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
 
 
 class DepartmentRepo:

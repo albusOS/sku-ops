@@ -8,19 +8,18 @@ from shared.infrastructure.config import DEFAULT_ORG_ID
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> MaterialWithdrawal | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
     if d and "items" in d and isinstance(d["items"], str):
         d["items"] = json.loads(d["items"]) if d["items"] else []
-    return d
+    return MaterialWithdrawal.model_validate(d)
 
 
-async def insert(withdrawal: MaterialWithdrawal | dict, conn=None) -> None:
+async def insert(withdrawal: MaterialWithdrawal | dict) -> None:
     withdrawal_dict = withdrawal if isinstance(withdrawal, dict) else withdrawal.model_dump()
-    in_transaction = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     org_id = withdrawal_dict.get("organization_id") or DEFAULT_ORG_ID
     items_json = json.dumps(
         [i if isinstance(i, dict) else i.model_dump() for i in withdrawal_dict["items"]]
@@ -84,8 +83,7 @@ async def insert(withdrawal: MaterialWithdrawal | dict, conn=None) -> None:
             ),
         )
 
-    if not in_transaction:
-        await conn.commit()
+    await conn.commit()
 
 
 async def list_withdrawals(
@@ -97,7 +95,7 @@ async def list_withdrawals(
     limit: int = 10000,
     offset: int = 0,
     organization_id: str | None = None,
-) -> list:
+) -> list[MaterialWithdrawal]:
     conn = get_connection()
     org_id = organization_id or DEFAULT_ORG_ID
     query = "SELECT * FROM withdrawals WHERE (organization_id = ? OR organization_id IS NULL)"
@@ -121,10 +119,12 @@ async def list_withdrawals(
     params.extend([limit, offset])
     cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_model(r) for r in rows]
 
 
-async def get_by_id(withdrawal_id: str, organization_id: str | None = None) -> dict | None:
+async def get_by_id(
+    withdrawal_id: str, organization_id: str | None = None
+) -> MaterialWithdrawal | None:
     conn = get_connection()
     if organization_id:
         cursor = await conn.execute(
@@ -137,12 +137,12 @@ async def get_by_id(withdrawal_id: str, organization_id: str | None = None) -> d
             (withdrawal_id,),
         )
     row = await cursor.fetchone()
-    return _row_to_dict(row)
+    return _row_to_model(row)
 
 
 async def mark_paid(
     withdrawal_id: str, paid_at: str, organization_id: str | None = None
-) -> dict | None:
+) -> MaterialWithdrawal | None:
     conn = get_connection()
     params: list = [paid_at, withdrawal_id]
     where = "WHERE id = ?"
@@ -175,12 +175,109 @@ async def bulk_mark_paid(
     return cursor.rowcount
 
 
+async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> None:
+    """Set invoice_id and mark as invoiced. Called by finance context via facade."""
+    conn = get_connection()
+    await conn.execute(
+        "UPDATE withdrawals SET invoice_id = ?, payment_status = 'invoiced' WHERE id = ?",
+        (invoice_id, withdrawal_id),
+    )
+    await conn.commit()
+
+
+async def unlink_from_invoice(withdrawal_ids: list[str]) -> None:
+    """Clear invoice link and reset to unpaid. Called by finance context via facade."""
+    if not withdrawal_ids:
+        return
+    conn = get_connection()
+    placeholders = ",".join("?" * len(withdrawal_ids))
+    await conn.execute(
+        f"UPDATE withdrawals SET invoice_id = NULL, payment_status = 'unpaid' WHERE id IN ({placeholders})",
+        withdrawal_ids,
+    )
+    await conn.commit()
+
+
+async def mark_paid_by_invoice(invoice_id: str, paid_at: str) -> None:
+    """Mark all withdrawals linked to an invoice as paid. Called by finance context via facade."""
+    conn = get_connection()
+    await conn.execute(
+        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE invoice_id = ?",
+        (paid_at, invoice_id),
+    )
+    await conn.commit()
+
+
+async def units_sold_by_product(
+    org_id: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, float]:
+    """Sum of quantities sold per product_id from withdrawal_items."""
+    conn = get_connection()
+    params: list = [org_id]
+    date_filter = ""
+    if start_date:
+        date_filter += " AND w.created_at >= ?"
+        params.append(start_date)
+    if end_date:
+        date_filter += " AND w.created_at <= ?"
+        params.append(end_date)
+    query = (
+        "SELECT wi.product_id, SUM(wi.quantity) AS total_qty"
+        " FROM withdrawal_items wi"
+        " JOIN withdrawals w ON wi.withdrawal_id = w.id"
+        " WHERE w.organization_id = ?"
+    )
+    query += date_filter
+    query += " GROUP BY wi.product_id"
+    cursor = await conn.execute(query, params)
+    return {row[0]: row[1] for row in await cursor.fetchall()}
+
+
+async def payment_status_breakdown(
+    org_id: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, float]:
+    """Revenue breakdown by payment status: {Paid: X, Invoiced: Y, Unpaid: Z}."""
+    conn = get_connection()
+    params: list = [org_id]
+    date_filter = ""
+    if start_date:
+        date_filter += " AND w.created_at >= ?"
+        params.append(start_date)
+    if end_date:
+        date_filter += " AND w.created_at <= ?"
+        params.append(end_date)
+    query = (
+        "SELECT"
+        " CASE"
+        " WHEN w.payment_status = 'paid' THEN 'Paid'"
+        " WHEN w.invoice_id IS NOT NULL THEN 'Invoiced'"
+        " ELSE 'Unpaid'"
+        " END AS status,"
+        " ROUND(SUM(w.total), 2) AS total"
+        " FROM withdrawals w"
+        " WHERE w.organization_id = ?"
+    )
+    query += date_filter
+    query += " GROUP BY status"
+    cursor = await conn.execute(query, params)
+    return {row[0]: row[1] for row in await cursor.fetchall()}
+
+
 class WithdrawalRepo:
     insert = staticmethod(insert)
     list_withdrawals = staticmethod(list_withdrawals)
     get_by_id = staticmethod(get_by_id)
     mark_paid = staticmethod(mark_paid)
     bulk_mark_paid = staticmethod(bulk_mark_paid)
+    link_to_invoice = staticmethod(link_to_invoice)
+    unlink_from_invoice = staticmethod(unlink_from_invoice)
+    mark_paid_by_invoice = staticmethod(mark_paid_by_invoice)
+    units_sold_by_product = staticmethod(units_sold_by_product)
+    payment_status_breakdown = staticmethod(payment_status_breakdown)
 
 
 withdrawal_repo = WithdrawalRepo()

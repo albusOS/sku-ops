@@ -67,18 +67,18 @@ async def import_document(
                 "organization_id": org_id,
             }
         )
-        vendor = {"id": vendor_id, "name": vendor_name}
         vendor_created = True
     else:
-        vendor_id = vendor["id"]
+        vendor_id = vendor.id
+        vendor_name = vendor.name
         vendor_created = False
 
     departments = await deps.list_departments(organization_id=org_id)
     default_dept = await deps.get_department_by_code("HDW", organization_id=org_id) or (
         departments[0] if departments else None
     )
-    dept_by_id = {d["id"]: d for d in departments}
-    dept_by_code = {d["code"].upper(): d for d in departments}
+    dept_by_id = {d.id: d for d in departments}
+    dept_by_code = {d.code.upper(): d for d in departments}
     dept_codes = list(dept_by_code.keys())
 
     selected = [p for p in products if p.selected]
@@ -153,20 +153,18 @@ async def import_document(
 
             if existing:
                 await deps.process_receiving_stock_changes(
-                    product_id=existing["id"],
-                    sku=existing["sku"],
-                    product_name=existing["name"],
+                    product_id=existing.id,
+                    sku=existing.sku,
+                    product_name=existing.name,
                     quantity=delivered,
                     user_id=current_user.id,
                     user_name=current_user.name,
                     reference_id=None,
                     organization_id=org_id,
                 )
-                if item.get("original_sku") and not existing.get("original_sku"):
-                    await deps.update_product(
-                        existing["id"], {"original_sku": item["original_sku"]}
-                    )
-                updated = await deps.get_product_by_id(existing["id"])
+                if item.get("original_sku") and not existing.original_sku:
+                    await deps.update_product(existing.id, {"original_sku": item["original_sku"]})
+                updated = await deps.get_product_by_id(existing.id)
                 matched.append(updated)
                 continue
 
@@ -203,8 +201,8 @@ async def import_document(
                 barcode_val = None
 
             product = await deps.create_product(
-                department_id=dept["id"],
-                department_name=dept["name"],
+                department_id=dept.id,
+                department_name=dept.name,
                 name=item.get("name", "Unknown"),
                 description=item.get("description", ""),
                 price=round(price_val, 2),
@@ -212,7 +210,7 @@ async def import_document(
                 quantity=delivered,
                 min_stock=5,
                 vendor_id=vendor_id,
-                vendor_name=vendor.get("name", ""),
+                vendor_name=vendor_name,
                 original_sku=item.get("original_sku"),
                 barcode=barcode_val,
                 base_unit=bu,

@@ -1,6 +1,5 @@
 """Audit log read API — exposes the audit trail for admin review and export."""
 
-import contextlib
 import csv
 import io
 import json
@@ -9,66 +8,10 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
+from identity.application.queries import distinct_actions, query_audit_log
 from shared.api.deps import AdminDep
-from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/audit-log", tags=["audit-log"])
-
-
-async def _query_audit_log(
-    org_id: str,
-    *,
-    user_id: str | None = None,
-    action: str | None = None,
-    resource_type: str | None = None,
-    resource_id: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    limit: int = 200,
-    offset: int = 0,
-) -> tuple[list[dict], int]:
-    conn = get_connection()
-    where = "WHERE organization_id = ?"
-    params: list = [org_id]
-
-    if user_id:
-        where += " AND user_id = ?"
-        params.append(user_id)
-    if action:
-        where += " AND action LIKE ?"
-        params.append(f"%{action}%")
-    if resource_type:
-        where += " AND resource_type = ?"
-        params.append(resource_type)
-    if resource_id:
-        where += " AND resource_id = ?"
-        params.append(resource_id)
-    if start_date:
-        where += " AND created_at >= ?"
-        params.append(start_date)
-    if end_date:
-        where += " AND created_at <= ?"
-        params.append(end_date)
-
-    count_cursor = await conn.execute("SELECT COUNT(*) FROM audit_log " + where, params)
-    count_row = await count_cursor.fetchone()
-    total = count_row[0] if count_row else 0
-
-    cursor = await conn.execute(
-        "SELECT * FROM audit_log " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        [*params, limit, offset],
-    )
-    rows = await cursor.fetchall()
-
-    entries = []
-    for row in rows:
-        d = dict(row)
-        if d.get("details"):
-            with contextlib.suppress(json.JSONDecodeError, TypeError):
-                d["details"] = json.loads(d["details"])
-        entries.append(d)
-
-    return entries, total
 
 
 @router.get("")
@@ -84,9 +27,8 @@ async def list_audit_log(
     offset: int = Query(0, ge=0),
 ):
     """List audit log entries with optional filters. Admin only."""
-    org_id = current_user.organization_id
-    entries, total = await _query_audit_log(
-        org_id,
+    entries, total = await query_audit_log(
+        current_user.organization_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,
@@ -100,18 +42,9 @@ async def list_audit_log(
 
 
 @router.get("/actions")
-async def list_audit_actions(
-    current_user: AdminDep,
-):
+async def list_audit_actions(current_user: AdminDep):
     """Return distinct action names for filter dropdowns."""
-    conn = get_connection()
-    org_id = current_user.organization_id
-    cursor = await conn.execute(
-        "SELECT DISTINCT action FROM audit_log WHERE organization_id = ? ORDER BY action",
-        (org_id,),
-    )
-    rows = await cursor.fetchall()
-    return [row[0] for row in rows]
+    return await distinct_actions(current_user.organization_id)
 
 
 @router.get("/export")
@@ -124,9 +57,8 @@ async def export_audit_log(
     end_date: str | None = None,
 ):
     """Export audit log as CSV. Admin only."""
-    org_id = current_user.organization_id
-    entries, _ = await _query_audit_log(
-        org_id,
+    entries, _ = await query_audit_log(
+        current_user.organization_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,

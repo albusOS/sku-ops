@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, HTTPException
 
+from identity.application.queries import billing_entity_repo
 from identity.domain.billing_entity import BillingEntity, BillingEntityCreate, BillingEntityUpdate
-from identity.infrastructure.billing_entity_repo import billing_entity_repo
 from shared.api.deps import AdminDep
 
 router = APIRouter(prefix="/billing-entities", tags=["billing-entities"])

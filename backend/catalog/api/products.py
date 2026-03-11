@@ -3,16 +3,32 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from catalog.api.schemas import BulkGroupAssign, SuggestUomRequest
-from catalog.application.product_lifecycle import create_product as lifecycle_create
-from catalog.application.product_lifecycle import delete_product as lifecycle_delete
-from catalog.application.product_lifecycle import update_product as lifecycle_update
+from catalog.application.product_lifecycle import (
+    bulk_assign_product_group,
+    rename_product_group,
+)
+from catalog.application.product_lifecycle import (
+    create_product as lifecycle_create,
+)
+from catalog.application.product_lifecycle import (
+    delete_product as lifecycle_delete,
+)
+from catalog.application.product_lifecycle import (
+    update_product as lifecycle_update,
+)
+from catalog.application.queries import (
+    count_products,
+    find_product_by_barcode,
+    get_department_by_id,
+    get_product_by_id,
+    get_vendor_by_id,
+    list_product_groups,
+    list_products,
+)
 from catalog.domain.barcode import validate_barcode
 from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
 from catalog.domain.product import ProductCreate, ProductUpdate
 from catalog.domain.units import compute_sell_fields
-from catalog.infrastructure.department_repo import department_repo
-from catalog.infrastructure.product_repo import product_repo
-from catalog.infrastructure.vendor_repo import vendor_repo
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
 from kernel.errors import ResourceNotFoundError
@@ -67,7 +83,7 @@ async def get_products(
 ):
     org_id = current_user.organization_id
     is_contractor = current_user.role == "contractor"
-    items = await product_repo.list_products(
+    items = await list_products(
         department_id=department_id,
         search=search,
         low_stock=low_stock,
@@ -80,7 +96,7 @@ async def get_products(
     if is_contractor:
         items = [_strip_for_contractor(p) for p in items]
     if limit is not None:
-        total = await product_repo.count_products(
+        total = await count_products(
             department_id=department_id,
             search=search,
             low_stock=low_stock,
@@ -94,26 +110,18 @@ async def get_products(
 @router.get("/groups")
 async def get_product_groups(current_user: AdminDep):
     """Return distinct product groups with counts and total stock."""
-    org_id = current_user.organization_id
-    return await product_repo.list_product_groups(organization_id=org_id)
+    return await list_product_groups(organization_id=current_user.organization_id)
 
 
 @router.post("/groups/assign")
 async def bulk_assign_group(data: BulkGroupAssign, current_user: AdminDep):
     """Assign or clear product_group for multiple products at once."""
-    org_id = current_user.organization_id
+    updated = await bulk_assign_product_group(
+        product_ids=data.product_ids,
+        product_group=data.product_group,
+        organization_id=current_user.organization_id,
+    )
     group_val = data.product_group.strip() if data.product_group else None
-    updated = 0
-    for pid in data.product_ids:
-        product = await product_repo.get_by_id(pid, organization_id=org_id)
-        if not product:
-            continue
-        await product_repo.update(
-            pid,
-            {"product_group": group_val, "updated_at": ""},
-            organization_id=org_id,
-        )
-        updated += 1
     return {"updated": updated, "product_group": group_val}
 
 
@@ -124,21 +132,15 @@ async def rename_group(
     new_name: str = Query(...),
 ):
     """Rename a product group across all products that have it."""
-    org_id = current_user.organization_id
-    old = old_name.strip()
-    new = new_name.strip()
-    if not old or not new:
-        raise HTTPException(status_code=400, detail="Both old_name and new_name are required")
-    products = await product_repo.list_products(product_group=old, organization_id=org_id)
-    updated = 0
-    for p in products:
-        await product_repo.update(
-            p["id"],
-            {"product_group": new, "updated_at": ""},
-            organization_id=org_id,
+    try:
+        updated = await rename_product_group(
+            old_name=old_name,
+            new_name=new_name,
+            organization_id=current_user.organization_id,
         )
-        updated += 1
-    return {"updated": updated, "old_name": old, "new_name": new}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"updated": updated, "old_name": old_name.strip(), "new_name": new_name.strip()}
 
 
 @router.get("/by-barcode")
@@ -152,7 +154,6 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
     code = barcode.strip()
 
-    # Pre-validate numeric barcodes before hitting the DB
     if code.isdigit() and len(code) in (12, 13):
         valid, _ = validate_barcode(code)
         if not valid:
@@ -161,28 +162,30 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUserDep):
                 detail={"code": "invalid_check_digit", "barcode": code},
             )
 
-    product = await product_repo.find_by_barcode(code, organization_id=org_id)
+    product = await find_product_by_barcode(code, organization_id=org_id)
     if not product:
         raise HTTPException(
             status_code=404,
             detail={"code": "not_found", "barcode": code},
         )
-    _enrich_sell_fields(product)
+    result = product.model_dump()
+    _enrich_sell_fields(result)
     if current_user.role == "contractor":
-        return _strip_for_contractor(product)
-    return product
+        return _strip_for_contractor(result)
+    return result
 
 
 @router.get("/{product_id}", response_model=None)
 async def get_product(product_id: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
-    product = await product_repo.get_by_id(product_id, organization_id=org_id)
+    product = await get_product_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    _enrich_sell_fields(product)
+    result = product.model_dump()
+    _enrich_sell_fields(result)
     if current_user.role == "contractor":
-        return _strip_for_contractor(product)
-    return product
+        return _strip_for_contractor(result)
+    return result
 
 
 @router.post("/suggest-uom")
@@ -200,20 +203,20 @@ async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
 @router.post("")
 async def create_product(data: ProductCreate, current_user: AdminDep):
     org_id = current_user.organization_id
-    department = await department_repo.get_by_id(data.department_id, org_id)
+    department = await get_department_by_id(data.department_id, organization_id=org_id)
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
 
     vendor_name = ""
     if data.vendor_id:
-        vendor = await vendor_repo.get_by_id(data.vendor_id, org_id)
+        vendor = await get_vendor_by_id(data.vendor_id, organization_id=org_id)
         if vendor:
-            vendor_name = vendor.get("name", "")
+            vendor_name = vendor.name
 
     try:
         product = await lifecycle_create(
             department_id=data.department_id,
-            department_name=department["name"],
+            department_name=department.name,
             name=data.name,
             description=data.description or "",
             price=data.price,
@@ -243,7 +246,7 @@ async def create_product(data: ProductCreate, current_user: AdminDep):
 @router.put("/{product_id}")
 async def update_product(product_id: str, data: ProductUpdate, current_user: AdminDep):
     org_id = current_user.organization_id
-    product = await product_repo.get_by_id(product_id, organization_id=org_id)
+    product = await get_product_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -258,13 +261,13 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Adm
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidBarcodeError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    return _enrich_sell_fields(result)
+    return _enrich_sell_fields(result.model_dump())
 
 
 @router.delete("/{product_id}")
 async def delete_product(product_id: str, request: Request, current_user: AdminDep):
     org_id = current_user.organization_id
-    product = await product_repo.get_by_id(product_id, organization_id=org_id)
+    product = await get_product_by_id(product_id, organization_id=org_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -277,7 +280,7 @@ async def delete_product(product_id: str, request: Request, current_user: AdminD
         action="product.delete",
         resource_type="product",
         resource_id=product_id,
-        details={"sku": product.get("sku"), "name": product.get("name")},
+        details={"sku": product.sku, "name": product.name},
         request=request,
         org_id=org_id,
     )

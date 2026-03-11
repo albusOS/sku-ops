@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, HTTPException, Request
 
+from finance.application import queries as finance_queries
 from finance.application.credit_note_service import apply_credit_note
-from finance.infrastructure.credit_note_repo import credit_note_repo
 from shared.api.deps import AdminDep
 from shared.infrastructure.middleware.audit import audit_log
 
@@ -20,13 +20,13 @@ async def list_credit_notes(
     end_date: str | None = None,
 ):
     org_id = current_user.organization_id
-    return await credit_note_repo.list_credit_notes(
+    return await finance_queries.list_credit_notes(
+        organization_id=org_id,
         invoice_id=invoice_id,
         billing_entity=billing_entity,
         status=status,
         start_date=start_date,
         end_date=end_date,
-        organization_id=org_id,
     )
 
 
@@ -36,7 +36,7 @@ async def get_credit_note(
     current_user: AdminDep,
 ):
     org_id = current_user.organization_id
-    cn = await credit_note_repo.get_by_id(credit_note_id, org_id)
+    cn = await finance_queries.get_credit_note_by_id(credit_note_id, org_id)
     if not cn:
         raise HTTPException(status_code=404, detail="Credit note not found")
     return cn
@@ -61,7 +61,7 @@ async def apply_credit_note_to_invoice(
             action="credit_note.apply",
             resource_type="credit_note",
             resource_id=credit_note_id,
-            details={"invoice_id": cn.get("invoice_id"), "total": cn.get("total")},
+            details={"invoice_id": cn.invoice_id, "total": cn.total},
             request=request,
             org_id=org_id,
         )

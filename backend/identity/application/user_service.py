@@ -8,6 +8,10 @@ async def get_user_by_id(user_id: str):
     return await _repo.get_by_id(user_id)
 
 
+async def get_users_by_ids(user_ids: list[str]) -> dict[str, User]:
+    return await _repo.get_by_ids(user_ids)
+
+
 async def get_user_by_email(email: str):
     return await _repo.get_by_email(email)
 

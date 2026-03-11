@@ -15,14 +15,14 @@ async def _get_invoice_summary(org_id: str) -> str:
     invoices = await list_invoices(limit=10000, organization_id=org_id)
     summary: dict[str, dict] = {}
     for inv in invoices:
-        status = inv.get("status", "unknown")
+        status = inv.status or "unknown"
         if status not in summary:
             summary[status] = {"count": 0, "total": 0.0}
         summary[status]["count"] += 1
-        summary[status]["total"] += inv.get("total", 0)
+        summary[status]["total"] += inv.total
     for s in summary.values():
         s["total"] = round(s["total"], 2)
-    grand_total = round(sum(inv.get("total", 0) for inv in invoices), 2)
+    grand_total = round(sum(inv.total for inv in invoices), 2)
     return json.dumps(
         {"total_invoices": len(invoices), "grand_total": grand_total, "by_status": summary}
     )
@@ -35,14 +35,14 @@ async def _get_outstanding_balances(args: dict, org_id: str) -> str:
     )
     entity_map: dict[str, dict] = {}
     for w in withdrawals:
-        entity = w.get("billing_entity") or w.get("contractor_name") or "Unknown"
+        entity = w.billing_entity or w.contractor_name or "Unknown"
         if entity not in entity_map:
             entity_map[entity] = {
                 "balance": 0.0,
                 "withdrawal_count": 0,
-                "oldest": w.get("created_at", ""),
+                "oldest": w.created_at or "",
             }
-        entity_map[entity]["balance"] += w.get("total", 0)
+        entity_map[entity]["balance"] += w.total
         entity_map[entity]["withdrawal_count"] += 1
     sorted_entities = sorted(entity_map.items(), key=lambda x: x[1]["balance"], reverse=True)
     out = [
@@ -54,7 +54,7 @@ async def _get_outstanding_balances(args: dict, org_id: str) -> str:
         }
         for entity, data in sorted_entities[:limit]
     ]
-    total_outstanding = sum(w.get("total", 0) for w in withdrawals)
+    total_outstanding = sum(w.total for w in withdrawals)
     return json.dumps(
         {
             "total_outstanding": round(total_outstanding, 2),
@@ -68,11 +68,11 @@ async def _get_revenue_summary(args: dict, org_id: str) -> str:
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
-    total_revenue = sum(w.get("total", 0) for w in withdrawals)
-    total_tax = sum(w.get("tax", 0) for w in withdrawals)
-    paid = sum(w.get("total", 0) for w in withdrawals if w.get("payment_status") == "paid")
-    unpaid = sum(w.get("total", 0) for w in withdrawals if w.get("payment_status") == "unpaid")
-    invoiced = sum(w.get("total", 0) for w in withdrawals if w.get("payment_status") == "invoiced")
+    total_revenue = sum(w.total for w in withdrawals)
+    total_tax = sum(w.tax for w in withdrawals)
+    paid = sum(w.total for w in withdrawals if w.payment_status == "paid")
+    unpaid = sum(w.total for w in withdrawals if w.payment_status == "unpaid")
+    invoiced = sum(w.total for w in withdrawals if w.payment_status == "invoiced")
     return json.dumps(
         {
             "period_days": days,
@@ -91,8 +91,8 @@ async def _get_pl_summary(args: dict, org_id: str) -> str:
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
-    total_revenue = sum(w.get("total", 0) for w in withdrawals)
-    total_cost = sum(w.get("cost_total", 0) for w in withdrawals)
+    total_revenue = sum(w.total for w in withdrawals)
+    total_cost = sum(w.cost_total for w in withdrawals)
     gross_profit = total_revenue - total_cost
     margin_pct = round((gross_profit / total_revenue * 100), 1) if total_revenue > 0 else 0
     return json.dumps(
@@ -114,11 +114,11 @@ async def _get_top_products(args: dict, org_id: str) -> str:
     withdrawals = await list_withdrawals(start_date=since, limit=10000, organization_id=org_id)
     product_map: dict[str, dict] = {}
     for w in withdrawals:
-        for item in w.get("items") or []:
-            sku = item.get("sku") or item.get("name", "unknown")
-            name = item.get("name", sku)
-            qty = item.get("quantity", 0)
-            revenue = item.get("subtotal", 0)
+        for item in w.items:
+            sku = item.sku or item.name or "unknown"
+            name = item.name or sku
+            qty = item.quantity
+            revenue = item.subtotal
             if sku not in product_map:
                 product_map[sku] = {
                     "sku": sku,

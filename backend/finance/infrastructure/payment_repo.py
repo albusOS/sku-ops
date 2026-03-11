@@ -4,21 +4,23 @@ from finance.domain.payment import Payment
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> Payment | None:
     if row is None:
         return None
-    return dict(row) if hasattr(row, "keys") else {}
+    d = dict(row) if hasattr(row, "keys") else {}
+    if not d:
+        return None
+    if d.get("organization_id") is None:
+        d.pop("organization_id", None)
+    return Payment.model_validate(d)
 
 
 _COLUMNS = "id, invoice_id, billing_entity_id, amount, method, reference, payment_date, notes, recorded_by_id, xero_payment_id, organization_id, created_at, updated_at"
 
 
-async def insert(
-    payment: Payment | dict, withdrawal_ids: list[str] | None = None, conn=None
-) -> None:
+async def insert(payment: Payment | dict, withdrawal_ids: list[str] | None = None) -> None:
     d = payment if isinstance(payment, dict) else payment.model_dump()
-    in_tx = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     ins_q = "INSERT INTO payments ("
     ins_q += _COLUMNS
     ins_q += ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -45,23 +47,23 @@ async def insert(
             "INSERT INTO payment_withdrawals (payment_id, withdrawal_id) VALUES (?, ?)",
             (d["id"], wid),
         )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_by_id(payment_id: str, organization_id: str) -> dict | None:
+async def get_by_id(payment_id: str, organization_id: str) -> Payment | None:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
     sel_q += " FROM payments WHERE id = ? AND organization_id = ?"
     cursor = await conn.execute(sel_q, (payment_id, organization_id))
-    p = _row_to_dict(await cursor.fetchone())
+    row = await cursor.fetchone()
+    p = _row_to_model(row)
     if p:
         wc = await conn.execute(
             "SELECT withdrawal_id FROM payment_withdrawals WHERE payment_id = ?",
             (payment_id,),
         )
-        p["withdrawal_ids"] = [
+        p.withdrawal_ids = [
             (r[0] if isinstance(r, (tuple, list)) else r.get("withdrawal_id"))
             for r in await wc.fetchall()
         ]
@@ -76,7 +78,7 @@ async def list_payments(
     end_date: str | None = None,
     limit: int = 200,
     offset: int = 0,
-) -> list:
+) -> list[Payment]:
     conn = get_connection()
     sql = "SELECT "
     sql += _COLUMNS
@@ -97,10 +99,10 @@ async def list_payments(
     sql += " ORDER BY payment_date DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     cursor = await conn.execute(sql, params)
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
-async def list_for_invoice(invoice_id: str, organization_id: str) -> list:
+async def list_for_invoice(invoice_id: str, organization_id: str) -> list[Payment]:
     conn = get_connection()
     sel_q = "SELECT "
     sel_q += _COLUMNS
@@ -108,10 +110,10 @@ async def list_for_invoice(invoice_id: str, organization_id: str) -> list:
         " FROM payments WHERE invoice_id = ? AND organization_id = ? ORDER BY payment_date DESC"
     )
     cursor = await conn.execute(sel_q, (invoice_id, organization_id))
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
-async def list_for_withdrawal(withdrawal_id: str, organization_id: str) -> list:
+async def list_for_withdrawal(withdrawal_id: str, organization_id: str) -> list[Payment]:
     conn = get_connection()
     cursor = await conn.execute(
         """SELECT p.* FROM payments p
@@ -120,7 +122,7 @@ async def list_for_withdrawal(withdrawal_id: str, organization_id: str) -> list:
            ORDER BY p.payment_date DESC""",
         (withdrawal_id, organization_id),
     )
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
 class PaymentRepo:

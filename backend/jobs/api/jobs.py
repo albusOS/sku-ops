@@ -2,8 +2,21 @@
 
 from fastapi import APIRouter, HTTPException
 
-from jobs.domain.job import JobCreate, JobStatus, JobUpdate
-from jobs.infrastructure.job_repo import job_repo
+from jobs.application.queries import (
+    get_job_by_code,
+    get_job_by_id,
+    insert_job,
+)
+from jobs.application.queries import (
+    list_jobs as query_list_jobs,
+)
+from jobs.application.queries import (
+    search_jobs as query_search_jobs,
+)
+from jobs.application.queries import (
+    update_job as query_update_job,
+)
+from jobs.domain.job import Job, JobCreate, JobStatus, JobUpdate
 from shared.api.deps import AdminDep, CurrentUserDep
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -17,7 +30,7 @@ async def list_jobs(
     limit: int = 200,
     offset: int = 0,
 ):
-    return await job_repo.list_jobs(
+    return await query_list_jobs(
         organization_id=current_user.organization_id,
         status=status,
         q=q,
@@ -34,20 +47,20 @@ async def search_jobs(
 ):
     """Autocomplete endpoint for job pickers (all authenticated users including contractors)."""
     if not q.strip():
-        return await job_repo.list_jobs(
+        return await query_list_jobs(
             organization_id=current_user.organization_id,
             status="active",
             limit=limit,
         )
-    return await job_repo.search(q, current_user.organization_id, limit=limit)
+    return await query_search_jobs(q, current_user.organization_id, limit=limit)
 
 
 @router.get("/{job_id}")
 async def get_job(job_id: str, current_user: CurrentUserDep):
     org_id = current_user.organization_id
-    job = await job_repo.get_by_id(job_id, org_id)
+    job = await get_job_by_id(job_id, org_id)
     if not job:
-        job = await job_repo.get_by_code(job_id, org_id)
+        job = await get_job_by_code(job_id, org_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
@@ -63,11 +76,9 @@ async def create_job(
     if not code:
         raise HTTPException(status_code=400, detail="Job code is required")
 
-    existing = await job_repo.get_by_code(code, org_id)
+    existing = await get_job_by_code(code, org_id)
     if existing:
         raise HTTPException(status_code=409, detail=f"Job with code '{code}' already exists")
-
-    from jobs.domain.job import Job
 
     job = Job(
         code=code,
@@ -76,7 +87,7 @@ async def create_job(
         notes=data.notes,
         organization_id=org_id,
     )
-    await job_repo.insert(job)
+    await insert_job(job)
     return job.model_dump()
 
 
@@ -87,7 +98,7 @@ async def update_job(
     current_user: AdminDep,
 ):
     org_id = current_user.organization_id
-    existing = await job_repo.get_by_id(job_id, org_id)
+    existing = await get_job_by_id(job_id, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -99,5 +110,5 @@ async def update_job(
                 status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid)}"
             )
 
-    result = await job_repo.update(job_id, updates, org_id)
+    result = await query_update_job(job_id, updates, org_id)
     return result

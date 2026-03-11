@@ -1,5 +1,11 @@
 """Org settings application service — safe for cross-context import."""
 
+from identity.infrastructure.oauth_state_repo import (
+    pop_oauth_state as _pop_state,
+)
+from identity.infrastructure.oauth_state_repo import (
+    save_oauth_state as _save_state,
+)
 from identity.infrastructure.org_settings_repo import (
     clear_xero_tokens as _clear,
 )
@@ -21,3 +27,11 @@ async def upsert_org_settings(settings):
 
 async def clear_xero_tokens(org_id: str) -> None:
     await _clear(org_id)
+
+
+async def save_oauth_state(state: str, org_id: str) -> None:
+    await _save_state(state, org_id)
+
+
+async def pop_oauth_state(state: str) -> str | None:
+    return await _pop_state(state)

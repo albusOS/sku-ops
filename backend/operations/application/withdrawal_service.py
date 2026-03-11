@@ -1,14 +1,23 @@
-"""Withdrawal service: encapsulates creation of material withdrawals with transaction."""
+"""Withdrawal service: encapsulates creation and payment workflows for material withdrawals."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from catalog.application.queries import list_products
 from catalog.domain.units import are_compatible, convert_quantity, cost_per_sell_unit
+from finance.application.invoice_service import (
+    create_invoice_from_withdrawals,
+    mark_paid_for_withdrawal,
+)
+from finance.application.ledger_service import record_payment as _record_payment
 from finance.application.ledger_service import record_withdrawal as _record_ledger
 from identity.application.billing_entity_service import ensure_billing_entity
+from identity.application.org_service import get_org_settings
+from inventory.application.inventory_service import process_withdrawal_stock_changes
 from inventory.domain.stock import StockDecrement
 from jobs.application.job_service import ensure_job as _ensure_job
 from operations.domain.withdrawal import MaterialWithdrawal, MaterialWithdrawalCreate
@@ -19,9 +28,11 @@ if TYPE_CHECKING:
     from kernel.types import CurrentUser
     from operations.ports.withdrawal_repo_port import WithdrawalRepoPort
 
-CreateInvoiceFn = Callable[..., Awaitable[dict]] | None
+CreateInvoiceFn = Callable[..., Awaitable] | None
 ListProductsFn = Callable[..., Awaitable[list]]
 StockChangesFn = Callable[..., Awaitable[None]]
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_price_per_unit(
@@ -52,7 +63,6 @@ async def create_withdrawal(
     create_invoice: CreateInvoiceFn = None,
     withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
     tax_rate: float = 0.10,
-    conn=None,
 ) -> dict:
     """Create a material withdrawal with atomic stock decrement and optional invoice.
 
@@ -62,36 +72,36 @@ async def create_withdrawal(
     if data.job_id:
         await _ensure_job(data.job_id, org_id)
     products = await list_products(organization_id=org_id)
-    product_map = {p["id"]: p for p in products}
-    dept_map = {p["id"]: p.get("department_name", "") for p in products}
+    product_map = {p.id: p for p in products}
+    dept_map = {p.id: p.department_name for p in products}
     enriched_items = []
     for item in data.items:
-        p = product_map.get(item.product_id, {})
-        base_unit = (p.get("base_unit") or "each").lower()
+        p = product_map.get(item.product_id)
+        base_unit = (p.base_unit if p else "each").lower()
         req_unit = (item.unit or base_unit).lower()
-        sell_uom = (p.get("sell_uom") or base_unit).lower()
-        pack_qty = int(p.get("pack_qty") or 1)
+        sell_uom = (p.sell_uom if p else base_unit).lower()
+        pack_qty = p.pack_qty if p else 1
 
         updates: dict = {}
-        if item.cost == 0.0 and p.get("cost", 0):
-            updates["cost"] = _convert_price_per_unit(p["cost"], base_unit, req_unit)
-        elif item.cost != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
-            updates["cost"] = _convert_price_per_unit(p.get("cost", item.cost), base_unit, req_unit)
+        p_cost = p.cost if p else 0
+        p_price = p.price if p else 0
 
-        if item.unit_price == 0.0 and p.get("price", 0):
-            updates["unit_price"] = _convert_price_per_unit(p["price"], base_unit, req_unit)
+        if item.cost == 0.0 and p_cost:
+            updates["cost"] = _convert_price_per_unit(p_cost, base_unit, req_unit)
+        elif item.cost != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
+            updates["cost"] = _convert_price_per_unit(p_cost or item.cost, base_unit, req_unit)
+
+        if item.unit_price == 0.0 and p_price:
+            updates["unit_price"] = _convert_price_per_unit(p_price, base_unit, req_unit)
         elif (
             item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit)
         ):
             updates["unit_price"] = _convert_price_per_unit(
-                p.get("price", item.unit_price), base_unit, req_unit
+                p_price or item.unit_price, base_unit, req_unit
             )
 
-        # Sell-unit normalized cost: always derived from the canonical base_unit cost
         updates["sell_uom"] = sell_uom
-        updates["sell_cost"] = cost_per_sell_unit(
-            float(p.get("cost") or 0), base_unit, sell_uom, pack_qty
-        )
+        updates["sell_cost"] = cost_per_sell_unit(p_cost, base_unit, sell_uom, pack_qty)
 
         item = item.model_copy(update=updates)
         enriched_items.append(item)
@@ -101,7 +111,7 @@ async def create_withdrawal(
     billing_entity_id = contractor.get("billing_entity_id")
     if billing_entity_name and not billing_entity_id:
         be = await ensure_billing_entity(billing_entity_name, org_id)
-        billing_entity_id = be.get("id") if be else None
+        billing_entity_id = be.id if be else None
 
     withdrawal = MaterialWithdrawal(
         items=data.items,
@@ -123,7 +133,7 @@ async def create_withdrawal(
     )
     withdrawal.compute_totals(tax_rate=tax_rate)
 
-    async def _do_create(tx_conn):
+    async with transaction():
         decrements = [
             StockDecrement(
                 product_id=i.product_id,
@@ -140,11 +150,10 @@ async def create_withdrawal(
             user_id=current_user.id,
             user_name=current_user.name,
             organization_id=org_id,
-            conn=tx_conn,
         )
 
         withdrawal.organization_id = org_id
-        await withdrawal_repo.insert(withdrawal, conn=tx_conn)
+        await withdrawal_repo.insert(withdrawal)
 
         ledger_items = [
             {
@@ -169,24 +178,96 @@ async def create_withdrawal(
             contractor_id=withdrawal.contractor_id,
             organization_id=org_id,
             performed_by_user_id=current_user.id,
-            conn=tx_conn,
         )
 
         if create_invoice:
             try:
-                inv = await create_invoice(withdrawal_ids=[withdrawal.id], conn=tx_conn)
+                inv = await create_invoice(withdrawal_ids=[withdrawal.id])
                 result = withdrawal.model_dump()
-                result["invoice_id"] = inv.get("id")
+                result["invoice_id"] = inv.id
                 return result
             except ValueError:
-                logging.getLogger(__name__).warning(
+                logger.warning(
                     "Auto-invoice failed for withdrawal %s, continuing without invoice",
                     withdrawal.id,
                     exc_info=True,
                 )
         return withdrawal.model_dump()
 
-    if conn is not None:
-        return await _do_create(conn)
-    async with transaction() as tx_conn:
-        return await _do_create(tx_conn)
+
+async def create_withdrawal_wired(
+    data: MaterialWithdrawalCreate,
+    contractor: dict,
+    current_user: CurrentUser,
+) -> dict:
+    """Wired version of create_withdrawal that resolves org settings and injects collaborators.
+
+    Eliminates the duplicate do_create_withdrawal helpers in withdrawals.py and
+    material_requests.py.
+    """
+    settings = await get_org_settings(current_user.organization_id)
+    return await create_withdrawal(
+        data,
+        contractor,
+        current_user,
+        list_products=list_products,
+        process_stock_changes=process_withdrawal_stock_changes,
+        create_invoice=create_invoice_from_withdrawals,
+        tax_rate=settings.default_tax_rate,
+    )
+
+
+async def mark_single_withdrawal_paid(
+    withdrawal_id: str,
+    org_id: str,
+    performed_by_user_id: str,
+    withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
+) -> MaterialWithdrawal:
+    """Mark a withdrawal as paid: update status, mark invoice paid, record ledger payment."""
+    withdrawal = await withdrawal_repo.get_by_id(withdrawal_id, org_id)
+    if not withdrawal:
+        raise ValueError(f"Withdrawal {withdrawal_id} not found")
+    paid_at = datetime.now(UTC).isoformat()
+    result = await withdrawal_repo.mark_paid(withdrawal_id, paid_at)
+    if not result:
+        raise ValueError(f"Withdrawal {withdrawal_id} could not be marked paid")
+    await mark_paid_for_withdrawal(withdrawal_id)
+    await _record_payment(
+        withdrawal_id=withdrawal_id,
+        amount=withdrawal.total,
+        billing_entity=withdrawal.billing_entity,
+        contractor_id=withdrawal.contractor_id,
+        organization_id=org_id,
+        performed_by_user_id=performed_by_user_id,
+    )
+    return result
+
+
+async def bulk_mark_withdrawals_paid(
+    withdrawal_ids: list[str],
+    org_id: str,
+    performed_by_user_id: str,
+    withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
+) -> int:
+    """Mark multiple withdrawals as paid in bulk.
+
+    Returns count of updated withdrawals.
+    """
+    if len(withdrawal_ids) > 200:
+        raise ValueError("Cannot mark more than 200 withdrawals at once")
+
+    paid_at = datetime.now(UTC).isoformat()
+    updated = await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at, organization_id=org_id)
+    for wid in withdrawal_ids:
+        await mark_paid_for_withdrawal(wid)
+        w = await withdrawal_repo.get_by_id(wid, org_id)
+        if w:
+            await _record_payment(
+                withdrawal_id=wid,
+                amount=w.total,
+                billing_entity=w.billing_entity,
+                contractor_id=w.contractor_id,
+                organization_id=org_id,
+                performed_by_user_id=performed_by_user_id,
+            )
+    return updated

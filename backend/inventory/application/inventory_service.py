@@ -39,7 +39,6 @@ async def _record_stock_transaction(
     reason: str | None = None,
     unit: str = "each",
     organization_id: str | None = None,
-    conn=None,
     repo: StockRepoPort = _default_stock_repo,
 ) -> None:
     """Append an immutable transaction to the stock ledger."""
@@ -60,7 +59,7 @@ async def _record_stock_transaction(
         user_name=user_name,
     )
     tx.organization_id = organization_id or DEFAULT_ORG_ID
-    await repo.insert_transaction(tx, conn=conn)
+    await repo.insert_transaction(tx)
 
 
 async def process_withdrawal_stock_changes(
@@ -69,24 +68,20 @@ async def process_withdrawal_stock_changes(
     user_id: str,
     user_name: str,
     organization_id: str | None = None,
-    conn=None,
 ) -> None:
     """
     Atomically decrement product quantities for a withdrawal.
     Converts from the requested unit to the product's base_unit before decrementing.
     Uses UPDATE with quantity guard to prevent overselling.
-    Rolls back all completed decrements on any failure (InsufficientStockError or other).
-    When conn is provided, runs inside that transaction (no commit).
+    Rolls back all completed decrements on any failure.
     """
     now = datetime.now(UTC).isoformat()
     completed: list[tuple[str, float]] = []
 
     try:
         for item in items:
-            product = await get_product_by_id(
-                item.product_id, "quantity, sku, base_unit", conn=conn
-            )
-            base_unit = (product.get("base_unit", "each") if product else "each").lower()
+            product = await get_product_by_id(item.product_id)
+            base_unit = (product.base_unit if product else "each").lower()
             requested_unit = (item.unit or "each").lower()
 
             if requested_unit != base_unit and are_compatible(requested_unit, base_unit):
@@ -94,15 +89,15 @@ async def process_withdrawal_stock_changes(
             else:
                 canonical_qty = item.quantity
 
-            result = await atomic_decrement_product(item.product_id, canonical_qty, now, conn=conn)
+            result = await atomic_decrement_product(item.product_id, canonical_qty, now)
 
             if not result:
-                available = product.get("quantity", 0) if product else 0
+                available = product.quantity if product else 0
                 raise InsufficientStockError(
                     sku=item.sku, requested=item.quantity, available=available
                 )
 
-            quantity_before = result.get("quantity", 0) + canonical_qty
+            quantity_before = result.quantity + canonical_qty
             await _record_stock_transaction(
                 product_id=item.product_id,
                 sku=item.sku,
@@ -115,13 +110,12 @@ async def process_withdrawal_stock_changes(
                 reference_id=withdrawal_id,
                 unit=base_unit,
                 organization_id=organization_id,
-                conn=conn,
             )
             completed.append((item.product_id, canonical_qty))
 
     except Exception:
         for product_id, qty in completed:
-            await increment_product_quantity(product_id, qty, now, conn=conn)
+            await increment_product_quantity(product_id, qty, now)
         raise
 
 
@@ -135,15 +129,14 @@ async def process_receiving_stock_changes(
     reference_id: str | None = None,
     unit: str = "each",
     organization_id: str | None = None,
-    conn=None,
     transaction_type: StockTransactionType = StockTransactionType.RECEIVING,
 ) -> None:
     """Add stock (receiving, import, return) and record transaction.
 
     Converts from the supplied unit to the product's base_unit before adding.
     """
-    product = await get_product_by_id(product_id, "base_unit", conn=conn)
-    base_unit = (product.get("base_unit", "each") if product else "each").lower()
+    product = await get_product_by_id(product_id)
+    base_unit = (product.base_unit if product else "each").lower()
     incoming_unit = (unit or "each").lower()
 
     if incoming_unit != base_unit and are_compatible(incoming_unit, base_unit):
@@ -152,11 +145,11 @@ async def process_receiving_stock_changes(
         canonical_qty = quantity
 
     now = datetime.now(UTC).isoformat()
-    result = await add_product_quantity(product_id, canonical_qty, now, conn=conn)
+    result = await add_product_quantity(product_id, canonical_qty, now)
     if not result:
         raise ResourceNotFoundError("Product", product_id)
 
-    quantity_before = result.get("quantity", 0) - canonical_qty
+    quantity_before = result.quantity - canonical_qty
     await _record_stock_transaction(
         product_id=product_id,
         sku=sku,
@@ -169,7 +162,6 @@ async def process_receiving_stock_changes(
         reference_id=reference_id,
         unit=base_unit,
         organization_id=organization_id,
-        conn=conn,
     )
 
 
@@ -182,7 +174,6 @@ async def process_import_stock_changes(
     user_name: str,
     unit: str = "each",
     organization_id: str | None = None,
-    conn=None,
 ) -> None:
     """Record stock added via bulk import (new product creation - no delta from existing)."""
     await _record_stock_transaction(
@@ -196,14 +187,13 @@ async def process_import_stock_changes(
         user_name=user_name,
         unit=unit or "each",
         organization_id=organization_id,
-        conn=conn,
     )
 
 
 async def get_stock_history(
     product_id: str,
     limit: int = 50,
-) -> list[dict]:
+) -> list[StockTransaction]:
     """Get stock transaction history for a product."""
     return await _default_stock_repo.list_by_product(product_id, limit)
 
@@ -214,33 +204,30 @@ async def process_adjustment_stock_changes(
     reason: str,
     user_id: str,
     user_name: str,
-    conn=None,
 ) -> None:
     """
     Adjust stock (count, damage, correction) and record transaction.
     Uses atomic UPDATE to avoid TOCTOU race conditions.
-    When conn is provided, all writes participate in the caller's transaction.
     """
     if quantity_delta == 0:
         raise ValueError("quantity_delta must not be zero")
     now = datetime.now(UTC).isoformat()
-    product = await get_product_by_id(product_id, conn=conn)
+    product = await get_product_by_id(product_id)
     if not product:
         raise ResourceNotFoundError("Product", product_id)
 
-    base_unit = (product.get("base_unit", "each")).lower()
-    result = await atomic_adjust_product(product_id, quantity_delta, now, conn=conn)
+    base_unit = product.base_unit.lower()
+    result = await atomic_adjust_product(product_id, quantity_delta, now)
     if not result:
-        quantity_before = product.get("quantity", 0)
-        raise NegativeStockError(product_id, current=quantity_before, delta=quantity_delta)
+        raise NegativeStockError(product_id, current=product.quantity, delta=quantity_delta)
 
-    quantity_after = result.get("quantity", 0)
+    quantity_after = result.quantity
     quantity_before = quantity_after - quantity_delta
     adjustment_id = str(uuid4())
     await _record_stock_transaction(
         product_id=product_id,
-        sku=product.get("sku", ""),
-        product_name=product.get("name", ""),
+        sku=product.sku,
+        product_name=product.name,
         quantity_delta=quantity_delta,
         quantity_before=quantity_before,
         transaction_type=StockTransactionType.ADJUSTMENT,
@@ -249,17 +236,15 @@ async def process_adjustment_stock_changes(
         reference_id=adjustment_id,
         reason=reason,
         unit=base_unit,
-        conn=conn,
     )
 
     await _record_ledger_adjustment(
         adjustment_ref_id=adjustment_id,
         product_id=product_id,
-        product_cost=float(product.get("cost", 0)),
+        product_cost=product.cost,
         quantity_delta=quantity_delta,
-        department=product.get("department_name"),
-        organization_id=product.get("organization_id", DEFAULT_ORG_ID),
+        department=product.department_name,
+        organization_id=product.organization_id,
         reason=reason,
         performed_by_user_id=user_id,
-        conn=conn,
     )

@@ -1,46 +1,144 @@
 ---
-description: Backend Python conventions — FastAPI, DDD, schema, repos
+description: Backend Python conventions — architecture patterns, anti-patterns, decision rules
 globs: backend/**/*.py
 alwaysApply: false
 ---
 
 # Backend Conventions
 
-## Schema
+## Schema ownership
 
-Each bounded context owns its schema in `{context}/infrastructure/schema.py`. The aggregated `full_schema.py` is the single source of truth for DB bootstrap.
+Each context owns its schema in `{context}/infrastructure/schema.py`. The aggregated `full_schema.py` is the single source of truth for DB bootstrap. Never add migration functions to `runner.py`.
 
-```python
-# ❌ BAD — adding a migration function
-async def _sqlite_027_add_column(conn):
-    await conn.execute("ALTER TABLE foo ADD COLUMN bar TEXT")
+## Repos: pure persistence only
 
-# ✅ GOOD — update schema.py directly
-# In jobs/infrastructure/schema.py:
-CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
-    bar TEXT,   # just add it here
-    ...
-);
-```
+Repos handle CRUD and queries. They must NOT contain:
+- Business validation (e.g., "all withdrawals must share same billing_entity")
+- Multi-step orchestration (e.g., "insert invoice, insert line items, link withdrawals")
+- Cross-context mutations (e.g., `UPDATE withdrawals` in an invoice repo)
+- State transition logic (e.g., "if status is paid, update withdrawals")
 
-## Repos vs queries
+Analytics and report queries belong in a separate `queries.py` or `application/ledger_queries.py` module, not in repos.
 
-Repos handle persistence (read one, write). Analytics and report queries belong in a separate `_queries.py` or `application/ledger_queries.py` module.
+## Application layer: use-case orchestration
 
-```python
-# ❌ BAD — report query inside a repo
-async def summary_by_account(org_id): ...  # inside ledger_repo.py
+Application modules orchestrate use cases through stable collaborators. They must NOT become:
+- Dumping grounds (one file with 15 unrelated functions mixing sync, CRUD, orchestration)
+- Infrastructure reach-throughs (importing repo helper functions inside function bodies)
+- Dict-munging scripts (building dicts key-by-key from untyped inputs)
 
-# ✅ GOOD — put it in the application layer
-# finance/application/ledger_queries.py
-async def summary_by_account(org_id): ...
-```
+### Correct shape for important use cases
+
+Important mutation flows (invoice creation, withdrawal processing, Xero sync) must have:
+- **Explicit input contract** — a typed command dataclass or typed function parameters, not `dict`
+- **Explicit collaborators** — imported at module level, not inside function bodies
+- **Explicit transaction boundary** — `async with transaction():` at the top of the use case
+- **Explicit result contract** — a typed result dataclass, not `dict`
+- **Explicit cross-context interactions** — via application facades with typed models
+
+### When a use case is too large for a single function
+
+Split into a module under `{context}/application/use_cases/` with one function per module. Each module has the same shape: typed input, typed collaborators, transaction boundary, typed result.
+
+## API layer: thin controllers
+
+FastAPI routers live in `{context}/api/`. Route handlers must only:
+1. Parse the HTTP request
+2. Call one application-layer function
+3. Map the result to an HTTP response
+4. Log audit events
+
+No business logic, no multi-service orchestration, no raw SQL, no direct repo imports.
+
+The gold standard is `inventory/api/cycle_counts.py` — every route delegates entirely to application service functions.
 
 ## Cross-context access
 
 Never import from another context's `infrastructure/` layer. Use the context's `application/` facade.
 
-## API layer
+Cross-context mutation (e.g., finance causes operations state change) must go through the owning context's facade. The owning context controls its own state transitions, invariants, and audit trail.
 
-FastAPI routers live in `{context}/api/`. Each router file should be focused on one resource. Keep routes thin — delegate logic to domain services or application layer, not inline in the route handler.
+## Typed contracts over dicts
+
+For important mutation flows, use typed models:
+- **Commands:** Immutable dataclasses representing "do X" requests
+- **Results:** Immutable dataclasses representing "X happened" responses
+- **Read models:** Typed dataclasses for cross-context data transfer
+- **Domain entities/VOs:** For invariant-carrying domain logic
+
+Dicts are acceptable only for:
+- Simple read-only query results that are pass-through to the API response
+- Configuration/settings bags
+- Truly schemaless data (LLM responses, parsed documents)
+
+## Forbidden patterns
+
+### No mutable global wiring
+
+```python
+# FORBIDDEN
+_wiring: dict = {}
+def set_withdrawal_getter(fn): _wiring["withdrawal_getter"] = fn
+
+# CORRECT — module-level import from application facade
+from operations.application.withdrawal_facade import validate_invoiceable
+```
+
+If a module-level import creates a circular dependency, that is a boundary design problem. Fix the boundary, not the import.
+
+### No infrastructure imports inside function bodies
+
+```python
+# FORBIDDEN
+async def create_invoice(cmd):
+    from finance.infrastructure.invoice_repo import insert_invoice_row
+    await insert_invoice_row(...)
+
+# CORRECT — module-level collaborator
+from finance.infrastructure.invoice_repo import invoice_repo
+
+async def create_invoice(cmd):
+    await invoice_repo.insert(...)
+```
+
+### No fake idempotency
+
+You may not call a flow "idempotent" unless you define:
+1. The dedupe key
+2. The DB constraint or state guard that enforces it
+3. What happens if the external side effect succeeds but the DB update fails
+4. What happens on client retry after success
+
+### No hidden cross-context ownership violations
+
+If finance code mutates the `withdrawals` table, that is a boundary violation regardless of whether it goes through a repo or raw SQL. Operations owns its data.
+
+## Decision rules
+
+### Port vs concrete repo
+
+Extract a port when ALL THREE are true:
+1. Multiple implementations exist or are plausible
+2. Consumers need test isolation from the dependency
+3. The abstraction boundary is stable (port signatures don't change with every repo change)
+
+Otherwise keep it concrete. Do not create ports that leak `conn`, return `dict`, or drift from the real implementation.
+
+### Domain vs application logic
+
+**Move to domain** when the logic is a pure computation on entity state with no IO.
+
+**Keep in application** when the logic coordinates multiple aggregates, requires IO, or is specific to one use case.
+
+### Split file vs keep together
+
+Split by dependency graph, not by endpoint or entity. If two functions share the same imports and collaborators, they belong together. If they have different dependency profiles, they should be in different files.
+
+## Idempotency design (required for all mutation + sync flows)
+
+For each mutation or external sync operation, explicitly define:
+1. **Operation boundary** — what constitutes one logical operation
+2. **Dedupe key** — what uniquely identifies this operation
+3. **Concurrency behavior** — what happens if two requests race
+4. **Partial-failure behavior** — what happens if step 3 of 5 fails
+5. **External-side-effect reconciliation** — how to recover if external API succeeds but DB update fails

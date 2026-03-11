@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter
 
+from identity.application.org_service import get_org_settings, upsert_org_settings
 from identity.domain.org_settings import OrgSettings, OrgSettingsUpdate
-from identity.infrastructure.org_settings_repo import get_org_settings, upsert_org_settings
 from shared.api.deps import AdminDep
 
 router = APIRouter(prefix="/settings", tags=["settings"])

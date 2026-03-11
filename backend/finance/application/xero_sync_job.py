@@ -12,9 +12,11 @@ import logging
 
 from finance.adapters.invoicing_factory import get_invoicing_gateway
 from finance.application.invoice_service import repost_cogs_for_invoice, sync_invoice
+from finance.application.po_sync_service import sync_po_bill
 from finance.infrastructure.credit_note_repo import credit_note_repo
 from finance.infrastructure.invoice_repo import invoice_repo
 from identity.application.org_service import get_org_settings
+from purchasing.application.queries import list_unsynced_po_bills
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ async def _sync_outbound_invoices(org_id: str) -> dict:
     unsynced = await invoice_repo.list_unsynced_invoices(org_id)
     results = {"synced": 0, "failed": 0, "errors": []}
     for inv in unsynced:
-        inv_id = inv["id"]
+        inv_id = inv.id
         try:
             result = await sync_invoice(inv_id, org_id)
             if result.get("success"):
@@ -38,7 +40,7 @@ async def _sync_outbound_invoices(org_id: str) -> dict:
                     {
                         "type": "invoice",
                         "id": inv_id,
-                        "number": inv.get("invoice_number"),
+                        "number": inv.invoice_number,
                         "error": result.get("error"),
                     }
                 )
@@ -55,16 +57,16 @@ async def _sync_outbound_credit_notes(org_id: str, gateway, settings) -> dict:
     unsynced = await credit_note_repo.list_unsynced_credit_notes(org_id)
     results = {"synced": 0, "failed": 0, "errors": []}
     for cn in unsynced:
-        cn_id = cn["id"]
+        cn_id = cn.id
         try:
             full_cn = await credit_note_repo.get_by_id(cn_id)
             if not full_cn:
                 continue
             result = await gateway.sync_credit_note(full_cn, settings)
-            if result.success and result.xero_invoice_id:
-                await credit_note_repo.set_xero_credit_note_id(cn_id, result.xero_invoice_id)
+            if result.success and result.external_id:
+                await credit_note_repo.set_xero_credit_note_id(cn_id, result.external_id)
                 results["synced"] += 1
-                logger.info("Credit note %s synced to Xero: %s", cn_id, result.xero_invoice_id)
+                logger.info("Credit note %s synced to Xero: %s", cn_id, result.external_id)
             else:
                 await credit_note_repo.set_credit_note_sync_status(cn_id, "failed")
                 results["failed"] += 1
@@ -72,7 +74,7 @@ async def _sync_outbound_credit_notes(org_id: str, gateway, settings) -> dict:
                     {
                         "type": "credit_note",
                         "id": cn_id,
-                        "number": cn.get("credit_note_number"),
+                        "number": cn.credit_note_number,
                         "error": result.error,
                     }
                 )
@@ -86,8 +88,6 @@ async def _sync_outbound_credit_notes(org_id: str, gateway, settings) -> dict:
 
 
 async def _sync_outbound_po_bills(org_id: str) -> dict:
-    from finance.application.po_sync_service import list_unsynced_po_bills, sync_po_bill
-
     unsynced = await list_unsynced_po_bills(org_id)
     results = {"synced": 0, "failed": 0, "errors": []}
     for po in unsynced:
@@ -119,7 +119,7 @@ async def _repost_stale_cogs(org_id: str) -> dict:
     stale = await invoice_repo.list_stale_cogs_invoices(org_id)
     results = {"reposted": 0, "failed": 0, "errors": []}
     for inv in stale:
-        inv_id = inv["id"]
+        inv_id = inv.id
         try:
             result = await repost_cogs_for_invoice(inv_id, org_id)
             if result.get("success"):
@@ -135,7 +135,7 @@ async def _repost_stale_cogs(org_id: str) -> dict:
                     {
                         "type": "cogs_repost",
                         "id": inv_id,
-                        "number": inv.get("invoice_number"),
+                        "number": inv.invoice_number,
                         "error": result.get("error"),
                     }
                 )
@@ -153,17 +153,14 @@ async def _reconcile_invoices(org_id: str, gateway, settings) -> dict:
     to_reconcile = await invoice_repo.list_invoices_needing_reconciliation(org_id)
     results = {"verified": 0, "mismatch": 0, "errors": []}
     for inv in to_reconcile:
-        inv_id = inv["id"]
-        xero_id = inv["xero_invoice_id"]
+        inv_id = inv.id
+        xero_id = inv.xero_invoice_id
         try:
             xero_data = await gateway.fetch_invoice(xero_id, settings)
             if not xero_data or xero_data.get("status") == "STUB":
                 continue
-            total_ok = (
-                abs(float(xero_data.get("total", 0)) - float(inv.get("total", 0)))
-                <= _TOTAL_TOLERANCE
-            )
-            line_ok = xero_data.get("line_count", 0) == inv.get("line_count", 0)
+            total_ok = abs(float(xero_data.get("total", 0)) - float(inv.total)) <= _TOTAL_TOLERANCE
+            line_ok = xero_data.get("line_count", 0) == inv.line_count
             if total_ok and line_ok:
                 results["verified"] += 1
             else:
@@ -173,19 +170,19 @@ async def _reconcile_invoices(org_id: str, gateway, settings) -> dict:
                     {
                         "type": "invoice_mismatch",
                         "id": inv_id,
-                        "number": inv.get("invoice_number"),
-                        "local_total": inv.get("total"),
+                        "number": inv.invoice_number,
+                        "local_total": inv.total,
                         "xero_total": xero_data.get("total"),
-                        "local_lines": inv.get("line_count"),
+                        "local_lines": inv.line_count,
                         "xero_lines": xero_data.get("line_count"),
                     }
                 )
                 logger.warning(
                     "Invoice %s mismatch: local total=%.2f xero total=%.2f lines=%s/%s",
                     inv_id,
-                    inv.get("total", 0),
+                    inv.total,
                     xero_data.get("total", 0),
-                    inv.get("line_count"),
+                    inv.line_count,
                     xero_data.get("line_count"),
                 )
         except Exception as e:
@@ -200,17 +197,14 @@ async def _reconcile_credit_notes(org_id: str, gateway, settings) -> dict:
     to_reconcile = await credit_note_repo.list_credit_notes_needing_reconciliation(org_id)
     results = {"verified": 0, "mismatch": 0, "errors": []}
     for cn in to_reconcile:
-        cn_id = cn["id"]
-        xero_id = cn["xero_credit_note_id"]
+        cn_id = cn.id
+        xero_id = cn.xero_credit_note_id
         try:
             xero_data = await gateway.fetch_credit_note(xero_id, settings)
             if not xero_data or xero_data.get("status") == "STUB":
                 continue
-            total_ok = (
-                abs(float(xero_data.get("total", 0)) - float(cn.get("total", 0)))
-                <= _TOTAL_TOLERANCE
-            )
-            line_ok = xero_data.get("line_count", 0) == cn.get("line_count", 0)
+            total_ok = abs(float(xero_data.get("total", 0)) - float(cn.total)) <= _TOTAL_TOLERANCE
+            line_ok = xero_data.get("line_count", 0) == cn.line_count
             if total_ok and line_ok:
                 results["verified"] += 1
             else:
@@ -220,15 +214,15 @@ async def _reconcile_credit_notes(org_id: str, gateway, settings) -> dict:
                     {
                         "type": "credit_note_mismatch",
                         "id": cn_id,
-                        "number": cn.get("credit_note_number"),
-                        "local_total": cn.get("total"),
+                        "number": cn.credit_note_number,
+                        "local_total": cn.total,
                         "xero_total": xero_data.get("total"),
                     }
                 )
                 logger.warning(
                     "Credit note %s mismatch: local=%.2f xero=%.2f",
                     cn_id,
-                    cn.get("total", 0),
+                    cn.total,
                     xero_data.get("total", 0),
                 )
         except Exception as e:

@@ -10,10 +10,10 @@ from shared.infrastructure.database import get_connection
 
 
 async def entries_exist(
-    reference_type: str, reference_id: str, conn=None, organization_id: str | None = None
+    reference_type: str, reference_id: str, organization_id: str | None = None
 ) -> bool:
     """Return True if any ledger rows already exist for this reference."""
-    c = conn or get_connection()
+    c = get_connection()
     params: list = [reference_type, reference_id]
     where = "WHERE reference_type = ? AND reference_id = ?"
     if organization_id:
@@ -26,9 +26,9 @@ async def entries_exist(
     return (await cursor.fetchone()) is not None
 
 
-async def insert_entries(entries: list[FinancialEntry], conn=None) -> None:
-    """Batch-insert ledger entries. Uses caller's conn if inside a transaction."""
-    c = conn or get_connection()
+async def insert_entries(entries: list[FinancialEntry]) -> None:
+    """Batch-insert ledger entries."""
+    c = get_connection()
     for e in entries:
         await c.execute(
             """INSERT INTO financial_ledger
@@ -58,8 +58,7 @@ async def insert_entries(entries: list[FinancialEntry], conn=None) -> None:
                 e.created_at,
             ),
         )
-    if conn is None:
-        await c.commit()
+    await c.commit()
 
 
 async def get_journal(journal_id: str, organization_id: str | None = None) -> list[dict]:

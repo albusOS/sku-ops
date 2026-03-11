@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kernel.entity import AuditedEntity
 
@@ -27,6 +27,7 @@ class Payment(AuditedEntity):
     notes: str | None = None
     recorded_by_id: str
     xero_payment_id: str | None = None
+    withdrawal_ids: list[str] = Field(default_factory=list)
 
 
 class PaymentCreate(BaseModel):

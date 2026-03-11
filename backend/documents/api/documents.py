@@ -1,11 +1,6 @@
 """Document parse/import routes."""
 
-import asyncio
-import json
 import logging
-import os
-import re
-import tempfile
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -26,50 +21,18 @@ from catalog.domain.barcode import validate_barcode
 from documents.application.import_parser import infer_uom as rule_infer_uom
 from documents.application.import_service import ImportDeps
 from documents.application.import_service import import_document as do_import_document
-from documents.domain.document import Document, DocumentImportRequest
-from documents.infrastructure.document_repo import document_repo
+from documents.application.parse_service import parse_document_with_ai
+from documents.application.queries import get_document_by_id
+from documents.application.queries import list_documents as query_list_documents
+from documents.domain.document import DocumentImportRequest
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
-from kernel.types import CurrentUser
 from shared.api.deps import AdminDep
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
-from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-
-_PARSE_MAX_RETRIES = 2
-_PARSE_RETRY_DELAYS = (5, 15)  # seconds on rate limit
-
-_DOCUMENT_PARSE_SYSTEM = load_prompt(__file__, "document_parse_prompt.md")
-
-
-async def _persist_parsed_document(
-    extracted: dict, filename: str, content_type: str, file_size: int, current_user: CurrentUser
-) -> dict:
-    """Save parsed document to the archive and return the extracted data with document_id."""
-    import hashlib
-
-    doc = Document(
-        filename=filename,
-        document_type="other",
-        vendor_name=extracted.get("vendor_name"),
-        file_hash=hashlib.sha256(filename.encode()).hexdigest()[:16],
-        file_size=file_size,
-        mime_type=content_type,
-        parsed_data=json.dumps(extracted),
-        status="parsed",
-        uploaded_by_id=current_user.id,
-        organization_id=current_user.organization_id,
-    )
-    try:
-        await document_repo.insert(doc)
-        extracted["document_id"] = doc.id
-    except (RuntimeError, OSError, ValueError) as e:
-        logger.warning("Failed to persist document record: %s", e)
-    return extracted
 
 
 @router.post("/parse")
@@ -89,85 +52,15 @@ async def parse_document(
             detail="OCR parsing is not available. Use use_ai=true with an Anthropic API key.",
         )
 
-    if not ANTHROPIC_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail=f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {LLM_SETUP_URL}",
-        )
-
     try:
-        is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
-
-        def _do_parse():
-            if is_pdf:
-                from assistant.application.llm import generate_with_pdf
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tf:
-                    tf.write(contents)
-                    temp_path = tf.name
-                try:
-                    return generate_with_pdf(
-                        "Extract all product and vendor information. Return only valid JSON.",
-                        temp_path,
-                        system_instruction=_DOCUMENT_PARSE_SYSTEM,
-                    )
-                finally:
-                    if os.path.exists(temp_path):
-                        os.unlink(temp_path)
-            else:
-                from assistant.application.llm import generate_with_image
-
-                return generate_with_image(
-                    "Extract all product and vendor information. Return only valid JSON.",
-                    contents,
-                    system_instruction=_DOCUMENT_PARSE_SYSTEM,
-                )
-
-        response = None
-        for attempt in range(_PARSE_MAX_RETRIES + 1):
-            try:
-                response = await asyncio.to_thread(_do_parse)
-                break
-            except ValueError as e:
-                if "rate limit" in str(e).lower() and attempt < _PARSE_MAX_RETRIES:
-                    delay = _PARSE_RETRY_DELAYS[attempt]
-                    logger.info("Rate limit, retrying in %ss (attempt %d)", delay, attempt + 1)
-                    await asyncio.sleep(delay)
-                else:
-                    raise
-
-        if not response or not str(response).strip():
-            raise HTTPException(
-                status_code=500,
-                detail="Claude returned no content. The document may be unreadable or blocked.",
-            )
-
-        json_match = re.search(r"\{[\s\S]*\}", response)
-        extracted = json.loads(json_match.group()) if json_match else json.loads(response)
-
-        for p in extracted.get("products", []):
-            qty = p.get("quantity", 1)
-            # Backfill PO fields from quantity (schema no longer asks LLM for these)
-            p.setdefault("ordered_qty", qty)
-            p.setdefault("delivered_qty", qty)
-            if p["ordered_qty"] is None:
-                p["ordered_qty"] = qty
-            if p["delivered_qty"] is None:
-                p["delivered_qty"] = qty
-            # Signal downstream: skip redundant LLM re-enrichment
-            p["_ai_parsed"] = True
-
-        return await _persist_parsed_document(
-            extracted, filename, content_type, len(contents), current_user
-        )
-    except json.JSONDecodeError as e:
-        logger.exception("Document parse JSON error")
-        raise HTTPException(status_code=422, detail="Could not parse document data") from e
-    except HTTPException:
-        raise
+        return await parse_document_with_ai(contents, content_type, filename, current_user)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:
-        logger.warning("Document parse: %s", e)
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        detail = str(e)
+        if "no content" in detail.lower():
+            raise HTTPException(status_code=500, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
     except Exception as e:
         logger.exception("Document parse error")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -183,7 +76,7 @@ async def list_documents(
     offset: int = 0,
 ):
     """List uploaded/parsed documents."""
-    return await document_repo.list_documents(
+    return await query_list_documents(
         organization_id=current_user.organization_id,
         status=status,
         vendor_name=vendor_name,
@@ -195,10 +88,8 @@ async def list_documents(
 
 @router.get("/{doc_id}")
 async def get_document(doc_id: str, current_user: AdminDep):
-    doc = await document_repo.get_by_id(doc_id, current_user.organization_id)
+    doc = await get_document_by_id(doc_id, current_user.organization_id)
     if not doc:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
 

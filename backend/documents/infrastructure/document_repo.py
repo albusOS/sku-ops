@@ -2,29 +2,32 @@
 
 import contextlib
 import json
-from datetime import UTC
+from datetime import UTC, datetime
 
 from documents.domain.document import Document
 from shared.infrastructure.database import get_connection
 
 
-def _row_to_dict(row) -> dict | None:
+def _row_to_model(row) -> Document | None:
     if row is None:
         return None
     d = dict(row) if hasattr(row, "keys") else {}
-    if d and "parsed_data" in d and isinstance(d["parsed_data"], str):
+    if not d:
+        return None
+    if "parsed_data" in d and isinstance(d["parsed_data"], str):
         with contextlib.suppress(json.JSONDecodeError, TypeError):
             d["parsed_data"] = json.loads(d["parsed_data"])
-    return d
+    if d.get("parsed_data") and not isinstance(d["parsed_data"], str):
+        d["parsed_data"] = json.dumps(d["parsed_data"])
+    return Document.model_validate(d)
 
 
 _COLUMNS = "id, filename, document_type, vendor_name, file_hash, file_size, mime_type, parsed_data, po_id, status, uploaded_by_id, organization_id, created_at, updated_at"
 
 
-async def insert(doc: Document | dict, conn=None) -> None:
+async def insert(doc: Document | dict) -> None:
     d = doc if isinstance(doc, dict) else doc.model_dump()
-    in_tx = conn is not None
-    conn = conn or get_connection()
+    conn = get_connection()
     parsed = d.get("parsed_data")
     if parsed and not isinstance(parsed, str):
         parsed = json.dumps(parsed)
@@ -48,17 +51,16 @@ async def insert(doc: Document | dict, conn=None) -> None:
             d["updated_at"],
         ),
     )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
-async def get_by_id(doc_id: str, organization_id: str) -> dict | None:
+async def get_by_id(doc_id: str, organization_id: str) -> Document | None:
     conn = get_connection()
     cursor = await conn.execute(
         "SELECT " + _COLUMNS + " FROM documents WHERE id = ? AND organization_id = ?",
         (doc_id, organization_id),
     )
-    return _row_to_dict(await cursor.fetchone())
+    return _row_to_model(await cursor.fetchone())
 
 
 async def list_documents(
@@ -68,7 +70,7 @@ async def list_documents(
     po_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
-) -> list:
+) -> list[Document]:
     conn = get_connection()
     sql = "SELECT " + _COLUMNS + " FROM documents WHERE organization_id = ?"
     params: list = [organization_id]
@@ -84,14 +86,11 @@ async def list_documents(
     sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
     cursor = await conn.execute(sql, params)
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
-async def update_status(doc_id: str, status: str, po_id: str | None = None, conn=None) -> None:
-    from datetime import datetime
-
-    in_tx = conn is not None
-    conn = conn or get_connection()
+async def update_status(doc_id: str, status: str, po_id: str | None = None) -> None:
+    conn = get_connection()
     if po_id:
         await conn.execute(
             "UPDATE documents SET status = ?, po_id = ?, updated_at = ? WHERE id = ?",
@@ -102,8 +101,7 @@ async def update_status(doc_id: str, status: str, po_id: str | None = None, conn
             "UPDATE documents SET status = ?, updated_at = ? WHERE id = ?",
             (status, datetime.now(UTC).isoformat(), doc_id),
         )
-    if not in_tx:
-        await conn.commit()
+    await conn.commit()
 
 
 class DocumentRepo:

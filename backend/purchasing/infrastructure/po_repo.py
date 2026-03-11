@@ -95,15 +95,7 @@ class PgPORepo(PORepoPort):
     async def get_po_items(self, po_id: str) -> list[dict]:
         conn = get_connection()
         cursor = await conn.execute(
-            """SELECT poi.*,
-                      p.quantity AS matched_quantity,
-                      p.sku      AS matched_sku,
-                      p.name     AS matched_name,
-                      p.cost     AS matched_cost
-               FROM purchase_order_items poi
-               LEFT JOIN products p ON p.id = poi.product_id
-               WHERE poi.po_id = ?
-               ORDER BY poi.id""",
+            "SELECT * FROM purchase_order_items WHERE po_id = ? ORDER BY id",
             (po_id,),
         )
         rows = await cursor.fetchall()
@@ -174,6 +166,60 @@ class PgPORepo(PORepoPort):
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    async def get_po_with_cost(self, po_id: str, org_id: str) -> dict | None:
+        """Get PO with computed cost_total and items for Xero sync."""
+        conn = get_connection()
+        cursor = await conn.execute(
+            "SELECT * FROM purchase_orders WHERE id = ? AND organization_id = ?",
+            (po_id, org_id),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        po = dict(row)
+        cursor = await conn.execute(
+            "SELECT SUM(cost * COALESCE(delivered_qty, ordered_qty)) FROM purchase_order_items WHERE po_id = ?",
+            (po_id,),
+        )
+        total_row = await cursor.fetchone()
+        po["cost_total"] = float(total_row[0] or 0) if total_row else 0.0
+        cursor = await conn.execute(
+            """SELECT name, COALESCE(delivered_qty, ordered_qty) AS qty, cost
+               FROM purchase_order_items WHERE po_id = ?""",
+            (po_id,),
+        )
+        item_rows = await cursor.fetchall()
+        po["items"] = [dict(r) for r in item_rows]
+        return po
+
+    async def set_xero_sync_status(self, po_id: str, status: str, updated_at: str) -> None:
+        conn = get_connection()
+        await conn.execute(
+            "UPDATE purchase_orders SET xero_sync_status = ?, updated_at = ? WHERE id = ?",
+            (status, updated_at, po_id),
+        )
+        await conn.commit()
+
+    async def summary_by_status(self, org_id: str) -> dict[str, dict]:
+        """Return {status: {count, total}} for all POs in the org."""
+        conn = get_connection()
+        cursor = await conn.execute(
+            """SELECT status, COUNT(*) as cnt, COALESCE(SUM(total), 0) as total
+               FROM purchase_orders WHERE organization_id = ?
+               GROUP BY status""",
+            (org_id,),
+        )
+        rows = await cursor.fetchall()
+        return {r["status"]: {"count": r["cnt"], "total": float(r["total"])} for r in rows}
+
+    async def set_xero_bill_id(self, po_id: str, xero_bill_id: str, updated_at: str) -> None:
+        conn = get_connection()
+        await conn.execute(
+            "UPDATE purchase_orders SET xero_bill_id = ?, xero_sync_status = 'synced', updated_at = ? WHERE id = ?",
+            (xero_bill_id, updated_at, po_id),
+        )
+        await conn.commit()
 
 
 po_repo = PgPORepo()

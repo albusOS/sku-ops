@@ -174,7 +174,7 @@ def _load_agent_model() -> str:
     try:
         import yaml
 
-        _yaml_path = PROJECT_ROOT / "models.yaml"
+        _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
         if _yaml_path.exists():
             data = yaml.safe_load(_yaml_path.read_text()) or {}
             model = (data.get("primary") or "").strip()
