@@ -48,3 +48,19 @@ dependencies = [
     "sentry-sdk[fastapi]>=1.40.0",
     "redis>=7.3.0",
 ]
+
+[tool.setuptools.packages.find]
+include = [
+    "shared*",
+    "identity*",
+    "catalog*",
+    "inventory*",
+    "operations*",
+    "purchasing*",
+    "finance*",
+    "documents*",
+    "assistant*",
+    "reports*",
+    "jobs*",
+    "api*",
+]
