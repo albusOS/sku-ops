@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ReceiveReviewModal } from "@/components/ReceiveReviewModal";
 import { usePurchaseOrders, useMarkDelivery, useReceivePO } from "@/hooks/usePurchaseOrders";
@@ -44,7 +45,7 @@ export default function PurchaseOrders() {
     [statusFilter],
   );
 
-  const { data: orders = [], isLoading } = usePurchaseOrders(params);
+  const { data: orders = [], isLoading, isError, error, refetch } = usePurchaseOrders(params);
   const { data: departments = [] } = useDepartments();
   const markDelivery = useMarkDelivery();
   const receivePO = useReceivePO();
@@ -159,6 +160,7 @@ export default function PurchaseOrders() {
   };
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="purchase-orders-page">

@@ -1,17 +1,14 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-
-const DEFAULT_FORMATS = [
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.QR_CODE,
-];
+import { BrowserMultiFormatReader } from "@zxing/browser";
+import { NotFoundException } from "@zxing/library";
 
 const DEBOUNCE_MS = 500;
 
 /**
- * Manages camera lifecycle for barcode scanning via html5-qrcode.
+ * Manages camera lifecycle for barcode/QR scanning via @zxing/browser.
+ *
+ * Supports UPC-A, EAN-13, CODE-128, QR and more via BrowserMultiFormatReader.
+ * Works on iOS Safari, Chrome Android, and desktop browsers.
  *
  * Does NOT perform product lookup — it only decodes barcodes and
  * calls onScan(code). Wire onScan to useBarcodeScanner.submit(code)
@@ -19,16 +16,16 @@ const DEBOUNCE_MS = 500;
  *
  * @param {object} options
  * @param {(code: string) => void} options.onScan - decoded barcode string
- * @param {Array} [options.formats] - Html5QrcodeSupportedFormats array
  */
-export function useCameraScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
-  const scannerRef = useRef(null);
+export function useCameraScanner({ onScan } = {}) {
+  const readerRef = useRef(null);
+  const controlsRef = useRef(null);
+  const videoRef = useRef(null);
   const lastCodeRef = useRef(null);
   const lastTimeRef = useRef(0);
   const onScanRef = useRef(onScan);
   const [active, setActive] = useState(false);
   const [error, setError] = useState(null);
-  const elementId = useRef(`camera-scanner-${Math.random().toString(36).slice(2, 8)}`);
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -36,75 +33,78 @@ export function useCameraScanner({ onScan, formats = DEFAULT_FORMATS } = {}) {
 
   const stop = useCallback(async () => {
     try {
-      if (scannerRef.current) {
-        const state = scannerRef.current.getState();
-        if (state === 2) await scannerRef.current.stop();
-        scannerRef.current.clear();
-        scannerRef.current = null;
+      if (controlsRef.current) {
+        controlsRef.current.stop();
+        controlsRef.current = null;
       }
     } catch {
-      scannerRef.current = null;
+      controlsRef.current = null;
     }
+    readerRef.current = null;
     setActive(false);
   }, []);
 
   const start = useCallback(async () => {
     setError(null);
 
-    if (scannerRef.current) await stop();
+    if (controlsRef.current) await stop();
 
-    const el = document.getElementById(elementId.current);
-    if (!el) {
-      setError("Scanner element not found");
+    if (!videoRef.current) {
+      setError("Scanner element not ready");
       return;
     }
 
     try {
-      const scanner = new Html5Qrcode(elementId.current, {
-        formatsToSupport: formats,
-        verbose: false,
-      });
-      scannerRef.current = scanner;
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
 
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.333 },
-        (decodedText) => {
-          const now = Date.now();
-          if (decodedText === lastCodeRef.current && now - lastTimeRef.current < DEBOUNCE_MS)
-            return;
-          lastCodeRef.current = decodedText;
-          lastTimeRef.current = now;
-          onScanRef.current?.(decodedText);
+      const controls = await reader.decodeFromConstraints(
+        { video: { facingMode: "environment" } },
+        videoRef.current,
+        (result, err) => {
+          if (result) {
+            const code = result.getText();
+            const now = Date.now();
+            if (code === lastCodeRef.current && now - lastTimeRef.current < DEBOUNCE_MS) return;
+            lastCodeRef.current = code;
+            lastTimeRef.current = now;
+            onScanRef.current?.(code);
+          } else if (err && !(err instanceof NotFoundException)) {
+            // NotFoundException is thrown every frame when no barcode is found — expected, not an error
+          }
         },
       );
 
+      controlsRef.current = controls;
       setActive(true);
     } catch (err) {
-      scannerRef.current = null;
-      const msg = typeof err === "string" ? err : err?.message || "Camera not available";
-      if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
+      controlsRef.current = null;
+      readerRef.current = null;
+      const msg = err?.message || String(err) || "Camera not available";
+      if (msg.includes("NotAllowedError") || msg.includes("Permission") || msg.includes("denied")) {
         setError("Camera permission denied. Allow camera access in your browser settings.");
+      } else if (msg.includes("NotFoundError") || msg.includes("no camera")) {
+        setError("No camera found on this device.");
+      } else if (msg.includes("NotReadableError") || msg.includes("in use")) {
+        setError("Camera is in use by another app. Close other apps and try again.");
       } else {
-        setError(msg);
+        setError(`Camera error: ${msg}`);
       }
     }
-  }, [formats, stop]);
+  }, [stop]);
 
   useEffect(() => {
     return () => {
-      if (scannerRef.current) {
+      if (controlsRef.current) {
         try {
-          const state = scannerRef.current.getState();
-          if (state === 2) scannerRef.current.stop();
-          scannerRef.current.clear();
+          controlsRef.current.stop();
         } catch {
           /* unmount cleanup — best effort */
         }
-        scannerRef.current = null;
+        controlsRef.current = null;
       }
     };
   }, []);
 
-  return { elementId: elementId.current, start, stop, active, error };
+  return { videoRef, start, stop, active, error };
 }

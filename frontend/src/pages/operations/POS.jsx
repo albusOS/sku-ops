@@ -15,6 +15,7 @@ import { Search, Trash2, Check, HardHat, Clock, Loader2, ScanLine, Plus } from "
 import { JobPicker } from "@/components/JobPicker";
 import { AddressPicker } from "@/components/AddressPicker";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { QuantityControl } from "@/components/QuantityControl";
 import { useProducts } from "@/hooks/useProducts";
 import { useContractors } from "@/hooks/useContractors";
@@ -31,8 +32,20 @@ const IssueMaterials = () => {
   const dropdownRef = useRef(null);
 
   const isContractor = user?.role === ROLES.CONTRACTOR;
-  const { data: productsData, isLoading: productsLoading } = useProducts();
-  const { data: contractorsData, isLoading: contractorsLoading } = useContractors();
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+    error: productsErr,
+    refetch: refetchProducts,
+  } = useProducts();
+  const {
+    data: contractorsData,
+    isLoading: contractorsLoading,
+    isError: contractorsError,
+    error: contractorsErr,
+    refetch: refetchContractors,
+  } = useContractors();
   const createWithdrawal = useCreateWithdrawal();
   const createForContractor = useCreateWithdrawalForContractor();
 
@@ -200,6 +213,9 @@ const IssueMaterials = () => {
   };
 
   if (productsLoading || (!isContractor && contractorsLoading)) return <PageSkeleton />;
+  if (productsError) return <QueryError error={productsErr} onRetry={refetchProducts} />;
+  if (!isContractor && contractorsError)
+    return <QueryError error={contractorsErr} onRetry={refetchContractors} />;
 
   return (
     <>

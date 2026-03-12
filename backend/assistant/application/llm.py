@@ -114,7 +114,12 @@ def generate_with_image(
             raise ValueError("Anthropic rate limit hit. Try again in a minute.") from e
         if "authentication" in err or "api_key" in err:
             raise ValueError("Invalid ANTHROPIC_API_KEY. Check backend/.env") from e
-        raise
+        if "model" in err or "invalid_request" in err or "not_found" in err or "400" in err:
+            raise ValueError(
+                f"Anthropic model error (model={ANTHROPIC_MODEL}): {e}. "
+                "Check ANTHROPIC_MODEL in your environment."
+            ) from e
+        raise ValueError(f"Anthropic API error: {e}") from e
 
 
 def generate_with_pdf(
@@ -148,10 +153,11 @@ def generate_with_pdf(
                     ],
                 }
             ],
+            "betas": ["pdfs-2024-09-25"],
         }
         if system_instruction:
             kwargs["system"] = system_instruction
-        response = client.messages.create(**kwargs)
+        response = client.beta.messages.create(**kwargs)
         return response.content[0].text
     except Exception as e:
         err = str(e).lower()
@@ -159,4 +165,9 @@ def generate_with_pdf(
             raise ValueError("Anthropic rate limit hit. Try again in a minute.") from e
         if "authentication" in err or "api_key" in err:
             raise ValueError("Invalid ANTHROPIC_API_KEY. Check backend/.env") from e
-        raise
+        if "model" in err or "invalid_request" in err or "not_found" in err or "400" in err:
+            raise ValueError(
+                f"Anthropic model error (model={ANTHROPIC_MODEL}): {e}. "
+                "Check ANTHROPIC_MODEL in your environment."
+            ) from e
+        raise ValueError(f"Anthropic API error: {e}") from e

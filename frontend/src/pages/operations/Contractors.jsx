@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EntityFormDialog } from "@/components/EntityFormDialog";
 import { ROLES } from "@/lib/constants";
@@ -93,7 +94,7 @@ const Contractors = () => {
   });
   const [search, setSearch] = useState("");
 
-  const { data: contractors = [], isLoading } = useContractors(search);
+  const { data: contractors = [], isLoading, isError, error, refetch } = useContractors(search);
   const createMutation = useCreateContractor();
   const updateMutation = useUpdateContractor();
   const deleteMutation = useDeleteContractor();
@@ -151,6 +152,7 @@ const Contractors = () => {
   };
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="contractors-page">

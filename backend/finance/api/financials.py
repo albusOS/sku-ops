@@ -7,15 +7,18 @@ Export still reads individual withdrawals for line-level CSV output.
 import asyncio
 import csv
 import io
+import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from finance.application import ledger_queries as ledger_repo
 from operations.application.queries import list_withdrawals
 from shared.api.deps import AdminDep
 from shared.kernel.types import round_money
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/financials", tags=["financials"])
 
@@ -27,19 +30,25 @@ async def get_financial_summary(
     end_date: str | None = None,
 ):
     """P&L summary sourced from the financial ledger."""
-    (
-        accounts,
-        by_department,
-        by_entity_rows,
-        by_contractor_rows,
-        counts,
-    ) = await asyncio.gather(
-        ledger_repo.summary_by_account(start_date=start_date, end_date=end_date),
-        ledger_repo.summary_by_department(start_date=start_date, end_date=end_date),
-        ledger_repo.summary_by_billing_entity(start_date=start_date, end_date=end_date),
-        ledger_repo.summary_by_contractor(start_date=start_date, end_date=end_date),
-        ledger_repo.reference_counts(start_date=start_date, end_date=end_date),
-    )
+    try:
+        (
+            accounts,
+            by_department,
+            by_entity_rows,
+            by_contractor_rows,
+            counts,
+        ) = await asyncio.gather(
+            ledger_repo.summary_by_account(start_date=start_date, end_date=end_date),
+            ledger_repo.summary_by_department(start_date=start_date, end_date=end_date),
+            ledger_repo.summary_by_billing_entity(start_date=start_date, end_date=end_date),
+            ledger_repo.summary_by_contractor(start_date=start_date, end_date=end_date),
+            ledger_repo.reference_counts(start_date=start_date, end_date=end_date),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_financial_summary")
+        raise
 
     revenue = accounts.get("revenue", 0)
     cogs = accounts.get("cogs", 0)
@@ -96,13 +105,19 @@ async def export_financials(
     end_date: str | None = None,
 ):
     """Export financial data as CSV (line-level, from operational tables)."""
-    withdrawals = await list_withdrawals(
-        payment_status=payment_status,
-        billing_entity=billing_entity,
-        start_date=start_date,
-        end_date=end_date,
-        limit=10000,
-    )
+    try:
+        withdrawals = await list_withdrawals(
+            payment_status=payment_status,
+            billing_entity=billing_entity,
+            start_date=start_date,
+            end_date=end_date,
+            limit=10000,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in export_financials")
+        raise
 
     output = io.StringIO()
     writer = csv.writer(output)

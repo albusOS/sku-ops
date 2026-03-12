@@ -3,12 +3,19 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HardHat, Package, Clock, AlertTriangle } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { useMaterialRequests, useProcessMaterialRequest } from "@/hooks/useMaterialRequests";
 import { getErrorMessage } from "@/lib/api-client";
 import { ProcessRequestModal } from "./_ProcessRequestModal";
 
 const PendingRequests = () => {
-  const { data: allRequests, isLoading } = useMaterialRequests(undefined, {
+  const {
+    data: allRequests,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useMaterialRequests(undefined, {
     refetchInterval: 30000,
   });
   const processRequest = useProcessMaterialRequest();
@@ -67,6 +74,7 @@ const PendingRequests = () => {
   const ageHours = (dateStr) => (Date.now() - new Date(dateStr).getTime()) / 3600000;
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="pending-requests-page">

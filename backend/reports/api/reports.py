@@ -3,7 +3,9 @@
 Thin controllers — all computation delegated to reports/application/report_queries.py.
 """
 
-from fastapi import APIRouter
+import logging
+
+from fastapi import APIRouter, HTTPException
 
 from reports.application.report_queries import (
     ar_aging_report,
@@ -20,6 +22,8 @@ from reports.application.report_queries import (
 )
 from shared.api.deps import AdminDep
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
@@ -32,18 +36,30 @@ async def get_sales_report(
     department: str | None = None,
     billing_entity: str | None = None,
 ):
-    return await sales_report(
-        start_date=start_date,
-        end_date=end_date,
-        job_id=job_id,
-        department=department,
-        billing_entity=billing_entity,
-    )
+    try:
+        return await sales_report(
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_sales_report")
+        raise
 
 
 @router.get("/inventory")
 async def get_inventory_report(current_user: AdminDep):
-    return await inventory_report()
+    try:
+        return await inventory_report()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_inventory_report")
+        raise
 
 
 @router.get("/trends")
@@ -57,14 +73,20 @@ async def get_trends_report(
     billing_entity: str | None = None,
 ):
     """Revenue/cost/profit trends from the ledger."""
-    return await trends_report(
-        start_date=start_date,
-        end_date=end_date,
-        group_by=group_by,
-        job_id=job_id,
-        department=department,
-        billing_entity=billing_entity,
-    )
+    try:
+        return await trends_report(
+            start_date=start_date,
+            end_date=end_date,
+            group_by=group_by,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_trends_report")
+        raise
 
 
 @router.get("/product-margins")
@@ -77,14 +99,20 @@ async def get_product_margins(
     department: str | None = None,
     billing_entity: str | None = None,
 ):
-    return await product_margins_report(
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-        job_id=job_id,
-        department=department,
-        billing_entity=billing_entity,
-    )
+    try:
+        return await product_margins_report(
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_product_margins")
+        raise
 
 
 @router.get("/job-pl")
@@ -97,13 +125,19 @@ async def get_job_pl(
     search: str | None = None,
 ):
     """Per-job P&L from the ledger."""
-    return await job_pl_report(
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-        offset=offset,
-        search=search,
-    )
+    try:
+        return await job_pl_report(
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+            search=search,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_job_pl")
+        raise
 
 
 @router.get("/pl")
@@ -120,17 +154,23 @@ async def get_pl(
     billing_entity: str | None = None,
 ):
     """Unified P&L endpoint. group_by: overall | job | contractor | department | entity | product."""
-    return await pl_report(
-        group_by=group_by,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-        offset=offset,
-        search=search,
-        job_id=job_id,
-        department=department,
-        billing_entity=billing_entity,
-    )
+    try:
+        return await pl_report(
+            group_by=group_by,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+            search=search,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_pl")
+        raise
 
 
 @router.get("/ar-aging")
@@ -140,7 +180,13 @@ async def get_ar_aging(
     end_date: str | None = None,
 ):
     """Accounts receivable aging buckets by billing entity."""
-    return await ar_aging_report(start_date=start_date, end_date=end_date)
+    try:
+        return await ar_aging_report(start_date=start_date, end_date=end_date)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_ar_aging")
+        raise
 
 
 @router.get("/kpis")
@@ -152,13 +198,19 @@ async def get_kpis(
     department: str | None = None,
     billing_entity: str | None = None,
 ):
-    return await kpi_report(
-        start_date=start_date,
-        end_date=end_date,
-        job_id=job_id,
-        department=department,
-        billing_entity=billing_entity,
-    )
+    try:
+        return await kpi_report(
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            department=department,
+            billing_entity=billing_entity,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_kpis")
+        raise
 
 
 @router.get("/product-performance")
@@ -168,11 +220,17 @@ async def get_product_performance(
     end_date: str | None = None,
     limit: int = 200,
 ):
-    return await product_performance_report(
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-    )
+    try:
+        return await product_performance_report(
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_product_performance")
+        raise
 
 
 @router.get("/reorder-urgency")
@@ -182,7 +240,13 @@ async def get_reorder_urgency(
     limit: int = 50,
 ):
     """Products ranked by days-until-stockout using withdrawal velocity."""
-    return await reorder_urgency_report(days=days, limit=limit)
+    try:
+        return await reorder_urgency_report(days=days, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_reorder_urgency")
+        raise
 
 
 @router.get("/product-activity")
@@ -192,4 +256,10 @@ async def get_product_activity(
     days: int = 365,
 ):
     """Daily withdrawal activity heatmap data. Optional product_id filter."""
-    return await product_activity_report(product_id=product_id, days=days)
+    try:
+        return await product_activity_report(product_id=product_id, days=days)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_product_activity")
+        raise

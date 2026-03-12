@@ -38,7 +38,7 @@ export default defineConfig({
           "vendor-react": ["react", "react-dom", "react-router-dom"],
           "vendor-query": ["@tanstack/react-query"],
           echarts: ["echarts", "echarts-for-react"],
-          "barcode-scanner": ["html5-qrcode"],
+          "barcode-scanner": ["@zxing/browser", "@zxing/library"],
         },
       },
     },

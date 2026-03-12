@@ -114,7 +114,10 @@ async def parse_document_with_ai(
             response = await asyncio.to_thread(_do_parse)
             break
         except ValueError as e:
-            if "rate limit" in str(e).lower() and attempt < _PARSE_MAX_RETRIES:
+            err_lower = str(e).lower()
+            if (
+                "rate limit" in err_lower or "overloaded" in err_lower
+            ) and attempt < _PARSE_MAX_RETRIES:
                 delay = _PARSE_RETRY_DELAYS[attempt]
                 logger.info("Rate limit, retrying in %ss (attempt %d)", delay, attempt + 1)
                 await asyncio.sleep(delay)
@@ -125,7 +128,16 @@ async def parse_document_with_ai(
         raise ValueError("Claude returned no content. The document may be unreadable or blocked.")
 
     json_match = re.search(r"\{[\s\S]*\}", response)
-    extracted = json.loads(json_match.group()) if json_match else json.loads(response)
+    try:
+        extracted = json.loads(json_match.group()) if json_match else json.loads(response)
+    except (json.JSONDecodeError, AttributeError) as e:
+        logger.warning(
+            "Failed to parse Claude response as JSON: %s\nResponse preview: %.200s", e, response
+        )
+        raise ValueError(
+            "Could not extract structured data from the document. "
+            "The file may be too complex, low quality, or not a recognized vendor invoice format."
+        ) from e
 
     for p in extracted.get("products", []):
         qty = p.get("quantity", 1)

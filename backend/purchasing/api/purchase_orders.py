@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
@@ -38,7 +38,6 @@ from shared.infrastructure import event_hub
 from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
 from shared.kernel import events
-from shared.kernel.errors import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +129,7 @@ async def get_purchase_order(
     """Get a purchase order with all its items."""
     po = await get_po(po_id)
     if not po:
-        raise ResourceNotFoundError("PurchaseOrder", po_id)
+        raise HTTPException(status_code=404, detail=f"Purchase order not found: {po_id}")
     items = await get_po_items(po_id)
     return {**po, "items": items}
 

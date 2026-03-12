@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Plus, Printer, Package, Layers, X } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { PageHeader } from "@/components/PageHeader";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
 import { BarcodeLabelsModal } from "@/components/BarcodeLabelsModal";
@@ -40,9 +41,13 @@ const InventoryPage = () => {
   const deleteMutation = useDeleteProduct();
   const assignGroupMutation = useAssignGroup();
 
-  const { data: productsData, isLoading: productsLoading } = useProducts({
-    limit: 500,
-  });
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+    error: productsErr,
+    refetch: refetchProducts,
+  } = useProducts({ limit: 500 });
   const { data: departments = [], isLoading: deptsLoading } = useDepartments();
   const { data: vendors = [] } = useVendors();
 
@@ -267,6 +272,9 @@ const InventoryPage = () => {
 
   if (loading) {
     return <PageSkeleton />;
+  }
+  if (productsError) {
+    return <QueryError error={productsErr} onRetry={refetchProducts} />;
   }
 
   return (

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Trash2, ShoppingCart, Send, Barcode } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { QuantityControl } from "@/components/QuantityControl";
 import { useProducts } from "@/hooks/useProducts";
 import { useDepartments } from "@/hooks/useDepartments";
@@ -46,9 +47,21 @@ const RequestMaterials = () => {
     search: search || undefined,
     department_id: selectedDept !== "all" ? selectedDept : undefined,
   };
-  const { data: productsData, isLoading: productsLoading } = useProducts(productParams);
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isError: productsError,
+    error: productsErr,
+    refetch: refetchProducts,
+  } = useProducts(productParams);
   const { data: allProductsData } = useProducts();
-  const { data: departmentsData, isLoading: deptsLoading } = useDepartments();
+  const {
+    data: departmentsData,
+    isLoading: deptsLoading,
+    isError: deptsError,
+    error: deptsErr,
+    refetch: refetchDepts,
+  } = useDepartments();
   const createRequest = useCreateMaterialRequest();
 
   const departments = departmentsData || [];
@@ -105,6 +118,8 @@ const RequestMaterials = () => {
   };
 
   if (productsLoading && deptsLoading) return <PageSkeleton />;
+  if (productsError) return <QueryError error={productsErr} onRetry={refetchProducts} />;
+  if (deptsError) return <QueryError error={deptsErr} onRetry={refetchDepts} />;
 
   return (
     <div className="flex h-screen" data-testid="request-materials-page">

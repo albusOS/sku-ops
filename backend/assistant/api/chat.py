@@ -6,6 +6,7 @@ where WebSocket connections are unreliable (e.g. some corporate proxies).
 """
 
 import asyncio
+import logging
 import uuid
 
 from fastapi import APIRouter
@@ -20,6 +21,8 @@ from shared.infrastructure.config import (
     OPENROUTER_AVAILABLE,
     SESSION_COST_CAP,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 
@@ -109,6 +112,16 @@ async def chat_assistant(
             "agent": None,
             "session_id": session_id,
             "usage": {"cost_usd": 0, "timed_out": True},
+        }
+    except Exception:
+        logger.exception("Unexpected error in chat_assistant")
+        return {
+            "response": "Sorry, something went wrong processing your request. Please try again.",
+            "tool_calls": [],
+            "thinking": [],
+            "agent": None,
+            "session_id": session_id,
+            "usage": {"cost_usd": 0, "error": True},
         }
 
     agent_history = result.pop("history", [])

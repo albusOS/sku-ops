@@ -1,6 +1,8 @@
 """Dashboard stats routes — thin controllers delegating to application layer."""
 
-from fastapi import APIRouter, Query
+import logging
+
+from fastapi import APIRouter, HTTPException, Query
 
 from reports.application.dashboard_queries import (
     admin_dashboard,
@@ -8,6 +10,8 @@ from reports.application.dashboard_queries import (
     dashboard_transactions,
 )
 from shared.api.deps import AdminDep, CurrentUserDep
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -18,9 +22,17 @@ async def get_dashboard_stats(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
 ):
-    if current_user.role == "contractor":
-        return await contractor_dashboard(current_user.id, start_date=start_date, end_date=end_date)
-    return await admin_dashboard(start_date=start_date, end_date=end_date)
+    try:
+        if current_user.role == "contractor":
+            return await contractor_dashboard(
+                current_user.id, start_date=start_date, end_date=end_date
+            )
+        return await admin_dashboard(start_date=start_date, end_date=end_date)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_dashboard_stats")
+        raise
 
 
 @router.get("/transactions")
@@ -34,11 +46,17 @@ async def get_dashboard_transactions(
     payment_status: str | None = Query(None),
 ):
     """Paginated transactions for the dashboard. Supports date range + filters."""
-    return await dashboard_transactions(
-        limit=limit,
-        offset=offset,
-        start_date=start_date,
-        end_date=end_date,
-        contractor_id=contractor_id,
-        payment_status=payment_status,
-    )
+    try:
+        return await dashboard_transactions(
+            limit=limit,
+            offset=offset,
+            start_date=start_date,
+            end_date=end_date,
+            contractor_id=contractor_id,
+            payment_status=payment_status,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_dashboard_transactions")
+        raise

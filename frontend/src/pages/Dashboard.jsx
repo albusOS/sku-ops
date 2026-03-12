@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, DATE_PRESETS } from "@/lib/constants";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { StatCard } from "@/components/StatCard";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -76,7 +77,7 @@ const Dashboard = () => {
     return p;
   }, [dateRange]);
 
-  const { data: stats, isLoading } = useDashboardStats(statsParams);
+  const { data: stats, isLoading, isError, error, refetch } = useDashboardStats(statsParams);
 
   // Derive pending-request count from the materialRequests cache so it stays
   // in sync with the real-time invalidations on keys.materialRequests.all.
@@ -102,6 +103,7 @@ const Dashboard = () => {
     : "All time";
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   if (isContractor) {
     return (

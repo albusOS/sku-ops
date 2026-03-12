@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, HardHat, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DataTable } from "@/components/DataTable";
@@ -167,8 +168,20 @@ const Financials = () => {
     [dateRange],
   );
 
-  const { data: summary, isLoading: summaryLoading } = useFinancialSummary(dateParams);
-  const { data: withdrawals = [], isLoading: wdLoading } = useWithdrawals(dateParams);
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+    error: summaryErr,
+    refetch: refetchSummary,
+  } = useFinancialSummary(dateParams);
+  const {
+    data: withdrawals = [],
+    isLoading: wdLoading,
+    isError: wdError,
+    error: wdErr,
+    refetch: refetchWd,
+  } = useWithdrawals(dateParams);
   const { data: arAging } = useReportArAging();
 
   const arAgingByEntity = useMemo(() => {
@@ -208,6 +221,8 @@ const Financials = () => {
   const processedWithdrawals = view.apply(withdrawals);
 
   if (summaryLoading && wdLoading) return <PageSkeleton />;
+  if (summaryError) return <QueryError error={summaryErr} onRetry={refetchSummary} />;
+  if (wdError) return <QueryError error={wdErr} onRetry={refetchWd} />;
 
   return (
     <div className="p-8" data-testid="financials-page">

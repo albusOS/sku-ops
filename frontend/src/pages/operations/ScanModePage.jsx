@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { QuantityControl } from "@/components/QuantityControl";
 import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
 import { CameraScanner } from "@/components/CameraScanner";
+import { QueryError } from "@/components/QueryError";
 import { JobPicker } from "@/components/JobPicker";
 import { AddressPicker } from "@/components/AddressPicker";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -38,7 +39,7 @@ const ScanModePage = () => {
     clear: clearCart,
     total: subtotal,
   } = useCart({ persist: true });
-  const { data: productsData } = useProducts();
+  const { data: productsData, isError: productsIsError, error: productsError } = useProducts();
   const allProducts = Array.isArray(productsData) ? productsData : productsData?.items || [];
   const createWithdrawal = useCreateWithdrawal();
 
@@ -134,6 +135,18 @@ const ScanModePage = () => {
 
   const status = lastScanned ? statusConfig[lastScanned.status] : null;
   const canSubmit = items.length > 0 && jobId.trim() && serviceAddress.trim();
+
+  if (productsIsError) {
+    return (
+      <div className="flex flex-col h-screen bg-muted">
+        <QueryError
+          error={productsError}
+          onRetry={() => window.location.reload()}
+          className="flex-1"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-muted">

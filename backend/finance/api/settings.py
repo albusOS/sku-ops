@@ -1,10 +1,14 @@
 """Org settings API — Xero account codes and connection status."""
 
-from fastapi import APIRouter
+import logging
+
+from fastapi import APIRouter, HTTPException
 
 from finance.application.org_settings_service import get_org_settings, upsert_org_settings
 from finance.domain.org_settings import OrgSettings, OrgSettingsUpdate
 from shared.api.deps import AdminDep
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -25,7 +29,15 @@ def _mask(settings: OrgSettings) -> dict:
 @router.get("/xero")
 async def get_xero_settings(current_user: AdminDep):
     """Return Xero config for the org. Secrets are masked in the response."""
-    settings = await get_org_settings()
+    try:
+        settings = await get_org_settings()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in get_xero_settings")
+        raise
+    if settings is None:
+        raise HTTPException(status_code=404, detail="Organization settings not found")
     return _mask(settings)
 
 
@@ -35,9 +47,19 @@ async def update_xero_settings(
     current_user: AdminDep,
 ):
     """Update Xero account codes and/or API credentials."""
-    settings = await get_org_settings()
+    try:
+        settings = await get_org_settings()
+        if settings is None:
+            raise HTTPException(status_code=404, detail="Organization settings not found")
 
-    update = data.model_dump(exclude_none=True)
-    merged = settings.model_copy(update=update)
-    saved = await upsert_org_settings(merged)
+        update = data.model_dump(exclude_none=True)
+        merged = settings.model_copy(update=update)
+        saved = await upsert_org_settings(merged)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception:
+        logger.exception("Unexpected error in update_xero_settings")
+        raise
     return _mask(saved)

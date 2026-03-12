@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useCameraScanner } from "@/hooks/useCameraScanner";
 
 /**
- * Camera viewfinder for barcode scanning.
+ * Camera viewfinder for barcode/QR scanning.
  *
  * Self-contained UI — decodes barcodes and calls onScan(code).
  * Does not do product lookup; the parent wires onScan to the
@@ -13,9 +13,7 @@ import { useCameraScanner } from "@/hooks/useCameraScanner";
  * @param {{ onScan: (code: string) => void, onClose: () => void, scanning?: boolean }} props
  */
 export function CameraScanner({ onScan, onClose, scanning = false }) {
-  const { elementId, start, stop, active, error } = useCameraScanner({
-    onScan,
-  });
+  const { videoRef, start, stop, active, error } = useCameraScanner({ onScan });
 
   useEffect(() => {
     start();
@@ -26,7 +24,14 @@ export function CameraScanner({ onScan, onClose, scanning = false }) {
 
   return (
     <div className="relative rounded-2xl overflow-hidden bg-black">
-      <div id={elementId} className="w-full aspect-[4/3]" />
+      {/* Video element is always rendered so the ref is available on mount */}
+      <video
+        ref={videoRef}
+        className="w-full aspect-[4/3] object-cover"
+        autoPlay
+        playsInline
+        muted
+      />
 
       {scanning && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
