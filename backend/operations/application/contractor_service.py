@@ -86,9 +86,10 @@ def _hash_password(password: str) -> str:
 
 async def get_contractor_by_id(user_id: str) -> Contractor | None:
     conn = get_connection()
+    org_id = get_org_id()
     cursor = await conn.execute(
-        f"SELECT {_SELECT_COLS} FROM users WHERE id = ?",
-        (user_id,),
+        f"SELECT {_SELECT_COLS} FROM users WHERE id = ? AND organization_id = ?",
+        (user_id, org_id),
     )
     row = await cursor.fetchone()
     return _row_to_model(row)
@@ -99,10 +100,11 @@ async def get_users_by_ids(user_ids: list[str]) -> dict[str, Contractor]:
     if not user_ids:
         return {}
     conn = get_connection()
+    org_id = get_org_id()
     placeholders = ",".join("?" * len(user_ids))
     cursor = await conn.execute(
-        f"SELECT {_SELECT_COLS} FROM users WHERE id IN ({placeholders})",
-        tuple(user_ids),
+        f"SELECT {_SELECT_COLS} FROM users WHERE id IN ({placeholders}) AND organization_id = ?",
+        (*user_ids, org_id),
     )
     rows = await cursor.fetchall()
     result: dict[str, Contractor] = {}

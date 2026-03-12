@@ -144,6 +144,10 @@ seed_on_startup = (is_development or is_test) and bool(DEMO_USER_EMAIL)
 # Reset/seed endpoints: dev/test only. Cannot be enabled in production or staging.
 ALLOW_RESET = is_development or is_test
 
+# Public auth endpoints (login, register): dev/test only.
+# In production, Supabase owns the auth surface — these routes must not be reachable.
+ALLOW_PUBLIC_AUTH = is_development or is_test
+
 # AI - Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)

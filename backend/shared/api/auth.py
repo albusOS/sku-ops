@@ -34,6 +34,10 @@ from shared.infrastructure.database import get_connection
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Routes that are only safe in dev/test — login and register use the local
+# users table and a shared JWT secret. In production, Supabase owns this surface.
+dev_router = APIRouter(prefix="/auth", tags=["auth"])
+
 
 # ── Request / Response models ─────────────────────────────────────────────────
 
@@ -158,7 +162,7 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
     return _row_to_user(row)
 
 
-@router.post("/login")
+@dev_router.post("/login")
 async def login(body: LoginRequest) -> AuthResponse:
     """Dev-only: authenticate with email + password against the local users table.
 
@@ -179,7 +183,7 @@ async def login(body: LoginRequest) -> AuthResponse:
     return AuthResponse(token=token, user=_row_to_user(row))
 
 
-@router.post("/register")
+@dev_router.post("/register")
 async def register(body: RegisterRequest) -> AuthResponse:
     """Dev-only: create a new admin user in the local users table.
 
