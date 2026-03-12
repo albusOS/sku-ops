@@ -30,17 +30,19 @@ const isAuthEndpoint = (url) => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const logoutRef = useRef(null);
 
   // ── Shared helpers ──────────────────────────────────────────────────────────
 
-  const _setAxiosToken = (token) => {
-    if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  const _setAxiosToken = (t) => {
+    if (t) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${t}`;
     } else {
       delete axios.defaults.headers.common["Authorization"];
     }
+    setToken(t || null);
   };
 
   const _fetchProfile = async () => {
@@ -141,9 +143,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (isSupabaseConfigured) return;
 
-    const token = sessionStorage.getItem("token");
-    if (token) {
-      _setAxiosToken(token);
+    const saved = sessionStorage.getItem("token");
+    if (saved) {
+      _setAxiosToken(saved);
       _fetchProfile().finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -151,17 +153,17 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const _bridgeLogin = async (email, password) => {
-    const { token, user: userData } = await api.auth.login({ email, password });
-    sessionStorage.setItem("token", token);
-    _setAxiosToken(token);
+    const { token: jwt, user: userData } = await api.auth.login({ email, password });
+    sessionStorage.setItem("token", jwt);
+    _setAxiosToken(jwt);
     setUser(userData);
     return userData;
   };
 
   const _bridgeRegister = async (email, password, name) => {
-    const { token, user: userData } = await api.auth.register({ email, password, name });
-    sessionStorage.setItem("token", token);
-    _setAxiosToken(token);
+    const { token: jwt, user: userData } = await api.auth.register({ email, password, name });
+    sessionStorage.setItem("token", jwt);
+    _setAxiosToken(jwt);
     setUser(userData);
     return userData;
   };
@@ -179,7 +181,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

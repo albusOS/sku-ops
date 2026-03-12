@@ -269,7 +269,7 @@ async def _get_department_health() -> str:
                 "healthy": healthy,
             }
         )
-    rows.sort(key=lambda r: (r["out_of_stock"] + r["low_stock"]), reverse=True)
+    rows.sort(key=lambda r: r["out_of_stock"] + r["low_stock"], reverse=True)
     return json.dumps({"departments": rows})
 
 

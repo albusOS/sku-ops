@@ -49,9 +49,9 @@ async def ws_endpoint(websocket: WebSocket):
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
-    org_id = payload.get("organization_id", DEFAULT_ORG_ID)
-    role = payload.get("role", "")
-    user_id = payload.get("user_id", "")
+    org_id = payload.get("organization_id") or DEFAULT_ORG_ID
+    role = (payload.get("app_metadata") or {}).get("role") or payload.get("role", "")
+    user_id = payload.get("user_id") or payload.get("sub", "")
     await websocket.accept()
 
     queue = event_hub.subscribe()

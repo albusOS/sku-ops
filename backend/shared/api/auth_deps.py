@@ -39,12 +39,25 @@ def _extract_role(payload: dict) -> str:
     1. app_metadata.role  — Supabase-issued token (custom claim set via admin API)
     2. role               — Dev-issued token (direct top-level claim)
 
-    Raises 401 if role is absent from both locations. Never defaults to 'admin'.
+    Supabase sets role="authenticated" at the top level for all users — this is
+    a system value, not an application role. It is intentionally excluded so that
+    a missing app_metadata.role surfaces as a 401 rather than silently granting
+    access as the string "authenticated".
+
+    Raises 401 if no app-level role is found. Never defaults to 'admin'.
     """
-    role = (payload.get("app_metadata") or {}).get("role") or payload.get("role")
-    if not role:
-        raise HTTPException(status_code=401, detail="Invalid token: missing role claim")
-    return role
+    # App role from Supabase custom claims (set via admin API or auth hook)
+    app_role = (payload.get("app_metadata") or {}).get("role") or ""
+    if app_role:
+        return app_role
+
+    # Dev-issued token: role is a direct top-level claim.
+    # Exclude "authenticated" — that is Supabase's system value, not an app role.
+    top_role = payload.get("role") or ""
+    if top_role and top_role != "authenticated":
+        return top_role
+
+    raise HTTPException(status_code=401, detail="Invalid token: missing role claim")
 
 
 async def get_current_user(
@@ -56,7 +69,7 @@ async def get_current_user(
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token: no user_id")
         email = payload.get("email", "")
-        name = payload.get("name", "")
+        name = payload.get("name") or (payload.get("user_metadata") or {}).get("name") or ""
         role = _extract_role(payload)
         org_id = payload.get("organization_id") or DEFAULT_ORG_ID
         user_id_var.set(user_id)

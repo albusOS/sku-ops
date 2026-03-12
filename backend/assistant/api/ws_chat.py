@@ -93,10 +93,10 @@ async def ws_chat_endpoint(websocket: WebSocket):
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
-    org_id = payload.get("organization_id", DEFAULT_ORG_ID)
-    user_id = payload.get("user_id", "")
-    user_name = payload.get("name", "")
-    role = payload.get("role", "")
+    org_id = payload.get("organization_id") or DEFAULT_ORG_ID
+    user_id = payload.get("user_id") or payload.get("sub", "")
+    user_name = payload.get("name") or (payload.get("user_metadata") or {}).get("name") or ""
+    role = (payload.get("app_metadata") or {}).get("role") or payload.get("role", "")
 
     org_id_var.set(org_id)
     user_id_var.set(user_id)

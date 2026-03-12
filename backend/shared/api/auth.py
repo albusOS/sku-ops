@@ -151,11 +151,11 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
     """
     try:
         row = await _fetch_user_by_id(current_user.id)
+        if not row and current_user.email:
+            row = await _fetch_user_by_email(current_user.email)
     except RuntimeError:
-        # DB not initialised (test/smoke context) — return JWT claims.
         return _user_from_claims(current_user)
     if not row:
-        # User exists in Supabase but not yet in our users profile table.
         return _user_from_claims(current_user)
     if not row["is_active"]:
         raise HTTPException(status_code=403, detail="Account is deactivated")
