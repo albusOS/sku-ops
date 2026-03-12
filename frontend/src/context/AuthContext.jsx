@@ -19,7 +19,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import api from "@/lib/api-client";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured, getSupabase } from "@/lib/supabase";
 
 const AuthContext = createContext(null);
 
@@ -76,7 +76,8 @@ export const AuthProvider = ({ children }) => {
   // ── Supabase mode ───────────────────────────────────────────────────────────
 
   const _supabaseLogout = async () => {
-    await supabase.auth.signOut();
+    const sb = await getSupabase();
+    await sb.auth.signOut();
     _setAxiosToken(null);
     setUser(null);
   };
@@ -84,34 +85,39 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.access_token) {
-        _setAxiosToken(session.access_token);
-        await _fetchProfile();
-      } else {
-        _setAxiosToken(null);
-        setUser(null);
-        setLoading(false);
-      }
+    let subscription;
+    getSupabase().then((sb) => {
+      const {
+        data: { subscription: sub },
+      } = sb.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.access_token) {
+          _setAxiosToken(session.access_token);
+          await _fetchProfile();
+        } else {
+          _setAxiosToken(null);
+          setUser(null);
+          setLoading(false);
+        }
+      });
+      subscription = sub;
+
+      // Hydrate on mount from existing session
+      sb.auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token) {
+          _setAxiosToken(session.access_token);
+          _fetchProfile().finally(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
+      });
     });
 
-    // Hydrate on mount from existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) {
-        _setAxiosToken(session.access_token);
-        _fetchProfile().finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => subscription?.unsubscribe();
   }, []);
 
   const _supabaseLogin = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     _setAxiosToken(data.session.access_token);
     await _fetchProfile();
@@ -119,7 +125,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const _supabaseRegister = async (email, password, name) => {
-    const { data, error } = await supabase.auth.signUp({
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.signUp({
       email,
       password,
       options: { data: { name } },
