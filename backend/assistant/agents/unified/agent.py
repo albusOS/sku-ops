@@ -10,7 +10,7 @@ from pydantic_ai import Agent, RunContext
 
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
-from assistant.agents.core.model_registry import get_model
+from assistant.agents.core.model_registry import get_model_name
 from assistant.agents.core.runner import run_specialist
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.finance.tools import (
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = load_prompt(__file__, "prompt.md")
 
 _agent = Agent(
-    get_model("agent:unified"),
+    get_model_name("agent:unified"),
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )

@@ -39,8 +39,17 @@ def _resolve(task: str) -> str:
 
 
 def get_model_name(task: str) -> str:
-    """Return the raw model identifier string for a task."""
-    return _resolve(task)
+    """Return a pydantic-ai compatible model identifier string for a task.
+
+    Converts OpenRouter slash format (anthropic/model) to pydantic-ai colon
+    format (anthropic:model) so Agent() can accept it without an active provider.
+    """
+    raw = _resolve(task)
+    # OpenRouter uses "provider/model", pydantic-ai uses "provider:model"
+    if "/" in raw and ":" not in raw:
+        provider, _, model = raw.partition("/")
+        return f"{provider}:{model}"
+    return raw
 
 
 def get_model(task: str):

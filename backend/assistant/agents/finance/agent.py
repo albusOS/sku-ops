@@ -7,7 +7,7 @@ from pydantic_ai import Agent, RunContext
 from assistant.agents.core.config import load_agent_config
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
-from assistant.agents.core.model_registry import get_model
+from assistant.agents.core.model_registry import get_model_name
 from assistant.agents.core.runner import build_model_settings, run_specialist
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.finance.tools import (
@@ -26,7 +26,7 @@ _config = load_agent_config("finance")
 SYSTEM_PROMPT = load_prompt(__file__, "prompt.md")
 
 _agent = Agent(
-    get_model("agent:finance"),
+    get_model_name("agent:finance"),
     deps_type=AgentDeps,
     system_prompt=SYSTEM_PROMPT,
 )
