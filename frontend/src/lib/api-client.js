@@ -233,6 +233,7 @@ const api = {
     me: () => axios.get(`${API}/auth/me`).then((r) => r.data),
     login: (data) => axios.post(`${API}/auth/login`, data).then((r) => r.data),
     register: (data) => axios.post(`${API}/auth/register`, data).then((r) => r.data),
+    refresh: () => axios.post(`${API}/auth/refresh`).then((r) => r.data),
   },
 
   seed: {

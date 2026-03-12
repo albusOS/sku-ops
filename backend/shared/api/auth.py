@@ -162,6 +162,25 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
     return _row_to_user(row)
 
 
+@dev_router.post("/refresh")
+async def refresh(current_user: CurrentUserDep) -> AuthResponse:
+    """Dev-only: issue a fresh JWT for the currently authenticated user.
+
+    Called by the frontend before the current token expires to keep the
+    session alive without forcing a re-login.
+    """
+    try:
+        row = await _fetch_user_by_id(current_user.id)
+    except RuntimeError:
+        row = None
+    if not row:
+        raise HTTPException(status_code=401, detail="User not found")
+    if not row["is_active"]:
+        raise HTTPException(status_code=403, detail="Account is deactivated")
+    token = _issue_token(dict(row))
+    return AuthResponse(token=token, user=_row_to_user(row))
+
+
 @dev_router.post("/login")
 async def login(body: LoginRequest) -> AuthResponse:
     """Dev-only: authenticate with email + password against the local users table.
