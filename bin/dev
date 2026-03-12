@@ -60,6 +60,14 @@ case "${1:-help}" in
     echo "Running evals..."
     PYTHONPATH=backend:. uv run python -m devtools.evals "${@:2}"
     ;;
+  create-admin)
+    echo "Creating admin user..."
+    PYTHONPATH=backend:. uv run python backend/scripts/create_admin.py "${@:2}"
+    ;;
+  verify)
+    echo "Running pre-deploy verification..."
+    PYTHONPATH=backend:. uv run python backend/scripts/verify_deploy.py "${@:2}"
+    ;;
   help|*)
     echo "sku-ops Dev Commands:"
     echo "  ./bin/dev test [args]      - Run all tests (backend + frontend)"
@@ -75,6 +83,8 @@ case "${1:-help}" in
     echo "  ./bin/dev ui               - Start frontend dev server"
     echo "  ./bin/dev seed [args]      - Run seed_realistic"
     echo "  ./bin/dev eval [args]      - Run LLM evals"
-    echo "  ./bin/dev container        - Start devcontainer"
+  echo "  ./bin/dev create-admin     - Create/update admin user in DB"
+  echo "  ./bin/dev verify [args]    - Pre-deploy verification (pass --url to also hit a live server)"
+  echo "  ./bin/dev container        - Start devcontainer"
     ;;
 esac
