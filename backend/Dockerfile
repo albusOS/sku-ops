@@ -17,6 +17,7 @@ COPY backend/pyproject.toml ./pyproject.toml
 RUN uv sync --frozen --no-dev --no-editable
 
 COPY backend/ .
+COPY devtools/ ./devtools/
 
 EXPOSE 8000
 

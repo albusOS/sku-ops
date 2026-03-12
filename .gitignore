@@ -77,6 +77,7 @@ chainlit.md
 # Data and databases
 agenthub/agents/youtube/db
 data/
+!devtools/data/
 backend/data/*.db
 backend/data/*.db-*
 backend/:memory:

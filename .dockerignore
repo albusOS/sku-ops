@@ -17,7 +17,7 @@ backend/.env.*
 # Non-production directories
 backend/tests/
 tests/
-devtools/
+devtools/scripts/enhance_csv.py
 frontend/
 deploy/
 .cursor/

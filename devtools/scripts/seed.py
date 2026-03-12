@@ -27,6 +27,7 @@ from shared.infrastructure.config import (
     DEMO_USER_PASSWORD as MOCK_USER_PASSWORD,
 )
 from shared.infrastructure.database import get_connection
+from shared.infrastructure.logging_config import org_id_var
 from shared.infrastructure.org_repo import organization_repo
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,7 @@ async def _insert_user(user_dict: dict) -> None:
     await conn.commit()
 
 
-DEMO_CSV_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "data", "SY Inventory - Sheet1 (1).csv"
-)
+DEMO_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "SY Inventory - Enhanced.csv")
 DEMO_PRODUCT_LIMIT = 2000
 DEMO_PRODUCT_PER_ORG = 80
 
@@ -106,6 +105,7 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
     if not MOCK_USER_EMAIL:
         return
     try:
+        org_id_var.set(organization_id)
         count = await count_all_products()
         if count > 0:
             return
@@ -122,7 +122,8 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
         with open(DEMO_CSV_PATH, "rb") as f:
             content = f.read()
         rows = parse_csv_products(content)
-        all_depts = await list_departments()
+        all_depts_raw = await list_departments()
+        all_depts = [d.model_dump() if hasattr(d, "model_dump") else d for d in all_depts_raw]
         dept_by_code = {d["code"]: d for d in all_depts}
 
         imported = 0
@@ -168,7 +169,6 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
                     pack_qty=pq,
                     user_id=demo_user["id"],
                     user_name=demo_user.get("name", "Demo"),
-                    organization_id=organization_id,
                     on_stock_import=process_import_stock_changes,
                 )
                 imported += 1
@@ -266,7 +266,11 @@ async def seed_demo_tenants() -> None:
 
             admin_user = await _get_user_by_email(f"admin@{org['slug']}.demo")
             if admin_user and rows:
-                all_depts = await list_departments()
+                org_id_var.set(org_id)
+                all_depts_raw = await list_departments()
+                all_depts = [
+                    d.model_dump() if hasattr(d, "model_dump") else d for d in all_depts_raw
+                ]
                 dept_by_code = {d["code"]: d for d in all_depts}
                 imported = 0
                 for item in rows:
@@ -302,7 +306,6 @@ async def seed_demo_tenants() -> None:
                             pack_qty=pq,
                             user_id=admin_user["id"],
                             user_name=admin_user.get("name", "Admin"),
-                            organization_id=org_id,
                             on_stock_import=process_import_stock_changes,
                         )
                         imported += 1

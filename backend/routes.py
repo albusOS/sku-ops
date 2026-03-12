@@ -35,7 +35,7 @@ from shared.api.auth import dev_router as auth_dev_router
 from shared.api.auth import router as auth_router
 from shared.api.health import router as health_router
 from shared.api.websocket import router as ws_router
-from shared.infrastructure.config import ALLOW_PUBLIC_AUTH, is_development, is_test
+from shared.infrastructure.config import ALLOW_PUBLIC_AUTH, ALLOW_RESET, is_development, is_test
 
 api_router = APIRouter(prefix="/api")
 
@@ -68,13 +68,15 @@ api_router.include_router(documents_router)
 api_router.include_router(addresses_router)
 api_router.include_router(billing_entities_router)
 api_router.include_router(jobs_router)
-if is_development or is_test:
+if is_development or is_test or ALLOW_RESET:
     try:
         from devtools.api.seed import router as seed_router
 
         api_router.include_router(seed_router)
-    except ImportError:
-        pass
+    except Exception as _e:
+        import logging as _log
+
+        _log.getLogger(__name__).warning("Seed router import failed: %s", _e)
 api_router.include_router(settings_router)
 api_router.include_router(xero_auth_router)
 api_router.include_router(xero_health_router)

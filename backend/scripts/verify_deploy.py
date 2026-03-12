@@ -306,6 +306,8 @@ def check_production_flags() -> None:
 
         if not ALLOW_RESET:
             _ok("ALLOW_RESET=False in production (seed/reset endpoints disabled)")
+        elif os.environ.get("ALLOW_RESET", "").lower() in ("1", "true"):
+            _warn("ALLOW_RESET=True explicitly set — disable after seeding")
         else:
             _fail("ALLOW_RESET=True in production", "Reset endpoint should not be reachable")
 

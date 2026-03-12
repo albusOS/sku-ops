@@ -145,8 +145,11 @@ DEMO_CONTRACTOR_EMAIL = os.environ.get("DEMO_CONTRACTOR_EMAIL", "").strip() or (
 # Seed on startup: dev/test only. Never in production, even if demo creds are set.
 seed_on_startup = (is_development or is_test) and bool(DEMO_USER_EMAIL)
 
-# Reset/seed endpoints: dev/test only. Cannot be enabled in production or staging.
-ALLOW_RESET = is_development or is_test
+# Reset/seed endpoints: dev/test by default.
+# Set ALLOW_RESET=true temporarily in production to seed data, then disable.
+ALLOW_RESET = (
+    os.environ.get("ALLOW_RESET", "").lower() in ("1", "true") or is_development or is_test
+)
 
 # Public auth endpoints (login, register): dev/test by default.
 # Set ALLOW_PUBLIC_AUTH=true to enable local auth in production (no Supabase).

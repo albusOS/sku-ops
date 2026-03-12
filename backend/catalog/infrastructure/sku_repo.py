@@ -41,7 +41,7 @@ async def increment_and_get(department_code: str) -> int:
     conn = get_connection()
     await conn.execute(
         """INSERT INTO sku_counters (department_code, counter) VALUES (?, 1)
-           ON CONFLICT(department_code) DO UPDATE SET counter = counter + 1""",
+           ON CONFLICT(department_code) DO UPDATE SET counter = sku_counters.counter + 1""",
         (key,),
     )
     cursor = await conn.execute(

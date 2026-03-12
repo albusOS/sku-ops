@@ -33,7 +33,9 @@ import uuid
 from datetime import UTC, datetime
 
 
-async def main(user_id_arg: str, email: str, name: str, role: str, org_id: str) -> None:
+async def main(
+    user_id_arg: str, email: str, name: str, role: str, org_id: str, password: str = ""
+) -> None:
     from shared.infrastructure.config import DEFAULT_ORG_ID
     from shared.infrastructure.db import close_db, get_connection, init_db
 
@@ -72,13 +74,20 @@ async def main(user_id_arg: str, email: str, name: str, role: str, org_id: str) 
                 print("         so /api/auth/me can find this profile row.")
                 print()
             now = datetime.now(UTC).isoformat()
-            placeholder_pw = "!supabase-managed"
+            if password:
+                import bcrypt
+
+                hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
+                    "utf-8"
+                )
+            else:
+                hashed_pw = "!supabase-managed"
             await conn.execute(
                 "INSERT INTO users "
                 "(id, email, password, name, role, company, billing_entity, phone, "
                 "is_active, organization_id, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-                (user_id, email, placeholder_pw, name, role, "", "", "", resolved_org, now),
+                (user_id, email, hashed_pw, name, role, "", "", "", resolved_org, now),
             )
             await conn.commit()
             print(f"Created user {user_id}")
@@ -87,14 +96,15 @@ async def main(user_id_arg: str, email: str, name: str, role: str, org_id: str) 
             print(f"  name:  {name}")
             print(f"  org:   {resolved_org}")
 
-        print()
-        print("If using Supabase auth, also run in the Supabase SQL Editor:")
-        print("  UPDATE auth.users")
-        print("  SET raw_app_meta_data = jsonb_set(")
-        print("    COALESCE(raw_app_meta_data, '{}'::jsonb),")
-        print("    '{role}', '\"admin\"'")
-        print("  )")
-        print(f"  WHERE email = '{email}';")
+        if not password:
+            print()
+            print("If using Supabase auth, also run in the Supabase SQL Editor:")
+            print("  UPDATE auth.users")
+            print("  SET raw_app_meta_data = jsonb_set(")
+            print("    COALESCE(raw_app_meta_data, '{}'::jsonb),")
+            print("    '{role}', '\"admin\"'")
+            print("  )")
+            print(f"  WHERE email = '{email}';")
     finally:
         await close_db()
 
@@ -110,6 +120,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", required=True, help="Display name")
     parser.add_argument("--role", default="admin", help="User role (default: admin)")
     parser.add_argument("--org-id", default="", help="Organization ID (default: DEFAULT_ORG_ID)")
+    parser.add_argument("--password", default="", help="Password for local auth (bcrypt hashed)")
     args = parser.parse_args()
 
-    asyncio.run(main(args.id, args.email, args.name, args.role, args.org_id))
+    asyncio.run(main(args.id, args.email, args.name, args.role, args.org_id, args.password))
