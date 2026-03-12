@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
-    from identity.infrastructure.org_repo import list_all
+    from shared.infrastructure.org_repo import list_all
 
     orgs = await list_all()
     return [o.id for o in orgs] if orgs else ["default"]
@@ -38,13 +38,17 @@ async def _ensure_demo_users() -> None:
     import uuid
     from datetime import UTC, datetime
 
-    from identity.application.auth_service import hash_password
-    from identity.infrastructure.user_repo import get_by_email, insert
+    import bcrypt
+
     from shared.infrastructure.config import (
         DEMO_CONTRACTOR_EMAIL,
         DEMO_USER_EMAIL,
         DEMO_USER_PASSWORD,
     )
+    from shared.infrastructure.database import get_connection
+
+    def hash_password(pw: str) -> str:
+        return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     demo_users = [
         {"email": DEMO_USER_EMAIL, "name": "Admin", "role": "admin"},
@@ -58,23 +62,26 @@ async def _ensure_demo_users() -> None:
                 "company": "ABC Plumbing",
             }
         )
+    conn = get_connection()
     for u in demo_users:
-        existing = await get_by_email(u["email"])
-        if existing:
+        cursor = await conn.execute("SELECT id FROM users WHERE email = ?", (u["email"],))
+        if await cursor.fetchone():
             continue
-        await insert(
-            {
-                "id": str(uuid.uuid4()),
-                "email": u["email"],
-                "password": hash_password(DEMO_USER_PASSWORD),
-                "name": u["name"],
-                "role": u["role"],
-                "company": u.get("company", ""),
-                "is_active": True,
-                "organization_id": DEFAULT_ORG_ID,
-                "created_at": datetime.now(UTC).isoformat(),
-            }
+        await conn.execute(
+            "INSERT INTO users (id, email, password, name, role, company, is_active, organization_id, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                u["email"],
+                hash_password(DEMO_USER_PASSWORD),
+                u["name"],
+                u["role"],
+                u.get("company", ""),
+                DEFAULT_ORG_ID,
+                datetime.now(UTC).isoformat(),
+            ),
         )
+        await conn.commit()
         logger.info("Created demo user: %s (%s)", u["email"], u["role"])
 
 

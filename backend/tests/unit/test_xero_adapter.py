@@ -19,7 +19,7 @@ import pytest
 from finance.adapters.xero_adapter import XeroAdapter
 from finance.domain.credit_note import CreditNote, CreditNoteLineItem
 from finance.domain.invoice import InvoiceLineItem, InvoiceWithDetails
-from identity.domain.org_settings import OrgSettings
+from finance.domain.org_settings import OrgSettings
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 

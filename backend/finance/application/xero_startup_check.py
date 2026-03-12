@@ -8,7 +8,7 @@ misconfiguration immediately at boot, not at the moment the first sync fires.
 import logging
 from datetime import UTC, datetime
 
-from identity.application.org_service import get_org_settings
+from finance.application.org_settings_service import get_org_settings
 from shared.infrastructure.database import get_org_id
 
 logger = logging.getLogger(__name__)

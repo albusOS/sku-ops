@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.address_repo import address_repo
+from shared.infrastructure.database import get_org_id
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 
@@ -26,7 +27,7 @@ class AddressCreate(BaseModel):
 
 @router.get("")
 async def list_addresses(
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
     billing_entity_id: str | None = None,
     job_id: str | None = None,
     q: str | None = None,
@@ -34,7 +35,6 @@ async def list_addresses(
     offset: int = 0,
 ):
     return await address_repo.list_addresses(
-        organization_id=current_user.organization_id,
         billing_entity_id=billing_entity_id,
         job_id=job_id,
         q=q,
@@ -45,22 +45,21 @@ async def list_addresses(
 
 @router.get("/search")
 async def search_addresses(
-    current_user: CurrentUserDep,
+    current_user: CurrentUserDep,  # noqa: ARG001
     q: str = "",
     limit: int = 20,
 ):
     """Autocomplete endpoint for address pickers."""
     if not q.strip():
         return await address_repo.list_addresses(
-            organization_id=current_user.organization_id,
             limit=limit,
         )
-    return await address_repo.search(q, current_user.organization_id, limit=limit)
+    return await address_repo.search(q, limit=limit)
 
 
 @router.get("/{address_id}")
-async def get_address(address_id: str, current_user: AdminDep):
-    addr = await address_repo.get_by_id(address_id, current_user.organization_id)
+async def get_address(address_id: str, current_user: AdminDep):  # noqa: ARG001
+    addr = await address_repo.get_by_id(address_id)
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
     return addr
@@ -69,7 +68,7 @@ async def get_address(address_id: str, current_user: AdminDep):
 @router.post("")
 async def create_address(
     data: AddressCreate,
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
 ):
     if not data.line1.strip():
         raise HTTPException(status_code=400, detail="Address line 1 is required")
@@ -85,7 +84,7 @@ async def create_address(
         "country": data.country,
         "billing_entity_id": data.billing_entity_id,
         "job_id": data.job_id,
-        "organization_id": current_user.organization_id,
+        "organization_id": get_org_id(),
         "created_at": datetime.now(UTC).isoformat(),
     }
     await address_repo.insert(address)

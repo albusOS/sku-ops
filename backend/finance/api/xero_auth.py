@@ -10,14 +10,14 @@ from fastapi.responses import RedirectResponse
 
 from finance.adapters.invoicing_factory import get_invoicing_gateway
 from finance.adapters.xero_adapter import XeroAdapter
-from finance.domain.xero_settings import XeroSettings
-from identity.application.org_service import (
+from finance.application.org_settings_service import (
     clear_xero_tokens,
     get_org_settings,
     pop_oauth_state,
     save_oauth_state,
     upsert_org_settings,
 )
+from finance.domain.xero_settings import XeroSettings
 from shared.api.deps import AdminDep
 from shared.infrastructure.config import (
     FRONTEND_URL,
@@ -43,7 +43,7 @@ def _require_xero_configured():
 
 
 @router.get("/connect")
-async def xero_connect(current_user: AdminDep):
+async def xero_connect(current_user: AdminDep):  # noqa: ARG001
     """Initiate Xero OAuth 2.0 Authorization Code flow. Redirects to Xero consent page."""
     _require_xero_configured()
     state = secrets.token_urlsafe(32)
@@ -108,7 +108,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
 
 
 @router.get("/tenants")
-async def list_xero_tenants(current_user: AdminDep):
+async def list_xero_tenants(current_user: AdminDep):  # noqa: ARG001
     """List Xero organisations the connected token can access. Use to select tenant_id."""
     settings = await get_org_settings()
     if not settings.xero_access_token:
@@ -125,7 +125,7 @@ async def list_xero_tenants(current_user: AdminDep):
 @router.post("/select-tenant")
 async def select_xero_tenant(
     tenant_id: str,
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
 ):
     """Save the chosen Xero tenant (organisation) ID for this org."""
     settings = await get_org_settings()
@@ -137,14 +137,14 @@ async def select_xero_tenant(
 
 
 @router.post("/disconnect")
-async def xero_disconnect(current_user: AdminDep):
+async def xero_disconnect(current_user: AdminDep):  # noqa: ARG001
     """Remove Xero OAuth tokens for this org."""
     await clear_xero_tokens()
     return {"disconnected": True}
 
 
 @router.get("/tracking-categories")
-async def list_tracking_categories(current_user: AdminDep):
+async def list_tracking_categories(current_user: AdminDep):  # noqa: ARG001
     """List Xero tracking categories for the connected org."""
     settings = await get_org_settings()
     if not settings.xero_access_token:
@@ -164,7 +164,7 @@ async def list_tracking_categories(current_user: AdminDep):
 @router.post("/select-tracking-category")
 async def select_tracking_category(
     tracking_category_id: str,
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
 ):
     """Save the chosen Xero tracking category ID for job_id tagging on invoice lines."""
     settings = await get_org_settings()

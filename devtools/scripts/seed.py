@@ -8,6 +8,8 @@ import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import bcrypt
+
 from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
     count_all_products,
@@ -17,9 +19,6 @@ from catalog.application.queries import (
 )
 from catalog.domain.department import Department
 from documents.application.import_parser import infer_uom, parse_csv_products, suggest_department
-from identity.application.auth_service import hash_password
-from identity.infrastructure.org_repo import organization_repo
-from identity.infrastructure.user_repo import user_repo
 from inventory.application.inventory_service import process_import_stock_changes
 from shared.infrastructure.config import (
     DEMO_USER_EMAIL as MOCK_USER_EMAIL,
@@ -27,8 +26,43 @@ from shared.infrastructure.config import (
 from shared.infrastructure.config import (
     DEMO_USER_PASSWORD as MOCK_USER_PASSWORD,
 )
+from shared.infrastructure.database import get_connection
+from shared.infrastructure.org_repo import organization_repo
 
 logger = logging.getLogger(__name__)
+
+
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+async def _get_user_by_email(email: str) -> dict | None:
+    conn = get_connection()
+    cursor = await conn.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = await cursor.fetchone()
+    return dict(row) if row and hasattr(row, "keys") else None
+
+
+async def _insert_user(user_dict: dict) -> None:
+    conn = get_connection()
+    await conn.execute(
+        "INSERT INTO users (id, email, password, name, role, company, billing_entity, phone, is_active, organization_id, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+        (
+            user_dict["id"],
+            user_dict["email"],
+            user_dict["password"],
+            user_dict["name"],
+            user_dict.get("role", "admin"),
+            user_dict.get("company", ""),
+            user_dict.get("billing_entity", ""),
+            user_dict.get("phone", ""),
+            user_dict.get("organization_id", "default"),
+            user_dict.get("created_at", datetime.now(UTC).isoformat()),
+        ),
+    )
+    await conn.commit()
+
 
 DEMO_CSV_PATH = os.path.join(
     os.path.dirname(__file__), "..", "data", "SY Inventory - Sheet1 (1).csv"
@@ -80,7 +114,7 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
             return
 
         await seed_standard_departments(organization_id)
-        demo_user = await user_repo.get_by_email(MOCK_USER_EMAIL)
+        demo_user = await _get_user_by_email(MOCK_USER_EMAIL)
         if not demo_user:
             logger.warning("Demo user not found, skipping inventory seed")
             return
@@ -151,32 +185,32 @@ async def seed_mock_user(organization_id: str = "default"):
     if not MOCK_USER_EMAIL:
         return
     try:
-        existing = await user_repo.get_by_email(MOCK_USER_EMAIL)
-        if not existing:
-            from identity.domain.user import User
-
-            user = User(email=MOCK_USER_EMAIL, name="Demo Admin", role="admin")
-            user_dict = user.model_dump()
-            user_dict["password"] = hash_password(MOCK_USER_PASSWORD)
-            user_dict["organization_id"] = organization_id
-            await user_repo.insert(user_dict)
+        if not await _get_user_by_email(MOCK_USER_EMAIL):
+            await _insert_user(
+                {
+                    "id": str(uuid4()),
+                    "email": MOCK_USER_EMAIL,
+                    "password": hash_password(MOCK_USER_PASSWORD),
+                    "name": "Demo Admin",
+                    "role": "admin",
+                    "organization_id": organization_id,
+                }
+            )
             logger.info("Mock user created: %s", MOCK_USER_EMAIL)
 
-        existing_contractor = await user_repo.get_by_email(DEMO_CONTRACTOR_EMAIL)
-        if not existing_contractor:
-            from identity.domain.user import User
-
-            contractor = User(
-                email=DEMO_CONTRACTOR_EMAIL,
-                name="Demo Contractor",
-                role="contractor",
-                company="Demo Co",
-                billing_entity="Demo Co",
+        if not await _get_user_by_email(DEMO_CONTRACTOR_EMAIL):
+            await _insert_user(
+                {
+                    "id": str(uuid4()),
+                    "email": DEMO_CONTRACTOR_EMAIL,
+                    "password": hash_password(MOCK_USER_PASSWORD),
+                    "name": "Demo Contractor",
+                    "role": "contractor",
+                    "company": "Demo Co",
+                    "billing_entity": "Demo Co",
+                    "organization_id": organization_id,
+                }
             )
-            contractor_dict = contractor.model_dump()
-            contractor_dict["password"] = hash_password(MOCK_USER_PASSWORD)
-            contractor_dict["organization_id"] = organization_id
-            await user_repo.insert(contractor_dict)
             logger.info("Demo contractor created: %s", DEMO_CONTRACTOR_EMAIL)
     except (ValueError, RuntimeError, OSError) as e:
         logger.warning("Mock user seed: %s", e)
@@ -216,21 +250,21 @@ async def seed_demo_tenants() -> None:
 
             for u in DEMO_USERS_PER_ORG:
                 email = u["email"].format(slug=org["slug"])
-                existing_user = await user_repo.get_by_email(email)
-                if not existing_user:
-                    user_dict = {
-                        "id": str(uuid4()),
-                        "email": email,
-                        "password": hash_password("demo123"),
-                        "name": u["name"],
-                        "role": u["role"],
-                        "organization_id": org_id,
-                        "created_at": now,
-                    }
-                    await user_repo.insert(user_dict)
+                if not await _get_user_by_email(email):
+                    await _insert_user(
+                        {
+                            "id": str(uuid4()),
+                            "email": email,
+                            "password": hash_password("demo123"),
+                            "name": u["name"],
+                            "role": u["role"],
+                            "organization_id": org_id,
+                            "created_at": now,
+                        }
+                    )
                     logger.info("Created user: %s", email)
 
-            admin_user = await user_repo.get_by_email(f"admin@{org['slug']}.demo")
+            admin_user = await _get_user_by_email(f"admin@{org['slug']}.demo")
             if admin_user and rows:
                 all_depts = await list_departments(org_id)
                 dept_by_code = {d["code"]: d for d in all_depts}

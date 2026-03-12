@@ -12,7 +12,6 @@ from operations.application.return_service import create_return
 from operations.domain.returns import ReturnCreate
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure import event_hub
-from shared.infrastructure.database import get_org_id
 from shared.infrastructure.middleware.audit import audit_log
 from shared.kernel import events
 
@@ -26,7 +25,7 @@ async def create_material_return(
     current_user: AdminDep,
 ):
     """Process a return against a previous withdrawal. Restocks inventory and creates credit note."""
-    settings = await get_org_settings(get_org_id())
+    settings = await get_org_settings()
     try:
         result = await create_return(
             data,
@@ -63,7 +62,7 @@ async def create_material_return(
 
 @router.get("")
 async def list_returns(
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
     contractor_id: str | None = None,
     withdrawal_id: str | None = None,
     start_date: str | None = None,
@@ -80,7 +79,7 @@ async def list_returns(
 @router.get("/{return_id}")
 async def get_return(
     return_id: str,
-    current_user: CurrentUserDep,
+    current_user: CurrentUserDep,  # noqa: ARG001
 ):
     ret = await _get_return_by_id(return_id)
     if not ret:

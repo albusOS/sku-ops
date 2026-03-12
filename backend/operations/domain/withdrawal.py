@@ -1,6 +1,6 @@
 """Material withdrawal (POS) models."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from shared.kernel.entity import Entity
 from shared.kernel.types import LineItem, round_money
@@ -15,6 +15,13 @@ class MaterialWithdrawalCreate(BaseModel):
     job_id: str
     service_address: str
     notes: str | None = None
+
+    @field_validator("items")
+    @classmethod
+    def items_not_empty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("At least one item is required")
+        return v
 
 
 class MaterialWithdrawal(Entity):

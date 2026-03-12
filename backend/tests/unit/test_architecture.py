@@ -2,11 +2,12 @@
 Architecture tests: DDD bounded context boundary validation.
 
 Rules enforced here:
-  1. shared/ kernel imports nothing from bounded contexts (it must be dependency-free).
+  1. shared/ must not import from bounded contexts (except composition roots).
   2. Domain layer files (*/domain/*.py) import nothing from infrastructure or api layers.
   3. No context imports another context's api layer (only composition roots do that).
   4. Cross-context infrastructure imports are frozen at a known set — no new ones allowed.
-     (Existing violations are pre-DDD coupling that will be cleaned up incrementally.)
+  5. API route files must not import repos directly.
+  6. Cross-context domain imports are disallowed.
 """
 
 import ast
@@ -16,7 +17,6 @@ BACKEND = Path(__file__).resolve().parent.parent.parent
 
 BOUNDED_CONTEXTS = frozenset(
     {
-        "identity",
         "catalog",
         "inventory",
         "operations",
@@ -28,10 +28,6 @@ BOUNDED_CONTEXTS = frozenset(
     }
 )
 
-# Files that compose routers/schemas from all contexts — architecture rules don't apply.
-# shared/api/deps.py is a FastAPI dependency-injection composition helper: it wires
-# identity.application auth functions into Annotated type aliases used across all routes.
-# It is a composition root by function even though it lives in shared/api/.
 COMPOSITION_ROOTS = frozenset(
     {
         "server.py",
@@ -39,14 +35,10 @@ COMPOSITION_ROOTS = frozenset(
         "startup.py",
         "scheduler.py",
         "shared/infrastructure/full_schema.py",
-        "shared/api/deps.py",
     }
 )
 
-# ── Known cross-context infrastructure violations (pre-DDD coupling to clean up) ──────────
-# Each entry is "relative/path/from/backend:imported.module".
-# The test fails if NEW violations appear; add entries here only as a last resort.
-# All pre-DDD violations resolved — contexts now communicate via application-layer query services.
+# All pre-DDD violations resolved — contexts communicate via application-layer facades.
 KNOWN_CROSS_INFRA_VIOLATIONS: frozenset[str] = frozenset()
 
 
@@ -70,7 +62,6 @@ def _from_imports(path: Path) -> list[str]:
     except (SyntaxError, UnicodeDecodeError):
         return []
 
-    # Collect nodes that are inside TYPE_CHECKING guards so we can exclude them.
     type_checking_nodes: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.If) and _is_type_checking_block(node):
@@ -94,16 +85,14 @@ def _all_backend_py_files(skip_roots: bool = True):
         yield py_file
 
 
-# ── Test 1: shared kernel is dependency-free ─────────────────────────────────────────────
+# ── Test 1: shared/ is dependency-free from bounded contexts ──────────────────
 
 
-def test_shared_kernel_has_no_context_imports():
+def test_shared_has_no_context_imports():
     """shared/ must not import from any bounded context.
 
-    Exception: shared/api/deps.py is a FastAPI dependency-injection composition
-    helper that wires identity auth into Annotated type aliases used across all
-    routes.  It is a composition root by function (same category as server.py)
-    even though it lives in shared/api/ for import-path convenience.
+    shared/infrastructure/full_schema.py is a composition root (aggregates
+    all context schemas) and is exempted.
     """
     violations = []
     for py_file in (BACKEND / "shared").rglob("*.py"):
@@ -118,7 +107,7 @@ def test_shared_kernel_has_no_context_imports():
     assert not violations, "shared/ imports from bounded contexts:\n" + "\n".join(violations)
 
 
-# ── Test 2: domain layer purity ──────────────────────────────────────────────────────────
+# ── Test 2: domain layer purity ──────────────────────────────────────────────
 
 
 def test_domain_layer_does_not_import_infrastructure_or_api():
@@ -131,7 +120,6 @@ def test_domain_layer_does_not_import_infrastructure_or_api():
             continue
         for module in _from_imports(py_file):
             seg = module.split(".")
-            # Importing own or other context's infrastructure/api is a violation
             if len(seg) >= 2 and seg[1] in ("infrastructure", "api"):
                 violations.append(f"  {rel}: from {module}")
     assert not violations, "Domain files import from infrastructure or api layers:\n" + "\n".join(
@@ -139,7 +127,7 @@ def test_domain_layer_does_not_import_infrastructure_or_api():
     )
 
 
-# ── Test 3: no cross-context api imports ─────────────────────────────────────────────────
+# ── Test 3: no cross-context api imports ─────────────────────────────────────
 
 
 def test_no_cross_context_api_imports():
@@ -164,7 +152,7 @@ def test_no_cross_context_api_imports():
     )
 
 
-# ── Test 4: cross-infra violations are frozen ────────────────────────────────────────────
+# ── Test 4: cross-infra violations are frozen ────────────────────────────────
 
 
 def test_cross_context_infrastructure_violations_not_growing():
@@ -173,7 +161,6 @@ def test_cross_context_infrastructure_violations_not_growing():
 
     Existing violations are documented in KNOWN_CROSS_INFRA_VIOLATIONS above.
     This test fails if NEW violations are introduced, preventing regression.
-    Remove entries from KNOWN_CROSS_INFRA_VIOLATIONS as coupling is cleaned up.
     """
     found = set()
     for py_file in _all_backend_py_files(skip_roots=True):
@@ -190,7 +177,6 @@ def test_cross_context_infrastructure_violations_not_growing():
                 and seg[1] == "infrastructure"
                 and seg[0] != home_ctx
             ):
-                # Normalise: "path/to/file.py:imported.module.top_two_parts"
                 imported_key = ".".join(seg[:3]) if len(seg) >= 3 else module
                 found.add(f"{str_rel}:{imported_key}")
 
@@ -202,7 +188,7 @@ def test_cross_context_infrastructure_violations_not_growing():
     )
 
 
-# ── Test 5: API routes must not import repos directly ─────────────────────────────────────
+# ── Test 5: API routes must not import repos directly ─────────────────────────
 
 
 def test_api_layer_does_not_import_repos():
@@ -223,7 +209,7 @@ def test_api_layer_does_not_import_repos():
     )
 
 
-# ── Test 6: cross-context domain imports ──────────────────────────────────────────────────
+# ── Test 6: cross-context domain imports ──────────────────────────────────────
 
 
 def test_no_cross_context_domain_imports():
@@ -252,3 +238,22 @@ def test_no_cross_context_domain_imports():
     assert not violations, (
         "Cross-context domain imports (use application facades instead):\n" + "\n".join(violations)
     )
+
+
+# ── Test 7: identity context is fully deleted ────────────────────────────────
+
+
+def test_no_identity_context_exists():
+    """The identity bounded context has been dissolved. No directory or imports should remain."""
+    identity_dir = BACKEND / "identity"
+    assert not identity_dir.exists(), f"identity/ directory still exists at {identity_dir}"
+
+    violations = []
+    for py_file in BACKEND.rglob("*.py"):
+        if "__pycache__" in py_file.parts:
+            continue
+        for module in _from_imports(py_file):
+            if module.startswith("identity."):
+                rel = py_file.relative_to(BACKEND)
+                violations.append(f"  {rel}: from {module}")
+    assert not violations, "Stale identity imports found:\n" + "\n".join(violations)

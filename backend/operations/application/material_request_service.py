@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from identity.application.user_service import get_user_by_id
+from operations.application.contractor_service import get_contractor_by_id
 from operations.application.queries import (
     get_material_request_by_id,
     mark_material_request_processed,
@@ -40,7 +40,7 @@ async def process_material_request(
     if req.status != "pending":
         raise MaterialRequestError("Request already processed")
 
-    contractor = await get_user_by_id(req.contractor_id)
+    contractor = await get_contractor_by_id(req.contractor_id)
     if not contractor or contractor.role != "contractor":
         raise MaterialRequestError("Contractor not found")
     if contractor.organization_id and contractor.organization_id != org_id:

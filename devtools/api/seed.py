@@ -12,10 +12,10 @@ from devtools.scripts.seed import (
     seed_mock_user,
     seed_standard_departments,
 )
-from identity.infrastructure.org_repo import organization_repo
 from shared.api.deps import AdminDep
 from shared.infrastructure.config import ALLOW_RESET
 from shared.infrastructure.database import get_connection
+from shared.infrastructure.org_repo import organization_repo
 
 logger = logging.getLogger(__name__)
 

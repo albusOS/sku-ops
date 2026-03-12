@@ -12,6 +12,7 @@ from shared.infrastructure.db import (
     init_db,
     transaction,
 )
+from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 __all__ = [
     "close_db",
@@ -19,5 +20,7 @@ __all__ = [
     "get_org_id",
     "get_user_id",
     "init_db",
+    "org_id_var",
     "transaction",
+    "user_id_var",
 ]

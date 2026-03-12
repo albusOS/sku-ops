@@ -87,7 +87,7 @@ async def _run_sync_with_stub():
     """Run the sync job with StubXeroAdapter injected at every call site."""
     from finance.adapters.stub_xero import StubXeroAdapter
     from finance.application.xero_sync_job import run_sync
-    from identity.domain.org_settings import OrgSettings
+    from finance.domain.org_settings import OrgSettings
 
     stub_settings = OrgSettings(
         organization_id="default",
@@ -144,7 +144,7 @@ class TestSyncJobIdempotency:
         """StubXeroAdapter.sync_invoice should only be called once per invoice."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.xero_sync_job import run_sync
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
 
         await _make_approved_invoice()
 
@@ -252,7 +252,7 @@ class TestSyncStatusGating:
         stub_gateway.sync_invoice = counting
 
         from finance.application.xero_sync_job import run_sync
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
 
         stub_settings = OrgSettings(
             organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
@@ -397,7 +397,7 @@ class TestReconciliationMismatch:
         """When Xero returns a different total, xero_sync_status must become 'mismatch'."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.xero_sync_job import run_sync
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
 
         inv = await _make_approved_invoice()
         inv_id = inv.id
@@ -463,7 +463,7 @@ class TestReconciliationMismatch:
         """When Xero total matches local total, status stays 'synced'."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.xero_sync_job import run_sync
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
 
         inv = await _make_approved_invoice()
         inv_id = inv.id
@@ -616,7 +616,7 @@ class TestPOQueuing:
     async def test_po_bill_sync_stores_xero_bill_id(self):
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.po_sync_service import queue_po_for_sync, sync_po_bill
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
         from purchasing.domain.purchase_order import (
             POItemStatus,
             POStatus,
@@ -680,7 +680,7 @@ class TestPOQueuing:
         """Calling sync_po_bill twice must not change the stored xero_bill_id."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.po_sync_service import sync_po_bill
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
         from purchasing.domain.purchase_order import (
             POItemStatus,
             POStatus,
@@ -757,8 +757,8 @@ class TestSyncSummaryCounts:
         """A gateway that raises must increment failed count and set 'failed' status."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.xero_sync_job import run_sync
+        from finance.domain.org_settings import OrgSettings
         from finance.ports.invoicing_port import InvoiceSyncResult
-        from identity.domain.org_settings import OrgSettings
 
         inv = await _make_approved_invoice()
 
@@ -872,7 +872,7 @@ class TestCogsRepost:
         """The sync job must re-post the COGS journal and mark status back to 'synced'."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.xero_sync_job import run_sync
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
 
         inv = await _make_approved_invoice()
         inv_id = inv.id
@@ -961,7 +961,7 @@ class TestCogsRepost:
         """When repost_cogs_journal raises, the job must increment cogs_repost_failed."""
         from finance.adapters.stub_xero import StubXeroAdapter
         from finance.application.xero_sync_job import run_sync
-        from identity.domain.org_settings import OrgSettings
+        from finance.domain.org_settings import OrgSettings
 
         inv = await _make_approved_invoice()
         await _run_sync_with_stub()

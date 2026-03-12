@@ -239,7 +239,7 @@ async def run_sync(reconcile: bool = True) -> dict:
     Returns a summary dict suitable for logging or returning from an API endpoint.
     Safe to call repeatedly — idempotency is enforced per document via xero_invoice_id guards.
     """
-    org_settings = await get_org_settings(get_org_id())
+    org_settings = await get_org_settings()
     xero_settings = XeroSettings.model_validate(org_settings.model_dump())
     gateway = get_invoicing_gateway(xero_settings)
 
@@ -253,9 +253,7 @@ async def run_sync(reconcile: bool = True) -> dict:
     invoice_reconcile: dict = {"verified": 0, "mismatch": 0, "errors": []}
     cn_reconcile: dict = {"verified": 0, "mismatch": 0, "errors": []}
     if reconcile:
-        xero_settings = XeroSettings.model_validate(
-            (await get_org_settings(get_org_id())).model_dump()
-        )
+        xero_settings = XeroSettings.model_validate((await get_org_settings()).model_dump())
         gateway = get_invoicing_gateway(xero_settings)
         invoice_reconcile = await _reconcile_invoices(gateway, xero_settings)
         cn_reconcile = await _reconcile_credit_notes(gateway, xero_settings)

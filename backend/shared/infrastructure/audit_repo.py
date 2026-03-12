@@ -9,11 +9,10 @@ from __future__ import annotations
 import contextlib
 import json
 
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.database import get_connection, get_org_id
 
 
 async def query_audit_log(
-    org_id: str,
     *,
     user_id: str | None = None,
     action: str | None = None,
@@ -25,6 +24,7 @@ async def query_audit_log(
     offset: int = 0,
 ) -> tuple[list[dict], int]:
     """Query audit log entries with optional filters. Returns (entries, total_count)."""
+    org_id = get_org_id()
     conn = get_connection()
     where = "WHERE organization_id = ?"
     params: list = [org_id]
@@ -69,8 +69,9 @@ async def query_audit_log(
     return entries, total
 
 
-async def distinct_actions(org_id: str) -> list[str]:
+async def distinct_actions() -> list[str]:
     """Return distinct action names for filter dropdowns."""
+    org_id = get_org_id()
     conn = get_connection()
     cursor = await conn.execute(
         "SELECT DISTINCT action FROM audit_log WHERE organization_id = ? ORDER BY action",

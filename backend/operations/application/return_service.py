@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from finance.application.credit_note_service import apply_credit_note as _apply_cn
 from finance.application.ledger_service import record_return as _record_ledger
-from inventory.domain.stock import StockTransactionType
+from inventory.application import StockTransactionType
 from operations.domain.returns import MaterialReturn, ReturnCreate, ReturnItem
 from operations.domain.withdrawal import MaterialWithdrawal
 from operations.infrastructure.return_repo import return_repo as _default_return_repo

@@ -6,7 +6,6 @@ These run without DB and verify the API surface is correctly wired.
 import pytest
 
 PROTECTED_ENDPOINTS = [
-    ("GET", "/api/auth/me"),
     ("GET", "/api/products"),
     ("GET", "/api/products/by-barcode"),
     ("GET", "/api/vendors"),
@@ -45,7 +44,6 @@ def test_all_context_routers_mounted(client):
     endpoint returns 401/403 (auth required) rather than 404 (route not found).
     """
     context_probes = {
-        "identity": ("GET", "/api/auth/me"),
         "catalog": ("GET", "/api/products"),
         "operations": ("GET", "/api/withdrawals"),
         "purchasing": ("GET", "/api/purchase-orders"),

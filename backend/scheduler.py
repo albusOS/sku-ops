@@ -8,9 +8,9 @@ import logging
 from datetime import UTC, datetime
 
 from finance.application.xero_sync_job import run_sync
-from identity.infrastructure.org_repo import list_all
 from shared.infrastructure.config import XERO_SYNC_HOUR
 from shared.infrastructure.logging_config import org_id_var
+from shared.infrastructure.org_repo import list_all
 
 logger = logging.getLogger(__name__)
 

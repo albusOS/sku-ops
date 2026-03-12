@@ -145,6 +145,8 @@ async def main():
 
     await init_db()
 
+    import bcrypt
+
     from catalog.application.product_lifecycle import create_product
     from catalog.application.queries import list_departments
     from catalog.infrastructure.vendor_repo import vendor_repo
@@ -157,9 +159,11 @@ async def main():
         record_withdrawal,
     )
     from finance.infrastructure.credit_note_repo import credit_note_repo
-    from identity.application.auth_service import hash_password
-    from identity.infrastructure.org_repo import organization_repo
-    from identity.infrastructure.user_repo import user_repo
+    from shared.infrastructure.org_repo import organization_repo
+
+    def hash_password(pw: str) -> str:
+        return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
     from inventory.application.inventory_service import process_import_stock_changes
     from inventory.domain.stock import StockTransaction, StockTransactionType
     from inventory.infrastructure.stock_repo import stock_repo
@@ -192,8 +196,37 @@ async def main():
     await seed_mock_user(org_id)
     await seed_standard_departments(org_id)
 
-    admin = await user_repo.get_by_email("admin@demo.local")
-    demo_contractor = await user_repo.get_by_email("contractor@demo.local")
+    async def _get_user(email):
+        cur = await conn.execute("SELECT * FROM users WHERE email = ?", (email,))
+        row = await cur.fetchone()
+        return dict(row) if row and hasattr(row, "keys") else None
+
+    async def _insert_user(d):
+        await conn.execute(
+            "INSERT INTO users (id, email, password, name, role, company, billing_entity, phone, is_active, organization_id, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            (
+                d["id"],
+                d["email"],
+                d["password"],
+                d["name"],
+                d.get("role", "admin"),
+                d.get("company", ""),
+                d.get("billing_entity", ""),
+                d.get("phone", ""),
+                d.get("organization_id", org_id),
+                d.get("created_at", now.isoformat()),
+            ),
+        )
+        await conn.commit()
+
+    async def _get_user_by_id(uid):
+        cur = await conn.execute("SELECT * FROM users WHERE id = ?", (uid,))
+        row = await cur.fetchone()
+        return dict(row) if row and hasattr(row, "keys") else None
+
+    admin = await _get_user("admin@demo.local")
+    demo_contractor = await _get_user("contractor@demo.local")
     if not admin or not demo_contractor:
         logger.error("Failed to create demo users")
         return None
@@ -277,29 +310,28 @@ async def main():
     # 3. CONTRACTORS (8 new + original demo contractor)
     # ══════════════════════════════════════════════════════════════════════
     logger.info("--- Creating contractors ---")
-    from identity.domain.user import User
-
     contractor_users = []
 
-    # Original demo contractor
-    dc = await user_repo.get_by_email("contractor@demo.local")
+    dc = await _get_user("contractor@demo.local")
     if dc:
         contractor_users.append(dc)
 
     for c in CONTRACTORS:
-        user = User(
-            email=c["email"],
-            name=c["name"],
-            role="contractor",
-            company=c["company"],
-            billing_entity=c["billing_entity"],
-            phone=c["phone"],
-        )
-        user_dict = user.model_dump()
-        user_dict["password"] = hash_password("demo123")
-        user_dict["organization_id"] = org_id
-        await user_repo.insert(user_dict)
-        u = await user_repo.get_by_id(user.id)
+        uid = str(uuid4())
+        user_dict = {
+            "id": uid,
+            "email": c["email"],
+            "name": c["name"],
+            "role": "contractor",
+            "company": c["company"],
+            "billing_entity": c["billing_entity"],
+            "phone": c["phone"],
+            "password": hash_password("demo123"),
+            "organization_id": org_id,
+            "created_at": now.isoformat(),
+        }
+        await _insert_user(user_dict)
+        u = await _get_user_by_id(uid)
         if u:
             contractor_users.append(u)
         logger.info("  %s — %s (%s)", c["name"], c["email"], c["company"])

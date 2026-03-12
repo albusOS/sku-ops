@@ -10,18 +10,15 @@ from catalog.api.products import router as products_router
 from catalog.api.sku import router as sku_router
 from catalog.api.vendors import router as vendors_router
 from documents.api.documents import router as documents_router
+from finance.api.billing_entities import router as billing_entities_router
 from finance.api.credit_notes import router as credit_notes_router
 from finance.api.financials import router as financials_router
 from finance.api.fiscal_periods import router as fiscal_periods_router
 from finance.api.invoices import router as invoices_router
 from finance.api.payments import router as payments_router
+from finance.api.settings import router as settings_router
 from finance.api.xero_auth import router as xero_auth_router
 from finance.api.xero_health import router as xero_health_router
-from identity.api.addresses import router as addresses_router
-from identity.api.audit import router as audit_router
-from identity.api.auth import router as auth_router
-from identity.api.billing_entities import router as billing_entities_router
-from identity.api.settings import router as settings_router
 from inventory.api.cycle_counts import router as cycle_counts_router
 from inventory.api.stock import router as stock_router
 from jobs.api.jobs import router as jobs_router
@@ -32,13 +29,14 @@ from operations.api.withdrawals import router as withdrawals_router
 from purchasing.api.purchase_orders import router as purchase_orders_router
 from reports.api.dashboard import router as dashboard_router
 from reports.api.reports import router as reports_router
+from shared.api.addresses import router as addresses_router
+from shared.api.audit import router as audit_router
 from shared.api.health import router as health_router
 from shared.api.websocket import router as ws_router
 from shared.infrastructure.config import is_development, is_test
 
 api_router = APIRouter(prefix="/api")
 
-api_router.include_router(auth_router)
 api_router.include_router(audit_router)
 api_router.include_router(health_router)
 api_router.include_router(sku_router)

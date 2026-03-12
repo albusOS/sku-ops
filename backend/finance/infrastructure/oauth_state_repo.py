@@ -6,10 +6,11 @@ not a general auth concern.
 
 from datetime import UTC, datetime
 
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.database import get_connection, get_org_id
 
 
-async def save_oauth_state(state: str, org_id: str) -> None:
+async def save_oauth_state(state: str) -> None:
+    org_id = get_org_id()
     conn = get_connection()
     now = datetime.now(UTC).isoformat()
     await conn.execute(

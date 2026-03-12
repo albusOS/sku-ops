@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 import httpx
 
 from finance.adapters.xero._base import XERO_CONNECTIONS_URL, XERO_OAUTH_ENDPOINT
+from finance.application.org_settings_service import upsert_org_settings
 from finance.domain.xero_settings import XeroSettings
-from identity.application.org_service import upsert_org_settings
 from shared.infrastructure.config import XERO_CLIENT_ID, XERO_CLIENT_SECRET
 
 

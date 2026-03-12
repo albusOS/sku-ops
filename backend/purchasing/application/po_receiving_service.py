@@ -10,7 +10,6 @@ from purchasing.application.purchase_order_service import PurchasingDeps, _resol
 from purchasing.domain.purchase_order import POItemStatus, POStatus
 from purchasing.infrastructure.po_repo import po_repo as _default_repo
 from purchasing.ports.po_repo_port import PORepoPort
-from shared.infrastructure.db import get_org_id
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.types import CurrentUser
 
@@ -18,7 +17,7 @@ from shared.kernel.types import CurrentUser
 async def mark_delivery_received(
     po_id: str,
     item_ids: list[str],
-    current_user: CurrentUser,
+    current_user: CurrentUser,  # noqa: ARG001
     repo: PORepoPort = _default_repo,
 ) -> dict:
     """Transition selected 'ordered' items to 'pending' (delivery arrived at dock).
@@ -195,7 +194,6 @@ async def receive_po_items(
             po_id=po_id,
             items=ledger_items,
             vendor_name=po.get("vendor_name", ""),
-            organization_id=get_org_id(),
             performed_by_user_id=current_user.id,
         )
 

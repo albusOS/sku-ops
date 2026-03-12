@@ -13,7 +13,7 @@ from catalog.application.queries import (
     list_products,
 )
 from finance.application import ledger_queries as ledger_repo
-from identity.application.user_service import count_contractors
+from operations.application.contractor_service import count_contractors
 from operations.application.queries import list_withdrawals
 from purchasing.application.queries import po_summary_by_status
 from shared.kernel.types import round_money

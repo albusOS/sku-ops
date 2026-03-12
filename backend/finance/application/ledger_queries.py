@@ -19,7 +19,7 @@ from finance.application.ledger_analytics import (  # noqa: F401
     trend_series,
 )
 from finance.infrastructure.ledger_repo import get_journal, trial_balance  # noqa: F401
-from identity.application.user_service import get_users_by_ids
+from operations.application.contractor_service import get_users_by_ids
 from operations.application.queries import (
     payment_status_breakdown as _ops_pmt_status,
 )

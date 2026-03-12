@@ -324,7 +324,7 @@ async def test_create_withdrawal_auto_invoice_failure_still_creates_withdrawal(d
     )
 
     assert "id" in result
-    assert "invoice_id" not in result
+    assert result.get("invoice_id") is None
 
     updated = await product_repo.get_by_id(product.id)
     assert updated.quantity == 8

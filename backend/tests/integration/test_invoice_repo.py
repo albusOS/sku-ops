@@ -212,7 +212,7 @@ async def test_delete_non_draft_invoice_raises(db):
     )
     inv = await create_invoice_from_withdrawals([wid])
 
-    await invoice_repo.update_status(inv.id, "approved")
+    await invoice_repo.update_fields(inv.id, {"status": "approved"})
 
     with pytest.raises(ValueError, match="draft"):
         await delete_draft_invoice(inv.id)

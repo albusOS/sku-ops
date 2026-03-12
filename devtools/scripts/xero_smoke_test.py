@@ -70,7 +70,7 @@ class SmokeTestRunner:
         from shared.infrastructure.database import init_db
 
         await init_db()
-        from identity.application.org_service import get_org_settings
+        from finance.application.org_settings_service import get_org_settings
 
         self.settings = await get_org_settings(self.org_id)
         from finance.adapters.xero_adapter import XeroAdapter

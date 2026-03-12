@@ -145,7 +145,6 @@ class TestMemoryExtract:
 
         # Function exits before touching anthropic; just ensure no crash and no artifacts
         await extract_and_save(
-            "default",
             "user-1",
             "sess-1",
             [

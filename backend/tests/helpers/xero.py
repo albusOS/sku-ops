@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
-from identity.domain.org_settings import OrgSettings
+from finance.domain.org_settings import OrgSettings
 
 
 def make_settings(**overrides) -> OrgSettings:

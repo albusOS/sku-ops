@@ -237,7 +237,6 @@ async def process_adjustment_stock_changes(
         product_cost=product.cost,
         quantity_delta=quantity_delta,
         department=product.department_name,
-        organization_id=product.organization_id,
         reason=reason,
         performed_by_user_id=user_id,
     )

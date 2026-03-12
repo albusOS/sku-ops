@@ -3,11 +3,12 @@
 from datetime import UTC, datetime
 
 from finance.domain.org_settings import OrgSettings
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.database import get_connection, get_org_id
 
 
-async def get_org_settings(org_id: str) -> OrgSettings:
+async def get_org_settings() -> OrgSettings:
     """Return org settings, or defaults if not yet configured."""
+    org_id = get_org_id()
     conn = get_connection()
     cursor = await conn.execute(
         "SELECT * FROM org_settings WHERE organization_id = ?",
@@ -63,11 +64,12 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
         ),
     )
     await conn.commit()
-    return await get_org_settings(settings.organization_id)
+    return await get_org_settings()
 
 
-async def clear_xero_tokens(org_id: str) -> None:
+async def clear_xero_tokens() -> None:
     """Remove Xero OAuth tokens for an org (disconnect)."""
+    org_id = get_org_id()
     conn = get_connection()
     await conn.execute(
         """UPDATE org_settings

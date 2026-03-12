@@ -5,12 +5,39 @@ finance.infrastructure directly. Thin delegation layer that decouples
 consumers from infrastructure details.
 """
 
+from finance.domain.billing_entity import BillingEntity
 from finance.domain.credit_note import CreditNote
 from finance.domain.invoice import Invoice
 from finance.domain.payment import Payment
+from finance.infrastructure.billing_entity_repo import billing_entity_repo as _billing_entity_repo
 from finance.infrastructure.credit_note_repo import credit_note_repo as _credit_note_repo
 from finance.infrastructure.invoice_repo import invoice_repo as _invoice_repo
 from finance.infrastructure.payment_repo import payment_repo as _payment_repo
+
+# ── Billing entity queries ───────────────────────────────────────────────────
+
+
+async def get_billing_entity_by_id(entity_id: str) -> BillingEntity | None:
+    return await _billing_entity_repo.get_by_id(entity_id)
+
+
+async def list_billing_entities(
+    is_active: bool | None = None,
+    q: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list:
+    return await _billing_entity_repo.list_billing_entities(
+        is_active=is_active,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+
+async def search_billing_entities(query: str, limit: int = 20) -> list:
+    return await _billing_entity_repo.search(query, limit=limit)
+
 
 # ── Payment queries ──────────────────────────────────────────────────────────
 

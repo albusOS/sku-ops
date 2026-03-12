@@ -16,7 +16,7 @@ router = APIRouter(prefix="/audit-log", tags=["audit-log"])
 
 @router.get("")
 async def list_audit_log(
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
     user_id: str | None = None,
     action: str | None = None,
     resource_type: str | None = None,
@@ -28,7 +28,6 @@ async def list_audit_log(
 ):
     """List audit log entries with optional filters. Admin only."""
     entries, total = await query_audit_log(
-        current_user.organization_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,
@@ -42,14 +41,14 @@ async def list_audit_log(
 
 
 @router.get("/actions")
-async def list_audit_actions(current_user: AdminDep):
+async def list_audit_actions(current_user: AdminDep):  # noqa: ARG001
     """Return distinct action names for filter dropdowns."""
-    return await distinct_actions(current_user.organization_id)
+    return await distinct_actions()
 
 
 @router.get("/export")
 async def export_audit_log(
-    current_user: AdminDep,
+    current_user: AdminDep,  # noqa: ARG001
     user_id: str | None = None,
     action: str | None = None,
     resource_type: str | None = None,
@@ -58,7 +57,6 @@ async def export_audit_log(
 ):
     """Export audit log as CSV. Admin only."""
     entries, _ = await query_audit_log(
-        current_user.organization_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,

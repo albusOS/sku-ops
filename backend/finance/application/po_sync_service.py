@@ -15,7 +15,6 @@ from purchasing.application.queries import (
     set_xero_bill_id,
     set_xero_sync_status,
 )
-from shared.infrastructure.database import get_org_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ async def sync_po_bill(po_id: str, cost_total: float | None = None) -> dict:
         await set_xero_sync_status(po_id, "skipped", now)
         return {"po_id": po_id, "success": True, "skipped": True, "reason": "zero cost"}
 
-    org_settings = await get_org_settings(get_org_id())
+    org_settings = await get_org_settings()
     xero_settings = XeroSettings.model_validate(org_settings.model_dump())
     gateway = get_invoicing_gateway(xero_settings)
 

@@ -1,8 +1,8 @@
-"""Shared infrastructure schema — cross-cutting tables.
+"""Shared infrastructure schema — cross-cutting tables not owned by any single context.
 
-Organizations (tenancy), org settings (finance config), addresses,
-audit log, and OAuth state. These don't belong to any single
-bounded context.
+Includes: organizations (tenancy), users (auth — Supabase will replace),
+refresh_tokens (auth), oauth_states (Xero flow), audit_log, billing_entities,
+addresses, fiscal_periods, org_settings.
 """
 
 TABLES: list[str] = [
@@ -10,6 +10,20 @@ TABLES: list[str] = [
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         slug TEXT UNIQUE NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        company TEXT,
+        billing_entity TEXT,
+        billing_entity_id TEXT,
+        phone TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS org_settings (
@@ -27,6 +41,14 @@ TABLES: list[str] = [
         xero_tax_type TEXT NOT NULL DEFAULT '',
         updated_at TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TEXT NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS oauth_states (
         state TEXT PRIMARY KEY,
         org_id TEXT NOT NULL,
@@ -43,20 +65,6 @@ TABLES: list[str] = [
         organization_id TEXT,
         created_at TEXT NOT NULL
     )""",
-    """CREATE TABLE IF NOT EXISTS addresses (
-        id TEXT PRIMARY KEY,
-        label TEXT NOT NULL DEFAULT '',
-        line1 TEXT NOT NULL DEFAULT '',
-        line2 TEXT NOT NULL DEFAULT '',
-        city TEXT NOT NULL DEFAULT '',
-        state TEXT NOT NULL DEFAULT '',
-        postal_code TEXT NOT NULL DEFAULT '',
-        country TEXT NOT NULL DEFAULT 'US',
-        billing_entity_id TEXT,
-        job_id TEXT,
-        organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    )""",
     """CREATE TABLE IF NOT EXISTS billing_entities (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -71,6 +79,20 @@ TABLES: list[str] = [
         updated_at TEXT NOT NULL,
         UNIQUE(organization_id, name)
     )""",
+    """CREATE TABLE IF NOT EXISTS addresses (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL DEFAULT '',
+        line1 TEXT NOT NULL DEFAULT '',
+        line2 TEXT NOT NULL DEFAULT '',
+        city TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL DEFAULT '',
+        postal_code TEXT NOT NULL DEFAULT '',
+        country TEXT NOT NULL DEFAULT 'US',
+        billing_entity_id TEXT,
+        job_id TEXT,
+        organization_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS fiscal_periods (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -82,23 +104,13 @@ TABLES: list[str] = [
         organization_id TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
-    """CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL DEFAULT '',
-        name TEXT NOT NULL DEFAULT '',
-        role TEXT NOT NULL DEFAULT 'admin',
-        company TEXT NOT NULL DEFAULT '',
-        billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT,
-        phone TEXT NOT NULL DEFAULT '',
-        is_active INTEGER NOT NULL DEFAULT 1,
-        organization_id TEXT,
-        created_at TEXT NOT NULL
-    )""",
 ]
 
 INDEXES: list[str] = [
+    "CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_users_org_role ON users(organization_id, role)",
+    "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(organization_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at)",

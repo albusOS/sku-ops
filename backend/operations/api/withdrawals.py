@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Request
 
-from identity.application.user_service import get_user_by_id
+from operations.application.contractor_service import get_contractor_by_id
 from operations.application.queries import get_withdrawal_by_id, list_withdrawals
 from operations.application.withdrawal_service import (
     bulk_mark_withdrawals_paid,
@@ -53,7 +53,7 @@ async def create_withdrawal_for_contractor(
     current_user: AdminDep,
 ):
     """Admin creates withdrawal on behalf of a contractor."""
-    contractor = await get_user_by_id(contractor_id)
+    contractor = await get_contractor_by_id(contractor_id)
     if not contractor or contractor.role != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
     if contractor.organization_id and contractor.organization_id != current_user.organization_id:

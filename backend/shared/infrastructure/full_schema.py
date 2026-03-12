@@ -3,7 +3,7 @@
 Single source of truth for the database schema.  Used by the migration runner
 to bootstrap a *fresh* database (SQLite or PostgreSQL) in one shot.
 Each context owns its own table definitions; this module collects them
-in dependency order (identity first, then catalog, inventory, etc.).
+in dependency order (shared infra first, then catalog, inventory, etc.).
 """
 
 from assistant.infrastructure.schema import (
@@ -30,15 +30,6 @@ from finance.infrastructure.schema import (
 from finance.infrastructure.schema import (
     TABLES as _finance_tables,
 )
-from identity.infrastructure.schema import (
-    INDEXES as _identity_indexes,
-)
-from identity.infrastructure.schema import (
-    SEED as _identity_seed,
-)
-from identity.infrastructure.schema import (
-    TABLES as _identity_tables,
-)
 from inventory.infrastructure.schema import (
     INDEXES as _inventory_indexes,
 )
@@ -63,11 +54,18 @@ from purchasing.infrastructure.schema import (
 from purchasing.infrastructure.schema import (
     TABLES as _purchasing_tables,
 )
+from shared.infrastructure.schema import (
+    INDEXES as _shared_indexes,
+)
+from shared.infrastructure.schema import (
+    SEED as _shared_seed,
+)
+from shared.infrastructure.schema import (
+    TABLES as _shared_tables,
+)
 
-# Order matters: identity (orgs/users) first, then catalog (departments/products),
-# then contexts that reference them.
 _ALL_TABLES: list[str] = (
-    _identity_tables
+    _shared_tables
     + _catalog_tables
     + _inventory_tables
     + _operations_tables
@@ -79,7 +77,7 @@ _ALL_TABLES: list[str] = (
 )
 
 _ALL_INDEXES: list[str] = (
-    _identity_indexes
+    _shared_indexes
     + _catalog_indexes
     + _inventory_indexes
     + _operations_indexes
@@ -90,4 +88,4 @@ _ALL_INDEXES: list[str] = (
     + _assistant_indexes
 )
 
-FULL_SCHEMA: list[str] = _ALL_TABLES + _ALL_INDEXES + _identity_seed
+FULL_SCHEMA: list[str] = _ALL_TABLES + _ALL_INDEXES + _shared_seed

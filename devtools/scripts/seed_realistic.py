@@ -664,10 +664,10 @@ async def main():
     from catalog.application.queries import list_departments
     from catalog.infrastructure.vendor_repo import vendor_repo
     from finance.application.invoice_service import create_invoice_from_withdrawals
-    from identity.infrastructure.user_repo import user_repo
     from inventory.application.inventory_service import process_import_stock_changes
     from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
     from operations.infrastructure.withdrawal_repo import withdrawal_repo
+    from shared.infrastructure.database import get_connection as _get_conn
 
     org_id = "default"
     conn = get_connection()
@@ -679,8 +679,13 @@ async def main():
         logger.info("Already have %d products — skipping seed. Delete DB to re-seed.", count)
         return
 
-    admin = await user_repo.get_by_email("admin@demo.local")
-    contractor = await user_repo.get_by_email("contractor@demo.local")
+    _c = _get_conn()
+    _cur = await _c.execute("SELECT * FROM users WHERE email = ?", ("admin@demo.local",))
+    _row = await _cur.fetchone()
+    admin = dict(_row) if _row and hasattr(_row, "keys") else None
+    _cur = await _c.execute("SELECT * FROM users WHERE email = ?", ("contractor@demo.local",))
+    _row = await _cur.fetchone()
+    contractor = dict(_row) if _row and hasattr(_row, "keys") else None
     if not admin or not contractor:
         logger.error("Demo users not found. Start the server first to run seed_mock_user().")
         return
