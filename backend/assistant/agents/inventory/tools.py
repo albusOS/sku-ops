@@ -37,7 +37,6 @@ from catalog.application.queries import (
 from inventory.application.queries import withdrawal_velocity
 from operations.application.queries import list_withdrawals
 from shared.infrastructure.config import OPENAI_API_KEY
-from shared.infrastructure.db import get_org_id
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ logger = logging.getLogger(__name__)
 async def _search_products(args: dict) -> str:
     query = (args.get("query") or "").strip()
     limit = min(int(args.get("limit") or 20), 50)
-    items = await catalog_list_products(search=query, limit=limit, organization_id=get_org_id())
+    items = await catalog_list_products(search=query, limit=limit)
     out = [
         {
             "sku": p.sku,
@@ -86,7 +85,7 @@ async def _search_semantic(args: dict) -> str:
 
 async def _get_product_details(args: dict) -> str:
     sku = (args.get("sku") or "").strip().upper()
-    p = await catalog_find_by_sku(sku, organization_id=get_org_id())
+    p = await catalog_find_by_sku(sku)
     if not p:
         return json.dumps({"error": f"Product with SKU '{sku}' not found"})
     return json.dumps(
@@ -128,7 +127,7 @@ async def _get_inventory_stats() -> str:
 
 async def _list_low_stock(args: dict) -> str:
     limit = min(int(args.get("limit") or 20), 50)
-    items = await catalog_list_low_stock(limit=limit, organization_id=get_org_id())
+    items = await catalog_list_low_stock(limit=limit)
     out = [
         {
             "sku": p.sku,
@@ -144,7 +143,7 @@ async def _list_low_stock(args: dict) -> str:
 
 
 async def _list_departments() -> str:
-    depts = await catalog_list_departments(organization_id=get_org_id())
+    depts = await catalog_list_departments()
     counters = await get_sku_counters()
     out = []
     for d in depts:
@@ -163,7 +162,7 @@ async def _list_departments() -> str:
 
 
 async def _list_vendors() -> str:
-    vendors = await catalog_list_vendors(organization_id=get_org_id())
+    vendors = await catalog_list_vendors()
     out = [{"name": v.name, "product_count": v.product_count} for v in vendors]
     return json.dumps({"vendors": out})
 
