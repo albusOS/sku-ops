@@ -9,7 +9,6 @@ from starlette.routing import WebSocketRoute
 from shared.infrastructure.config import (
     _ENV,
     ANTHROPIC_AVAILABLE,
-    ANTHROPIC_MODEL,
     LLM_SETUP_URL,
     OPENROUTER_AVAILABLE,
 )
@@ -74,12 +73,15 @@ async def ready(request: Request):
 @router.get("/health/ai")
 async def ai_health():
     """AI availability probe."""
-    if not ANTHROPIC_AVAILABLE:
+    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return JSONResponse(
             status_code=503,
             content={
                 "status": "unavailable",
-                "detail": f"ANTHROPIC_API_KEY not set. Get a key at {LLM_SETUP_URL}",
+                "detail": f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. Get a key at {LLM_SETUP_URL}",
             },
         )
-    return {"status": "ok", "provider": "anthropic", "model": ANTHROPIC_MODEL}
+    from shared.infrastructure.config import AGENT_PRIMARY_MODEL
+
+    provider = "openrouter" if OPENROUTER_AVAILABLE else "anthropic"
+    return {"status": "ok", "provider": provider, "agent_model": AGENT_PRIMARY_MODEL}

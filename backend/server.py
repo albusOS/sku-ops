@@ -82,10 +82,14 @@ async def unhandled_exception_handler(request, exc: Exception):
 
 # ── Middleware (outermost first → executes first on request) ──────────────────
 
+from shared.infrastructure.config import CORS_ORIGIN_REGEX
+
+_cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=CORS_ORIGINS.split(","),
+    allow_origins=_cors_origins,
+    allow_origin_regex=CORS_ORIGIN_REGEX or None,
     allow_methods=["*"],
     allow_headers=["*"],
 )

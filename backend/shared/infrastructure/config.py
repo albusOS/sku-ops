@@ -96,6 +96,9 @@ REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAY
 
 # CORS — strict enforcement in deployed environments
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
+# Optional regex for dynamic origins (e.g. Vercel preview URLs).
+# Example: "https://frontend-.*\\.vercel\\.app"
+CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
 cors_is_permissive = (
     not CORS_ORIGINS.strip() or CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
 )

@@ -22,7 +22,9 @@ _COMMON_HEADERS = {
     "X-XSS-Protection": "0",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
-    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; frame-ancestors 'none'",
+    # CSP intentionally omitted: this is a JSON/WebSocket API, not an HTML document.
+    # CSP on API responses has no browser effect and can interfere with debugging.
+    # CSP belongs in vercel.json on the frontend where it protects the actual document.
 }
 
 _HSTS = "max-age=63072000; includeSubDomains; preload"
