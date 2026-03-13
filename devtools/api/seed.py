@@ -266,10 +266,11 @@ async def reset_and_reseed_inventory(current_user: AdminDep):
     conn = get_connection()
     try:
         await conn.execute("DELETE FROM stock_transactions")
+        await conn.execute("DELETE FROM vendor_items")
+        await conn.execute("DELETE FROM skus")
         await conn.execute("DELETE FROM products")
         await conn.execute("DELETE FROM sku_counters")
-        await conn.execute("UPDATE departments SET product_count = 0")
-        await conn.execute("UPDATE vendors SET product_count = 0")
+        await conn.execute("UPDATE departments SET sku_count = 0")
         await conn.commit()
         logger.info("Inventory reset complete")
         await seed_demo_inventory(org_id)

@@ -2,9 +2,9 @@
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
 from catalog.application.queries import list_departments
-from catalog.infrastructure.product_repo import product_repo
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_receiving_stock_changes,
@@ -34,9 +34,9 @@ def _user():
 async def _create_test_product(
     name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id="dept-1"
 ):
-    return await create_product(
-        department_id=dept_id,
-        department_name="Hardware",
+    return await create_product_with_sku(
+        category_id=dept_id,
+        category_name="Hardware",
         name=name,
         quantity=quantity,
         price=price,
@@ -86,14 +86,14 @@ def _stub_deps():
     """Build PurchasingDeps that wire through to real repos for integration tests."""
     from catalog.application.queries import (
         find_product_by_name_and_vendor,
-        find_product_by_original_sku_and_vendor,
         find_vendor_by_name,
+        find_vendor_item_by_vendor_and_sku_code,
         get_department_by_code,
-        get_product_by_id,
+        get_sku_by_id,
         insert_vendor,
-        list_products_by_vendor,
-        update_product,
+        update_sku,
     )
+    from catalog.application.vendor_item_lifecycle import add_vendor_item
     from documents.application.import_parser import infer_uom, suggest_department
 
     async def _noop_enrich(items, *a, **kw):
@@ -103,19 +103,19 @@ def _stub_deps():
         return items
 
     async def _noop_create(**kw):
-        return await create_product(**kw, on_stock_import=process_receiving_stock_changes)
+        return await create_product_with_sku(**kw, on_stock_import=process_receiving_stock_changes)
 
     return PurchasingDeps(
         list_departments=list_departments,
         get_department_by_code=get_department_by_code,
         find_vendor_by_name=find_vendor_by_name,
         insert_vendor=insert_vendor,
-        list_products_by_vendor=list_products_by_vendor,
-        get_product_by_id=get_product_by_id,
-        find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
-        find_product_by_name_and_vendor=find_product_by_name_and_vendor,
-        update_product=update_product,
-        create_product=_noop_create,
+        get_sku_by_id=get_sku_by_id,
+        find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
+        find_sku_by_name_and_vendor=find_product_by_name_and_vendor,
+        update_sku=update_sku,
+        create_product_with_sku=_noop_create,
+        add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
         classify_uom_batch=_noop_classify,
         infer_uom=infer_uom,
@@ -166,7 +166,7 @@ async def test_receive_updates_stock(db):
     assert result["matched"] == 1
     assert result["errors"] == 0
 
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == pytest.approx(150.0)
 
 
@@ -183,7 +183,7 @@ async def test_receive_weighted_average_cost(db):
         current_user=_user(),
     )
 
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     expected_wac = (100 * 8 + 50 * 12) / 150
     assert updated.cost == pytest.approx(expected_wac, abs=0.01)
 
@@ -321,7 +321,7 @@ async def test_receive_cost_override_affects_wac(db):
     )
 
     assert result["matched"] == 1
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     expected_wac = (100 * 8 + 50 * 20) / 150
     assert updated.cost == pytest.approx(expected_wac, abs=0.01)
 
@@ -355,7 +355,7 @@ async def test_receive_creates_product_with_overridden_name(db):
 
     conn = get_connection()
     cursor = await conn.execute(
-        "SELECT name FROM products WHERE id = (SELECT product_id FROM purchase_order_items WHERE id = ?)",
+        "SELECT name FROM skus WHERE id = (SELECT product_id FROM purchase_order_items WHERE id = ?)",
         (item.id,),
     )
     row = await cursor.fetchone()
@@ -382,10 +382,10 @@ async def test_receive_product_id_override_matches_explicit(db):
     )
 
     assert result["matched"] == 1
-    updated_b = await product_repo.get_by_id(product_b.id)
+    updated_b = await sku_repo.get_by_id(product_b.id)
     assert updated_b.quantity == pytest.approx(50.0)
 
-    updated_a = await product_repo.get_by_id(product_a.id)
+    updated_a = await sku_repo.get_by_id(product_a.id)
     assert updated_a.quantity == pytest.approx(50.0)
 
 
@@ -412,5 +412,5 @@ async def test_receive_items_with_typed_input(db):
     assert result["errors"] == 0
     assert result["cost_total"] == pytest.approx(6.0 * 15)
 
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == pytest.approx(35.0)

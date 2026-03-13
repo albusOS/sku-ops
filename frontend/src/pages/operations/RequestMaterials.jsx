@@ -223,10 +223,10 @@ const RequestMaterials = () => {
             </div>
             <Select value={selectedDept} onValueChange={setSelectedDept}>
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All Departments" />
+                <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
@@ -252,7 +252,7 @@ const RequestMaterials = () => {
                 >
                   <div className="aspect-[4/3] bg-muted flex items-center justify-center border-b border-border/50">
                     <span className="font-mono text-xl text-muted-foreground/60 font-bold">
-                      {product.department_name?.slice(0, 3).toUpperCase() || "---"}
+                      {product.category_name?.slice(0, 3).toUpperCase() || "---"}
                     </span>
                   </div>
                   <div className="p-3">

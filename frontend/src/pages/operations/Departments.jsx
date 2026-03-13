@@ -24,7 +24,7 @@ const deptSchema = z.object({
 });
 
 const FIELDS = [
-  { name: "name", label: "Department Name *", placeholder: "e.g., Lumber" },
+  { name: "name", label: "Category Name *", placeholder: "e.g., Lumber" },
   {
     name: "code",
     label: "Code (3 characters) *",
@@ -67,10 +67,10 @@ const Departments = () => {
     try {
       if (isEditing) {
         await updateMutation.mutateAsync({ id: editingDept.id, data });
-        toast.success("Department updated!");
+        toast.success("Category updated!");
       } else {
         await createMutation.mutateAsync(data);
-        toast.success("Department created!");
+        toast.success("Category created!");
       }
       setDialogOpen(false);
     } catch (err) {
@@ -83,7 +83,7 @@ const Departments = () => {
     if (!dept) return;
     try {
       await deleteMutation.mutateAsync(dept.id);
-      toast.success("Department deleted");
+      toast.success("Category deleted");
     } catch (error) {
       toast.error(getErrorMessage(error));
       throw error;
@@ -95,8 +95,8 @@ const Departments = () => {
   return (
     <div className="p-8" data-testid="departments-page">
       <PageHeader
-        title="Departments"
-        subtitle={`${departments.length} departments`}
+        title="Categories"
+        subtitle={`${departments.length} categories`}
         action={
           <Button
             onClick={() => openDialog()}
@@ -104,7 +104,7 @@ const Departments = () => {
             data-testid="add-department-btn"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Add Department
+            Add Category
           </Button>
         }
       />
@@ -115,7 +115,7 @@ const Departments = () => {
           <span className="font-mono bg-card px-2 py-1 rounded border border-border">
             DEPT-XXXXX
           </span>{" "}
-          — each product gets a unique SKU from its department code + sequence. SKUs are assigned
+          — each product gets a unique SKU from its category code + sequence. SKUs are assigned
           automatically when you add products.
         </p>
       </div>
@@ -123,9 +123,9 @@ const Departments = () => {
       {departments.length === 0 ? (
         <div className="card-workshop p-12 text-center">
           <Layers className="w-16 h-16 mx-auto mb-4 text-muted-foreground/60" />
-          <p className="text-muted-foreground font-medium">No departments yet</p>
+          <p className="text-muted-foreground font-medium">No categories yet</p>
           <p className="text-muted-foreground text-sm mb-4">
-            Departments are auto-seeded on first dashboard load
+            Categories are auto-seeded on first dashboard load
           </p>
         </div>
       ) : (
@@ -173,7 +173,7 @@ const Departments = () => {
               <div className="space-y-2 pt-4 border-t border-border">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Package className="w-4 h-4" />
-                  <span>{dept.product_count || 0} products</span>
+                  <span>{dept.sku_count || dept.product_count || 0} SKUs</span>
                 </div>
                 {skuOverview?.departments?.find((d) => d.id === dept.id)?.next_sku && (
                   <p className="text-xs font-mono text-muted-foreground">
@@ -189,7 +189,7 @@ const Departments = () => {
       <EntityFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title="Department"
+        title="Category"
         schema={deptSchema}
         fields={FIELDS}
         defaults={DEFAULTS}
@@ -202,7 +202,7 @@ const Departments = () => {
       <ConfirmDialog
         open={deleteConfirm.open}
         onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
-        title="Delete department"
+        title="Delete category"
         description={
           deleteConfirm.dept ? `Delete "${deleteConfirm.dept.name}"? This cannot be undone.` : ""
         }

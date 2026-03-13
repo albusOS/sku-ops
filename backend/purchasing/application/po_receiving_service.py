@@ -51,7 +51,7 @@ async def receive_po_items(
 ) -> dict:
     """Mark selected items as arrived and update inventory stock.
 
-    New products are created for unmatched items; existing products get a
+    New SKUs are created for unmatched items; existing SKUs get a
     RECEIVING transaction.
     """
     po = await repo.get_po(po_id)
@@ -101,7 +101,7 @@ async def receive_po_items(
             if update.product_id:
                 item["product_id"] = update.product_id
 
-            existing = await _match_product(item, vendor_id, deps)
+            existing = await _match_sku(item, vendor_id, deps)
 
             resolved_pid = None
             if existing:
@@ -115,10 +115,7 @@ async def receive_po_items(
                     user_name=current_user.name,
                     reference_id=po_id,
                 )
-                product_updates: dict = {}
-                if item.get("original_sku") and not existing.original_sku:
-                    product_updates["original_sku"] = item["original_sku"]
-
+                sku_updates: dict = {}
                 po_item_cost = _resolve_po_item_cost(item)
                 old_qty = float(existing.quantity)
                 old_cost = float(existing.cost)
@@ -126,17 +123,17 @@ async def receive_po_items(
                     new_cost = round(
                         (old_qty * old_cost + delivered * po_item_cost) / (old_qty + delivered), 4
                     )
-                    product_updates["cost"] = new_cost
+                    sku_updates["cost"] = new_cost
 
-                if product_updates:
-                    await deps.update_product(existing.id, product_updates)
+                if sku_updates:
+                    await deps.update_sku(existing.id, sku_updates)
                 await repo.update_po_item(
                     item_id,
                     POItemStatus.ARRIVED,
                     product_id=existing.id,
                     delivered_qty=delivered,
                 )
-                updated = await deps.get_product_by_id(existing.id)
+                updated = await deps.get_sku_by_id(existing.id)
                 matched.append(updated)
             else:
                 dept = (
@@ -148,30 +145,41 @@ async def receive_po_items(
                     continue
 
                 cost_val = _resolve_po_item_cost(item)
-                product = await deps.create_product(
-                    department_id=dept.id,
-                    department_name=dept.name,
+                new_sku = await deps.create_product_with_sku(
+                    category_id=dept.id,
+                    category_name=dept.name,
                     name=item.get("name", "Unknown"),
                     description="",
                     price=float(item.get("unit_price") or item.get("price") or 0),
                     cost=round(cost_val, 2),
                     quantity=delivered,
                     min_stock=5,
-                    vendor_id=vendor_id,
-                    vendor_name=po.get("vendor_name", ""),
-                    original_sku=item.get("original_sku"),
                     barcode=item.get("barcode") or None,
                     base_unit=item.get("base_unit") or "each",
                     sell_uom=item.get("sell_uom") or "each",
                     pack_qty=int(item.get("pack_qty") or 1),
+                    purchase_uom=item.get("purchase_uom") or "each",
+                    purchase_pack_qty=int(item.get("purchase_pack_qty") or 1),
                     user_id=current_user.id,
                     user_name=current_user.name,
                 )
-                resolved_pid = product.id
+                resolved_pid = new_sku.id
+
+                if vendor_id and item.get("original_sku"):
+                    await deps.add_vendor_item(
+                        sku_id=new_sku.id,
+                        vendor_id=vendor_id,
+                        vendor_sku=item["original_sku"],
+                        purchase_uom=item.get("purchase_uom") or "each",
+                        purchase_pack_qty=int(item.get("purchase_pack_qty") or 1),
+                        cost=round(cost_val, 2),
+                        is_preferred=True,
+                    )
+
                 await repo.update_po_item(
-                    item_id, POItemStatus.ARRIVED, product_id=product.id, delivered_qty=delivered
+                    item_id, POItemStatus.ARRIVED, product_id=new_sku.id, delivered_qty=delivered
                 )
-                received.append(product)
+                received.append(new_sku)
 
             item_cost = _resolve_po_item_cost(item)
             cost_total += item_cost * delivered
@@ -210,7 +218,6 @@ async def receive_po_items(
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
-
 _OVERRIDE_FIELDS = (
     "name",
     "cost",
@@ -219,6 +226,8 @@ _OVERRIDE_FIELDS = (
     "base_unit",
     "sell_uom",
     "pack_qty",
+    "purchase_uom",
+    "purchase_pack_qty",
     "barcode",
     "original_sku",
 )
@@ -232,20 +241,22 @@ def _apply_overrides(item: dict, update: ReceiveItemUpdate) -> None:
             item[field] = val
 
 
-async def _match_product(item: dict, vendor_id: str, deps: PurchasingDeps):
-    """3-tier matching: explicit product_id -> vendor SKU -> name."""
+async def _match_sku(item: dict, vendor_id: str, deps: PurchasingDeps):
+    """3-tier matching: explicit product_id -> vendor SKU via VendorItem -> name."""
     if item.get("product_id"):
-        existing = await deps.get_product_by_id(item["product_id"])
+        existing = await deps.get_sku_by_id(item["product_id"])
         if existing:
             return existing
     if item.get("original_sku") and vendor_id:
-        existing = await deps.find_product_by_sku_and_vendor(
-            str(item["original_sku"]).strip(), vendor_id
+        vi = await deps.find_vendor_item_by_vendor_and_sku_code(
+            vendor_id, str(item["original_sku"]).strip()
         )
-        if existing:
-            return existing
+        if vi:
+            existing = await deps.get_sku_by_id(vi.sku_id)
+            if existing:
+                return existing
     if item.get("name") and vendor_id:
-        existing = await deps.find_product_by_name_and_vendor(item["name"], vendor_id)
+        existing = await deps.find_sku_by_name_and_vendor(item["name"], vendor_id)
         if existing:
             return existing
     return None

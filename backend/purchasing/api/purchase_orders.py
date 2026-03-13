@@ -4,18 +4,18 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
-    find_product_by_original_sku_and_vendor,
     find_vendor_by_name,
+    find_vendor_item_by_vendor_and_sku_code,
     get_department_by_code,
-    get_product_by_id,
+    get_sku_by_id,
     insert_vendor,
     list_departments,
-    list_products_by_vendor,
-    update_product,
+    update_sku,
 )
+from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
+from catalog.application.vendor_item_lifecycle import add_vendor_item
 from documents.application.enrichment_service import enrich_for_import
 from documents.application.import_parser import infer_uom, suggest_department
 from finance.application.po_sync_service import queue_po_for_sync
@@ -57,14 +57,14 @@ def _build_deps() -> PurchasingDeps:
         get_department_by_code=get_department_by_code,
         find_vendor_by_name=find_vendor_by_name,
         insert_vendor=insert_vendor,
-        list_products_by_vendor=list_products_by_vendor,
-        get_product_by_id=get_product_by_id,
-        find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
-        find_product_by_name_and_vendor=find_product_by_name_and_vendor,
-        update_product=update_product,
-        create_product=lambda **kw: lifecycle_create(
+        get_sku_by_id=get_sku_by_id,
+        find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
+        find_sku_by_name_and_vendor=find_product_by_name_and_vendor,
+        update_sku=update_sku,
+        create_product_with_sku=lambda **kw: lifecycle_create(
             **kw, on_stock_import=process_receiving_stock_changes
         ),
+        add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
         classify_uom_batch=_wired_classify_uom_batch,
         infer_uom=infer_uom,

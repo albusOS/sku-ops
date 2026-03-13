@@ -89,3 +89,9 @@ _ALL_INDEXES: list[str] = (
 )
 
 FULL_SCHEMA: list[str] = _ALL_TABLES + _ALL_INDEXES + _shared_seed
+
+# Exported separately so the migration runner can interleave migrations between
+# table creation and index creation (needed when migrations rename columns that
+# existing indexes reference).
+ALL_TABLES: list[str] = _ALL_TABLES
+ALL_INDEXES: list[str] = _ALL_INDEXES

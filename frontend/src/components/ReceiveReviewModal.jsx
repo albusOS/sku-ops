@@ -14,7 +14,8 @@ export function ReceiveReviewModal({
   open,
   onOpenChange,
   items: rawItems,
-  departments = [],
+  categories = [],
+  departments: _departments = categories, // backward-compat alias for callers still passing departments=
   onConfirm,
   isSubmitting = false,
 }) {
@@ -153,14 +154,14 @@ export function ReceiveReviewModal({
           {newItems.length > 0 && (
             <div className="space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning">
-                New — will create product ({newItems.length})
+                New — will create SKU ({newItems.length})
               </p>
               {newItems.map((item) => (
                 <NewCard
                   key={item.id}
                   item={item}
                   matchState={matches[item.id] || {}}
-                  departments={departments}
+                  categories={categories}
                   onSearch={(q) => searchMatch(item.id, q)}
                   onConfirmMatch={(p) => handleMatchConfirm(item.id, p)}
                   onClearMatch={() => handleMatchClear(item.id)}
@@ -267,7 +268,7 @@ function MatchedCard({ item, matchState, onSearch, onConfirmMatch, onClearMatch,
 function NewCard({
   item,
   matchState,
-  departments,
+  categories,
   onSearch,
   onConfirmMatch,
   onClearMatch,
@@ -311,7 +312,7 @@ function NewCard({
           };
           onChange(fieldMap[field] || field, value);
         }}
-        departments={departments}
+        departments={categories}
         hiddenFields={COMPACT_HIDDEN}
       />
 

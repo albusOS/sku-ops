@@ -91,7 +91,7 @@ const Layout = ({ children }) => {
 
     const inventoryItems = [
       { path: "/inventory", icon: Package, label: "Products" },
-      { path: "/departments", icon: Layers, label: "Departments" },
+      { path: "/departments", icon: Layers, label: "Categories" },
       { path: "/cycle-counts", icon: ClipboardCheck, label: "Stock Counts" },
     ];
 

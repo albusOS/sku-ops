@@ -37,7 +37,7 @@ export function PLTab({ reportFilters, dateParams }) {
   const activeDrillDimension = selectedJobId
     ? "Job"
     : selectedDepartment
-      ? "Department"
+      ? "Category"
       : selectedEntity
         ? "Entity"
         : null;

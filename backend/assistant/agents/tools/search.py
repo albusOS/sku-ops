@@ -27,8 +27,7 @@ EMBEDDING_DIM = 1536
 class ProductLike(Protocol):
     name: str
     description: str
-    department_name: str
-    vendor_name: str
+    category_name: str
     sku: str
     organization_id: str
 
@@ -46,8 +45,7 @@ def _product_text(p: ProductLike) -> str:
     parts = [
         p.name or "",
         p.description or "",
-        p.department_name or "",
-        p.vendor_name or "",
+        p.category_name or "",
         p.sku or "",
     ]
     return " ".join(filter(None, parts))

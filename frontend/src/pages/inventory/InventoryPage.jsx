@@ -1,8 +1,7 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Plus, Printer, Package, Layers, X } from "lucide-react";
+import { Plus, Printer, Package } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
 import { PageHeader } from "@/components/PageHeader";
@@ -12,10 +11,8 @@ import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
-import { GroupCombobox } from "@/components/GroupCombobox";
-import { useProducts, useDeleteProduct, useAssignGroup } from "@/hooks/useProducts";
+import { useProducts, useDeleteProduct } from "@/hooks/useProducts";
 import { useDepartments } from "@/hooks/useDepartments";
-import { useVendors } from "@/hooks/useVendors";
 import { useViewController } from "@/hooks/useViewController";
 import { getErrorMessage } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -36,10 +33,8 @@ const InventoryPage = () => {
     product: null,
   });
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [bulkGroupOpen, setBulkGroupOpen] = useState(false);
 
   const deleteMutation = useDeleteProduct();
-  const assignGroupMutation = useAssignGroup();
 
   const {
     data: productsData,
@@ -49,20 +44,12 @@ const InventoryPage = () => {
     refetch: refetchProducts,
   } = useProducts({ limit: 500 });
   const { data: departments = [], isLoading: deptsLoading } = useDepartments();
-  const { data: vendors = [] } = useVendors();
 
   const allProducts = useMemo(
     () => productsData?.items ?? (Array.isArray(productsData) ? productsData : []),
     [productsData],
   );
   const loading = productsLoading || deptsLoading;
-
-  const groupFilterValues = useMemo(
-    () => [...new Set(allProducts.map((p) => p.product_group).filter(Boolean))],
-    [allProducts],
-  );
-
-  const [groupDrilldown, setGroupDrilldown] = useState(null);
 
   const columns = useMemo(
     () => [
@@ -76,46 +63,13 @@ const InventoryPage = () => {
         key: "name",
         label: "Product Name",
         type: "text",
-        render: (row) => (
-          <div>
-            <p className="font-semibold">{row.name}</p>
-            {row.original_sku && (
-              <p className="text-xs text-muted-foreground">Orig: {row.original_sku}</p>
-            )}
-          </div>
-        ),
+        render: (row) => <p className="font-semibold">{row.name}</p>,
       },
       {
         key: "department_name",
-        label: "Department",
+        label: "Category",
         type: "enum",
         filterValues: departments.map((d) => d.name),
-      },
-      {
-        key: "vendor_name",
-        label: "Vendor",
-        type: "enum",
-        filterValues: vendors.map((v) => v.name),
-      },
-      {
-        key: "product_group",
-        label: "Group",
-        type: "enum",
-        filterValues: groupFilterValues,
-        render: (row) =>
-          row.product_group ? (
-            <button
-              className="text-sm text-accent hover:underline text-left"
-              onClick={(e) => {
-                e.stopPropagation();
-                setGroupDrilldown(row.product_group);
-              }}
-            >
-              {row.product_group}
-            </button>
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
-          ),
       },
       {
         key: "base_unit",
@@ -190,29 +144,11 @@ const InventoryPage = () => {
               : "In Stock",
       },
     ],
-    [departments, vendors, groupFilterValues],
+    [departments],
   );
 
-  const [searchParams, setSearchParams] = useSearchParams();
   const view = useViewController({ columns });
   const processedProducts = view.apply(allProducts);
-
-  useEffect(() => {
-    const groupParam = searchParams.get("group");
-    if (groupParam) {
-      view.setFilter("product_group", groupParam);
-      setSearchParams({}, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount to parse initial URL params
-  }, []);
-
-  useEffect(() => {
-    if (groupDrilldown) {
-      view.setFilter("product_group", groupDrilldown);
-      setGroupDrilldown(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only fires when groupDrilldown is set; view is a stable hook
-  }, [groupDrilldown]);
 
   const openDialog = (product = null) => {
     setEditingProduct(product);
@@ -235,40 +171,6 @@ const InventoryPage = () => {
       throw error;
     }
   };
-
-  const handleBulkAssign = useCallback(
-    async (groupName) => {
-      if (selectedIds.size === 0) return;
-      try {
-        await assignGroupMutation.mutateAsync({
-          product_ids: [...selectedIds],
-          product_group: groupName || null,
-        });
-        toast.success(
-          groupName
-            ? `Assigned ${selectedIds.size} product${selectedIds.size > 1 ? "s" : ""} to "${groupName}"`
-            : `Removed group from ${selectedIds.size} product${selectedIds.size > 1 ? "s" : ""}`,
-        );
-        setSelectedIds(new Set());
-        setBulkGroupOpen(false);
-      } catch (err) {
-        toast.error(getErrorMessage(err));
-      }
-    },
-    [selectedIds, assignGroupMutation],
-  );
-
-  const activeGroupFilter = view.filters?.product_group || null;
-  const groupSummary = useMemo(() => {
-    if (!activeGroupFilter) return null;
-    const grouped = allProducts.filter((p) => p.product_group === activeGroupFilter);
-    return {
-      name: activeGroupFilter,
-      count: grouped.length,
-      totalQty: grouped.reduce((sum, p) => sum + (p.quantity || 0), 0),
-      totalValue: grouped.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0),
-    };
-  }, [activeGroupFilter, allProducts]);
 
   if (loading) {
     return <PageSkeleton />;
@@ -316,62 +218,17 @@ const InventoryPage = () => {
           className="mb-3"
         />
 
-        {groupSummary && (
-          <div className="mb-3 flex items-center gap-4 rounded-lg border border-accent/30 bg-accent/5 px-4 py-2.5">
-            <Layers className="w-4 h-4 text-accent shrink-0" />
-            <div className="flex-1 min-w-0">
-              <span className="font-medium text-sm">{groupSummary.name}</span>
-              <span className="text-xs text-muted-foreground ml-3">
-                {groupSummary.count} variant
-                {groupSummary.count !== 1 ? "s" : ""}
-                {" · "}Total qty: {Math.round(groupSummary.totalQty)}
-                {" · "}Value: ${groupSummary.totalValue.toFixed(2)}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-muted-foreground"
-              onClick={() => view.setFilter("product_group", null)}
-            >
-              <X className="w-3.5 h-3.5 mr-1" />
-              Clear
-            </Button>
-          </div>
-        )}
-
         {selectedIds.size > 0 && (
           <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-muted px-4 py-2.5">
             <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <div className="flex items-center gap-2 ml-auto">
-              {bulkGroupOpen ? (
-                <div className="flex items-center gap-2">
-                  <GroupCombobox value="" onChange={handleBulkAssign} compact />
-                  <Button variant="ghost" size="sm" onClick={() => setBulkGroupOpen(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => setBulkGroupOpen(true)}>
-                    <Layers className="w-3.5 h-3.5 mr-1.5" />
-                    Assign Group
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleBulkAssign("")}>
-                    <X className="w-3.5 h-3.5 mr-1.5" />
-                    Remove Group
-                  </Button>
-                </>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Deselect
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground ml-auto"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Deselect
+            </Button>
           </div>
         )}
 
@@ -406,7 +263,6 @@ const InventoryPage = () => {
           onOpenChange={setDialogOpen}
           editingProduct={editingProduct}
           departments={departments}
-          vendors={vendors}
         />
 
         <AdjustStockDialog
@@ -419,7 +275,6 @@ const InventoryPage = () => {
           product={detailProduct}
           open={!!detailProduct}
           onOpenChange={(open) => !open && setDetailProduct(null)}
-          allProducts={allProducts}
           onEdit={(p) => {
             setDetailProduct(null);
             openDialog(p);
@@ -436,10 +291,6 @@ const InventoryPage = () => {
           onViewHistory={(p) => {
             setDetailProduct(null);
             setStockHistoryProduct(p);
-          }}
-          onFilterByGroup={(groupName) => {
-            setDetailProduct(null);
-            setGroupDrilldown(groupName);
           }}
         />
 

@@ -6,18 +6,17 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
     find_product_by_original_sku_and_vendor,
     find_vendor_by_name,
     get_department_by_code,
-    get_product_by_id,
+    get_sku_by_id,
     insert_vendor,
     list_departments,
-    list_products_by_vendor,
-    update_product,
+    update_sku,
 )
+from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
 from documents.application.enrichment_service import enrich_for_import
 from documents.application.import_parser import infer_uom, resolve_uom, suggest_department
 from documents.domain.document import DocumentLineItem
@@ -39,7 +38,6 @@ class ImportDeps:
     get_department_by_code: Callable[..., Awaitable[Any]]
     find_vendor_by_name: Callable[..., Awaitable[Any]]
     insert_vendor: Callable[..., Awaitable[None]]
-    list_products_by_vendor: Callable[..., Awaitable[list]]
     get_product_by_id: Callable[..., Awaitable[Any]]
     find_product_by_sku_and_vendor: Callable[..., Awaitable[Any]]
     find_product_by_name_and_vendor: Callable[..., Awaitable[Any]]
@@ -79,7 +77,6 @@ async def import_document(
                 "email": "",
                 "phone": "",
                 "address": "",
-                "product_count": 0,
                 "created_at": now,
                 "organization_id": org_id,
             }
@@ -106,8 +103,7 @@ async def import_document(
 
     enrichment_warnings = []
     if ocr_items:
-        vendor_products = await deps.list_products_by_vendor(vendor_id)
-        ocr_items = await enrich_for_import(ocr_items, vendor_products, dept_codes)
+        ocr_items = await enrich_for_import(ocr_items, [], dept_codes)
         enrichment_warnings = [
             {"product": item.get("name", "Unknown"), "warning": item.pop("enrichment_warning")}
             for item in ocr_items
@@ -176,8 +172,6 @@ async def import_document(
                     user_name=current_user.name,
                     reference_id=None,
                 )
-                if item.get("original_sku") and not existing.original_sku:
-                    await deps.update_product(existing.id, {"original_sku": item["original_sku"]})
                 updated = await deps.get_product_by_id(existing.id)
                 matched.append(updated)
                 continue
@@ -215,17 +209,14 @@ async def import_document(
                 barcode_val = None
 
             product = await deps.create_product(
-                department_id=dept.id,
-                department_name=dept.name,
+                category_id=dept.id,
+                category_name=dept.name,
                 name=item.get("name", "Unknown"),
                 description=item.get("description", ""),
                 price=round(price_val, 2),
                 cost=round(cost_val, 2),
                 quantity=delivered,
                 min_stock=5,
-                vendor_id=vendor_id,
-                vendor_name=vendor_name,
-                original_sku=item.get("original_sku"),
                 barcode=barcode_val,
                 base_unit=bu,
                 sell_uom=su,
@@ -277,11 +268,10 @@ async def import_document_wired(
         get_department_by_code=get_department_by_code,
         find_vendor_by_name=find_vendor_by_name,
         insert_vendor=insert_vendor,
-        list_products_by_vendor=list_products_by_vendor,
-        get_product_by_id=get_product_by_id,
+        get_product_by_id=get_sku_by_id,
         find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
         find_product_by_name_and_vendor=find_product_by_name_and_vendor,
-        update_product=update_product,
+        update_product=update_sku,
         validate_barcode=validate_barcode,
         create_product=lambda **kw: lifecycle_create(
             **kw, on_stock_import=process_receiving_stock_changes

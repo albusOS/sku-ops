@@ -34,12 +34,12 @@ class PurchasingDeps:
     get_department_by_code: Callable[..., Awaitable[Any]]
     find_vendor_by_name: Callable[..., Awaitable[Any]]
     insert_vendor: Callable[..., Awaitable[None]]
-    list_products_by_vendor: Callable[..., Awaitable[list]]
-    get_product_by_id: Callable[..., Awaitable[Any]]
-    find_product_by_sku_and_vendor: Callable[..., Awaitable[Any]]
-    find_product_by_name_and_vendor: Callable[..., Awaitable[Any]]
-    update_product: Callable[..., Awaitable[Any]]
-    create_product: Callable[..., Awaitable[Any]]
+    get_sku_by_id: Callable[..., Awaitable[Any]]
+    find_vendor_item_by_vendor_and_sku_code: Callable[..., Awaitable[Any]]
+    find_sku_by_name_and_vendor: Callable[..., Awaitable[Any]]
+    update_sku: Callable[..., Awaitable[Any]]
+    create_product_with_sku: Callable[..., Awaitable[Any]]
+    add_vendor_item: Callable[..., Awaitable[Any]]
     process_receiving_stock_changes: Callable[..., Awaitable[None]]
     classify_uom_batch: Callable[..., Awaitable[list]]
     infer_uom: Callable[[str], tuple[str, str, int]]
@@ -57,7 +57,6 @@ def _resolve_vendor_dict(vendor_name: str, vendor_id: str) -> dict:
         "email": "",
         "phone": "",
         "address": "",
-        "product_count": 0,
         "created_at": now,
     }
 
@@ -124,8 +123,7 @@ async def create_purchase_order(
     ocr_items = [d for d in selected_dicts if not d.get("ai_parsed")]
 
     if ocr_items:
-        vendor_products = await deps.list_products_by_vendor(vendor_id)
-        ocr_items = await deps.enrich_for_import(ocr_items, vendor_products, dept_codes)
+        ocr_items = await deps.enrich_for_import(ocr_items, [], dept_codes)
     for item in selected_dicts:
         item.pop("enrichment_warning", None)
 
@@ -216,7 +214,7 @@ async def create_purchase_order(
 # Re-export receiving functions so existing imports from this module keep working
 from purchasing.application.po_receiving_service import (  # noqa: E402
     _apply_overrides,
-    _match_product,
+    _match_sku,
     _recompute_po_status,
     mark_delivery_received,
     receive_po_items,
@@ -225,7 +223,7 @@ from purchasing.application.po_receiving_service import (  # noqa: E402
 __all__ = [
     "PurchasingDeps",
     "_apply_overrides",
-    "_match_product",
+    "_match_sku",
     "_recompute_po_status",
     "_resolve_po_item_cost",
     "_resolve_vendor_dict",

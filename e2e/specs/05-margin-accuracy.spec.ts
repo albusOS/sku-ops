@@ -48,7 +48,7 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
         cost: item.cost,
         quantity: item.qty,
         min_stock: 5,
-        department_id: ctx.deptIds[item.dept],
+        department_id: ctx.categoryIds[item.dept],
       });
       pIds.push(p.id);
     }

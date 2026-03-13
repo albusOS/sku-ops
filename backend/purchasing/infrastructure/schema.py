@@ -33,6 +33,8 @@ TABLES: list[str] = [
         base_unit TEXT NOT NULL DEFAULT 'each',
         sell_uom TEXT NOT NULL DEFAULT 'each',
         pack_qty INTEGER NOT NULL DEFAULT 1,
+        purchase_uom TEXT NOT NULL DEFAULT 'each',
+        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
         suggested_department TEXT NOT NULL DEFAULT 'HDW',
         status TEXT NOT NULL DEFAULT 'ordered',
         product_id TEXT,

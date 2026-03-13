@@ -10,13 +10,13 @@ from uuid import uuid4
 
 import bcrypt
 
-from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
     count_all_products,
     get_department_by_code,
     insert_department,
     list_departments,
 )
+from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
 from catalog.domain.department import Department
 from documents.application.import_parser import infer_uom, parse_csv_products, suggest_department
 from inventory.application.inventory_service import process_import_stock_changes
@@ -152,17 +152,14 @@ async def seed_demo_inventory(organization_id: str = "default") -> None:
                 bu, su, pq = infer_uom(item["name"])
 
                 await lifecycle_create(
-                    department_id=dept["id"],
-                    department_name=dept["name"],
+                    category_id=dept["id"],
+                    category_name=dept["name"],
                     name=item["name"],
                     description="",
                     price=item["price"],
                     cost=item["cost"],
                     quantity=item["quantity"],
                     min_stock=max(5, item["min_stock"]),
-                    vendor_id=None,
-                    vendor_name="",
-                    original_sku=item.get("original_sku"),
                     barcode=item.get("barcode"),
                     base_unit=bu,
                     sell_uom=su,
@@ -289,17 +286,14 @@ async def seed_demo_tenants() -> None:
                             dept = all_depts[0]
                         bu, su, pq = infer_uom(item["name"])
                         await lifecycle_create(
-                            department_id=dept["id"],
-                            department_name=dept["name"],
+                            category_id=dept["id"],
+                            category_name=dept["name"],
                             name=item["name"],
                             description="",
                             price=item["price"],
                             cost=item["cost"],
                             quantity=item["quantity"],
                             min_stock=max(5, item["min_stock"]),
-                            vendor_id=None,
-                            vendor_name="",
-                            original_sku=item.get("original_sku"),
                             barcode=item.get("barcode"),
                             base_unit=bu,
                             sell_uom=su,

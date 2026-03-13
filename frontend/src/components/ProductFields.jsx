@@ -10,7 +10,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { UOM_OPTIONS } from "@/lib/constants";
-import { GroupCombobox } from "@/components/GroupCombobox";
 
 function FieldTip({ children }) {
   return (
@@ -31,10 +30,9 @@ const isReadOnly = (set, name) => set?.has(name);
 /**
  * Shared product field grid, extracted from ProductFormDialog.
  *
- * @param {object}   fields          Current field values (name, description, price, cost, quantity, min_stock, department_id, vendor_id, barcode, base_unit, sell_uom, pack_qty)
+ * @param {object}   fields          Current field values (name, description, price, cost, quantity, min_stock, department_id, barcode, base_unit, sell_uom, pack_qty)
  * @param {function} onChange        (fieldName, value) => void
- * @param {array}    departments     Department list
- * @param {array}    vendors         Vendor list
+ * @param {array}    departments     Category list
  * @param {Set}      hiddenFields    Field names to hide entirely
  * @param {Set}      readOnlyFields  Field names to render read-only
  * @param {boolean}  compact         Tighter layout for inline use (receive review, receipt import)
@@ -44,7 +42,6 @@ export function ProductFields({
   fields,
   onChange,
   departments = [],
-  vendors = [],
   hiddenFields,
   readOnlyFields,
   compact = false,
@@ -94,14 +91,14 @@ export function ProductFields({
 
       {!isHidden(h, "department_id") && (
         <div>
-          <Label className={labelCls}>Department {!compact && "*"}</Label>
+          <Label className={labelCls}>Category {!compact && "*"}</Label>
           <Select
             value={field("department_id")}
             onValueChange={(v) => set("department_id", v)}
             disabled={isReadOnly(ro, "department_id")}
           >
             <SelectTrigger className={inputCls} data-testid="pf-department">
-              <SelectValue placeholder="Select department" />
+              <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
               {departments.map((dept) => (
@@ -109,29 +106,6 @@ export function ProductFields({
                   <span className="font-mono font-medium">{dept.code}</span>
                   <span className="text-muted-foreground mx-1.5">—</span>
                   {dept.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {!isHidden(h, "vendor_id") && (
-        <div>
-          <Label className={labelCls}>Vendor</Label>
-          <Select
-            value={field("vendor_id") || "none"}
-            onValueChange={(v) => set("vendor_id", v === "none" ? "" : v)}
-            disabled={isReadOnly(ro, "vendor_id")}
-          >
-            <SelectTrigger className={inputCls} data-testid="pf-vendor">
-              <SelectValue placeholder="Select vendor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              {vendors.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -294,26 +268,6 @@ export function ProductFields({
           )}
 
           {uomAction}
-        </div>
-      )}
-
-      {!isHidden(h, "product_group") && (
-        <div className="col-span-2" data-testid="pf-product-group">
-          <Label className={labelCls}>
-            Product Group
-            {!compact && (
-              <FieldTip>
-                Group related variants together (e.g. &quot;1/2 PEX Tubing&quot;) so you can view
-                combined stock across sizes and vendors.
-              </FieldTip>
-            )}
-          </Label>
-          <GroupCombobox
-            value={field("product_group")}
-            onChange={(v) => set("product_group", v)}
-            compact={compact}
-            disabled={isReadOnly(ro, "product_group")}
-          />
         </div>
       )}
 

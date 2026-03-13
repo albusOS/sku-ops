@@ -37,19 +37,34 @@ export function useSuggestUom() {
   });
 }
 
-export function useProductGroups() {
+export function useVendorItems(skuId) {
   return useQuery({
-    queryKey: [...keys.products.all, "groups"],
-    queryFn: () => api.products.groups(),
+    queryKey: [...keys.products.all, "vendorItems", skuId],
+    queryFn: () => api.catalog.vendorItems.list(skuId),
+    enabled: !!skuId,
   });
 }
 
-export function useAssignGroup() {
+export function useAddVendorItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data) => api.products.assignGroup(data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.products.all });
-    },
+    mutationFn: ({ skuId, data }) => api.catalog.vendorItems.create(skuId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.products.all }),
+  });
+}
+
+export function useRemoveVendorItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ skuId, itemId }) => api.catalog.vendorItems.delete(skuId, itemId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.products.all }),
+  });
+}
+
+export function useSetPreferredVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ skuId, itemId }) => api.catalog.vendorItems.setPreferred(skuId, itemId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.products.all }),
   });
 }

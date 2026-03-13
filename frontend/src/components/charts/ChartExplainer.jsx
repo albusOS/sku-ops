@@ -179,7 +179,7 @@ export function BubbleChartGuide() {
         <div className="flex items-start gap-2">
           <span className="text-accent mt-0.5 shrink-0">&bull;</span>
           <span>
-            <b className="text-muted-foreground">Color</b> — each color is a department
+            <b className="text-muted-foreground">Color</b> — each color is a category
           </span>
         </div>
         <div className="flex items-start gap-2">

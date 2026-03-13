@@ -19,4 +19,3 @@ class Vendor(Entity):
     email: str = ""
     phone: str = ""
     address: str = ""
-    product_count: int = 0

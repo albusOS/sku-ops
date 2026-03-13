@@ -34,7 +34,7 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
     productId = (
       await apiPost(page.request, ctx.token, "/api/products", {
         ...PRODUCT,
-        department_id: ctx.deptIds["ELE"],
+        department_id: ctx.categoryIds["ELE"],
       })
     ).id;
     await apiPost(page.request, ctx.token, "/api/jobs", { code: "JOB-E2E-001" });

@@ -33,7 +33,7 @@ async def db():
            VALUES ('default', 'Default', 'default', datetime('now'))"""
     )
     await conn.execute(
-        """INSERT OR REPLACE INTO departments (id, name, code, description, product_count, organization_id, created_at)
+        """INSERT OR REPLACE INTO departments (id, name, code, description, sku_count, organization_id, created_at)
            VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'default', datetime('now'))"""
     )
     await conn.execute(

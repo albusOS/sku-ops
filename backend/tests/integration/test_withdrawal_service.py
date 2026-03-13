@@ -2,9 +2,9 @@
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
 from catalog.application.queries import list_products
-from catalog.infrastructure.product_repo import product_repo
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from finance.application.invoice_service import create_invoice_from_withdrawals
 from finance.infrastructure.ledger_repo import entries_exist
 from inventory.application.inventory_service import (
@@ -57,9 +57,9 @@ async def create_withdrawal(data, contractor, current_user):
 @pytest.mark.asyncio
 async def test_create_withdrawal_success(db):
     """Create withdrawal with valid items; assert withdrawal and invoice created, stock decremented."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Widget",
         quantity=10,
         price=10.0,
@@ -103,7 +103,7 @@ async def test_create_withdrawal_success(db):
     assert "invoice_id" in result
 
     # Stock decremented
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == 7
 
     # Withdrawal persisted
@@ -114,9 +114,9 @@ async def test_create_withdrawal_success(db):
 @pytest.mark.asyncio
 async def test_create_withdrawal_insufficient_stock_raises(db):
     """Items exceed available quantity; assert HTTPException 400."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Low Stock",
         quantity=2,
         price=10.0,
@@ -151,16 +151,16 @@ async def test_create_withdrawal_insufficient_stock_raises(db):
     assert exc_info.value.available == 2
 
     # Stock unchanged
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == 2
 
 
 @pytest.mark.asyncio
 async def test_create_withdrawal_stock_transaction_recorded(db):
     """Verify stock_transactions has WITHDRAWAL record."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Transaction Test",
         quantity=5,
         price=8.0,
@@ -200,9 +200,9 @@ async def test_create_withdrawal_stock_transaction_recorded(db):
 @pytest.mark.asyncio
 async def test_create_withdrawal_multi_item(db):
     """Withdrawal with two different products decrements both correctly."""
-    product_a = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product_a = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Multi-A",
         quantity=20,
         price=10.0,
@@ -211,9 +211,9 @@ async def test_create_withdrawal_multi_item(db):
         user_name="Test",
         on_stock_import=process_import_stock_changes,
     )
-    product_b = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product_b = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Multi-B",
         quantity=15,
         price=8.0,
@@ -256,8 +256,8 @@ async def test_create_withdrawal_multi_item(db):
     assert result["subtotal"] == pytest.approx(96.0)
     assert result["tax"] > 0
 
-    updated_a = await product_repo.get_by_id(product_a.id)
-    updated_b = await product_repo.get_by_id(product_b.id)
+    updated_a = await sku_repo.get_by_id(product_a.id)
+    updated_b = await sku_repo.get_by_id(product_b.id)
     assert updated_a.quantity == 16
     assert updated_b.quantity == 8
 
@@ -265,9 +265,9 @@ async def test_create_withdrawal_multi_item(db):
 @pytest.mark.asyncio
 async def test_create_withdrawal_tax_computation(db):
     """Verify tax is computed correctly as subtotal * tax_rate."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Tax Test",
         quantity=50,
         price=25.0,
@@ -306,9 +306,9 @@ async def test_create_withdrawal_auto_invoice_failure_still_creates_withdrawal(d
     async def failing_create_invoice(**kwargs):
         raise ValueError("Invoice creation failed")
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Invoice Fail Test",
         quantity=10,
         price=10.0,
@@ -345,7 +345,7 @@ async def test_create_withdrawal_auto_invoice_failure_still_creates_withdrawal(d
     assert "id" in result
     assert result.get("invoice_id") is None
 
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == 8
 
 
@@ -384,9 +384,9 @@ async def _make_paid_withdrawal(product, quantity: int, contractor_id: str = "co
 @pytest.mark.asyncio
 async def test_bulk_mark_paid_records_ledger_for_each(db):
     """bulk_mark_withdrawals_paid records a payment ledger entry for every withdrawal."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Bulk Ledger Test",
         quantity=30,
         price=10.0,
@@ -418,9 +418,9 @@ async def test_bulk_mark_paid_atomicity(db):
     """If a mid-loop step fails, the entire bulk operation is rolled back."""
     from unittest.mock import patch
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Atomicity Test",
         quantity=30,
         price=10.0,

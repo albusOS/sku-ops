@@ -12,8 +12,8 @@ tests/unit/test_xero_cogs_journal.py.
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
 from catalog.application.queries import list_products
+from catalog.application.sku_lifecycle import create_product_with_sku
 from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_withdrawal_stock_changes,
@@ -26,9 +26,9 @@ from shared.kernel.types import CurrentUser
 @pytest.mark.asyncio
 async def test_withdrawal_sell_cost_same_unit(db):
     """When base_unit == sell_uom and pack_qty == 1, sell_cost == cost."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Bolt",
         quantity=50,
         price=2.0,
@@ -75,9 +75,9 @@ async def test_withdrawal_sell_cost_same_unit(db):
 @pytest.mark.asyncio
 async def test_withdrawal_sell_cost_unit_conversion(db):
     """When base_unit=inch and sell_uom=foot, sell_cost is 12x base cost."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Wire",
         quantity=1000,
         price=0.12,
@@ -126,9 +126,9 @@ async def test_ledger_cogs_entry_has_quantity_and_unit_cost(db):
     """COGS ledger entry must carry qty, sell_uom unit, and sell_cost as unit_cost."""
     from shared.infrastructure.database import get_connection
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Pipe",
         quantity=500,
         price=0.20,
@@ -188,9 +188,9 @@ async def test_ledger_revenue_entry_has_quantity_and_unit_cost(db):
     """REVENUE entry carries withdrawal qty/unit and unit_price as unit_cost."""
     from shared.infrastructure.database import get_connection
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Conduit",
         quantity=100,
         price=5.0,
@@ -244,9 +244,9 @@ async def test_invoice_line_items_carry_sell_cost(db):
         get_invoice,
     )
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Tubing",
         quantity=200,
         price=0.15,

@@ -147,8 +147,8 @@ async def main():
 
     import bcrypt
 
-    from catalog.application.product_lifecycle import create_product
     from catalog.application.queries import list_departments
+    from catalog.application.sku_lifecycle import create_product_with_sku as create_product
     from catalog.infrastructure.vendor_repo import vendor_repo
     from finance.application.invoice_service import create_invoice_from_withdrawals
     from finance.application.ledger_service import (
@@ -232,8 +232,8 @@ async def main():
         return None
 
     departments = await list_departments()
-    dept_by_code = {d["code"]: d for d in departments}
-    dept_name_map = {d["id"]: d["name"] for d in departments}
+    dept_by_code = {d.code: d for d in departments}
+    dept_name_map = {d.id: d.name for d in departments}
 
     # ══════════════════════════════════════════════════════════════════════
     # 1. VENDORS (from seed_realistic)
@@ -249,7 +249,6 @@ async def main():
             {
                 "id": vid,
                 **v,
-                "product_count": 0,
                 "created_at": now_iso,
                 "organization_id": org_id,
             }
@@ -268,23 +267,19 @@ async def main():
         if not dept:
             continue
         vid = vendor_ids[p["vendor"]]
-        vname = VENDORS[p["vendor"]]["name"]
         try:
             product = await create_product(
-                department_id=dept["id"],
-                department_name=dept["name"],
+                category_id=dept.id,
+                category_name=dept.name,
                 name=p["name"],
                 price=p["price"],
                 cost=p["cost"],
                 quantity=p["qty"],
                 min_stock=p["min"],
-                vendor_id=vid,
-                vendor_name=vname,
                 base_unit=p["unit"],
                 sell_uom=p["unit"],
                 user_id=admin["id"],
                 user_name=admin.get("name", "Admin"),
-                organization_id=org_id,
                 on_stock_import=process_import_stock_changes,
             )
             prod_dict = {
@@ -295,7 +290,7 @@ async def main():
                 "cost": product.cost,
                 "quantity": p["qty"],
                 "min_stock": p["min"],
-                "department_id": dept["id"],
+                "department_id": dept.id,
             }
             if p["name"] not in products_by_name:
                 products_by_name[p["name"]] = prod_dict
@@ -395,7 +390,7 @@ async def main():
             qty_before = max(0, prod.get("quantity", 0))
             qty_after = max(0, qty_before - item.quantity)
             await conn.execute(
-                "UPDATE products SET quantity = MAX(0, quantity - ?) WHERE id = ?",
+                "UPDATE skus SET quantity = MAX(0, quantity - ?) WHERE id = ?",
                 (item.quantity, item.product_id),
             )
             tx = StockTransaction(
@@ -496,7 +491,7 @@ async def main():
         adj_created = (now - timedelta(days=_rng.randint(1, 90))).isoformat()
         tx.created_at = adj_created
         await stock_repo.insert_transaction(tx)
-        await conn.execute("UPDATE products SET quantity = ? WHERE id = ?", (qty_after, prod["id"]))
+        await conn.execute("UPDATE skus SET quantity = ? WHERE id = ?", (qty_after, prod["id"]))
 
         dept_name = dept_name_map.get(prod.get("department_id"))
         ledger_reason = "damage" if "Damaged" in reason else "shrinkage"
@@ -586,7 +581,7 @@ async def main():
             )
             if delivered > 0:
                 await conn.execute(
-                    "UPDATE products SET quantity = quantity + ? WHERE id = ?",
+                    "UPDATE skus SET quantity = quantity + ? WHERE id = ?",
                     (delivered, prod["id"]),
                 )
 
@@ -725,7 +720,7 @@ async def main():
 
         for ri in return_items:
             await conn.execute(
-                "UPDATE products SET quantity = quantity + ? WHERE id = ?",
+                "UPDATE skus SET quantity = quantity + ? WHERE id = ?",
                 (ri.quantity, ri.product_id),
             )
         await conn.commit()
@@ -876,9 +871,7 @@ async def main():
         prod = products_by_name.get(name)
         if prod:
             low_qty = _rng.randint(1, prod["min_stock"])
-            await conn.execute(
-                "UPDATE products SET quantity = ? WHERE id = ?", (low_qty, prod["id"])
-            )
+            await conn.execute("UPDATE skus SET quantity = ? WHERE id = ?", (low_qty, prod["id"]))
             logger.info(
                 "  %s | %s → qty=%d (min=%d)", prod["sku"], name, low_qty, prod["min_stock"]
             )

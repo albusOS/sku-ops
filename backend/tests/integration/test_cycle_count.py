@@ -14,8 +14,8 @@ Coverage:
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
-from catalog.infrastructure.product_repo import product_repo
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from finance.domain.ledger import Account
 from finance.infrastructure.ledger_repo import trial_balance
 from inventory.application.cycle_count_service import (
@@ -40,9 +40,9 @@ from shared.kernel.errors import ResourceNotFoundError
 
 
 async def _make_product(name="Widget", qty=100.0, cost=5.0, dept="Hardware"):
-    return await create_product(
-        department_id="dept-1",
-        department_name=dept,
+    return await create_product_with_sku(
+        category_id="dept-1",
+        category_name=dept,
         name=name,
         quantity=qty,
         price=10.0,
@@ -140,15 +140,15 @@ class TestOpenCycleCount:
         """Only products from the scoped department appear in items."""
         conn = get_connection()
         await conn.execute(
-            """INSERT OR REPLACE INTO departments (id, name, code, description, product_count, created_at)
+            """INSERT OR REPLACE INTO departments (id, name, code, description, sku_count, created_at)
                VALUES ('dept-plumbing', 'Plumbing', 'PLU', 'Plumbing', 0, datetime('now'))"""
         )
         await conn.commit()
 
         hw = await _make_product("Hammer", dept="Hardware")
-        pl = await create_product(
-            department_id="dept-plumbing",
-            department_name="Plumbing",
+        pl = await create_product_with_sku(
+            category_id="dept-plumbing",
+            category_name="Plumbing",
             name="Pipe",
             quantity=30.0,
             price=5.0,
@@ -170,15 +170,15 @@ class TestOpenCycleCount:
     async def test_open_no_scope_includes_all_departments(self):
         conn = get_connection()
         await conn.execute(
-            """INSERT OR REPLACE INTO departments (id, name, code, description, product_count, created_at)
+            """INSERT OR REPLACE INTO departments (id, name, code, description, sku_count, created_at)
                VALUES ('dept-elec', 'Electrical', 'ELE', '', 0, datetime('now'))"""
         )
         await conn.commit()
 
         hw = await _make_product("Bolt", dept="Hardware")
-        el = await create_product(
-            department_id="dept-elec",
-            department_name="Electrical",
+        el = await create_product_with_sku(
+            category_id="dept-elec",
+            category_name="Electrical",
             name="Wire",
             quantity=200.0,
             price=1.0,
@@ -353,7 +353,7 @@ class TestCommitCycleCount:
         await _update(count["id"], item["id"], counted_qty=90.0)
         await _commit(count["id"])
 
-        updated = await product_repo.get_by_id(p.id)
+        updated = await sku_repo.get_by_id(p.id)
         assert updated.quantity == pytest.approx(90.0)
 
     @pytest.mark.usefixtures("_db")
@@ -368,7 +368,7 @@ class TestCommitCycleCount:
         await _update(count["id"], item["id"], counted_qty=55.0)
         await _commit(count["id"])
 
-        updated = await product_repo.get_by_id(p.id)
+        updated = await sku_repo.get_by_id(p.id)
         assert updated.quantity == pytest.approx(55.0)
 
     @pytest.mark.usefixtures("_db")
@@ -386,8 +386,8 @@ class TestCommitCycleCount:
 
         await _commit(count["id"])
 
-        updated_counted = await product_repo.get_by_id(p_counted.id)
-        updated_skipped = await product_repo.get_by_id(p_skipped.id)
+        updated_counted = await sku_repo.get_by_id(p_counted.id)
+        updated_skipped = await sku_repo.get_by_id(p_skipped.id)
 
         assert updated_counted.quantity == pytest.approx(25.0)
         assert updated_skipped.quantity == pytest.approx(40.0), (
@@ -533,8 +533,8 @@ class TestCommitAtomicity:
             await _commit(count["id"])
 
         # Both products must be unchanged
-        p_ok_after = await product_repo.get_by_id(p_ok.id)
-        p_bad_after = await product_repo.get_by_id(p_bad.id)
+        p_ok_after = await sku_repo.get_by_id(p_ok.id)
+        p_bad_after = await sku_repo.get_by_id(p_bad.id)
 
         assert p_ok_after.quantity == pytest.approx(50.0), (
             "Safe product should be unchanged after rolled-back commit"
@@ -559,7 +559,7 @@ class TestCommitAtomicity:
         await _update(count["id"], item["id"], counted_qty=95.0)
         await _commit(count["id"])
 
-        refreshed = await product_repo.get_by_id(p.id)
+        refreshed = await sku_repo.get_by_id(p.id)
         assert refreshed.quantity == pytest.approx(95.0)
 
         history = await get_stock_history(p.id, limit=10)
@@ -583,7 +583,7 @@ class TestPostCommitLedgerBalance:
         await _update(count["id"], item["id"], counted_qty=75.0)
         await _commit(count["id"])
 
-        current = await product_repo.get_by_id(p.id)
+        current = await sku_repo.get_by_id(p.id)
         history = await get_stock_history(p.id, limit=100)
 
         ledger_sum = sum(float(tx.quantity_delta) for tx in history)
@@ -610,7 +610,7 @@ class TestPostCommitLedgerBalance:
         await _commit(count["id"])
 
         for p, cq in zip(products, counted_qtys, strict=False):
-            current = await product_repo.get_by_id(p.id)
+            current = await sku_repo.get_by_id(p.id)
             history = await get_stock_history(p.id, limit=100)
             ledger_sum = sum(float(tx.quantity_delta) for tx in history)
 

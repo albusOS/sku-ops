@@ -8,13 +8,13 @@ from datetime import UTC, datetime, timedelta
 from assistant.agents.tools.registry import register as _reg
 from assistant.agents.tools.search import get_index
 from catalog.application.queries import (
-    count_all_products as catalog_count_all,
+    count_all_skus as catalog_count_all,
 )
 from catalog.application.queries import (
     count_low_stock as catalog_count_low_stock,
 )
 from catalog.application.queries import (
-    find_product_by_sku as catalog_find_by_sku,
+    find_sku_by_sku_code as catalog_find_by_sku,
 )
 from catalog.application.queries import (
     get_department_by_code as catalog_get_dept_by_code,
@@ -29,7 +29,7 @@ from catalog.application.queries import (
     list_low_stock as catalog_list_low_stock,
 )
 from catalog.application.queries import (
-    list_products as catalog_list_products,
+    list_skus as catalog_list_products,
 )
 from catalog.application.queries import (
     list_vendors as catalog_list_vendors,
@@ -52,7 +52,7 @@ async def _search_products(args: dict) -> str:
             "quantity": p.quantity,
             "sell_uom": p.sell_uom,
             "min_stock": p.min_stock,
-            "department": p.department_name,
+            "department": p.category_name,
         }
         for p in items
     ]
@@ -76,7 +76,7 @@ async def _search_semantic(args: dict) -> str:
             "quantity": p.quantity,
             "sell_uom": p.sell_uom or "each",
             "min_stock": p.min_stock,
-            "department": p.department_name,
+            "department": p.category_name,
         }
         for p in results
     ]
@@ -97,13 +97,13 @@ async def _get_product_details(args: dict) -> str:
             "cost": p.cost,
             "quantity": p.quantity,
             "min_stock": p.min_stock,
-            "department": p.department_name,
-            "vendor": p.vendor_name,
-            "original_sku": p.original_sku,
+            "department": p.category_name,
             "barcode": p.barcode,
             "base_unit": p.base_unit,
             "sell_uom": p.sell_uom,
             "pack_qty": p.pack_qty,
+            "purchase_uom": p.purchase_uom,
+            "purchase_pack_qty": p.purchase_pack_qty,
         }
     )
 
@@ -135,7 +135,7 @@ async def _list_low_stock(args: dict) -> str:
             "quantity": p.quantity,
             "sell_uom": p.sell_uom,
             "min_stock": p.min_stock,
-            "department": p.department_name,
+            "department": p.category_name,
         }
         for p in items
     ]
@@ -154,7 +154,7 @@ async def _list_departments() -> str:
             {
                 "name": d.name,
                 "code": code,
-                "product_count": d.product_count,
+                "product_count": d.sku_count,
                 "next_sku": next_sku,
             }
         )
@@ -163,7 +163,7 @@ async def _list_departments() -> str:
 
 async def _list_vendors() -> str:
     vendors = await catalog_list_vendors()
-    out = [{"name": v.name, "product_count": v.product_count} for v in vendors]
+    out = [{"name": v.name} for v in vendors]
     return json.dumps({"vendors": out})
 
 
@@ -250,8 +250,8 @@ async def _get_department_health() -> str:
     all_products = await catalog_list_products()
     by_dept: dict[str, list] = defaultdict(list)
     for p in all_products:
-        if p.department_id:
-            by_dept[p.department_id].append(p)
+        if p.category_id:
+            by_dept[p.category_id].append(p)
     rows = []
     for d in depts:
         dept_products = by_dept.get(d.id, [])
@@ -312,7 +312,7 @@ async def _get_department_activity(args: dict) -> str:
     dept = await catalog_get_dept_by_code(dept_code)
     if not dept:
         return json.dumps({"error": f"Department '{dept_code}' not found or has no products"})
-    products = await catalog_list_products(department_id=dept.id)
+    products = await catalog_list_products(category_id=dept.id)
     if not products:
         return json.dumps({"error": f"Department '{dept_code}' not found or has no products"})
     product_ids = [p.id for p in products]
@@ -352,7 +352,7 @@ async def _forecast_stockout(args: dict) -> str:
             {
                 "sku": p.sku,
                 "name": p.name,
-                "department": p.department_name,
+                "department": p.category_name,
                 "quantity": p.quantity,
                 "min_stock": p.min_stock,
                 "avg_daily_use": round(avg_daily, 2),
@@ -389,7 +389,7 @@ async def _get_slow_movers(args: dict) -> str:
             "name": p.name,
             "quantity": p.quantity,
             "sell_uom": p.sell_uom or "each",
-            "department": p.department_name,
+            "department": p.category_name,
             "units_withdrawn_30d": withdrawn,
         }
         for _, _, p, withdrawn in ranked[:limit]

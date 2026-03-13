@@ -2,16 +2,16 @@
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
+from catalog.application.sku_lifecycle import create_product_with_sku
 from inventory.application.inventory_service import process_import_stock_changes
 
 
 @pytest.mark.asyncio
 async def test_by_barcode_found_returns_product(db, client, auth_headers):
     """Happy path: scanning a known barcode returns the product."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Test Pipe",
         barcode="042100005264",  # valid UPC-A
         user_id="user-1",

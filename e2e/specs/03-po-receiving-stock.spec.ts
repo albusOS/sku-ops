@@ -39,7 +39,7 @@ test.describe.serial("Story 3: PO receiving and stock", () => {
 
     const product = await apiPost(req, t, "/api/products", {
       ...PRODUCT,
-      department_id: ctx.deptIds["HDW"],
+      department_id: ctx.categoryIds["HDW"],
       vendor_id: vendors[0].id,
     });
     productId = product.id;

@@ -135,6 +135,62 @@ async def transaction() -> AsyncIterator[Connection]:
             _tx_conn.reset(token)
 
 
+async def drop_all_tables() -> None:
+    """Drop all application tables in reverse FK dependency order.
+
+    Connects to the database if not already initialized. After this call
+    the database is empty — call init_db() to recreate the schema.
+
+    Only for use in demo/reset flows (RESET_DB=true). Never call in production
+    unless you explicitly intend to wipe all data.
+    """
+    if _state["backend"] is None:
+        _state["backend"] = _make_backend(DATABASE_URL)
+        await _state["backend"].connect(DATABASE_URL)
+        opened_here = True
+    else:
+        opened_here = False
+
+    conn = _state["backend"].connection()
+
+    # Leaf tables first, root tables last (reverse FK dependency order)
+    tables = [
+        "assistant_messages",
+        "vendor_items",
+        "stock_transactions",
+        "cycle_count_items",
+        "cycle_counts",
+        "withdrawal_items",
+        "withdrawals",
+        "return_items",
+        "returns",
+        "purchase_order_items",
+        "purchase_orders",
+        "invoice_items",
+        "invoices",
+        "documents",
+        "job_items",
+        "jobs",
+        "skus",
+        "sku_counters",
+        "products",
+        "vendors",
+        "departments",
+        "oauth_states",
+        "refresh_tokens",
+        "users",
+        "organizations",
+        "schema_versions",
+    ]
+    for table in tables:
+        await conn.execute(f"DROP TABLE IF EXISTS {table}")
+    await conn.commit()
+
+    if opened_here:
+        await _state["backend"].close()
+        _state["backend"] = None
+
+
 async def close_db() -> None:
     """Close connection / pool on shutdown."""
     if _state["backend"]:

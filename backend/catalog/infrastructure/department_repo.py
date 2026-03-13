@@ -21,7 +21,7 @@ async def list_all() -> list[Department]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
+        """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
            WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (org_id,),
     )
@@ -33,7 +33,7 @@ async def get_by_id(dept_id: str) -> Department | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
+        """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
            WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (dept_id, org_id),
     )
@@ -45,7 +45,7 @@ async def get_by_code(code: str) -> Department | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        """SELECT id, name, code, description, product_count, organization_id, created_at FROM departments
+        """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
            WHERE code = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (code.upper(), org_id),
     )
@@ -59,14 +59,14 @@ async def insert(department: Department | dict) -> None:
     conn = get_connection()
     org_id = dept_dict["organization_id"]
     await conn.execute(
-        """INSERT INTO departments (id, name, code, description, product_count, organization_id, created_at)
+        """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             dept_dict["id"],
             dept_dict["name"],
             dept_dict["code"].upper(),
             dept_dict.get("description", ""),
-            dept_dict.get("product_count", 0),
+            dept_dict.get("sku_count", 0),
             org_id,
             dept_dict.get("created_at", ""),
         ),
@@ -84,22 +84,24 @@ async def update(dept_id: str, name: str, description: str) -> Department | None
     query += where
     await conn.execute(query, params)
     await conn.execute(
-        "UPDATE products SET department_name = ? WHERE department_id = ?",
+        "UPDATE skus SET category_name = ? WHERE category_id = ?",
+        (name, dept_id),
+    )
+    await conn.execute(
+        "UPDATE products SET category_name = ? WHERE category_id = ?",
         (name, dept_id),
     )
     await conn.commit()
     return await get_by_id(dept_id)
 
 
-async def count_products_by_department(dept_id: str) -> int:
+async def count_skus_by_department(dept_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    params: list = [dept_id]
-    where = "WHERE department_id = ? AND deleted_at IS NULL AND (organization_id = ? OR organization_id IS NULL)"
-    params.append(org_id)
-    query = "SELECT COUNT(*) FROM products "
-    query += where
-    cursor = await conn.execute(query, params)
+    cursor = await conn.execute(
+        "SELECT COUNT(*) FROM skus WHERE category_id = ? AND deleted_at IS NULL AND (organization_id = ? OR organization_id IS NULL)",
+        (dept_id, org_id),
+    )
     row = await cursor.fetchone()
     return row[0] if row else 0
 
@@ -118,13 +120,13 @@ async def delete(dept_id: str) -> int:
     return cursor.rowcount
 
 
-async def increment_product_count(dept_id: str, delta: int) -> None:
+async def increment_sku_count(dept_id: str, delta: int) -> None:
     conn = get_connection()
     org_id = get_org_id()
     params: list = [delta, dept_id]
     where = "WHERE id = ? AND organization_id = ?"
     params.append(org_id)
-    query = "UPDATE departments SET product_count = product_count + ? "
+    query = "UPDATE departments SET sku_count = sku_count + ? "
     query += where
     await conn.execute(query, params)
     await conn.commit()
@@ -136,9 +138,9 @@ class DepartmentRepo:
     get_by_code = staticmethod(get_by_code)
     insert = staticmethod(insert)
     update = staticmethod(update)
-    count_products_by_department = staticmethod(count_products_by_department)
+    count_skus_by_department = staticmethod(count_skus_by_department)
     delete = staticmethod(delete)
-    increment_product_count = staticmethod(increment_product_count)
+    increment_sku_count = staticmethod(increment_sku_count)
 
 
 department_repo = DepartmentRepo()

@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from scheduler import xero_sync_loop
 from shared.infrastructure.config import (
     DEFAULT_ORG_ID,
+    RESET_DB,
     cors_warn_in_deployed,
     is_deployed,
     is_test,
@@ -23,6 +24,20 @@ from shared.infrastructure.logging_config import org_id_var
 from shared.infrastructure.redis import close_redis, init_redis, is_redis_available
 
 logger = logging.getLogger(__name__)
+
+
+async def _reset_db() -> None:
+    """Drop all application tables so init_db() recreates them clean.
+
+    Used when RESET_DB=true is set in the environment. Intended for demo
+    environments where all data is synthetic and a full wipe is acceptable.
+    Tables are dropped in reverse FK dependency order to avoid constraint errors.
+    """
+    from shared.infrastructure.db import drop_all_tables
+
+    logger.warning("RESET_DB=true — dropping all tables for a clean restart")
+    await drop_all_tables()
+    logger.warning("RESET_DB: all tables dropped — schema will be recreated on init_db()")
 
 
 async def _get_active_org_ids() -> list[str]:
@@ -126,6 +141,9 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for staging/production."
         )
+    if RESET_DB:
+        await _reset_db()
+
     await init_db()
     logger.info("Database initialized")
 

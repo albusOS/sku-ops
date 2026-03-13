@@ -154,6 +154,11 @@ ALLOW_RESET = (
     os.environ.get("ALLOW_RESET", "").lower() in ("1", "true") or is_development or is_test
 )
 
+# Full database reset on startup: drops ALL tables and recreates from schema.
+# Set RESET_DB=true in the deployed environment to nuke demo data and start clean.
+# Remove the var after the first successful deploy — it runs every restart while set.
+RESET_DB = os.environ.get("RESET_DB", "").lower() in ("1", "true")
+
 # Public auth endpoints (login, register): dev/test by default.
 # Set ALLOW_PUBLIC_AUTH=true to enable local auth in production (no Supabase).
 ALLOW_PUBLIC_AUTH = (

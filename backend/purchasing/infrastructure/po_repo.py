@@ -46,8 +46,9 @@ class PgPORepo(PORepoPort):
             await conn.execute(
                 """INSERT INTO purchase_order_items
                    (id, po_id, name, original_sku, ordered_qty, delivered_qty, unit_price, cost,
-                    base_unit, sell_uom, pack_qty, suggested_department, status, product_id, organization_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
+                    suggested_department, status, product_id, organization_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     d["id"],
                     d["po_id"],
@@ -60,6 +61,8 @@ class PgPORepo(PORepoPort):
                     d["base_unit"],
                     d["sell_uom"],
                     d["pack_qty"],
+                    d.get("purchase_uom", "each"),
+                    d.get("purchase_pack_qty", 1),
                     d["suggested_department"],
                     d["status"],
                     d.get("product_id"),

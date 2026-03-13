@@ -1,6 +1,6 @@
 """Shared test factories for creating domain objects."""
 
-from catalog.application.product_lifecycle import create_product
+from catalog.application.sku_lifecycle import create_product_with_sku
 from inventory.application.inventory_service import process_import_stock_changes
 from shared.kernel.types import CurrentUser
 
@@ -20,9 +20,9 @@ async def make_product(
     barcode=None,
     on_stock_import=None,
 ):
-    return await create_product(
-        department_id=department_id,
-        department_name=department_name,
+    return await create_product_with_sku(
+        category_id=department_id,
+        category_name=department_name,
         name=name,
         quantity=quantity,
         price=price,

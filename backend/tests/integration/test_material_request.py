@@ -2,7 +2,7 @@
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
+from catalog.application.sku_lifecycle import create_product_with_sku
 from inventory.application.inventory_service import process_import_stock_changes
 from operations.application.material_request_service import (
     MaterialRequestError,
@@ -30,9 +30,9 @@ def _contractor():
 
 
 async def _create_test_product(name="Widget", quantity=100.0, cost=5.0, price=10.0):
-    return await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    return await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name=name,
         quantity=quantity,
         price=price,

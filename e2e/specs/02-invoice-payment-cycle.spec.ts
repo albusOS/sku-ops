@@ -35,7 +35,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
     ctx = await freshSeed(page.request);
     const req = page.request;
     const t = ctx.token;
-    const deptId = ctx.deptIds["PLU"];
+    const deptId = ctx.categoryIds["PLU"];
 
     const pIds: string[] = [];
     for (const p of PRODUCTS) {

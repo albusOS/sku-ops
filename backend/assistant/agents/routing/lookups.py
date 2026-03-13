@@ -112,7 +112,9 @@ def _format_departments(data: dict) -> str:
         return "No departments found."
     lines = ["| Code | Name | Products |", "|------|------|----------|"]
     for d in depts:
-        lines.append(f"| {d.get('code', '')} | {d.get('name', '')} | {d.get('product_count', 0)} |")
+        lines.append(
+            f"| {d.get('code', '')} | {d.get('name', '')} | {d.get('product_count', d.get('sku_count', 0))} |"
+        )
     return "**Departments:**\n\n" + "\n".join(lines)
 
 
@@ -120,9 +122,9 @@ def _format_vendors(data: dict) -> str:
     vendors = data.get("vendors", [])
     if not vendors:
         return "No vendors found."
-    lines = ["| Vendor | Products |", "|--------|----------|"]
+    lines = ["| Vendor |", "|--------|"]
     for v in vendors:
-        lines.append(f"| {v.get('name', '')} | {v.get('product_count', 0)} |")
+        lines.append(f"| {v.get('name', '')} |")
     return "**Vendors:**\n\n" + "\n".join(lines)
 
 

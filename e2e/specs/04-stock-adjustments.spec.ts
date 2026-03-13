@@ -30,7 +30,7 @@ test.describe.serial("Story 4: Stock adjustments", () => {
     ctx = await freshSeed(page.request);
     const product = await apiPost(page.request, ctx.token, "/api/products", {
       ...PRODUCT,
-      department_id: ctx.deptIds["PNT"],
+      department_id: ctx.categoryIds["PNT"],
     });
     productId = product.id;
     await page.close();

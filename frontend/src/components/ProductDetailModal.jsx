@@ -4,23 +4,36 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Separator } from "./ui/separator";
-import { Edit2, Trash2, SlidersHorizontal, Printer, History, Package } from "lucide-react";
+import {
+  Edit2,
+  Trash2,
+  SlidersHorizontal,
+  Printer,
+  History,
+  Package,
+  Star,
+  Truck,
+} from "lucide-react";
 import { format } from "date-fns";
 import { TX_TYPE_LABELS } from "@/lib/constants";
-import { useStockHistory } from "@/hooks/useProducts";
+import {
+  useStockHistory,
+  useVendorItems,
+  useRemoveVendorItem,
+  useSetPreferredVendor,
+} from "@/hooks/useProducts";
 import { StockBadge } from "@/components/StatusBadge";
+import { toast } from "sonner";
 
 export function ProductDetailModal({
   product,
   open,
   onOpenChange,
-  allProducts = [],
   onEdit,
   onAdjust,
   onDelete,
   onPrintLabels,
   onViewHistory,
-  onFilterByGroup,
 }) {
   const [printQty, setPrintQty] = useState(1);
 
@@ -28,6 +41,12 @@ export function ProductDetailModal({
     open ? product?.id : null,
   );
   const recentHistory = (historyData?.history || []).slice(0, 5);
+
+  const { data: vendorItems = [], isLoading: vendorsLoading } = useVendorItems(
+    open ? product?.id : null,
+  );
+  const removeVendorItem = useRemoveVendorItem();
+  const setPreferred = useSetPreferredVendor();
 
   useEffect(() => {
     if (open && product) setPrintQty(1);
@@ -66,17 +85,20 @@ export function ProductDetailModal({
         </DialogHeader>
 
         <Tabs defaultValue="info" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="printables">Printables</TabsTrigger>
+            <TabsTrigger value="suppliers">
+              Suppliers{vendorItems.length > 0 && ` (${vendorItems.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="printables">Labels</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="info" className="flex-1 overflow-auto mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-muted-foreground">Department</p>
-                <p className="font-medium">{product.department_name || "—"}</p>
+                <p className="text-muted-foreground">Category</p>
+                <p className="font-medium">{product.category_name || "—"}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Unit</p>
@@ -110,34 +132,13 @@ export function ProductDetailModal({
                   )}
                 </p>
               </div>
-              {product.product_group && (
-                <div className="col-span-2">
-                  <p className="text-muted-foreground">Product Group</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="font-medium text-accent hover:underline text-left"
-                      onClick={() => onFilterByGroup?.(product.product_group)}
-                    >
-                      {product.product_group}
-                    </button>
-                    {(() => {
-                      const siblings = allProducts.filter(
-                        (p) => p.product_group === product.product_group && p.id !== product.id,
-                      );
-                      return siblings.length > 0 ? (
-                        <span className="text-xs text-muted-foreground">
-                          ({siblings.length} other variant
-                          {siblings.length !== 1 ? "s" : ""})
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                </div>
-              )}
-              {product.original_sku && (
-                <div className="col-span-2">
-                  <p className="text-muted-foreground">Vendor / original SKU</p>
-                  <p className="font-mono text-sm text-muted-foreground">{product.original_sku}</p>
+              {product.purchase_uom && product.purchase_uom !== "each" && (
+                <div>
+                  <p className="text-muted-foreground">Purchase UOM</p>
+                  <p className="font-medium">
+                    {product.purchase_uom}
+                    {(product.purchase_pack_qty || 1) > 1 ? ` ×${product.purchase_pack_qty}` : ""}
+                  </p>
                 </div>
               )}
             </div>
@@ -184,6 +185,83 @@ export function ProductDetailModal({
                 Delete
               </Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="suppliers" className="flex-1 overflow-auto mt-4">
+            {vendorsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : vendorItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No suppliers linked to this SKU yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {vendorItems.map((vi) => (
+                  <div
+                    key={vi.id}
+                    className="flex items-start gap-3 rounded-lg border border-border p-3"
+                  >
+                    <Truck className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm truncate">
+                          {vi.vendor_name || "Unknown vendor"}
+                        </span>
+                        {vi.is_preferred && (
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground mt-1">
+                        {vi.vendor_sku && (
+                          <span>
+                            Vendor SKU: <span className="font-mono">{vi.vendor_sku}</span>
+                          </span>
+                        )}
+                        <span>
+                          Cost: <span className="font-mono">${(vi.cost || 0).toFixed(2)}</span>
+                        </span>
+                        {vi.purchase_uom !== "each" && (
+                          <span>
+                            UOM: {vi.purchase_uom}
+                            {(vi.purchase_pack_qty || 1) > 1 && ` ×${vi.purchase_pack_qty}`}
+                          </span>
+                        )}
+                        {vi.lead_time_days != null && <span>{vi.lead_time_days}d lead</span>}
+                        {vi.moq != null && <span>MOQ: {vi.moq}</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {!vi.is_preferred && (
+                        <button
+                          className="p-1.5 text-muted-foreground hover:text-amber-500 rounded-sm transition-colors"
+                          title="Set as preferred"
+                          onClick={() => {
+                            setPreferred.mutate(
+                              { skuId: product.id, itemId: vi.id },
+                              { onSuccess: () => toast.success("Preferred supplier set") },
+                            );
+                          }}
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        className="p-1.5 text-muted-foreground hover:text-destructive rounded-sm transition-colors"
+                        title="Remove supplier"
+                        onClick={() => {
+                          removeVendorItem.mutate(
+                            { skuId: product.id, itemId: vi.id },
+                            { onSuccess: () => toast.success("Supplier removed") },
+                          );
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="printables" className="flex-1 overflow-auto mt-4 space-y-4">

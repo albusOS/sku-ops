@@ -292,15 +292,15 @@ class TestAdjustmentIdempotencyFix:
     @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
     async def test_two_adjustments_on_same_product_both_record_ledger_entries(self):
-        from catalog.application.product_lifecycle import create_product
+        from catalog.application.sku_lifecycle import create_product_with_sku
         from inventory.application.inventory_service import (
             process_adjustment_stock_changes,
             process_import_stock_changes,
         )
 
-        product = await create_product(
-            department_id="dept-1",
-            department_name="Hardware",
+        product = await create_product_with_sku(
+            category_id="dept-1",
+            category_name="Hardware",
             name="Test Adjust Product",
             quantity=100.0,
             price=10.0,
@@ -345,15 +345,15 @@ class TestAdjustmentIdempotencyFix:
     @pytest.mark.asyncio
     async def test_adjustment_ref_ids_are_unique(self):
         """Each adjustment must produce a distinct reference_id in the ledger."""
-        from catalog.application.product_lifecycle import create_product
+        from catalog.application.sku_lifecycle import create_product_with_sku
         from inventory.application.inventory_service import (
             process_adjustment_stock_changes,
             process_import_stock_changes,
         )
 
-        product = await create_product(
-            department_id="dept-1",
-            department_name="Hardware",
+        product = await create_product_with_sku(
+            category_id="dept-1",
+            category_name="Hardware",
             name="Test Unique Refs",
             quantity=50.0,
             price=10.0,

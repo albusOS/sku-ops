@@ -66,6 +66,8 @@ class PurchaseOrderItem(Entity):
     base_unit: str = "each"
     sell_uom: str = "each"
     pack_qty: int = 1
+    purchase_uom: str = "each"
+    purchase_pack_qty: int = 1
     suggested_department: str = "HDW"
     status: POItemStatus = POItemStatus.ORDERED
     product_id: str | None = None
@@ -97,6 +99,8 @@ class POItemCreate(BaseModel):
     base_unit: str = "each"
     sell_uom: str = "each"
     pack_qty: int = 1
+    purchase_uom: str = "each"
+    purchase_pack_qty: int = 1
     suggested_department: str | None = None
     product_id: str | None = None
     selected: bool = True
@@ -123,6 +127,8 @@ class ReceiveItemUpdate(BaseModel):
     base_unit: str | None = None
     sell_uom: str | None = None
     pack_qty: int | None = None
+    purchase_uom: str | None = None
+    purchase_pack_qty: int | None = None
     barcode: str | None = None
 
 
