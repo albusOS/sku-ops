@@ -44,7 +44,7 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
           JWT_SECRET: ci-test-secret
           ANTHROPIC_API_KEY: ci-dummy-key
-        run: uv run pytest --tb=short -q --ignore=tests/test_llm_anthropic.py
+        run: uv run pytest --tb=short -q --timeout=60
 
   frontend:
     name: Frontend
@@ -119,7 +119,7 @@ jobs:
           DATABASE_URL: "postgresql://sku_ops:testpass@localhost:5432/sku_ops_test"
           JWT_SECRET: ci-test-secret
           ANTHROPIC_API_KEY: ci-dummy-key
-        run: uv run pytest --tb=short -q --ignore=tests/test_llm_anthropic.py
+        run: uv run pytest --tb=short -q --timeout=60
 
   docker:
     name: Docker build

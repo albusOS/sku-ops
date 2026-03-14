@@ -430,7 +430,7 @@ export default function PurchaseOrders() {
         open={reviewModal.open}
         onOpenChange={(v) => !v && setReviewModal({ open: false, poId: null, items: [] })}
         items={reviewModal.items}
-        departments={departments}
+        categories={departments}
         onConfirm={confirmReceive}
         isSubmitting={acting[reviewModal.poId] === "receive"}
       />
@@ -493,7 +493,7 @@ function ItemInfo({ item }) {
     <div className="min-w-0 flex-1">
       <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
       <p className="text-[10px] text-muted-foreground mt-0.5">
-        {item.suggested_department}
+        {item.suggested_department && `Category: ${item.suggested_department}`}
         {item.base_unit && item.base_unit !== "each" && (
           <>
             {" "}

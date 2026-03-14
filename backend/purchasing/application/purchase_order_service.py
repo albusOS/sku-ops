@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from purchasing.domain.purchase_order import (
+    CreatePOResult,
     POItemCreate,
     POItemStatus,
     POStatus,
@@ -34,12 +35,12 @@ class PurchasingDeps:
     get_department_by_code: Callable[..., Awaitable[Any]]
     find_vendor_by_name: Callable[..., Awaitable[Any]]
     insert_vendor: Callable[..., Awaitable[None]]
-    list_products_by_vendor: Callable[..., Awaitable[list]]
-    get_product_by_id: Callable[..., Awaitable[Any]]
-    find_product_by_sku_and_vendor: Callable[..., Awaitable[Any]]
-    find_product_by_name_and_vendor: Callable[..., Awaitable[Any]]
-    update_product: Callable[..., Awaitable[Any]]
-    create_product: Callable[..., Awaitable[Any]]
+    get_sku_by_id: Callable[..., Awaitable[Any]]
+    find_vendor_item_by_vendor_and_sku_code: Callable[..., Awaitable[Any]]
+    find_sku_by_name_and_vendor: Callable[..., Awaitable[Any]]
+    update_sku: Callable[..., Awaitable[Any]]
+    create_product_with_sku: Callable[..., Awaitable[Any]]
+    add_vendor_item: Callable[..., Awaitable[Any]]
     process_receiving_stock_changes: Callable[..., Awaitable[None]]
     classify_uom_batch: Callable[..., Awaitable[list]]
     infer_uom: Callable[[str], tuple[str, str, int]]
@@ -57,7 +58,6 @@ def _resolve_vendor_dict(vendor_name: str, vendor_id: str) -> dict:
         "email": "",
         "phone": "",
         "address": "",
-        "product_count": 0,
         "created_at": now,
     }
 
@@ -78,10 +78,10 @@ async def create_purchase_order(
     current_user: CurrentUser,
     document_date: str | None = None,
     total: float | None = None,
-    department_id: str | None = None,
+    category_id: str | None = None,
     create_vendor_if_missing: bool = True,
     repo: PORepoPort = _default_repo,
-) -> dict:
+) -> CreatePOResult:
     """Save reviewed receipt items as a pending purchase order.
 
     Runs enrichment (UOM inference, dept suggestion, LLM) but does NOT update
@@ -113,8 +113,8 @@ async def create_purchase_order(
     dept_codes = list(dept_by_code.keys())
 
     override_dept_code = None
-    if department_id and department_id in dept_by_id:
-        override_dept_code = dept_by_id[department_id].code.upper()
+    if category_id and category_id in dept_by_id:
+        override_dept_code = dept_by_id[category_id].code.upper()
 
     selected = [p for p in products if p.selected]
 
@@ -124,8 +124,7 @@ async def create_purchase_order(
     ocr_items = [d for d in selected_dicts if not d.get("ai_parsed")]
 
     if ocr_items:
-        vendor_products = await deps.list_products_by_vendor(vendor_id)
-        ocr_items = await deps.enrich_for_import(ocr_items, vendor_products, dept_codes)
+        ocr_items = await deps.enrich_for_import(ocr_items, [], dept_codes)
     for item in selected_dicts:
         item.pop("enrichment_warning", None)
 
@@ -202,30 +201,31 @@ async def create_purchase_order(
     await repo.insert_po(po)
     await repo.insert_items(po_items)
 
-    return {
-        "id": po.id,
-        "vendor_id": vendor_id,
-        "vendor_created": vendor_created,
-        "vendor_name": vendor_name,
-        "status": po.status.value,
-        "item_count": len(po_items),
-        "created_at": po.created_at,
-    }
+    return CreatePOResult(
+        id=po.id,
+        vendor_id=vendor_id,
+        vendor_created=vendor_created,
+        vendor_name=vendor_name,
+        status=po.status.value,
+        item_count=len(po_items),
+        created_at=po.created_at,
+    )
 
 
 # Re-export receiving functions so existing imports from this module keep working
 from purchasing.application.po_receiving_service import (  # noqa: E402
     _apply_overrides,
-    _match_product,
+    _match_sku,
     _recompute_po_status,
     mark_delivery_received,
     receive_po_items,
 )
 
 __all__ = [
+    "CreatePOResult",
     "PurchasingDeps",
     "_apply_overrides",
-    "_match_product",
+    "_match_sku",
     "_recompute_po_status",
     "_resolve_po_item_cost",
     "_resolve_vendor_dict",

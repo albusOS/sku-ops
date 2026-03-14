@@ -79,28 +79,13 @@ const Reports = () => {
         const rows = (products.items || products).map((p) => [
           p.sku,
           p.name,
-          p.department_name || "",
+          p.category_name || "",
           p.quantity,
           p.min_stock,
           p.price,
           p.cost || 0,
-          p.product_group || "",
-          p.vendor_name || "",
         ]);
-        const csv = [
-          [
-            "SKU",
-            "Name",
-            "Department",
-            "Qty",
-            "Min Stock",
-            "Price",
-            "Cost",
-            "Product Group",
-            "Vendor",
-          ],
-          ...rows,
-        ]
+        const csv = [["SKU", "Name", "Category", "Qty", "Min Stock", "Price", "Cost"], ...rows]
           .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
           .join("\n");
         const blob = new Blob([csv], { type: "text/csv" });

@@ -8,15 +8,20 @@ fixtures specific to their scope (e.g. HTTP client for api tests).
 import os
 
 os.environ["ENV"] = "test"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "")
-os.environ["JWT_SECRET"] = "test-" + "secret-key-for-pytest-32bytes!"
+os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-dummy-key-not-real")
 
 
+import pytest
 import pytest_asyncio
 
+import finance.application.event_handlers  # noqa: F401 — registers domain event handlers
+import inventory.application.event_handlers  # noqa: F401
+import shared.infrastructure.ws_bridge  # noqa: F401
 from shared.infrastructure.logging_config import org_id_var, user_id_var
+from tests.helpers.events import EventCollector
 
 
 @pytest_asyncio.fixture
@@ -33,7 +38,7 @@ async def db():
            VALUES ('default', 'Default', 'default', datetime('now'))"""
     )
     await conn.execute(
-        """INSERT OR REPLACE INTO departments (id, name, code, description, product_count, organization_id, created_at)
+        """INSERT OR REPLACE INTO departments (id, name, code, description, sku_count, organization_id, created_at)
            VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'default', datetime('now'))"""
     )
     await conn.execute(
@@ -53,6 +58,27 @@ async def db():
 async def _db(db):
     """Alias for ``db`` — many test files reference this name."""
     yield
+
+
+@pytest.fixture
+def event_collector():
+    """Capture all domain events dispatched during a test.
+
+    Wraps ``dispatch`` so the real handlers still run, but every event is
+    also recorded in the collector for later assertion.
+    """
+    from unittest.mock import patch
+
+    from shared.infrastructure.domain_events import dispatch as real_dispatch
+
+    collector = EventCollector()
+
+    async def _capturing_dispatch(event):
+        await collector.capture(event)
+        await real_dispatch(event)
+
+    with patch("shared.infrastructure.domain_events.dispatch", side_effect=_capturing_dispatch):
+        yield collector
 
 
 @pytest_asyncio.fixture

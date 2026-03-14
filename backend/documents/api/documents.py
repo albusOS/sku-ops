@@ -85,14 +85,9 @@ async def import_document(
         return await import_document_wired(
             vendor_name=data.vendor_name,
             products=data.products,
-            department_id=data.department_id,
+            category_id=data.category_id,
             create_vendor_if_missing=data.create_vendor_if_missing,
             current_user=current_user,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except Exception as e:
-        logger.exception("Document import failed")
-        raise HTTPException(
-            status_code=500, detail="Import failed — please check the file and try again"
-        ) from e

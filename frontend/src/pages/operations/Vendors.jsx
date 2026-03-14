@@ -203,7 +203,7 @@ const Vendors = () => {
               </div>
               <div className="mt-4 pt-4 border-t border-border">
                 <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                  {vendor.product_count || 0} products
+                  Vendor
                 </span>
               </div>
             </div>

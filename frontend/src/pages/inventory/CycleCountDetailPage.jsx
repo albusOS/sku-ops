@@ -199,7 +199,7 @@ export default function CycleCountDetailPage() {
             <p className="text-sm text-muted-foreground mt-0.5">
               {count.scope ? (
                 <>
-                  <span className="font-medium">{count.scope}</span> department
+                  <span className="font-medium">{count.scope}</span> category
                 </>
               ) : (
                 "Full warehouse"

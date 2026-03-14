@@ -13,11 +13,19 @@ Inventory is only touched at commit — never during the counting phase.
 
 from datetime import UTC, datetime
 
-from catalog.application.queries import list_products
+from catalog.application.queries import list_skus
 from inventory.application.inventory_service import process_adjustment_stock_changes
-from inventory.domain.cycle_count import CycleCount, CycleCountItem, CycleCountStatus
+from inventory.domain.cycle_count import (
+    CommitCycleCountResult,
+    CycleCount,
+    CycleCountDetail,
+    CycleCountItem,
+    CycleCountStatus,
+)
 from inventory.infrastructure import cycle_count_repo
 from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
 
 
@@ -25,16 +33,16 @@ async def open_cycle_count(
     created_by_id: str,
     created_by_name: str,
     scope: str | None = None,
-) -> dict:
+) -> CycleCount:
     """Open a new cycle count session.
 
     Snapshots the current quantity of every active product in scope.
-    scope=None counts everything; scope=<department_name> limits to that dept.
-    Returns the serialized CycleCount.
+    scope=None counts everything; scope=<category_name> limits to that category.
+    Returns the new CycleCount.
     """
-    products = await list_products()
+    products = await list_skus()
     if scope:
-        products = [p for p in products if p.department_name == scope]
+        products = [p for p in products if p.category_name == scope]
 
     if not products:
         raise ValueError(
@@ -61,7 +69,7 @@ async def open_cycle_count(
         )
         await cycle_count_repo.insert_item(item)
 
-    return count.model_dump()
+    return count
 
 
 async def update_counted_qty(
@@ -69,7 +77,7 @@ async def update_counted_qty(
     item_id: str,
     counted_qty: float,
     notes: str | None,
-) -> dict:
+) -> CycleCountItem:
     """Record the physical count for one line item.
 
     Computes variance = counted_qty - snapshot_qty inline.
@@ -78,14 +86,14 @@ async def update_counted_qty(
     count = await cycle_count_repo.get_count(count_id)
     if not count:
         raise ResourceNotFoundError("CycleCount", count_id)
-    if count["status"] != CycleCountStatus.OPEN:
+    if count.status != CycleCountStatus.OPEN:
         raise ValueError("Cannot update a committed cycle count.")
 
     item = await cycle_count_repo.get_item(item_id, count_id)
     if not item:
         raise ResourceNotFoundError("CycleCountItem", item_id)
 
-    variance = round(counted_qty - float(item["snapshot_qty"]), 6)
+    variance = round(counted_qty - float(item.snapshot_qty), 6)
     updated = await cycle_count_repo.update_item_counted(
         item_id=item_id,
         counted_qty=counted_qty,
@@ -97,21 +105,32 @@ async def update_counted_qty(
     return updated
 
 
-async def get_count_detail(count_id: str) -> dict:
+async def get_count_detail(count_id: str) -> CycleCountDetail:
     """Return the count header plus all line items with their current variance."""
     count = await cycle_count_repo.get_count(count_id)
     if not count:
         raise ResourceNotFoundError("CycleCount", count_id)
 
     items = await cycle_count_repo.list_items(count_id)
-    return {**count, "items": items}
+    return CycleCountDetail(
+        id=count.id,
+        organization_id=count.organization_id,
+        status=count.status,
+        scope=count.scope,
+        created_by_id=count.created_by_id,
+        created_by_name=count.created_by_name,
+        committed_by_id=count.committed_by_id,
+        committed_at=count.committed_at,
+        created_at=count.created_at,
+        items=items,
+    )
 
 
 async def commit_cycle_count(
     count_id: str,
     committed_by_id: str,
     committed_by_name: str,
-) -> dict:
+) -> CommitCycleCountResult:
     """Apply all non-zero variances as stock adjustments and close the count.
 
     All adjustments and the status transition run inside a single database
@@ -124,39 +143,58 @@ async def commit_cycle_count(
     count = await cycle_count_repo.get_count(count_id)
     if not count:
         raise ResourceNotFoundError("CycleCount", count_id)
-    if count["status"] != CycleCountStatus.OPEN:
+    if count.status != CycleCountStatus.OPEN:
         raise ValueError("Cycle count is already committed.")
 
     items = await cycle_count_repo.list_items(count_id)
     items_to_adjust = [
-        i
-        for i in items
-        if i.get("counted_qty") is not None and i.get("variance") not in (None, 0, 0.0)
+        i for i in items if i.counted_qty is not None and i.variance not in (None, 0, 0.0)
     ]
 
     committed_at = datetime.now(UTC).isoformat()
 
+    adjusted_product_ids: list[str] = []
     async with transaction():
         for item in items_to_adjust:
             await process_adjustment_stock_changes(
-                product_id=item["product_id"],
-                quantity_delta=float(item["variance"]),
+                product_id=item.product_id,
+                quantity_delta=float(item.variance),  # type: ignore[arg-type]
                 reason="count",
                 user_id=committed_by_id,
                 user_name=committed_by_name,
+                emit_event=False,
             )
-        await cycle_count_repo.commit_count(
+            adjusted_product_ids.append(item.product_id)
+        committed = await cycle_count_repo.commit_count(
             count_id=count_id,
             committed_by_id=committed_by_id,
             committed_at=committed_at,
         )
+        if not committed:
+            raise ValueError("Cycle count is already committed.")
 
-    count["status"] = CycleCountStatus.COMMITTED
-    count["committed_by_id"] = committed_by_id
-    count["committed_at"] = committed_at
-    count["items_adjusted"] = len(items_to_adjust)
-    return count
+    if adjusted_product_ids:
+        await dispatch(
+            InventoryChanged(
+                org_id=get_org_id(),
+                product_ids=tuple(adjusted_product_ids),
+                change_type="cycle_count",
+            )
+        )
+
+    return CommitCycleCountResult(
+        id=count.id,
+        organization_id=count.organization_id,
+        status=CycleCountStatus.COMMITTED,
+        scope=count.scope,
+        created_by_id=count.created_by_id,
+        created_by_name=count.created_by_name,
+        committed_by_id=committed_by_id,
+        committed_at=committed_at,
+        created_at=count.created_at,
+        items_adjusted=len(items_to_adjust),
+    )
 
 
-async def list_cycle_counts(status: str | None = None) -> list:
+async def list_cycle_counts(status: str | None = None) -> list[CycleCount]:
     return await cycle_count_repo.list_counts(status=status)

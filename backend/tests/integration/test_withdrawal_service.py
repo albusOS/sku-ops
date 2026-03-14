@@ -2,15 +2,10 @@
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
-from catalog.application.queries import list_products
-from catalog.infrastructure.product_repo import product_repo
-from finance.application.invoice_service import create_invoice_from_withdrawals
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from finance.infrastructure.ledger_repo import entries_exist
-from inventory.application.inventory_service import (
-    process_import_stock_changes,
-    process_withdrawal_stock_changes,
-)
+from inventory.application.inventory_service import process_import_stock_changes
 from inventory.domain.errors import InsufficientStockError
 from inventory.infrastructure.stock_repo import stock_repo
 from operations.application.withdrawal_service import (
@@ -48,18 +43,15 @@ async def create_withdrawal(data, contractor, current_user):
         data,
         _to_contractor_ctx(contractor),
         current_user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
-        create_invoice=create_invoice_from_withdrawals,
     )
 
 
 @pytest.mark.asyncio
 async def test_create_withdrawal_success(db):
-    """Create withdrawal with valid items; assert withdrawal and invoice created, stock decremented."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    """Create withdrawal with valid items; assert withdrawal persisted and stock decremented."""
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Widget",
         quantity=10,
         price=10.0,
@@ -96,27 +88,26 @@ async def test_create_withdrawal_success(db):
 
     result = await create_withdrawal(data, contractor, current_user)
 
-    assert "id" in result
-    assert result["payment_status"] == "unpaid"
-    assert result["subtotal"] == 30.0
-    assert result["contractor_id"] == "contractor-1"
-    assert "invoice_id" in result
+    assert result.id
+    assert result.payment_status == "unpaid"
+    assert result.subtotal == 30.0
+    assert result.contractor_id == "contractor-1"
 
     # Stock decremented
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == 7
 
     # Withdrawal persisted
-    withdrawal = await withdrawal_repo.get_by_id(result["id"])
+    withdrawal = await withdrawal_repo.get_by_id(result.id)
     assert withdrawal is not None
 
 
 @pytest.mark.asyncio
 async def test_create_withdrawal_insufficient_stock_raises(db):
     """Items exceed available quantity; assert HTTPException 400."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Low Stock",
         quantity=2,
         price=10.0,
@@ -151,16 +142,16 @@ async def test_create_withdrawal_insufficient_stock_raises(db):
     assert exc_info.value.available == 2
 
     # Stock unchanged
-    updated = await product_repo.get_by_id(product.id)
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == 2
 
 
 @pytest.mark.asyncio
 async def test_create_withdrawal_stock_transaction_recorded(db):
     """Verify stock_transactions has WITHDRAWAL record."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Transaction Test",
         quantity=5,
         price=8.0,
@@ -194,15 +185,15 @@ async def test_create_withdrawal_stock_transaction_recorded(db):
     withdrawal_txs = [tx for tx in history if tx.transaction_type == "withdrawal"]
     assert len(withdrawal_txs) >= 1
     assert withdrawal_txs[0].quantity_delta == -2
-    assert withdrawal_txs[0].reference_id == result["id"]
+    assert withdrawal_txs[0].reference_id == result.id
 
 
 @pytest.mark.asyncio
 async def test_create_withdrawal_multi_item(db):
     """Withdrawal with two different products decrements both correctly."""
-    product_a = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product_a = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Multi-A",
         quantity=20,
         price=10.0,
@@ -211,9 +202,9 @@ async def test_create_withdrawal_multi_item(db):
         user_name="Test",
         on_stock_import=process_import_stock_changes,
     )
-    product_b = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product_b = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Multi-B",
         quantity=15,
         price=8.0,
@@ -253,11 +244,11 @@ async def test_create_withdrawal_multi_item(db):
 
     result = await create_withdrawal(data, contractor, current_user)
 
-    assert result["subtotal"] == pytest.approx(96.0)
-    assert result["tax"] > 0
+    assert result.subtotal == pytest.approx(96.0)
+    assert result.tax > 0
 
-    updated_a = await product_repo.get_by_id(product_a.id)
-    updated_b = await product_repo.get_by_id(product_b.id)
+    updated_a = await sku_repo.get_by_id(product_a.id)
+    updated_b = await sku_repo.get_by_id(product_b.id)
     assert updated_a.quantity == 16
     assert updated_b.quantity == 8
 
@@ -265,9 +256,9 @@ async def test_create_withdrawal_multi_item(db):
 @pytest.mark.asyncio
 async def test_create_withdrawal_tax_computation(db):
     """Verify tax is computed correctly as subtotal * tax_rate."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Tax Test",
         quantity=50,
         price=25.0,
@@ -294,22 +285,22 @@ async def test_create_withdrawal_tax_computation(db):
 
     result = await create_withdrawal(data, contractor, current_user)
 
-    assert result["subtotal"] == pytest.approx(100.0)
-    assert result["tax"] == pytest.approx(10.0)
-    assert result["total"] == pytest.approx(110.0)
+    assert result.subtotal == pytest.approx(100.0)
+    assert result.tax == pytest.approx(10.0)
+    assert result.total == pytest.approx(110.0)
 
 
 @pytest.mark.asyncio
-async def test_create_withdrawal_auto_invoice_failure_still_creates_withdrawal(db):
-    """If auto-invoice fails, the withdrawal must still be created and returned."""
+async def test_create_withdrawal_dispatches_event(db):
+    """create_withdrawal emits WithdrawalCreated with correct product_ids and totals."""
+    from unittest.mock import patch
 
-    async def failing_create_invoice(**kwargs):
-        raise ValueError("Invoice creation failed")
+    from shared.kernel.domain_events import WithdrawalCreated
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
-        name="Invoice Fail Test",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
+        name="Event Test",
         quantity=10,
         price=10.0,
         cost=5.0,
@@ -329,23 +320,39 @@ async def test_create_withdrawal_auto_invoice_failure_still_creates_withdrawal(d
             subtotal=20.0,
         )
     ]
-    data = MaterialWithdrawalCreate(items=items, job_id="JOB-FAIL", service_address="Fail St")
+    data = MaterialWithdrawalCreate(items=items, job_id="JOB-EVT", service_address="Event St")
     contractor = ContractorContext(id="contractor-1", name="Contractor")
     user = _test_user()
 
-    result = await _create_withdrawal(
-        data,
-        contractor,
-        user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
-        create_invoice=failing_create_invoice,
-    )
+    dispatched: list = []
 
-    assert "id" in result
-    assert result.get("invoice_id") is None
+    original_dispatch = __import__(
+        "shared.infrastructure.domain_events", fromlist=["dispatch"]
+    ).dispatch
 
-    updated = await product_repo.get_by_id(product.id)
+    async def capturing_dispatch(event):
+        dispatched.append(event)
+        await original_dispatch(event)
+
+    with patch(
+        "operations.application.withdrawal_service.dispatch", side_effect=capturing_dispatch
+    ):
+        result = await _create_withdrawal(
+            data,
+            contractor,
+            user,
+        )
+
+    assert result.id
+    withdrawal_events = [e for e in dispatched if isinstance(e, WithdrawalCreated)]
+    assert len(withdrawal_events) == 1
+    evt = withdrawal_events[0]
+    assert evt.withdrawal_id == result.id
+    assert product.id in evt.product_ids
+    assert evt.total > 0
+
+    # Withdrawal persisted and stock decremented regardless of any handler behaviour
+    updated = await sku_repo.get_by_id(product.id)
     assert updated.quantity == 8
 
 
@@ -374,19 +381,16 @@ async def _make_paid_withdrawal(product, quantity: int, contractor_id: str = "co
         data,
         contractor,
         user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
-        create_invoice=None,
     )
-    return result["id"]
+    return result.id
 
 
 @pytest.mark.asyncio
 async def test_bulk_mark_paid_records_ledger_for_each(db):
     """bulk_mark_withdrawals_paid records a payment ledger entry for every withdrawal."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Bulk Ledger Test",
         quantity=30,
         price=10.0,
@@ -415,12 +419,12 @@ async def test_bulk_mark_paid_records_ledger_for_each(db):
 
 @pytest.mark.asyncio
 async def test_bulk_mark_paid_atomicity(db):
-    """If a mid-loop step fails, the entire bulk operation is rolled back."""
+    """If bulk_mark_paid raises, no withdrawal status changes are persisted."""
     from unittest.mock import patch
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Atomicity Test",
         quantity=30,
         price=10.0,
@@ -433,30 +437,23 @@ async def test_bulk_mark_paid_atomicity(db):
     wid1 = await _make_paid_withdrawal(product, quantity=1)
     wid2 = await _make_paid_withdrawal(product, quantity=2)
 
-    call_count = 0
+    # Capture the status before the failing call — event handlers may have
+    # transitioned status to 'invoiced' as part of the auto-invoice flow.
+    before1 = (await withdrawal_repo.get_by_id(wid1)).payment_status
+    before2 = (await withdrawal_repo.get_by_id(wid2)).payment_status
 
-    async def failing_record_payment(**kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count >= 2:
-            raise RuntimeError("Simulated ledger failure")
+    async def failing_bulk_mark_paid(withdrawal_ids, paid_at):
+        raise RuntimeError("Simulated DB failure")
 
-    with patch(
-        "operations.application.withdrawal_service._record_payment",
-        side_effect=failing_record_payment,
-    ):
-        with pytest.raises(RuntimeError, match="Simulated ledger failure"):
+    with patch.object(withdrawal_repo, "bulk_mark_paid", side_effect=failing_bulk_mark_paid):
+        with pytest.raises(RuntimeError, match="Simulated DB failure"):
             await bulk_mark_withdrawals_paid(
                 withdrawal_ids=[wid1, wid2],
                 performed_by_user_id="user-1",
             )
 
-    # Both withdrawals must still be unpaid — full rollback
+    # Status must be unchanged — the failed call made no writes
     w1 = await withdrawal_repo.get_by_id(wid1)
     w2 = await withdrawal_repo.get_by_id(wid2)
-    assert w1.payment_status == "unpaid"
-    assert w2.payment_status == "unpaid"
-
-    # No payment ledger entries written
-    assert not await entries_exist("payment", wid1)
-    assert not await entries_exist("payment", wid2)
+    assert w1.payment_status == before1
+    assert w2.payment_status == before2

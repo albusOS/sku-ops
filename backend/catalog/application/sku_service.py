@@ -3,7 +3,7 @@
 import re
 
 from catalog.application import queries as catalog_queries
-from catalog.infrastructure.sku_repo import sku_repo
+from catalog.infrastructure.sku_counter_repo import sku_counter_repo
 from shared.kernel.errors import ResourceNotFoundError
 
 SKU_FORMAT = "DEPT-SLUG-XXXXX"
@@ -29,16 +29,16 @@ async def generate_sku(
     product_name: str | None = None,
 ) -> str:
     """Generate SKU: DEPT-SLUG-000001. Slug derived from product name for readability."""
-    number = await sku_repo.increment_and_get(department_code)
+    number = await sku_counter_repo.increment_and_get(department_code)
     slug = slug_from_name(product_name or "", max_len=6) if product_name else _DEFAULT_SLUG
     return f"{department_code}-{slug}-{str(number).zfill(6)}"
 
 
-async def preview_sku(department_id: str, product_name: str | None = None) -> dict:
+async def preview_sku(category_id: str, product_name: str | None = None) -> dict:
     """Preview the next SKU for a department without consuming the counter."""
-    department = await catalog_queries.get_department_by_id(department_id)
+    department = await catalog_queries.get_department_by_id(category_id)
     if not department:
-        raise ResourceNotFoundError("Department", department_id)
+        raise ResourceNotFoundError("Category", category_id)
     code = department.code
     next_num = await catalog_queries.get_next_sku_number(code)
     slug = slug_from_name(product_name or "", max_len=6) if product_name else _DEFAULT_SLUG

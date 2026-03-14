@@ -61,8 +61,7 @@ async def domain_error_handler(_request, exc: DomainError):
 @app.exception_handler(ValueError)
 async def value_error_handler(request, exc: ValueError):
     logger.warning("ValueError on %s %s: %s", request.method, request.url.path, exc)
-    detail = str(exc) if not is_deployed else "Invalid request"
-    return JSONResponse(status_code=400, content={"detail": detail})
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 @app.exception_handler(Exception)
@@ -74,10 +73,8 @@ async def unhandled_exception_handler(request, exc: Exception):
         request.url.path,
         traceback.format_exc(),
     )
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"},
-    )
+    detail = "Internal server error" if is_deployed else f"{type(exc).__name__}: {exc}"
+    return JSONResponse(status_code=500, content={"detail": detail})
 
 
 # ── Middleware (outermost first → executes first on request) ──────────────────
@@ -90,8 +87,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_origins=_cors_origins,
     allow_origin_regex=CORS_ORIGIN_REGEX or None,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)

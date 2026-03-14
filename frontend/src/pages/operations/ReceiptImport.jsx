@@ -16,20 +16,16 @@ import {
   FileImage,
   ClipboardList,
   XCircle,
-  CheckCircle,
   Package,
   Loader2,
   Trash2,
   Sparkles,
-  FileSpreadsheet,
   FileText,
 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import api from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-client";
 import { useDepartments } from "@/hooks/useDepartments";
-import { useVendors } from "@/hooks/useVendors";
 import { useProductMatch } from "@/hooks/useProductMatch";
 import { ProductMatchPicker } from "@/components/ProductMatchPicker";
 import { ProductFields } from "@/components/ProductFields";
@@ -37,9 +33,7 @@ import { ProductFields } from "@/components/ProductFields";
 const ReceiptImport = () => {
   const navigate = useNavigate();
   const { data: departments = [] } = useDepartments();
-  const { data: vendors = [] } = useVendors();
   const [selectedDept, setSelectedDept] = useState("");
-  const [selectedVendor, setSelectedVendor] = useState("");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [createVendorIfMissing, setCreateVendorIfMissing] = useState(true);
@@ -48,9 +42,6 @@ const ReceiptImport = () => {
   const [importing, setImporting] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [editedProducts, setEditedProducts] = useState([]);
-  const [csvFile, setCsvFile] = useState(null);
-  const [csvImporting, setCsvImporting] = useState(false);
-  const [csvResult, setCsvResult] = useState(null);
   const {
     matches: productMatches,
     autoMatch,
@@ -199,7 +190,7 @@ const ReceiptImport = () => {
       await api.purchaseOrders.create({
         vendor_name: vName,
         create_vendor_if_missing: createVendorIfMissing,
-        department_id: selectedDept || null,
+        category_id: selectedDept || null,
         document_date: extractedData?.document_date || null,
         total: extractedData?.total || null,
         products: productsToSave,
@@ -242,525 +233,349 @@ const ReceiptImport = () => {
     clearMatch(itemId);
   };
 
-  const handleCsvFileChange = (e) => {
-    const selected = e.target.files?.[0];
-    if (selected?.name?.toLowerCase().endsWith(".csv")) {
-      setCsvFile(selected);
-      setCsvResult(null);
-    } else if (selected) {
-      toast.error("Please select a CSV file");
-    }
-  };
-
-  const importCsv = async () => {
-    if (!csvFile || !selectedDept) {
-      toast.error("Select a department and CSV file");
-      return;
-    }
-    setCsvImporting(true);
-    setCsvResult(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", csvFile);
-      formData.append("department_id", selectedDept);
-      if (selectedVendor) formData.append("vendor_id", selectedVendor);
-
-      const result = await api.products.importCsv(formData);
-
-      setCsvResult(result);
-      toast.success(`Imported ${result.imported} products`);
-      if (result.errors > 0) toast.warning(`${result.errors} rows had errors`);
-      if (result.warnings?.length > 0)
-        toast.info(`${result.warnings.length} product(s) had invalid barcode`);
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setCsvImporting(false);
-    }
-  };
-
   return (
     <div className="p-8" data-testid="receipt-import-page">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-foreground tracking-tight">Receive / Import</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Upload a delivery receipt or vendor invoice to add products, or bulk import from CSV
+          Upload a delivery receipt or vendor invoice to extract products and create a purchase
+          order
         </p>
       </div>
 
-      <Tabs defaultValue="receipt" className="mt-4">
-        <TabsList className="mb-4">
-          <TabsTrigger value="receipt">Document</TabsTrigger>
-          <TabsTrigger value="csv">CSV Bulk Import</TabsTrigger>
-        </TabsList>
+      <div className="mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Upload Section */}
+          <div className="card-elevated p-6 border-primary/20" data-testid="upload-section">
+            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center text-sm font-bold">
+                1
+              </span>
+              Upload document
+            </h2>
 
-        <TabsContent value="receipt">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Upload Section */}
-            <div className="card-elevated p-6 border-primary/20" data-testid="upload-section">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center text-sm font-bold">
-                  1
-                </span>
-                Upload document
-              </h2>
-
-              {!file ? (
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  className="border-2 border-dashed border-border rounded-2xl p-12 text-center hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
-                  onClick={() => document.getElementById("receipt-input").click()}
-                  data-testid="upload-dropzone"
-                >
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/15 to-warning/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
-                    <Upload className="w-7 h-7 text-primary" />
-                  </div>
-                  <p className="text-muted-foreground font-medium">
-                    Drop document here or click to browse
-                  </p>
-                  <p className="text-muted-foreground text-sm mt-2">Supports JPG, PNG, WEBP, PDF</p>
-                  <input
-                    id="receipt-input"
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    data-testid="receipt-file-input"
-                  />
+            {!file ? (
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                className="border-2 border-dashed border-border rounded-2xl p-12 text-center hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
+                onClick={() => document.getElementById("receipt-input").click()}
+                data-testid="upload-dropzone"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/15 to-warning/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+                  <Upload className="w-7 h-7 text-primary" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="relative rounded-xl overflow-hidden border border-border shadow-sm">
-                    {preview ? (
-                      <img
-                        src={preview}
-                        alt="Document preview"
-                        className="w-full max-h-[400px] object-contain bg-muted"
-                        data-testid="receipt-preview"
-                      />
-                    ) : (
-                      <div className="w-full h-48 bg-muted flex flex-col items-center justify-center gap-2">
-                        <FileText className="w-12 h-12 text-muted-foreground" />
-                        <span className="text-muted-foreground font-medium">{file.name}</span>
-                        <span className="text-muted-foreground text-sm">PDF document</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={clearAll}
-                      className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-muted-foreground rounded-xl hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
-                      data-testid="clear-receipt-btn"
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                    <span>{file?.name}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2" data-testid="extract-btn">
-                    <Button
-                      onClick={() => extractReceipt(true)}
-                      disabled={extracting}
-                      className="btn-primary h-11"
-                    >
-                      {extracting ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 mr-2" />
-                      )}
-                      Extract with AI
-                    </Button>
-                    <Button
-                      onClick={() => extractReceipt(false)}
-                      disabled={extracting}
-                      variant="outline"
-                      className="h-11 text-muted-foreground"
-                    >
-                      {extracting ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <FileText className="w-4 h-4 mr-2" />
-                      )}
-                      Free OCR
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Extracted Products Section */}
-            <div className="card-elevated p-6" data-testid="extracted-section">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 rounded-lg bg-warning/15 text-accent flex items-center justify-center text-sm font-bold">
-                  2
-                </span>
-                Review & import
-              </h2>
-
-              {!extractedData ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                    <Package className="w-7 h-7 text-muted-foreground" />
-                  </div>
-                  <p className="font-medium">Upload and extract a document to see products</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-muted-foreground font-medium text-sm">Vendor *</Label>
-                    <Input
-                      value={vendorName}
-                      onChange={(e) => setVendorName(e.target.value)}
-                      className="input-field mt-2"
-                      placeholder="Vendor / store name"
-                      data-testid="vendor-name-input"
+                <p className="text-muted-foreground font-medium">
+                  Drop document here or click to browse
+                </p>
+                <p className="text-muted-foreground text-sm mt-2">Supports JPG, PNG, WEBP, PDF</p>
+                <input
+                  id="receipt-input"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  data-testid="receipt-file-input"
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative rounded-xl overflow-hidden border border-border shadow-sm">
+                  {preview ? (
+                    <img
+                      src={preview}
+                      alt="Document preview"
+                      className="w-full max-h-[400px] object-contain bg-muted"
+                      data-testid="receipt-preview"
                     />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="create-vendor"
-                      checked={createVendorIfMissing}
-                      onCheckedChange={(c) => setCreateVendorIfMissing(c === true)}
-                    />
-                    <Label
-                      htmlFor="create-vendor"
-                      className="text-sm text-muted-foreground cursor-pointer"
-                    >
-                      Create vendor if missing
-                    </Label>
-                  </div>
-
-                  <div>
-                    <Label className="text-muted-foreground font-medium text-sm">
-                      Department override (optional)
-                    </Label>
-                    <Select
-                      value={selectedDept || "none"}
-                      onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}
-                    >
-                      <SelectTrigger className="input-field mt-2" data-testid="import-dept-select">
-                        <SelectValue placeholder="Use suggested per product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Use suggested per product</SelectItem>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.name} ({dept.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div
-                    className="space-y-3 max-h-[400px] overflow-auto"
-                    data-testid="extracted-products-list"
+                  ) : (
+                    <div className="w-full h-48 bg-muted flex flex-col items-center justify-center gap-2">
+                      <FileText className="w-12 h-12 text-muted-foreground" />
+                      <span className="text-muted-foreground font-medium">{file.name}</span>
+                      <span className="text-muted-foreground text-sm">PDF document</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={clearAll}
+                    className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-muted-foreground rounded-xl hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
+                    data-testid="clear-receipt-btn"
                   >
-                    {editedProducts.map((product) => {
-                      const matchState = productMatches[product.id] || {};
-                      const matched = matchState.matched || product.matched_product;
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
 
-                      return (
-                        <div
-                          key={product.id}
-                          className={`p-4 rounded-xl border transition-all ${
-                            product.selected
-                              ? "border-warning/30 bg-warning/10"
-                              : "border-border bg-muted/50 opacity-60"
-                          }`}
-                          data-testid={`extracted-product-${product.id}`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <button
-                              onClick={() => toggleProduct(product.id)}
-                              className={`mt-1 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                product.selected
-                                  ? "bg-accent border-accent text-white"
-                                  : "border-border"
-                              }`}
-                              data-testid={`toggle-product-${product.id}`}
-                            >
-                              {product.selected && (
-                                <svg
-                                  className="w-3 h-3 text-white"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              )}
-                            </button>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                  <span>{file?.name}</span>
+                </div>
 
-                            <div className="flex-1 min-w-0 space-y-2">
-                              <ProductMatchPicker
-                                matched={matched}
-                                options={matchState.options || []}
-                                searching={matchState.searching || false}
-                                onSearch={(q) => searchMatch(product.id, q)}
-                                onConfirm={(p) => handleConfirmMatch(product.id, p)}
-                                onClear={() => handleClearMatch(product.id)}
-                              />
-
-                              {matched ? (
-                                <div className="space-y-2">
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">
-                                        Delivered qty
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        step="any"
-                                        value={product.delivered_qty ?? product.quantity ?? 1}
-                                        onChange={(e) =>
-                                          updateProduct(product.id, "delivered_qty", e.target.value)
-                                        }
-                                        className="input-field h-9 text-sm"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs text-muted-foreground">Cost</Label>
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        value={product.cost ?? ""}
-                                        onChange={(e) =>
-                                          updateProduct(
-                                            product.id,
-                                            "cost",
-                                            e.target.value ? parseFloat(e.target.value) : null,
-                                          )
-                                        }
-                                        className="input-field h-9 text-sm"
-                                      />
-                                    </div>
-                                  </div>
-                                  {product.original_sku && (
-                                    <p className="text-xs text-muted-foreground font-mono">
-                                      Original: {product.original_sku}
-                                    </p>
-                                  )}
-                                </div>
-                              ) : (
-                                <ProductFields
-                                  compact
-                                  fields={{
-                                    name: product.name || "",
-                                    price: product.price ?? "",
-                                    cost: product.cost ?? "",
-                                    base_unit: product.base_unit || "each",
-                                    sell_uom: product.sell_uom || "each",
-                                    pack_qty: product.pack_qty ?? 1,
-                                    barcode: product.barcode || "",
-                                    department_id: product.suggested_department || "",
-                                    quantity: product.delivered_qty ?? product.quantity ?? 1,
-                                  }}
-                                  onChange={(field, value) => {
-                                    const mapped =
-                                      field === "department_id"
-                                        ? "suggested_department"
-                                        : field === "quantity"
-                                          ? "delivered_qty"
-                                          : field;
-                                    updateProduct(product.id, mapped, value);
-                                  }}
-                                  departments={departments}
-                                  hiddenFields={[
-                                    "description",
-                                    "vendor_id",
-                                    "min_stock",
-                                    "sell_uom",
-                                    "pack_qty",
-                                  ]}
-                                />
-                              )}
-                            </div>
-
-                            <button
-                              onClick={() => removeProduct(product.id)}
-                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors shrink-0"
-                              data-testid={`remove-product-${product.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="p-4 bg-muted/80 rounded-xl border border-border">
-                    <p className="text-sm text-muted-foreground">
-                      <strong>{editedProducts.filter((p) => p.selected).length}</strong> of{" "}
-                      {editedProducts.length} products selected for import
-                    </p>
-                  </div>
-
+                <div className="grid grid-cols-2 gap-2" data-testid="extract-btn">
                   <Button
-                    onClick={saveAsPurchaseOrder}
-                    disabled={importing || !(vendorName || "").trim()}
-                    className="w-full btn-primary h-11"
-                    data-testid="import-products-btn"
+                    onClick={() => extractReceipt(true)}
+                    disabled={extracting}
+                    className="btn-primary h-11"
                   >
-                    {importing ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Saving…
-                      </>
+                    {extracting ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      <>
-                        <ClipboardList className="w-5 h-5 mr-2" />
-                        Save as Purchase Order
-                      </>
+                      <Sparkles className="w-4 h-4 mr-2" />
                     )}
+                    Extract with AI
+                  </Button>
+                  <Button
+                    onClick={() => extractReceipt(false)}
+                    disabled={extracting}
+                    variant="outline"
+                    className="h-11 text-muted-foreground"
+                  >
+                    {extracting ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <FileText className="w-4 h-4 mr-2" />
+                    )}
+                    Free OCR
                   </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        </TabsContent>
 
-        <TabsContent value="csv">
-          <div className="card-elevated p-6 max-w-2xl border-border">
+          {/* Extracted Products Section */}
+          <div className="card-elevated p-6" data-testid="extracted-section">
             <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-success" />
-              Bulk import from CSV
+              <span className="w-7 h-7 rounded-lg bg-warning/15 text-accent flex items-center justify-center text-sm font-bold">
+                2
+              </span>
+              Review & import
             </h2>
-            <p className="text-muted-foreground text-sm mb-4">
-              Supply Yard format: Product, SKU, Barcode, On hand, Reorder point, Unit cost, Retail
-              price, Department
-            </p>
 
-            <div className="space-y-4">
-              <div>
-                <Label className="text-muted-foreground font-medium text-sm">Department *</Label>
-                <Select value={selectedDept} onValueChange={setSelectedDept}>
-                  <SelectTrigger className="input-field mt-2">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name} ({d.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-muted-foreground font-medium text-sm">
-                  Vendor (optional)
-                </Label>
-                <Select value={selectedVendor} onValueChange={setSelectedVendor}>
-                  <SelectTrigger className="input-field mt-2">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {vendors.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files?.[0];
-                  if (f?.name?.toLowerCase().endsWith(".csv")) {
-                    setCsvFile(f);
-                    setCsvResult(null);
-                  }
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-success/30 cursor-pointer"
-                onClick={() => document.getElementById("csv-input").click()}
-              >
-                <input
-                  id="csv-input"
-                  type="file"
-                  accept=".csv"
-                  onChange={handleCsvFileChange}
-                  className="hidden"
-                />
-                <FileSpreadsheet className="w-12 h-12 text-success mx-auto mb-3" />
-                <p className="text-muted-foreground font-medium">
-                  {csvFile ? csvFile.name : "Drop CSV or click to browse"}
-                </p>
-              </div>
-
-              {csvResult && (
-                <div className="p-4 bg-muted rounded-xl border border-border text-sm">
-                  <p className="font-medium text-foreground">
-                    Imported {csvResult.imported} products
-                    {csvResult.errors > 0 && ` · ${csvResult.errors} errors`}
-                    {csvResult.warnings?.length > 0 &&
-                      ` · ${csvResult.warnings.length} barcode warnings`}
-                  </p>
-                  {csvResult.error_details?.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-muted-foreground">
-                        View errors
-                      </summary>
-                      <ul className="mt-2 space-y-1 text-muted-foreground text-xs max-h-32 overflow-auto">
-                        {csvResult.error_details.map((e, i) => (
-                          <li key={i}>
-                            {e.product}: {e.error}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                  {csvResult.warnings?.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-accent">
-                        View barcode warnings
-                      </summary>
-                      <ul className="mt-2 space-y-1 text-muted-foreground text-xs max-h-32 overflow-auto">
-                        {csvResult.warnings.map((w, i) => (
-                          <li key={i}>
-                            {w.product}: {w.warning}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
+            {!extractedData ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                  <Package className="w-7 h-7 text-muted-foreground" />
                 </div>
-              )}
+                <p className="font-medium">Upload and extract a document to see products</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-muted-foreground font-medium text-sm">Vendor *</Label>
+                  <Input
+                    value={vendorName}
+                    onChange={(e) => setVendorName(e.target.value)}
+                    className="input-field mt-2"
+                    placeholder="Vendor / store name"
+                    data-testid="vendor-name-input"
+                  />
+                </div>
 
-              <Button
-                onClick={importCsv}
-                disabled={csvImporting || !csvFile || !selectedDept}
-                className="w-full btn-primary h-11"
-              >
-                {csvImporting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Importing…
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    Import CSV
-                  </>
-                )}
-              </Button>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="create-vendor"
+                    checked={createVendorIfMissing}
+                    onCheckedChange={(c) => setCreateVendorIfMissing(c === true)}
+                  />
+                  <Label
+                    htmlFor="create-vendor"
+                    className="text-sm text-muted-foreground cursor-pointer"
+                  >
+                    Create vendor if missing
+                  </Label>
+                </div>
+
+                <div>
+                  <Label className="text-muted-foreground font-medium text-sm">
+                    Category override (optional)
+                  </Label>
+                  <Select
+                    value={selectedDept || "none"}
+                    onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger className="input-field mt-2" data-testid="import-dept-select">
+                      <SelectValue placeholder="Use suggested per product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Use suggested per product</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name} ({dept.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div
+                  className="space-y-3 max-h-[400px] overflow-auto"
+                  data-testid="extracted-products-list"
+                >
+                  {editedProducts.map((product) => {
+                    const matchState = productMatches[product.id] || {};
+                    const matched = matchState.matched || product.matched_product;
+
+                    return (
+                      <div
+                        key={product.id}
+                        className={`p-4 rounded-xl border transition-all ${
+                          product.selected
+                            ? "border-warning/30 bg-warning/10"
+                            : "border-border bg-muted/50 opacity-60"
+                        }`}
+                        data-testid={`extracted-product-${product.id}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={() => toggleProduct(product.id)}
+                            className={`mt-1 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              product.selected
+                                ? "bg-accent border-accent text-white"
+                                : "border-border"
+                            }`}
+                            data-testid={`toggle-product-${product.id}`}
+                          >
+                            {product.selected && (
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            )}
+                          </button>
+
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <ProductMatchPicker
+                              matched={matched}
+                              options={matchState.options || []}
+                              searching={matchState.searching || false}
+                              onSearch={(q) => searchMatch(product.id, q)}
+                              onConfirm={(p) => handleConfirmMatch(product.id, p)}
+                              onClear={() => handleClearMatch(product.id)}
+                            />
+
+                            {matched ? (
+                              <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">
+                                      Delivered qty
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      value={product.delivered_qty ?? product.quantity ?? 1}
+                                      onChange={(e) =>
+                                        updateProduct(product.id, "delivered_qty", e.target.value)
+                                      }
+                                      className="input-field h-9 text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">Cost</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={product.cost ?? ""}
+                                      onChange={(e) =>
+                                        updateProduct(
+                                          product.id,
+                                          "cost",
+                                          e.target.value ? parseFloat(e.target.value) : null,
+                                        )
+                                      }
+                                      className="input-field h-9 text-sm"
+                                    />
+                                  </div>
+                                </div>
+                                {product.original_sku && (
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    Original: {product.original_sku}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <ProductFields
+                                compact
+                                fields={{
+                                  name: product.name || "",
+                                  price: product.price ?? "",
+                                  cost: product.cost ?? "",
+                                  base_unit: product.base_unit || "each",
+                                  sell_uom: product.sell_uom || "each",
+                                  pack_qty: product.pack_qty ?? 1,
+                                  barcode: product.barcode || "",
+                                  category_id: product.suggested_department || "",
+                                  quantity: product.delivered_qty ?? product.quantity ?? 1,
+                                }}
+                                onChange={(field, value) => {
+                                  const mapped =
+                                    field === "category_id"
+                                      ? "suggested_department"
+                                      : field === "quantity"
+                                        ? "delivered_qty"
+                                        : field;
+                                  updateProduct(product.id, mapped, value);
+                                }}
+                                departments={departments}
+                                hiddenFields={[
+                                  "description",
+                                  "vendor_id",
+                                  "min_stock",
+                                  "sell_uom",
+                                  "pack_qty",
+                                ]}
+                              />
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => removeProduct(product.id)}
+                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors shrink-0"
+                            data-testid={`remove-product-${product.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="p-4 bg-muted/80 rounded-xl border border-border">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>{editedProducts.filter((p) => p.selected).length}</strong> of{" "}
+                    {editedProducts.length} products selected for import
+                  </p>
+                </div>
+
+                <Button
+                  onClick={saveAsPurchaseOrder}
+                  disabled={importing || !(vendorName || "").trim()}
+                  className="w-full btn-primary h-11"
+                  data-testid="import-products-btn"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList className="w-5 h-5 mr-2" />
+                      Save as Purchase Order
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       {/* How It Works - AI focus */}
       <div className="card-elevated p-6 mt-8 bg-gradient-to-br from-muted to-primary/5 border-primary/10">

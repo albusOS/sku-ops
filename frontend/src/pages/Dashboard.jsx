@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-import { AlertTriangle, Truck, ClipboardList, ShoppingCart, Package, HardHat } from "lucide-react";
+import { AlertTriangle, Truck, ClipboardList, ShoppingCart, Package } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, DATE_PRESETS } from "@/lib/constants";
@@ -270,37 +270,6 @@ const Dashboard = () => {
             href="/inventory?low_stock=1"
           />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        <StatCard
-          label="Inventory Value"
-          value={valueFormatter(stats?.inventory_retail || 0)}
-          icon={Package}
-          accent="emerald"
-          note={`${valueFormatter(stats?.inventory_cost || 0)} cost basis`}
-          href="/inventory"
-        />
-        <StatCard
-          label="Received This Period"
-          value={receivedPOCount}
-          icon={Package}
-          accent={receivedPOCount > 0 ? "emerald" : "slate"}
-          note={
-            receivedPOCount > 0
-              ? `${valueFormatter(stats?.po_summary?.received?.total || 0)} received`
-              : "no completed receipts"
-          }
-          href="/purchase-orders"
-        />
-        <StatCard
-          label="Contractors"
-          value={stats?.total_contractors || 0}
-          icon={HardHat}
-          accent="slate"
-          note={`${stats?.total_vendors || 0} vendors in network`}
-          href="/contractors"
-        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

@@ -10,73 +10,64 @@ from shared.infrastructure.database import get_connection, get_org_id
 def _row_to_model(row) -> MaterialWithdrawal | None:
     if row is None:
         return None
-    d = dict(row) if hasattr(row, "keys") else {}
+    d = dict(row)
     if d and "items" in d and isinstance(d["items"], str):
         d["items"] = json.loads(d["items"]) if d["items"] else []
     return MaterialWithdrawal.model_validate(d)
 
 
-async def insert(withdrawal: MaterialWithdrawal | dict) -> None:
-    withdrawal_dict = withdrawal if isinstance(withdrawal, dict) else withdrawal.model_dump()
+async def insert(withdrawal: MaterialWithdrawal) -> None:
     conn = get_connection()
-    org_id = withdrawal_dict.get("organization_id") or get_org_id()
-    items_json = json.dumps(
-        [i if isinstance(i, dict) else i.model_dump() for i in withdrawal_dict["items"]]
-    )
+    org_id = withdrawal.organization_id or get_org_id()
+    items_json = json.dumps([i.model_dump() for i in withdrawal.items])
     await conn.execute(
         """INSERT INTO withdrawals (id, items, job_id, service_address, notes, subtotal, tax, tax_rate, total, cost_total,
            contractor_id, contractor_name, contractor_company, billing_entity, billing_entity_id, payment_status, invoice_id, paid_at,
            processed_by_id, processed_by_name, organization_id, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            withdrawal_dict["id"],
+            withdrawal.id,
             items_json,
-            withdrawal_dict["job_id"],
-            withdrawal_dict["service_address"],
-            withdrawal_dict.get("notes"),
-            withdrawal_dict["subtotal"],
-            withdrawal_dict["tax"],
-            withdrawal_dict.get("tax_rate", 0),
-            withdrawal_dict["total"],
-            withdrawal_dict["cost_total"],
-            withdrawal_dict["contractor_id"],
-            withdrawal_dict.get("contractor_name", ""),
-            withdrawal_dict.get("contractor_company", ""),
-            withdrawal_dict.get("billing_entity", ""),
-            withdrawal_dict.get("billing_entity_id"),
-            withdrawal_dict.get("payment_status", "unpaid"),
-            withdrawal_dict.get("invoice_id"),
-            withdrawal_dict.get("paid_at"),
-            withdrawal_dict["processed_by_id"],
-            withdrawal_dict.get("processed_by_name", ""),
+            withdrawal.job_id,
+            withdrawal.service_address,
+            withdrawal.notes,
+            withdrawal.subtotal,
+            withdrawal.tax,
+            withdrawal.tax_rate,
+            withdrawal.total,
+            withdrawal.cost_total,
+            withdrawal.contractor_id,
+            withdrawal.contractor_name,
+            withdrawal.contractor_company,
+            withdrawal.billing_entity,
+            withdrawal.billing_entity_id,
+            withdrawal.payment_status,
+            withdrawal.invoice_id,
+            withdrawal.paid_at,
+            withdrawal.processed_by_id,
+            withdrawal.processed_by_name,
             org_id,
-            withdrawal_dict.get("created_at", ""),
+            withdrawal.created_at,
         ),
     )
-    # Write normalized items
-    for item in withdrawal_dict["items"]:
-        i = (
-            item
-            if isinstance(item, dict)
-            else (item.model_dump() if hasattr(item, "model_dump") else item)
-        )
-        qty = float(i.get("quantity", 0))
-        price = float(i.get("unit_price") or i.get("price") or 0)
-        cost = float(i.get("cost", 0))
+    for item in withdrawal.items:
+        qty = float(item.quantity)
+        price = float(item.unit_price)
+        cost = float(item.cost)
         await conn.execute(
             """INSERT INTO withdrawal_items
                (id, withdrawal_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(uuid4()),
-                withdrawal_dict["id"],
-                i.get("product_id", ""),
-                i.get("sku", ""),
-                i.get("name", ""),
+                withdrawal.id,
+                item.product_id or "",
+                item.sku or "",
+                item.name or "",
                 qty,
                 price,
                 cost,
-                i.get("unit", "each"),
+                item.unit or "each",
                 round(qty * price, 2),
                 round(qty * cost, 2),
             ),
@@ -131,18 +122,20 @@ async def get_by_id(withdrawal_id: str) -> MaterialWithdrawal | None:
     return _row_to_model(row)
 
 
-async def mark_paid(withdrawal_id: str, paid_at: str) -> MaterialWithdrawal | None:
+async def mark_paid(withdrawal_id: str, paid_at: str) -> tuple[MaterialWithdrawal | None, bool]:
+    """Mark withdrawal paid. Returns (withdrawal, actually_changed)."""
     conn = get_connection()
     org_id = get_org_id()
-    await conn.execute(
-        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id = ? AND organization_id = ?",
+    cursor = await conn.execute(
+        "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? "
+        "WHERE id = ? AND payment_status != 'paid' AND organization_id = ?",
         (paid_at, withdrawal_id, org_id),
     )
     await conn.commit()
-    return await get_by_id(withdrawal_id)
+    return await get_by_id(withdrawal_id), cursor.rowcount > 0
 
 
-async def bulk_mark_paid(withdrawal_ids: list, paid_at: str) -> int:
+async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: str) -> int:
     if not withdrawal_ids:
         return 0
     conn = get_connection()
@@ -151,21 +144,27 @@ async def bulk_mark_paid(withdrawal_ids: list, paid_at: str) -> int:
     cursor = await conn.execute(
         "UPDATE withdrawals SET payment_status = 'paid', paid_at = ? WHERE id IN ("
         + placeholders
-        + ") AND (organization_id = ? OR organization_id IS NULL)",
+        + ") AND payment_status != 'paid'"
+        " AND (organization_id = ? OR organization_id IS NULL)",
         [paid_at, *withdrawal_ids, org_id],
     )
     await conn.commit()
     return cursor.rowcount
 
 
-async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> None:
-    """Set invoice_id and mark as invoiced. Called by finance context via facade."""
+async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> bool:
+    """Set invoice_id and mark as invoiced. Returns False if already linked.
+
+    Called by finance context via facade.
+    """
     conn = get_connection()
-    await conn.execute(
-        "UPDATE withdrawals SET invoice_id = ?, payment_status = 'invoiced' WHERE id = ?",
+    cursor = await conn.execute(
+        "UPDATE withdrawals SET invoice_id = ?, payment_status = 'invoiced' "
+        "WHERE id = ? AND invoice_id IS NULL",
         (invoice_id, withdrawal_id),
     )
     await conn.commit()
+    return cursor.rowcount > 0
 
 
 async def unlink_from_invoice(withdrawal_ids: list[str]) -> None:

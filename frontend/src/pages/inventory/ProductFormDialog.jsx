@@ -17,36 +17,26 @@ const INITIAL_FORM = {
   cost: "",
   quantity: "",
   min_stock: "5",
-  department_id: "",
-  vendor_id: "",
+  category_id: "",
   barcode: "",
   base_unit: "each",
   sell_uom: "each",
   pack_qty: "1",
-  product_group: "",
 };
 
 const ADVANCED_FIELDS = new Set([
   "description",
   "cost",
   "min_stock",
-  "vendor_id",
   "base_unit",
   "sell_uom",
   "pack_qty",
-  "product_group",
   "barcode",
 ]);
 
-const ESSENTIAL_FIELDS = new Set(["name", "department_id", "price", "quantity"]);
+const ESSENTIAL_FIELDS = new Set(["name", "category_id", "price", "quantity"]);
 
-export function ProductFormDialog({
-  open,
-  onOpenChange,
-  editingProduct,
-  departments = [],
-  vendors = [],
-}) {
+export function ProductFormDialog({ open, onOpenChange, editingProduct, departments = [] }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const suggestTimeout = useRef(null);
@@ -56,11 +46,11 @@ export function ProductFormDialog({
   const suggestMutation = useSuggestUom();
   const saving = createMutation.isPending || updateMutation.isPending;
 
-  const skuPreviewEnabled = open && !editingProduct && !!form.department_id;
+  const skuPreviewEnabled = open && !editingProduct && !!form.category_id;
   const { data: skuPreviewData } = useQuery({
-    queryKey: ["skuPreview", form.department_id, form.name],
+    queryKey: ["skuPreview", form.category_id, form.name],
     queryFn: () => {
-      const params = { department_id: form.department_id };
+      const params = { category_id: form.category_id };
       if (form.name?.trim()) params.product_name = form.name.trim();
       return api.sku.preview(params);
     },
@@ -78,13 +68,11 @@ export function ProductFormDialog({
         cost: editingProduct.cost?.toString() || "",
         quantity: editingProduct.quantity.toString(),
         min_stock: editingProduct.min_stock?.toString() || "5",
-        department_id: editingProduct.department_id,
-        vendor_id: editingProduct.vendor_id || "",
+        category_id: editingProduct.category_id,
         barcode: editingProduct.barcode || "",
         base_unit: editingProduct.base_unit || "each",
         sell_uom: editingProduct.sell_uom || "each",
         pack_qty: String(editingProduct.pack_qty ?? 1),
-        product_group: editingProduct.product_group || "",
       });
       setAdvancedOpen(true);
     } else {
@@ -164,9 +152,7 @@ export function ProductFormDialog({
   const hasAdvancedValues =
     !!form.description ||
     !!form.cost ||
-    !!form.vendor_id ||
     !!form.barcode ||
-    !!form.product_group ||
     (form.base_unit && form.base_unit !== "each") ||
     (form.sell_uom && form.sell_uom !== "each") ||
     (form.pack_qty && form.pack_qty !== "1") ||
@@ -174,7 +160,7 @@ export function ProductFormDialog({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.price || !form.department_id) {
+    if (!form.name || !form.price || !form.category_id) {
       toast.error("Please fill in required fields");
       return;
     }
@@ -196,13 +182,11 @@ export function ProductFormDialog({
       cost,
       quantity: parseFloat(form.quantity) || 0,
       min_stock: parseInt(form.min_stock) || 5,
-      department_id: form.department_id,
-      vendor_id: form.vendor_id || null,
+      category_id: form.category_id,
       barcode: form.barcode || null,
       base_unit: form.base_unit || "each",
       sell_uom: form.sell_uom || "each",
       pack_qty: parseInt(form.pack_qty) || 1,
-      product_group: form.product_group?.trim() || null,
     };
 
     const mutation = editingProduct ? updateMutation : createMutation;
@@ -254,7 +238,7 @@ export function ProductFormDialog({
                 </span>
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">Select a department to see SKU</p>
+              <p className="text-sm text-muted-foreground">Select a category to see SKU</p>
             )}
           </div>
 
@@ -263,7 +247,6 @@ export function ProductFormDialog({
             fields={form}
             onChange={handleFieldChange}
             departments={departments}
-            vendors={vendors}
             hiddenFields={ADVANCED_FIELDS}
           />
 
@@ -288,7 +271,6 @@ export function ProductFormDialog({
                 fields={form}
                 onChange={handleFieldChange}
                 departments={departments}
-                vendors={vendors}
                 hiddenFields={ESSENTIAL_FIELDS}
                 uomAction={
                   <Button

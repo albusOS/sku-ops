@@ -49,8 +49,8 @@ async def delete_department(dept_id: str, request: Request, current_user: AdminD
     existing = await catalog_queries.get_department_by_id(dept_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Department not found")
-    product_count = await catalog_queries.count_products_by_department(dept_id)
-    if product_count > 0:
+    sku_count = await catalog_queries.count_skus_by_department(dept_id)
+    if sku_count > 0:
         raise HTTPException(status_code=400, detail="Cannot delete department with products")
 
     deleted = await catalog_queries.delete_department(dept_id)

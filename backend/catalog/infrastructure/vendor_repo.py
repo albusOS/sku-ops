@@ -9,9 +9,7 @@ from shared.infrastructure.database import get_connection, get_org_id
 def _row_to_model(row) -> Vendor | None:
     if row is None:
         return None
-    d = dict(row) if hasattr(row, "keys") else {}
-    if not d:
-        return None
+    d = dict(row)
     if d.get("organization_id") is None:
         d.pop("organization_id", None)
     return Vendor.model_validate(d)
@@ -21,7 +19,7 @@ async def list_all() -> list[Vendor]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
+        """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
            WHERE (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (org_id,),
     )
@@ -33,7 +31,7 @@ async def get_by_id(vendor_id: str) -> Vendor | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
+        """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
            WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (vendor_id, org_id),
     )
@@ -49,7 +47,7 @@ async def find_by_name(name: str) -> Vendor | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        """SELECT id, name, contact_name, email, phone, address, product_count, organization_id, created_at FROM vendors
+        """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
            WHERE TRIM(LOWER(name)) = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL""",
         (normalized, org_id),
     )
@@ -57,13 +55,13 @@ async def find_by_name(name: str) -> Vendor | None:
     return _row_to_model(row)
 
 
-async def insert(vendor: Vendor | dict) -> None:
-    vendor_dict = vendor if isinstance(vendor, dict) else vendor.model_dump()
+async def insert(vendor: Vendor) -> None:
+    vendor_dict = vendor.model_dump()
     conn = get_connection()
     org_id = vendor_dict.get("organization_id") or get_org_id()
     await conn.execute(
-        """INSERT INTO vendors (id, name, contact_name, email, phone, address, product_count, organization_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO vendors (id, name, contact_name, email, phone, address, organization_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             vendor_dict["id"],
             vendor_dict["name"],
@@ -71,7 +69,6 @@ async def insert(vendor: Vendor | dict) -> None:
             vendor_dict.get("email", ""),
             vendor_dict.get("phone", ""),
             vendor_dict.get("address", ""),
-            vendor_dict.get("product_count", 0),
             org_id,
             vendor_dict.get("created_at", ""),
         ),
@@ -97,7 +94,7 @@ async def update(vendor_id: str, vendor_dict: dict) -> Vendor | None:
     query += where
     await conn.execute(query, params)
     await conn.execute(
-        "UPDATE products SET vendor_name = ? WHERE vendor_id = ?",
+        "UPDATE vendor_items SET vendor_name = ? WHERE vendor_id = ?",
         (new_name, vendor_id),
     )
     await conn.commit()
@@ -129,18 +126,6 @@ async def count() -> int:
     return row[0] if row else 0
 
 
-async def increment_product_count(vendor_id: str, delta: int) -> None:
-    conn = get_connection()
-    org_id = get_org_id()
-    params: list = [delta, vendor_id]
-    where = "WHERE id = ? AND organization_id = ?"
-    params.append(org_id)
-    query = "UPDATE vendors SET product_count = product_count + ? "
-    query += where
-    await conn.execute(query, params)
-    await conn.commit()
-
-
 class VendorRepo:
     list_all = staticmethod(list_all)
     get_by_id = staticmethod(get_by_id)
@@ -149,7 +134,6 @@ class VendorRepo:
     update = staticmethod(update)
     delete = staticmethod(delete)
     count = staticmethod(count)
-    increment_product_count = staticmethod(increment_product_count)
 
 
 vendor_repo = VendorRepo()

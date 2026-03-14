@@ -11,9 +11,7 @@ from inventory.application.cycle_count_service import (
     update_counted_qty,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
-from shared.kernel import events
 from shared.kernel.errors import ResourceNotFoundError
 
 router = APIRouter(prefix="/cycle-counts", tags=["cycle-counts"])
@@ -47,7 +45,7 @@ async def open_count(
         user_id=current_user.id,
         action="cycle_count.open",
         resource_type="cycle_count",
-        resource_id=count["id"],
+        resource_id=count.id,
         details={"scope": data.scope},
         request=request,
         org_id=current_user.organization_id,
@@ -118,9 +116,8 @@ async def commit_count(
         action="cycle_count.commit",
         resource_type="cycle_count",
         resource_id=count_id,
-        details={"items_adjusted": result.get("items_adjusted", 0)},
+        details={"items_adjusted": result.items_adjusted},
         request=request,
         org_id=current_user.organization_id,
     )
-    await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id)
     return result

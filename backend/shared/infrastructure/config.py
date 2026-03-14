@@ -56,9 +56,6 @@ is_test = _is("test")
 # Derived: any non-dev deployment
 is_deployed = is_staging or is_production
 
-# Re-export from kernel so infra/app layers can import from here too
-from shared.kernel.constants import DEFAULT_ORG_ID  # noqa: F401, E402
-
 # Database
 DATABASE_URL = os.environ.get("DATABASE_URL") or (
     "sqlite:///:memory:" if is_test else "sqlite:///./data/sku_ops.db"
@@ -69,6 +66,15 @@ if is_deployed and not DATABASE_URL.startswith(("postgresql://", "postgres://"))
         "DATABASE_URL must be a PostgreSQL connection string in staging/production. "
         "Got a non-PostgreSQL URL. Set DATABASE_URL=postgresql://user:pass@host:5432/db"
     )
+
+# PostgreSQL connection pool — only meaningful when DATABASE_URL is Postgres.
+# PG_POOL_MIN / PG_POOL_MAX control asyncpg pool size.
+# PG_ACQUIRE_TIMEOUT: seconds a request waits for a free connection before 503.
+# PG_COMMAND_TIMEOUT: seconds a single SQL statement may run before cancellation.
+PG_POOL_MIN = int(os.environ.get("PG_POOL_MIN", "2"))
+PG_POOL_MAX = int(os.environ.get("PG_POOL_MAX", "10"))
+PG_ACQUIRE_TIMEOUT = float(os.environ.get("PG_ACQUIRE_TIMEOUT", "10"))
+PG_COMMAND_TIMEOUT = int(os.environ.get("PG_COMMAND_TIMEOUT", "30"))
 
 # Redis — required for multi-worker (WORKERS > 1); optional in dev/test
 REDIS_URL = os.environ.get("REDIS_URL", "").strip()
@@ -124,30 +130,6 @@ _enforce_cors()
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 
 
-# Demo / seed
-def _demo_email() -> str:
-    env_val = os.environ.get("DEMO_USER_EMAIL", "").strip()
-    if env_val:
-        return env_val
-    return "admin@demo.local" if is_development else ""
-
-
-def _demo_password() -> str:
-    env_val = os.environ.get("DEMO_USER_PASSWORD", "").strip()
-    if env_val:
-        return env_val
-    return "demo123" if is_development else ""
-
-
-DEMO_USER_EMAIL = _demo_email()
-DEMO_USER_PASSWORD = _demo_password()
-DEMO_CONTRACTOR_EMAIL = os.environ.get("DEMO_CONTRACTOR_EMAIL", "").strip() or (
-    "contractor@demo.local" if is_development else ""
-)
-
-# Seed on startup: dev/test only. Never in production, even if demo creds are set.
-seed_on_startup = (is_development or is_test) and bool(DEMO_USER_EMAIL)
-
 # Reset/seed endpoints: dev/test by default.
 # Set ALLOW_RESET=true temporarily in production to seed data, then disable.
 ALLOW_RESET = (
@@ -159,6 +141,16 @@ ALLOW_RESET = (
 ALLOW_PUBLIC_AUTH = (
     os.environ.get("ALLOW_PUBLIC_AUTH", "").lower() in ("1", "true") or is_development or is_test
 )
+
+# Auth provider — controls JWT claim shape expected by the backend.
+#   supabase  (default) — role in app_metadata.role, user id is sub
+#   internal  — role top-level claim, user id in user_id or sub
+_VALID_AUTH_PROVIDERS = {"supabase", "internal"}
+AUTH_PROVIDER = os.environ.get("AUTH_PROVIDER", "supabase").lower().strip()
+if AUTH_PROVIDER not in _VALID_AUTH_PROVIDERS:
+    raise RuntimeError(
+        f"AUTH_PROVIDER must be one of {sorted(_VALID_AUTH_PROVIDERS)}, got '{AUTH_PROVIDER}'"
+    )
 
 # AI - Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
@@ -207,7 +199,6 @@ def _load_agent_model() -> str:
 
 AGENT_PRIMARY_MODEL: str = _load_agent_model()
 LLM_SETUP_URL = "https://console.anthropic.com/"
-LLM_AVAILABLE = ANTHROPIC_AVAILABLE  # alias used by enrichment/uom services
 # Per-session AI spend cap in USD. 0 = unlimited. Set SESSION_COST_CAP=2.00 in .env.
 SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
 

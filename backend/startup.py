@@ -1,4 +1,4 @@
-"""Application lifespan — init, seed, warm-up, shutdown.
+"""Application lifespan — init, warm-up, shutdown.
 
 Owns everything that happens between process start and first request,
 and between last response and process exit.
@@ -13,13 +13,11 @@ from fastapi import FastAPI
 
 from scheduler import xero_sync_loop
 from shared.infrastructure.config import (
-    DEFAULT_ORG_ID,
     cors_warn_in_deployed,
     is_deployed,
     is_test,
 )
 from shared.infrastructure.database import close_db, init_db
-from shared.infrastructure.logging_config import org_id_var
 from shared.infrastructure.redis import close_redis, init_redis, is_redis_available
 
 logger = logging.getLogger(__name__)
@@ -30,82 +28,12 @@ async def _get_active_org_ids() -> list[str]:
     from shared.infrastructure.org_repo import list_all
 
     orgs = await list_all()
-    return [o.id for o in orgs] if orgs else ["default"]
-
-
-async def _ensure_default_org() -> None:
-    """Insert the default organization row if it doesn't exist yet."""
-    from datetime import UTC, datetime
-
-    from shared.infrastructure.database import get_connection
-
-    conn = get_connection()
-    cursor = await conn.execute("SELECT id FROM organizations WHERE id = ?", (DEFAULT_ORG_ID,))
-    if await cursor.fetchone():
-        return
-    await conn.execute(
-        "INSERT INTO organizations (id, name, slug, created_at) VALUES (?, ?, ?, ?)",
-        (DEFAULT_ORG_ID, "Default", DEFAULT_ORG_ID, datetime.now(UTC).isoformat()),
-    )
-    await conn.commit()
-    logger.info("Default organization created (id=%s)", DEFAULT_ORG_ID)
-
-
-async def _ensure_demo_users() -> None:
-    """Create admin + contractor demo accounts if they don't already exist."""
-    import uuid
-    from datetime import UTC, datetime
-
-    import bcrypt
-
-    from shared.infrastructure.config import (
-        DEMO_CONTRACTOR_EMAIL,
-        DEMO_USER_EMAIL,
-        DEMO_USER_PASSWORD,
-    )
-    from shared.infrastructure.database import get_connection
-
-    def hash_password(pw: str) -> str:
-        return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-    demo_users = [
-        {"email": DEMO_USER_EMAIL, "name": "Admin", "role": "admin"},
-    ]
-    if DEMO_CONTRACTOR_EMAIL:
-        demo_users.append(
-            {
-                "email": DEMO_CONTRACTOR_EMAIL,
-                "name": "Demo Contractor",
-                "role": "contractor",
-                "company": "ABC Plumbing",
-            }
-        )
-    conn = get_connection()
-    for u in demo_users:
-        cursor = await conn.execute("SELECT id FROM users WHERE email = ?", (u["email"],))
-        if await cursor.fetchone():
-            continue
-        await conn.execute(
-            "INSERT INTO users (id, email, password, name, role, company, is_active, organization_id, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
-            (
-                str(uuid.uuid4()),
-                u["email"],
-                hash_password(DEMO_USER_PASSWORD),
-                u["name"],
-                u["role"],
-                u.get("company", ""),
-                DEFAULT_ORG_ID,
-                datetime.now(UTC).isoformat(),
-            ),
-        )
-        await conn.commit()
-        logger.info("Demo user ready: %s / %s (%s)", u["email"], DEMO_USER_PASSWORD, u["role"])
+    return [o.id for o in orgs] if orgs else []
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize DB and seed data on startup; close DB on shutdown."""
+    """Initialize DB on startup; close DB on shutdown."""
     worker_count = int(os.environ.get("WORKERS", "1"))
 
     await init_redis()
@@ -126,18 +54,16 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for staging/production."
         )
+
     await init_db()
     logger.info("Database initialized")
 
-    from shared.infrastructure.config import seed_on_startup
+    import assistant.agents.tools.search  # noqa: F401 — registers index invalidation handler
+    import finance.application.event_handlers  # noqa: F401
+    import inventory.application.event_handlers  # noqa: F401
+    import shared.infrastructure.ws_bridge  # noqa: F401
 
-    if seed_on_startup:
-        token = org_id_var.set(DEFAULT_ORG_ID)
-        try:
-            await _ensure_default_org()
-            await _ensure_demo_users()
-        finally:
-            org_id_var.reset(token)
+    logger.info("Domain event handlers registered")
 
     from assistant.infrastructure.llm import init_llm
 
@@ -147,6 +73,9 @@ async def lifespan(app: FastAPI):
 
     init_tools()
     logger.info("Tool registry initialized")
+
+    from shared.infrastructure.logging_config import org_id_var
+
     org_ids = await _get_active_org_ids()
     for oid in org_ids:
         token = org_id_var.set(oid)
@@ -199,19 +128,12 @@ async def lifespan(app: FastAPI):
     await conn.execute("SELECT 1")
     logger.info("Database connectivity verified")
 
-    from assistant.agents.tools.search import (
-        start_invalidation_listener,
-        stop_invalidation_listener,
-    )
-
     sync_task = None
     if not is_test:
         sync_task = asyncio.create_task(xero_sync_loop())
-        start_invalidation_listener()
 
     yield
 
-    await stop_invalidation_listener()
     if sync_task is not None:
         sync_task.cancel()
         with suppress(asyncio.CancelledError):

@@ -14,7 +14,7 @@ export function ReceiveReviewModal({
   open,
   onOpenChange,
   items: rawItems,
-  departments = [],
+  categories = [],
   onConfirm,
   isSubmitting = false,
 }) {
@@ -153,14 +153,14 @@ export function ReceiveReviewModal({
           {newItems.length > 0 && (
             <div className="space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning">
-                New — will create product ({newItems.length})
+                New — will create SKU ({newItems.length})
               </p>
               {newItems.map((item) => (
                 <NewCard
                   key={item.id}
                   item={item}
                   matchState={matches[item.id] || {}}
-                  departments={departments}
+                  categories={categories}
                   onSearch={(q) => searchMatch(item.id, q)}
                   onConfirmMatch={(p) => handleMatchConfirm(item.id, p)}
                   onClearMatch={() => handleMatchClear(item.id)}
@@ -267,7 +267,7 @@ function MatchedCard({ item, matchState, onSearch, onConfirmMatch, onClearMatch,
 function NewCard({
   item,
   matchState,
-  departments,
+  categories,
   onSearch,
   onConfirmMatch,
   onClearMatch,
@@ -294,7 +294,7 @@ function NewCard({
           sell_uom: item._sell_uom ?? item.sell_uom ?? "each",
           pack_qty: item._pack_qty ?? item.pack_qty ?? 1,
           barcode: item._barcode ?? "",
-          department_id: item._suggested_department ?? item.suggested_department ?? "",
+          category_id: item._suggested_department ?? item.suggested_department ?? "",
           quantity: item._delivered_qty ?? item.delivered_qty ?? 1,
         }}
         onChange={(field, value) => {
@@ -306,12 +306,12 @@ function NewCard({
             sell_uom: "_sell_uom",
             pack_qty: "_pack_qty",
             barcode: "_barcode",
-            department_id: "_suggested_department",
+            category_id: "_suggested_department",
             quantity: "_delivered_qty",
           };
           onChange(fieldMap[field] || field, value);
         }}
-        departments={departments}
+        departments={categories}
         hiddenFields={COMPACT_HIDDEN}
       />
 

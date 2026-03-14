@@ -33,27 +33,45 @@ axios.interceptors.response.use(
 );
 
 const api = {
-  // ── Products ──────────────────────────────────────────────────────────
+  // ── SKUs ──────────────────────────────────────────────────────────────
   products: {
-    list: (params) => axios.get(`${API}/products`, { params }).then((r) => r.data),
-    get: (id) => axios.get(`${API}/products/${id}`).then((r) => r.data),
-    create: (data) => axios.post(`${API}/products`, data).then((r) => r.data),
-    update: (id, data) => axios.put(`${API}/products/${id}`, data).then((r) => r.data),
-    delete: (id) => axios.delete(`${API}/products/${id}`),
+    list: (params) => axios.get(`${API}/catalog/skus`, { params }).then((r) => r.data),
+    get: (id) => axios.get(`${API}/catalog/skus/${id}`).then((r) => r.data),
+    create: (data) => axios.post(`${API}/catalog/skus`, data).then((r) => r.data),
+    update: (id, data) => axios.put(`${API}/catalog/skus/${id}`, data).then((r) => r.data),
+    delete: (id) => axios.delete(`${API}/catalog/skus/${id}`),
     adjust: (id, data) => axios.post(`${API}/stock/${id}/adjust`, data).then((r) => r.data),
-    suggestUom: (data) => axios.post(`${API}/products/suggest-uom`, data).then((r) => r.data),
+    suggestUom: (data) => axios.post(`${API}/catalog/skus/suggest-uom`, data).then((r) => r.data),
     stockHistory: (id) => axios.get(`${API}/stock/${id}/history`).then((r) => r.data),
-    groups: () => axios.get(`${API}/products/groups`).then((r) => r.data),
-    assignGroup: (data) => axios.post(`${API}/products/groups/assign`, data).then((r) => r.data),
-    renameGroup: (oldName, newName) =>
-      axios
-        .post(`${API}/products/groups/rename`, null, {
-          params: { old_name: oldName, new_name: newName },
-        })
-        .then((r) => r.data),
     byBarcode: (barcode) =>
-      axios.get(`${API}/products/by-barcode`, { params: { barcode } }).then((r) => r.data),
-    importCsv: (formData) => axios.post(`${API}/products/import-csv`, formData).then((r) => r.data),
+      axios.get(`${API}/catalog/skus/by-barcode`, { params: { barcode } }).then((r) => r.data),
+  },
+
+  // ── Catalog (new ontology) ──────────────────────────────────────────
+  catalog: {
+    products: {
+      list: (params) => axios.get(`${API}/catalog/products`, { params }).then((r) => r.data),
+      get: (id) => axios.get(`${API}/catalog/products/${id}`).then((r) => r.data),
+      create: (data) => axios.post(`${API}/catalog/products`, data).then((r) => r.data),
+      update: (id, data) => axios.put(`${API}/catalog/products/${id}`, data).then((r) => r.data),
+      delete: (id) => axios.delete(`${API}/catalog/products/${id}`),
+      skus: (productId) =>
+        axios.get(`${API}/catalog/products/${productId}/skus`).then((r) => r.data),
+      createSku: (productId, data) =>
+        axios.post(`${API}/catalog/products/${productId}/skus`, data).then((r) => r.data),
+    },
+    vendorItems: {
+      list: (skuId) => axios.get(`${API}/catalog/skus/${skuId}/vendors`).then((r) => r.data),
+      create: (skuId, data) =>
+        axios.post(`${API}/catalog/skus/${skuId}/vendors`, data).then((r) => r.data),
+      update: (skuId, itemId, data) =>
+        axios.put(`${API}/catalog/skus/${skuId}/vendors/${itemId}`, data).then((r) => r.data),
+      delete: (skuId, itemId) => axios.delete(`${API}/catalog/skus/${skuId}/vendors/${itemId}`),
+      setPreferred: (skuId, itemId) =>
+        axios
+          .post(`${API}/catalog/skus/${skuId}/vendors/${itemId}/set-preferred`)
+          .then((r) => r.data),
+    },
   },
 
   // ── SKU ───────────────────────────────────────────────────────────────

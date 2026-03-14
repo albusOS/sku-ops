@@ -6,6 +6,7 @@ import {
   loginAsAdmin,
   screenshot,
   navigateTo,
+  WSEventCollector,
   type SeedContext,
 } from "./helpers";
 
@@ -19,6 +20,7 @@ import {
  * - Gross profit = revenue - COGS
  * - Unpaid balance = withdrawal total (not yet invoiced/paid)
  * - Stock history shows the decrement entry
+ * - WebSocket events (withdrawal.created, inventory.updated) are delivered
  */
 
 const PRODUCT = { name: "10AWG THHN Wire 500ft", price: 85.0, cost: 52.0, quantity: 50, min_stock: 5 };
@@ -27,22 +29,31 @@ const WITHDRAW_QTY = 3;
 test.describe.serial("Story 1: Withdrawal financials", () => {
   let ctx: SeedContext;
   let productId: string;
+  let wsCollector: WSEventCollector;
 
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
     ctx = await freshSeed(page.request);
     productId = (
-      await apiPost(page.request, ctx.token, "/api/products", {
+      await apiPost(page.request, ctx.token, "/api/catalog/skus", {
         ...PRODUCT,
-        department_id: ctx.deptIds["ELE"],
+        category_id: ctx.categoryIds["ELE"],
       })
     ).id;
     await apiPost(page.request, ctx.token, "/api/jobs", { code: "JOB-E2E-001" });
+
+    wsCollector = new WSEventCollector();
+    await wsCollector.connect(ctx.token);
+
     await page.close();
   });
 
+  test.afterAll(() => {
+    wsCollector?.close();
+  });
+
   test("1a — product starts with correct stock", async ({ request }) => {
-    const products = await apiGet(request, ctx.token, "/api/products");
+    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity);
     expect(p.price).toBe(PRODUCT.price);
@@ -50,6 +61,8 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
   });
 
   test("1b — withdrawal decrements stock and records revenue", async ({ request }) => {
+    wsCollector.clear();
+
     const withdrawal = await apiPost(request, ctx.token, "/api/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-E2E-001",
@@ -63,7 +76,7 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
     expect(item.subtotal).toBeCloseTo(PRODUCT.price * WITHDRAW_QTY, 2);
     expect(withdrawal.cost_total).toBeCloseTo(PRODUCT.cost * WITHDRAW_QTY, 2);
 
-    const products = await apiGet(request, ctx.token, "/api/products");
+    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity - WITHDRAW_QTY);
 
@@ -72,6 +85,14 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
     expect(entry).toBeTruthy();
     expect(entry.quantity_delta).toBe(-WITHDRAW_QTY);
     expect(entry.quantity_after).toBe(PRODUCT.quantity - WITHDRAW_QTY);
+  });
+
+  test("1b-ws — WebSocket events delivered after withdrawal", async () => {
+    const created = await wsCollector.waitFor("withdrawal.created", 5000);
+    expect(created).toBeTruthy();
+
+    const invUpdated = await wsCollector.waitFor("inventory.updated", 5000);
+    expect(invUpdated).toBeTruthy();
   });
 
   test("1c — dashboard revenue matches withdrawal", async ({ request, page }) => {

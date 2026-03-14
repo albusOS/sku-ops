@@ -118,3 +118,4 @@ e2e/test-results/
 backend/*.db
 backend/*.db-shm
 backend/*.db-wal
+test-results/

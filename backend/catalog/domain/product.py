@@ -1,4 +1,4 @@
-"""Product models."""
+"""SKU (stock-keeping unit) domain models."""
 
 from pydantic import BaseModel, field_validator
 
@@ -13,29 +13,29 @@ def _validate_unit(v: str) -> str:
     return v
 
 
-class ProductCreate(BaseModel):
+class SkuCreate(BaseModel):
     name: str
     description: str | None = ""
     price: float
     cost: float = 0.0
     quantity: float = 0
     min_stock: int = 5
-    department_id: str
-    vendor_id: str | None = None
-    original_sku: str | None = None
+    category_id: str
+    product_id: str | None = None
     barcode: str | None = None
     vendor_barcode: str | None = None
     base_unit: str = "each"
     sell_uom: str = "each"
     pack_qty: int = 1
-    product_group: str | None = None
+    purchase_uom: str = "each"
+    purchase_pack_qty: int = 1
 
-    @field_validator("base_unit", "sell_uom")
+    @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
     def valid_unit(cls, v: str) -> str:
         return _validate_unit(v)
 
-    @field_validator("pack_qty")
+    @field_validator("pack_qty", "purchase_pack_qty")
     @classmethod
     def valid_pack_qty(cls, v: int) -> int:
         if v < 1:
@@ -43,30 +43,31 @@ class ProductCreate(BaseModel):
         return v
 
 
-class ProductUpdate(BaseModel):
+class SkuUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     price: float | None = None
     cost: float | None = None
     quantity: float | None = None
     min_stock: int | None = None
-    department_id: str | None = None
-    vendor_id: str | None = None
+    category_id: str | None = None
+    product_id: str | None = None
     barcode: str | None = None
     vendor_barcode: str | None = None
     base_unit: str | None = None
     sell_uom: str | None = None
     pack_qty: int | None = None
-    product_group: str | None = None
+    purchase_uom: str | None = None
+    purchase_pack_qty: int | None = None
 
-    @field_validator("base_unit", "sell_uom")
+    @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
     def valid_unit(cls, v: str | None) -> str | None:
         if v is None:
             return v
         return _validate_unit(v)
 
-    @field_validator("pack_qty")
+    @field_validator("pack_qty", "purchase_pack_qty")
     @classmethod
     def valid_pack_qty(cls, v: int | None) -> int | None:
         if v is not None and v < 1:
@@ -74,25 +75,24 @@ class ProductUpdate(BaseModel):
         return v
 
 
-class Product(AuditedEntity):
+class Sku(AuditedEntity):
     sku: str
+    product_id: str = ""
     name: str
     description: str = ""
     price: float
     cost: float = 0.0
     quantity: float = 0
     min_stock: int = 5
-    department_id: str
-    department_name: str = ""
-    vendor_id: str | None = None
-    vendor_name: str = ""
-    original_sku: str | None = None
+    category_id: str = ""
+    category_name: str = ""
     barcode: str | None = None
     vendor_barcode: str | None = None
     base_unit: str = "each"
     sell_uom: str = "each"
     pack_qty: int = 1
-    product_group: str | None = None
+    purchase_uom: str = "each"
+    purchase_pack_qty: int = 1
 
     @property
     def is_low_stock(self) -> bool:
