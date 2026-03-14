@@ -380,10 +380,9 @@ async def main():
         )
         withdrawal.compute_totals(TAX_RATE)
 
-        w_dict = withdrawal.model_dump()
-        w_dict["organization_id"] = org_id
-        w_dict["created_at"] = created_at
-        await withdrawal_repo.insert(w_dict)
+        withdrawal.organization_id = org_id
+        withdrawal.created_at = created_at
+        await withdrawal_repo.insert(withdrawal)
 
         for item in items:
             prod = products_by_name.get(item.name, {})
@@ -713,10 +712,9 @@ async def main():
             processed_by_name=admin.get("name", ""),
         )
         ret.compute_totals(TAX_RATE)
-        ret_dict = ret.model_dump()
-        ret_dict["organization_id"] = org_id
-        ret_dict["created_at"] = (now - timedelta(days=wr["days_ago"] - 2)).isoformat()
-        await return_repo.insert(ret_dict)
+        ret.organization_id = org_id
+        ret.created_at = (now - timedelta(days=wr["days_ago"] - 2)).isoformat()
+        await return_repo.insert(ret)
 
         for ri in return_items:
             await conn.execute(

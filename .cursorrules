@@ -115,22 +115,20 @@ Yes for mutation flows and cross-context data transfer. No for simple pass-throu
 
 ## 6. Current remediation status
 
-An architecture remediation is in progress. Consult `.cursor/rules/architecture-audit-status.mdc` for the detailed tracker. Summary:
+Architecture remediation is complete. Consult `.cursor/rules/architecture-audit-status.mdc` for the full history. All identified items have been resolved.
 
 | Item | Status |
 |------|--------|
-| Fiscal periods vertical slice | Done, correct |
-| auth_service split (pure logic vs FastAPI deps) | Done, correct |
-| InvoiceSyncResult rename (xero_ → external_) | Done, correct |
-| OAuth state repo extraction | Done, correct |
-| Invoice service redesign | NOT DONE — first attempt produced a dumping ground. Needs complete redo. |
-| Unit of Work (contextvar ambient transactions) | NOT DONE — prerequisite for conn removal |
-| Fat controller extraction (6 files) | NOT DONE |
-| Reporting extraction | NOT DONE |
-| conn=None port cleanup | NOT DONE — blocked on Unit of Work |
-| Unused port deletion | NOT DONE |
-
-The corrected remediation plan is in `.cursor/plans/invoice_architecture_redesign_22752234.plan.md`. Follow that plan's sequencing.
+| Fiscal periods vertical slice | Done |
+| auth_service split (pure logic vs FastAPI deps) | Done |
+| InvoiceSyncResult rename (xero_ → external_) | Done |
+| OAuth state repo extraction | Done |
+| Invoice service redesign | Done |
+| Unit of Work (contextvar ambient transactions) | Done |
+| Fat controller extraction | Done |
+| Reporting extraction | Done |
+| conn=None port cleanup | Done |
+| Unused port deletion | Done |
 
 ---
 

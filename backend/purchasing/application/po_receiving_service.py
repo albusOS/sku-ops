@@ -5,12 +5,16 @@ Split from purchase_order_service to keep each module under 300 lines.
 
 from datetime import UTC, datetime
 
-from finance.application.ledger_service import record_po_receipt as _record_ledger
+from finance.application.ledger_service import record_po_receipt as _record_po_receipt_ledger
 from purchasing.application.purchase_order_service import PurchasingDeps, _resolve_po_item_cost
 from purchasing.domain.purchase_order import POItemStatus, POStatus, ReceiveItemUpdate
 from purchasing.infrastructure.po_repo import po_repo as _default_repo
 from purchasing.ports.po_repo_port import PORepoPort
+from shared.infrastructure.database import transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InventoryChanged, POItemsReceived
 from shared.kernel.errors import ResourceNotFoundError
+from shared.kernel.event_payloads import ReceivedItemSummary
 from shared.kernel.types import CurrentUser
 
 
@@ -73,7 +77,7 @@ async def receive_po_items(
     matched = []
     errors = []
     cost_total = 0.0
-    ledger_items: list[dict] = []
+    ledger_items: list[ReceivedItemSummary] = []
 
     for item_id, update in updates_by_id.items():
         item = items_by_id.get(item_id)
@@ -185,27 +189,48 @@ async def receive_po_items(
             cost_total += item_cost * delivered
             dept_code = (item.get("suggested_department") or "HDW").upper()
             ledger_items.append(
-                {
-                    "cost": item_cost,
-                    "delivered_qty": delivered,
-                    "product_id": resolved_pid,
-                    "department": dept_by_code[dept_code].name
+                ReceivedItemSummary(
+                    cost=item_cost,
+                    delivered_qty=delivered,
+                    product_id=resolved_pid,
+                    department=dept_by_code[dept_code].name
                     if dept_code in dept_by_code
                     else dept_code,
-                }
+                )
             )
         except (ValueError, RuntimeError, OSError, KeyError) as e:
             errors.append({"item": item.get("name"), "error": str(e)})
 
+    new_status = await _recompute_po_status(po_id, po, current_user, repo)
+
     if ledger_items:
-        await _record_ledger(
-            po_id=po_id,
-            items=ledger_items,
-            vendor_name=po.get("vendor_name", ""),
-            performed_by_user_id=current_user.id,
+        product_ids = tuple(li.product_id for li in ledger_items if li.product_id)
+        async with transaction():
+            await _record_po_receipt_ledger(
+                po_id=po_id,
+                items=ledger_items,
+                vendor_name=po.get("vendor_name", ""),
+                performed_by_user_id=current_user.id,
+            )
+
+        await dispatch(
+            POItemsReceived(
+                org_id=current_user.organization_id,
+                po_id=po_id,
+                vendor_name=po.get("vendor_name", ""),
+                performed_by_user_id=current_user.id,
+                items=tuple(ledger_items),
+                product_ids=product_ids,
+            )
+        )
+        await dispatch(
+            InventoryChanged(
+                org_id=current_user.organization_id,
+                product_ids=product_ids,
+                change_type="receiving",
+            )
         )
 
-    new_status = await _recompute_po_status(po_id, po, current_user, repo)
     return {
         "po_id": po_id,
         "status": new_status,

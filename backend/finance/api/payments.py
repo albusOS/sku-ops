@@ -6,8 +6,6 @@ from finance.application import queries as finance_queries
 from finance.application.payment_service import create_payment_for_withdrawals
 from finance.domain.payment import PaymentCreate
 from shared.api.deps import AdminDep
-from shared.infrastructure import event_hub
-from shared.kernel import events
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -25,9 +23,6 @@ async def create_payment(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    await event_hub.emit(
-        events.WITHDRAWAL_UPDATED, org_id=current_user.organization_id, ids=data.withdrawal_ids
-    )
     return payment.model_dump()
 
 

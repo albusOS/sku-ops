@@ -18,6 +18,8 @@ from inventory.application.inventory_service import process_adjustment_stock_cha
 from inventory.domain.cycle_count import CycleCount, CycleCountItem, CycleCountStatus
 from inventory.infrastructure import cycle_count_repo
 from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
 
 
@@ -136,6 +138,7 @@ async def commit_cycle_count(
 
     committed_at = datetime.now(UTC).isoformat()
 
+    adjusted_product_ids: list[str] = []
     async with transaction():
         for item in items_to_adjust:
             await process_adjustment_stock_changes(
@@ -144,11 +147,22 @@ async def commit_cycle_count(
                 reason="count",
                 user_id=committed_by_id,
                 user_name=committed_by_name,
+                emit_event=False,
             )
+            adjusted_product_ids.append(item["product_id"])
         await cycle_count_repo.commit_count(
             count_id=count_id,
             committed_by_id=committed_by_id,
             committed_at=committed_at,
+        )
+
+    if adjusted_product_ids:
+        await dispatch(
+            InventoryChanged(
+                org_id=get_org_id(),
+                product_ids=tuple(adjusted_product_ids),
+                change_type="cycle_count",
+            )
         )
 
     count["status"] = CycleCountStatus.COMMITTED

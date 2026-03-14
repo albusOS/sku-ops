@@ -6,6 +6,7 @@ import {
   loginAsAdmin,
   screenshot,
   navigateTo,
+  WSEventCollector,
   type SeedContext,
 } from "./helpers";
 
@@ -17,6 +18,7 @@ import {
  * - Invoice total = sum of linked withdrawal totals
  * - After payment, unpaid balance drops to zero
  * - Withdrawal payment_status changes to "paid"
+ * - WebSocket events (withdrawal.updated) delivered after payment
  */
 
 const PRODUCTS = [
@@ -29,6 +31,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
   let withdrawalIds: string[] = [];
   let expectedTotal = 0;
   let invoiceId: string;
+  let wsCollector: WSEventCollector;
 
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
@@ -61,7 +64,15 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
     });
     withdrawalIds = [w1.id, w2.id];
     expectedTotal = w1.total + w2.total;
+
+    wsCollector = new WSEventCollector();
+    await wsCollector.connect(ctx.token);
+
     await page.close();
+  });
+
+  test.afterAll(() => {
+    wsCollector?.close();
   });
 
   test("2a — invoice total matches sum of withdrawals", async ({ request }) => {
@@ -84,6 +95,8 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
     const statsBefore = await apiGet(request, ctx.token, "/api/dashboard/stats");
     expect(statsBefore.unpaid_total).toBeGreaterThan(0);
 
+    wsCollector.clear();
+
     await apiPost(request, ctx.token, "/api/payments", {
       invoice_id: invoiceId,
       amount: expectedTotal,
@@ -99,6 +112,11 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
 
     const statsAfter = await apiGet(request, ctx.token, "/api/dashboard/stats");
     expect(statsAfter.unpaid_total).toBe(0);
+  });
+
+  test("2b-ws — WebSocket events delivered after payment", async () => {
+    const updated = await wsCollector.waitFor("withdrawal.updated", 5000);
+    expect(updated).toBeTruthy();
   });
 
   test("2c — UI shows invoice and payment", async ({ page }) => {

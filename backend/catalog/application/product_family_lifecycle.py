@@ -14,6 +14,8 @@ from catalog.infrastructure.product_family_repo import product_family_repo
 from catalog.infrastructure.sku_repo import sku_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo
 from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import CatalogChanged
 from shared.kernel.errors import ResourceNotFoundError
 
 
@@ -40,6 +42,7 @@ async def create_product(
     async with transaction():
         await product_family_repo.insert(product)
 
+    await dispatch(CatalogChanged(org_id=org_id, product_ids=(product.id,), change_type="created"))
     return product
 
 
@@ -63,6 +66,10 @@ async def update_product(
         result = await product_family_repo.update(product_id, updates)
     if not result:
         raise ResourceNotFoundError("Product", product_id)
+
+    await dispatch(
+        CatalogChanged(org_id=get_org_id(), product_ids=(product_id,), change_type="updated")
+    )
     return result
 
 
@@ -74,9 +81,14 @@ async def delete_product(product_id: str) -> None:
 
     child_skus = await sku_repo.find_by_product_id(product_id)
 
+    deleted_ids = [s.id for s in child_skus] + [product_id]
     async with transaction():
         for s in child_skus:
             await vendor_item_repo.soft_delete_by_sku(s.id)
             await sku_repo.delete(s.id)
             await department_repo.increment_sku_count(s.category_id, -1)
         await product_family_repo.soft_delete(product_id)
+
+    await dispatch(
+        CatalogChanged(org_id=get_org_id(), product_ids=tuple(deleted_ids), change_type="deleted")
+    )

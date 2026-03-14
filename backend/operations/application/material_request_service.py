@@ -12,8 +12,15 @@ from operations.application.queries import (
 )
 from operations.application.withdrawal_service import create_withdrawal_wired
 from operations.domain.material_request import MaterialRequest, MaterialRequestCreate
-from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
+from operations.domain.withdrawal import (
+    ContractorContext,
+    MaterialWithdrawal,
+    MaterialWithdrawalCreate,
+    WithdrawalItem,
+)
 from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import MaterialRequestCreated, MaterialRequestProcessed
 from shared.kernel.types import CurrentUser
 
 
@@ -48,7 +55,16 @@ async def create_material_request(
     )
     await insert_material_request(mat_request)
     fetched = await get_material_request_by_id(mat_request.id)
-    return fetched or mat_request
+    result = fetched or mat_request
+
+    await dispatch(
+        MaterialRequestCreated(
+            org_id=current_user.organization_id,
+            request_id=mat_request.id,
+            contractor_id=current_user.id,
+        )
+    )
+    return result
 
 
 async def list_material_requests(current_user: CurrentUser) -> list:
@@ -71,10 +87,9 @@ async def process_material_request(
     notes: str | None,
     current_user_id: str,
     current_user_name: str,
-) -> dict:
+) -> MaterialWithdrawal:
     """Validate a pending material request, create a withdrawal, and mark it processed.
 
-    Returns the created withdrawal dict.
     Raises MaterialRequestError on validation failure.
     """
     org_id = get_org_id()
@@ -115,14 +130,28 @@ async def process_material_request(
         organization_id=org_id,
     )
 
+    contractor_ctx = ContractorContext(
+        id=contractor.id,
+        name=contractor.name,
+        company=contractor.company,
+        billing_entity=contractor.billing_entity,
+        billing_entity_id=contractor.billing_entity_id,
+    )
+
     async with transaction():
-        withdrawal = await create_withdrawal_wired(
-            withdrawal_data, contractor.model_dump(), current_user
-        )
+        withdrawal = await create_withdrawal_wired(withdrawal_data, contractor_ctx, current_user)
         await mark_material_request_processed(
             request_id=request_id,
-            withdrawal_id=withdrawal["id"],
+            withdrawal_id=withdrawal.id,
             processed_by_id=current_user_id,
             processed_at=datetime.now(UTC).isoformat(),
         )
+
+    await dispatch(
+        MaterialRequestProcessed(
+            org_id=org_id,
+            request_id=request_id,
+            withdrawal_id=withdrawal.id,
+        )
+    )
     return withdrawal

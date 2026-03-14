@@ -22,6 +22,8 @@ from inventory.domain.stock import StockDecrement, StockTransaction, StockTransa
 from inventory.infrastructure.stock_repo import stock_repo as _default_stock_repo
 from inventory.ports.stock_repo_port import StockRepoPort
 from shared.infrastructure.database import get_org_id
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.units import are_compatible, convert_quantity
 
@@ -197,6 +199,8 @@ async def process_adjustment_stock_changes(
     reason: str,
     user_id: str,
     user_name: str,
+    *,
+    emit_event: bool = True,
 ) -> None:
     """
     Adjust stock (count, damage, correction) and record transaction.
@@ -241,6 +245,15 @@ async def process_adjustment_stock_changes(
         performed_by_user_id=user_id,
     )
 
+    if emit_event:
+        await dispatch(
+            InventoryChanged(
+                org_id=get_org_id(),
+                product_ids=(product_id,),
+                change_type="adjustment",
+            )
+        )
+
 
 async def restock_as_return(
     product_id: str,
@@ -251,7 +264,6 @@ async def restock_as_return(
     user_name: str,
     reference_id: str | None = None,
     unit: str = "each",
-    organization_id: str | None = None,
 ) -> None:
     """Restock inventory as a customer/vendor return (RETURN transaction type)."""
     await process_receiving_stock_changes(
@@ -263,6 +275,5 @@ async def restock_as_return(
         user_name=user_name,
         reference_id=reference_id,
         unit=unit,
-        organization_id=organization_id,
         transaction_type=StockTransactionType.RETURN,
     )

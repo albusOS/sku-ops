@@ -45,8 +45,6 @@ const api = {
     stockHistory: (id) => axios.get(`${API}/stock/${id}/history`).then((r) => r.data),
     byBarcode: (barcode) =>
       axios.get(`${API}/catalog/skus/by-barcode`, { params: { barcode } }).then((r) => r.data),
-    importCsv: (formData) =>
-      axios.post(`${API}/catalog/skus/import-csv`, formData).then((r) => r.data),
   },
 
   // ── Catalog (new ontology) ──────────────────────────────────────────

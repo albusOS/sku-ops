@@ -21,7 +21,9 @@ from catalog.infrastructure.product_family_repo import product_family_repo
 from catalog.infrastructure.sku_repo import sku_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo
 from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
 from shared.kernel.barcode import validate_barcode
+from shared.kernel.domain_events import CatalogChanged
 from shared.kernel.errors import ResourceNotFoundError
 
 StockChangesFn = Callable[..., Awaitable[None]] | None
@@ -106,6 +108,7 @@ async def create_sku(
                 user_name=user_name,
             )
 
+    await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku.id,), change_type="created"))
     return sku
 
 
@@ -209,6 +212,10 @@ async def update_sku(
         result = await sku_repo.update(sku_id, update_data)
     if not result:
         raise ResourceNotFoundError("Sku", sku_id)
+
+    await dispatch(
+        CatalogChanged(org_id=get_org_id(), product_ids=(sku_id,), change_type="updated")
+    )
     return result
 
 
@@ -224,3 +231,7 @@ async def delete_sku(sku_id: str) -> None:
         await department_repo.increment_sku_count(sku.category_id, -1)
         if sku.product_id:
             await product_family_repo.increment_sku_count(sku.product_id, -1)
+
+    await dispatch(
+        CatalogChanged(org_id=get_org_id(), product_ids=(sku_id,), change_type="deleted")
+    )

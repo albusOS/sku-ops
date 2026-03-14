@@ -28,7 +28,9 @@ from operations.application.queries import (
     link_withdrawal_to_invoice,
     unlink_withdrawals_from_invoice,
 )
-from shared.infrastructure.database import transaction
+from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InvoiceApproved, InvoiceCreated, InvoiceDeleted
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +170,13 @@ async def create_invoice_from_withdrawals(
             await link_withdrawal(inv_id, wid)
             await link_withdrawal_to_invoice(wid, inv_id)
 
+    await dispatch(
+        InvoiceCreated(
+            org_id=get_org_id(),
+            invoice_id=inv_id,
+            withdrawal_ids=tuple(withdrawal_ids),
+        )
+    )
     return await _default_invoice_repo.get_by_id(inv_id)
 
 
@@ -296,7 +305,7 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
         raise ValueError(f"Cannot approve invoice in '{inv.status}' status")
 
     now = datetime.now(UTC).isoformat()
-    return await update_fields(
+    result = await update_fields(
         invoice_id,
         {
             "status": "approved",
@@ -304,6 +313,8 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
             "approved_at": now,
         },
     )
+    await dispatch(InvoiceApproved(org_id=get_org_id(), invoice_id=invoice_id))
+    return result
 
 
 async def delete_draft_invoice(
@@ -320,4 +331,12 @@ async def delete_draft_invoice(
         wids = await unlink_withdrawals(invoice_id)
         await unlink_withdrawals_from_invoice(wids)
         await soft_delete(invoice_id)
+
+    await dispatch(
+        InvoiceDeleted(
+            org_id=get_org_id(),
+            invoice_id=invoice_id,
+            withdrawal_ids=tuple(wids),
+        )
+    )
     return True

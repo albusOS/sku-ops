@@ -40,39 +40,37 @@ _STUB_TENANT = "stub-tenant"
 
 
 async def _make_withdrawal(billing_entity="On Point LLC") -> str:
+    from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
+
     wid = str(uuid4())
     await withdrawal_repo.insert(
-        {
-            "id": wid,
-            "items": [
-                {
-                    "product_id": "p1",
-                    "sku": "SKU-1",
-                    "name": "Lumber",
-                    "quantity": 2,
-                    "price": 10.0,
-                    "cost": 6.0,
-                    "subtotal": 20.0,
-                }
+        MaterialWithdrawal(
+            id=wid,
+            items=[
+                WithdrawalItem(
+                    product_id="p1",
+                    sku="SKU-1",
+                    name="Lumber",
+                    quantity=2,
+                    unit_price=10.0,
+                    cost=6.0,
+                )
             ],
-            "job_id": "JOB-1",
-            "service_address": "1 Main St",
-            "notes": None,
-            "subtotal": 20.0,
-            "tax": 1.6,
-            "total": 21.6,
-            "cost_total": 12.0,
-            "contractor_id": "contractor-1",
-            "contractor_name": "Test Contractor",
-            "contractor_company": billing_entity,
-            "billing_entity": billing_entity,
-            "payment_status": "unpaid",
-            "invoice_id": None,
-            "paid_at": None,
-            "processed_by_id": "user-1",
-            "processed_by_name": "Test",
-            "created_at": "2025-01-01T00:00:00Z",
-        }
+            job_id="JOB-1",
+            service_address="1 Main St",
+            subtotal=20.0,
+            tax=1.6,
+            total=21.6,
+            cost_total=12.0,
+            contractor_id="contractor-1",
+            contractor_name="Test Contractor",
+            contractor_company=billing_entity,
+            billing_entity=billing_entity,
+            payment_status="unpaid",
+            processed_by_id="user-1",
+            processed_by_name="Test",
+            created_at="2025-01-01T00:00:00Z",
+        )
     )
     return wid
 

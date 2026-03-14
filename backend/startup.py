@@ -29,11 +29,33 @@ logger = logging.getLogger(__name__)
 async def _reset_db() -> None:
     """Drop all application tables so init_db() recreates them clean.
 
-    Used when RESET_DB=true is set in the environment. Intended for demo
-    environments where all data is synthetic and a full wipe is acceptable.
-    Tables are dropped in reverse FK dependency order to avoid constraint errors.
+    Used when RESET_DB=true is set in the environment. Intended for fresh
+    deploys and demo resets where all data is synthetic and a full wipe is
+    acceptable.
+
+    SAFETY: this checks whether any data already exists before dropping.
+    If the database has been seeded (organizations table is non-empty) this
+    raises RuntimeError rather than silently wiping production data. To force
+    a wipe of a populated database, unset RESET_DB after the first deploy —
+    you cannot accidentally trigger a second wipe via a restart.
     """
+    from shared.infrastructure.database import get_connection
     from shared.infrastructure.db import drop_all_tables
+
+    conn = get_connection()
+    try:
+        cursor = await conn.execute("SELECT COUNT(*) FROM organizations")
+        row = await cursor.fetchone()
+        count = row[0] if row else 0
+    except Exception:
+        count = 0
+
+    if count > 0:
+        raise RuntimeError(
+            "RESET_DB=true but the database already contains data "
+            f"({count} organization(s)). Remove the RESET_DB environment "
+            "variable to prevent accidental data loss on restart."
+        )
 
     logger.warning("RESET_DB=true — dropping all tables for a clean restart")
     await drop_all_tables()
@@ -157,6 +179,13 @@ async def lifespan(app: FastAPI):
         finally:
             org_id_var.reset(token)
 
+    import assistant.agents.tools.search  # noqa: F401 — registers index invalidation handler
+    import finance.application.event_handlers  # noqa: F401
+    import inventory.application.event_handlers  # noqa: F401
+    import shared.infrastructure.ws_bridge  # noqa: F401
+
+    logger.info("Domain event handlers registered")
+
     from assistant.infrastructure.llm import init_llm
 
     init_llm()
@@ -217,19 +246,12 @@ async def lifespan(app: FastAPI):
     await conn.execute("SELECT 1")
     logger.info("Database connectivity verified")
 
-    from assistant.agents.tools.search import (
-        start_invalidation_listener,
-        stop_invalidation_listener,
-    )
-
     sync_task = None
     if not is_test:
         sync_task = asyncio.create_task(xero_sync_loop())
-        start_invalidation_listener()
 
     yield
 
-    await stop_invalidation_listener()
     if sync_task is not None:
         sync_task.cancel()
         with suppress(asyncio.CancelledError):

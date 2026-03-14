@@ -9,6 +9,9 @@ from operations.application.queries import (
     link_credit_note_to_return,
     mark_withdrawals_paid_by_invoice,
 )
+from shared.infrastructure.database import get_org_id
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import CreditNoteApplied
 
 
 async def insert_credit_note(
@@ -55,6 +58,13 @@ async def apply_credit_note(
         performed_by_user_id=performed_by_user_id,
     )
 
+    await dispatch(
+        CreditNoteApplied(
+            org_id=get_org_id(),
+            credit_note_id=credit_note_id,
+            invoice_id=result.invoice_id or "",
+        )
+    )
     return result.credit_note
 
 

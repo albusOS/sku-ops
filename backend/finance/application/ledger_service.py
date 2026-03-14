@@ -8,7 +8,10 @@ Every event produces a set of entries grouped under a single journal_id
 so the transaction can be verified as balanced.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from finance.application.fiscal_period_service import check_period_open
@@ -17,6 +20,9 @@ from finance.infrastructure.ledger_repo import entries_exist, insert_entries
 from shared.infrastructure.database import get_org_id
 from shared.kernel.types import round_money
 
+if TYPE_CHECKING:
+    from shared.kernel.event_payloads import LedgerItem, ReceivedItemSummary
+
 
 async def _check_fiscal_period() -> None:
     """Check that the current date is not in a closed fiscal period."""
@@ -24,28 +30,11 @@ async def _check_fiscal_period() -> None:
     await check_period_open(now)
 
 
-def _extract_item(item) -> tuple:
-    """Extract (qty, unit, unit_price, cost, sell_cost, sell_uom, dept, product_id) from a model or dict.
-
-    Accepts both Pydantic models (primary) and dicts (seed/test legacy).
-    """
-    _g = item.get if isinstance(item, dict) else lambda k, d=None: getattr(item, k, d)
-    qty = _g("quantity", 0)
-    unit = _g("unit", "each") or "each"
-    unit_price = _g("unit_price", 0) or _g("price", 0)
-    cost = _g("cost", 0)
-    sell_cost = _g("sell_cost", None) or cost
-    sell_uom = _g("sell_uom", None) or unit
-    dept = _g("category_name", None)
-    pid = _g("product_id", None)
-    return qty, unit, unit_price, cost, sell_cost, sell_uom, dept, pid
-
-
 async def _record_sale_event(
     reference_id: str,
     reference_type: ReferenceType,
     sign: int,
-    items: list,
+    items: list[LedgerItem],
     tax: float,
     total: float,
     job_id: str,
@@ -76,8 +65,14 @@ async def _record_sale_event(
     }
     entries: list[FinancialEntry] = []
 
-    for item in items:
-        qty, unit, unit_price, _cost, sell_cost, sell_uom, dept, pid = _extract_item(item)
+    for li in items:
+        qty = li.quantity
+        unit = li.unit
+        unit_price = li.unit_price
+        sell_cost = li.sell_cost or li.cost
+        sell_uom = li.sell_uom or unit
+        dept = li.category_name
+        pid = li.product_id
         entries.append(
             FinancialEntry(
                 account=Account.REVENUE,
@@ -139,7 +134,7 @@ async def _record_sale_event(
 
 async def record_withdrawal(
     withdrawal_id: str,
-    items: list,
+    items: list[LedgerItem],
     tax: float,
     total: float,
     job_id: str,
@@ -166,7 +161,7 @@ async def record_withdrawal(
 
 async def record_return(
     return_id: str,
-    items: list,
+    items: list[LedgerItem],
     tax: float,
     total: float,
     job_id: str,
@@ -193,7 +188,7 @@ async def record_return(
 
 async def record_po_receipt(
     po_id: str,
-    items: list,
+    items: list[ReceivedItemSummary],
     vendor_name: str,
     performed_by_user_id: str | None = None,
     created_at: str | None = None,
@@ -206,22 +201,21 @@ async def record_po_receipt(
     org_id = get_org_id()
     entries: list[FinancialEntry] = []
 
-    for item in items:
-        cost = float(item.get("cost", 0) or 0)
-        delivered = float(item.get("delivered_qty", 0) or item.get("quantity", 0) or 0)
+    for ri in items:
+        cost = ri.cost
+        delivered = ri.delivered_qty
         amount = round_money(cost * delivered)
         if amount == 0:
             continue
 
-        base_unit = item.get("base_unit") or "each"
-        dept = item.get("department") or item.get("suggested_department")
-        pid = item.get("product_id")
+        dept = ri.department
+        pid = ri.product_id
         entries.append(
             FinancialEntry(
                 account=Account.INVENTORY,
                 amount=amount,
                 quantity=delivered,
-                unit=base_unit,
+                unit="each",
                 unit_cost=cost,
                 journal_id=journal_id,
                 department=dept,
@@ -238,7 +232,7 @@ async def record_po_receipt(
                 account=Account.ACCOUNTS_PAYABLE,
                 amount=amount,
                 quantity=delivered,
-                unit=base_unit,
+                unit="each",
                 unit_cost=cost,
                 journal_id=journal_id,
                 department=dept,

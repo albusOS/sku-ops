@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   Table,
   TableBody,
@@ -316,10 +317,13 @@ export function DataTable({
                   const rowSelectable = isSelectable ? isSelectable(row) : true;
                   const isSelected = selectedSet.has(row.id);
                   return (
-                    <TableRow
+                    <motion.tr
                       key={row.id ?? idx}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.18, delay: Math.min(idx * 0.025, 0.3) }}
                       className={cn(
-                        "hover:bg-muted/60 transition-colors",
+                        "hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0",
                         onRowClick && "cursor-pointer",
                         isSelected && "bg-info/10",
                       )}
@@ -354,7 +358,7 @@ export function DataTable({
                       {rowActions && (
                         <TableCell className="px-3 py-2.5 text-right">{rowActions(row)}</TableCell>
                       )}
-                    </TableRow>
+                    </motion.tr>
                   );
                 })
               )}

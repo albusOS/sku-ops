@@ -9,6 +9,7 @@ from finance.application import queries as finance_queries
 from finance.application.xero_sync_job import run_sync
 from purchasing.application.queries import list_failed_po_bills, list_unsynced_po_bills
 from shared.api.deps import AdminDep
+from shared.infrastructure.redis import get_redis, is_redis_available
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +18,6 @@ router = APIRouter(prefix="/xero", tags=["xero"])
 _sync_tasks: dict[str, asyncio.Task] = {}
 _LOCK_PREFIX = "sku_ops:xero_sync:"
 _LOCK_TTL = 3600
-
-
-def _use_redis() -> bool:
-    from shared.infrastructure.redis import is_redis_available
-
-    return is_redis_available()
 
 
 @router.get("/health")
@@ -71,16 +66,14 @@ async def trigger_sync(current_user: AdminDep):
     """Manually trigger a full Xero sync + reconciliation for the org (background)."""
     org_id = current_user.organization_id
 
-    if _use_redis():
-        from shared.infrastructure.redis import get_redis
-
+    if is_redis_available():
         r = get_redis()
         lock_key = f"{_LOCK_PREFIX}{org_id}"
         acquired = await r.set(lock_key, "1", nx=True, ex=_LOCK_TTL)
         if not acquired:
             return {"success": True, "status": "in_progress"}
 
-        async def _run():
+        async def _run_redis():
             try:
                 return await run_sync()
             except Exception:
@@ -88,14 +81,14 @@ async def trigger_sync(current_user: AdminDep):
             finally:
                 await r.delete(lock_key)
 
-        asyncio.create_task(_run())
+        asyncio.create_task(_run_redis())
         return {"success": True, "status": "started"}
 
     existing = _sync_tasks.get(org_id)
     if existing and not existing.done():
         return {"success": True, "status": "in_progress"}
 
-    async def _run():
+    async def _run_local():
         try:
             return await run_sync()
         except Exception:
@@ -103,7 +96,7 @@ async def trigger_sync(current_user: AdminDep):
         finally:
             _sync_tasks.pop(org_id, None)
 
-    _sync_tasks[org_id] = asyncio.create_task(_run())
+    _sync_tasks[org_id] = asyncio.create_task(_run_local())
     return {"success": True, "status": "started"}
 
 
@@ -112,9 +105,7 @@ async def get_sync_status(current_user: AdminDep):
     """Check if a background Xero sync is running."""
     org_id = current_user.organization_id
 
-    if _use_redis():
-        from shared.infrastructure.redis import get_redis
-
+    if is_redis_available():
         exists = await get_redis().exists(f"{_LOCK_PREFIX}{org_id}")
         return {"status": "in_progress" if exists else "idle"}
 

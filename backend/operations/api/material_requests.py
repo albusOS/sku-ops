@@ -13,8 +13,6 @@ from operations.application.material_request_service import (
 from operations.application.queries import get_material_request_by_id
 from operations.domain.material_request import MaterialRequestCreate, MaterialRequestProcess
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure import event_hub
-from shared.kernel import events
 
 router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
@@ -26,11 +24,6 @@ async def create_material_request_route(data: MaterialRequestCreate, current_use
         result = await create_material_request(data, current_user)
     except MaterialRequestError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
-    await event_hub.emit(
-        events.MATERIAL_REQUEST_CREATED,
-        org_id=current_user.organization_id,
-        id=result.id if hasattr(result, "id") else result.get("id"),
-    )
     return result
 
 
@@ -71,17 +64,4 @@ async def process_material_request_route(
         )
     except MaterialRequestError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
-
-    await event_hub.emit(
-        events.MATERIAL_REQUEST_PROCESSED,
-        org_id=current_user.organization_id,
-        id=request_id,
-        withdrawal_id=withdrawal["id"],
-    )
-    await event_hub.emit(
-        events.WITHDRAWAL_CREATED,
-        org_id=current_user.organization_id,
-        id=withdrawal["id"],
-    )
-    await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id)
     return withdrawal

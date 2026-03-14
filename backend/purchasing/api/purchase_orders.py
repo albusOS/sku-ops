@@ -34,10 +34,8 @@ from purchasing.domain.purchase_order import (
     ReceiveItemsRequest,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure import event_hub
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
-from shared.kernel import events
 
 logger = logging.getLogger(__name__)
 
@@ -180,5 +178,4 @@ async def receive_items(
             await queue_po_for_sync(po_id)
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Failed to queue PO %s for Xero sync: %s", po_id, e)
-    await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id)
     return result

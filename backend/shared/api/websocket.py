@@ -17,7 +17,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from shared.infrastructure import event_hub
 from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET
 from shared.kernel.constants import DEFAULT_ORG_ID
-from shared.kernel.events import CONTRACTOR_VISIBLE_EVENTS, Event
+from shared.kernel.events import CONTRACTOR_VISIBLE_EVENTS, Event, is_shutdown
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ async def _relay_loop(
     async def _sender():
         while True:
             ev = await queue.get()
-            if event_hub.is_shutdown(ev):
+            if is_shutdown(ev):
                 logger.info("Subscriber shutdown — closing WebSocket")
                 return
             if not _should_deliver(ev, org_id, role, user_id):

@@ -274,9 +274,9 @@ async def test_process_success_creates_withdrawal_and_updates_status(db):
         current_user_name=_admin().name,
     )
 
-    assert "id" in result
-    assert result["contractor_id"] == "contractor-1"
+    assert result.id
+    assert result.contractor_id == "contractor-1"
 
     updated_req = await material_request_repo.get_by_id(req.id)
     assert updated_req.status == "processed"
-    assert updated_req.withdrawal_id == result["id"]
+    assert updated_req.withdrawal_id == result.id

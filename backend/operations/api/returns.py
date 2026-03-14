@@ -7,9 +7,7 @@ from operations.application.queries import list_returns as _list_returns
 from operations.application.return_service import create_return
 from operations.domain.returns import ReturnCreate
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
-from shared.kernel import events
 
 router = APIRouter(prefix="/returns", tags=["returns"])
 
@@ -27,20 +25,14 @@ async def create_material_return(
             user_id=current_user.id,
             action="return.create",
             resource_type="return",
-            resource_id=result.get("id"),
+            resource_id=result.id,
             details={
                 "withdrawal_id": data.withdrawal_id,
-                "total": result.get("total"),
+                "total": result.total,
                 "item_count": len(data.items),
             },
             request=request,
             org_id=current_user.organization_id,
-        )
-        await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id)
-        await event_hub.emit(
-            events.WITHDRAWAL_UPDATED,
-            org_id=current_user.organization_id,
-            id=data.withdrawal_id,
         )
         return result
     except (ValueError, RuntimeError, OSError) as e:

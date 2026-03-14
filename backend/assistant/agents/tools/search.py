@@ -1,10 +1,11 @@
 """
 Product search index. Uses OpenAI text-embedding-3-small for semantic search when
 OPENAI_API_KEY is set; falls back to BM25 keyword search otherwise.
+
+The index is rebuilt automatically via a domain event handler registered on
+``InventoryChanged`` and ``CatalogUpdated``. No background task is required.
 """
 
-import asyncio
-import contextlib
 import logging
 import re
 from typing import Protocol
@@ -12,11 +13,9 @@ from typing import Protocol
 import numpy as np
 
 from catalog.application.queries import list_skus
-from shared.infrastructure import event_hub
 from shared.infrastructure.config import OPENAI_API_KEY
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.logging_config import org_id_var
-from shared.kernel.events import CATALOG_UPDATED, INVENTORY_UPDATED, is_shutdown
 
 logger = logging.getLogger(__name__)
 
@@ -175,45 +174,37 @@ async def refresh_index(org_id: str | None = None) -> None:
     await index.rebuild()
 
 
-_INVALIDATION_EVENTS = frozenset({INVENTORY_UPDATED, CATALOG_UPDATED})
+def _register_invalidation_handler() -> None:
+    """Register the search index invalidation as a domain event handler.
 
+    Called once at module import time. Importing this module is sufficient —
+    no background task lifecycle management is needed.
 
-async def _index_invalidation_listener() -> None:
-    """Subscribe to the event hub and rebuild the search index on catalog/inventory changes."""
-    queue = event_hub.subscribe()
-    try:
-        while True:
-            ev = await queue.get()
-            if is_shutdown(ev):
-                return
-            if ev.type in _INVALIDATION_EVENTS:
-                try:
-                    org_id_var.set(ev.org_id)
-                    await refresh_index(ev.org_id)
-                    logger.info("Search index rebuilt for org=%s after %s", ev.org_id, ev.type)
-                except (RuntimeError, OSError, ValueError) as exc:
-                    logger.warning("Search index rebuild failed for org=%s: %s", ev.org_id, exc)
-    except asyncio.CancelledError:
-        pass
-    finally:
-        event_hub.unsubscribe(queue)
+    Skipped in test environments: each test uses a fresh in-memory DB and
+    would otherwise trigger real embedding API calls on every inventory change.
+    """
+    from shared.infrastructure.config import is_test
+    from shared.infrastructure.domain_events import on
+    from shared.kernel.domain_events import CatalogChanged, InventoryChanged
 
-
-_invalidation_task: asyncio.Task | None = None
-
-
-def start_invalidation_listener() -> None:
-    """Spawn the background task.  Called once from server.py lifespan."""
-    global _invalidation_task
-    if _invalidation_task is not None:
+    if is_test:
         return
-    _invalidation_task = asyncio.create_task(_index_invalidation_listener())
+
+    async def _rebuild_index(org_id: str, trigger: str) -> None:
+        try:
+            org_id_var.set(org_id)
+            await refresh_index(org_id)
+            logger.info("Search index rebuilt for org=%s after %s", org_id, trigger)
+        except (RuntimeError, OSError, ValueError) as exc:
+            logger.warning("Search index rebuild failed for org=%s: %s", org_id, exc)
+
+    @on(InventoryChanged)
+    async def _invalidate_on_inventory_changed(event: InventoryChanged) -> None:
+        await _rebuild_index(event.org_id, "InventoryChanged")
+
+    @on(CatalogChanged)
+    async def _invalidate_on_catalog_changed(event: CatalogChanged) -> None:
+        await _rebuild_index(event.org_id, "CatalogChanged")
 
 
-async def stop_invalidation_listener() -> None:
-    global _invalidation_task
-    if _invalidation_task is not None:
-        _invalidation_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await _invalidation_task
-        _invalidation_task = None
+_register_invalidation_handler()

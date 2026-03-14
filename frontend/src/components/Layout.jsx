@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "@/lib/constants";
@@ -24,8 +24,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ScanBarcode,
+  Search,
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
+import { CommandPalette } from "./CommandPalette";
 
 const SIDEBAR_KEY = "sidebar-collapsed";
 
@@ -34,6 +36,18 @@ const Layout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "true");
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const toggleSidebar = () => {
     setCollapsed((prev) => {
@@ -172,9 +186,31 @@ const Layout = ({ children }) => {
           </button>
         </div>
 
+        {/* Search trigger */}
+        {!collapsed && (
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="mx-3 my-2 flex items-center gap-2 rounded-lg border border-sidebar-border/50 bg-white/5 px-3 py-2 text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/8 transition-colors text-sm w-[calc(100%-1.5rem)]"
+            data-testid="command-palette-trigger"
+          >
+            <Search className="w-3.5 h-3.5 shrink-0" />
+            <span className="flex-1 text-left text-xs">Search…</span>
+            <kbd className="text-[10px] font-mono opacity-60">⌘K</kbd>
+          </button>
+        )}
+        {collapsed && (
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="w-10 h-10 mx-auto flex items-center justify-center text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors mb-1"
+            title="Search (⌘K)"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Nav */}
         <nav
-          className="flex-1 py-4 px-2 overflow-y-auto overflow-x-hidden"
+          className="flex-1 py-2 px-2 overflow-y-auto overflow-x-hidden"
           data-testid="sidebar-nav"
         >
           {/* Expand button when collapsed */}
@@ -269,6 +305,8 @@ const Layout = ({ children }) => {
       </main>
 
       {user?.role !== ROLES.CONTRACTOR && <ChatAssistant />}
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 };

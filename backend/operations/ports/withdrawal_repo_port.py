@@ -18,13 +18,11 @@ class WithdrawalRepoPort(Protocol):
         end_date: str | None = None,
         limit: int = 10000,
         offset: int = 0,
-        organization_id: str | None = None,
-    ) -> list[dict]: ...
+    ) -> list[MaterialWithdrawal]: ...
 
     async def get_by_id(
         self,
         withdrawal_id: str,
-        organization_id: str | None = None,
     ) -> MaterialWithdrawal | None: ...
 
     async def mark_paid(
@@ -37,5 +35,4 @@ class WithdrawalRepoPort(Protocol):
         self,
         withdrawal_ids: list[str],
         paid_at: str,
-        organization_id: str | None = None,
     ) -> int: ...

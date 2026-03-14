@@ -16,6 +16,7 @@ dev = [
     "pytest>=8.0,<9",
     "pytest-asyncio>=0.23,<0.24",
     "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
     "ruff>=0.14.0",
     "commitizen>=4.12.1",
     "cz-conventional-gitmoji>=0.7.0",

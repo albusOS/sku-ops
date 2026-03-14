@@ -1,11 +1,19 @@
-"""Event delivery hub — broadcasts domain events to WebSocket clients.
+"""WebSocket / Redis relay hub — internal plumbing for real-time UI notifications.
 
-When Redis is available (production / staging) events are published to a Redis
-Pub/Sub channel so every worker receives them.  Without Redis the hub falls
-back to in-process asyncio queues (fine for single-worker dev/test).
+This module is the transport layer that delivers ``Event`` envelopes to
+connected WebSocket clients. When Redis is available (production/staging) events
+are published to a Redis Pub/Sub channel so every worker receives them.
+Without Redis the hub falls back to in-process asyncio queues (dev/test).
 
-Domain types (``Event``, ``SHUTDOWN``, ``is_shutdown``) live in
-``shared.kernel.events`` — import from there directly.
+**This is not the domain event system.**
+For reacting to business facts within the backend, use the typed domain events
+in ``shared.kernel.domain_events`` and the dispatcher in
+``shared.infrastructure.domain_events``. The WebSocket bridge
+(``shared.infrastructure.ws_bridge``) is the only component that should call
+``emit()`` directly — it translates typed domain events into this wire format.
+
+Wire types (``Event``, ``SHUTDOWN``, ``is_shutdown``) live in
+``shared.kernel.events``.
 """
 
 from __future__ import annotations

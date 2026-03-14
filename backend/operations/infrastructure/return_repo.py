@@ -18,13 +18,10 @@ def _row_to_model(row) -> MaterialReturn | None:
     return MaterialReturn.model_validate(d)
 
 
-async def insert(ret: MaterialReturn | dict) -> None:
-    ret_dict = ret if isinstance(ret, dict) else ret.model_dump()
+async def insert(ret: MaterialReturn) -> None:
     conn = get_connection()
-    org_id = ret_dict.get("organization_id") or get_org_id()
-    items_json = json.dumps(
-        [i if isinstance(i, dict) else i.model_dump() for i in ret_dict["items"]]
-    )
+    org_id = ret.organization_id or get_org_id()
+    items_json = json.dumps([i.model_dump() for i in ret.items])
     await conn.execute(
         """INSERT INTO returns (id, withdrawal_id, contractor_id, contractor_name,
            billing_entity, job_id, items, subtotal, tax, total, cost_total,
@@ -32,51 +29,45 @@ async def insert(ret: MaterialReturn | dict) -> None:
            organization_id, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            ret_dict["id"],
-            ret_dict["withdrawal_id"],
-            ret_dict["contractor_id"],
-            ret_dict.get("contractor_name", ""),
-            ret_dict.get("billing_entity", ""),
-            ret_dict.get("job_id", ""),
+            ret.id,
+            ret.withdrawal_id,
+            ret.contractor_id,
+            ret.contractor_name,
+            ret.billing_entity,
+            ret.job_id,
             items_json,
-            ret_dict["subtotal"],
-            ret_dict["tax"],
-            ret_dict["total"],
-            ret_dict["cost_total"],
-            ret_dict.get("reason", "other"),
-            ret_dict.get("notes"),
-            ret_dict.get("credit_note_id"),
-            ret_dict.get("processed_by_id", ""),
-            ret_dict.get("processed_by_name", ""),
+            ret.subtotal,
+            ret.tax,
+            ret.total,
+            ret.cost_total,
+            ret.reason,
+            ret.notes,
+            ret.credit_note_id,
+            ret.processed_by_id,
+            ret.processed_by_name,
             org_id,
-            ret_dict.get("created_at", ""),
-            ret_dict.get("updated_at", ""),
+            ret.created_at,
+            ret.updated_at,
         ),
     )
-    # Write normalized items
-    for item in ret_dict["items"]:
-        i = (
-            item
-            if isinstance(item, dict)
-            else (item.model_dump() if hasattr(item, "model_dump") else item)
-        )
-        qty = float(i.get("quantity", 0))
-        price = float(i.get("unit_price") or i.get("price") or 0)
-        cost = float(i.get("cost", 0))
+    for item in ret.items:
+        qty = float(item.quantity)
+        price = float(item.unit_price)
+        cost = float(item.cost)
         await conn.execute(
             """INSERT INTO return_items
                (id, return_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(uuid4()),
-                ret_dict["id"],
-                i.get("product_id", ""),
-                i.get("sku", ""),
-                i.get("name", ""),
+                ret.id,
+                item.product_id or "",
+                item.sku or "",
+                item.name or "",
                 qty,
                 price,
                 cost,
-                i.get("unit", "each"),
+                item.unit or "each",
                 round(qty * price, 2),
                 round(qty * cost, 2),
             ),

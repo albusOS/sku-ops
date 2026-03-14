@@ -101,7 +101,7 @@ async def payment_status_breakdown(
 # --- Material request re-exports ---
 
 
-async def insert_material_request(request: MaterialRequest | dict) -> None:
+async def insert_material_request(request: MaterialRequest) -> None:
     return await _mr_repo.insert(request)
 
 

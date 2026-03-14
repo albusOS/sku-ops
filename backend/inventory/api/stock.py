@@ -9,9 +9,7 @@ from inventory.application.inventory_service import (
     process_adjustment_stock_changes,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
-from shared.kernel import events
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 
@@ -59,8 +57,5 @@ async def adjust_stock(
         details={"quantity_delta": data.quantity_delta, "reason": data.reason},
         request=request,
         org_id=current_user.organization_id,
-    )
-    await event_hub.emit(
-        events.INVENTORY_UPDATED, org_id=current_user.organization_id, ids=[product_id]
     )
     return {"message": "Stock adjusted"}

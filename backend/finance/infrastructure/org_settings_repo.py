@@ -24,16 +24,18 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
     """Insert or replace org settings."""
     conn = get_connection()
     now = datetime.now(UTC).isoformat()
+    auto_invoice_int = 1 if settings.auto_invoice else 0
     await conn.execute(
         """INSERT INTO org_settings (
-               organization_id, default_tax_rate,
+               organization_id, auto_invoice, default_tax_rate,
                xero_tenant_id, xero_access_token, xero_refresh_token,
                xero_token_expiry, xero_sales_account_code,
                xero_cogs_account_code, xero_inventory_account_code,
                xero_ap_account_code, xero_tracking_category_id,
                xero_tax_type, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(organization_id) DO UPDATE SET
+               auto_invoice = excluded.auto_invoice,
                default_tax_rate = excluded.default_tax_rate,
                xero_tenant_id = excluded.xero_tenant_id,
                xero_access_token = excluded.xero_access_token,
@@ -49,6 +51,7 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
         """,
         (
             settings.organization_id,
+            auto_invoice_int,
             settings.default_tax_rate,
             settings.xero_tenant_id,
             settings.xero_access_token,

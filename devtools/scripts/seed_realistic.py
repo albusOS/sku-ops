@@ -890,10 +890,9 @@ async def main():
         )
         withdrawal.compute_totals()
 
-        w_dict = withdrawal.model_dump()
-        w_dict["organization_id"] = org_id
-        w_dict["created_at"] = created_at
-        await withdrawal_repo.insert(w_dict)
+        withdrawal.organization_id = org_id
+        withdrawal.created_at = created_at
+        await withdrawal_repo.insert(withdrawal)
         withdrawal_ids.append(withdrawal.id)
 
         for item in items:
