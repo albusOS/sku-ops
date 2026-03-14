@@ -43,7 +43,7 @@ src/<package_name>/
     │           ├── <feature>_service.py
     │           ├── <feature>_dependencies.py
     │           ├── <feature>_adapter.py
-    │           └── routers/
+    │           └── sub_routers/
     │               ├── __init__.py
     │               └── <sub_feature>/
     │                   ├── __init__.py
@@ -64,7 +64,7 @@ src/<package_name>/
                 ├── <feature>_service.py
                 ├── <feature>_dependencies.py
                 ├── <feature>_adapter.py
-                └── routers/
+                └── sub_routers/
                     ├── __init__.py
                     └── <sub_feature>/
                         ├── __init__.py
@@ -75,7 +75,7 @@ src/<package_name>/
                         └── <sub_feature>_adapter.py
 ```
 
-Every feature router gets a directory. No flat files for routers. A top-level feature may also contain its own nested `routers/` directory for sub-features. The `<feature>` and `<sub_feature>` templates show the full scope of files a router package may include; omit any file that is not needed for a given feature.
+Every feature router gets a directory. No flat files for routers. A top-level feature may also contain its own nested `sub_routers/` directory for sub-features. The `<feature>` and `<sub_feature>` templates show the full scope of files a router package may include; omit any file that is not needed for a given feature.
 
 ## Directory Responsibilities
 
@@ -201,7 +201,7 @@ Each feature directory follows a thin-router split. Keep routers thin; push non-
 | `<feature>_service.py` | Feature-specific orchestration that does not belong in `core/services` |
 | `<feature>_dependencies.py` | Feature-specific FastAPI dependencies |
 | `<feature>_adapter.py` | Maps core standard models into version-specific models (when needed) |
-| `routers/` | Optional nested sub-feature packages composed by the top-level feature router |
+| `sub_routers/` | Optional nested sub-feature packages composed by the top-level feature router |
 
 If a router file grows large, split into these modules. Shared business logic belongs in `core/services`. Shared domain models belong in `core/standard_models`.
 
@@ -255,7 +255,7 @@ src/<package_name>/api/v1/routers/session/
 ├── session_service.py
 ├── session_dependencies.py
 ├── session_adapter.py
-└── routers/
+└── sub_routers/
     ├── __init__.py
     ├── tokens/
     │   ├── __init__.py
@@ -273,7 +273,7 @@ Rules:
 
 - The version `api.py` includes only the top-level feature router, such as `session`
 - The parent feature router owns the base prefix, such as `"/session"`
-- The parent feature router may define its own endpoints and also include sub-feature routers
+- The parent feature router may define its own endpoints and also include sub-feature routers from `sub_routers/`
 - Sub-feature routers use relative prefixes from the parent, such as `"/tokens"` and `"/devices"`
 - Keep nesting shallow. Default to one extra router layer. Only go deeper if the feature is genuinely large
 - Shared logic for the whole feature stays in `core/services` or the parent feature package, not duplicated across sub-features
@@ -291,8 +291,8 @@ Parent feature router composition:
 ```python
 from fastapi import APIRouter
 
-from <package_name>.api.v1.routers.session.routers import devices_router
-from <package_name>.api.v1.routers.session.routers import tokens_router
+from <package_name>.api.v1.routers.session.sub_routers import devices_router
+from <package_name>.api.v1.routers.session.sub_routers import tokens_router
 
 router = APIRouter(
     prefix="/session",
@@ -313,11 +313,11 @@ async def session_health() -> dict[str, bool]:
     return {"ok": True}
 ```
 
-Nested routers package export:
+Sub-routers package export:
 
 ```python
-from <package_name>.api.v1.routers.session.routers.devices import router as devices_router
-from <package_name>.api.v1.routers.session.routers.tokens import router as tokens_router
+from <package_name>.api.v1.routers.session.sub_routers.devices import router as devices_router
+from <package_name>.api.v1.routers.session.sub_routers.tokens import router as tokens_router
 
 __all__ = ["devices_router", "tokens_router"]
 ```
@@ -325,7 +325,7 @@ __all__ = ["devices_router", "tokens_router"]
 Sub-feature package export:
 
 ```python
-from <package_name>.api.v1.routers.session.routers.tokens.tokens_router import router
+from <package_name>.api.v1.routers.session.sub_routers.tokens.tokens_router import router
 
 __all__ = ["router"]
 ```
@@ -394,7 +394,7 @@ When moving an existing FastAPI project into this layout:
 5. Add `__init__.py` in each version directory that exports `api_router`.
 6. Add `api.py` inside each version directory to assemble that version's routers.
 7. Move feature endpoints into `src/<package_name>/api/<version>/routers/` as feature directories.
-8. If a feature needs internal structure, add `routers/` inside that feature and compose sub-features in the parent `<feature>_router.py`.
+8. If a feature needs internal structure, add `sub_routers/` inside that feature and compose sub-features in the parent `<feature>_router.py`.
 9. Keep imports absolute so version boundaries stay obvious.
 10. Include only version routers in `main.py`, not individual feature routers.
 
@@ -404,7 +404,7 @@ When moving an existing FastAPI project into this layout:
 - `api/<version>/__init__.py`: exports `api_router`
 - `api/<version>/api.py`: version prefix and declarative router composition
 - `api/<version>/routers/<feature>/`: feature endpoints for one version
-- `api/<version>/routers/<feature>/routers/<sub_feature>/`: nested sub-feature endpoints owned by the parent feature
+- `api/<version>/routers/<feature>/sub_routers/<sub_feature>/`: nested sub-feature endpoints owned by the parent feature
 - `core/services/`: shared business logic services
 - `core/standard_models/`: shared domain models and contracts
 - `core/dependencies`: shared FastAPI dependencies
@@ -429,7 +429,7 @@ For a new feature router:
 
 For a new sub-feature router:
 
-- Add the sub-feature directory under `src/<package_name>/api/<version>/routers/<feature>/routers/`
+- Add the sub-feature directory under `src/<package_name>/api/<version>/routers/<feature>/sub_routers/`
 - Export the sub-feature router from the sub-feature `__init__.py`
 - Import the sub-feature package into the parent `<feature>_router.py`
 - Add the sub-feature module to the parent feature's `ROUTER_MODULES`
