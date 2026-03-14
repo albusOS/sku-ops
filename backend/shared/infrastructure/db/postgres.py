@@ -36,11 +36,12 @@ def _convert_placeholders(sql: str) -> str:
 def _convert_sql(sql: str) -> str:
     """Full SQL dialect conversion: placeholders + syntax sugar."""
     had_or_ignore = "INSERT OR IGNORE" in sql
+    had_or_replace = "INSERT OR REPLACE" in sql
     converted = _convert_placeholders(sql)
     converted = converted.replace("INSERT OR IGNORE", "INSERT")
     converted = converted.replace("INSERT OR REPLACE", "INSERT")
     converted = converted.replace("datetime('now')", "NOW()")
-    if had_or_ignore and "ON CONFLICT" not in converted:
+    if (had_or_ignore or had_or_replace) and "ON CONFLICT" not in converted:
         converted = re.sub(
             r"(VALUES\s*\([^)]+\))",
             r"\1 ON CONFLICT DO NOTHING",
