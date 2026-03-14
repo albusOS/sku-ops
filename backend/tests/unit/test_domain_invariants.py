@@ -291,8 +291,6 @@ class TestContractorContext:
         """create_withdrawal must raise ValueError when contractor.id is empty."""
         import asyncio
 
-        from catalog.application.queries import list_products
-        from inventory.application.inventory_service import process_withdrawal_stock_changes
         from operations.application.withdrawal_service import create_withdrawal
         from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
         from shared.kernel.types import CurrentUser
@@ -306,12 +304,4 @@ class TestContractorContext:
         user = CurrentUser(id="u1", email="a@b.com", name="A", role="admin")
 
         with pytest.raises(ValueError, match=r"contractor\.id"):
-            asyncio.get_event_loop().run_until_complete(
-                create_withdrawal(
-                    data,
-                    ctx,
-                    user,
-                    list_products=list_products,
-                    process_stock_changes=process_withdrawal_stock_changes,
-                )
-            )
+            asyncio.get_event_loop().run_until_complete(create_withdrawal(data, ctx, user))

@@ -12,8 +12,8 @@ to int, these fail.
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
-from catalog.infrastructure.product_repo import product_repo
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from inventory.application.inventory_service import (
     get_stock_history,
     process_adjustment_stock_changes,
@@ -27,9 +27,9 @@ from inventory.domain.stock import StockDecrement
 
 async def _create_product(name, quantity, base_unit="each", **kw):
     """Helper: create product with a given base_unit and fractional quantity."""
-    return await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    return await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name=name,
         quantity=quantity,
         price=kw.get("price", 10.0),
@@ -53,7 +53,7 @@ class TestFractionalProductCreation:
         product = await _create_product("Half Widget", 10.5)
         assert product.quantity == 10.5
 
-        persisted = await product_repo.get_by_id(product.id)
+        persisted = await sku_repo.get_by_id(product.id)
         assert persisted.quantity == pytest.approx(10.5), (
             f"DB stored {persisted.quantity}, expected 10.5 — int truncation?"
         )
@@ -88,7 +88,7 @@ class TestFractionalWithdrawal:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(7.5)
 
     @pytest.mark.usefixtures("_db")
@@ -109,7 +109,7 @@ class TestFractionalWithdrawal:
         assert exc_info.value.requested == 5.5
         assert exc_info.value.available == pytest.approx(5.0)
 
-        unchanged = await product_repo.get_by_id(product.id)
+        unchanged = await sku_repo.get_by_id(product.id)
         assert unchanged.quantity == pytest.approx(5.0), (
             "Stock should be unchanged after failed withdrawal"
         )
@@ -130,7 +130,7 @@ class TestFractionalWithdrawal:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(0.0)
 
 
@@ -159,7 +159,7 @@ class TestUOMConversionWithdrawal:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(98.5), (
             f"100 ft - 18 in should be 98.5 ft, got {updated.quantity}"
         )
@@ -185,7 +185,7 @@ class TestUOMConversionWithdrawal:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(24.0)
 
     @pytest.mark.usefixtures("_db")
@@ -209,7 +209,7 @@ class TestUOMConversionWithdrawal:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(4.5)
 
     @pytest.mark.usefixtures("_db")
@@ -261,7 +261,7 @@ class TestUOMConversionReceiving:
             user_name="Test",
             reference_id="po-1",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(53.0), (
             f"50 ft + 36 in should be 53 ft, got {updated.quantity}"
         )
@@ -281,7 +281,7 @@ class TestUOMConversionReceiving:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(12.0)
 
 
@@ -300,7 +300,7 @@ class TestFractionalAdjustment:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(10.5)
 
     @pytest.mark.usefixtures("_db")
@@ -314,7 +314,7 @@ class TestFractionalAdjustment:
             user_id="user-1",
             user_name="Test",
         )
-        updated = await product_repo.get_by_id(product.id)
+        updated = await sku_repo.get_by_id(product.id)
         assert updated.quantity == pytest.approx(6.75)
 
     @pytest.mark.usefixtures("_db")
@@ -329,7 +329,7 @@ class TestFractionalAdjustment:
                 user_id="user-1",
                 user_name="Test",
             )
-        unchanged = await product_repo.get_by_id(product.id)
+        unchanged = await sku_repo.get_by_id(product.id)
         assert unchanged.quantity == pytest.approx(2.0)
 
     @pytest.mark.usefixtures("_db")

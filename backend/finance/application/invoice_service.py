@@ -5,10 +5,6 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from finance.application.invoice_sync import (
-    repost_cogs_for_invoice,
-    sync_invoice,
-)
 from finance.domain.invoice import InvoiceLineItem, InvoiceWithDetails, compute_due_date
 from finance.infrastructure.invoice_repo import (
     insert_invoice_row,
@@ -32,7 +28,9 @@ from operations.application.queries import (
     link_withdrawal_to_invoice,
     unlink_withdrawals_from_invoice,
 )
-from shared.infrastructure.database import transaction
+from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InvoiceApproved, InvoiceCreated, InvoiceDeleted
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +42,6 @@ __all__ = [
     "get_invoice",
     "list_invoices",
     "mark_paid_for_withdrawal",
-    "repost_cogs_for_invoice",
-    "sync_invoice",
     "update_invoice",
 ]
 
@@ -87,7 +83,7 @@ async def _validate_withdrawals_for_invoice(
     """Fetch and validate withdrawals. Returns (withdrawals, billing_entity, contact_name)."""
     billing_entity: str | None = None
     contact_name = ""
-    withdrawals: list = []
+    withdrawals: list[dict] = []
 
     for wid in withdrawal_ids:
         w = await get_withdrawal_by_id(wid)
@@ -128,7 +124,7 @@ def _build_line_items_from_withdrawal(w, inv_id: str) -> list[dict]:
 
 
 async def create_invoice_from_withdrawals(
-    withdrawal_ids: list,
+    withdrawal_ids: list[str],
 ) -> InvoiceWithDetails:
     """Create new invoice from unpaid withdrawals. All must share same billing_entity."""
     if not withdrawal_ids:
@@ -172,14 +168,23 @@ async def create_invoice_from_withdrawals(
 
         for wid in withdrawal_ids:
             await link_withdrawal(inv_id, wid)
-            await link_withdrawal_to_invoice(wid, inv_id)
+            linked = await link_withdrawal_to_invoice(wid, inv_id)
+            if not linked:
+                raise ValueError(f"Withdrawal {wid} was already linked to another invoice")
 
+    await dispatch(
+        InvoiceCreated(
+            org_id=get_org_id(),
+            invoice_id=inv_id,
+            withdrawal_ids=tuple(withdrawal_ids),
+        )
+    )
     return await _default_invoice_repo.get_by_id(inv_id)
 
 
 async def add_withdrawals_to_invoice(
     invoice_id: str,
-    withdrawal_ids: list,
+    withdrawal_ids: list[str],
 ) -> InvoiceWithDetails | None:
     """Link additional withdrawals to an existing invoice."""
     if not withdrawal_ids:
@@ -218,7 +223,9 @@ async def add_withdrawals_to_invoice(
 
         for wid in withdrawal_ids:
             await link_withdrawal(invoice_id, wid)
-            await link_withdrawal_to_invoice(wid, invoice_id)
+            linked = await link_withdrawal_to_invoice(wid, invoice_id)
+            if not linked:
+                raise ValueError(f"Withdrawal {wid} was already linked to another invoice")
 
     return await _default_invoice_repo.get_by_id(invoice_id)
 
@@ -237,7 +244,7 @@ async def update_invoice(
     payment_terms: str | None = None,
     billing_address: str | None = None,
     po_reference: str | None = None,
-    line_items: list | None = None,
+    line_items: list[InvoiceLineItem] | None = None,
 ) -> InvoiceWithDetails | None:
     """Update invoice fields and/or replace line items."""
     inv = await _default_invoice_repo.get_by_id(invoice_id)
@@ -246,7 +253,10 @@ async def update_invoice(
 
     async with transaction():
         if line_items is not None:
-            subtotal = await replace_line_items(invoice_id, line_items)
+            subtotal = await replace_line_items(
+                invoice_id,
+                [i.model_dump() if hasattr(i, "model_dump") else i for i in line_items],
+            )
             tax_val = tax if tax is not None else float(inv.tax)
             total = round(subtotal + tax_val, 2)
             sync_fields: dict[str, Any] = {
@@ -302,7 +312,7 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
         raise ValueError(f"Cannot approve invoice in '{inv.status}' status")
 
     now = datetime.now(UTC).isoformat()
-    return await update_fields(
+    result = await update_fields(
         invoice_id,
         {
             "status": "approved",
@@ -310,6 +320,8 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
             "approved_at": now,
         },
     )
+    await dispatch(InvoiceApproved(org_id=get_org_id(), invoice_id=invoice_id))
+    return result
 
 
 async def delete_draft_invoice(
@@ -326,4 +338,12 @@ async def delete_draft_invoice(
         wids = await unlink_withdrawals(invoice_id)
         await unlink_withdrawals_from_invoice(wids)
         await soft_delete(invoice_id)
+
+    await dispatch(
+        InvoiceDeleted(
+            org_id=get_org_id(),
+            invoice_id=invoice_id,
+            withdrawal_ids=tuple(wids),
+        )
+    )
     return True

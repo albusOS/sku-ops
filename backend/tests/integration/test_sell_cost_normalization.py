@@ -12,12 +12,9 @@ tests/unit/test_xero_cogs_journal.py.
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
-from catalog.application.queries import list_products
-from inventory.application.inventory_service import (
-    process_import_stock_changes,
-    process_withdrawal_stock_changes,
-)
+from catalog.application.sku_lifecycle import create_product_with_sku
+from finance.application.invoice_service import create_invoice_from_withdrawals, get_invoice
+from inventory.application.inventory_service import process_import_stock_changes
 from operations.application.withdrawal_service import create_withdrawal
 from operations.domain.withdrawal import ContractorContext, MaterialWithdrawalCreate, WithdrawalItem
 from shared.kernel.types import CurrentUser
@@ -26,9 +23,9 @@ from shared.kernel.types import CurrentUser
 @pytest.mark.asyncio
 async def test_withdrawal_sell_cost_same_unit(db):
     """When base_unit == sell_uom and pack_qty == 1, sell_cost == cost."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Bolt",
         quantity=50,
         price=2.0,
@@ -62,22 +59,19 @@ async def test_withdrawal_sell_cost_same_unit(db):
         data,
         contractor,
         user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
     )
 
-    items = result.get("items") or []
-    assert len(items) == 1
-    assert items[0].get("sell_cost") == pytest.approx(1.0)
-    assert items[0].get("sell_uom") == "each"
+    assert len(result.items) == 1
+    assert result.items[0].sell_cost == pytest.approx(1.0)
+    assert result.items[0].sell_uom == "each"
 
 
 @pytest.mark.asyncio
 async def test_withdrawal_sell_cost_unit_conversion(db):
     """When base_unit=inch and sell_uom=foot, sell_cost is 12x base cost."""
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Wire",
         quantity=1000,
         price=0.12,
@@ -111,14 +105,11 @@ async def test_withdrawal_sell_cost_unit_conversion(db):
         data,
         contractor,
         user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
     )
 
-    items = result.get("items") or []
-    assert len(items) == 1
-    assert items[0].get("sell_uom") == "foot"
-    assert items[0].get("sell_cost") == pytest.approx(0.60, abs=1e-4)
+    assert len(result.items) == 1
+    assert result.items[0].sell_uom == "foot"
+    assert result.items[0].sell_cost == pytest.approx(0.60, abs=1e-4)
 
 
 @pytest.mark.asyncio
@@ -126,9 +117,9 @@ async def test_ledger_cogs_entry_has_quantity_and_unit_cost(db):
     """COGS ledger entry must carry qty, sell_uom unit, and sell_cost as unit_cost."""
     from shared.infrastructure.database import get_connection
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Pipe",
         quantity=500,
         price=0.20,
@@ -162,8 +153,6 @@ async def test_ledger_cogs_entry_has_quantity_and_unit_cost(db):
         data,
         contractor,
         user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
     )
 
     conn = get_connection()
@@ -171,7 +160,7 @@ async def test_ledger_cogs_entry_has_quantity_and_unit_cost(db):
         """SELECT quantity, unit, unit_cost, amount
            FROM financial_ledger
            WHERE reference_id = ? AND account = 'cogs'""",
-        (result["id"],),
+        (result.id,),
     )
     rows = [dict(r) for r in await cursor.fetchall()]
     assert len(rows) == 1
@@ -188,9 +177,9 @@ async def test_ledger_revenue_entry_has_quantity_and_unit_cost(db):
     """REVENUE entry carries withdrawal qty/unit and unit_price as unit_cost."""
     from shared.infrastructure.database import get_connection
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Conduit",
         quantity=100,
         price=5.0,
@@ -220,15 +209,13 @@ async def test_ledger_revenue_entry_has_quantity_and_unit_cost(db):
         data,
         contractor,
         user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
     )
 
     conn = get_connection()
     cursor = await conn.execute(
         """SELECT quantity, unit, unit_cost FROM financial_ledger
            WHERE reference_id = ? AND account = 'revenue'""",
-        (result["id"],),
+        (result.id,),
     )
     rows = [dict(r) for r in await cursor.fetchall()]
     assert len(rows) == 1
@@ -238,15 +225,11 @@ async def test_ledger_revenue_entry_has_quantity_and_unit_cost(db):
 
 @pytest.mark.asyncio
 async def test_invoice_line_items_carry_sell_cost(db):
-    """Invoice line items built from withdrawals must copy unit and sell_cost."""
-    from finance.application.invoice_service import (
-        create_invoice_from_withdrawals,
-        get_invoice,
-    )
+    """Invoice auto-created for a withdrawal must copy unit and sell_cost onto line items."""
 
-    product = await create_product(
-        department_id="dept-1",
-        department_name="Hardware",
+    product = await create_product_with_sku(
+        category_id="dept-1",
+        category_name="Hardware",
         name="Tubing",
         quantity=200,
         price=0.15,
@@ -280,11 +263,10 @@ async def test_invoice_line_items_carry_sell_cost(db):
         data,
         contractor,
         user,
-        list_products=list_products,
-        process_stock_changes=process_withdrawal_stock_changes,
     )
 
-    inv = await create_invoice_from_withdrawals([withdrawal["id"]])
+    # Create invoice manually (auto_invoice is off by default)
+    inv = await create_invoice_from_withdrawals(withdrawal_ids=[withdrawal.id])
     full_inv = await get_invoice(inv.id)
 
     line_items = full_inv.line_items

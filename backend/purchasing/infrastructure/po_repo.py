@@ -1,6 +1,12 @@
 """Purchase order repository — typed implementation of PORepoPort."""
 
-from purchasing.domain.purchase_order import POItemStatus, PurchaseOrder, PurchaseOrderItem
+from purchasing.domain.purchase_order import (
+    POItemRow,
+    POItemStatus,
+    PORow,
+    PurchaseOrder,
+    PurchaseOrderItem,
+)
 from purchasing.ports.po_repo_port import PORepoPort
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -46,8 +52,9 @@ class PgPORepo(PORepoPort):
             await conn.execute(
                 """INSERT INTO purchase_order_items
                    (id, po_id, name, original_sku, ordered_qty, delivered_qty, unit_price, cost,
-                    base_unit, sell_uom, pack_qty, suggested_department, status, product_id, organization_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
+                    suggested_department, status, product_id, organization_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     d["id"],
                     d["po_id"],
@@ -60,6 +67,8 @@ class PgPORepo(PORepoPort):
                     d["base_unit"],
                     d["sell_uom"],
                     d["pack_qty"],
+                    d.get("purchase_uom", "each"),
+                    d.get("purchase_pack_qty", 1),
                     d["suggested_department"],
                     d["status"],
                     d.get("product_id"),
@@ -68,7 +77,7 @@ class PgPORepo(PORepoPort):
             )
         await conn.commit()
 
-    async def list_pos(self, status: str | None = None) -> list[dict]:
+    async def list_pos(self, status: str | None = None) -> list[PORow]:
         conn = get_connection()
         org_id = get_org_id()
         if status:
@@ -82,9 +91,9 @@ class PgPORepo(PORepoPort):
                 (org_id,),
             )
         rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
+        return [PORow.model_validate(dict(r)) for r in rows]
 
-    async def get_po(self, po_id: str) -> dict | None:
+    async def get_po(self, po_id: str) -> PORow | None:
         conn = get_connection()
         org_id = get_org_id()
         cursor = await conn.execute(
@@ -92,16 +101,16 @@ class PgPORepo(PORepoPort):
             (po_id, org_id),
         )
         row = await cursor.fetchone()
-        return _row(row)
+        return PORow.model_validate(dict(row)) if row else None
 
-    async def get_po_items(self, po_id: str) -> list[dict]:
+    async def get_po_items(self, po_id: str) -> list[POItemRow]:
         conn = get_connection()
         cursor = await conn.execute(
             "SELECT * FROM purchase_order_items WHERE po_id = ? ORDER BY id",
             (po_id,),
         )
         rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
+        return [POItemRow.model_validate(dict(r)) for r in rows]
 
     async def update_po_item(
         self,
@@ -109,16 +118,17 @@ class PgPORepo(PORepoPort):
         status: POItemStatus,
         product_id: str | None = None,
         delivered_qty: float | None = None,
-    ) -> None:
+    ) -> bool:
         conn = get_connection()
-        await conn.execute(
+        cursor = await conn.execute(
             """UPDATE purchase_order_items
                SET status = ?, product_id = COALESCE(?, product_id),
                    delivered_qty = COALESCE(?, delivered_qty)
-               WHERE id = ?""",
-            (status.value, product_id, delivered_qty, item_id),
+               WHERE id = ? AND status != ?""",
+            (status.value, product_id, delivered_qty, item_id, POItemStatus.ARRIVED.value),
         )
         await conn.commit()
+        return cursor.rowcount > 0
 
     async def update_po_status(
         self,

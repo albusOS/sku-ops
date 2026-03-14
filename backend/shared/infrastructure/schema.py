@@ -28,6 +28,7 @@ TABLES: list[str] = [
     )""",
     """CREATE TABLE IF NOT EXISTS org_settings (
         organization_id TEXT PRIMARY KEY,
+        auto_invoice INTEGER NOT NULL DEFAULT 0,
         default_tax_rate REAL NOT NULL DEFAULT 0.10,
         xero_tenant_id TEXT,
         xero_access_token TEXT,
@@ -103,6 +104,13 @@ TABLES: list[str] = [
         closed_at TEXT,
         organization_id TEXT NOT NULL,
         created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS processed_events (
+        event_id TEXT NOT NULL,
+        handler_name TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        processed_at TEXT NOT NULL,
+        PRIMARY KEY (event_id, handler_name)
     )""",
 ]
 

@@ -24,6 +24,7 @@ from finance.domain.invoice import (
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
 from finance.infrastructure.ledger_repo import get_journal, insert_entries, trial_balance
 from shared.infrastructure.database import get_connection
+from shared.kernel.event_payloads import LedgerItem, ReceivedItemSummary
 from shared.kernel.types import round_money
 
 # -- 1. round_money precision -------------------------------------------------
@@ -146,7 +147,7 @@ class TestCompleteSaleEntries:
         from finance.application.ledger_service import record_withdrawal
 
         wid = str(uuid4())
-        items = [{"quantity": 2, "unit_price": 10.0, "cost": 5.0, "product_id": "p1"}]
+        items = [LedgerItem(product_id="p1", quantity=2, unit="each", unit_price=10.0, cost=5.0)]
         await record_withdrawal(
             withdrawal_id=wid,
             items=items,
@@ -171,7 +172,7 @@ class TestCompleteSaleEntries:
         from finance.application.ledger_service import record_withdrawal
 
         wid = str(uuid4())
-        items = [{"quantity": 3, "unit_price": 8.0, "cost": 4.0, "product_id": "p1"}]
+        items = [LedgerItem(product_id="p1", quantity=3, unit="each", unit_price=8.0, cost=4.0)]
         await record_withdrawal(
             withdrawal_id=wid,
             items=items,
@@ -191,7 +192,7 @@ class TestCompleteSaleEntries:
         """A return should reduce net revenue/COGS/AR and increase inventory."""
         from finance.application.ledger_service import record_return, record_withdrawal
 
-        items = [{"quantity": 5, "unit_price": 10.0, "cost": 5.0, "product_id": "p1"}]
+        items = [LedgerItem(product_id="p1", quantity=5, unit="each", unit_price=10.0, cost=5.0)]
         await record_withdrawal(
             withdrawal_id=str(uuid4()),
             items=items,
@@ -224,7 +225,7 @@ class TestCompleteSaleEntries:
         from finance.application.ledger_service import record_withdrawal
 
         wid = str(uuid4())
-        items = [{"quantity": 1, "unit_price": 100.0, "cost": 50.0, "product_id": "p1"}]
+        items = [LedgerItem(product_id="p1", quantity=1, unit="each", unit_price=100.0, cost=50.0)]
         kwargs = {
             "withdrawal_id": wid,
             "items": items,
@@ -262,7 +263,7 @@ class TestTrialBalance:
 
         await record_po_receipt(
             po_id=str(uuid4()),
-            items=[{"cost": 20.0, "delivered_qty": 5, "product_id": "p1"}],
+            items=[ReceivedItemSummary(product_id="p1", cost=20.0, delivered_qty=5)],
             vendor_name="Vendor A",
         )
 
@@ -408,7 +409,7 @@ class TestPaymentAR:
         from finance.application.ledger_service import record_payment, record_withdrawal
 
         wid = str(uuid4())
-        items = [{"quantity": 1, "unit_price": 100.0, "cost": 50.0, "product_id": "p1"}]
+        items = [LedgerItem(product_id="p1", quantity=1, unit="each", unit_price=100.0, cost=50.0)]
         await record_withdrawal(
             withdrawal_id=wid,
             items=items,

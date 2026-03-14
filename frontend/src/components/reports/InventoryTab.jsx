@@ -1,6 +1,4 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { TrendingUp, Package, DollarSign, Layers } from "lucide-react";
 import { valueFormatter } from "@/lib/chartConfig";
 import { themeColors } from "@/lib/chartTheme";
@@ -14,7 +12,6 @@ import {
   useReportMargins,
 } from "@/hooks/useReports";
 import { useProducts } from "@/hooks/useProducts";
-import api from "@/lib/api-client";
 import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
 import { GaugeRing } from "@/components/charts/GaugeRing";
 import { ProductBubblePlot } from "@/components/charts/ProductBubblePlot";
@@ -29,7 +26,6 @@ const SectionHead = ({ title, action }) => <ReportSectionHead title={title} acti
 
 export function InventoryTab({ dateParams, onProductClick }) {
   const t = themeColors();
-  const navigate = useNavigate();
   const { data: inventoryReport } = useReportInventory();
   const { data: kpis } = useReportKpis(dateParams);
   const { data: perfData } = useReportProductPerformance(dateParams);
@@ -37,11 +33,6 @@ export function InventoryTab({ dateParams, onProductClick }) {
   const { data: marginsReport } = useReportMargins(dateParams);
   const margins = useMemo(() => marginsReport?.products || [], [marginsReport]);
   const { data: productsList } = useProducts();
-  const { data: productGroups } = useQuery({
-    queryKey: ["productGroups"],
-    queryFn: () => api.products.groups(),
-  });
-
   const [heatmapProductId, setHeatmapProductId] = useState(null);
   const activityParams = useMemo(
     () => ({ product_id: heatmapProductId || undefined }),
@@ -234,7 +225,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
           )}
         </ReportPanel>
         <ReportPanel>
-          <SectionHead title="Value by Department" />
+          <SectionHead title="Value by Category" />
           {departmentChartData.length > 0 ? (
             <HorizontalBarChart
               data={departmentChartData}
@@ -252,37 +243,6 @@ export function InventoryTab({ dateParams, onProductClick }) {
           )}
         </ReportPanel>
       </div>
-
-      {productGroups?.length > 0 && (
-        <ReportPanel>
-          <SectionHead
-            title="Product Groups"
-            action={
-              <span className="text-xs text-muted-foreground">{productGroups.length} groups</span>
-            }
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {productGroups.map((g) => (
-              <button
-                key={g.product_group}
-                className="border border-border rounded-lg p-3 bg-card text-left hover:border-accent/50 hover:bg-accent/5 transition-colors cursor-pointer"
-                onClick={() => navigate(`/inventory?group=${encodeURIComponent(g.product_group)}`)}
-              >
-                <p className="font-medium text-sm truncate">{g.product_group}</p>
-                <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                  <span>
-                    {g.product_count} variant{g.product_count !== 1 ? "s" : ""}
-                  </span>
-                  <span>
-                    Total qty:{" "}
-                    <strong className="tabular-nums">{Math.round(g.total_quantity)}</strong>
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </ReportPanel>
-      )}
 
       <ReportPanel>
         <SectionHead title="Top Products by Revenue" />

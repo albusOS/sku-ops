@@ -10,9 +10,7 @@ from shared.kernel.errors import InvalidTransitionError
 def _row_to_model(row) -> MaterialRequest | None:
     if row is None:
         return None
-    d = dict(row) if hasattr(row, "keys") else {}
-    if not d:
-        return None
+    d = dict(row)
     if d.get("items") and isinstance(d["items"], str):
         d["items"] = json.loads(d["items"]) if d["items"] else []
     if d.get("organization_id") is None:
@@ -20,30 +18,27 @@ def _row_to_model(row) -> MaterialRequest | None:
     return MaterialRequest.model_validate(d)
 
 
-async def insert(request: MaterialRequest | dict) -> None:
-    request_dict = request if isinstance(request, dict) else request.model_dump()
+async def insert(request: MaterialRequest) -> None:
     conn = get_connection()
-    org_id = request_dict.get("organization_id") or get_org_id()
-    items_json = json.dumps(
-        [i if isinstance(i, dict) else i.model_dump() for i in request_dict["items"]]
-    )
+    org_id = request.organization_id or get_org_id()
+    items_json = json.dumps([i.model_dump() for i in request.items])
     await conn.execute(
         """INSERT INTO material_requests (id, contractor_id, contractor_name, items, status, withdrawal_id,
            job_id, service_address, notes, created_at, processed_at, processed_by_id, organization_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            request_dict["id"],
-            request_dict["contractor_id"],
-            request_dict.get("contractor_name", ""),
+            request.id,
+            request.contractor_id,
+            request.contractor_name,
             items_json,
-            request_dict.get("status", "pending"),
-            request_dict.get("withdrawal_id"),
-            request_dict.get("job_id"),
-            request_dict.get("service_address"),
-            request_dict.get("notes"),
-            request_dict.get("created_at", ""),
-            request_dict.get("processed_at"),
-            request_dict.get("processed_by_id"),
+            request.status,
+            request.withdrawal_id,
+            request.job_id,
+            request.service_address,
+            request.notes,
+            request.created_at,
+            request.processed_at,
+            request.processed_by_id,
             org_id,
         ),
     )

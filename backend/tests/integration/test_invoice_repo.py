@@ -18,34 +18,34 @@ async def _create_withdrawal_with_items(
     """Helper to create a withdrawal and return its id."""
     from uuid import uuid4
 
+    from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
+
     withdrawal_id = str(uuid4())
-    subtotal = sum(i.get("subtotal", i["quantity"] * i["price"]) for i in items)
+    typed_items = [WithdrawalItem(**i) for i in items]
+    subtotal = sum(i.unit_price * i.quantity for i in typed_items)
     tax = round(subtotal * 0.08, 2)
     total = round(subtotal + tax, 2)
-    cost_total = sum(i.get("cost", 0) * i["quantity"] for i in items)
+    cost_total = sum(i.cost * i.quantity for i in typed_items)
 
-    withdrawal_dict = {
-        "id": withdrawal_id,
-        "items": items,
-        "job_id": "JOB-TEST",
-        "service_address": "123 Test St",
-        "notes": None,
-        "subtotal": subtotal,
-        "tax": tax,
-        "total": total,
-        "cost_total": cost_total,
-        "contractor_id": contractor_id,
-        "contractor_name": "Test Contractor",
-        "contractor_company": "ACME",
-        "billing_entity": billing_entity,
-        "payment_status": "unpaid",
-        "invoice_id": None,
-        "paid_at": None,
-        "processed_by_id": "user-1",
-        "processed_by_name": "Test",
-        "created_at": "2025-01-01T00:00:00Z",
-    }
-    await withdrawal_repo.insert(withdrawal_dict)
+    withdrawal = MaterialWithdrawal(
+        id=withdrawal_id,
+        items=typed_items,
+        job_id="JOB-TEST",
+        service_address="123 Test St",
+        subtotal=subtotal,
+        tax=tax,
+        total=total,
+        cost_total=cost_total,
+        contractor_id=contractor_id,
+        contractor_name="Test Contractor",
+        contractor_company="ACME",
+        billing_entity=billing_entity,
+        payment_status="unpaid",
+        processed_by_id="user-1",
+        processed_by_name="Test",
+        created_at="2025-01-01T00:00:00Z",
+    )
+    await withdrawal_repo.insert(withdrawal)
     return withdrawal_id
 
 

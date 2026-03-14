@@ -4,18 +4,18 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from catalog.application.product_lifecycle import create_product as lifecycle_create
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
-    find_product_by_original_sku_and_vendor,
     find_vendor_by_name,
+    find_vendor_item_by_vendor_and_sku_code,
     get_department_by_code,
-    get_product_by_id,
+    get_sku_by_id,
     insert_vendor,
     list_departments,
-    list_products_by_vendor,
-    update_product,
+    update_sku,
 )
+from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
+from catalog.application.vendor_item_lifecycle import add_vendor_item
 from documents.application.enrichment_service import enrich_for_import
 from documents.application.import_parser import infer_uom, suggest_department
 from finance.application.po_sync_service import queue_po_for_sync
@@ -34,10 +34,8 @@ from purchasing.domain.purchase_order import (
     ReceiveItemsRequest,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure import event_hub
-from shared.infrastructure.config import LLM_AVAILABLE as _LLM_AVAILABLE
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
-from shared.kernel import events
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +55,14 @@ def _build_deps() -> PurchasingDeps:
         get_department_by_code=get_department_by_code,
         find_vendor_by_name=find_vendor_by_name,
         insert_vendor=insert_vendor,
-        list_products_by_vendor=list_products_by_vendor,
-        get_product_by_id=get_product_by_id,
-        find_product_by_sku_and_vendor=find_product_by_original_sku_and_vendor,
-        find_product_by_name_and_vendor=find_product_by_name_and_vendor,
-        update_product=update_product,
-        create_product=lambda **kw: lifecycle_create(
+        get_sku_by_id=get_sku_by_id,
+        find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
+        find_sku_by_name_and_vendor=find_product_by_name_and_vendor,
+        update_sku=update_sku,
+        create_product_with_sku=lambda **kw: lifecycle_create(
             **kw, on_stock_import=process_receiving_stock_changes
         ),
+        add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
         classify_uom_batch=_wired_classify_uom_batch,
         infer_uom=infer_uom,
@@ -90,14 +88,14 @@ async def create_po(
         current_user=current_user,
         document_date=data.document_date,
         total=data.total,
-        department_id=data.department_id,
+        category_id=data.category_id,
         create_vendor_if_missing=data.create_vendor_if_missing,
     )
     await audit_log(
         user_id=current_user.id,
         action="po.create",
         resource_type="purchase_order",
-        resource_id=result.get("id"),
+        resource_id=result.id,
         details={"vendor": data.vendor_name, "item_count": len(data.products)},
         request=request,
         org_id=current_user.organization_id,
@@ -112,13 +110,20 @@ async def list_purchase_orders(
 ):
     """List purchase orders, optionally filtered by status (ordered/received)."""
     pos = await list_pos(status=status)
+    result = []
     for po in pos:
-        items = await get_po_items(po["id"])
-        po["item_count"] = len(items)
-        po["ordered_count"] = sum(1 for i in items if i["status"] == "ordered")
-        po["pending_count"] = sum(1 for i in items if i["status"] == "pending")
-        po["arrived_count"] = sum(1 for i in items if i["status"] == "arrived")
-    return pos
+        items = await get_po_items(po.id)
+        result.append(
+            po.model_copy(
+                update={
+                    "item_count": len(items),
+                    "ordered_count": sum(1 for i in items if i.status == "ordered"),
+                    "pending_count": sum(1 for i in items if i.status == "pending"),
+                    "arrived_count": sum(1 for i in items if i.status == "arrived"),
+                }
+            )
+        )
+    return result
 
 
 @router.get("/{po_id}")
@@ -131,7 +136,7 @@ async def get_purchase_order(
     if not po:
         raise HTTPException(status_code=404, detail=f"Purchase order not found: {po_id}")
     items = await get_po_items(po_id)
-    return {**po, "items": items}
+    return po.model_copy(update={"items": items})
 
 
 @router.post("/{po_id}/delivery")
@@ -168,17 +173,16 @@ async def receive_items(
         resource_type="purchase_order",
         resource_id=po_id,
         details={
-            "received": result.get("received", 0),
-            "matched": result.get("matched", 0),
-            "cost_total": result.get("cost_total", 0),
+            "received": result.received,
+            "matched": result.matched,
+            "cost_total": result.cost_total,
         },
         request=request,
         org_id=current_user.organization_id,
     )
-    if result.get("cost_total", 0) > 0:
+    if result.cost_total > 0:
         try:
             await queue_po_for_sync(po_id)
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Failed to queue PO %s for Xero sync: %s", po_id, e)
-    await event_hub.emit(events.INVENTORY_UPDATED, org_id=current_user.organization_id)
     return result

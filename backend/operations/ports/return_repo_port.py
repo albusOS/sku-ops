@@ -1,13 +1,16 @@
 """Return repository port."""
 
-from typing import Any, Protocol
+from typing import Protocol
+
+from operations.domain.returns import MaterialReturn
 
 
 class ReturnRepoPort(Protocol):
-    async def insert(self, ret: Any) -> None: ...
+    async def insert(self, ret: MaterialReturn) -> None: ...
     async def get_by_id(
-        self, return_id: str, organization_id: str | None = None
-    ) -> dict | None: ...
+        self,
+        return_id: str,
+    ) -> MaterialReturn | None: ...
     async def list_returns(
         self,
         contractor_id: str | None = None,
@@ -15,6 +18,5 @@ class ReturnRepoPort(Protocol):
         start_date: str | None = None,
         end_date: str | None = None,
         limit: int = 500,
-        organization_id: str | None = None,
-    ) -> list: ...
-    async def list_by_withdrawal(self, withdrawal_id: str) -> list: ...
+    ) -> list[MaterialReturn]: ...
+    async def list_by_withdrawal(self, withdrawal_id: str) -> list[MaterialReturn]: ...

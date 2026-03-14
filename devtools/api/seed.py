@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 
-from catalog.application.queries import count_all_products
+from catalog.application.queries import count_all_skus
 from devtools.scripts.seed import (
     seed_demo_inventory,
     seed_demo_tenants,
@@ -102,8 +102,10 @@ async def reset_empty():
     )
     await seed_mock_user()
     await seed_standard_departments("default")
+    from devtools.scripts.seed import DEMO_USER_EMAIL, DEMO_USER_PASSWORD
+
     return {
-        "message": "Reset complete. Empty state. Log in with demo credentials (admin@demo.local / demo123)."
+        "message": f"Reset complete. Empty state. Log in with {DEMO_USER_EMAIL} / {DEMO_USER_PASSWORD}."
     }
 
 
@@ -266,14 +268,15 @@ async def reset_and_reseed_inventory(current_user: AdminDep):
     conn = get_connection()
     try:
         await conn.execute("DELETE FROM stock_transactions")
+        await conn.execute("DELETE FROM vendor_items")
+        await conn.execute("DELETE FROM skus")
         await conn.execute("DELETE FROM products")
         await conn.execute("DELETE FROM sku_counters")
-        await conn.execute("UPDATE departments SET product_count = 0")
-        await conn.execute("UPDATE vendors SET product_count = 0")
+        await conn.execute("UPDATE departments SET sku_count = 0")
         await conn.commit()
         logger.info("Inventory reset complete")
         await seed_demo_inventory(org_id)
-        count = await count_all_products()
+        count = await count_all_skus()
         return {"message": f"Inventory reset and reseeded with {count} products"}
     except Exception as e:
         logger.exception("Reset inventory failed")

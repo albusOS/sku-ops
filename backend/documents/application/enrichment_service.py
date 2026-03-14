@@ -10,7 +10,7 @@ import logging
 import re
 
 from assistant.application.llm import generate_text
-from shared.infrastructure.config import LLM_AVAILABLE
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE as LLM_AVAILABLE
 from shared.infrastructure.prompt_loader import load_prompt
 from shared.kernel.units import ALLOWED_BASE_UNITS
 
@@ -150,7 +150,7 @@ Return ONLY the JSON array, no other text."""
                             item["pack_qty"] = max(1, int(r.get("pack_qty", 1)))
                         except (ValueError, TypeError):
                             item["pack_qty"] = 1
-    except (ValueError, RuntimeError, OSError, KeyError, json.JSONDecodeError) as e:
+    except Exception as e:
         logger.warning(
             "Document enrichment failed (%s: %s) — items returned without enrichment",
             type(e).__name__,

@@ -15,4 +15,4 @@ class Department(Entity):
     name: str
     code: str
     description: str = ""
-    product_count: int = 0
+    sku_count: int = 0

@@ -14,8 +14,8 @@ Also tests organization isolation — org A's data must never leak into org B's 
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
-from catalog.infrastructure.product_repo import product_repo
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from inventory.application.inventory_service import (
     get_stock_history,
     process_adjustment_stock_changes,
@@ -27,9 +27,9 @@ from inventory.domain.stock import StockDecrement
 
 
 async def _create_product(name, quantity, base_unit="each", dept_id="dept-1", **kw):
-    return await create_product(
-        department_id=dept_id,
-        department_name="Hardware",
+    return await create_product_with_sku(
+        category_id=dept_id,
+        category_name="Hardware",
         name=name,
         quantity=quantity,
         price=kw.get("price", 10.0),
@@ -89,7 +89,7 @@ class TestLedgerBalanceInvariant:
         )
 
         # Verify: 20.0 - 3.5 + 1.0 - 2.25 = 15.25
-        current = await product_repo.get_by_id(product.id)
+        current = await sku_repo.get_by_id(product.id)
         assert current.quantity == pytest.approx(15.25)
 
         # Verify ledger sums to same value
@@ -120,7 +120,7 @@ class TestLedgerBalanceInvariant:
                 user_name="Test",
             )
 
-        current = await product_repo.get_by_id(product.id)
+        current = await sku_repo.get_by_id(product.id)
         history = await get_stock_history(product.id, limit=100)
 
         withdrawal_txs = [t for t in history if t.transaction_type == "withdrawal"]
@@ -150,7 +150,7 @@ class TestLedgerBalanceInvariant:
                 user_name="Test",
             )
 
-        current = await product_repo.get_by_id(product.id)
+        current = await sku_repo.get_by_id(product.id)
         expected = 100.0 - 12.5 - 7.75 - 0.25  # 79.5
         assert current.quantity == pytest.approx(expected)
 
@@ -254,7 +254,7 @@ class TestOrganizationIsolation:
         conn = get_connection()
         for org in ("org-a", "org-b"):
             await conn.execute(
-                "INSERT OR IGNORE INTO departments (id, name, code, description, product_count, organization_id, created_at) "
+                "INSERT OR IGNORE INTO departments (id, name, code, description, sku_count, organization_id, created_at) "
                 "VALUES (?, 'Hardware', 'HDW', 'Hardware dept', 0, ?, datetime('now'))",
                 (f"dept-1-{org}", org),
             )
@@ -268,9 +268,9 @@ class TestOrganizationIsolation:
         await _create_product("Org B Widget", 20.0, dept_id="dept-1-org-b")
 
         org_id_var.set("org-a")
-        from_a = await product_repo.get_by_id(p1.id)
+        from_a = await sku_repo.get_by_id(p1.id)
         org_id_var.set("org-b")
-        from_b = await product_repo.get_by_id(p1.id)
+        from_b = await sku_repo.get_by_id(p1.id)
         org_id_var.set("default")
 
         assert from_a is not None, "Org A should see its own product"

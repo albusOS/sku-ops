@@ -27,14 +27,14 @@ export function ProductBubblePlot({ products = [], onBubbleClick, height = 420 }
     };
     const FALLBACK_COLOR = t.mutedForeground;
 
-    const departments = [...new Set(products.map((p) => p.department || "Other"))];
+    const categories = [...new Set(products.map((p) => p.department || "Other"))];
     const maxRevenue = Math.max(...products.map((p) => p.revenue || 0), 1);
 
-    const seriesList = departments.map((dept) => ({
-      name: dept,
+    const seriesList = categories.map((cat) => ({
+      name: cat,
       type: "scatter",
       data: products
-        .filter((p) => (p.department || "Other") === dept)
+        .filter((p) => (p.department || "Other") === cat)
         .map((p) => ({
           value: [
             p.sell_through_pct || 0,
@@ -48,7 +48,7 @@ export function ProductBubblePlot({ products = [], onBubbleClick, height = 420 }
           ],
           symbolSize: Math.max(8, Math.sqrt(p.revenue / maxRevenue) * 40),
         })),
-      itemStyle: { color: DEPT_COLORS[dept] || FALLBACK_COLOR, opacity: 0.78 },
+      itemStyle: { color: DEPT_COLORS[cat] || FALLBACK_COLOR, opacity: 0.78 },
       emphasis: {
         itemStyle: {
           opacity: 1,

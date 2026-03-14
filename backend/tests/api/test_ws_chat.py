@@ -105,6 +105,7 @@ def _assert_ws_close(client, url: str, expected_code: int):
         assert exc.code == expected_code, f"Expected close code {expected_code}, got {exc.code}"
 
 
+@pytest.mark.timeout(15)
 class TestWSChatAuth:
     def test_no_token_rejected(self, client):
         _assert_ws_close(client, "/api/ws/chat", 4001)
@@ -122,43 +123,52 @@ class TestWSChatAuth:
     def test_admin_connects_successfully(self, client):
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
-            # Should be able to receive the first ping
-            msg = json.loads(ws.receive_text())
-            assert msg["type"] == "ping"
+            ws.send_text(json.dumps({"type": "pong"}))
+            ws.send_text(json.dumps({"type": "chat", "message": ""}))
+            messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
+            assert len(messages) > 0
 
 
 # ── Protocol tests ────────────────────────────────────────────────────────────
 
 
+@pytest.mark.timeout(15)
 class TestWSChatProtocol:
     def test_pong_response_accepted(self, client):
         """Server should accept pong messages without error."""
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "pong"}))
-            msg = json.loads(ws.receive_text())
-            assert msg["type"] == "ping"
+            ws.send_text(json.dumps({"type": "chat", "message": ""}))
+            messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
+            error = _find_msg(messages, "chat.error")
+            assert error is not None
 
     def test_malformed_json_ignored(self, client):
-        """Malformed messages should be silently ignored."""
+        """Malformed messages should be silently ignored, connection stays open."""
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
             ws.send_text("not json at all")
-            msg = json.loads(ws.receive_text())
-            assert msg["type"] == "ping"
+            ws.send_text(json.dumps({"type": "chat", "message": ""}))
+            messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
+            error = _find_msg(messages, "chat.error")
+            assert error is not None
 
     def test_unknown_message_type_ignored(self, client):
-        """Unknown message types should be silently ignored."""
+        """Unknown message types should be silently ignored, connection stays open."""
         token = _admin_token()
         with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "unknown_type"}))
-            msg = json.loads(ws.receive_text())
-            assert msg["type"] == "ping"
+            ws.send_text(json.dumps({"type": "chat", "message": ""}))
+            messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
+            error = _find_msg(messages, "chat.error")
+            assert error is not None
 
 
 # ── Chat streaming tests ─────────────────────────────────────────────────────
 
 
+@pytest.mark.timeout(30)
 class TestWSChatStreaming:
     def test_empty_message_returns_error(self, client):
         token = _admin_token()
@@ -319,6 +329,7 @@ class TestWSChatStreaming:
 # ── Error handling tests ──────────────────────────────────────────────────────
 
 
+@pytest.mark.timeout(30)
 class TestWSChatErrors:
     @patch("assistant.api.ws_chat._agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
@@ -347,7 +358,7 @@ class TestWSChatErrors:
         async def _slow_stream(*args, **kwargs):
             from pydantic_ai import AgentRunResultEvent
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(0.5)
             mock_result = MagicMock()
             mock_result.output = "done"
             mock_result.usage.return_value = MagicMock(input_tokens=10, output_tokens=5)
@@ -374,6 +385,7 @@ class TestWSChatErrors:
 # ── Session cost cap tests ────────────────────────────────────────────────────
 
 
+@pytest.mark.timeout(15)
 class TestWSChatCostCap:
     @patch("assistant.api.ws_chat.session_store")
     @patch("assistant.api.ws_chat.SESSION_COST_CAP", 1.00)
@@ -396,16 +408,39 @@ class TestWSChatCostCap:
 
 
 def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
-    """Read messages from WebSocket until we see a message of `until_type`."""
-    collected = []
+    """Read messages from WebSocket until we see ``until_type`` or timeout.
+
+    Uses a daemon thread so that if `ws.receive_text()` blocks (which
+    happens with Starlette's single-threaded TestClient transport), the
+    thread is abandoned after ``timeout_each`` seconds instead of
+    deadlocking the test run.
+    """
+    import threading
+
+    collected: list[dict] = []
     for _ in range(max_msgs):
+        result_box: list[str] = []
+        error_box: list[BaseException] = []
+
+        def _recv(rb=result_box, eb=error_box):
+            try:
+                rb.append(ws.receive_text())
+            except Exception as exc:
+                eb.append(exc)
+
+        t = threading.Thread(target=_recv, daemon=True)
+        t.start()
+        t.join(timeout=timeout_each)
+        if t.is_alive() or error_box:
+            break
+        if not result_box:
+            break
         try:
-            raw = ws.receive_text()
-            msg = json.loads(raw)
-            collected.append(msg)
-            if msg.get("type") == until_type:
-                break
-        except (json.JSONDecodeError, RuntimeError, OSError):
+            msg = json.loads(result_box[0])
+        except (json.JSONDecodeError, IndexError):
+            break
+        collected.append(msg)
+        if msg.get("type") == until_type:
             break
     return collected
 

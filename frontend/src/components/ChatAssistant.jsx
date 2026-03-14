@@ -94,7 +94,7 @@ const AGENT_SUGGESTIONS = {
     {
       label: "Inventory health",
       prompt:
-        "Do a full inventory analysis — stock health by department, slow movers, and reorder suggestions",
+        "Do a full inventory analysis — stock health by category, slow movers, and reorder suggestions",
     },
     {
       label: "Reorder priority",

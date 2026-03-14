@@ -9,7 +9,9 @@ from finance.application.ledger_service import record_payment as _record_ledger_
 from finance.domain.payment import Payment, PaymentCreate
 from finance.infrastructure.payment_repo import payment_repo
 from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import PaymentRecorded
 
 
 async def create_payment_for_withdrawals(
@@ -53,20 +55,30 @@ async def create_payment_for_withdrawals(
         organization_id=get_org_id(),
     )
 
-    await payment_repo.insert(payment, withdrawal_ids=data.withdrawal_ids)
-
     paid_at = data.payment_date or now
-    for wid in data.withdrawal_ids:
-        await mark_withdrawal_paid(wid, paid_at)
-        await mark_paid_for_withdrawal(wid)
-        w = await get_withdrawal_by_id(wid)
-        if w:
-            await _record_ledger_payment(
-                withdrawal_id=wid,
-                amount=w.total,
-                billing_entity=w.billing_entity,
-                contractor_id=w.contractor_id,
-                performed_by_user_id=recorded_by_id,
-            )
+    org_id = get_org_id()
+
+    async with transaction():
+        await payment_repo.insert(payment, withdrawal_ids=data.withdrawal_ids)
+
+        for wid in data.withdrawal_ids:
+            await mark_withdrawal_paid(wid, paid_at)
+            await mark_paid_for_withdrawal(wid)
+            w = await get_withdrawal_by_id(wid)
+            if w:
+                await _record_ledger_payment(
+                    withdrawal_id=wid,
+                    amount=w.total,
+                    billing_entity=w.billing_entity,
+                    contractor_id=w.contractor_id,
+                    performed_by_user_id=recorded_by_id,
+                )
+
+    await dispatch(
+        PaymentRecorded(
+            org_id=org_id,
+            withdrawal_ids=tuple(data.withdrawal_ids),
+        )
+    )
 
     return payment

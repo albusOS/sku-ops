@@ -1,21 +1,20 @@
-"""Return service: validate against original withdrawal, restock, create credit note."""
+"""Return service: validate against original withdrawal, restock, emit events."""
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
-from finance.application.credit_note_service import apply_credit_note as _apply_cn
-from finance.application.credit_note_service import insert_credit_note
-from finance.application.ledger_service import record_return as _record_ledger
+from finance.application.ledger_service import record_return as _record_return_ledger
 from finance.application.org_settings_service import get_org_settings
-from inventory.application import StockTransactionType
 from inventory.application.inventory_service import restock_as_return
 from operations.application.queries import get_withdrawal_by_id
 from operations.domain.returns import MaterialReturn, ReturnCreate, ReturnItem
 from operations.infrastructure.return_repo import return_repo as _default_return_repo
 from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.domain_events import dispatch
+from shared.kernel.domain_events import InventoryChanged, ReturnCreated
 from shared.kernel.errors import DomainError, ResourceNotFoundError
+from shared.kernel.event_payloads import LedgerItem
 
 if TYPE_CHECKING:
     from operations.ports.return_repo_port import ReturnRepoPort
@@ -27,12 +26,13 @@ async def create_return(
     current_user: CurrentUser,
     *,
     return_repo: ReturnRepoPort = _default_return_repo,
-) -> dict:
+) -> MaterialReturn:
     """Process a return against a previous withdrawal.
 
-    1. Validates every returned item against the original withdrawal
-    2. Restocks inventory (RETURN transaction type)
-    3. Creates a credit note if an invoice exists
+    The transaction writes: inventory restock, return row, ledger entries.
+    All three commit atomically — a failure rolls back all three.
+
+    Post-commit (best-effort): credit note creation, WS push.
     """
     org_id = get_org_id()
     settings = await get_org_settings()
@@ -94,6 +94,20 @@ async def create_return(
     ret.compute_totals(tax_rate=tax_rate)
     ret.organization_id = org_id
 
+    w_dept_map = {wi.product_id: getattr(wi, "category_name", None) for wi in withdrawal.items}
+    product_ids = tuple(item.product_id for item in enriched_items)
+    ledger_items = tuple(
+        LedgerItem(
+            product_id=item.product_id,
+            quantity=item.quantity,
+            unit=item.unit or "each",
+            unit_price=item.unit_price,
+            cost=item.cost,
+            category_name=w_dept_map.get(item.product_id),
+        )
+        for item in enriched_items
+    )
+
     async with transaction():
         for item in enriched_items:
             await restock_as_return(
@@ -105,66 +119,41 @@ async def create_return(
                 user_name=current_user.name,
                 reference_id=ret.id,
                 unit=item.unit,
-                transaction_type=StockTransactionType.RETURN,
             )
-
         await return_repo.insert(ret)
-
-        w_dept_map = {
-            wi.product_id: getattr(wi, "department_name", None) for wi in withdrawal.items
-        }
-        ledger_items = [
-            {
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "cost": item.cost,
-                "department_name": w_dept_map.get(item.product_id),
-            }
-            for item in enriched_items
-        ]
-        await _record_ledger(
+        await _record_return_ledger(
             return_id=ret.id,
-            items=ledger_items,
+            items=list(ledger_items),
             tax=ret.tax,
             total=ret.total,
-            job_id=ret.job_id,
-            billing_entity=ret.billing_entity,
-            contractor_id=ret.contractor_id,
+            job_id=withdrawal.job_id or "",
+            billing_entity=withdrawal.billing_entity or "",
+            contractor_id=withdrawal.contractor_id,
             performed_by_user_id=current_user.id,
         )
 
-        result = ret.model_dump()
+    await dispatch(
+        ReturnCreated(
+            org_id=org_id,
+            return_id=ret.id,
+            withdrawal_id=data.withdrawal_id,
+            contractor_id=withdrawal.contractor_id,
+            job_id=withdrawal.job_id or "",
+            billing_entity=withdrawal.billing_entity or "",
+            tax=ret.tax,
+            total=ret.total,
+            performed_by_user_id=current_user.id,
+            product_ids=product_ids,
+            ledger_items=ledger_items,
+            invoice_id=withdrawal.invoice_id,
+        )
+    )
+    await dispatch(
+        InventoryChanged(
+            org_id=org_id,
+            product_ids=product_ids,
+            change_type="return",
+        )
+    )
 
-        if withdrawal.invoice_id:
-            _log = logging.getLogger(__name__)
-            try:
-                cn = await insert_credit_note(
-                    return_id=ret.id,
-                    invoice_id=withdrawal.invoice_id,
-                    items=enriched_items,
-                    subtotal=ret.subtotal,
-                    tax=ret.tax,
-                    total=ret.total,
-                )
-                result["credit_note_id"] = cn.id
-
-                try:
-                    await _apply_cn(
-                        credit_note_id=cn.id,
-                        performed_by_user_id=current_user.id,
-                    )
-                except Exception:
-                    _log.warning(
-                        "Auto-apply credit note %s failed, credit note still created",
-                        cn.id,
-                        exc_info=True,
-                    )
-            except (ValueError, RuntimeError, OSError):
-                _log.warning(
-                    "Credit note creation failed for return %s, continuing without credit note",
-                    ret.id,
-                    exc_info=True,
-                )
-
-        return result
+    return ret

@@ -15,8 +15,8 @@ These would have caught:
 
 import pytest
 
-from catalog.application.product_lifecycle import create_product
-from catalog.infrastructure.product_repo import product_repo
+from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.infrastructure.sku_repo import sku_repo
 from finance.application.invoice_service import create_invoice_from_withdrawals
 from finance.infrastructure.credit_note_repo import credit_note_repo
 from inventory.application.inventory_service import process_import_stock_changes
@@ -38,10 +38,10 @@ class TestProductRepoContract:
     @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
     async def test_round_trip_preserves_float_quantity(self):
-        """Insert a product with float quantity, read it back, assert float."""
-        product = await create_product(
-            department_id="dept-1",
-            department_name="Hardware",
+        """Insert a SKU with float quantity, read it back, assert float."""
+        sku = await create_product_with_sku(
+            category_id="dept-1",
+            category_name="Hardware",
             name="Round Trip Widget",
             quantity=7.25,
             price=12.50,
@@ -52,7 +52,7 @@ class TestProductRepoContract:
             user_name="Test",
             on_stock_import=process_import_stock_changes,
         )
-        row = await product_repo.get_by_id(product.id)
+        row = await sku_repo.get_by_id(sku.id)
         assert row is not None
 
         assert isinstance(row.quantity, float), f"quantity is {type(row.quantity)}"
@@ -69,23 +69,21 @@ class TestProductRepoContract:
 
     @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
-    async def test_list_products_returns_float_quantities(self):
-        """Listing products must return float quantities, not int."""
-        await create_product(
-            department_id="dept-1",
-            department_name="Hardware",
+    async def test_list_skus_returns_float_quantities(self):
+        """Listing SKUs must return float quantities, not int."""
+        await create_product_with_sku(
+            category_id="dept-1",
+            category_name="Hardware",
             name="List Test",
             quantity=3.5,
             user_id="user-1",
             user_name="Test",
             on_stock_import=process_import_stock_changes,
         )
-        products = await product_repo.list_products(limit=10)
-        assert len(products) >= 1
-        for p in products:
-            assert isinstance(p.quantity, float), (
-                f"product '{p.name}' quantity is {type(p.quantity)}"
-            )
+        skus = await sku_repo.list_skus(limit=10)
+        assert len(skus) >= 1
+        for s in skus:
+            assert isinstance(s.quantity, float), f"sku '{s.name}' quantity is {type(s.quantity)}"
 
 
 # ── Stock transaction repo ───────────────────────────────────────────────────
@@ -96,9 +94,9 @@ class TestStockRepoContract:
     @pytest.mark.asyncio
     async def test_transaction_round_trip_field_types(self):
         """Stock transaction read-back must have float quantity fields and unit."""
-        product = await create_product(
-            department_id="dept-1",
-            department_name="Hardware",
+        product = await create_product_with_sku(
+            category_id="dept-1",
+            category_name="Hardware",
             name="Stock Repo Test",
             quantity=15.75,
             base_unit="gallon",
@@ -159,12 +157,12 @@ class TestPORepoContract:
         assert len(items) == 1
         read_item = items[0]
 
-        assert "unit_price" in read_item, (
-            f"PO item missing 'unit_price' — got keys: {list(read_item.keys())}"
+        assert hasattr(read_item, "unit_price"), (
+            f"PO item missing 'unit_price' — got fields: {list(read_item.model_fields)}"
         )
-        assert read_item["unit_price"] == pytest.approx(12.99)
-        assert read_item["ordered_qty"] == pytest.approx(5.5)
-        assert read_item["base_unit"] == "foot"
+        assert read_item.unit_price == pytest.approx(12.99)
+        assert read_item.ordered_qty == pytest.approx(5.5)
+        assert read_item.base_unit == "foot"
 
     @pytest.mark.usefixtures("_db")
     @pytest.mark.asyncio
@@ -198,7 +196,7 @@ class TestPORepoContract:
         read_item = items[0]
 
         for field in ("ordered_qty", "delivered_qty", "unit_price", "cost"):
-            val = read_item[field]
+            val = getattr(read_item, field)
             assert isinstance(val, (int, float)), f"{field} is {type(val)}"
             assert float(val) == float(getattr(item, field))
 

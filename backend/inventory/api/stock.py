@@ -3,15 +3,13 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from catalog.application.queries import get_product_by_id
+from catalog.application.queries import get_sku_by_id
 from inventory.application.inventory_service import (
     get_stock_history,
     process_adjustment_stock_changes,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure import event_hub
 from shared.infrastructure.middleware.audit import audit_log
-from shared.kernel import events
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 
@@ -27,7 +25,7 @@ async def get_product_stock_history(
     current_user: AdminDep,
     limit: int = Query(50, ge=1, le=500),
 ):
-    product = await get_product_by_id(product_id)
+    product = await get_sku_by_id(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     history = await get_stock_history(product_id=product_id, limit=limit)
@@ -59,8 +57,5 @@ async def adjust_stock(
         details={"quantity_delta": data.quantity_delta, "reason": data.reason},
         request=request,
         org_id=current_user.organization_id,
-    )
-    await event_hub.emit(
-        events.INVENTORY_UPDATED, org_id=current_user.organization_id, ids=[product_id]
     )
     return {"message": "Stock adjusted"}

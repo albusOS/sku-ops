@@ -63,7 +63,7 @@ function OpenCountDialog({ open, onOpenChange }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">Full warehouse (all departments)</SelectItem>
+                <SelectItem value="__all__">Full warehouse (all categories)</SelectItem>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.name}>
                     {d.name}

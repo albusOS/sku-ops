@@ -88,14 +88,14 @@ export const LowStockList = ({ items = [] }) => (
 export const PL_DIMENSIONS = [
   { value: "overall", label: "Overall" },
   { value: "job", label: "By Job" },
-  { value: "department", label: "By Department" },
+  { value: "department", label: "By Category" },
   { value: "entity", label: "By Entity" },
   { value: "product", label: "By Product" },
 ];
 
 const PL_COLUMNS = {
   job: { label: "Job ID", key: "job_id", secondary: "billing_entity" },
-  department: { label: "Department", key: "department" },
+  department: { label: "Category", key: "department" },
   entity: { label: "Billing Entity", key: "billing_entity" },
   product: { label: "Product", key: "name" },
 };

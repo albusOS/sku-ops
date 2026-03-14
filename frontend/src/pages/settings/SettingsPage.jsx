@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Panel, SectionHead } from "@/components/Panel";
+import { Switch } from "@/components/ui/switch";
 import { API } from "@/lib/api-client";
 import {
   useXeroSettings,
@@ -228,6 +229,40 @@ function TenantTrackingSection({ settings }) {
   );
 }
 
+function InvoicingSection({ settings }) {
+  const update = useUpdateXeroSettings();
+
+  const handleAutoInvoiceChange = (checked) => {
+    update.mutate(
+      { auto_invoice: checked },
+      {
+        onSuccess: () => toast.success(checked ? "Auto-invoice enabled" : "Auto-invoice disabled"),
+        onError: () => toast.error("Failed to update setting"),
+      },
+    );
+  };
+
+  return (
+    <Panel>
+      <SectionHead title="Invoicing" />
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">Auto-create invoices on withdrawal</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            When enabled, each new withdrawal gets an invoice automatically. When disabled, create
+            invoices manually from the Financials or Transactions view.
+          </p>
+        </div>
+        <Switch
+          checked={settings?.auto_invoice === true}
+          onCheckedChange={handleAutoInvoiceChange}
+          disabled={update.isPending}
+        />
+      </div>
+    </Panel>
+  );
+}
+
 function AccountCodesSection({ settings }) {
   const update = useUpdateXeroSettings();
 
@@ -406,6 +441,7 @@ export default function SettingsPage() {
       </div>
 
       <ConnectionSection settings={settings} />
+      <InvoicingSection settings={settings} />
       <TenantTrackingSection settings={settings} />
       <AccountCodesSection settings={settings} />
     </div>
