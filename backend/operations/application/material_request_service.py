@@ -11,6 +11,7 @@ from operations.application.queries import (
     mark_material_request_processed,
 )
 from operations.application.withdrawal_service import create_withdrawal_wired
+from operations.domain.enums import MaterialRequestStatus
 from operations.domain.material_request import MaterialRequest, MaterialRequestCreate
 from operations.domain.withdrawal import (
     ContractorContext,
@@ -95,7 +96,7 @@ async def process_material_request(
     req = await get_material_request_by_id(request_id)
     if not req:
         raise MaterialRequestError("Material request not found", 404)
-    if req.status != "pending":
+    if req.status != MaterialRequestStatus.PENDING:
         raise MaterialRequestError("Request already processed")
 
     contractor = await get_contractor_by_id(req.contractor_id)

@@ -3,6 +3,7 @@
 import json
 from uuid import uuid4
 
+from operations.domain.enums import PaymentStatus
 from operations.domain.withdrawal import MaterialWithdrawal
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -130,13 +131,17 @@ async def get_by_id(withdrawal_id: str) -> MaterialWithdrawal | None:
 
 
 async def mark_paid(withdrawal_id: str, paid_at: str) -> tuple[MaterialWithdrawal | None, bool]:
-    """Mark withdrawal paid. Returns (withdrawal, actually_changed)."""
+    """Mark withdrawal paid. Returns (withdrawal, actually_changed).
+
+    Only transitions from 'unpaid' — invoiced withdrawals must be paid via the
+    invoice payment flow to keep invoice state consistent.
+    """
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "UPDATE withdrawals SET payment_status = 'paid', paid_at = $1 "
-        "WHERE id = $2 AND payment_status != 'paid' AND organization_id = $3",
-        (paid_at, withdrawal_id, org_id),
+        "UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
+        "WHERE id = $3 AND payment_status != $4 AND organization_id = $5",
+        (PaymentStatus.PAID, paid_at, withdrawal_id, PaymentStatus.PAID, org_id),
     )
     await conn.commit()
     return await get_by_id(withdrawal_id), cursor.rowcount > 0
@@ -148,13 +153,15 @@ async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: str) -> list[str]:
         return []
     conn = get_connection()
     org_id = get_org_id()
-    placeholders = ",".join(f"${i}" for i in range(2, 2 + len(withdrawal_ids)))
+    n = len(withdrawal_ids)
+    id_placeholders = ",".join(f"${i}" for i in range(3, 3 + n))
+    exclude_idx = 3 + n
+    org_idx = exclude_idx + 1
     cursor = await conn.execute(
-        "UPDATE withdrawals SET payment_status = 'paid', paid_at = $1 WHERE id IN ("
-        + placeholders
-        + ") AND payment_status != 'paid'"
-        f" AND (organization_id = ${2 + len(withdrawal_ids)} OR organization_id IS NULL) RETURNING id",
-        [paid_at, *withdrawal_ids, org_id],
+        f"UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
+        f"WHERE id IN ({id_placeholders}) AND payment_status != ${exclude_idx} "
+        f"AND (organization_id = ${org_idx} OR organization_id IS NULL) RETURNING id",
+        [PaymentStatus.PAID, paid_at, *withdrawal_ids, PaymentStatus.PAID, org_id],
     )
     await conn.commit()
     rows = await cursor.fetchall()
@@ -162,39 +169,54 @@ async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: str) -> list[str]:
 
 
 async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> bool:
-    """Set invoice_id and mark as invoiced. Returns False if already linked.
+    """Set invoice_id and mark as invoiced. Returns False if already linked or paid.
 
-    Called by finance context via facade.
+    Guards against: already linked to another invoice, already marked paid.
+    Called by finance context via facade. Org-scoped to prevent cross-tenant mutation.
     """
     conn = get_connection()
+    org_id = get_org_id()
     cursor = await conn.execute(
-        "UPDATE withdrawals SET invoice_id = $1, payment_status = 'invoiced' "
-        "WHERE id = $2 AND invoice_id IS NULL",
-        (invoice_id, withdrawal_id),
+        "UPDATE withdrawals SET invoice_id = $1, payment_status = $2 "
+        "WHERE id = $3 AND invoice_id IS NULL AND payment_status = $4 "
+        "AND organization_id = $5",
+        (invoice_id, PaymentStatus.INVOICED, withdrawal_id, PaymentStatus.UNPAID, org_id),
     )
     await conn.commit()
     return cursor.rowcount > 0
 
 
 async def unlink_from_invoice(withdrawal_ids: list[str]) -> None:
-    """Clear invoice link and reset to unpaid. Called by finance context via facade."""
+    """Clear invoice link and reset to unpaid. Called by finance context via facade.
+
+    Org-scoped to prevent cross-tenant mutation.
+    """
     if not withdrawal_ids:
         return
     conn = get_connection()
+    org_id = get_org_id()
     placeholders = ",".join(f"${i}" for i in range(1, 1 + len(withdrawal_ids)))
+    org_idx = len(withdrawal_ids) + 1
+    status_idx = org_idx + 1
     await conn.execute(
-        f"UPDATE withdrawals SET invoice_id = NULL, payment_status = 'unpaid' WHERE id IN ({placeholders})",
-        withdrawal_ids,
+        f"UPDATE withdrawals SET invoice_id = NULL, payment_status = ${status_idx} "
+        f"WHERE id IN ({placeholders}) AND organization_id = ${org_idx}",
+        [*withdrawal_ids, org_id, PaymentStatus.UNPAID],
     )
     await conn.commit()
 
 
 async def mark_paid_by_invoice(invoice_id: str, paid_at: str) -> None:
-    """Mark all withdrawals linked to an invoice as paid. Called by finance context via facade."""
+    """Mark all withdrawals linked to an invoice as paid. Called by finance context via facade.
+
+    Org-scoped to prevent cross-tenant mutation.
+    """
     conn = get_connection()
+    org_id = get_org_id()
     await conn.execute(
-        "UPDATE withdrawals SET payment_status = 'paid', paid_at = $1 WHERE invoice_id = $2",
-        (paid_at, invoice_id),
+        "UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
+        "WHERE invoice_id = $3 AND organization_id = $4",
+        (PaymentStatus.PAID, paid_at, invoice_id, org_id),
     )
     await conn.commit()
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from assistant.application.llm_facade import get_generate_text
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
     find_product_by_original_sku_and_vendor,
@@ -22,7 +23,6 @@ from documents.application.import_parser import infer_uom, resolve_uom, suggest_
 from documents.domain.document import DocumentLineItem
 from inventory.application.inventory_service import process_receiving_stock_changes
 from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.db import get_org_id
 from shared.kernel.barcode import validate_barcode
 from shared.kernel.errors import ResourceNotFoundError
@@ -243,12 +243,9 @@ async def import_document(
 
 async def _wired_classify_uom_batch(products):
     """Wire LLM + rule-based deps into the UOM classifier."""
-    gen_text = None
-    if _LLM_AVAILABLE:
-        from assistant.application.llm import generate_text
-
-        gen_text = generate_text
-    return await _classify_uom_batch(products, generate_text=gen_text, rule_infer=infer_uom)
+    return await _classify_uom_batch(
+        products, generate_text=get_generate_text(), rule_infer=infer_uom
+    )
 
 
 async def import_document_wired(

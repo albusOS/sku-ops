@@ -8,14 +8,19 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager, suppress
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 
 from scheduler import xero_sync_loop
 from shared.infrastructure.config import (
+    DATABASE_URL,
     cors_warn_in_deployed,
+    db_is_local,
     is_deployed,
+    is_development,
     is_test,
+    startup_summary,
 )
 from shared.infrastructure.database import close_db, init_db
 from shared.infrastructure.redis import close_redis, init_redis, is_redis_available
@@ -58,6 +63,15 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    if is_development and not db_is_local:
+        _host = urlparse(DATABASE_URL).hostname or "<unknown>"
+        logger.warning(
+            "DATABASE_URL points at a non-local host ('%s') while ENV=development. "
+            "Development mode enables ALLOW_RESET and public auth endpoints. "
+            "If this is intentional, set ENV=production instead.",
+            _host,
+        )
+
     import assistant.agents.tools.search  # noqa: F401 — registers index invalidation handler
     import finance.application.event_handlers  # noqa: F401
     import inventory.application.event_handlers  # noqa: F401
@@ -94,22 +108,13 @@ async def lifespan(app: FastAPI):
         finally:
             org_id_var.reset(token)
 
-    from shared.infrastructure.config import (
-        ANTHROPIC_AVAILABLE,
-        OPENAI_AVAILABLE,
-        SENTRY_DSN,
-    )
-
-    db_type = "postgres"
-    logger.info(
-        "Application ready — env=%s, db=%s, sentry=%s, ai=%s, embeddings=%s",
-        "production" if is_deployed else ("test" if is_test else "development"),
-        db_type,
-        "enabled" if SENTRY_DSN else "disabled",
-        "enabled" if ANTHROPIC_AVAILABLE else "disabled",
-        "enabled" if OPENAI_AVAILABLE else "disabled",
-    )
-
+    summary = startup_summary()
+    logger.info("Application ready — %s", summary)
+    if summary.get("flags"):
+        logger.warning(
+            "Active permissive flags: %s — review before deploying to production",
+            ", ".join(summary["flags"]),
+        )
     if is_deployed:
         logger.info(
             "AUTH: JWT_SECRET is configured. If using Supabase Auth, verify this "
@@ -121,10 +126,10 @@ async def lifespan(app: FastAPI):
     assert "/api/ws/chat" in ws_routes, "Chat streaming WebSocket not mounted"
     logger.info("WebSocket endpoints verified: %s", ws_routes)
 
-    from shared.infrastructure.database import get_connection
+    from shared.infrastructure.database import transaction
 
-    conn = get_connection()
-    await conn.execute("SELECT 1")
+    async with transaction() as conn:
+        await conn.execute("SELECT 1")
     logger.info("Database connectivity verified")
 
     sync_task = None

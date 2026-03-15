@@ -9,7 +9,7 @@ _ensure_pg() {
   fi
 }
 
-export DATABASE_URL="${DATABASE_URL:-postgresql://sku_ops:localdev@localhost:5432/sku_ops}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://sku_ops:localdev@localhost:5433/sku_ops}"
 
 case "${1:-help}" in
   test)
@@ -84,11 +84,18 @@ case "${1:-help}" in
   db)
     echo "Starting dev Postgres..."
     docker compose -f docker-compose.dev.yml up -d --wait
-    echo "Postgres ready at postgresql://sku_ops:localdev@localhost:5432/sku_ops"
+    echo "Postgres ready at postgresql://sku_ops:localdev@localhost:5433/sku_ops"
     ;;
   db:stop)
     echo "Stopping dev Postgres..."
     docker compose -f docker-compose.dev.yml down
+    ;;
+  db:reset)
+    echo "Resetting dev Postgres (drops all data, re-creates from scratch)..."
+    docker compose -f docker-compose.dev.yml down -v
+    docker compose -f docker-compose.dev.yml up -d --wait
+    echo "Postgres reset complete at postgresql://sku_ops:localdev@localhost:5433/sku_ops"
+    echo "Schema will be bootstrapped on next server start (./bin/dev server)."
     ;;
   help|*)
     echo "sku-ops Dev Commands:"
@@ -110,5 +117,6 @@ case "${1:-help}" in
     echo "  ./bin/dev container        - Start devcontainer"
     echo "  ./bin/dev db               - Start dev Postgres only"
     echo "  ./bin/dev db:stop          - Stop dev Postgres"
+    echo "  ./bin/dev db:reset         - Drop all data and re-create dev Postgres (use after schema changes)"
     ;;
 esac

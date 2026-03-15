@@ -11,6 +11,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel
 
+from finance.domain.enums import XeroSyncStatus
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.entity import AuditedEntity, Entity
 
@@ -161,7 +162,7 @@ class POItemRow(BaseModel):
     purchase_uom: str = "each"
     purchase_pack_qty: int = 1
     suggested_department: str = "HDW"
-    status: str = "ordered"
+    status: POItemStatus = POItemStatus.ORDERED
     product_id: str | None = None
     organization_id: str = ""
     # Enriched fields — populated by get_po_items when a matched SKU is found
@@ -181,7 +182,7 @@ class PORow(BaseModel):
     vendor_name: str = ""
     document_date: str | None = None
     total: float | None = None
-    status: str = "ordered"
+    status: POStatus = POStatus.ORDERED
     notes: str | None = None
     created_by_id: str = ""
     created_by_name: str = ""
@@ -192,7 +193,7 @@ class PORow(BaseModel):
     updated_at: str = ""
     organization_id: str = ""
     xero_bill_id: str | None = None
-    xero_sync_status: str | None = None
+    xero_sync_status: XeroSyncStatus | None = None
     # Appended in list endpoints by the API layer
     item_count: int = 0
     ordered_count: int = 0

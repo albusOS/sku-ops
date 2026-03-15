@@ -37,7 +37,7 @@ def _sentry_before_send(event: dict, _hint: dict) -> dict:
 
 def setup_sentry() -> None:
     """Initialize Sentry if SENTRY_DSN is configured."""
-    from shared.infrastructure.config import _ENV, SENTRY_DSN
+    from shared.infrastructure.config import ENV, SENTRY_DSN
 
     if not SENTRY_DSN:
         return
@@ -49,7 +49,7 @@ def setup_sentry() -> None:
 
         sentry_sdk.init(
             dsn=SENTRY_DSN,
-            environment=_ENV,
+            environment=ENV,
             traces_sample_rate=0.2,
             profiles_sample_rate=0.1,
             integrations=[
@@ -59,7 +59,7 @@ def setup_sentry() -> None:
             send_default_pii=False,
             before_send=_sentry_before_send,
         )
-        logger.info("Sentry initialized (env=%s)", _ENV)
+        logger.info("Sentry initialized (env=%s)", ENV)
     except ImportError:
         logger.warning("sentry_sdk not installed — Sentry disabled despite SENTRY_DSN being set")
     except Exception:

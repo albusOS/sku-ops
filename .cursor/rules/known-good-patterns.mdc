@@ -1,63 +1,40 @@
 ---
-description: Established patterns that are correct and must be preserved — consult before structural changes
+description: Validated patterns that must be preserved — consult before structural changes
 globs: backend/**/*.py
 alwaysApply: false
 ---
 
 # Known-Good Patterns
 
-These patterns are the result of a completed architecture remediation. They are correct. Do not revert, work around, or replace them with simpler-seeming alternatives without a documented reason.
+Validated in production. Do not revert without a documented reason.
 
-## Domain layer purity
+## Domain purity
+Domain files import only `shared/kernel/`, stdlib, pydantic. Zero infrastructure.
 
-Zero infrastructure imports across all domain files. Domain modules import only `shared/kernel/`, stdlib, and pydantic. This is verified by the layer dependency rules in `project-architecture.mdc`.
+## Unit of Work — contextvar ambient transactions
+`transaction()` stores the transactional connection in `_tx_conn` ContextVar. `get_connection()` returns it inside a transaction block; repos call it directly and automatically join the ambient transaction. Nested `transaction()` calls reuse the existing connection.
 
-## Shared kernel types
+asyncpg + FastAPI + asyncio is exactly the environment contextvars were designed for — each request is an isolated asyncio task. This is correct. Do not thread `conn` through function signatures.
 
-`shared/kernel/` contains: `Entity`, `AuditedEntity`, `LineItem`, `Address`, `CurrentUser`, `DomainError`, `Event`. These have zero infrastructure dependencies. Do not add IO or infrastructure imports to any kernel file.
+## Domain events
+`@on(EventType)` / `await dispatch(event)` — handler registry in `shared/infrastructure/domain_events.py`. Typed event classes in `shared/kernel/`. Register handlers in `startup.py` by importing handler modules. Every mutation visible to users must dispatch a typed event — this is the auditability and real-time push mechanism.
 
-## Typed domain events
-
-`shared/kernel/domain_events.py` — typed event base classes.
-`shared/kernel/event_payloads.py` — typed value objects for event data.
-`shared/infrastructure/domain_events.py` — handler registry (`@on(EventType)`, `await dispatch(event)`).
-
-Import event types in application and infrastructure layers only. Register handlers in `startup.py` by importing the handler modules.
-
-## WS bridge separation
-
-`shared/infrastructure/ws_bridge.py` is the only component that calls `event_hub.emit()` directly. All other code dispatches typed domain events via `dispatch()`. The bridge translates domain events to WebSocket messages.
+`event_hub.emit()` is called only from `shared/infrastructure/ws_bridge.py`. Never call it directly.
 
 ## InvoicingGateway port
-
-The only true port-and-adapter pair in the codebase. `finance/ports/invoicing_gateway.py` (protocol), `finance/infrastructure/xero/` (real adapter), stub adapter for tests. This is the reference implementation for the pattern. Do not create new ports unless all three port-creation criteria are met (see `backend-conventions.mdc`).
-
-## Database — Postgres only
-
-`PostgresBackend` via asyncpg. No SQLite, no dialect abstraction. All SQL uses native Postgres syntax: `$1`/`$2` placeholders, `NOW()`, `ON CONFLICT`, `::date` casts. Do not import `asyncpg` directly outside of `shared/infrastructure/db/`.
-
-## Unit of Work (contextvar ambient transactions)
-
-`transaction()` in `shared/infrastructure/db/__init__.py` stores the transactional connection in `_tx_conn` contextvar. `get_connection()` returns it when inside a transaction block. Repos never accept `conn` parameters — they call `get_connection()` directly and participate in whatever ambient transaction is active.
-
-Do not add `conn` parameters to repo methods or port signatures.
-
-## Application facades for cross-context reads
-
-`catalog/application/queries.py`, `operations/application/queries.py`, `purchasing/application/queries.py`. Correct entry points for cross-context read access. Never import from another context's `infrastructure/` layer.
+Only true port-and-adapter pair. Reference implementation. Do not create new ports unless all three criteria are met (see backend-conventions.mdc).
 
 ## Auth provider abstraction
+`shared/api/auth_provider.py` is the only place JWT claims are extracted. All three auth paths call `resolve_claims(payload)`. Adding a provider = one new branch in that file only.
 
-`shared/api/auth_provider.py` — single source of truth for JWT claim extraction. All auth paths (HTTP, WebSocket domain events, WebSocket chat) call `resolve_claims(payload)`. Never add inline claim path-sniffing (`payload.get("app_metadata")...`) outside this module.
+## Org isolation
+Every write scoped to `org_id` from `get_org_id()` (ambient contextvar set by auth middleware). `DEFAULT_ORG_ID = "default"` is dev/test tooling only — never on a production code path.
 
-`AUTH_PROVIDER` config var selects the claim shape: `supabase` (default) or `internal`. Adding a new provider means adding a branch in `auth_provider.py` only.
+## Structured logging
+Module-level `logger = logging.getLogger(__name__)` everywhere. Mutations log at INFO with `extra={"org_id": ..., "<entity>_id": ..., "action": ...}`. No `print()`.
 
-## Org isolation invariant
+## External call resilience
+Xero, Anthropic, OpenRouter: explicit timeouts, log failures at ERROR with `exc_info=True`, do not commit the local transaction if the external call fails.
 
-Every write operation must be scoped to the authenticated user's `organization_id`. There is no global admin bypass that crosses org boundaries. The `org_id` is sourced from the ambient contextvar (`get_org_id()` in the DB package), which is set by the auth layer on every request.
-
-In deployed environments, tokens without an `organization_id` claim are rejected with 401 at the transport layer (`auth_deps.py`, `websocket.py`, `ws_chat.py`). The `DEFAULT_ORG_ID = "default"` fallback in `shared/kernel/constants.py` exists only for dev/test tooling and must never be relied upon in production paths.
-
-## Bounded context ownership
-
-Nine bounded contexts: `identity`, `operations`, `finance`, `catalog`, `purchasing`, `jobs`, `documents`, `reports`, `assistant`. Each owns its tables, state transitions, and invariants. Cross-context mutation goes through the owning context's application facade.
+## Cross-context reads
+`catalog/application/queries.py`, `operations/application/queries.py`, `purchasing/application/queries.py`. Never import from another context's `infrastructure/`.

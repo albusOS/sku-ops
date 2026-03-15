@@ -154,23 +154,29 @@ async def list_invoices(
     rows = await cursor.fetchall()
 
     invoice_ids: list[str] = []
-    result: list[Invoice] = []
+    result: list[InvoiceWithDetails] = []
     for row in rows:
         inv = _row_to_model(row)
         if inv is None:
             continue
         invoice_ids.append(inv.id)
-        result.append(inv)
+        result.append(InvoiceWithDetails.model_validate(inv.model_dump()))
 
     if invoice_ids:
-        placeholders = ",".join(f"${i}" for i in range(n, n + len(invoice_ids)))
-        count_q = "SELECT invoice_id, COUNT(*) FROM invoice_withdrawals WHERE invoice_id IN ("
-        count_q += placeholders
-        count_q += ") GROUP BY invoice_id"
-        count_cursor = await conn.execute(count_q, invoice_ids)
-        counts = {r[0]: r[1] for r in await count_cursor.fetchall()}
+        placeholders = ",".join(f"${i}" for i in range(1, len(invoice_ids) + 1))
+        wid_q = (
+            "SELECT invoice_id, withdrawal_id FROM invoice_withdrawals WHERE invoice_id IN ("
+            + placeholders
+            + ")"
+        )
+        wid_cursor = await conn.execute(wid_q, invoice_ids)
+        wid_map: dict[str, list[str]] = {}
+        for r in await wid_cursor.fetchall():
+            wid_map.setdefault(r[0], []).append(r[1])
         for inv in result:
-            inv.withdrawal_count = counts.get(inv.id, 0)
+            wids = wid_map.get(inv.id, [])
+            inv.withdrawal_ids = wids
+            inv.withdrawal_count = len(wids)
 
     return result
 

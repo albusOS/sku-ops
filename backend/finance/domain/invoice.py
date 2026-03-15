@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from finance.domain.enums import InvoiceStatus, XeroSyncStatus
 from shared.kernel.entity import AuditedEntity
 from shared.kernel.types import LineItem, round_money
 
@@ -96,7 +97,7 @@ class InvoiceUpdate(BaseModel):
     billing_entity: str | None = None
     contact_name: str | None = None
     contact_email: str | None = None
-    status: str | None = None
+    status: InvoiceStatus | None = None
     notes: str | None = None
     tax: float | None = None
     tax_rate: float | None = None
@@ -113,7 +114,7 @@ class Invoice(AuditedEntity):
     billing_entity: str = ""
     contact_name: str = ""
     contact_email: str = ""
-    status: str = "draft"
+    status: InvoiceStatus = InvoiceStatus.DRAFT
     subtotal: float = 0.0
     tax: float = 0.0
     tax_rate: float = 0.0
@@ -130,19 +131,19 @@ class Invoice(AuditedEntity):
     approved_at: str | None = None
     xero_invoice_id: str | None = None
     xero_cogs_journal_id: str | None = None
-    xero_sync_status: str | None = None
+    xero_sync_status: XeroSyncStatus | None = None
     deleted_at: str | None = None
     withdrawal_count: int = 0
     line_count: int = 0
 
-    ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
-        "draft": {"approved", "sent", "paid"},
-        "approved": {"sent", "paid"},
-        "sent": {"paid"},
-        "paid": set(),
+    ALLOWED_TRANSITIONS: ClassVar[dict[InvoiceStatus, set[InvoiceStatus]]] = {
+        InvoiceStatus.DRAFT: {InvoiceStatus.APPROVED, InvoiceStatus.SENT, InvoiceStatus.PAID},
+        InvoiceStatus.APPROVED: {InvoiceStatus.SENT, InvoiceStatus.PAID},
+        InvoiceStatus.SENT: {InvoiceStatus.PAID},
+        InvoiceStatus.PAID: set(),
     }
 
-    def can_transition_to(self, target: str) -> bool:
+    def can_transition_to(self, target: InvoiceStatus) -> bool:
         return target in self.ALLOWED_TRANSITIONS.get(self.status, set())
 
     @property

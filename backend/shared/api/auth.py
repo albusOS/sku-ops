@@ -23,13 +23,21 @@ import jwt as pyjwt
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from identity.infrastructure.user_repo import (
+    fetch_by_email as _fetch_user_by_email_repo,
+)
+from identity.infrastructure.user_repo import (
+    fetch_by_id as _fetch_user_by_id_repo,
+)
+from identity.infrastructure.user_repo import (
+    insert_user as _insert_user_repo,
+)
 from shared.api.deps import CurrentUserDep
 from shared.infrastructure.config import (
     JWT_ACCESS_EXPIRATION_MINUTES,
     JWT_ALGORITHM,
     JWT_SECRET,
 )
-from shared.infrastructure.database import get_connection
 from shared.kernel.constants import DEFAULT_ORG_ID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -73,7 +81,7 @@ class AuthResponse(BaseModel):
 
 
 def _issue_token(user_row: dict) -> str:
-    import time
+    import time  # stdlib — no cycle risk, kept inline for locality
 
     payload = {
         "sub": user_row["id"],
@@ -101,23 +109,11 @@ def _row_to_user(row) -> UserResponse:
 
 
 async def _fetch_user_by_email(email: str):
-    conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT id, email, password, name, role, company, billing_entity, phone, "
-        "is_active, organization_id FROM users WHERE email = $1",
-        (email,),
-    )
-    return await cursor.fetchone()
+    return await _fetch_user_by_email_repo(email)
 
 
 async def _fetch_user_by_id(user_id: str):
-    conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT id, email, name, role, company, billing_entity, phone, "
-        "is_active, organization_id FROM users WHERE id = $1",
-        (user_id,),
-    )
-    return await cursor.fetchone()
+    return await _fetch_user_by_id_repo(user_id)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -220,13 +216,14 @@ async def register(body: RegisterRequest) -> AuthResponse:
     user_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
 
-    conn = get_connection()
-    await conn.execute(
-        "INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)"
-        " VALUES ($1, $2, $3, $4, 'admin', 1, $5, $6)",
-        (user_id, body.email, hashed, body.name, DEFAULT_ORG_ID, now),
+    await _insert_user_repo(
+        user_id=user_id,
+        email=body.email,
+        password_hash=hashed,
+        name=body.name,
+        organization_id=DEFAULT_ORG_ID,
+        created_at=now,
     )
-    await conn.commit()
 
     row = await _fetch_user_by_id(user_id)
     token = _issue_token(dict(row))

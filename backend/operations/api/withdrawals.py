@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from operations.application.contractor_service import get_contractor_by_id
 from operations.application.queries import get_withdrawal_by_id, list_withdrawals
@@ -22,6 +21,10 @@ from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
+
+
+class BulkMarkPaidRequest(BaseModel):
+    withdrawal_ids: list[str]
 
 
 @router.post("", response_model=MaterialWithdrawal)
@@ -136,12 +139,10 @@ async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_use
 
 
 @router.put("/bulk-mark-paid")
-async def bulk_mark_paid(
-    request: Request, withdrawal_ids: Annotated[list[str], Body(...)], current_user: AdminDep
-):
+async def bulk_mark_paid(body: BulkMarkPaidRequest, request: Request, current_user: AdminDep):
     try:
         updated = await bulk_mark_withdrawals_paid(
-            withdrawal_ids=withdrawal_ids,
+            withdrawal_ids=body.withdrawal_ids,
             performed_by_user_id=current_user.id,
         )
     except ValueError as e:
@@ -151,7 +152,7 @@ async def bulk_mark_paid(
         action="payment.bulk_mark_paid",
         resource_type="withdrawal",
         resource_id=None,
-        details={"withdrawal_ids": withdrawal_ids, "count": len(withdrawal_ids)},
+        details={"withdrawal_ids": body.withdrawal_ids, "count": len(body.withdrawal_ids)},
         request=request,
         org_id=current_user.organization_id,
     )

@@ -1,7 +1,25 @@
-# Development overrides — automatically loaded by `docker compose up`.
-# Exposes Postgres and backend ports for local debugging.
-# Production deployments use: docker compose -f docker-compose.yml up -d
-# (which ignores this file).
+# docker-compose.override.yml — Docker-local development overrides.
+#
+# Docker Compose automatically merges this file when you run `docker compose up`
+# from the project root. It is NOT loaded when you explicitly name the compose
+# file (e.g. `docker compose -f docker-compose.yml up -d`).
+#
+# This file:
+#   - Exposes db and backend ports to the host for debugging
+#   - Defaults ENV to development (respects ENV set in root .env or shell)
+#   - Moves nginx and certbot behind the `production-only` profile so they are
+#     not started during local Docker runs
+#
+# IMPORTANT: ENV here uses ${ENV:-development} so that if your root .env sets
+# ENV=production, it is respected. The app enforces hard guards in production
+# (JWT_SECRET required, CORS locked, ALLOW_RESET forbidden).
+#
+# Docker-local workflow (dev):
+#   cp .env.production.example .env && edit .env   # fill POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS
+#   docker compose up
+#
+# VPS production (no override):
+#   docker compose -f docker-compose.yml up -d
 services:
   db:
     ports:
@@ -11,7 +29,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      ENV: development
+      ENV: ${ENV:-development}
 
   nginx:
     profiles:

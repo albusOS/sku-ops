@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from finance.domain.credit_note import CreditNote, CreditNoteLineItem
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from finance.domain.enums import CreditNoteStatus, InvoiceStatus
+from shared.infrastructure.database import get_connection, get_org_id
 
 
 async def _next_credit_note_number() -> str:
@@ -215,11 +216,14 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
 
     NOTE: This is finance-only persistence. Cross-context orchestration
     (marking withdrawals paid) is handled by credit_note_service.apply_credit_note().
+
+    IMPORTANT: Caller must wrap in transaction() — this repo does not own the
+    transaction boundary (that responsibility belongs to the application layer).
     """
     cn = await get_by_id(credit_note_id)
     if not cn:
         raise ValueError("Credit note not found")
-    if cn.status != "draft":
+    if cn.status != CreditNoteStatus.DRAFT:
         raise ValueError(f"Credit note is already {cn.status}")
     if not cn.invoice_id:
         raise ValueError("Credit note has no linked invoice")
@@ -227,35 +231,35 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
     inv_id = cn.invoice_id
     cn_total = float(cn.total)
 
+    conn = get_connection()
+    cursor = await conn.execute(
+        "SELECT total, amount_credited, status FROM invoices WHERE id = $1", (inv_id,)
+    )
+    inv_row = await cursor.fetchone()
+    if not inv_row:
+        raise ValueError(f"Linked invoice {inv_id} not found")
+    inv = dict(inv_row)
+    new_credited = round(float(inv.get("amount_credited", 0)) + cn_total, 2)
+    balance_due = round(float(inv["total"]) - new_credited, 2)
+    now = datetime.now(UTC).isoformat()
+
+    await conn.execute(
+        "UPDATE invoices SET amount_credited = $1, updated_at = $2 WHERE id = $3",
+        (new_credited, now, inv_id),
+    )
+
     auto_paid = False
-    async with transaction() as conn:
-        cursor = await conn.execute(
-            "SELECT total, amount_credited, status FROM invoices WHERE id = $1", (inv_id,)
-        )
-        inv_row = await cursor.fetchone()
-        if not inv_row:
-            raise ValueError(f"Linked invoice {inv_id} not found")
-        inv = dict(inv_row)
-        new_credited = round(float(inv.get("amount_credited", 0)) + cn_total, 2)
-        balance_due = round(float(inv["total"]) - new_credited, 2)
-        now = datetime.now(UTC).isoformat()
-
+    if balance_due <= 0 and inv.get("status") != InvoiceStatus.PAID:
         await conn.execute(
-            "UPDATE invoices SET amount_credited = $1, updated_at = $2 WHERE id = $3",
-            (new_credited, now, inv_id),
+            "UPDATE invoices SET status = $1, updated_at = $2 WHERE id = $3",
+            (InvoiceStatus.PAID, now, inv_id),
         )
+        auto_paid = True
 
-        if balance_due <= 0 and inv.get("status") != "paid":
-            await conn.execute(
-                "UPDATE invoices SET status = 'paid', updated_at = $1 WHERE id = $2",
-                (now, inv_id),
-            )
-            auto_paid = True
-
-        await conn.execute(
-            "UPDATE credit_notes SET status = 'applied', updated_at = $1 WHERE id = $2",
-            (now, credit_note_id),
-        )
+    await conn.execute(
+        "UPDATE credit_notes SET status = $1, updated_at = $2 WHERE id = $3",
+        (CreditNoteStatus.APPLIED, now, credit_note_id),
+    )
 
     updated = await get_by_id(credit_note_id)
     if not updated:

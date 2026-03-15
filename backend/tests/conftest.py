@@ -9,10 +9,12 @@ fixtures specific to their scope (e.g. HTTP client for api tests).
 import os
 
 os.environ["ENV"] = "test"
-os.environ.setdefault("DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5432/sku_ops_test")
+os.environ["DATABASE_URL"] = "postgresql://sku_ops:localdev@localhost:5433/sku_ops_test"
 os.environ.setdefault("REDIS_URL", "")
 os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-dummy-key-not-real")
+os.environ.setdefault(
+    "ANTHROPIC_API_KEY", ""
+)  # intentionally empty — ANTHROPIC_AVAILABLE=False in tests
 
 
 import pytest
@@ -25,15 +27,30 @@ from shared.infrastructure.logging_config import org_id_var, user_id_var
 from tests.helpers.events import EventCollector
 
 
+async def _truncate_all(conn) -> None:
+    """Truncate all application tables for test isolation."""
+    await conn.execute(
+        """DO $$
+        DECLARE r RECORD;
+        BEGIN
+            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
+            END LOOP;
+        END $$"""
+    )
+    await conn.commit()
+
+
 @pytest_asyncio.fixture
 async def db():
     """Initialize Postgres test DB, seed minimal data. Cleanup on teardown."""
     from shared.infrastructure.database import close_db, get_connection, init_db
 
     await init_db()
+    conn = get_connection()
+    await _truncate_all(conn)
     org_id_var.set("default")
     user_id_var.set("user-1")
-    conn = get_connection()
     await conn.execute(
         """INSERT INTO organizations (id, name, slug, created_at)
            VALUES ('default', 'Default', 'default', NOW())

@@ -7,12 +7,13 @@ from fastapi.responses import JSONResponse
 from starlette.routing import WebSocketRoute
 
 from shared.infrastructure.config import (
-    _ENV,
+    AGENT_PRIMARY_MODEL,
     ANTHROPIC_AVAILABLE,
+    ENV,
     LLM_SETUP_URL,
     OPENROUTER_AVAILABLE,
 )
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.database import transaction
 
 router = APIRouter(tags=["health"])
 
@@ -22,14 +23,11 @@ _APP_VERSION = "0.1.0"
 
 @router.get("/health")
 async def health():
-    """Liveness probe — returns 200 if the process is running.
-
-    Includes uptime and environment for quick operational triage.
-    """
+    """Liveness probe — returns 200 if the process is running."""
     return {
         "status": "ok",
         "version": _APP_VERSION,
-        "env": _ENV,
+        "env": ENV,
         "uptime_seconds": round(time.monotonic() - _BOOT_TIME),
     }
 
@@ -41,9 +39,9 @@ async def ready(request: Request):
     overall = "ok"
 
     try:
-        conn = get_connection()
         t0 = time.perf_counter()
-        await conn.execute("SELECT 1")
+        async with transaction() as conn:
+            await conn.execute("SELECT 1")
         checks["database"] = {
             "status": "ok",
             "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
@@ -81,7 +79,5 @@ async def ai_health():
                 "detail": f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. Get a key at {LLM_SETUP_URL}",
             },
         )
-    from shared.infrastructure.config import AGENT_PRIMARY_MODEL
-
     provider = "openrouter" if OPENROUTER_AVAILABLE else "anthropic"
     return {"status": "ok", "provider": provider, "agent_model": AGENT_PRIMARY_MODEL}

@@ -5,6 +5,7 @@ import logging
 from finance.adapters.invoicing_factory import get_invoicing_gateway
 from finance.application.org_settings_service import get_xero_settings
 from finance.application.sync_results import InvoiceSyncResult
+from finance.domain.enums import XeroSyncStatus
 from finance.domain.invoice import InvoiceWithDetails
 from finance.infrastructure.invoice_repo import (
     invoice_repo as _default_invoice_repo,
@@ -28,7 +29,7 @@ async def sync_invoice(
     if not inv:
         return InvoiceSyncResult(invoice_id=inv_id, success=False, error="Invoice not found")
 
-    if inv.xero_sync_status == "syncing":
+    if inv.xero_sync_status == XeroSyncStatus.SYNCING:
         try:
             existing = await _gateway_fetch_existing(inv, invoice_repo)
             if existing:
@@ -36,7 +37,7 @@ async def sync_invoice(
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Idempotency check failed for %s: %s", inv_id, e)
 
-    await invoice_repo.set_xero_sync_status(inv_id, "syncing")
+    await invoice_repo.set_xero_sync_status(inv_id, XeroSyncStatus.SYNCING)
 
     xero_settings = await get_xero_settings()
     gateway = get_invoicing_gateway(xero_settings)
@@ -44,7 +45,7 @@ async def sync_invoice(
     try:
         result = await gateway.sync_invoice(inv, xero_settings)
     except (RuntimeError, OSError, ValueError) as e:
-        await invoice_repo.set_xero_sync_status(inv_id, "failed")
+        await invoice_repo.set_xero_sync_status(inv_id, XeroSyncStatus.FAILED)
         return InvoiceSyncResult(
             invoice_id=inv_id,
             invoice_number=inv.invoice_number,
@@ -59,7 +60,7 @@ async def sync_invoice(
             xero_cogs_journal_id=result.external_journal_id,
         )
     else:
-        await invoice_repo.set_xero_sync_status(inv_id, "failed")
+        await invoice_repo.set_xero_sync_status(inv_id, XeroSyncStatus.FAILED)
 
     return InvoiceSyncResult(
         invoice_id=inv_id,
@@ -118,5 +119,5 @@ async def repost_cogs_for_invoice(
         )
         return InvoiceSyncResult(invoice_id=inv_id, success=True, xero_journal_id=new_journal_id)
     except (RuntimeError, OSError, ValueError) as e:
-        await invoice_repo.set_xero_sync_status(inv_id, "failed")
+        await invoice_repo.set_xero_sync_status(inv_id, XeroSyncStatus.FAILED)
         return InvoiceSyncResult(invoice_id=inv_id, success=False, error=str(e))

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Project Architecture
 
-Modular monolith in production. Nine bounded contexts. Architecture remediation complete.
+Modular monolith in production. Nine bounded contexts. Hardening for reliability, auditability, and scalability is ongoing — rules in this file are the current baseline, not a ceiling.
 
 ## Backend root modules
 

@@ -15,6 +15,7 @@ from catalog.infrastructure.sku_counter_repo import sku_counter_repo as _counter
 from catalog.infrastructure.sku_repo import sku_repo as _sku_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo as _vi_repo
 from catalog.infrastructure.vendor_repo import vendor_repo as _vendor_repo
+from shared.infrastructure.database import get_connection, get_org_id
 
 # ── Product family (parent) queries ──────────────────────────────────────────
 
@@ -165,8 +166,6 @@ async def find_product_by_name_and_vendor(name: str, vendor_id: str) -> Sku | No
 
 async def sku_vendor_options(sku_id: str) -> list[dict]:
     """All vendors for a SKU with cost, lead time, moq, preferred, and last PO date."""
-    from shared.infrastructure.database import get_connection, get_org_id
-
     items = await _vi_repo.list_by_sku(sku_id)
     if not items:
         return []

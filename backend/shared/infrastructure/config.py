@@ -2,16 +2,19 @@
 Central configuration - environment-aware settings.
 
 Set ENV to control behavior:
-  - development  Local dev; permissive defaults, demo creds allowed
-  - staging      Preview/tenant deployments; stricter, JWT required, no demo creds unless set
-  - production   Live; requires explicit secrets, strict CORS
+  - development  Local dev; permissive defaults, local auth allowed
   - test         Pytest in-process; stub adapters, test Postgres DB (conftest sets this)
+  - production   Live; requires explicit secrets, strict CORS, dangerous flags forbidden
 
 When ENV is unset, defaults to development.
 """
 
+import logging
 import os
 from pathlib import Path
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 # Project root = backend/ (walk up from this file to find it)
@@ -34,7 +37,7 @@ _requested_env = os.environ.get("ENV", "").lower().strip()
 _ENV = _requested_env or "development"
 
 # Load backend/.env only for local-style runs. This keeps developer ergonomics
-# for dev/test while making staging/production rely strictly on injected vars.
+# for dev/test while making production rely strictly on injected vars.
 _env_file = PROJECT_ROOT / ".env"
 if _ENV in {"development", "test"} and _env_file.exists():
     from dotenv import load_dotenv
@@ -47,20 +50,31 @@ def _is(env: str) -> bool:
     return env == _ENV
 
 
-# Environment flags
+# ── Environment flags ─────────────────────────────────────────────────────────
+# Three canonical environments: development, test, production.
+# There is no staging environment — production is the only deployed env.
+# If staging is needed in the future, add it here and in _VALID_ENVS.
+_VALID_ENVS = {"development", "test", "production"}
+if _ENV not in _VALID_ENVS:
+    raise RuntimeError(
+        f"ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. "
+        "Check your .env file or environment variable."
+    )
+
 is_development = _is("development")
-is_staging = _is("staging")
 is_production = _is("production")
 is_test = _is("test")
 
-# Derived: any non-dev deployment
-is_deployed = is_staging or is_production
+# Public alias — use ENV instead of _ENV when importing the environment name
+ENV = _ENV
 
-# Database — Postgres everywhere (dev, test, staging, production).
-# Local dev: ./bin/dev db starts Postgres via docker-compose.dev.yml.
-# Tests: conftest creates a disposable test database.
+# Kept for backward compatibility with any code that checks is_deployed.
+# In this codebase there is exactly one deployed environment: production.
+is_deployed = is_production
+
+# ── Database ──────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5432/sku_ops"
+    "DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops"
 )
 
 if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
@@ -69,19 +83,26 @@ if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
         f"Got: {DATABASE_URL[:30]}... Set DATABASE_URL=postgresql://user:pass@host:5432/db"
     )
 
-# PostgreSQL connection pool — only meaningful when DATABASE_URL is Postgres.
-# PG_POOL_MIN / PG_POOL_MAX control asyncpg pool size.
-# PG_ACQUIRE_TIMEOUT: seconds a request waits for a free connection before 503.
-# PG_COMMAND_TIMEOUT: seconds a single SQL statement may run before cancellation.
+# True when DATABASE_URL points at a local host (localhost, 127.0.0.1, or the
+# Docker Compose service name "db"). Used by startup.py to warn when dev mode
+# is active against a non-local DB — the warning is emitted there (after
+# logging is configured) rather than here at import time.
+try:
+    _db_host = urlparse(DATABASE_URL).hostname or ""
+    db_is_local = _db_host in ("localhost", "127.0.0.1", "::1", "db")
+except Exception:
+    db_is_local = True  # parse failure: assume local to avoid false-positive warning
+
+# PostgreSQL connection pool
 PG_POOL_MIN = int(os.environ.get("PG_POOL_MIN", "2"))
 PG_POOL_MAX = int(os.environ.get("PG_POOL_MAX", "10"))
 PG_ACQUIRE_TIMEOUT = float(os.environ.get("PG_ACQUIRE_TIMEOUT", "10"))
 PG_COMMAND_TIMEOUT = int(os.environ.get("PG_COMMAND_TIMEOUT", "30"))
 
-# Redis — required for multi-worker (WORKERS > 1); optional in dev/test
+# ── Redis ─────────────────────────────────────────────────────────────────────
 REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 
-# Auth
+# ── Auth / JWT ────────────────────────────────────────────────────────────────
 _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
 
 
@@ -89,11 +110,6 @@ def _resolve_jwt_secret() -> str:
     raw = os.environ.get("JWT_SECRET", "").strip()
     if is_production and (not raw or raw == _DEV_JWT_FALLBACK):
         raise RuntimeError("JWT_SECRET must be set in production. Do not use default.")
-    if is_staging and (not raw or raw == _DEV_JWT_FALLBACK):
-        raise RuntimeError(
-            "JWT_SECRET must be set in staging and must not be the default. "
-            'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
-        )
     return raw or _DEV_JWT_FALLBACK
 
 
@@ -102,10 +118,8 @@ JWT_ALGORITHM = "HS256"
 JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", "15"))
 REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "30"))
 
-# CORS — strict enforcement in deployed environments
+# ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
-# Optional regex for dynamic origins (e.g. Vercel preview URLs).
-# Example: "https://frontend-.*\\.vercel\\.app"
 CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
 cors_is_permissive = (
     not CORS_ORIGINS.strip() or CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
@@ -119,34 +133,43 @@ def _enforce_cors() -> None:
             "CORS_ORIGINS must not be '*' or empty in production. "
             "Set CORS_ORIGINS=https://your-vercel-app.vercel.app"
         )
-    if is_staging and cors_is_permissive:
-        raise RuntimeError(
-            "CORS_ORIGINS must not be '*' or empty in staging. "
-            "Set CORS_ORIGINS to your staging domain(s)."
-        )
 
 
 _enforce_cors()
 
-# Sentry (optional — set SENTRY_DSN to enable)
+# ── Sentry ────────────────────────────────────────────────────────────────────
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 
+# ── Dangerous feature flags ───────────────────────────────────────────────────
+# These flags are ON by default in development/test and OFF in production.
+# Setting them to true in production is a hard startup error — not a warning —
+# because forgetting to remove them after a one-time use is a common mistake.
 
-# Reset/seed endpoints: dev/test by default.
-# Set ALLOW_RESET=true temporarily in production to seed data, then disable.
-ALLOW_RESET = (
-    os.environ.get("ALLOW_RESET", "").lower() in ("1", "true") or is_development or is_test
-)
+_allow_reset_raw = os.environ.get("ALLOW_RESET", "").lower()
+_allow_reset_explicit = _allow_reset_raw in ("1", "true")
 
-# Public auth endpoints (login, register): dev/test by default.
-# Set ALLOW_PUBLIC_AUTH=true to enable local auth in production (no Supabase).
-ALLOW_PUBLIC_AUTH = (
-    os.environ.get("ALLOW_PUBLIC_AUTH", "").lower() in ("1", "true") or is_development or is_test
-)
+if is_production and _allow_reset_explicit:
+    raise RuntimeError(
+        "ALLOW_RESET=true is set in production. "
+        "This exposes seed/reset endpoints that can destroy all application data. "
+        "Remove ALLOW_RESET from the environment and redeploy."
+    )
 
-# Auth provider — controls JWT claim shape expected by the backend.
-#   supabase  (default) — role in app_metadata.role, user id is sub
-#   internal  — role top-level claim, user id in user_id or sub
+ALLOW_RESET = _allow_reset_explicit or is_development or is_test
+
+_allow_public_auth_raw = os.environ.get("ALLOW_PUBLIC_AUTH", "").lower()
+_allow_public_auth_explicit = _allow_public_auth_raw in ("1", "true")
+
+if is_production and _allow_public_auth_explicit:
+    raise RuntimeError(
+        "ALLOW_PUBLIC_AUTH=true is set in production. "
+        "This exposes login/register endpoints that bypass Supabase auth. "
+        "Remove ALLOW_PUBLIC_AUTH from the environment and redeploy."
+    )
+
+ALLOW_PUBLIC_AUTH = _allow_public_auth_explicit or is_development or is_test
+
+# ── Auth provider ─────────────────────────────────────────────────────────────
 _VALID_AUTH_PROVIDERS = {"supabase", "internal"}
 AUTH_PROVIDER = os.environ.get("AUTH_PROVIDER", "supabase").lower().strip()
 if AUTH_PROVIDER not in _VALID_AUTH_PROVIDERS:
@@ -154,10 +177,9 @@ if AUTH_PROVIDER not in _VALID_AUTH_PROVIDERS:
         f"AUTH_PROVIDER must be one of {sorted(_VALID_AUTH_PROVIDERS)}, got '{AUTH_PROVIDER}'"
     )
 
-# AI - Anthropic Claude. Set ANTHROPIC_API_KEY to enable.
+# ── AI providers ──────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
-# Keep bare model names for non-agent services (OCR, UOM classification, enrichment)
 ANTHROPIC_MODEL = (
     os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
 )
@@ -165,18 +187,15 @@ ANTHROPIC_FAST_MODEL = (
     os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
 )
 
-# OpenAI — used for product semantic search embeddings (text-embedding-3-small)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 OPENAI_AVAILABLE = bool(OPENAI_API_KEY)
 
-# OpenRouter — unified model gateway for all agent LLM calls
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
 OPENROUTER_AVAILABLE = bool(OPENROUTER_API_KEY)
 
 
-# ── Agent model — single source of truth ─────────────────────────────────────
-# Priority: env AGENT_PRIMARY_MODEL > models.yaml > built-in default
+# ── Agent model ───────────────────────────────────────────────────────────────
 def _load_agent_model() -> str:
     env_override = os.environ.get("AGENT_PRIMARY_MODEL", "").strip()
     if env_override:
@@ -191,8 +210,6 @@ def _load_agent_model() -> str:
             if model:
                 return model
     except (OSError, ValueError, KeyError):
-        import logging
-
         logging.getLogger(__name__).warning(
             "Failed to parse models.yaml, using built-in default", exc_info=True
         )
@@ -201,17 +218,52 @@ def _load_agent_model() -> str:
 
 AGENT_PRIMARY_MODEL: str = _load_agent_model()
 LLM_SETUP_URL = "https://console.anthropic.com/"
-# Per-session AI spend cap in USD. 0 = unlimited. Set SESSION_COST_CAP=2.00 in .env.
 SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
 
-# Frontend URL — used for OAuth callbacks and cross-origin redirects in split deploys.
-# In same-origin setups this can be left empty (redirects stay relative).
+# ── Frontend / OAuth ──────────────────────────────────────────────────────────
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
 
-# Xero OAuth 2.0 — register a Xero app at developer.xero.com to get these.
-# XERO_REDIRECT_URI must match the callback URL registered in your Xero app.
+# ── Xero OAuth 2.0 ───────────────────────────────────────────────────────────
 XERO_CLIENT_ID = os.environ.get("XERO_CLIENT_ID", "").strip()
 XERO_CLIENT_SECRET = os.environ.get("XERO_CLIENT_SECRET", "").strip()
 XERO_REDIRECT_URI = os.environ.get("XERO_REDIRECT_URI", "").strip()
-# Hour of day (UTC, 0-23) when the nightly Xero sync job fires. Default: 2 AM UTC.
 XERO_SYNC_HOUR = int(os.environ.get("XERO_SYNC_HOUR", "2"))
+
+
+# ── Startup config summary ────────────────────────────────────────────────────
+def startup_summary() -> dict:
+    """Return a dict summarising the effective runtime configuration.
+
+    Called once during lifespan startup so operators can confirm the process
+    is running with the expected identity, DB target, auth shape, and feature
+    flag state at a glance from the first log lines.
+    """
+    try:
+        _parsed = urlparse(DATABASE_URL)
+        db_display = f"{_parsed.hostname}:{_parsed.port or 5432}{_parsed.path}"
+    except Exception:
+        db_display = "<unparseable>"
+
+    flags: list[str] = []
+    if ALLOW_RESET:
+        flags.append("ALLOW_RESET")
+    if ALLOW_PUBLIC_AUTH:
+        flags.append("ALLOW_PUBLIC_AUTH")
+    if cors_is_permissive:
+        flags.append("CORS=*")
+
+    return {
+        "env": ENV,
+        "auth_provider": AUTH_PROVIDER,
+        "db": db_display,
+        "cors": CORS_ORIGINS if not cors_is_permissive else "*",
+        "redis": "yes" if REDIS_URL else "no",
+        "sentry": "yes" if SENTRY_DSN else "no",
+        "ai": (
+            "openrouter"
+            if OPENROUTER_AVAILABLE
+            else ("anthropic" if ANTHROPIC_AVAILABLE else "none")
+        ),
+        "embeddings": "openai" if OPENAI_AVAILABLE else "none",
+        "flags": flags or None,
+    }

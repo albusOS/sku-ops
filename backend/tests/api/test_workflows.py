@@ -25,7 +25,7 @@ def _create_product(client, headers, **overrides):
 class TestWithdrawalWorkflow:
     """Withdrawal must decrement stock and produce an invoice."""
 
-    async def test_withdrawal_decrements_stock(self, db, client):
+    def test_withdrawal_decrements_stock(self, db, client):
         headers = admin_headers()
         product = _create_product(client, headers, quantity=50, name="WD-Decrement")
 
@@ -54,7 +54,7 @@ class TestWithdrawalWorkflow:
         resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 45
 
-    async def test_withdrawal_with_insufficient_stock_fails(self, db, client):
+    def test_withdrawal_with_insufficient_stock_fails(self, db, client):
         headers = admin_headers()
         product = _create_product(client, headers, quantity=3, name="WD-Insufficient")
 
@@ -81,7 +81,7 @@ class TestWithdrawalWorkflow:
         resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 3, "Stock should be unchanged after failed withdrawal"
 
-    async def test_withdrawal_requires_items(self, db, client):
+    def test_withdrawal_requires_items(self, db, client):
         headers = admin_headers()
 
         resp = client.post(
@@ -95,7 +95,7 @@ class TestWithdrawalWorkflow:
 class TestMaterialRequestWorkflow:
     """Contractor submits request, admin processes it into a withdrawal."""
 
-    async def test_contractor_request_to_withdrawal(self, db, client):
+    def test_contractor_request_to_withdrawal(self, db, client):
         admin_h = admin_headers()
         contractor_h = contractor_headers()
         product = _create_product(client, admin_h, name="MR-Workflow")
@@ -130,7 +130,7 @@ class TestMaterialRequestWorkflow:
         result = resp.json()
         assert result.get("id"), "Processed result should have a withdrawal id"
 
-    async def test_admin_cannot_create_material_request(self, db, client):
+    def test_admin_cannot_create_material_request(self, db, client):
         admin_h = admin_headers()
         product = _create_product(client, admin_h, name="MR-AdminReject")
 
@@ -156,7 +156,7 @@ class TestMaterialRequestWorkflow:
 class TestProductWorkflow:
     """Product CRUD through the API layer."""
 
-    async def test_create_and_retrieve_product(self, db, client):
+    def test_create_and_retrieve_product(self, db, client):
         headers = admin_headers()
         product = _create_product(client, headers, name="PW-Create")
 
@@ -164,13 +164,13 @@ class TestProductWorkflow:
         assert resp.status_code == 200
         assert resp.json()["name"] == "PW-Create"
 
-    async def test_create_product_missing_required_fields(self, db, client):
+    def test_create_product_missing_required_fields(self, db, client):
         headers = admin_headers()
 
         resp = client.post("/api/catalog/skus", json={"name": "Incomplete"}, headers=headers)
         assert resp.status_code == 422
 
-    async def test_create_product_invalid_department(self, db, client):
+    def test_create_product_invalid_department(self, db, client):
         headers = admin_headers()
 
         resp = client.post(

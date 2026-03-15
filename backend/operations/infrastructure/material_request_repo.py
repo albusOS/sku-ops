@@ -2,6 +2,7 @@
 
 import json
 
+from operations.domain.enums import MaterialRequestStatus
 from operations.domain.material_request import MaterialRequest
 from shared.infrastructure.database import get_connection, get_org_id
 from shared.kernel.errors import InvalidTransitionError
@@ -60,8 +61,8 @@ async def list_pending(limit: int = 100) -> list[MaterialRequest]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM material_requests WHERE status = 'pending' AND (organization_id = $1 OR organization_id IS NULL) ORDER BY created_at DESC LIMIT $2",
-        (org_id, limit),
+        "SELECT * FROM material_requests WHERE status = $1 AND (organization_id = $2 OR organization_id IS NULL) ORDER BY created_at DESC LIMIT $3",
+        (MaterialRequestStatus.PENDING, org_id, limit),
     )
     rows = await cursor.fetchall()
     return [_row_to_model(r) for r in rows]
@@ -86,9 +87,16 @@ async def mark_processed(
 ) -> bool:
     conn = get_connection()
     cursor = await conn.execute(
-        """UPDATE material_requests SET status = 'processed', withdrawal_id = $1, processed_by_id = $2, processed_at = $3
-           WHERE id = $4 AND status = 'pending'""",
-        (withdrawal_id, processed_by_id, processed_at, request_id),
+        """UPDATE material_requests SET status = $1, withdrawal_id = $2, processed_by_id = $3, processed_at = $4
+           WHERE id = $5 AND status = $6""",
+        (
+            MaterialRequestStatus.PROCESSED,
+            withdrawal_id,
+            processed_by_id,
+            processed_at,
+            request_id,
+            MaterialRequestStatus.PENDING,
+        ),
     )
     if cursor.rowcount == 0:
         raise InvalidTransitionError("MaterialRequest", "processed", "processed")

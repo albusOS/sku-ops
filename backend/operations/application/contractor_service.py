@@ -14,7 +14,7 @@ import bcrypt
 from pydantic import BaseModel
 
 from finance.application.billing_entity_service import ensure_billing_entity
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.database import get_connection, get_org_id, transaction
 
 
 def _make_id() -> str:
@@ -172,44 +172,45 @@ async def create_contractor(
     """Create a contractor user with associated billing entity.
 
     Raises ValueError if email is already registered.
+    Runs inside a transaction so billing entity + user insert are atomic.
     """
-    conn = get_connection()
     org_id = get_org_id()
 
-    cursor = await conn.execute("SELECT id FROM users WHERE email = $1", (email,))
-    if await cursor.fetchone():
-        raise ValueError("Email already registered")
+    async with transaction():
+        conn = get_connection()
+        cursor = await conn.execute("SELECT id FROM users WHERE email = $1", (email,))
+        if await cursor.fetchone():
+            raise ValueError("Email already registered")
 
-    billing_name = billing_entity_name or company or "Independent"
-    be = await ensure_billing_entity(billing_name)
+        billing_name = billing_entity_name or company or "Independent"
+        be = await ensure_billing_entity(billing_name)
 
-    contractor_id = _make_id()
-    now = _now_iso()
-    hashed_pw = _hash_password(password)
-    company_val = company or "Independent"
+        contractor_id = _make_id()
+        now = _now_iso()
+        hashed_pw = _hash_password(password)
+        company_val = company or "Independent"
 
-    cols = (
-        "id, email, password, name, role, company, billing_entity, billing_entity_id, "
-        "phone, is_active, organization_id, created_at"
-    )
-    await conn.execute(
-        f"INSERT INTO users ({cols}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-        (
-            contractor_id,
-            email,
-            hashed_pw,
-            name,
-            "contractor",
-            company_val,
-            billing_name,
-            be.id if be else None,
-            phone or "",
-            1,
-            org_id,
-            now,
-        ),
-    )
-    await conn.commit()
+        cols = (
+            "id, email, password, name, role, company, billing_entity, billing_entity_id, "
+            "phone, is_active, organization_id, created_at"
+        )
+        await conn.execute(
+            f"INSERT INTO users ({cols}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+            (
+                contractor_id,
+                email,
+                hashed_pw,
+                name,
+                "contractor",
+                company_val,
+                billing_name,
+                be.id if be else None,
+                phone or "",
+                1,
+                org_id,
+                now,
+            ),
+        )
 
     return ContractorCreateResult(
         id=contractor_id,
@@ -235,7 +236,6 @@ async def update_contractor(
     if contractor.organization_id != org_id:
         return None
 
-    conn = get_connection()
     set_clauses = []
     values = []
     n = 1
@@ -251,12 +251,15 @@ async def update_contractor(
         n += 1
     if not set_clauses:
         return contractor
-    values.extend([contractor_id, org_id])
-    await conn.execute(
-        f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ${n} AND organization_id = ${n + 1}",
-        values,
-    )
-    await conn.commit()
+
+    async with transaction():
+        conn = get_connection()
+        values.extend([contractor_id, org_id])
+        await conn.execute(
+            f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ${n} AND organization_id = ${n + 1}",
+            values,
+        )
+
     return await get_contractor_by_id(contractor_id)
 
 
@@ -269,10 +272,11 @@ async def delete_contractor(contractor_id: str) -> int:
     if contractor.organization_id != org_id:
         return 0
 
-    conn = get_connection()
-    cursor = await conn.execute(
-        "DELETE FROM users WHERE id = $1 AND role = 'contractor' AND organization_id = $2",
-        (contractor_id, org_id),
-    )
-    await conn.commit()
+    async with transaction():
+        conn = get_connection()
+        cursor = await conn.execute(
+            "DELETE FROM users WHERE id = $1 AND role = 'contractor' AND organization_id = $2",
+            (contractor_id, org_id),
+        )
+
     return cursor.rowcount

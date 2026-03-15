@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+from operations.domain.enums import MaterialRequestStatus
 from operations.domain.withdrawal import WithdrawalItem
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.entity import Entity
@@ -24,7 +25,7 @@ class MaterialRequest(Entity):
     contractor_id: str
     contractor_name: str = ""
     items: list[WithdrawalItem]
-    status: str = "pending"
+    status: MaterialRequestStatus = MaterialRequestStatus.PENDING
     withdrawal_id: str | None = None
     job_id: str | None = None
     service_address: str | None = None

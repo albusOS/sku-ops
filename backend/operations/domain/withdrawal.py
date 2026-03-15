@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, field_validator
 
+from operations.domain.enums import PaymentStatus
 from shared.kernel.entity import Entity
 from shared.kernel.types import LineItem, round_money
 
@@ -57,7 +58,7 @@ class MaterialWithdrawal(Entity):
     contractor_company: str = ""
     billing_entity: str = ""
     billing_entity_id: str | None = None
-    payment_status: str = "unpaid"
+    payment_status: PaymentStatus = PaymentStatus.UNPAID
     invoice_id: str | None = None
     paid_at: str | None = None
     processed_by_id: str

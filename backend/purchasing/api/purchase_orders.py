@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
+from assistant.application.llm_facade import get_generate_text
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
     find_vendor_by_name,
@@ -34,19 +35,15 @@ from purchasing.domain.purchase_order import (
     ReceiveItemsRequest,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE as _LLM_AVAILABLE
 from shared.infrastructure.middleware.audit import audit_log
 
 logger = logging.getLogger(__name__)
 
 
 async def _wired_classify_uom_batch(products):
-    gen_text = None
-    if _LLM_AVAILABLE:
-        from assistant.application.llm import generate_text
-
-        gen_text = generate_text
-    return await _classify_uom_batch(products, generate_text=gen_text, rule_infer=infer_uom)
+    return await _classify_uom_batch(
+        products, generate_text=get_generate_text(), rule_infer=infer_uom
+    )
 
 
 def _build_deps() -> PurchasingDeps:

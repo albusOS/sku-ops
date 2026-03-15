@@ -14,9 +14,6 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     services:
       postgres:
@@ -44,21 +41,23 @@ jobs:
         with:
           enable-cache: true
 
+      # uv sync and ruff run from the workspace root (pyproject.toml + uv.lock live here)
       - name: Install project and dev deps
         run: uv sync --dev
 
       - name: Lint
-        run: uv run ruff check .
+        run: uv run ruff check backend/
 
       - name: Format check
-        run: uv run ruff format --check .
+        run: uv run ruff format --check backend/
 
       - name: Run tests
         env:
           ENV: test
           DATABASE_URL: "postgresql://sku_ops:testpass@localhost:5432/sku_ops_test"
           JWT_SECRET: ci-test-secret
-          ANTHROPIC_API_KEY: ci-dummy-key
+          # Leave ANTHROPIC_API_KEY unset — conftest sets it to "" so
+          # ANTHROPIC_AVAILABLE=False and no real API calls are made in tests.
         run: uv run pytest --tb=short -q --timeout=60
 
   frontend:

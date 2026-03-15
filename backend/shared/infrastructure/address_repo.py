@@ -3,51 +3,70 @@
 Cross-cutting reference data used by billing entities, jobs, etc.
 """
 
+from pydantic import BaseModel, ConfigDict
+
 from shared.infrastructure.database import get_connection, get_org_id
 
 
-def _row_to_dict(row) -> dict | None:
+class StoredAddress(BaseModel):
+    """Typed model for a persisted address row."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    label: str = ""
+    line1: str = ""
+    line2: str = ""
+    city: str = ""
+    state: str = ""
+    postal_code: str = ""
+    country: str = "US"
+    billing_entity_id: str | None = None
+    job_id: str | None = None
+    organization_id: str = ""
+    created_at: str = ""
+
+
+def _row_to_model(row) -> StoredAddress | None:
     if row is None:
         return None
-    return dict(row)
+    return StoredAddress.model_validate(dict(row))
 
 
 _COLUMNS = "id, label, line1, line2, city, state, postal_code, country, billing_entity_id, job_id, organization_id, created_at"
 
 
-async def insert(address: dict) -> None:
+async def insert(address: StoredAddress) -> None:
     conn = get_connection()
-    ins_q = "INSERT INTO addresses ("
-    ins_q += _COLUMNS
-    ins_q += ") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
     await conn.execute(
-        ins_q,
+        f"INSERT INTO addresses ({_COLUMNS}) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         (
-            address["id"],
-            address.get("label", ""),
-            address.get("line1", ""),
-            address.get("line2", ""),
-            address.get("city", ""),
-            address.get("state", ""),
-            address.get("postal_code", ""),
-            address.get("country", "US"),
-            address.get("billing_entity_id"),
-            address.get("job_id"),
-            address["organization_id"],
-            address["created_at"],
+            address.id,
+            address.label,
+            address.line1,
+            address.line2,
+            address.city,
+            address.state,
+            address.postal_code,
+            address.country,
+            address.billing_entity_id,
+            address.job_id,
+            address.organization_id,
+            address.created_at,
         ),
     )
     await conn.commit()
 
 
-async def get_by_id(address_id: str) -> dict | None:
+async def get_by_id(address_id: str) -> StoredAddress | None:
     org_id = get_org_id()
     conn = get_connection()
-    sel_q = "SELECT "
-    sel_q += _COLUMNS
-    sel_q += " FROM addresses WHERE id = $1 AND organization_id = $2"
-    cursor = await conn.execute(sel_q, (address_id, org_id))
-    return _row_to_dict(await cursor.fetchone())
+    cursor = await conn.execute(
+        f"SELECT {_COLUMNS} FROM addresses WHERE id = $1 AND organization_id = $2",
+        (address_id, org_id),
+    )
+    return _row_to_model(await cursor.fetchone())
 
 
 async def list_addresses(
@@ -56,12 +75,10 @@ async def list_addresses(
     q: str | None = None,
     limit: int = 100,
     offset: int = 0,
-) -> list:
+) -> list[StoredAddress]:
     org_id = get_org_id()
     conn = get_connection()
-    sql = "SELECT "
-    sql += _COLUMNS
-    sql += " FROM addresses WHERE organization_id = $1"
+    sql = f"SELECT {_COLUMNS} FROM addresses WHERE organization_id = $1"
     params: list = [org_id]
     n = 2
     if billing_entity_id:
@@ -80,24 +97,22 @@ async def list_addresses(
     sql += f" ORDER BY label, line1 LIMIT ${n} OFFSET ${n + 1}"
     params.extend([limit, offset])
     cursor = await conn.execute(sql, params)
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [m for r in await cursor.fetchall() if (m := _row_to_model(r)) is not None]
 
 
-async def search(query: str, limit: int = 20) -> list:
+async def search(query: str, limit: int = 20) -> list[StoredAddress]:
     """Fast prefix/substring search for autocomplete."""
     org_id = get_org_id()
     conn = get_connection()
     like = f"%{query.lower()}%"
-    sel_q = "SELECT "
-    sel_q += _COLUMNS
-    sel_q += (
-        " FROM addresses"
+    cursor = await conn.execute(
+        f"SELECT {_COLUMNS} FROM addresses"
         " WHERE organization_id = $1"
         " AND (LOWER(label) LIKE $2 OR LOWER(line1) LIKE $3 OR LOWER(city) LIKE $4)"
-        " ORDER BY label, line1 LIMIT $5"
+        " ORDER BY label, line1 LIMIT $5",
+        (org_id, like, like, like, limit),
     )
-    cursor = await conn.execute(sel_q, (org_id, like, like, like, limit))
-    return [_row_to_dict(r) for r in await cursor.fetchall()]
+    return [m for r in await cursor.fetchall() if (m := _row_to_model(r)) is not None]
 
 
 class AddressRepo:

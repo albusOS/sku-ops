@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure.address_repo import address_repo
+from shared.infrastructure.address_repo import StoredAddress, address_repo
 from shared.infrastructure.database import get_org_id
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
@@ -73,19 +73,19 @@ async def create_address(
     if not data.line1.strip():
         raise HTTPException(status_code=400, detail="Address line 1 is required")
 
-    address = {
-        "id": str(uuid4()),
-        "label": data.label or data.line1[:80],
-        "line1": data.line1,
-        "line2": data.line2,
-        "city": data.city,
-        "state": data.state,
-        "postal_code": data.postal_code,
-        "country": data.country,
-        "billing_entity_id": data.billing_entity_id,
-        "job_id": data.job_id,
-        "organization_id": get_org_id(),
-        "created_at": datetime.now(UTC).isoformat(),
-    }
+    address = StoredAddress(
+        id=str(uuid4()),
+        label=data.label or data.line1[:80],
+        line1=data.line1,
+        line2=data.line2,
+        city=data.city,
+        state=data.state,
+        postal_code=data.postal_code,
+        country=data.country,
+        billing_entity_id=data.billing_entity_id,
+        job_id=data.job_id,
+        organization_id=get_org_id(),
+        created_at=datetime.now(UTC).isoformat(),
+    )
     await address_repo.insert(address)
     return address

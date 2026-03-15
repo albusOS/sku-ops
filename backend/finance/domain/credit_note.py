@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from finance.domain.enums import CreditNoteStatus, XeroSyncStatus
 from shared.kernel.entity import AuditedEntity
 
 
@@ -23,12 +24,12 @@ class CreditNote(AuditedEntity):
     invoice_id: str | None = None
     return_id: str | None = None
     billing_entity: str = ""
-    status: str = "draft"  # draft → applied → void
+    status: CreditNoteStatus = CreditNoteStatus.DRAFT
     subtotal: float = 0.0
     tax: float = 0.0
     total: float = 0.0
     notes: str | None = None
     xero_credit_note_id: str | None = None
-    xero_sync_status: str | None = None
+    xero_sync_status: XeroSyncStatus | None = None
     line_items: list[CreditNoteLineItem] = Field(default_factory=list)
     line_count: int = 0

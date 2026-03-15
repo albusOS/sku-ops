@@ -12,7 +12,7 @@ services:
     command: sleep infinity
     ports:
       - "8000:8000"
-      - "5173:5173"
+      - "3000:3000"
 
 volumes:
   devcontainer-uv-cache:

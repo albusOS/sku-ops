@@ -79,4 +79,4 @@ async def trial_balance() -> dict[str, float]:
            ORDER BY account""",
         (org_id,),
     )
-    return {row[0]: row[1] for row in await cursor.fetchall()}
+    return {row[0]: float(row[1]) for row in await cursor.fetchall()}

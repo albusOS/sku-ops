@@ -1,3 +1,26 @@
+# docker-compose.yml — production-grade compose config.
+#
+# ENV defaults to development when not set (override auto-merges for docker-local).
+# For VPS production, set ENV=production in root .env — config.py enforces secrets.
+# Valid values: development | production
+#
+# Usage:
+#   Docker-local (dev):
+#     docker compose up
+#     Override (docker-compose.override.yml) is auto-merged: defaults ENV=development,
+#     exposes ports on host, hides nginx/certbot.
+#     Minimum root .env: POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (can be * in dev), ENV
+#
+#   VPS production:
+#     docker compose -f docker-compose.yml up -d
+#     Override is NOT loaded. Root .env must be fully populated (see .env.production.example).
+#     Required: ENV=production, POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (must not be *)
+#
+#   Railway:
+#     Deployed via railway.toml (Dockerfile builder). This file is NOT used.
+#     Set all env vars in Railway dashboard → Settings → Variables.
+#     Required: ENV=production, DATABASE_URL, JWT_SECRET, CORS_ORIGINS, REDIS_URL
+#
 services:
   redis:
     image: redis:7-alpine
@@ -41,7 +64,7 @@ services:
       redis:
         condition: service_started
     environment:
-      ENV: ${ENV:-production}
+      ENV: ${ENV:-development}
       AUTH_PROVIDER: ${AUTH_PROVIDER:-supabase}
       DATABASE_URL: postgresql://sku_ops:${POSTGRES_PASSWORD}@db:5432/sku_ops
       REDIS_URL: redis://redis:6379

@@ -14,6 +14,7 @@ from finance.application.ledger_service import record_withdrawal as _record_with
 from finance.application.org_settings_service import get_org_settings
 from inventory.application.inventory_service import process_withdrawal_stock_changes
 from jobs.application.job_service import ensure_job as _ensure_job
+from operations.domain.enums import PaymentStatus
 from operations.domain.withdrawal import (
     ContractorContext,
     MaterialWithdrawal,
@@ -131,7 +132,7 @@ async def create_withdrawal(
         contractor_company=contractor.company,
         billing_entity=billing_entity_name,
         billing_entity_id=billing_entity_id,
-        payment_status="unpaid",
+        payment_status=PaymentStatus.UNPAID,
         processed_by_id=current_user.id,
         processed_by_name=current_user.name,
     )

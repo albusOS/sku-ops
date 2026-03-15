@@ -19,7 +19,7 @@ class Job(AuditedEntity):
     code: str
     name: str = ""
     billing_entity_id: str | None = None
-    status: str = JobStatus.ACTIVE
+    status: JobStatus = JobStatus.ACTIVE
     service_address: str = ""
     notes: str | None = None
 
@@ -33,7 +33,7 @@ class JobCreate(BaseModel):
 
 class JobUpdate(BaseModel):
     name: str | None = None
-    status: str | None = None
+    status: JobStatus | None = None
     billing_entity_id: str | None = None
     service_address: str | None = None
     notes: str | None = None
