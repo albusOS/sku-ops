@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from finance.application.invoice_service import mark_paid_for_withdrawal
@@ -12,6 +13,8 @@ from operations.application.queries import get_withdrawal_by_id, mark_withdrawal
 from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import PaymentRecorded
+
+logger = logging.getLogger(__name__)
 
 
 async def create_payment_for_withdrawals(
@@ -80,5 +83,15 @@ async def create_payment_for_withdrawals(
             withdrawal_ids=tuple(data.withdrawal_ids),
         )
     )
-
+    logger.info(
+        "payment.recorded",
+        extra={
+            "org_id": org_id,
+            "payment_id": payment.id,
+            "amount": amount,
+            "method": data.method,
+            "withdrawal_count": len(data.withdrawal_ids),
+            "recorded_by_id": recorded_by_id,
+        },
+    )
     return payment

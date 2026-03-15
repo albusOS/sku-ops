@@ -6,11 +6,15 @@ part number, purchase UOM, cost, lead time, and preferred status.
 
 from __future__ import annotations
 
+import logging
+
 from catalog.domain.vendor_item import VendorItem
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo
 from catalog.infrastructure.vendor_repo import vendor_repo
 from shared.infrastructure.database import get_org_id, transaction
 from shared.kernel.errors import ResourceNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 async def add_vendor_item(
@@ -51,6 +55,16 @@ async def add_vendor_item(
             await vendor_item_repo.clear_preferred_for_sku(sku_id)
         await vendor_item_repo.insert(item)
 
+    logger.info(
+        "vendor_item.added",
+        extra={
+            "org_id": org_id,
+            "vendor_item_id": item.id,
+            "sku_id": sku_id,
+            "vendor_id": vendor_id,
+            "is_preferred": is_preferred,
+        },
+    )
     return item
 
 
@@ -69,6 +83,7 @@ async def update_vendor_item(
         result = await vendor_item_repo.update(item_id, updates)
     if not result:
         raise ResourceNotFoundError("VendorItem", item_id)
+    logger.info("vendor_item.updated", extra={"org_id": get_org_id(), "vendor_item_id": item_id})
     return result
 
 
@@ -77,7 +92,12 @@ async def remove_vendor_item(item_id: str) -> None:
     existing = await vendor_item_repo.get_by_id(item_id)
     if not existing:
         raise ResourceNotFoundError("VendorItem", item_id)
-    await vendor_item_repo.soft_delete(item_id)
+    async with transaction():
+        await vendor_item_repo.soft_delete(item_id)
+    logger.info(
+        "vendor_item.removed",
+        extra={"org_id": get_org_id(), "vendor_item_id": item_id, "sku_id": existing.sku_id},
+    )
 
 
 async def set_preferred_vendor(sku_id: str, vendor_item_id: str) -> None:
@@ -89,6 +109,10 @@ async def set_preferred_vendor(sku_id: str, vendor_item_id: str) -> None:
     async with transaction():
         await vendor_item_repo.clear_preferred_for_sku(sku_id)
         await vendor_item_repo.update(vendor_item_id, {"is_preferred": True})
+    logger.info(
+        "vendor_item.preferred_set",
+        extra={"org_id": get_org_id(), "vendor_item_id": vendor_item_id, "sku_id": sku_id},
+    )
 
 
 async def get_vendor_items_for_sku(sku_id: str) -> list[VendorItem]:

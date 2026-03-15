@@ -16,7 +16,7 @@ from assistant.application.llm import generate_with_image, generate_with_pdf
 from documents.domain.document import Document
 from documents.infrastructure.document_repo import document_repo
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
-from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db import get_org_id, transaction
 
 if TYPE_CHECKING:
     from shared.kernel.types import CurrentUser
@@ -59,8 +59,13 @@ async def persist_parsed_document(
         uploaded_by_id=current_user.id,
         organization_id=get_org_id(),
     )
-    await document_repo.insert(doc)
+    async with transaction():
+        await document_repo.insert(doc)
     extracted["document_id"] = doc.id
+    logger.info(
+        "document.parsed_and_persisted",
+        extra={"org_id": get_org_id(), "document_id": doc.id, "doc_filename": filename},
+    )
     return extracted
 
 

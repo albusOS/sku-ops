@@ -4,11 +4,53 @@ Other bounded contexts import from here, never from purchasing.infrastructure di
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 
 from catalog.application.queries import get_sku_by_id as _get_product
 from purchasing.domain.purchase_order import POItemRow, PORow, VendorPerformance
 from purchasing.infrastructure.po_repo import po_repo as _po_repo
 from shared.infrastructure.database import get_connection, get_org_id
+
+
+class VendorCatalogRow(TypedDict):
+    vendor_sku: str | None
+    cost: float
+    lead_time_days: int | None
+    moq: float | None
+    is_preferred: bool
+    purchase_uom: str
+    purchase_pack_qty: int
+    sku: str
+    name: str
+    quantity: float
+    min_stock: int
+    sell_uom: str
+    department: str
+
+
+class PurchaseHistoryItem(TypedDict):
+    id: str
+    vendor_name: str
+    document_date: str | None
+    total: float | None
+    status: str
+    created_at: str
+    received_at: str | None
+    items: list[dict]
+    item_count: int
+
+
+class ReorderRow(TypedDict):
+    sku_id: str
+    sku: str
+    name: str
+    quantity: float
+    min_stock: int
+    current_cost: float
+    sell_uom: str
+    department: str
+    vendor_options: list[dict]
+    deficit: float
 
 
 async def get_po_with_cost(po_id: str) -> dict | None:
@@ -77,7 +119,7 @@ async def get_po_items(po_id: str) -> list[POItemRow]:
 # ── Agent-facing analytics queries ───────────────────────────────────────────
 
 
-async def vendor_catalog(vendor_id: str) -> list[dict]:
+async def vendor_catalog(vendor_id: str) -> list[VendorCatalogRow]:
     """SKUs supplied by a vendor with cost, lead time, moq, preferred status."""
     conn = get_connection()
     org_id = get_org_id()
@@ -95,7 +137,7 @@ async def vendor_catalog(vendor_id: str) -> list[dict]:
         (vendor_id, org_id),
     )
     rows = await cursor.fetchall()
-    return [dict(r) for r in rows]
+    return [VendorCatalogRow(**dict(r)) for r in rows]
 
 
 async def vendor_performance(
@@ -144,7 +186,9 @@ async def vendor_performance(
     )
 
 
-async def purchase_history(vendor_id: str, days: int = 90, limit: int = 20) -> list[dict]:
+async def purchase_history(
+    vendor_id: str, days: int = 90, limit: int = 20
+) -> list[PurchaseHistoryItem]:
     """Recent POs for a vendor with item summaries."""
     conn = get_connection()
     org_id = get_org_id()
@@ -158,7 +202,9 @@ async def purchase_history(vendor_id: str, days: int = 90, limit: int = 20) -> l
            ORDER BY created_at DESC LIMIT $4""",
         (vendor_id, org_id, since, limit),
     )
-    pos = [dict(r) for r in await cursor.fetchall()]
+    pos: list[PurchaseHistoryItem] = [
+        PurchaseHistoryItem(**dict(r), items=[], item_count=0) for r in await cursor.fetchall()
+    ]
 
     for po in pos:
         item_cursor = await conn.execute(
@@ -172,7 +218,7 @@ async def purchase_history(vendor_id: str, days: int = 90, limit: int = 20) -> l
     return pos
 
 
-async def reorder_with_vendor_context(limit: int = 30) -> list[dict]:
+async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
     """Low-stock SKUs enriched with vendor options for procurement planning."""
     conn = get_connection()
     org_id = get_org_id()
@@ -188,7 +234,9 @@ async def reorder_with_vendor_context(limit: int = 30) -> list[dict]:
            LIMIT $2""",
         (org_id, limit),
     )
-    low_stock = [dict(r) for r in await cursor.fetchall()]
+    low_stock: list[ReorderRow] = [
+        ReorderRow(**dict(r), vendor_options=[], deficit=0.0) for r in await cursor.fetchall()
+    ]
 
     for item in low_stock:
         vi_cursor = await conn.execute(

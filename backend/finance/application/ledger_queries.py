@@ -10,7 +10,12 @@ reference_counts) live in ledger_analytics.py and are re-exported below.
 # Re-export write-path helpers that some callers (tests, ledger_service) need via this module.
 # Re-export analytics so callers using `from finance.application import ledger_queries` see everything.
 # _build_dimension_filter is the canonical copy (lives in ledger_analytics); imported here for local use.
+from typing import TypedDict
+
 from finance.application.ledger_analytics import (  # noqa: F401
+    ArAgingRow,
+    ProductMarginRow,
+    TrendPoint,
     _build_dimension_filter,
     ar_aging,
     product_margins,
@@ -27,6 +32,50 @@ from operations.application.queries import (
     units_sold_by_product as _ops_units_sold,
 )
 from shared.infrastructure.database import get_connection, get_org_id
+
+
+class DepartmentSummaryRow(TypedDict):
+    department: str
+    revenue: float
+    cost: float
+    shrinkage: float
+    profit: float
+    margin_pct: float
+
+
+class JobSummaryRow(TypedDict):
+    job_id: str
+    billing_entity: str
+    revenue: float
+    cost: float
+    profit: float
+    margin_pct: float
+    withdrawal_count: int
+
+
+class JobSummaryResult(TypedDict):
+    rows: list[JobSummaryRow]
+    total: int
+    all_revenue: float
+    all_cost: float
+
+
+class BillingEntitySummaryRow(TypedDict):
+    billing_entity: str
+    revenue: float
+    cost: float
+    profit: float
+    ar_balance: float
+    transaction_count: int
+
+
+class ContractorSummaryRow(TypedDict):
+    contractor_id: str
+    revenue: float
+    ar_balance: float
+    transaction_count: int
+    name: str
+    company: str
 
 
 async def summary_by_account(
@@ -67,7 +116,7 @@ async def summary_by_account(
 async def summary_by_department(
     start_date: str | None = None,
     end_date: str | None = None,
-) -> list[dict]:
+) -> list[DepartmentSummaryRow]:
     """Per-department revenue, cogs, shrinkage."""
     conn = get_connection()
     params: list = [get_org_id()]
@@ -102,14 +151,14 @@ async def summary_by_department(
         cost = row["cost"]
         profit = round(revenue - cost, 2)
         result.append(
-            {
-                "department": row["department"],
-                "revenue": revenue,
-                "cost": cost,
-                "shrinkage": row["shrinkage"],
-                "profit": profit,
-                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-            }
+            DepartmentSummaryRow(
+                department=row["department"],
+                revenue=revenue,
+                cost=cost,
+                shrinkage=row["shrinkage"],
+                profit=profit,
+                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+            )
         )
     return result
 
@@ -120,7 +169,7 @@ async def summary_by_job(
     limit: int = 100,
     offset: int = 0,
     search: str | None = None,
-) -> dict:
+) -> JobSummaryResult:
     """Per-job P&L with pagination and search. Returns {rows, total}."""
     conn = get_connection()
     params: list = [get_org_id()]
@@ -178,23 +227,23 @@ async def summary_by_job(
         cost = row["cost"]
         profit = round(revenue - cost, 2)
         result.append(
-            {
-                "job_id": row["job_id"],
-                "billing_entity": row["billing_entity"],
-                "revenue": revenue,
-                "cost": cost,
-                "profit": profit,
-                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-                "withdrawal_count": row["transaction_count"],
-            }
+            JobSummaryRow(
+                job_id=row["job_id"],
+                billing_entity=row["billing_entity"],
+                revenue=revenue,
+                cost=cost,
+                profit=profit,
+                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+                withdrawal_count=row["transaction_count"],
+            )
         )
-    return {"rows": result, "total": total, "all_revenue": all_revenue, "all_cost": all_cost}
+    return JobSummaryResult(rows=result, total=total, all_revenue=all_revenue, all_cost=all_cost)
 
 
 async def summary_by_billing_entity(
     start_date: str | None = None,
     end_date: str | None = None,
-) -> list[dict]:
+) -> list[BillingEntitySummaryRow]:
     """Per-entity AR balances and revenue."""
     conn = get_connection()
     params: list = [get_org_id()]
@@ -229,14 +278,14 @@ async def summary_by_billing_entity(
         cost = row["cost"]
         profit = round(revenue - cost, 2)
         result.append(
-            {
-                "billing_entity": row["billing_entity"],
-                "revenue": revenue,
-                "cost": cost,
-                "profit": profit,
-                "ar_balance": row["ar_balance"],
-                "transaction_count": row["transaction_count"],
-            }
+            BillingEntitySummaryRow(
+                billing_entity=row["billing_entity"],
+                revenue=revenue,
+                cost=cost,
+                profit=profit,
+                ar_balance=row["ar_balance"],
+                transaction_count=row["transaction_count"],
+            )
         )
     return result
 
@@ -244,7 +293,7 @@ async def summary_by_billing_entity(
 async def summary_by_contractor(
     start_date: str | None = None,
     end_date: str | None = None,
-) -> list[dict]:
+) -> list[ContractorSummaryRow]:
     """Per-contractor spend totals."""
     conn = get_connection()
     params: list = [get_org_id()]
@@ -275,12 +324,19 @@ async def summary_by_contractor(
     contractor_ids = [r["contractor_id"] for r in rows]
     user_map = await get_users_by_ids(contractor_ids)
 
-    for row in rows:
-        user = user_map.get(row["contractor_id"])
-        row["name"] = user.name if user else ""
-        row["company"] = user.company if user else ""
-
-    return rows
+    return [
+        ContractorSummaryRow(
+            contractor_id=row["contractor_id"],
+            revenue=row["revenue"],
+            ar_balance=row["ar_balance"],
+            transaction_count=row["transaction_count"],
+            name=user_map[row["contractor_id"]].name if row["contractor_id"] in user_map else "",
+            company=user_map[row["contractor_id"]].company
+            if row["contractor_id"] in user_map
+            else "",
+        )
+        for row in rows
+    ]
 
 
 async def units_sold_by_product(

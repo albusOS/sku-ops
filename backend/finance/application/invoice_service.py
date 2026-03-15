@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from finance.domain.enums import InvoiceStatus, XeroSyncStatus
 from finance.domain.invoice import InvoiceLineItem, InvoiceWithDetails, compute_due_date
 from finance.infrastructure.invoice_repo import (
     insert_invoice_row,
@@ -28,6 +29,7 @@ from operations.application.queries import (
     link_withdrawal_to_invoice,
     unlink_withdrawals_from_invoice,
 )
+from operations.domain.enums import PaymentStatus
 from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InvoiceApproved, InvoiceCreated, InvoiceDeleted
@@ -89,7 +91,7 @@ async def _validate_withdrawals_for_invoice(
         w = await get_withdrawal_by_id(wid)
         if not w:
             raise ValueError(f"Withdrawal {wid} not found")
-        if w.payment_status != "unpaid":
+        if w.payment_status != PaymentStatus.UNPAID:
             raise ValueError(f"Withdrawal {wid} is not unpaid")
         if w.invoice_id:
             raise ValueError(f"Withdrawal {wid} is already on invoice")
@@ -265,7 +267,7 @@ async def update_invoice(
                 "total": total,
             }
             if inv.xero_invoice_id:
-                sync_fields["xero_sync_status"] = "cogs_stale"
+                sync_fields["xero_sync_status"] = XeroSyncStatus.COGS_STALE
             await update_invoice_fields_dynamic(invoice_id, sync_fields)
         else:
             updates: dict[str, Any] = {}
@@ -308,18 +310,19 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:
         return None
-    if inv.status != "draft":
+    if inv.status != InvoiceStatus.DRAFT:
         raise ValueError(f"Cannot approve invoice in '{inv.status}' status")
 
     now = datetime.now(UTC).isoformat()
-    result = await update_fields(
-        invoice_id,
-        {
-            "status": "approved",
-            "approved_by_id": approved_by_id,
-            "approved_at": now,
-        },
-    )
+    async with transaction():
+        result = await update_fields(
+            invoice_id,
+            {
+                "status": InvoiceStatus.APPROVED,
+                "approved_by_id": approved_by_id,
+                "approved_at": now,
+            },
+        )
     await dispatch(InvoiceApproved(org_id=get_org_id(), invoice_id=invoice_id))
     return result
 
@@ -331,7 +334,7 @@ async def delete_draft_invoice(
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:
         return False
-    if inv.status != "draft":
+    if inv.status != InvoiceStatus.DRAFT:
         raise ValueError("Can only delete draft invoices")
 
     async with transaction():

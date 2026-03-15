@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 
 from catalog.application.queries import (
     count_all_skus,
@@ -19,6 +21,61 @@ from purchasing.application.queries import po_summary_by_status
 from shared.kernel.types import round_money
 
 
+class DailyPoint(TypedDict):
+    date: str
+    revenue: float
+    cost: float
+    profit: float
+
+
+class DeptMarginRow(TypedDict):
+    department: str
+    revenue: float
+    cost: float
+    profit: float
+    margin_pct: float
+
+
+class PoStatusSummary(TypedDict):
+    count: int
+    total: float
+
+
+@dataclass(frozen=True)
+class ContractorDashboard:
+    total_withdrawals: int
+    total_spent: float
+    unpaid_balance: float
+    recent_withdrawals: list[dict]
+
+
+@dataclass(frozen=True)
+class AdminDashboard:
+    range_revenue: float
+    range_cogs: float
+    range_gross_profit: float
+    range_margin_pct: float
+    range_transactions: int
+    revenue_by_day: list[DailyPoint]
+    total_products: int
+    low_stock_count: int
+    total_vendors: int
+    total_contractors: int
+    unpaid_total: float
+    low_stock_alerts: list[dict]
+    inventory_cost: float
+    inventory_retail: float
+    inventory_units: float
+    dept_margins: list[DeptMarginRow]
+    po_summary: dict[str, PoStatusSummary]
+
+
+@dataclass(frozen=True)
+class DashboardTransactions:
+    withdrawals: list[dict]
+    has_more: bool
+
+
 def _parse_date_range(start_date: str | None, end_date: str | None):
     return start_date or None, end_date or None
 
@@ -27,7 +84,7 @@ def _parse_iso(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
-def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> list:
+def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> list[DailyPoint]:
     """Bucket withdrawal totals and costs by calendar day between start and end."""
     days = (end - start).days + 1
     rev_buckets: dict[str, float] = {}
@@ -42,12 +99,12 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
             rev_buckets[created] += w.total
             cost_buckets[created] += w.cost_total
     return [
-        {
-            "date": k,
-            "revenue": round(rev_buckets[k], 2),
-            "cost": round(cost_buckets[k], 2),
-            "profit": round(rev_buckets[k] - cost_buckets[k], 2),
-        }
+        DailyPoint(
+            date=k,
+            revenue=round(rev_buckets[k], 2),
+            cost=round(cost_buckets[k], 2),
+            profit=round(rev_buckets[k] - cost_buckets[k], 2),
+        )
         for k in sorted(rev_buckets)
     ]
 
@@ -56,7 +113,7 @@ async def contractor_dashboard(
     contractor_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
-) -> dict:
+) -> ContractorDashboard:
     sd, ed = _parse_date_range(start_date, end_date)
     my_withdrawals = await list_withdrawals(
         contractor_id=contractor_id,
@@ -66,18 +123,18 @@ async def contractor_dashboard(
     )
     total_spent = sum(w.total for w in my_withdrawals)
     unpaid = sum(w.total for w in my_withdrawals if w.payment_status == "unpaid")
-    return {
-        "total_withdrawals": len(my_withdrawals),
-        "total_spent": round(total_spent, 2),
-        "unpaid_balance": round(unpaid, 2),
-        "recent_withdrawals": [w.model_dump() for w in my_withdrawals[:5]],
-    }
+    return ContractorDashboard(
+        total_withdrawals=len(my_withdrawals),
+        total_spent=round(total_spent, 2),
+        unpaid_balance=round(unpaid, 2),
+        recent_withdrawals=[w.model_dump() for w in my_withdrawals[:5]],
+    )
 
 
 async def admin_dashboard(
     start_date: str | None = None,
     end_date: str | None = None,
-) -> dict:
+) -> AdminDashboard:
     now = datetime.now(UTC)
     sd, ed = _parse_date_range(start_date, end_date)
 
@@ -112,22 +169,21 @@ async def admin_dashboard(
     inventory_retail = round_money(sum(p.price * p.quantity for p in products))
     inventory_units = sum(p.quantity for p in products)
 
-    dept_margins = []
-    for d in by_department:
-        dept_margins.append(
-            {
-                "department": d["department"],
-                "revenue": round_money(d["revenue"]),
-                "cost": round_money(d["cost"]),
-                "profit": round_money(d["profit"]),
-                "margin_pct": d["margin_pct"],
-            }
+    dept_margins: list[DeptMarginRow] = [
+        DeptMarginRow(
+            department=d["department"],
+            revenue=round_money(d["revenue"]),
+            cost=round_money(d["cost"]),
+            profit=round_money(d["profit"]),
+            margin_pct=d["margin_pct"],
         )
+        for d in by_department
+    ]
     dept_margins.sort(key=lambda x: x["revenue"], reverse=True)
 
     raw_po = await po_summary_by_status()
-    po_summary = {
-        status: {"count": v["count"], "total": round_money(v["total"])}
+    po_summary: dict[str, PoStatusSummary] = {
+        status: PoStatusSummary(count=v["count"], total=round_money(v["total"]))
         for status, v in raw_po.items()
     }
 
@@ -142,25 +198,25 @@ async def admin_dashboard(
     gross_profit = round_money(range_revenue - range_cogs)
     margin_pct = round(gross_profit / range_revenue * 100, 1) if range_revenue > 0 else 0
 
-    return {
-        "range_revenue": round_money(range_revenue),
-        "range_cogs": round_money(range_cogs),
-        "range_gross_profit": gross_profit,
-        "range_margin_pct": margin_pct,
-        "range_transactions": range_transactions,
-        "revenue_by_day": daily_chart,
-        "total_products": total_products,
-        "low_stock_count": low_stock_products,
-        "total_vendors": total_vendors,
-        "total_contractors": total_contractors,
-        "unpaid_total": round_money(unpaid_total),
-        "low_stock_alerts": [p.model_dump() for p in low_stock_items],
-        "inventory_cost": inventory_cost,
-        "inventory_retail": inventory_retail,
-        "inventory_units": inventory_units,
-        "dept_margins": dept_margins,
-        "po_summary": po_summary,
-    }
+    return AdminDashboard(
+        range_revenue=round_money(range_revenue),
+        range_cogs=round_money(range_cogs),
+        range_gross_profit=gross_profit,
+        range_margin_pct=margin_pct,
+        range_transactions=range_transactions,
+        revenue_by_day=daily_chart,
+        total_products=total_products,
+        low_stock_count=low_stock_products,
+        total_vendors=total_vendors,
+        total_contractors=total_contractors,
+        unpaid_total=round_money(unpaid_total),
+        low_stock_alerts=[p.model_dump() for p in low_stock_items],
+        inventory_cost=inventory_cost,
+        inventory_retail=inventory_retail,
+        inventory_units=inventory_units,
+        dept_margins=dept_margins,
+        po_summary=po_summary,
+    )
 
 
 async def dashboard_transactions(
@@ -171,7 +227,7 @@ async def dashboard_transactions(
     end_date: str | None = None,
     contractor_id: str | None = None,
     payment_status: str | None = None,
-) -> dict:
+) -> DashboardTransactions:
     sd, ed = _parse_date_range(start_date, end_date)
     fetch_limit = limit + 1
     rows = await list_withdrawals(
@@ -183,5 +239,7 @@ async def dashboard_transactions(
         offset=offset,
     )
     has_more = len(rows) > limit
-    withdrawals = [w.model_dump() for w in rows[:limit]]
-    return {"withdrawals": withdrawals, "has_more": has_more}
+    return DashboardTransactions(
+        withdrawals=[w.model_dump() for w in rows[:limit]],
+        has_more=has_more,
+    )

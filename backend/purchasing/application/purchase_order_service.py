@@ -5,6 +5,7 @@ Items are saved as pending when a document is reviewed; inventory only updates
 on receive. All types are explicit — no dicts flowing across domain boundaries.
 """
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,10 +22,12 @@ from purchasing.domain.purchase_order import (
 )
 from purchasing.infrastructure.po_repo import po_repo as _default_repo
 from purchasing.ports.po_repo_port import PORepoPort
-from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db import get_org_id, transaction
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.types import CurrentUser
 from shared.kernel.units import ALLOWED_BASE_UNITS
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -198,8 +201,21 @@ async def create_purchase_order(
             )
         )
 
-    await repo.insert_po(po)
-    await repo.insert_items(po_items)
+    async with transaction():
+        await repo.insert_po(po)
+        await repo.insert_items(po_items)
+
+    logger.info(
+        "purchase_order.created",
+        extra={
+            "org_id": org_id,
+            "po_id": po.id,
+            "vendor_id": vendor_id,
+            "vendor_name": vendor_name,
+            "item_count": len(po_items),
+            "user_id": current_user.id,
+        },
+    )
 
     return CreatePOResult(
         id=po.id,

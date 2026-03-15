@@ -1,5 +1,6 @@
 """Credit note application service — orchestrates cross-context interactions."""
 
+import logging
 from datetime import UTC, datetime
 
 from finance.application.ledger_service import record_credit_note_application
@@ -12,6 +13,8 @@ from operations.application.queries import (
 from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import CreditNoteApplied
+
+logger = logging.getLogger(__name__)
 
 
 async def insert_credit_note(
@@ -33,6 +36,16 @@ async def insert_credit_note(
             total=total,
         )
         await link_credit_note_to_return(return_id, cn.id)
+    logger.info(
+        "credit_note.created",
+        extra={
+            "org_id": get_org_id(),
+            "credit_note_id": cn.id,
+            "return_id": return_id,
+            "invoice_id": invoice_id,
+            "total": total,
+        },
+    )
     return cn
 
 
@@ -61,12 +74,23 @@ async def apply_credit_note(
             performed_by_user_id=performed_by_user_id,
         )
 
+    org_id = get_org_id()
     await dispatch(
         CreditNoteApplied(
-            org_id=get_org_id(),
+            org_id=org_id,
             credit_note_id=credit_note_id,
             invoice_id=result.invoice_id or "",
         )
+    )
+    logger.info(
+        "credit_note.applied",
+        extra={
+            "org_id": org_id,
+            "credit_note_id": credit_note_id,
+            "invoice_id": result.invoice_id,
+            "auto_paid": result.auto_paid,
+            "performed_by_user_id": performed_by_user_id,
+        },
     )
     return result.credit_note
 

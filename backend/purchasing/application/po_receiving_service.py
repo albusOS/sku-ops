@@ -3,6 +3,7 @@
 Split from purchase_order_service to keep each module under 300 lines.
 """
 
+import logging
 from datetime import UTC, datetime
 
 from catalog.application.queries import SkuUpdate
@@ -27,11 +28,13 @@ from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.event_payloads import ReceivedItemSummary
 from shared.kernel.types import CurrentUser
 
+logger = logging.getLogger(__name__)
+
 
 async def mark_delivery_received(
     po_id: str,
     item_ids: list[str],
-    current_user: CurrentUser,  # noqa: ARG001
+    current_user: CurrentUser,
     repo: PORepoPort = _default_repo,
 ) -> MarkDeliveryResult:
     """Transition selected 'ordered' items to 'pending' (delivery arrived at dock).
@@ -53,7 +56,12 @@ async def mark_delivery_received(
         await repo.update_po_item(item_id, POItemStatus.PENDING)
         transitioned += 1
 
-    return MarkDeliveryResult(po_id=po_id, status=po.status, transitioned=transitioned)
+    result = MarkDeliveryResult(po_id=po_id, status=po.status, transitioned=transitioned)
+    logger.info(
+        "po.delivery_marked",
+        extra={"po_id": po_id, "transitioned": transitioned, "user_id": current_user.id},
+    )
+    return result
 
 
 async def receive_po_items(
@@ -273,7 +281,7 @@ async def receive_po_items(
             )
         )
 
-    return ReceiveItemsResult(
+    result = ReceiveItemsResult(
         po_id=po_id,
         status=new_status,
         received=len(received),
@@ -282,6 +290,19 @@ async def receive_po_items(
         error_details=error_details,
         cost_total=round(cost_total, 2),
     )
+    logger.info(
+        "po.items_received",
+        extra={
+            "po_id": po_id,
+            "status": new_status,
+            "received": result.received,
+            "matched": result.matched,
+            "errors": result.errors,
+            "cost_total": result.cost_total,
+            "user_id": current_user.id,
+        },
+    )
+    return result
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────────

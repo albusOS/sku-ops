@@ -7,7 +7,9 @@ and withdrawal velocity rather than the financial ledger.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 
 from catalog.application.queries import list_low_stock, list_skus
 from finance.application import ledger_queries as ledger_repo
@@ -16,7 +18,47 @@ from shared.infrastructure.db import get_org_id
 from shared.kernel.types import round_money
 
 
-async def inventory_report() -> dict:
+class DepartmentInventory(TypedDict):
+    count: int
+    retail_value: float
+    cost_value: float
+    margin: float
+
+
+@dataclass(frozen=True)
+class InventoryReport:
+    total_products: int
+    total_retail_value: float
+    total_cost_value: float
+    unrealized_margin: float
+    margin_pct: float
+    potential_profit: float
+    low_stock_count: int
+    out_of_stock_count: int
+    low_stock_items: list[dict]
+    by_department: dict[str, DepartmentInventory]
+
+
+@dataclass(frozen=True)
+class ProductPerformanceReport:
+    products: list[dict]
+    total: int
+
+
+@dataclass(frozen=True)
+class ReorderUrgencyReport:
+    products: list[dict]
+    total: int
+
+
+@dataclass(frozen=True)
+class ProductActivityReport:
+    series: list[dict]
+    product_id: str | None
+    days: int
+
+
+async def inventory_report() -> InventoryReport:
     products = await list_skus()
 
     total_products = len(products)
@@ -27,11 +69,13 @@ async def inventory_report() -> dict:
     low_stock = [p for p in products if p.quantity <= p.min_stock]
     out_of_stock = [p for p in products if p.quantity == 0]
 
-    by_department: dict = {}
+    by_department: dict[str, DepartmentInventory] = {}
     for p in products:
         dept = p.category_name or "Unknown"
         if dept not in by_department:
-            by_department[dept] = {"count": 0, "retail_value": 0, "cost_value": 0}
+            by_department[dept] = DepartmentInventory(
+                count=0, retail_value=0, cost_value=0, margin=0
+            )
         by_department[dept]["count"] += 1
         by_department[dept]["retail_value"] += p.price * p.quantity
         by_department[dept]["cost_value"] += p.cost * p.quantity
@@ -41,18 +85,18 @@ async def inventory_report() -> dict:
         dept_data["cost_value"] = round_money(dept_data["cost_value"])
         dept_data["margin"] = round_money(dept_data["retail_value"] - dept_data["cost_value"])
 
-    return {
-        "total_products": total_products,
-        "total_retail_value": total_retail,
-        "total_cost_value": total_cost,
-        "unrealized_margin": unrealized_margin,
-        "margin_pct": margin_pct,
-        "potential_profit": unrealized_margin,
-        "low_stock_count": len(low_stock),
-        "out_of_stock_count": len(out_of_stock),
-        "low_stock_items": [p.model_dump() for p in low_stock[:20]],
-        "by_department": by_department,
-    }
+    return InventoryReport(
+        total_products=total_products,
+        total_retail_value=total_retail,
+        total_cost_value=total_cost,
+        unrealized_margin=unrealized_margin,
+        margin_pct=margin_pct,
+        potential_profit=unrealized_margin,
+        low_stock_count=len(low_stock),
+        out_of_stock_count=len(out_of_stock),
+        low_stock_items=[p.model_dump() for p in low_stock[:20]],
+        by_department=by_department,
+    )
 
 
 async def product_performance_report(
@@ -60,13 +104,9 @@ async def product_performance_report(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 200,
-) -> dict:
+) -> ProductPerformanceReport:
     margin_data, products_data, units_sold_map = await asyncio.gather(
-        ledger_repo.product_margins(
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
-        ),
+        ledger_repo.product_margins(start_date=start_date, end_date=end_date, limit=limit),
         list_skus(),
         ledger_repo.units_sold_by_product(start_date=start_date, end_date=end_date),
     )
@@ -103,14 +143,14 @@ async def product_performance_report(
             }
         )
 
-    return {"products": result, "total": len(result)}
+    return ProductPerformanceReport(products=result, total=len(result))
 
 
 async def reorder_urgency_report(
     *,
     days: int = 30,
     limit: int = 50,
-) -> dict:
+) -> ReorderUrgencyReport:
     since = (datetime.now(UTC) - timedelta(days=min(days, 365))).isoformat()
 
     low_stock, _all_products = await asyncio.gather(
@@ -120,7 +160,7 @@ async def reorder_urgency_report(
 
     product_ids = [p.id for p in low_stock]
     if not product_ids:
-        return {"products": [], "total": 0}
+        return ReorderUrgencyReport(products=[], total=0)
 
     velocity_map = await withdrawal_velocity(product_ids, since)
 
@@ -162,14 +202,14 @@ async def reorder_urgency_report(
         )
     )
 
-    return {"products": result[:limit], "total": len(result)}
+    return ReorderUrgencyReport(products=result[:limit], total=len(result))
 
 
 async def product_activity_report(
     *,
     product_id: str | None = None,
     days: int = 365,
-) -> dict:
+) -> ProductActivityReport:
     since = (datetime.now(UTC) - timedelta(days=min(days, 730))).isoformat()
     rows = await daily_withdrawal_activity(get_org_id(), since, product_id=product_id)
-    return {"series": rows, "product_id": product_id, "days": days}
+    return ProductActivityReport(series=rows, product_id=product_id, days=days)

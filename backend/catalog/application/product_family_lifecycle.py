@@ -6,6 +6,7 @@ all child SKUs and their vendor items.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from catalog.domain.product_family import Product
@@ -17,6 +18,8 @@ from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import CatalogChanged
 from shared.kernel.errors import ResourceNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 async def create_product(
@@ -43,6 +46,10 @@ async def create_product(
         await product_family_repo.insert(product)
 
     await dispatch(CatalogChanged(org_id=org_id, product_ids=(product.id,), change_type="created"))
+    logger.info(
+        "product.created",
+        extra={"org_id": org_id, "product_id": product.id, "product_name": product.name},
+    )
     return product
 
 
@@ -67,9 +74,9 @@ async def update_product(
     if not result:
         raise ResourceNotFoundError("Product", product_id)
 
-    await dispatch(
-        CatalogChanged(org_id=get_org_id(), product_ids=(product_id,), change_type="updated")
-    )
+    org_id = get_org_id()
+    await dispatch(CatalogChanged(org_id=org_id, product_ids=(product_id,), change_type="updated"))
+    logger.info("product.updated", extra={"org_id": org_id, "product_id": product_id})
     return result
 
 
@@ -89,6 +96,11 @@ async def delete_product(product_id: str) -> None:
             await department_repo.increment_sku_count(s.category_id, -1)
         await product_family_repo.soft_delete(product_id)
 
+    org_id = get_org_id()
     await dispatch(
-        CatalogChanged(org_id=get_org_id(), product_ids=tuple(deleted_ids), change_type="deleted")
+        CatalogChanged(org_id=org_id, product_ids=tuple(deleted_ids), change_type="deleted")
+    )
+    logger.info(
+        "product.deleted",
+        extra={"org_id": org_id, "product_id": product_id, "cascade_sku_count": len(child_skus)},
     )

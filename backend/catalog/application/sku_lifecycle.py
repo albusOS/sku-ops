@@ -8,6 +8,7 @@ ledger stay in sync.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -24,6 +25,8 @@ from shared.infrastructure.domain_events import dispatch
 from shared.kernel.barcode import validate_barcode
 from shared.kernel.domain_events import CatalogChanged
 from shared.kernel.errors import ResourceNotFoundError
+
+logger = logging.getLogger(__name__)
 
 StockChangesFn = Callable[..., Awaitable[None]] | None
 
@@ -108,6 +111,16 @@ async def create_sku(
             )
 
     await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku.id,), change_type="created"))
+    logger.info(
+        "sku.created",
+        extra={
+            "org_id": org_id,
+            "sku_id": sku.id,
+            "sku": sku.sku,
+            "sku_name": sku.name,
+            "user_id": user_id,
+        },
+    )
     return sku
 
 
@@ -212,9 +225,9 @@ async def update_sku(
     if not result:
         raise ResourceNotFoundError("Sku", sku_id)
 
-    await dispatch(
-        CatalogChanged(org_id=get_org_id(), product_ids=(sku_id,), change_type="updated")
-    )
+    org_id = get_org_id()
+    await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku_id,), change_type="updated"))
+    logger.info("sku.updated", extra={"org_id": org_id, "sku_id": sku_id})
     return result
 
 
@@ -231,6 +244,6 @@ async def delete_sku(sku_id: str) -> None:
         if sku.product_id:
             await product_family_repo.increment_sku_count(sku.product_id, -1)
 
-    await dispatch(
-        CatalogChanged(org_id=get_org_id(), product_ids=(sku_id,), change_type="deleted")
-    )
+    org_id = get_org_id()
+    await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku_id,), change_type="deleted"))
+    logger.info("sku.deleted", extra={"org_id": org_id, "sku_id": sku_id})

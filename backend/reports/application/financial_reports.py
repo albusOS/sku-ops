@@ -6,11 +6,94 @@ All read from the financial_ledger via ledger_queries.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from catalog.application.queries import list_skus
 from finance.application import ledger_queries as ledger_repo
 from shared.kernel.types import round_money
+
+if TYPE_CHECKING:
+    from finance.application.ledger_analytics import ArAgingRow, ProductMarginRow, TrendPoint
+
+
+@dataclass(frozen=True)
+class SalesReport:
+    gross_revenue: float
+    returns_total: float
+    net_revenue: float
+    total_cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+    total_tax: float
+    total_transactions: int
+    return_count: int
+    average_transaction: float
+    by_payment_status: dict[str, float]
+    top_products: list[dict]
+    total_revenue: float
+
+
+@dataclass(frozen=True)
+class TrendsTotals:
+    revenue: float
+    cost: float
+    profit: float
+
+
+@dataclass(frozen=True)
+class TrendsReport:
+    series: list[TrendPoint]
+    totals: TrendsTotals
+
+
+@dataclass(frozen=True)
+class ProductMarginsReport:
+    products: list[ProductMarginRow]
+
+
+@dataclass(frozen=True)
+class JobPlReport:
+    jobs: list[dict]
+    total: int
+    total_revenue: float
+    total_cost: float
+    total_profit: float
+    total_margin_pct: float
+
+
+@dataclass(frozen=True)
+class PlSummary:
+    revenue: float
+    cogs: float
+    gross_profit: float
+    margin_pct: float
+    tax_collected: float = 0.0
+    shrinkage: float = 0.0
+
+
+@dataclass(frozen=True)
+class PlReport:
+    group_by: str
+    summary: PlSummary
+    rows: list[dict]
+    label_key: str
+    total_rows: int | None = None
+
+
+@dataclass(frozen=True)
+class KpiReport:
+    period_days: int
+    total_revenue: float
+    total_cogs: float
+    gross_profit: float
+    gross_margin_pct: float
+    inventory_cost_value: float
+    inventory_turnover: float
+    dio: float
+    sell_through_pct: float
+    total_units_sold: int
 
 
 async def sales_report(
@@ -20,7 +103,7 @@ async def sales_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> dict:
+) -> SalesReport:
     dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
 
     accounts, top_products, counts, catalog, payment_status = await asyncio.gather(
@@ -31,10 +114,12 @@ async def sales_report(
         ledger_repo.payment_status_breakdown(start_date=start_date, end_date=end_date),
     )
     product_map = {p.id: p for p in catalog}
+    enriched_products = []
     for m in top_products:
         p = product_map.get(m["product_id"])
-        m["name"] = p.name if p else "Unknown"
-        m["sku"] = p.sku if p else ""
+        enriched_products.append(
+            {**m, "name": p.name if p else "Unknown", "sku": p.sku if p else ""}
+        )
 
     revenue = accounts.get("revenue", 0)
     cogs = accounts.get("cogs", 0)
@@ -43,21 +128,21 @@ async def sales_report(
     tx_count = counts.get("withdrawal", 0)
     return_count = counts.get("return", 0)
 
-    return {
-        "gross_revenue": round_money(revenue),
-        "returns_total": 0,
-        "net_revenue": round_money(revenue),
-        "total_cogs": round_money(cogs),
-        "gross_profit": gross_profit,
-        "gross_margin_pct": round(gross_profit / revenue * 100, 1) if revenue > 0 else 0,
-        "total_tax": round_money(tax),
-        "total_transactions": tx_count,
-        "return_count": return_count,
-        "average_transaction": round_money(revenue / tx_count) if tx_count > 0 else 0,
-        "by_payment_status": payment_status,
-        "top_products": top_products,
-        "total_revenue": round_money(revenue),
-    }
+    return SalesReport(
+        gross_revenue=round_money(revenue),
+        returns_total=0,
+        net_revenue=round_money(revenue),
+        total_cogs=round_money(cogs),
+        gross_profit=gross_profit,
+        gross_margin_pct=round(gross_profit / revenue * 100, 1) if revenue > 0 else 0,
+        total_tax=round_money(tax),
+        total_transactions=tx_count,
+        return_count=return_count,
+        average_transaction=round_money(revenue / tx_count) if tx_count > 0 else 0,
+        by_payment_status=payment_status,
+        top_products=enriched_products,
+        total_revenue=round_money(revenue),
+    )
 
 
 async def trends_report(
@@ -68,7 +153,7 @@ async def trends_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> dict:
+) -> TrendsReport:
     series = await ledger_repo.trend_series(
         start_date=start_date,
         end_date=end_date,
@@ -77,12 +162,14 @@ async def trends_report(
         department=department,
         billing_entity=billing_entity,
     )
-    totals = {
-        "revenue": round_money(sum(r["revenue"] for r in series)),
-        "cost": round_money(sum(r["cost"] for r in series)),
-        "profit": round_money(sum(r["profit"] for r in series)),
-    }
-    return {"series": series, "totals": totals}
+    return TrendsReport(
+        series=series,
+        totals=TrendsTotals(
+            revenue=round_money(sum(r["revenue"] for r in series)),
+            cost=round_money(sum(r["cost"] for r in series)),
+            profit=round_money(sum(r["profit"] for r in series)),
+        ),
+    )
 
 
 async def product_margins_report(
@@ -93,7 +180,7 @@ async def product_margins_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> dict:
+) -> ProductMarginsReport:
     margin_data, catalog = await asyncio.gather(
         ledger_repo.product_margins(
             start_date=start_date,
@@ -106,11 +193,11 @@ async def product_margins_report(
         list_skus(),
     )
     product_map = {p.id: p for p in catalog}
+    enriched = []
     for m in margin_data:
         p = product_map.get(m["product_id"])
-        m["name"] = p.name if p else "Unknown"
-        m["sku"] = p.sku if p else ""
-    return {"products": margin_data}
+        enriched.append({**m, "name": p.name if p else "Unknown", "sku": p.sku if p else ""})
+    return ProductMarginsReport(products=enriched)
 
 
 async def job_pl_report(
@@ -120,7 +207,7 @@ async def job_pl_report(
     limit: int = 100,
     offset: int = 0,
     search: str | None = None,
-) -> dict:
+) -> JobPlReport:
     result = await ledger_repo.summary_by_job(
         start_date=start_date,
         end_date=end_date,
@@ -133,16 +220,14 @@ async def job_pl_report(
     total_cost = sum(j["cost"] for j in jobs)
     total_profit = total_revenue - total_cost
 
-    return {
-        "jobs": jobs,
-        "total": result["total"],
-        "total_revenue": round_money(total_revenue),
-        "total_cost": round_money(total_cost),
-        "total_profit": round_money(total_profit),
-        "total_margin_pct": round(
-            (total_profit / total_revenue * 100) if total_revenue > 0 else 0, 1
-        ),
-    }
+    return JobPlReport(
+        jobs=jobs,
+        total=result["total"],
+        total_revenue=round_money(total_revenue),
+        total_cost=round_money(total_cost),
+        total_profit=round_money(total_profit),
+        total_margin_pct=round((total_profit / total_revenue * 100) if total_revenue > 0 else 0, 1),
+    )
 
 
 async def pl_report(
@@ -156,7 +241,7 @@ async def pl_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> dict:
+) -> PlReport:
     date_kw = {"start_date": start_date, "end_date": end_date}
     dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
     total_rows = None
@@ -168,28 +253,26 @@ async def pl_report(
         tax = accounts.get("tax_collected", 0)
         shrinkage = accounts.get("shrinkage", 0)
         profit = round_money(revenue - cogs - shrinkage)
-        return {
-            "group_by": "overall",
-            "summary": {
-                "revenue": round_money(revenue),
-                "cogs": round_money(cogs),
-                "tax_collected": round_money(tax),
-                "shrinkage": round_money(shrinkage),
-                "gross_profit": profit,
-                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-            },
-            "rows": [],
-        }
+        return PlReport(
+            group_by="overall",
+            summary=PlSummary(
+                revenue=round_money(revenue),
+                cogs=round_money(cogs),
+                tax_collected=round_money(tax),
+                shrinkage=round_money(shrinkage),
+                gross_profit=profit,
+                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+            ),
+            rows=[],
+            label_key="name",
+        )
 
     all_revenue_override = None
     all_cost_override = None
 
     if group_by == "job":
         result = await ledger_repo.summary_by_job(
-            **date_kw,
-            limit=limit,
-            offset=offset,
-            search=search,
+            **date_kw, limit=limit, offset=offset, search=search
         )
         rows = result["rows"]
         total_rows = result["total"]
@@ -206,14 +289,15 @@ async def pl_report(
         rows = await ledger_repo.summary_by_billing_entity(**date_kw)
         label_key = "billing_entity"
     elif group_by == "product":
-        rows, catalog = await asyncio.gather(
+        margin_rows, catalog = await asyncio.gather(
             ledger_repo.product_margins(**date_kw, limit=limit),
             list_skus(),
         )
         pmap = {p.id: p for p in catalog}
-        for m in rows:
-            p = pmap.get(m["product_id"])
-            m["name"] = p.name if p else "Unknown"
+        rows = [
+            {**m, "name": pmap[m["product_id"]].name if m["product_id"] in pmap else "Unknown"}
+            for m in margin_rows
+        ]
         label_key = "name"
     else:
         rows = []
@@ -229,27 +313,25 @@ async def pl_report(
     )
     total_profit = round_money(total_revenue - total_cost)
 
-    resp = {
-        "group_by": group_by,
-        "summary": {
-            "revenue": round_money(total_revenue),
-            "cogs": round_money(total_cost),
-            "gross_profit": total_profit,
-            "margin_pct": round(total_profit / total_revenue * 100, 1) if total_revenue > 0 else 0,
-        },
-        "rows": rows,
-        "label_key": label_key,
-    }
-    if total_rows is not None:
-        resp["total_rows"] = total_rows
-    return resp
+    return PlReport(
+        group_by=group_by,
+        summary=PlSummary(
+            revenue=round_money(total_revenue),
+            cogs=round_money(total_cost),
+            gross_profit=total_profit,
+            margin_pct=round(total_profit / total_revenue * 100, 1) if total_revenue > 0 else 0,
+        ),
+        rows=rows,
+        label_key=label_key,
+        total_rows=total_rows,
+    )
 
 
 async def ar_aging_report(
     *,
     start_date: str | None = None,
     end_date: str | None = None,
-) -> list:
+) -> list[ArAgingRow]:
     return await ledger_repo.ar_aging(start_date=start_date, end_date=end_date)
 
 
@@ -260,7 +342,7 @@ async def kpi_report(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> dict:
+) -> KpiReport:
     accounts, products_data, units_sold_map = await asyncio.gather(
         ledger_repo.summary_by_account(
             start_date=start_date,
@@ -301,15 +383,15 @@ async def kpi_report(
         else 0
     )
 
-    return {
-        "period_days": period_days,
-        "total_revenue": round_money(total_revenue),
-        "total_cogs": round_money(total_cogs),
-        "gross_profit": round_money(total_revenue - total_cogs),
-        "gross_margin_pct": round(gross_margin_pct, 1),
-        "inventory_cost_value": round_money(inventory_cost_value),
-        "inventory_turnover": round(inventory_turnover, 2),
-        "dio": round(dio, 1),
-        "sell_through_pct": round(sell_through_pct, 1),
-        "total_units_sold": total_units_sold,
-    }
+    return KpiReport(
+        period_days=period_days,
+        total_revenue=round_money(total_revenue),
+        total_cogs=round_money(total_cogs),
+        gross_profit=round_money(total_revenue - total_cogs),
+        gross_margin_pct=round(gross_margin_pct, 1),
+        inventory_cost_value=round_money(inventory_cost_value),
+        inventory_turnover=round(inventory_turnover, 2),
+        dio=round(dio, 1),
+        sell_through_pct=round(sell_through_pct, 1),
+        total_units_sold=total_units_sold,
+    )

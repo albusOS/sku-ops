@@ -4,7 +4,36 @@ Split from ledger_queries.py for file-size discipline. All functions are
 re-exported from ledger_queries so existing callers are unaffected.
 """
 
+from typing import TypedDict
+
 from shared.infrastructure.database import get_connection, get_org_id
+
+
+class TrendPoint(TypedDict):
+    date: str
+    revenue: float
+    cost: float
+    shrinkage: float
+    profit: float
+    transaction_count: int
+
+
+class ArAgingRow(TypedDict):
+    billing_entity: str
+    total_ar: float
+    current_not_due: float
+    overdue_1_30: float
+    overdue_31_60: float
+    overdue_61_90: float
+    overdue_90_plus: float
+
+
+class ProductMarginRow(TypedDict):
+    product_id: str
+    revenue: float
+    cost: float
+    profit: float
+    margin_pct: float
 
 
 def _date_group_expr(column: str, grain: str) -> str:
@@ -52,7 +81,7 @@ async def trend_series(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> list[dict]:
+) -> list[TrendPoint]:
     """Time-series of revenue, cost, profit."""
     conn = get_connection()
     period_expr = _date_group_expr("created_at", group_by)
@@ -93,14 +122,14 @@ async def trend_series(
         cost = row["cost"]
         profit = round(revenue - cost - row["shrinkage"], 2)
         series.append(
-            {
-                "date": row["period"],
-                "revenue": revenue,
-                "cost": cost,
-                "shrinkage": row["shrinkage"],
-                "profit": profit,
-                "transaction_count": row["transaction_count"],
-            }
+            TrendPoint(
+                date=row["period"],
+                revenue=revenue,
+                cost=cost,
+                shrinkage=row["shrinkage"],
+                profit=profit,
+                transaction_count=row["transaction_count"],
+            )
         )
     return series
 
@@ -108,7 +137,7 @@ async def trend_series(
 async def ar_aging(
     start_date: str | None = None,
     end_date: str | None = None,
-) -> list[dict]:
+) -> list[ArAgingRow]:
     """AR aging buckets by billing entity based on invoice due_date."""
     conn = get_connection()
     params: list = [get_org_id()]
@@ -144,7 +173,7 @@ async def ar_aging(
     query += date_filter
     query += " GROUP BY fl.billing_entity HAVING ROUND(CAST(SUM(fl.amount) AS NUMERIC), 2) != 0"
     cursor = await conn.execute(query, params)
-    return [dict(r) for r in await cursor.fetchall()]
+    return [ArAgingRow(**dict(r)) for r in await cursor.fetchall()]
 
 
 async def product_margins(
@@ -155,7 +184,7 @@ async def product_margins(
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
-) -> list[dict]:
+) -> list[ProductMarginRow]:
     """Per-product revenue, COGS, profit, margin."""
     conn = get_connection()
     params: list = [get_org_id()]
@@ -193,13 +222,13 @@ async def product_margins(
         cost = row["cost"]
         profit = round(revenue - cost, 2)
         result.append(
-            {
-                "product_id": row["product_id"],
-                "revenue": revenue,
-                "cost": cost,
-                "profit": profit,
-                "margin_pct": round(profit / revenue * 100, 1) if revenue > 0 else 0,
-            }
+            ProductMarginRow(
+                product_id=row["product_id"],
+                revenue=revenue,
+                cost=cost,
+                profit=profit,
+                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+            )
         )
     return result
 
