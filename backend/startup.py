@@ -88,25 +88,28 @@ async def lifespan(app: FastAPI):
     init_tools()
     logger.info("Tool registry initialized")
 
-    from shared.infrastructure.logging_config import org_id_var
+    async def _background_warmup() -> None:
+        from shared.infrastructure.logging_config import org_id_var
 
-    org_ids = await _get_active_org_ids()
-    for oid in org_ids:
-        token = org_id_var.set(oid)
-        try:
-            from assistant.agents.tools.search import get_index
+        org_ids = await _get_active_org_ids()
+        for oid in org_ids:
+            token = org_id_var.set(oid)
+            try:
+                from assistant.agents.tools.search import get_index
 
-            await get_index()
-        except (RuntimeError, OSError, ValueError) as e:
-            logger.warning("BM25 index warm-up skipped for org '%s': %s", oid, e)
-        try:
-            from finance.application.xero_startup_check import run_startup_check
+                await get_index()
+            except (RuntimeError, OSError, ValueError) as e:
+                logger.warning("BM25 index warm-up skipped for org '%s': %s", oid, e)
+            try:
+                from finance.application.xero_startup_check import run_startup_check
 
-            await run_startup_check()
-        except (RuntimeError, OSError, ValueError) as e:
-            logger.warning("Xero startup check failed for org '%s': %s", oid, e)
-        finally:
-            org_id_var.reset(token)
+                await run_startup_check()
+            except (RuntimeError, OSError, ValueError) as e:
+                logger.warning("Xero startup check failed for org '%s': %s", oid, e)
+            finally:
+                org_id_var.reset(token)
+
+    warmup_task = asyncio.create_task(_background_warmup())
 
     summary = startup_summary()
     logger.info("Application ready — %s", summary)
@@ -138,6 +141,9 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    warmup_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await warmup_task
     if sync_task is not None:
         sync_task.cancel()
         with suppress(asyncio.CancelledError):

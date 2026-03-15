@@ -9,7 +9,8 @@ fixtures specific to their scope (e.g. HTTP client for api tests).
 import os
 
 os.environ["ENV"] = "test"
-os.environ["DATABASE_URL"] = "postgresql://sku_ops:localdev@localhost:5433/sku_ops_test"
+# CI sets DATABASE_URL pointing at :5432; local dev uses :5433 via docker-compose.dev.yml
+os.environ.setdefault("DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops_test")
 os.environ.setdefault("REDIS_URL", "")
 os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
 os.environ.setdefault(
