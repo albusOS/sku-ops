@@ -13,7 +13,7 @@ ORG_B_ID = "org-b-test"
 ORG_B_USER = "user-org-b"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def org_b_headers(app_client):
     """Seed a second org and user, return auth headers scoped to Org B."""
 
@@ -50,7 +50,7 @@ def org_b_headers(app_client):
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def org_b_dept_id(app_client, org_b_headers):
     """Seed a department in Org B."""
     resp = app_client.get("/api/departments", headers=org_b_headers)
