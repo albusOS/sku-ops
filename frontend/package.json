@@ -62,7 +62,7 @@
     "react": "^18.3.1",
     "react-barcode": "^1.6.1",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.2.4",
     "react-hook-form": "^7.56.2",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.1",
