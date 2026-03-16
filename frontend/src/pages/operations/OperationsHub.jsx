@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { QueryError } from "@/components/QueryError";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { PendingRequestsSection } from "@/components/operations/PendingRequestsSection";
 import { UninvoicedWithdrawalsSection } from "@/components/operations/UninvoicedWithdrawalsSection";
@@ -29,7 +28,7 @@ const OperationsHub = () => {
     data: allRequests,
     isLoading: requestsLoading,
     isError: requestsError,
-    error: requestsErr,
+    error: _requestsErr,
     refetch: refetchRequests,
   } = useMaterialRequests(undefined, { refetchInterval: 30000 });
   const processRequest = useProcessMaterialRequest();
@@ -57,12 +56,8 @@ const OperationsHub = () => {
     <div className="p-8" data-testid="operations-hub-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            Yard Operations
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Issue materials and create invoices
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Yard Operations</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Issue materials and create invoices</p>
         </div>
         <Link to="/invoices">
           <Button variant="outline" size="sm" className="gap-2">
