@@ -16,7 +16,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure import event_hub
-from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET, is_deployed
+from shared.infrastructure.config import decode_token, is_deployed
 from shared.kernel.events import CONTRACTOR_VISIBLE_EVENTS, Event, is_shutdown
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ router = APIRouter()
 def _authenticate(token: str) -> dict | None:
     """Validate JWT and return payload, or None on failure."""
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
 
@@ -105,7 +105,7 @@ async def _relay_loop(
         try:
             while True:
                 await websocket.receive_text()
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError, OSError):
             pass
 
     tasks = [

@@ -14,7 +14,6 @@ from typing import TypedDict
 from catalog.application.queries import list_low_stock, list_skus
 from finance.application import ledger_queries as ledger_repo
 from inventory.application.queries import daily_withdrawal_activity, withdrawal_velocity
-from shared.infrastructure.db import get_org_id
 from shared.kernel.types import round_money
 
 
@@ -211,5 +210,5 @@ async def product_activity_report(
     days: int = 365,
 ) -> ProductActivityReport:
     since = (datetime.now(UTC) - timedelta(days=min(days, 730))).isoformat()
-    rows = await daily_withdrawal_activity(get_org_id(), since, product_id=product_id)
+    rows = await daily_withdrawal_activity(since, product_id=product_id)
     return ProductActivityReport(series=rows, product_id=product_id, days=days)

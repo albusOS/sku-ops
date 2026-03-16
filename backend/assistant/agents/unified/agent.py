@@ -19,9 +19,12 @@ from assistant.agents.core.runner import run_specialist
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.core.tool_results import (
     ToolResult,
+    blocks_from_department_health,
     blocks_from_inventory_stats,
     blocks_from_list_data,
     blocks_from_pl_summary,
+    blocks_from_top_products,
+    blocks_from_trend_series,
 )
 from assistant.agents.finance.analytics_tools import (
     _get_ar_aging,
@@ -134,6 +137,8 @@ def _get_agent() -> Agent[AgentDeps, str]:
             text=budget_tool_result(raw),
             blocks=blocks_from_inventory_stats(raw),
         )
+        if result.blocks:
+            ctx.deps.blocks.extend(result.blocks)
         return result.text
 
     @_agent.tool
@@ -148,6 +153,8 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 ["sku", "name", "quantity", "sell_uom", "min_stock", "department"],
             ),
         )
+        if result.blocks:
+            ctx.deps.blocks.extend(result.blocks)
         return result.text
 
     @_agent.tool
@@ -186,12 +193,18 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 ],
             ),
         )
+        if result.blocks:
+            ctx.deps.blocks.extend(result.blocks)
         return result.text
 
     @_agent.tool
     async def get_department_health(ctx: RunContext[AgentDeps]) -> str:
         """Per-department breakdown showing healthy, low-stock, and out-of-stock product counts."""
-        return budget_tool_result(await _get_department_health())
+        raw = await _get_department_health()
+        blocks = blocks_from_department_health(raw)
+        if blocks:
+            ctx.deps.blocks.extend(blocks)
+        return budget_tool_result(raw)
 
     @_agent.tool
     async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int = 30) -> str:
@@ -203,7 +216,11 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10
     ) -> str:
         """Top products ranked by units withdrawn or revenue generated. by: 'volume' or 'revenue'."""
-        return budget_tool_result(await _get_top_products({"days": days, "by": by, "limit": limit}))
+        raw = await _get_top_products({"days": days, "by": by, "limit": limit})
+        blocks = blocks_from_top_products(raw)
+        if blocks:
+            ctx.deps.blocks.extend(blocks)
+        return budget_tool_result(raw)
 
     @_agent.tool
     async def get_department_activity(
@@ -276,6 +293,8 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 ["entity", "balance", "withdrawal_count", "oldest_unpaid"],
             ),
         )
+        if result.blocks:
+            ctx.deps.blocks.extend(result.blocks)
         return result.text
 
     @_agent.tool
@@ -291,6 +310,8 @@ def _get_agent() -> Agent[AgentDeps, str]:
             text=budget_tool_result(raw),
             blocks=blocks_from_pl_summary(raw),
         )
+        if result.blocks:
+            ctx.deps.blocks.extend(result.blocks)
         return result.text
 
     @_agent.tool
@@ -307,7 +328,11 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], days: int = 30, group_by: str = "day"
     ) -> str:
         """Revenue/cost/profit time series. group_by: 'day', 'week', or 'month'."""
-        return budget_tool_result(await _get_trend_series({"days": days, "group_by": group_by}))
+        raw = await _get_trend_series({"days": days, "group_by": group_by})
+        blocks = blocks_from_trend_series(raw)
+        if blocks:
+            ctx.deps.blocks.extend(blocks)
+        return budget_tool_result(raw)
 
     @_agent.tool
     async def get_ar_aging(ctx: RunContext[AgentDeps], days: int = 365) -> str:

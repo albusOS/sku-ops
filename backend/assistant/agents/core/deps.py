@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from assistant.agents.core.contracts import AgentConfig
@@ -15,3 +15,4 @@ class AgentDeps:
     user_name: str
     config: AgentConfig | None = None
     trace_id: str = field(default="")
+    blocks: list[dict[str, Any]] = field(default_factory=list)

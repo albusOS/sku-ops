@@ -22,8 +22,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
-    JWT_ALGORITHM,
-    JWT_SECRET,
+    decode_token,
     is_deployed,
 )
 from shared.infrastructure.logging_config import org_id_var, user_id_var
@@ -39,7 +38,7 @@ async def get_current_user(
     credentials: BearerToken,
 ) -> CurrentUser:
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = decode_token(credentials.credentials)
         claims = resolve_claims(payload)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}") from e

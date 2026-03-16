@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
     http_requests_total = Counter(
         "http_requests_total",
@@ -36,6 +36,44 @@ try:
         ["method", "endpoint"],
         buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
     )
+
+    # ── Business metrics ─────────────────────────────────────────────────────
+    chat_sessions_active = Gauge(
+        "chat_sessions_active",
+        "Number of active WebSocket chat sessions",
+    )
+    chat_messages_total = Counter(
+        "chat_messages_total",
+        "Total chat messages processed",
+        ["agent", "status"],  # status: success, error, cancelled, timeout
+    )
+    agent_run_duration = Histogram(
+        "agent_run_duration_seconds",
+        "Agent execution duration in seconds",
+        ["agent", "status"],
+        buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 20.0, 45.0, 90.0, 120.0),
+    )
+    llm_tokens_total = Counter(
+        "llm_tokens_total",
+        "Total LLM tokens consumed",
+        ["direction", "model"],  # direction: input, output
+    )
+    llm_cost_usd_total = Counter(
+        "llm_cost_usd_total",
+        "Cumulative LLM cost in USD",
+        ["agent"],
+    )
+    tool_calls_total = Counter(
+        "tool_calls_total",
+        "Total agent tool calls",
+        ["tool", "status"],  # status: success, error
+    )
+    document_imports_total = Counter(
+        "document_imports_total",
+        "Total document import attempts",
+        ["status"],  # status: success, error
+    )
+
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
     _PROMETHEUS_AVAILABLE = False

@@ -152,8 +152,8 @@ async def ar_aging(
         params.append(end_date)
 
     fallback = "fl.created_at::timestamp + INTERVAL '30 days'"
-    due = f"COALESCE(inv.due_date, {fallback})"
-    age = f"EXTRACT(EPOCH FROM (NOW() - ({due})::timestamp)) / 86400.0"
+    due = f"COALESCE(inv.due_date::timestamp, {fallback})"
+    age = f"EXTRACT(EPOCH FROM (NOW() - {due})) / 86400.0"
 
     query = (
         "SELECT fl.billing_entity,"

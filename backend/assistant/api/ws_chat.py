@@ -59,25 +59,58 @@ from assistant.application.query_router import route_query
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
-    JWT_ALGORITHM,
-    JWT_SECRET,
     OPENROUTER_AVAILABLE,
     SESSION_COST_CAP,
+    decode_token,
     is_deployed,
 )
 from shared.infrastructure.logging_config import org_id_var, user_id_var
+from shared.infrastructure.metrics import (
+    chat_message,
+    chat_session_closed,
+    chat_session_opened,
+    llm_usage,
+)
 
 logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
 
+
+def _classify_chat_error(exc: Exception) -> tuple[str, str]:
+    """Classify an exception into (error_type, user_facing_detail).
+
+    Returns typed errors so the frontend can show actionable messages
+    or auto-retry on transient failures.
+    """
+    s = str(exc).lower()
+    t = type(exc).__name__.lower()
+
+    if isinstance(exc, asyncio.TimeoutError) or "timeout" in t or "timeout" in s:
+        return "timeout", "The AI took too long to respond. Please try again."
+
+    if any(k in s for k in ("rate limit", "429", "too many requests", "ratelimit")):
+        return "rate_limit", "AI rate limit reached. Please wait a moment and try again."
+
+    if any(k in s for k in ("401", "403", "invalid api key", "authentication", "unauthorized")):
+        return "auth_error", "AI service authentication failed. Please contact support."
+
+    if any(k in s for k in ("overload", "503", "529", "service unavailable", "capacity")):
+        return "overloaded", "The AI service is temporarily overloaded. Please try again shortly."
+
+    if any(k in s for k in ("connection", "network", "refused", "unreachable")):
+        return "network", "Could not reach the AI service. Please check your connection."
+
+    return "error", "Something went wrong. Please try again."
+
+
 router = APIRouter()
 
 
 def _authenticate(token: str) -> dict | None:
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
 
@@ -120,6 +153,7 @@ async def ws_chat_endpoint(websocket: WebSocket):
         return
 
     await websocket.accept()
+    chat_session_opened()
     logger.info("Chat WS connected: user=%s org=%s", user_id, org_id)
 
     cancel_event: asyncio.Event | None = None
@@ -204,6 +238,7 @@ async def ws_chat_endpoint(websocket: WebSocket):
         for t in tasks:
             t.cancel()
     finally:
+        chat_session_closed()
         logger.info("Chat WS closed: user=%s org=%s", user_id, org_id)
 
 
@@ -370,6 +405,15 @@ async def _handle_chat(
                         history=new_history,
                     )
 
+                chat_message(agent_label, "success")
+                llm_usage(
+                    model=model_name,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
+                    cost_usd=cost,
+                    agent=agent_label,
+                )
+
                 logger.info(
                     "Chat stream done: user=%s session=%s cost=%.4f tokens=%d+%d",
                     user_id,
@@ -387,6 +431,7 @@ async def _handle_chat(
                         "agent": agent_label,
                         "tool_calls": tool_calls_final,
                         "thinking": [],
+                        "blocks": deps.blocks or [],
                         "session_id": session_id,
                         "usage": {
                             "cost_usd": cost,
@@ -438,6 +483,7 @@ async def _handle_chat(
 
     except asyncio.CancelledError:
         logger.debug("Chat generation task cancelled: session=%s", session_id)
+        chat_message(agent_label, "cancelled")
         if full_text:
             await _save_turn(session_id, history, user_message, full_text)
             await _send(
@@ -456,9 +502,14 @@ async def _handle_chat(
                     "cancelled": True,
                 },
             )
-    except Exception:
-        logger.exception("Chat stream error for user=%s session=%s", user_id, session_id)
-        await _send(ws, {"type": "chat.error", "detail": "Something went wrong. Please try again."})
+    except Exception as exc:
+        error_type, detail = _classify_chat_error(exc)
+        logger.exception("Chat stream %s for user=%s session=%s", error_type, user_id, session_id)
+        chat_message(agent_label, error_type)
+        await _send(
+            ws,
+            {"type": "chat.error", "error_type": error_type, "detail": detail},
+        )
 
 
 async def _save_turn(

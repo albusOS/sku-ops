@@ -85,7 +85,7 @@ DATABASE_URL = os.environ.get(
 if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
     raise RuntimeError(
         "DATABASE_URL must be a PostgreSQL connection string. "
-        f"Got: {DATABASE_URL[:30]}... Set DATABASE_URL=postgresql://user:pass@host:5432/db"
+        "Set DATABASE_URL=postgresql://user:pass@host:5432/db"
     )
 
 # True when DATABASE_URL points at a local host (localhost, 127.0.0.1, or the
@@ -121,7 +121,70 @@ def _resolve_jwt_secret() -> str:
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", "15"))
-REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "30"))
+REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
+
+# ── Supabase JWKS (ES256 token verification) ─────────────────────────────────
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+_SUPABASE_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
+# Expected issuer for Supabase tokens: {project_url}/auth/v1
+_SUPABASE_ISSUER = f"{SUPABASE_URL}/auth/v1" if SUPABASE_URL else ""
+
+if is_production and not SUPABASE_URL:
+    raise RuntimeError(
+        "SUPABASE_URL must be set in production. "
+        "Supabase is the sole auth provider in deployed environments."
+    )
+
+_jwks_client = None
+
+
+def _get_jwks_client():
+    """Lazy-init a PyJWKClient for Supabase ES256 token verification."""
+    global _jwks_client
+    if _jwks_client is None and _SUPABASE_JWKS_URL:
+        import jwt as _jwt
+
+        _jwks_client = _jwt.PyJWKClient(
+            _SUPABASE_JWKS_URL,
+            cache_keys=True,
+            lifespan=3600,
+            timeout=5,
+        )
+    return _jwks_client
+
+
+def decode_token(token: str) -> dict:
+    """Decode a JWT using the strategy matching the current environment.
+
+    Production: ES256 via Supabase JWKS with issuer verification.
+    Dev/test:   HS256 with local secret (no JWKS call).
+
+    Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError on failure.
+    """
+    import jwt as _jwt
+
+    if is_production:
+        jwks = _get_jwks_client()
+        if jwks is None:
+            raise _jwt.InvalidTokenError("SUPABASE_URL not configured for production")
+        try:
+            signing_key = jwks.get_signing_key_from_jwt(token)
+        except _jwt.PyJWKClientError as e:
+            logger.warning("JWKS key fetch failed: %s", e)
+            raise _jwt.InvalidTokenError("Unable to verify token signing key") from e
+        except Exception as e:
+            logger.warning("JWKS key fetch failed unexpectedly: %s", e)
+            raise _jwt.InvalidTokenError("Unable to verify token signing key") from e
+        return _jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["ES256"],
+            issuer=_SUPABASE_ISSUER,
+            options={"verify_aud": False, "verify_iss": True},
+        )
+
+    return _jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")

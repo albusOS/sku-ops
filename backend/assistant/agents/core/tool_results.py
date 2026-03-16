@@ -72,3 +72,78 @@ def blocks_from_pl_summary(raw: str) -> list[dict[str, Any]]:
         {"label": "Margin", "value": f"{d.get('gross_margin_pct', 0)}%"},
     ]
     return [{"type": "stat_group", "stats": stats}]
+
+
+def blocks_from_trend_series(raw: str) -> list[dict[str, Any]]:
+    """Build chart block from get_trend_series JSON."""
+    d = _safe_parse(raw)
+    if not d or "series" not in d:
+        return []
+    series_data = d["series"]
+    if not series_data:
+        return []
+    return [
+        {
+            "type": "chart",
+            "chart_type": "line",
+            "title": "Revenue & profit trend",
+            "data": series_data,
+            "x_key": "date",
+            "series": [
+                {"key": "revenue", "label": "Revenue"},
+                {"key": "cost", "label": "Cost"},
+                {"key": "profit", "label": "Profit"},
+            ],
+            "value_format": "currency",
+        }
+    ]
+
+
+def blocks_from_department_health(raw: str) -> list[dict[str, Any]]:
+    """Build chart block from get_department_health JSON."""
+    d = _safe_parse(raw)
+    if not d or "departments" not in d:
+        return []
+    depts = d["departments"]
+    if not depts:
+        return []
+    return [
+        {
+            "type": "chart",
+            "chart_type": "stacked_bar",
+            "title": "Department stock health",
+            "data": depts,
+            "category_key": "name",
+            "series": [
+                {"key": "healthy", "label": "Healthy"},
+                {"key": "low_stock", "label": "Low stock"},
+                {"key": "out_of_stock", "label": "Out of stock"},
+            ],
+        }
+    ]
+
+
+def blocks_from_top_products(raw: str) -> list[dict[str, Any]]:
+    """Build chart block from get_top_products JSON."""
+    d = _safe_parse(raw)
+    if not d or "products" not in d:
+        return []
+    products = d["products"][:10]
+    if not products:
+        return []
+    # Detect if revenue-ranked or volume-ranked
+    has_revenue = any(p.get("revenue") for p in products)
+    value_key = "revenue" if has_revenue else "total_withdrawn"
+    value_label = "Revenue" if has_revenue else "Units"
+    value_format = "currency" if has_revenue else "number"
+    return [
+        {
+            "type": "chart",
+            "chart_type": "bar",
+            "title": f"Top products by {value_label.lower()}",
+            "data": products,
+            "category_key": "name",
+            "series": [{"key": value_key, "label": value_label}],
+            "value_format": value_format,
+        }
+    ]

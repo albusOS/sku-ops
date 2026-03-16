@@ -1,9 +1,12 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/PageHeader";
+import { Panel, SectionHead } from "@/components/Panel";
 import {
   Select,
   SelectContent,
@@ -16,7 +19,7 @@ import {
   FileImage,
   ClipboardList,
   XCircle,
-  Package,
+  X,
   Loader2,
   Trash2,
   Sparkles,
@@ -29,6 +32,8 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useProductMatch } from "@/hooks/useProductMatch";
 import { ProductMatchPicker } from "@/components/ProductMatchPicker";
 import { ProductFields } from "@/components/ProductFields";
+
+const PANEL_SPRING = { type: "spring", stiffness: 300, damping: 36 };
 
 const ReceiptImport = () => {
   const navigate = useNavigate();
@@ -233,37 +238,51 @@ const ReceiptImport = () => {
     clearMatch(itemId);
   };
 
+  const panelOpen = !!extractedData;
+  const selectedCount = editedProducts.filter((p) => p.selected).length;
+  const selectedTotal = editedProducts
+    .filter((p) => p.selected)
+    .reduce((sum, p) => sum + (parseFloat(p.price) || 0) * (p.delivered_qty ?? p.quantity ?? 1), 0);
+
   return (
-    <div className="p-8" data-testid="receipt-import-page">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-foreground tracking-tight">Receive / Import</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Upload a delivery receipt or vendor invoice to extract products and create a purchase
-          order
-        </p>
+    <div className="h-full flex flex-col" data-testid="receipt-import-page">
+      {/* Page header */}
+      <div className="px-8 pt-8 pb-0 shrink-0">
+        <PageHeader
+          title="Receive / Import"
+          subtitle="Upload a delivery receipt or vendor invoice to extract products and create a purchase order"
+        />
       </div>
 
-      <div className="mt-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Upload Section */}
-          <div className="card-elevated p-6 border-primary/20" data-testid="upload-section">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center text-sm font-bold">
-                1
-              </span>
-              Upload document
-            </h2>
+      {/* Content area — main + side panel split */}
+      <div className="flex-1 flex min-h-0 mt-3">
+        {/* Upload section (main area) */}
+        <motion.div
+          layout
+          animate={{ width: panelOpen ? "58%" : "100%" }}
+          transition={PANEL_SPRING}
+          className="h-full overflow-auto px-8 pb-8 shrink-0"
+        >
+          <Panel data-testid="upload-section">
+            <SectionHead
+              title="Upload document"
+              action={
+                <span className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 text-accent flex items-center justify-center text-xs font-bold">
+                  1
+                </span>
+              }
+            />
 
             {!file ? (
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                className="border-2 border-dashed border-border rounded-2xl p-12 text-center hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
+                className="border border-dashed border-border/60 rounded-xl p-12 text-center hover:border-accent/40 hover:bg-accent/5 transition-all cursor-pointer group"
                 onClick={() => document.getElementById("receipt-input").click()}
                 data-testid="upload-dropzone"
               >
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/15 to-warning/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
-                  <Upload className="w-7 h-7 text-primary" />
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent-gradient-from/20 to-accent-gradient-to/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform border border-accent/20">
+                  <Upload className="w-7 h-7 text-accent" />
                 </div>
                 <p className="text-muted-foreground font-medium">
                   Drop document here or click to browse
@@ -280,16 +299,16 @@ const ReceiptImport = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="relative rounded-xl overflow-hidden border border-border shadow-sm">
+                <div className="relative rounded-xl overflow-hidden border border-border/60 shadow-sm">
                   {preview ? (
                     <img
                       src={preview}
                       alt="Document preview"
-                      className="w-full max-h-[400px] object-contain bg-muted"
+                      className="w-full max-h-[400px] object-contain bg-muted/30"
                       data-testid="receipt-preview"
                     />
                   ) : (
-                    <div className="w-full h-48 bg-muted flex flex-col items-center justify-center gap-2">
+                    <div className="w-full h-48 bg-muted/30 flex flex-col items-center justify-center gap-2">
                       <FileText className="w-12 h-12 text-muted-foreground" />
                       <span className="text-muted-foreground font-medium">{file.name}</span>
                       <span className="text-muted-foreground text-sm">PDF document</span>
@@ -297,7 +316,7 @@ const ReceiptImport = () => {
                   )}
                   <button
                     onClick={clearAll}
-                    className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-muted-foreground rounded-xl hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
+                    className="absolute top-3 right-3 p-2 bg-card/95 backdrop-blur-sm text-muted-foreground rounded-xl hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
                     data-testid="clear-receipt-btn"
                   >
                     <XCircle className="w-5 h-5" />
@@ -338,276 +357,338 @@ const ReceiptImport = () => {
                 </div>
               </div>
             )}
-          </div>
+          </Panel>
 
-          {/* Extracted Products Section */}
-          <div className="card-elevated p-6" data-testid="extracted-section">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-warning/15 text-accent flex items-center justify-center text-sm font-bold">
-                2
-              </span>
-              Review & import
-            </h2>
-
-            {!extractedData ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Package className="w-7 h-7 text-muted-foreground" />
-                </div>
-                <p className="font-medium">Upload and extract a document to see products</p>
+          {/* How It Works */}
+          {!panelOpen && (
+            <Panel className="mt-6">
+              <SectionHead
+                title="How it works"
+                action={<Sparkles className="w-4 h-4 text-accent" />}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-muted-foreground">
+                {[
+                  {
+                    num: "1",
+                    text: "Upload a receipt, invoice, or PDF from any hardware store (Home Depot, Lowes, etc.)",
+                  },
+                  {
+                    num: "2",
+                    text: (
+                      <>
+                        <strong className="text-foreground">AI extracts</strong> vendor, items, UOM,
+                        costs, and quantities
+                      </>
+                    ),
+                  },
+                  {
+                    num: "3",
+                    text: "Products get new SKUs in your system and are added to inventory",
+                  },
+                ].map(({ num, text }) => (
+                  <div key={num} className="flex items-start gap-4">
+                    <span className="w-9 h-9 bg-accent/10 text-accent rounded-xl flex items-center justify-center font-semibold shrink-0 border border-accent/20">
+                      {num}
+                    </span>
+                    <p>{text}</p>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-muted-foreground font-medium text-sm">Vendor *</Label>
-                  <Input
-                    value={vendorName}
-                    onChange={(e) => setVendorName(e.target.value)}
-                    className="input-field mt-2"
-                    placeholder="Vendor / store name"
-                    data-testid="vendor-name-input"
-                  />
-                </div>
+            </Panel>
+          )}
+        </motion.div>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="create-vendor"
-                    checked={createVendorIfMissing}
-                    onCheckedChange={(c) => setCreateVendorIfMissing(c === true)}
-                  />
-                  <Label
-                    htmlFor="create-vendor"
-                    className="text-sm text-muted-foreground cursor-pointer"
-                  >
-                    Create vendor if missing
-                  </Label>
-                </div>
+        {/* Review & Import panel */}
+        <AnimatePresence>
+          {panelOpen && (
+            <motion.div
+              key="review-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "42%", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={PANEL_SPRING}
+              className="h-full shrink-0 overflow-hidden"
+            >
+              <div
+                className="flex flex-col h-full bg-card border-l border-border/60 overflow-hidden shadow-xl"
+                data-testid="extracted-section"
+              >
+                {/* Panel header */}
+                <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <ClipboardList className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-base font-semibold leading-tight">Review & import</h2>
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                          {editedProducts.length} item{editedProducts.length !== 1 ? "s" : ""}{" "}
+                          extracted
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={clearAll}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                      aria-label="Close panel"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                <div>
-                  <Label className="text-muted-foreground font-medium text-sm">
-                    Category override (optional)
-                  </Label>
-                  <Select
-                    value={selectedDept || "none"}
-                    onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}
-                  >
-                    <SelectTrigger className="input-field mt-2" data-testid="import-dept-select">
-                      <SelectValue placeholder="Use suggested per product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Use suggested per product</SelectItem>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          {dept.name} ({dept.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div
-                  className="space-y-3 max-h-[400px] overflow-auto"
-                  data-testid="extracted-products-list"
-                >
-                  {editedProducts.map((product) => {
-                    const matchState = productMatches[product.id] || {};
-                    const matched = matchState.matched || product.matched_product;
-
-                    return (
+                  {/* Quick stats strip */}
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    {[
+                      { label: "Selected", value: selectedCount },
+                      { label: "Items", value: editedProducts.length },
+                      {
+                        label: "Total",
+                        value: selectedCount > 0 ? `$${selectedTotal.toFixed(2)}` : "—",
+                      },
+                    ].map(({ label, value }) => (
                       <div
-                        key={product.id}
-                        className={`p-4 rounded-xl border transition-all ${
-                          product.selected
-                            ? "border-warning/30 bg-warning/10"
-                            : "border-border bg-muted/50 opacity-60"
-                        }`}
-                        data-testid={`extracted-product-${product.id}`}
+                        key={label}
+                        className="rounded-lg px-3 py-2 text-center bg-muted/50 border border-border/40"
                       >
-                        <div className="flex items-start gap-3">
-                          <button
-                            onClick={() => toggleProduct(product.id)}
-                            className={`mt-1 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
+                          {label}
+                        </p>
+                        <p className="font-mono font-semibold text-sm">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Panel content */}
+                <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
+                  <div>
+                    <Label className="text-muted-foreground font-medium text-sm">Vendor *</Label>
+                    <Input
+                      value={vendorName}
+                      onChange={(e) => setVendorName(e.target.value)}
+                      className="input-field mt-2"
+                      placeholder="Vendor / store name"
+                      data-testid="vendor-name-input"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="create-vendor"
+                      checked={createVendorIfMissing}
+                      onCheckedChange={(c) => setCreateVendorIfMissing(c === true)}
+                    />
+                    <Label
+                      htmlFor="create-vendor"
+                      className="text-sm text-muted-foreground cursor-pointer"
+                    >
+                      Create vendor if missing
+                    </Label>
+                  </div>
+
+                  <div>
+                    <Label className="text-muted-foreground font-medium text-sm">
+                      Category override (optional)
+                    </Label>
+                    <Select
+                      value={selectedDept || "none"}
+                      onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}
+                    >
+                      <SelectTrigger className="input-field mt-2" data-testid="import-dept-select">
+                        <SelectValue placeholder="Use suggested per product" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Use suggested per product</SelectItem>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name} ({dept.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3" data-testid="extracted-products-list">
+                    <AnimatePresence initial={false}>
+                      {editedProducts.map((product) => {
+                        const matchState = productMatches[product.id] || {};
+                        const matched = matchState.matched || product.matched_product;
+
+                        return (
+                          <motion.div
+                            key={product.id}
+                            layout
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ type: "spring", stiffness: 340, damping: 38 }}
+                            className={`p-4 rounded-xl border transition-all ${
                               product.selected
-                                ? "bg-accent border-accent text-white"
-                                : "border-border"
+                                ? "border-accent/30 bg-accent/5 shadow-sm"
+                                : "border-border bg-muted/50 opacity-60"
                             }`}
-                            data-testid={`toggle-product-${product.id}`}
+                            data-testid={`extracted-product-${product.id}`}
                           >
-                            {product.selected && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
+                            <div className="flex items-start gap-3">
+                              <button
+                                onClick={() => toggleProduct(product.id)}
+                                className={`mt-1 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                  product.selected
+                                    ? "bg-accent border-accent text-white"
+                                    : "border-border"
+                                }`}
+                                data-testid={`toggle-product-${product.id}`}
                               >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
+                                {product.selected && (
+                                  <svg
+                                    className="w-3 h-3 text-white"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                )}
+                              </button>
+
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <ProductMatchPicker
+                                  matched={matched}
+                                  options={matchState.options || []}
+                                  searching={matchState.searching || false}
+                                  onSearch={(q) => searchMatch(product.id, q)}
+                                  onConfirm={(p) => handleConfirmMatch(product.id, p)}
+                                  onClear={() => handleClearMatch(product.id)}
                                 />
-                              </svg>
-                            )}
-                          </button>
 
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <ProductMatchPicker
-                              matched={matched}
-                              options={matchState.options || []}
-                              searching={matchState.searching || false}
-                              onSearch={(q) => searchMatch(product.id, q)}
-                              onConfirm={(p) => handleConfirmMatch(product.id, p)}
-                              onClear={() => handleClearMatch(product.id)}
-                            />
-
-                            {matched ? (
-                              <div className="space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">
-                                      Delivered qty
-                                    </Label>
-                                    <Input
-                                      type="number"
-                                      step="any"
-                                      value={product.delivered_qty ?? product.quantity ?? 1}
-                                      onChange={(e) =>
-                                        updateProduct(product.id, "delivered_qty", e.target.value)
-                                      }
-                                      className="input-field h-9 text-sm"
-                                    />
+                                {matched ? (
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Delivered qty
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          step="any"
+                                          value={product.delivered_qty ?? product.quantity ?? 1}
+                                          onChange={(e) =>
+                                            updateProduct(
+                                              product.id,
+                                              "delivered_qty",
+                                              e.target.value,
+                                            )
+                                          }
+                                          className="input-field h-9 text-sm"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Cost
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={product.cost ?? ""}
+                                          onChange={(e) =>
+                                            updateProduct(
+                                              product.id,
+                                              "cost",
+                                              e.target.value ? parseFloat(e.target.value) : null,
+                                            )
+                                          }
+                                          className="input-field h-9 text-sm"
+                                        />
+                                      </div>
+                                    </div>
+                                    {product.original_sku && (
+                                      <p className="text-xs text-muted-foreground font-mono">
+                                        Original: {product.original_sku}
+                                      </p>
+                                    )}
                                   </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Cost</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={product.cost ?? ""}
-                                      onChange={(e) =>
-                                        updateProduct(
-                                          product.id,
-                                          "cost",
-                                          e.target.value ? parseFloat(e.target.value) : null,
-                                        )
-                                      }
-                                      className="input-field h-9 text-sm"
-                                    />
-                                  </div>
-                                </div>
-                                {product.original_sku && (
-                                  <p className="text-xs text-muted-foreground font-mono">
-                                    Original: {product.original_sku}
-                                  </p>
+                                ) : (
+                                  <ProductFields
+                                    compact
+                                    fields={{
+                                      name: product.name || "",
+                                      price: product.price ?? "",
+                                      cost: product.cost ?? "",
+                                      base_unit: product.base_unit || "each",
+                                      sell_uom: product.sell_uom || "each",
+                                      pack_qty: product.pack_qty ?? 1,
+                                      barcode: product.barcode || "",
+                                      category_id: product.suggested_department || "",
+                                      quantity: product.delivered_qty ?? product.quantity ?? 1,
+                                    }}
+                                    onChange={(field, value) => {
+                                      const mapped =
+                                        field === "category_id"
+                                          ? "suggested_department"
+                                          : field === "quantity"
+                                            ? "delivered_qty"
+                                            : field;
+                                      updateProduct(product.id, mapped, value);
+                                    }}
+                                    departments={departments}
+                                    hiddenFields={[
+                                      "description",
+                                      "vendor_id",
+                                      "min_stock",
+                                      "sell_uom",
+                                      "pack_qty",
+                                    ]}
+                                  />
                                 )}
                               </div>
-                            ) : (
-                              <ProductFields
-                                compact
-                                fields={{
-                                  name: product.name || "",
-                                  price: product.price ?? "",
-                                  cost: product.cost ?? "",
-                                  base_unit: product.base_unit || "each",
-                                  sell_uom: product.sell_uom || "each",
-                                  pack_qty: product.pack_qty ?? 1,
-                                  barcode: product.barcode || "",
-                                  category_id: product.suggested_department || "",
-                                  quantity: product.delivered_qty ?? product.quantity ?? 1,
-                                }}
-                                onChange={(field, value) => {
-                                  const mapped =
-                                    field === "category_id"
-                                      ? "suggested_department"
-                                      : field === "quantity"
-                                        ? "delivered_qty"
-                                        : field;
-                                  updateProduct(product.id, mapped, value);
-                                }}
-                                departments={departments}
-                                hiddenFields={[
-                                  "description",
-                                  "vendor_id",
-                                  "min_stock",
-                                  "sell_uom",
-                                  "pack_qty",
-                                ]}
-                              />
-                            )}
-                          </div>
 
-                          <button
-                            onClick={() => removeProduct(product.id)}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors shrink-0"
-                            data-testid={`remove-product-${product.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                              <button
+                                onClick={() => removeProduct(product.id)}
+                                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors shrink-0"
+                                data-testid={`remove-product-${product.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
-                <div className="p-4 bg-muted/80 rounded-xl border border-border">
+                {/* Sticky footer */}
+                <div className="px-5 py-4 border-t border-border bg-muted/80 shrink-0 space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    <strong>{editedProducts.filter((p) => p.selected).length}</strong> of{" "}
-                    {editedProducts.length} products selected for import
+                    <strong>{selectedCount}</strong> of {editedProducts.length} products selected
                   </p>
+                  <Button
+                    onClick={saveAsPurchaseOrder}
+                    disabled={importing || !(vendorName || "").trim()}
+                    className="w-full btn-primary h-11"
+                    data-testid="import-products-btn"
+                  >
+                    {importing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <ClipboardList className="w-5 h-5 mr-2" />
+                        Save as Purchase Order
+                      </>
+                    )}
+                  </Button>
                 </div>
-
-                <Button
-                  onClick={saveAsPurchaseOrder}
-                  disabled={importing || !(vendorName || "").trim()}
-                  className="w-full btn-primary h-11"
-                  data-testid="import-products-btn"
-                >
-                  {importing ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    <>
-                      <ClipboardList className="w-5 h-5 mr-2" />
-                      Save as Purchase Order
-                    </>
-                  )}
-                </Button>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* How It Works - AI focus */}
-      <div className="card-elevated p-6 mt-8 bg-gradient-to-br from-muted to-primary/5 border-primary/10">
-        <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary" />
-          How it works
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-muted-foreground">
-          <div className="flex items-start gap-4">
-            <span className="w-9 h-9 bg-primary/15 text-primary rounded-xl flex items-center justify-center font-semibold shrink-0">
-              1
-            </span>
-            <p>
-              Upload a receipt, invoice, or PDF from any hardware store (Home Depot, Lowes, etc.)
-            </p>
-          </div>
-          <div className="flex items-start gap-4">
-            <span className="w-9 h-9 bg-warning/15 text-accent rounded-xl flex items-center justify-center font-semibold shrink-0">
-              2
-            </span>
-            <p>
-              <strong className="text-foreground">AI extracts</strong> vendor, items, UOM, costs,
-              and quantities
-            </p>
-          </div>
-          <div className="flex items-start gap-4">
-            <span className="w-9 h-9 bg-success/15 text-success rounded-xl flex items-center justify-center font-semibold shrink-0">
-              3
-            </span>
-            <p>Products get new SKUs in your system and are added to inventory</p>
-          </div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

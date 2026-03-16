@@ -18,6 +18,8 @@ from assistant.agents.core.validators import validate_response
 from assistant.infrastructure.agent_run_repo import log_agent_run
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE
 from shared.infrastructure.logging_config import agent_name_var, operation_var, trace_id_var
+from shared.infrastructure.metrics import agent_run as record_agent_run
+from shared.infrastructure.metrics import llm_usage, tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -287,6 +289,12 @@ def _log_success(
     tool_calls = extract_tool_calls_detailed(result.all_messages())
     response_text = result.output if isinstance(result.output, str) else str(result.output)
 
+    # Prometheus metrics
+    record_agent_run(label, "success", duration_ms / 1000.0)
+    llm_usage(model_name, usage.input_tokens, usage.output_tokens, cost, agent=label)
+    for tc in tool_calls:
+        tool_call(tc.get("tool", "unknown"), "success")
+
     async def _write():
         try:
             await log_agent_run(
@@ -326,6 +334,10 @@ def _log_failure(
         agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     )
     model_name = get_model_name(f"agent:{label}")
+
+    # Prometheus metrics
+    status = "timeout" if error_kind == "timeout" else "error"
+    record_agent_run(label, status, duration_ms / 1000.0)
 
     async def _write():
         try:
