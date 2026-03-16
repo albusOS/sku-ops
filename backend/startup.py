@@ -23,7 +23,11 @@ from shared.infrastructure.config import (
     startup_summary,
 )
 from shared.infrastructure.database import close_db, init_db
-from shared.infrastructure.redis import close_redis, init_redis, is_redis_available
+from shared.infrastructure.redis import (
+    close_redis,
+    init_redis,
+    is_redis_available,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +51,10 @@ async def lifespan(app: FastAPI):
 
         activate_redis()
         if worker_count > 1:
-            logger.info("WORKERS=%d — Redis is connected, multi-worker mode is safe", worker_count)
+            logger.info(
+                "WORKERS=%d — Redis is connected, multi-worker mode is safe",
+                worker_count,
+            )
     elif worker_count > 1:
         raise RuntimeError(
             f"WORKERS={worker_count} but REDIS_URL is not set. "
@@ -133,9 +140,11 @@ async def lifespan(app: FastAPI):
             "matches your Supabase project's JWT secret (Dashboard > Settings > API)."
         )
 
-    ws_routes = [r.path for r in app.routes if hasattr(r, "path") and r.path.startswith("/api/ws")]
-    assert "/api/ws" in ws_routes, "Domain event WebSocket not mounted"
-    assert "/api/ws/chat" in ws_routes, "Chat streaming WebSocket not mounted"
+    ws_routes = [r.path for r in app.routes if hasattr(r, "path")]
+    has_domain_ws = any("shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes)
+    has_chat_ws = any("assistant/ws" in p or "ws/chat" in p for p in ws_routes)
+    assert has_domain_ws, "Domain event WebSocket not mounted"
+    assert has_chat_ws, "Chat streaming WebSocket not mounted"
     logger.info("WebSocket endpoints verified: %s", ws_routes)
 
     from shared.infrastructure.database import transaction

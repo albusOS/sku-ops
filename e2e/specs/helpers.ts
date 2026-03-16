@@ -5,7 +5,7 @@ const API = "http://localhost:8000";
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
 export async function getAdminToken(request: APIRequestContext): Promise<string> {
-  const resp = await request.post(`${API}/api/auth/login`, {
+  const resp = await request.post(`${API}/api/beta/shared/auth/login`, {
     data: { email: "admin@demo.local", password: "demo123" },
   });
   expect(resp.ok(), `Login failed: ${resp.status()}`).toBeTruthy();
@@ -95,7 +95,7 @@ export class WSEventCollector {
 
   async connect(token: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      this.ws = new WebSocket(`${WS_API}/api/ws?token=${token}`);
+      this.ws = new WebSocket(`${WS_API}/api/beta/shared/ws?token=${token}`);
       this.ws.onopen = () => resolve();
       this.ws.onerror = (err) => reject(err);
       this.ws.onmessage = (msg) => {
@@ -161,9 +161,9 @@ export interface SeedContext {
 export async function freshSeed(request: APIRequestContext): Promise<SeedContext> {
   await seedResetEmpty(request);
   const token = await getAdminToken(request);
-  const categories = await apiGet(request, token, "/api/departments");
+  const categories = await apiGet(request, token, "/api/beta/catalog/departments");
   const categoryIds: Record<string, string> = {};
   for (const c of categories) categoryIds[c.code] = c.id;
-  const contractors = await apiGet(request, token, "/api/contractors");
+  const contractors = await apiGet(request, token, "/api/beta/operations/contractors");
   return { token, categoryIds, contractorId: contractors[0].id };
 }

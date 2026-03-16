@@ -15,7 +15,7 @@ from tests.helpers.auth import admin_headers
 def _attempt_withdrawal(client, headers, product, quantity, job_id):
     """Attempt a withdrawal, returning (status_code, response_json_or_text)."""
     resp = client.post(
-        "/api/withdrawals",
+        "/api/beta/operations/withdrawals",
         json={
             "items": [
                 {
@@ -40,7 +40,7 @@ def _attempt_withdrawal(client, headers, product, quantity, job_id):
 def _attempt_mark_paid(client, headers, withdrawal_id):
     """Attempt to mark a withdrawal paid, returning status_code."""
     resp = client.put(
-        f"/api/withdrawals/{withdrawal_id}/mark-paid",
+        f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid",
         json={},
         headers=headers,
     )
@@ -55,7 +55,11 @@ class TestConcurrency:
         """Two concurrent withdrawals for more than available stock: at most one succeeds."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=8, name="CC-ParallelWD"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=8,
+            name="CC-ParallelWD",
         )
 
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -68,7 +72,7 @@ class TestConcurrency:
 
         successes = [r for r in results if r[0] == 200]
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         final_qty = resp.json()["quantity"]
 
         assert final_qty >= 0, f"Stock should never go negative, got {final_qty}"
@@ -87,7 +91,11 @@ class TestConcurrency:
         """
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, name="CC-BothSucceed"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            name="CC-BothSucceed",
         )
 
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -98,7 +106,7 @@ class TestConcurrency:
 
         successes = sum(1 for r in results if r[0] == 200)
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         final_qty = resp.json()["quantity"]
         expected = 100 - (successes * 10)
         assert final_qty == expected, f"Expected {expected} (100 - {successes}*10), got {final_qty}"
@@ -107,7 +115,11 @@ class TestConcurrency:
         """Two concurrent mark-paid on the same withdrawal should not double-pay."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=50, name="CC-DoublePay"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=50,
+            name="CC-DoublePay",
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
 
@@ -120,5 +132,5 @@ class TestConcurrency:
         successes = [s for s in statuses if s == 200]
         assert len(successes) >= 1, "At least one mark-paid should succeed"
 
-        resp = client.get(f"/api/withdrawals/{wd['id']}", headers=headers)
+        resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
         assert resp.json()["payment_status"] == "paid"

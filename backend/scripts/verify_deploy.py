@@ -79,8 +79,12 @@ def check_config_guards() -> None:
             True,
         ),
         (
-            "Production rejects non-Postgres DATABASE_URL",
-            {"ENV": "production", "JWT_SECRET": "a" * 32, "CORS_ORIGINS": "https://x.com"},
+            "Production rejects SQLite DATABASE_URL",
+            {
+                "ENV": "production",
+                "JWT_SECRET": "a" * 32,
+                "CORS_ORIGINS": "https://x.com",
+            },
             "DATABASE_URL",
             True,
         ),
@@ -94,7 +98,8 @@ def check_config_guards() -> None:
 
     for label, env, missing_var, should_raise in cases:
         merged = dict.fromkeys(
-            ["ENV", "DATABASE_URL", "JWT_SECRET", "CORS_ORIGINS", "REDIS_URL"], ""
+            ["ENV", "DATABASE_URL", "JWT_SECRET", "CORS_ORIGINS", "REDIS_URL"],
+            "",
         )
         merged.update(env)
         if missing_var:
@@ -121,7 +126,10 @@ def check_config_guards() -> None:
         elif should_raise and not raised:
             _fail(label, "Expected RuntimeError but config loaded without error")
         else:
-            _fail(label, f"Unexpected RuntimeError:\n       {result.stderr.strip()[-300:]}")
+            _fail(
+                label,
+                f"Unexpected RuntimeError:\n       {result.stderr.strip()[-300:]}",
+            )
 
 
 def check_supabase_jwt_shape() -> None:
@@ -151,7 +159,10 @@ def check_supabase_jwt_shape() -> None:
 
     try:
         payload = jwt.decode(
-            token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         claims = _resolve_supabase(payload)
 
@@ -182,7 +193,10 @@ def check_supabase_jwt_shape() -> None:
     no_role_token = jwt.encode(no_role_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     try:
         payload = jwt.decode(
-            no_role_token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            no_role_token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         _resolve_supabase(payload)
         _fail("Token missing role: should raise ValueError but did not")
@@ -204,7 +218,10 @@ def check_supabase_jwt_shape() -> None:
     dev_token = jwt.encode(dev_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     try:
         payload = jwt.decode(
-            dev_token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            dev_token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         claims = _resolve_internal(payload)
         assert claims.role == "admin"
@@ -217,7 +234,10 @@ def check_supabase_jwt_shape() -> None:
     expired_token = jwt.encode(expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     try:
         jwt.decode(
-            expired_token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            expired_token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         _fail("Expired token: should raise ExpiredSignatureError but did not")
     except jwt.ExpiredSignatureError:
@@ -236,7 +256,10 @@ def check_cors_config() -> None:
     if CORS_ORIGINS == "*":
         _warn("CORS_ORIGINS is '*' (dev default — must be set in production)")
     else:
-        _ok(f"CORS_ORIGINS parsed into {len(origins)} origin(s)", ", ".join(origins))
+        _ok(
+            f"CORS_ORIGINS parsed into {len(origins)} origin(s)",
+            ", ".join(origins),
+        )
 
     # Simulate what server.py does: CORS_ORIGINS.split(",")
     test_cases = [
@@ -270,11 +293,14 @@ def check_websocket_routes() -> None:
         from server import app
 
         ws_paths = {r.path for r in app.routes if isinstance(r, WebSocketRoute)}
-        for expected in ("/api/ws", "/api/ws/chat"):
+        for expected in ("/api/beta/shared/ws", "/api/beta/assistant/ws/chat"):
             if expected in ws_paths:
                 _ok(f"WebSocket route mounted: {expected}")
             else:
-                _fail(f"WebSocket route NOT mounted: {expected}", "Check routes.py")
+                _fail(
+                    f"WebSocket route NOT mounted: {expected}",
+                    "Check routes.py",
+                )
     except Exception as e:
         _fail("Could not import server app", str(e))
 
@@ -315,7 +341,10 @@ def check_production_flags() -> None:
         elif os.environ.get("ALLOW_RESET", "").lower() in ("1", "true"):
             _warn("ALLOW_RESET=True explicitly set — disable after seeding")
         else:
-            _fail("ALLOW_RESET=True in production", "Reset endpoint should not be reachable")
+            _fail(
+                "ALLOW_RESET=True in production",
+                "Reset endpoint should not be reachable",
+            )
 
         os.environ["ENV"] = orig_env
         if "shared.infrastructure.config" in sys.modules:
@@ -367,22 +396,25 @@ def check_live_server(base_url: str) -> None:
 
     # /health
     try:
-        with urllib.request.urlopen(f"{base}/api/health", timeout=10) as resp:  # noqa: S310
+        with urllib.request.urlopen(f"{base}/api/beta/shared/health", timeout=10) as resp:  # noqa: S310
             import json
 
             data = json.loads(resp.read())
             env = data.get("env", "unknown")
             version = data.get("version", "?")
-            _ok("/api/health returns 200", f"env={env}, version={version}")
+            _ok(
+                "/api/beta/shared/health returns 200",
+                f"env={env}, version={version}",
+            )
             if env == "development":
-                _warn("Server reports env=development — expected production")
+                _warn("Server reports env=development — expected production or staging")
     except Exception as e:
-        _fail("/api/health unreachable", str(e))
+        _fail("/api/beta/shared/health unreachable", str(e))
         return
 
     # /ready
     try:
-        with urllib.request.urlopen(f"{base}/api/ready", timeout=10) as resp:  # noqa: S310
+        with urllib.request.urlopen(f"{base}/api/beta/shared/ready", timeout=10) as resp:  # noqa: S310
             import json
 
             data = json.loads(resp.read())
@@ -398,7 +430,10 @@ def check_live_server(base_url: str) -> None:
                 elif status == "unconfigured":
                     _warn(f"/api/ready check: {name}", f"{status} (optional)")
                 else:
-                    _fail(f"/api/ready check: {name}", f"{status} — {check.get('error', '')}")
+                    _fail(
+                        f"/api/ready check: {name}",
+                        f"{status} — {check.get('error', '')}",
+                    )
     except urllib.error.HTTPError as e:
         import json
 
@@ -407,7 +442,10 @@ def check_live_server(base_url: str) -> None:
             for name, check in data.get("checks", {}).items():
                 status = check.get("status", "?")
                 if status != "ok":
-                    _fail(f"/api/ready check: {name}", f"{status} — {check.get('error', '')}")
+                    _fail(
+                        f"/api/ready check: {name}",
+                        f"{status} — {check.get('error', '')}",
+                    )
         except Exception:
             _fail("/api/ready returned non-200", str(e))
     except Exception as e:

@@ -1,4 +1,4 @@
-"""Integration tests for the /api/ws/chat WebSocket endpoint.
+"""Integration tests for the /api/beta/assistant/ws/chat WebSocket endpoint.
 
 Tests cover:
   - Authentication (valid/invalid/expired tokens, role-based access)
@@ -108,21 +108,29 @@ def _assert_ws_close(client, url: str, expected_code: int):
 @pytest.mark.timeout(15)
 class TestWSChatAuth:
     def test_no_token_rejected(self, client):
-        _assert_ws_close(client, "/api/ws/chat", 4001)
+        _assert_ws_close(client, "/api/beta/assistant/ws/chat", 4001)
 
     def test_invalid_token_rejected(self, client):
-        _assert_ws_close(client, "/api/ws/chat?token=garbage", 4001)
+        _assert_ws_close(client, "/api/beta/assistant/ws/chat?token=garbage", 4001)
 
     def test_expired_token_rejected(self, client):
-        _assert_ws_close(client, f"/api/ws/chat?token={_expired_token()}", 4001)
+        _assert_ws_close(
+            client,
+            f"/api/beta/assistant/ws/chat?token={_expired_token()}",
+            4001,
+        )
 
     def test_contractor_role_rejected(self, client):
         """Contractors cannot use the AI assistant."""
-        _assert_ws_close(client, f"/api/ws/chat?token={_contractor_token()}", 4003)
+        _assert_ws_close(
+            client,
+            f"/api/beta/assistant/ws/chat?token={_contractor_token()}",
+            4003,
+        )
 
     def test_admin_connects_successfully(self, client):
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "pong"}))
             ws.send_text(json.dumps({"type": "chat", "message": ""}))
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
@@ -137,7 +145,7 @@ class TestWSChatProtocol:
     def test_pong_response_accepted(self, client):
         """Server should accept pong messages without error."""
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "pong"}))
             ws.send_text(json.dumps({"type": "chat", "message": ""}))
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
@@ -147,7 +155,7 @@ class TestWSChatProtocol:
     def test_malformed_json_ignored(self, client):
         """Malformed messages should be silently ignored, connection stays open."""
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text("not json at all")
             ws.send_text(json.dumps({"type": "chat", "message": ""}))
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
@@ -157,7 +165,7 @@ class TestWSChatProtocol:
     def test_unknown_message_type_ignored(self, client):
         """Unknown message types should be silently ignored, connection stays open."""
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "unknown_type"}))
             ws.send_text(json.dumps({"type": "chat", "message": ""}))
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
@@ -172,7 +180,7 @@ class TestWSChatProtocol:
 class TestWSChatStreaming:
     def test_empty_message_returns_error(self, client):
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -189,7 +197,7 @@ class TestWSChatStreaming:
 
     def test_whitespace_only_message_returns_error(self, client):
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -202,11 +210,17 @@ class TestWSChatStreaming:
             error = _find_msg(messages, "chat.error")
             assert error is not None
 
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", False)
-    @patch("assistant.api.ws_chat.OPENROUTER_AVAILABLE", False)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        False,
+    )
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE",
+        False,
+    )
     def test_ai_not_configured_returns_error(self, client):
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -220,12 +234,13 @@ class TestWSChatStreaming:
             assert error is not None
             assert "not configured" in error["detail"].lower()
 
-    @patch("assistant.api.ws_chat._get_agent")
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_streaming_event_sequence(self, mock_get_agent, client):
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
+    def test_streaming_event_sequence(self, mock_agent, client):
         """Verify the full event sequence: status → deltas → done."""
-        mock_agent = MagicMock()
-        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(
             text_chunks=["Hello ", "world!", " How can I help?"],
             tool_names=["search_products"],
@@ -233,7 +248,7 @@ class TestWSChatStreaming:
         mock_agent.run_stream_events = mock_stream
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -265,18 +280,18 @@ class TestWSChatStreaming:
             assert "session_id" in done
             assert "usage" in done
 
-    @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._get_agent")
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_session_id_assigned_when_missing(self, mock_get_agent, mock_route, client):
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
+    def test_session_id_assigned_when_missing(self, mock_agent, client):
         """When no session_id is provided, one should be auto-assigned."""
-        mock_agent = MagicMock()
-        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(text_chunks=["Hi there!"])
         mock_agent.run_stream_events = mock_stream
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -291,18 +306,18 @@ class TestWSChatStreaming:
             assert done["session_id"]
             assert len(done["session_id"]) > 0
 
-    @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._get_agent")
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_session_id_preserved_when_provided(self, mock_get_agent, mock_route, client):
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
+    def test_session_id_preserved_when_provided(self, mock_agent, client):
         """When session_id is provided, it should be echoed back."""
-        mock_agent = MagicMock()
-        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(text_chunks=["Hi!"])
         mock_agent.run_stream_events = mock_stream
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -316,17 +331,17 @@ class TestWSChatStreaming:
             done = _find_msg(messages, "chat.done")
             assert done["session_id"] == "my-session-123"
 
-    @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._get_agent")
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_done_payload_has_usage_fields(self, mock_get_agent, mock_route, client):
-        mock_agent = MagicMock()
-        mock_get_agent.return_value = mock_agent
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
+    def test_done_payload_has_usage_fields(self, mock_agent, client):
         mock_stream = _make_mock_stream(text_chunks=["Report ready."])
         mock_agent.run_stream_events = mock_stream
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "Show P&L"}))
             messages = _collect_messages(ws, until_type="chat.done", max_msgs=10)
             done = _find_msg(messages, "chat.done")
@@ -342,13 +357,13 @@ class TestWSChatStreaming:
 
 @pytest.mark.timeout(30)
 class TestWSChatErrors:
-    @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._get_agent")
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_agent_exception_returns_chat_error(self, mock_get_agent, mock_route, client):
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
+    def test_agent_exception_returns_chat_error(self, mock_agent, client):
         """If the agent raises, client should get a chat.error event."""
-        mock_agent = MagicMock()
-        mock_get_agent.return_value = mock_agent
 
         async def _failing_stream(*args, **kwargs):
             raise RuntimeError("LLM provider down")
@@ -357,20 +372,20 @@ class TestWSChatErrors:
         mock_agent.run_stream_events = _failing_stream
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "Hello"}))
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=10)
             error = _find_msg(messages, "chat.error")
             assert error is not None
             assert "wrong" in error["detail"].lower()
 
-    @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._get_agent")
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_duplicate_generation_rejected(self, mock_get_agent, mock_route, client):
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
+    def test_duplicate_generation_rejected(self, mock_agent, client):
         """Sending a second chat while one is streaming should return an error."""
-        mock_agent = MagicMock()
-        mock_get_agent.return_value = mock_agent
 
         async def _slow_stream(*args, **kwargs):
             from pydantic_ai import AgentRunResultEvent
@@ -385,7 +400,7 @@ class TestWSChatErrors:
         mock_agent.run_stream_events = _slow_stream
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "First message"}))
             # Wait for status to confirm generation started
             messages = _collect_messages(ws, until_type="chat.status", max_msgs=5)
@@ -404,15 +419,21 @@ class TestWSChatErrors:
 
 @pytest.mark.timeout(15)
 class TestWSChatCostCap:
-    @patch("assistant.api.ws_chat.session_store")
-    @patch("assistant.api.ws_chat.SESSION_COST_CAP", 1.00)
-    @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.session_store")
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.SESSION_COST_CAP",
+        1.00,
+    )
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_cost_cap_reached_returns_done_with_capped(self, mock_store, client):
         mock_store.get_cost = AsyncMock(return_value=1.50)
         mock_store.get_or_create = AsyncMock(return_value=[])
 
         token = _admin_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "One more question"}))
             messages = _collect_messages(ws, until_type="chat.done", max_msgs=5)
             done = _find_msg(messages, "chat.done")

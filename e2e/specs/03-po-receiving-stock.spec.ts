@@ -34,7 +34,7 @@ test.describe.serial("Story 3: PO receiving and stock", () => {
     const req = page.request;
     const t = ctx.token;
 
-    const vendors = await apiGet(req, t, "/api/vendors");
+    const vendors = await apiGet(req, t, "/api/beta/catalog/vendors");
     vendorName = vendors[0].name;
 
     const product = await apiPost(req, t, "/api/catalog/skus", {
@@ -46,7 +46,7 @@ test.describe.serial("Story 3: PO receiving and stock", () => {
   });
 
   test("3a — product starts as low stock", async ({ request }) => {
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     expect(stats.low_stock_count).toBeGreaterThanOrEqual(1);
   });
 
@@ -55,20 +55,20 @@ test.describe.serial("Story 3: PO receiving and stock", () => {
     const p = products.find((x: any) => x.id === productId);
     const stockBefore = p.quantity;
 
-    const statsBefore = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const statsBefore = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     const invCostBefore = statsBefore.inventory_cost;
 
-    const po = await apiPost(request, ctx.token, "/api/purchase-orders", {
+    const po = await apiPost(request, ctx.token, "/api/beta/purchasing/purchase-orders", {
       vendor_name: vendorName,
       items: [{ product_id: productId, sku: p.sku, name: p.name, quantity: PO_QTY, cost: PRODUCT.cost }],
     });
     expect(po.status).toBe("ordered");
 
-    await apiPost(request, ctx.token, `/api/purchase-orders/${po.id}/delivery`, {
+    await apiPost(request, ctx.token, `/api/beta/purchasing/purchase-orders/${po.id}/delivery`, {
       item_ids: po.items.map((i: any) => i.id),
     });
 
-    await apiPost(request, ctx.token, `/api/purchase-orders/${po.id}/receive`, {
+    await apiPost(request, ctx.token, `/api/beta/purchasing/purchase-orders/${po.id}/receive`, {
       items: po.items.map((i: any) => ({ id: i.id, received_qty: PO_QTY })),
     });
 
@@ -76,10 +76,10 @@ test.describe.serial("Story 3: PO receiving and stock", () => {
     const pAfter = productsAfter.find((x: any) => x.id === productId);
     expect(pAfter.quantity).toBe(stockBefore + PO_QTY);
 
-    const statsAfter = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const statsAfter = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     expect(statsAfter.inventory_cost).toBeCloseTo(invCostBefore + PRODUCT.cost * PO_QTY, 2);
 
-    const history = await apiGet(request, ctx.token, `/api/stock/${productId}/history`);
+    const history = await apiGet(request, ctx.token, `/api/beta/inventory/stock/${productId}/history`);
     const receiving = history.history.find((h: any) => h.transaction_type === "receiving");
     expect(receiving).toBeTruthy();
     expect(receiving.quantity_delta).toBe(PO_QTY);

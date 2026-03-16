@@ -1,6 +1,6 @@
 """E2E: Withdrawal pipeline — HTTP mutation + stock + ledger + WebSocket events.
 
-Verifies the full chain: POST /api/withdrawals → stock decremented →
+Verifies the full chain: POST /api/beta/operations/withdrawals → stock decremented →
 ledger entries written and balanced → WebSocket events delivered →
 auto-invoice created.
 """
@@ -15,10 +15,16 @@ from tests.helpers.auth import admin_headers
 class TestWithdrawalPipeline:
     """Full withdrawal lifecycle through the live HTTP API."""
 
-    def test_withdrawal_creates_stock_ledger_and_events(self, client, ws_events, seed_dept_id):
+    def test_withdrawal_creates_stock_ledger_and_events(
+        self, client, ws_events, seed_dept_id
+    ):
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=50, name="WD-Pipeline"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=50,
+            name="WD-Pipeline",
         )
 
         withdrawal = create_withdrawal(client, headers, product, quantity=5)
@@ -26,12 +32,17 @@ class TestWithdrawalPipeline:
         assert withdrawal["contractor_id"]
 
         # Stock decremented
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.status_code == 200
         assert resp.json()["quantity"] == 45
 
         # Ledger entries exist for this withdrawal
-        resp = client.get(f"/api/stock/{product['id']}/history", headers=headers)
+        resp = client.get(
+            f"/api/beta/inventory/stock/{product['id']}/history",
+            headers=headers,
+        )
         assert resp.status_code == 200
         history = resp.json()["history"]
         wd_entries = [h for h in history if h["reference_type"] == "withdrawal"]
@@ -49,11 +60,18 @@ class TestWithdrawalPipeline:
         """With auto_invoice off (default), withdrawal has no invoice until created manually."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=50, name="WD-NoAutoInv"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=50,
+            name="WD-NoAutoInv",
         )
         withdrawal = create_withdrawal(client, headers, product, quantity=3)
 
-        resp = client.get(f"/api/withdrawals/{withdrawal['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/operations/withdrawals/{withdrawal['id']}",
+            headers=headers,
+        )
         assert resp.status_code == 200
         wd = resp.json()
         assert wd.get("invoice_id") is None, (
@@ -63,11 +81,15 @@ class TestWithdrawalPipeline:
     def test_withdrawal_insufficient_stock_rejected(self, client, seed_dept_id):
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=2, name="WD-InsufficientE2E"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=2,
+            name="WD-InsufficientE2E",
         )
 
         resp = client.post(
-            "/api/withdrawals",
+            "/api/beta/operations/withdrawals",
             json={
                 "items": [
                     {
@@ -87,7 +109,9 @@ class TestWithdrawalPipeline:
         assert resp.status_code in (400, 422)
 
         # Stock unchanged
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.json()["quantity"] == 2
 
     def test_dashboard_revenue_matches_withdrawal(self, client, seed_dept_id):
@@ -104,7 +128,7 @@ class TestWithdrawalPipeline:
         )
         withdrawal = create_withdrawal(client, headers, product, quantity=10)
 
-        resp = client.get("/api/dashboard/stats", headers=headers)
+        resp = client.get("/api/beta/reports/dashboard/stats", headers=headers)
         assert resp.status_code == 200
         stats = resp.json()
         # Revenue should include at least this withdrawal's contribution

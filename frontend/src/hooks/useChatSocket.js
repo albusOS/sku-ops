@@ -14,7 +14,7 @@ function buildWsUrl(token) {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     wsBase = `${proto}//${location.host}`;
   }
-  return `${wsBase}/api/ws/chat?token=${encodeURIComponent(token)}`;
+  return `${wsBase}/api/beta/assistant/ws/chat?token=${encodeURIComponent(token)}`;
 }
 
 /**

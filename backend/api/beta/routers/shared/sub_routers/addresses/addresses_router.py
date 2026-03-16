@@ -1,0 +1,91 @@
+"""Address book routes — CRUD and autocomplete for saved addresses."""
+
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from shared.api.deps import AdminDep, CurrentUserDep
+from shared.infrastructure.address_repo import StoredAddress, address_repo
+from shared.infrastructure.database import get_org_id
+
+router = APIRouter(prefix="/addresses", tags=["addresses"])
+
+
+class AddressCreate(BaseModel):
+    label: str = ""
+    line1: str
+    line2: str = ""
+    city: str = ""
+    state: str = ""
+    postal_code: str = ""
+    country: str = "US"
+    billing_entity_id: str | None = None
+    job_id: str | None = None
+
+
+@router.get("")
+async def list_addresses(
+    current_user: AdminDep,  # noqa: ARG001
+    billing_entity_id: str | None = None,
+    job_id: str | None = None,
+    q: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    return await address_repo.list_addresses(
+        billing_entity_id=billing_entity_id,
+        job_id=job_id,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/search")
+async def search_addresses(
+    current_user: CurrentUserDep,  # noqa: ARG001
+    q: str = "",
+    limit: int = 20,
+):
+    """Autocomplete endpoint for address pickers."""
+    if not q.strip():
+        return await address_repo.list_addresses(
+            limit=limit,
+        )
+    return await address_repo.search(q, limit=limit)
+
+
+@router.get("/{address_id}")
+async def get_address(address_id: str, current_user: AdminDep):  # noqa: ARG001
+    addr = await address_repo.get_by_id(address_id)
+    if not addr:
+        raise HTTPException(status_code=404, detail="Address not found")
+    return addr
+
+
+@router.post("")
+async def create_address(
+    data: AddressCreate,
+    current_user: AdminDep,  # noqa: ARG001
+):
+    if not data.line1.strip():
+        raise HTTPException(status_code=400, detail="Address line 1 is required")
+
+    address = StoredAddress(
+        id=str(uuid4()),
+        label=data.label or data.line1[:80],
+        line1=data.line1,
+        line2=data.line2,
+        city=data.city,
+        state=data.state,
+        postal_code=data.postal_code,
+        country=data.country,
+        billing_entity_id=data.billing_entity_id,
+        job_id=data.job_id,
+        organization_id=get_org_id(),
+        created_at=datetime.now(UTC).isoformat(),
+    )
+    await address_repo.insert(address)
+    return address

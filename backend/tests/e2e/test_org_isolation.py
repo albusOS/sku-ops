@@ -13,7 +13,7 @@ ORG_B_ID = "org-b-test"
 ORG_B_USER = "user-org-b"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def org_b_headers(app_client):
     """Seed a second org and user, return auth headers scoped to Org B."""
 
@@ -21,17 +21,17 @@ def org_b_headers(app_client):
         from shared.infrastructure.database import get_connection
 
         conn = get_connection()
-        cursor = await conn.execute("SELECT id FROM organizations WHERE id = $1", (ORG_B_ID,))
+        cursor = await conn.execute("SELECT id FROM organizations WHERE id = ?", (ORG_B_ID,))
         if not await cursor.fetchone():
             await conn.execute(
-                "INSERT INTO organizations (id, name, slug, created_at) VALUES ($1, $2, $3, $4)",
+                "INSERT INTO organizations (id, name, slug, created_at) VALUES (?, ?, ?, ?)",
                 (ORG_B_ID, "Org B", ORG_B_ID, "2024-01-01T00:00:00+00:00"),
             )
-        cursor = await conn.execute("SELECT id FROM users WHERE id = $1", (ORG_B_USER,))
+        cursor = await conn.execute("SELECT id FROM users WHERE id = ?", (ORG_B_USER,))
         if not await cursor.fetchone():
             await conn.execute(
                 "INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)"
-                " VALUES ($1, $2, $3, $4, $5, 1, $6, $7)",
+                " VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
                 (
                     ORG_B_USER,
                     "orgb@test.com",
@@ -50,18 +50,22 @@ def org_b_headers(app_client):
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def org_b_dept_id(app_client, org_b_headers):
     """Seed a department in Org B."""
-    resp = app_client.get("/api/departments", headers=org_b_headers)
+    resp = app_client.get("/api/beta/catalog/departments", headers=org_b_headers)
     if resp.status_code == 200:
         for dept in resp.json():
             if dept.get("code") == "ORB":
                 return dept["id"]
 
     resp = app_client.post(
-        "/api/departments",
-        json={"name": "Org B Dept", "code": "ORB", "description": "Org B department"},
+        "/api/beta/catalog/departments",
+        json={
+            "name": "Org B Dept",
+            "code": "ORB",
+            "description": "Org B department",
+        },
         headers=org_b_headers,
     )
     assert resp.status_code == 200, f"Org B dept seed failed: {resp.text}"
@@ -77,10 +81,14 @@ class TestOrgIsolation:
     ):
         headers_a = admin_headers()
         product_a = create_product(
-            client, headers_a, dept_id=seed_dept_id, quantity=10, name="OrgA-Only"
+            client,
+            headers_a,
+            dept_id=seed_dept_id,
+            quantity=10,
+            name="OrgA-Only",
         )
 
-        resp = client.get("/api/catalog/skus", headers=org_b_headers)
+        resp = client.get("/api/beta/catalog/skus", headers=org_b_headers)
         assert resp.status_code == 200
         org_b_product_ids = [p["id"] for p in resp.json()]
         assert product_a["id"] not in org_b_product_ids, (
@@ -92,10 +100,14 @@ class TestOrgIsolation:
     ):
         headers_a = admin_headers()
         product_b = create_product(
-            client, org_b_headers, dept_id=org_b_dept_id, quantity=10, name="OrgB-Only"
+            client,
+            org_b_headers,
+            dept_id=org_b_dept_id,
+            quantity=10,
+            name="OrgB-Only",
         )
 
-        resp = client.get("/api/catalog/skus", headers=headers_a)
+        resp = client.get("/api/beta/catalog/skus", headers=headers_a)
         assert resp.status_code == 200
         org_a_product_ids = [p["id"] for p in resp.json()]
         assert product_b["id"] not in org_a_product_ids, (
@@ -105,11 +117,15 @@ class TestOrgIsolation:
     def test_org_a_withdrawals_invisible_to_org_b(self, client, seed_dept_id, org_b_headers):
         headers_a = admin_headers()
         product = create_product(
-            client, headers_a, dept_id=seed_dept_id, quantity=50, name="OrgA-WD-Iso"
+            client,
+            headers_a,
+            dept_id=seed_dept_id,
+            quantity=50,
+            name="OrgA-WD-Iso",
         )
         wd = create_withdrawal(client, headers_a, product, quantity=5)
 
-        resp = client.get("/api/withdrawals", headers=org_b_headers)
+        resp = client.get("/api/beta/operations/withdrawals", headers=org_b_headers)
         assert resp.status_code == 200
         org_b_wd_ids = [w["id"] for w in resp.json()]
         assert wd["id"] not in org_b_wd_ids, "Org A's withdrawal should not be visible to Org B"
@@ -120,7 +136,10 @@ class TestOrgIsolation:
         from tests.helpers.auth import make_token
 
         org_b_token = make_token(
-            user_id=ORG_B_USER, org_id=ORG_B_ID, role="admin", name="Org B Admin"
+            user_id=ORG_B_USER,
+            org_id=ORG_B_ID,
+            role="admin",
+            name="Org B Admin",
         )
         collector_b = WSEventCollector()
         collector_b.start(client, token=org_b_token)
@@ -128,7 +147,11 @@ class TestOrgIsolation:
         try:
             headers_a = admin_headers()
             product = create_product(
-                client, headers_a, dept_id=seed_dept_id, quantity=50, name="WS-OrgIso"
+                client,
+                headers_a,
+                dept_id=seed_dept_id,
+                quantity=50,
+                name="WS-OrgIso",
             )
             create_withdrawal(client, headers_a, product, quantity=3)
 

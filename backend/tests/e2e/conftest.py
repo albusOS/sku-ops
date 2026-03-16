@@ -12,36 +12,95 @@ import time
 
 import anyio
 import pytest
+from starlette.testclient import TestClient
 
 from tests.helpers.auth import admin_headers, admin_token, contractor_headers
 
 # ── Full-app client with lifespan ────────────────────────────────────────────
 
 
-@pytest.fixture(scope="session")
-def app_client(_app_client):
-    """Alias for the root session-scoped TestClient."""
-    return _app_client
+def _seed_contractor(app_client: TestClient) -> str:
+    """Ensure contractor-1 user row exists in the DB.
 
+    The JWT in ``contractor_headers()`` references user_id='contractor-1'.
+    We insert directly via the app's DB connection since there's no public
+    API to create contractor users in test mode.
+    """
 
-@pytest.fixture(autouse=True)
-def _clean_db(_app_client):
-    """Truncate and seed before each test for isolation."""
-    from tests.conftest import _truncate_and_seed
+    from shared.infrastructure.database import get_connection
 
-    _app_client.portal.call(_truncate_and_seed)
+    async def _insert():
+        conn = get_connection()
+        cursor = await conn.execute("SELECT id FROM users WHERE id = ?", ("contractor-1",))
+        if await cursor.fetchone():
+            return
+        await conn.execute(
+            "INSERT INTO users (id, email, password, name, role, company, billing_entity, is_active, organization_id, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            (
+                "contractor-1",
+                "contractor@test.com",
+                "unused",
+                "E2E Contractor",
+                "contractor",
+                "E2E Corp",
+                "E2E Corp",
+                "default",
+                "2024-01-01T00:00:00+00:00",
+            ),
+        )
+        await conn.commit()
 
-
-@pytest.fixture
-def seed_dept_id():
-    """Return dept-1 ID — already seeded by _clean_db."""
-    return "dept-1"
-
-
-@pytest.fixture
-def seed_contractor_id():
-    """Return contractor-1 ID — already seeded by _clean_db."""
+    app_client.portal.call(_insert)
     return "contractor-1"
+
+
+def _seed_dept(client: TestClient, headers: dict) -> str:
+    """Create the Hardware department via API, return its ID.
+
+    Idempotent — if the department already exists, returns its ID.
+    """
+    resp = client.get("/api/beta/catalog/departments", headers=headers)
+    if resp.status_code == 200:
+        for dept in resp.json():
+            if dept.get("code") == "HDW":
+                return dept["id"]
+
+    resp = client.post(
+        "/api/beta/catalog/departments",
+        json={
+            "name": "Hardware",
+            "code": "HDW",
+            "description": "Hardware dept",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, f"Department seed failed: {resp.status_code} {resp.text}"
+    return resp.json()["id"]
+
+
+@pytest.fixture(scope="session")
+def app_client():
+    """TestClient that runs the full lifespan (DB init, event handlers, etc.).
+
+    Session-scoped: the app boots once for the entire E2E test suite.
+    """
+    from server import app
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield client
+
+
+@pytest.fixture(scope="session")
+def seed_dept_id(app_client):
+    """Seed the Hardware department once and expose its ID to all tests."""
+    return _seed_dept(app_client, admin_headers())
+
+
+@pytest.fixture(scope="session")
+def seed_contractor_id(app_client):
+    """Seed the contractor-1 user once and expose its ID to all tests."""
+    return _seed_contractor(app_client)
 
 
 @pytest.fixture
@@ -66,7 +125,7 @@ def contractor_auth():
 
 
 class WSEventCollector:
-    """Connects to /api/ws and records all events in a background thread.
+    """Connects to /api/beta/shared/ws and records all events in a background thread.
 
     Uses anyio timed receives through the TestClient portal so the reader
     thread can be cleanly stopped without blocking indefinitely.
@@ -79,9 +138,9 @@ class WSEventCollector:
         self._stop = threading.Event()
         self._lock = threading.Lock()
 
-    def start(self, client, token: str | None = None) -> None:
+    def start(self, client: TestClient, token: str | None = None) -> None:
         token = token or admin_token()
-        self._ws = client.websocket_connect(f"/api/ws?token={token}")
+        self._ws = client.websocket_connect(f"/api/beta/shared/ws?token={token}")
         self._ws.__enter__()
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()

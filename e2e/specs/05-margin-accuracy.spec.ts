@@ -37,8 +37,8 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
     const req = page.request;
     const t = ctx.token;
 
-    await apiPost(req, t, "/api/jobs", { code: "JOB-MARGIN-1" });
-    await apiPost(req, t, "/api/jobs", { code: "JOB-MARGIN-2" });
+    await apiPost(req, t, "/api/beta/jobs/jobs", { code: "JOB-MARGIN-1" });
+    await apiPost(req, t, "/api/beta/jobs/jobs", { code: "JOB-MARGIN-2" });
 
     const pIds: string[] = [];
     for (const item of ITEMS) {
@@ -53,7 +53,7 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
       pIds.push(p.id);
     }
 
-    const w1 = await apiPost(req, t, "/api/withdrawals/for-contractor", {
+    const w1 = await apiPost(req, t, "/api/beta/operations/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-MARGIN-1",
       service_address: "300 Margin St",
@@ -62,7 +62,7 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
         { product_id: pIds[1], quantity: ITEMS[1].wQty },
       ],
     });
-    const w2 = await apiPost(req, t, "/api/withdrawals/for-contractor", {
+    const w2 = await apiPost(req, t, "/api/beta/operations/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-MARGIN-2",
       service_address: "400 Profit Blvd",
@@ -85,14 +85,14 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
   });
 
   test("5b — P&L report totals match", async ({ request }) => {
-    const pl = await apiGet(request, ctx.token, "/api/reports/pl");
+    const pl = await apiGet(request, ctx.token, "/api/beta/reports/reports/pl");
     expect(pl.summary.revenue).toBeCloseTo(totalRevenue, 2);
     expect(pl.summary.cogs).toBeCloseTo(totalCost, 2);
     expect(pl.summary.gross_profit).toBeCloseTo(totalRevenue - totalCost, 2);
   });
 
   test("5c — inventory report reflects remaining stock value", async ({ request }) => {
-    const inv = await apiGet(request, ctx.token, "/api/reports/inventory");
+    const inv = await apiGet(request, ctx.token, "/api/beta/reports/reports/inventory");
 
     let expectedRetail = 0;
     let expectedCostValue = 0;

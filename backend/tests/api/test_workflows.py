@@ -17,7 +17,7 @@ def _create_product(client, headers, **overrides):
         "category_id": "dept-1",
         **overrides,
     }
-    resp = client.post("/api/catalog/skus", json=data, headers=headers)
+    resp = client.post("/api/beta/catalog/skus", json=data, headers=headers)
     assert resp.status_code == 200, f"Product create failed: {resp.text}"
     return resp.json()
 
@@ -30,7 +30,7 @@ class TestWithdrawalWorkflow:
         product = _create_product(client, headers, quantity=50, name="WD-Decrement")
 
         resp = client.post(
-            "/api/withdrawals",
+            "/api/beta/operations/withdrawals",
             json={
                 "items": [
                     {
@@ -51,7 +51,7 @@ class TestWithdrawalWorkflow:
         withdrawal = resp.json()
         assert withdrawal["total"] > 0
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 45
 
     def test_withdrawal_with_insufficient_stock_fails(self, db, client):
@@ -59,7 +59,7 @@ class TestWithdrawalWorkflow:
         product = _create_product(client, headers, quantity=3, name="WD-Insufficient")
 
         resp = client.post(
-            "/api/withdrawals",
+            "/api/beta/operations/withdrawals",
             json={
                 "items": [
                     {
@@ -78,15 +78,19 @@ class TestWithdrawalWorkflow:
         )
         assert resp.status_code in (400, 422), f"Expected rejection, got {resp.status_code}"
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 3, "Stock should be unchanged after failed withdrawal"
 
     def test_withdrawal_requires_items(self, db, client):
         headers = admin_headers()
 
         resp = client.post(
-            "/api/withdrawals",
-            json={"items": [], "job_id": "JOB-003", "service_address": "789 Empty St"},
+            "/api/beta/operations/withdrawals",
+            json={
+                "items": [],
+                "job_id": "JOB-003",
+                "service_address": "789 Empty St",
+            },
             headers=headers,
         )
         assert resp.status_code in (400, 422)
@@ -101,7 +105,7 @@ class TestMaterialRequestWorkflow:
         product = _create_product(client, admin_h, name="MR-Workflow")
 
         resp = client.post(
-            "/api/material-requests",
+            "/api/beta/operations/material-requests",
             json={
                 "items": [
                     {
@@ -122,7 +126,7 @@ class TestMaterialRequestWorkflow:
         assert mat_req["status"] == "pending"
 
         resp = client.post(
-            f"/api/material-requests/{mat_req['id']}/process",
+            f"/api/beta/operations/material-requests/{mat_req['id']}/process",
             json={"job_id": "JOB-004", "service_address": "456 Site Rd"},
             headers=admin_h,
         )
@@ -135,7 +139,7 @@ class TestMaterialRequestWorkflow:
         product = _create_product(client, admin_h, name="MR-AdminReject")
 
         resp = client.post(
-            "/api/material-requests",
+            "/api/beta/operations/material-requests",
             json={
                 "items": [
                     {
@@ -160,21 +164,25 @@ class TestProductWorkflow:
         headers = admin_headers()
         product = _create_product(client, headers, name="PW-Create")
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.status_code == 200
         assert resp.json()["name"] == "PW-Create"
 
     def test_create_product_missing_required_fields(self, db, client):
         headers = admin_headers()
 
-        resp = client.post("/api/catalog/skus", json={"name": "Incomplete"}, headers=headers)
+        resp = client.post(
+            "/api/beta/catalog/skus",
+            json={"name": "Incomplete"},
+            headers=headers,
+        )
         assert resp.status_code == 422
 
     def test_create_product_invalid_department(self, db, client):
         headers = admin_headers()
 
         resp = client.post(
-            "/api/catalog/skus",
+            "/api/beta/catalog/skus",
             json={
                 "name": "Bad Dept",
                 "price": 10.00,

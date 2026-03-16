@@ -35,12 +35,12 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
     const page = await browser.newPage();
     ctx = await freshSeed(page.request);
     productId = (
-      await apiPost(page.request, ctx.token, "/api/catalog/skus", {
+      await apiPost(page.request, ctx.token, "/api/beta/catalog/skus", {
         ...PRODUCT,
         category_id: ctx.categoryIds["ELE"],
       })
     ).id;
-    await apiPost(page.request, ctx.token, "/api/jobs", { code: "JOB-E2E-001" });
+    await apiPost(page.request, ctx.token, "/api/beta/jobs/jobs", { code: "JOB-E2E-001" });
 
     wsCollector = new WSEventCollector();
     await wsCollector.connect(ctx.token);
@@ -53,7 +53,7 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
   });
 
   test("1a — product starts with correct stock", async ({ request }) => {
-    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
+    const products = await apiGet(request, ctx.token, "/api/beta/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity);
     expect(p.price).toBe(PRODUCT.price);
@@ -63,7 +63,7 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
   test("1b — withdrawal decrements stock and records revenue", async ({ request }) => {
     wsCollector.clear();
 
-    const withdrawal = await apiPost(request, ctx.token, "/api/withdrawals/for-contractor", {
+    const withdrawal = await apiPost(request, ctx.token, "/api/beta/operations/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-E2E-001",
       service_address: "100 Test Lane",
@@ -76,11 +76,11 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
     expect(item.subtotal).toBeCloseTo(PRODUCT.price * WITHDRAW_QTY, 2);
     expect(withdrawal.cost_total).toBeCloseTo(PRODUCT.cost * WITHDRAW_QTY, 2);
 
-    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
+    const products = await apiGet(request, ctx.token, "/api/beta/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity - WITHDRAW_QTY);
 
-    const history = await apiGet(request, ctx.token, `/api/stock/${productId}/history`);
+    const history = await apiGet(request, ctx.token, `/api/beta/inventory/stock/${productId}/history`);
     const entry = history.history.find((h: any) => h.reference_type === "withdrawal");
     expect(entry).toBeTruthy();
     expect(entry.quantity_delta).toBe(-WITHDRAW_QTY);
@@ -96,7 +96,7 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
   });
 
   test("1c — dashboard revenue matches withdrawal", async ({ request, page }) => {
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     const expectedRevenue = PRODUCT.price * WITHDRAW_QTY;
     const expectedCogs = PRODUCT.cost * WITHDRAW_QTY;
 

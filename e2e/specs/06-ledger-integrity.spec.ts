@@ -33,7 +33,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
     const req = page.request;
     const t = ctx.token;
 
-    const product = await apiPost(req, t, "/api/catalog/skus", {
+    const product = await apiPost(req, t, "/api/beta/catalog/skus", {
       ...PRODUCT,
       category_id: ctx.categoryIds["ELE"],
     });
@@ -44,7 +44,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
   });
 
   test("6a — withdrawal records revenue correctly", async ({ request }) => {
-    const wd = await apiPost(request, ctx.token, "/api/withdrawals/for-contractor", {
+    const wd = await apiPost(request, ctx.token, "/api/beta/operations/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-LEDGER-001",
       service_address: "600 Ledger Blvd",
@@ -52,48 +52,48 @@ test.describe.serial("Story 6: Ledger integrity", () => {
     });
     wdTotal = wd.total;
 
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     expect(stats.range_revenue).toBeCloseTo(wd.subtotal, 2);
     expect(stats.range_cogs).toBeCloseTo(wd.cost_total, 2);
     expect(stats.unpaid_total).toBeCloseTo(wdTotal, 2);
 
     // Stock decreased
-    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
+    const products = await apiGet(request, ctx.token, "/api/beta/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity - WD_QTY);
   });
 
   test("6b — partial return reduces revenue and restocks", async ({ request }) => {
-    const withdrawals = await apiGet(request, ctx.token, "/api/withdrawals");
+    const withdrawals = await apiGet(request, ctx.token, "/api/beta/operations/withdrawals");
     const wdId = withdrawals[0].id;
 
-    const ret = await apiPost(request, ctx.token, "/api/returns", {
+    const ret = await apiPost(request, ctx.token, "/api/beta/operations/returns", {
       withdrawal_id: wdId,
       items: [{ product_id: productId, quantity: RET_QTY }],
     });
     retTotal = ret.total;
 
     // Stock restocked
-    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
+    const products = await apiGet(request, ctx.token, "/api/beta/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity - WD_QTY + RET_QTY);
   });
 
   test("6c — payment reduces unpaid balance", async ({ request }) => {
-    const withdrawals = await apiGet(request, ctx.token, "/api/withdrawals");
+    const withdrawals = await apiGet(request, ctx.token, "/api/beta/operations/withdrawals");
     const wdId = withdrawals[0].id;
 
-    await apiPut(request, ctx.token, `/api/withdrawals/${wdId}/mark-paid`);
+    await apiPut(request, ctx.token, `/api/beta/operations/withdrawals/${wdId}/mark-paid`);
 
-    const wd = await apiGet(request, ctx.token, `/api/withdrawals/${wdId}`);
+    const wd = await apiGet(request, ctx.token, `/api/beta/operations/withdrawals/${wdId}`);
     expect(wd.payment_status).toBe("paid");
 
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     expect(stats.unpaid_total).toBe(0);
   });
 
   test("6d — P&L reflects net revenue after return", async ({ request }) => {
-    const pl = await apiGet(request, ctx.token, "/api/reports/pl");
+    const pl = await apiGet(request, ctx.token, "/api/beta/reports/reports/pl");
     const netRevenue = PRODUCT.price * WD_QTY - PRODUCT.price * RET_QTY;
     const netCogs = PRODUCT.cost * WD_QTY - PRODUCT.cost * RET_QTY;
 
@@ -103,7 +103,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
   });
 
   test("6e — inventory report matches remaining stock value", async ({ request }) => {
-    const inv = await apiGet(request, ctx.token, "/api/reports/inventory");
+    const inv = await apiGet(request, ctx.token, "/api/beta/reports/reports/inventory");
     const remainingQty = PRODUCT.quantity - WD_QTY + RET_QTY;
 
     expect(inv.total_retail_value).toBeCloseTo(PRODUCT.price * remainingQty, 2);
@@ -111,7 +111,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
   });
 
   test("6f — gross profit = revenue - COGS (always)", async ({ request }) => {
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     const revenue = stats.range_revenue;
     const cogs = stats.range_cogs;
     const profit = stats.range_gross_profit;
