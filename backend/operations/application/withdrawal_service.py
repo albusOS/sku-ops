@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from catalog.application.queries import list_skus
 from finance.application.billing_entity_service import ensure_billing_entity
+from finance.application.invoice_service import create_invoice_from_withdrawals as _create_invoice
 from finance.application.invoice_service import mark_paid_for_withdrawal as _mark_invoice_paid
 from finance.application.ledger_service import record_payment as _record_payment_ledger
 from finance.application.ledger_service import record_withdrawal as _record_withdrawal_ledger
@@ -184,6 +185,8 @@ async def create_withdrawal(
             contractor_id=contractor.id,
             performed_by_user_id=current_user.id,
         )
+
+        await _create_invoice(withdrawal_ids=[withdrawal.id])
 
     await dispatch(
         WithdrawalCreated(

@@ -120,7 +120,10 @@ def _resolve_jwt_secret() -> str:
 
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
-JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", "15"))
+_default_token_expiry = "15" if is_production else "480"  # 8 hours in dev, 15 min in prod
+JWT_ACCESS_EXPIRATION_MINUTES = int(
+    os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", _default_token_expiry)
+)
 REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
 
 # ── Supabase JWKS (ES256 token verification) ─────────────────────────────────

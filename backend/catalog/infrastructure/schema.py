@@ -1,5 +1,13 @@
 """Catalog context schema — departments, vendors, products, SKUs, vendor items, SKU counters."""
 
+# Additive migrations — applied via ALTER TABLE IF NOT EXISTS at startup.
+# Safe to run repeatedly on an existing database.
+MIGRATIONS: list[str] = [
+    "ALTER TABLE skus ADD COLUMN IF NOT EXISTS variant_label TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE skus ADD COLUMN IF NOT EXISTS spec TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE skus ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT ''",
+]
+
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS departments (
         id TEXT PRIMARY KEY,

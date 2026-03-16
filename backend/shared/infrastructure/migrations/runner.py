@@ -27,7 +27,13 @@ For production destructive changes (column drops, renames, type changes):
 
 import logging
 
-from shared.infrastructure.full_schema import ALL_EXTENSIONS, ALL_INDEXES, ALL_TABLES, ALL_VIEWS
+from shared.infrastructure.full_schema import (
+    ALL_EXTENSIONS,
+    ALL_INDEXES,
+    ALL_MIGRATIONS,
+    ALL_TABLES,
+    ALL_VIEWS,
+)
 from shared.infrastructure.schema import SEED as _shared_seed
 
 logger = logging.getLogger(__name__)
@@ -83,6 +89,15 @@ async def run_schema(backend) -> None:
             await conn.execute(stmt)
         except Exception as e:
             logger.warning("View creation skipped: %s", e)
+    await conn.commit()
+
+    # Additive ALTER TABLE migrations — run after tables + indexes so new
+    # columns are available before seed data is inserted.
+    for stmt in ALL_MIGRATIONS:
+        try:
+            await conn.execute(stmt)
+        except Exception as e:
+            logger.warning("Migration skipped: %s (%s)", stmt[:80], e)
     await conn.commit()
 
     for stmt in _shared_seed:

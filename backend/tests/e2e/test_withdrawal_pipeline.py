@@ -15,9 +15,7 @@ from tests.helpers.auth import admin_headers
 class TestWithdrawalPipeline:
     """Full withdrawal lifecycle through the live HTTP API."""
 
-    def test_withdrawal_creates_stock_ledger_and_events(
-        self, client, ws_events, seed_dept_id
-    ):
+    def test_withdrawal_creates_stock_ledger_and_events(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
         product = create_product(
             client,
@@ -32,9 +30,7 @@ class TestWithdrawalPipeline:
         assert withdrawal["contractor_id"]
 
         # Stock decremented
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.status_code == 200
         assert resp.json()["quantity"] == 45
 
@@ -56,15 +52,15 @@ class TestWithdrawalPipeline:
         ws_inventory = ws_events.wait_for("inventory.updated", timeout=3)
         assert ws_inventory is not None, "inventory.updated event not received"
 
-    def test_withdrawal_no_auto_invoice_by_default(self, client, seed_dept_id):
-        """With auto_invoice off (default), withdrawal has no invoice until created manually."""
+    def test_withdrawal_auto_creates_invoice(self, client, seed_dept_id):
+        """Every withdrawal atomically creates an invoice — no manual step required."""
         headers = admin_headers()
         product = create_product(
             client,
             headers,
             dept_id=seed_dept_id,
             quantity=50,
-            name="WD-NoAutoInv",
+            name="WD-AutoInvoice",
         )
         withdrawal = create_withdrawal(client, headers, product, quantity=3)
 
@@ -74,8 +70,11 @@ class TestWithdrawalPipeline:
         )
         assert resp.status_code == 200
         wd = resp.json()
-        assert wd.get("invoice_id") is None, (
-            "With auto_invoice off, withdrawal should have no invoice"
+        assert wd.get("invoice_id") is not None, (
+            "Every withdrawal must have an invoice created atomically"
+        )
+        assert wd.get("payment_status") == "invoiced", (
+            "Withdrawal payment_status must be 'invoiced' after invoice creation"
         )
 
     def test_withdrawal_insufficient_stock_rejected(self, client, seed_dept_id):
@@ -109,9 +108,7 @@ class TestWithdrawalPipeline:
         assert resp.status_code in (400, 422)
 
         # Stock unchanged
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 2
 
     def test_dashboard_revenue_matches_withdrawal(self, client, seed_dept_id):

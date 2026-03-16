@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ChatProvider, useChatPanel } from "../context/ChatContext";
@@ -61,6 +61,7 @@ function loadPanelSizes() {
 function LayoutContent({ children, showChat }) {
   const { open, setOpen } = useChatPanel();
   const [sizes, setSizes] = useState(loadPanelSizes);
+  const chatPanelRef = useRef(null);
 
   const handleLayout = (newSizes) => {
     if (Array.isArray(newSizes) && newSizes.length >= 2 && newSizes[1] > 0) {
@@ -73,6 +74,17 @@ function LayoutContent({ children, showChat }) {
     }
   };
 
+  const [mainSize, chatSize] = sizes;
+
+  useEffect(() => {
+    if (!showChat || !chatPanelRef.current) return;
+    if (open) {
+      chatPanelRef.current.expand();
+    } else {
+      chatPanelRef.current.collapse();
+    }
+  }, [open, showChat]);
+
   if (!showChat) {
     return (
       <main
@@ -84,7 +96,6 @@ function LayoutContent({ children, showChat }) {
     );
   }
 
-  const [mainSize, chatSize] = sizes;
   return (
     <ResizablePanelGroup direction="row" className="flex-1 min-h-0 min-w-0" onLayout={handleLayout}>
       <ResizablePanel defaultSize={mainSize} minSize={50} order={1}>
@@ -97,9 +108,10 @@ function LayoutContent({ children, showChat }) {
       </ResizablePanel>
       <ResizableHandle withHandle className="bg-sidebar-border/50" />
       <ResizablePanel
+        ref={chatPanelRef}
         collapsible
-        collapsed={!open}
-        onCollapse={(c) => setOpen(!c)}
+        onCollapse={() => setOpen(false)}
+        onExpand={() => setOpen(true)}
         defaultSize={chatSize}
         minSize={20}
         maxSize={45}

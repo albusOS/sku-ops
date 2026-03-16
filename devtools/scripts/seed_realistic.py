@@ -142,10 +142,10 @@ async def seed_departments(org_id: str) -> dict:
     for d in DEPARTMENTS:
         existing = await get_department_by_code(d.code)
         if not existing:
-            dept = Department(name=d.name, code=d.code, description=d.description)
-            dept_dict = dept.model_dump()
-            dept_dict["organization_id"] = org_id
-            await insert_department(dept_dict)
+            dept = Department(
+                name=d.name, code=d.code, description=d.description, organization_id=org_id
+            )
+            await insert_department(dept)
             logger.info("  Department: %s", d.name)
 
     all_depts = await list_departments()
@@ -154,6 +154,7 @@ async def seed_departments(org_id: str) -> dict:
 
 async def seed_vendors(org_id: str) -> list[str]:
     """Create vendors. Returns list of vendor IDs in VENDORS order."""
+    from catalog.domain.vendor import Vendor
     from catalog.infrastructure.vendor_repo import insert as insert_vendor
     from shared.infrastructure.database import get_connection
 
@@ -170,18 +171,17 @@ async def seed_vendors(org_id: str) -> list[str]:
             continue
         vid = str(uuid4())
         vendor_ids.append(vid)
-        await insert_vendor(
-            {
-                "id": vid,
-                "name": v.name,
-                "contact_name": v.contact_name,
-                "email": v.email,
-                "phone": v.phone,
-                "address": v.address,
-                "created_at": now,
-                "organization_id": org_id,
-            }
+        vendor = Vendor(
+            id=vid,
+            name=v.name,
+            contact_name=v.contact_name,
+            email=v.email,
+            phone=v.phone,
+            address=v.address,
+            created_at=now,
+            organization_id=org_id,
         )
+        await insert_vendor(vendor)
         logger.info("  Vendor: %s", v.name)
     return vendor_ids
 
@@ -305,16 +305,16 @@ async def seed_withdrawals(
             payment_status="unpaid",
             processed_by_id=admin["id"],
             processed_by_name=admin.get("name", ""),
+            organization_id=org_id,
         )
         withdrawal.compute_totals()
-        withdrawal.organization_id = org_id
         withdrawal.created_at = created_at
         await withdrawal_repo.insert(withdrawal)
         withdrawal_ids.append(withdrawal.id)
 
         for item in items:
             await conn.execute(
-                "UPDATE skus SET quantity = MAX(0, quantity - $1), updated_at = $2 WHERE id = $3",
+                "UPDATE skus SET quantity = GREATEST(0, quantity - $1), updated_at = $2 WHERE id = $3",
                 (item.quantity, created_at, item.product_id),
             )
         await conn.commit()
@@ -343,17 +343,18 @@ async def seed_invoices(now: datetime, org_id: str, withdrawal_ids: list[str]) -
 
     for wid in withdrawal_ids[:4]:
         try:
-            inv = await create_invoice_from_withdrawals([wid], organization_id=org_id)
-            logger.info("  Invoice %s... for withdrawal %s...", inv["id"][:8], wid[:8])
-        except (ValueError, RuntimeError, OSError) as e:
+            inv = await create_invoice_from_withdrawals([wid])
+            inv_id = inv.id if hasattr(inv, "id") else inv["id"]
+            logger.info("  Invoice %s... for withdrawal %s...", inv_id[:8], wid[:8])
+        except (ValueError, RuntimeError, OSError, TypeError) as e:
             logger.warning("  Invoice skip: %s", e)
 
     for wid in withdrawal_ids[:2]:
         try:
             paid_at = (now - timedelta(days=5)).isoformat()
-            await withdrawal_repo.mark_paid(wid, paid_at)
+            result = await withdrawal_repo.mark_paid(wid, paid_at)
             logger.info("  Marked withdrawal %s... as paid", wid[:8])
-        except (ValueError, RuntimeError, OSError) as e:
+        except (ValueError, RuntimeError, OSError, TypeError) as e:
             logger.warning("  Mark paid skip: %s", e)
 
 

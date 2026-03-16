@@ -14,7 +14,7 @@ from shared.api.deps import AdminDep
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/documents/documents", tags=["documents"])
+router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 @router.post("/parse")
@@ -35,9 +35,7 @@ async def parse_document(
         )
 
     try:
-        return await parse_document_with_ai(
-            contents, content_type, filename, current_user
-        )
+        return await parse_document_with_ai(contents, content_type, filename, current_user)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:

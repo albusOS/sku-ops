@@ -15,8 +15,9 @@ async def insert(sku: Sku) -> None:
         """INSERT INTO skus (id, sku, product_id, name, description, price, cost, quantity, min_stock,
            category_id, category_name, barcode, vendor_barcode,
            base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
+           variant_label, spec, grade,
            organization_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)""",
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)""",
         (
             sku_dict["id"],
             sku_dict["sku"],
@@ -36,6 +37,9 @@ async def insert(sku: Sku) -> None:
             sku_dict.get("pack_qty", 1),
             sku_dict.get("purchase_uom", "each"),
             sku_dict.get("purchase_pack_qty", 1),
+            sku_dict.get("variant_label", ""),
+            sku_dict.get("spec", ""),
+            sku_dict.get("grade", ""),
             org_id,
             sku_dict.get("created_at", ""),
             sku_dict.get("updated_at", ""),
@@ -68,6 +72,9 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
         "pack_qty",
         "purchase_uom",
         "purchase_pack_qty",
+        "variant_label",
+        "spec",
+        "grade",
     ):
         if key in updates and updates[key] is not None:
             set_parts.append(f"{key} = ${n}")

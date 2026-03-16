@@ -26,7 +26,6 @@ class OrgSettings(BaseModel):
 class OrgSettingsUpdate(BaseModel):
     """Payload for updating org and Xero settings."""
 
-    auto_invoice: bool | None = None
     default_tax_rate: float | None = None
     xero_sales_account_code: str | None = None
     xero_cogs_account_code: str | None = None

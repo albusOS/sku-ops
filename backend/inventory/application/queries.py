@@ -14,16 +14,19 @@ async def withdrawal_velocity(
     if not product_ids:
         return {}
     conn = get_connection()
+    org_id = get_org_id()
     placeholders = ",".join(f"${i}" for i in range(1, len(product_ids) + 1))
     since_idx = len(product_ids) + 1
+    org_idx = since_idx + 1
     cur = await conn.execute(
         "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
         " FROM stock_transactions"
         " WHERE product_id IN ("
         + placeholders
         + f") AND transaction_type = 'WITHDRAWAL' AND created_at >= ${since_idx}"
+        f" AND (organization_id = ${org_idx} OR organization_id IS NULL)"
         " GROUP BY product_id",
-        (*product_ids, since),
+        (*product_ids, since, org_id),
     )
     return {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
 

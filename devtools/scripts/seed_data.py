@@ -72,6 +72,13 @@ class SeedWithdrawalScenario(BaseModel):
     items: list[SeedWithdrawalItem]
 
 
+class SeedMaterialRequestScenario(BaseModel):
+    job_id: str
+    service_address: str
+    hours_ago: int
+    items: list[SeedWithdrawalItem]
+
+
 class SeedContractor(BaseModel):
     name: str
     email: str

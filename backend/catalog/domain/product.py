@@ -29,6 +29,9 @@ class SkuCreate(BaseModel):
     pack_qty: int = 1
     purchase_uom: str = "each"
     purchase_pack_qty: int = 1
+    variant_label: str = ""
+    spec: str = ""
+    grade: str = ""
 
     @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
@@ -59,6 +62,9 @@ class SkuUpdate(BaseModel):
     pack_qty: int | None = None
     purchase_uom: str | None = None
     purchase_pack_qty: int | None = None
+    variant_label: str | None = None
+    spec: str | None = None
+    grade: str | None = None
 
     @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
@@ -93,6 +99,9 @@ class Sku(AuditedEntity):
     pack_qty: int = 1
     purchase_uom: str = "each"
     purchase_pack_qty: int = 1
+    variant_label: str = ""
+    spec: str = ""
+    grade: str = ""
 
     @property
     def is_low_stock(self) -> bool:

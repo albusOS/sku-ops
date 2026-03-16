@@ -44,6 +44,7 @@ async def list_product_families(
     current_user: CurrentUserDep,
     category_id: str | None = None,
     search: str | None = None,
+    include_skus: bool = False,
     limit: int | None = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -54,6 +55,10 @@ async def list_product_families(
         offset=offset,
     )
     result = [p.model_dump() for p in items]
+    if include_skus:
+        for product in result:
+            skus = await list_skus_by_product(product["id"])
+            product["skus"] = [s.model_dump() for s in skus]
     if limit is not None:
         total = await count_product_families(category_id=category_id, search=search)
         return {"items": result, "total": total}
@@ -154,6 +159,9 @@ async def create_product_sku(product_id: str, data: SkuCreate, current_user: Adm
         pack_qty=data.pack_qty,
         purchase_uom=data.purchase_uom,
         purchase_pack_qty=data.purchase_pack_qty,
+        variant_label=getattr(data, "variant_label", ""),
+        spec=getattr(data, "spec", ""),
+        grade=getattr(data, "grade", ""),
         user_id=current_user.id,
         user_name=current_user.name,
         on_stock_import=process_import_stock_changes,

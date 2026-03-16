@@ -47,14 +47,19 @@ async def get_by_id(invoice_id: str) -> InvoiceWithDetails | None:
         return None
 
     cursor = await conn.execute(
-        "SELECT * FROM invoice_line_items WHERE invoice_id = $1 ORDER BY id",
-        (invoice_id,),
+        "SELECT li.* FROM invoice_line_items li"
+        " JOIN invoices i ON i.id = li.invoice_id"
+        " WHERE li.invoice_id = $1 AND (i.organization_id = $2 OR i.organization_id IS NULL)"
+        " ORDER BY li.id",
+        (invoice_id, org_id),
     )
     li_rows = await cursor.fetchall()
 
     cursor = await conn.execute(
-        "SELECT withdrawal_id FROM invoice_withdrawals WHERE invoice_id = $1",
-        (invoice_id,),
+        "SELECT iw.withdrawal_id FROM invoice_withdrawals iw"
+        " JOIN invoices i ON i.id = iw.invoice_id"
+        " WHERE iw.invoice_id = $1 AND (i.organization_id = $2 OR i.organization_id IS NULL)",
+        (invoice_id, org_id),
     )
     w_rows = await cursor.fetchall()
     withdrawal_ids = [r[0] for r in w_rows]

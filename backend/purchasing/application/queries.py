@@ -209,8 +209,8 @@ async def purchase_history(
     for po in pos:
         item_cursor = await conn.execute(
             """SELECT name, ordered_qty, delivered_qty, unit_price, cost, status
-               FROM purchase_order_items WHERE po_id = $1""",
-            (po["id"],),
+               FROM purchase_order_items WHERE po_id = $1 AND organization_id = $2""",
+            (po["id"], org_id),
         )
         po["items"] = [dict(r) for r in await item_cursor.fetchall()]
         po["item_count"] = len(po["items"])

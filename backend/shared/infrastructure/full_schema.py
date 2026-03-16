@@ -16,6 +16,9 @@ from catalog.infrastructure.schema import (
     INDEXES as _catalog_indexes,
 )
 from catalog.infrastructure.schema import (
+    MIGRATIONS as _catalog_migrations,
+)
+from catalog.infrastructure.schema import (
     TABLES as _catalog_tables,
 )
 from documents.infrastructure.schema import (
@@ -105,3 +108,7 @@ ALL_EXTENSIONS: list[str] = _shared_extensions
 ALL_TABLES: list[str] = _ALL_TABLES
 ALL_INDEXES: list[str] = _ALL_INDEXES
 ALL_VIEWS: list[str] = _shared_views
+
+# Additive ALTER TABLE migrations — applied after tables and indexes.
+# Each entry is idempotent (uses IF NOT EXISTS).
+ALL_MIGRATIONS: list[str] = _catalog_migrations
