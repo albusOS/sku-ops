@@ -12,14 +12,14 @@ from tests.helpers.auth import admin_headers, contractor_headers, expired_token,
 # ── Admin-only endpoints (AdminDep) — contractors must get 403 ───────────────
 
 ADMIN_ONLY_ENDPOINTS = [
-    ("GET", "/api/reports/sales"),
-    ("GET", "/api/reports/inventory"),
-    ("GET", "/api/audit-log"),
-    ("POST", "/api/departments", {"name": "Test", "code": "TST"}),
-    ("GET", "/api/vendors"),
-    ("POST", "/api/vendors", {"name": "Test Vendor"}),
-    ("GET", "/api/invoices"),
-    ("GET", "/api/contractors"),
+    ("GET", "/api/beta/reports/sales"),
+    ("GET", "/api/beta/reports/inventory"),
+    ("GET", "/api/beta/shared/audit-log"),
+    ("POST", "/api/beta/catalog/departments", {"name": "Test", "code": "TST"}),
+    ("GET", "/api/beta/catalog/vendors"),
+    ("POST", "/api/beta/catalog/vendors", {"name": "Test Vendor"}),
+    ("GET", "/api/beta/finance/invoices"),
+    ("GET", "/api/beta/operations/contractors"),
 ]
 
 
@@ -52,10 +52,10 @@ def test_admin_accepted_at_admin_endpoint(client, method, path, body):
 # ── Contractor-accessible endpoints (CurrentUserDep) ────────────────────────
 
 CONTRACTOR_ACCESSIBLE_ENDPOINTS = [
-    ("GET", "/api/departments"),
-    ("GET", "/api/material-requests"),
-    ("GET", "/api/withdrawals"),
-    ("GET", "/api/catalog/skus"),
+    ("GET", "/api/beta/catalog/departments"),
+    ("GET", "/api/beta/operations/material-requests"),
+    ("GET", "/api/beta/operations/withdrawals"),
+    ("GET", "/api/beta/catalog/skus"),
 ]
 
 
@@ -78,7 +78,7 @@ def test_contractor_can_access_shared_endpoints(client, method, path):
 def test_expired_token_rejected(client):
     """Expired JWT must return 401, not 500."""
     headers = {"Authorization": f"Bearer {expired_token()}"}
-    resp = client.get("/api/departments", headers=headers)
+    resp = client.get("/api/beta/catalog/departments", headers=headers)
     assert resp.status_code == 401
     assert "expired" in resp.json().get("detail", "").lower()
 
@@ -86,7 +86,7 @@ def test_expired_token_rejected(client):
 def test_garbage_token_rejected(client):
     """Malformed token must return 401."""
     headers = {"Authorization": "Bearer not-a-real-token"}
-    resp = client.get("/api/departments", headers=headers)
+    resp = client.get("/api/beta/catalog/departments", headers=headers)
     assert resp.status_code in (401, 403)
 
 
@@ -94,7 +94,7 @@ def test_missing_org_id_works_in_dev(client):
     """In dev/test, missing organization_id should not cause a crash."""
     token = make_token(org_id="")
     headers = {"Authorization": f"Bearer {token}"}
-    resp = client.get("/api/departments", headers=headers)
+    resp = client.get("/api/beta/catalog/departments", headers=headers)
     # Should not be 500 — either serves with default org or rejects cleanly
     assert resp.status_code != 500
 
@@ -103,5 +103,5 @@ def test_unknown_role_rejected(client):
     """Unrecognized role should be rejected from admin endpoints."""
     token = make_token(role="viewer")
     headers = {"Authorization": f"Bearer {token}"}
-    resp = client.get("/api/vendors", headers=headers)
+    resp = client.get("/api/beta/catalog/vendors", headers=headers)
     assert resp.status_code == 403

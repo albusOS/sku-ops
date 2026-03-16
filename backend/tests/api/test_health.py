@@ -9,7 +9,7 @@ correctly report infrastructure state.
 
 
 def test_health_returns_ok(client):
-    resp = client.get("/api/health")
+    resp = client.get("/api/beta/shared/health")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
@@ -21,7 +21,7 @@ def test_health_returns_ok(client):
 
 def test_health_no_auth_required(client):
     """Health endpoint must be accessible without authentication."""
-    resp = client.get("/api/health")
+    resp = client.get("/api/beta/shared/health")
     assert resp.status_code == 200
 
 
@@ -29,7 +29,7 @@ def test_health_no_auth_required(client):
 
 
 def test_ready_returns_checks(client):
-    resp = client.get("/api/ready")
+    resp = client.get("/api/beta/shared/ready")
     data = resp.json()
     assert "status" in data
     assert "checks" in data
@@ -38,7 +38,7 @@ def test_ready_returns_checks(client):
 
 
 def test_ready_db_check_has_latency(client):
-    resp = client.get("/api/ready")
+    resp = client.get("/api/beta/shared/ready")
     if resp.status_code == 200:
         db_check = resp.json()["checks"]["database"]
         assert db_check["status"] == "ok"
@@ -48,7 +48,7 @@ def test_ready_db_check_has_latency(client):
 
 def test_ready_no_auth_required(client):
     """Readiness endpoint must be accessible without authentication."""
-    resp = client.get("/api/ready")
+    resp = client.get("/api/beta/shared/ready")
     assert resp.status_code in (200, 503)
 
 
@@ -56,7 +56,7 @@ def test_ready_no_auth_required(client):
 
 
 def test_ai_health_returns_status(client):
-    resp = client.get("/api/health/ai")
+    resp = client.get("/api/beta/shared/health/ai")
     data = resp.json()
     assert "status" in data
     assert data["status"] in ("ok", "unavailable")
@@ -64,5 +64,5 @@ def test_ai_health_returns_status(client):
 
 def test_ai_health_no_auth_required(client):
     """AI health endpoint must be accessible without authentication."""
-    resp = client.get("/api/health/ai")
+    resp = client.get("/api/beta/shared/health/ai")
     assert resp.status_code in (200, 503)

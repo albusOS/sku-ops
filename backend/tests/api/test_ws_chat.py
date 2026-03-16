@@ -234,18 +234,20 @@ class TestWSChatStreaming:
             assert error is not None
             assert "not configured" in error["detail"].lower()
 
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch(
         "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
         True,
     )
-    def test_streaming_event_sequence(self, mock_agent, client):
+    def test_streaming_event_sequence(self, mock_get_agent, client):
         """Verify the full event sequence: status → deltas → done."""
         mock_stream = _make_mock_stream(
             text_chunks=["Hello ", "world!", " How can I help?"],
             tool_names=["search_products"],
         )
+        mock_agent = MagicMock()
         mock_agent.run_stream_events = mock_stream
+        mock_get_agent.return_value = mock_agent
 
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -280,15 +282,17 @@ class TestWSChatStreaming:
             assert "session_id" in done
             assert "usage" in done
 
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch(
         "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
         True,
     )
-    def test_session_id_assigned_when_missing(self, mock_agent, client):
+    def test_session_id_assigned_when_missing(self, mock_get_agent, client):
         """When no session_id is provided, one should be auto-assigned."""
         mock_stream = _make_mock_stream(text_chunks=["Hi there!"])
+        mock_agent = MagicMock()
         mock_agent.run_stream_events = mock_stream
+        mock_get_agent.return_value = mock_agent
 
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -306,15 +310,17 @@ class TestWSChatStreaming:
             assert done["session_id"]
             assert len(done["session_id"]) > 0
 
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch(
         "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
         True,
     )
-    def test_session_id_preserved_when_provided(self, mock_agent, client):
+    def test_session_id_preserved_when_provided(self, mock_get_agent, client):
         """When session_id is provided, it should be echoed back."""
         mock_stream = _make_mock_stream(text_chunks=["Hi!"])
+        mock_agent = MagicMock()
         mock_agent.run_stream_events = mock_stream
+        mock_get_agent.return_value = mock_agent
 
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -331,14 +337,16 @@ class TestWSChatStreaming:
             done = _find_msg(messages, "chat.done")
             assert done["session_id"] == "my-session-123"
 
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch(
         "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
         True,
     )
-    def test_done_payload_has_usage_fields(self, mock_agent, client):
+    def test_done_payload_has_usage_fields(self, mock_get_agent, client):
         mock_stream = _make_mock_stream(text_chunks=["Report ready."])
+        mock_agent = MagicMock()
         mock_agent.run_stream_events = mock_stream
+        mock_get_agent.return_value = mock_agent
 
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -357,19 +365,21 @@ class TestWSChatStreaming:
 
 @pytest.mark.timeout(30)
 class TestWSChatErrors:
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch(
         "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
         True,
     )
-    def test_agent_exception_returns_chat_error(self, mock_agent, client):
+    def test_agent_exception_returns_chat_error(self, mock_get_agent, client):
         """If the agent raises, client should get a chat.error event."""
 
         async def _failing_stream(*args, **kwargs):
             raise RuntimeError("LLM provider down")
             yield
 
+        mock_agent = MagicMock()
         mock_agent.run_stream_events = _failing_stream
+        mock_get_agent.return_value = mock_agent
 
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -379,12 +389,12 @@ class TestWSChatErrors:
             assert error is not None
             assert "wrong" in error["detail"].lower()
 
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._agent")
+    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch(
         "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
         True,
     )
-    def test_duplicate_generation_rejected(self, mock_agent, client):
+    def test_duplicate_generation_rejected(self, mock_get_agent, client):
         """Sending a second chat while one is streaming should return an error."""
 
         async def _slow_stream(*args, **kwargs):
@@ -397,7 +407,9 @@ class TestWSChatErrors:
             mock_result.all_messages.return_value = []
             yield AgentRunResultEvent(result=mock_result)
 
+        mock_agent = MagicMock()
         mock_agent.run_stream_events = _slow_stream
+        mock_get_agent.return_value = mock_agent
 
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:

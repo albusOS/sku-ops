@@ -131,9 +131,9 @@ class TestLedgerInvariants:
         )
         assert resp.status_code == 200
 
-        # w2 should still be unpaid
+        # w2 should still be invoiced (auto-invoiced at creation, not yet paid)
         resp = client.get(f"/api/beta/operations/withdrawals/{w2['id']}", headers=headers)
-        assert resp.json()["payment_status"] == "unpaid"
+        assert resp.json()["payment_status"] == "invoiced"
 
         stats = _query_ledger(client, headers)
         # Unpaid total should include at least w2's total

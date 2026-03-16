@@ -37,12 +37,12 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
     const req = page.request;
     const t = ctx.token;
 
-    await apiPost(req, t, "/api/beta/jobs/jobs", { code: "JOB-MARGIN-1" });
-    await apiPost(req, t, "/api/beta/jobs/jobs", { code: "JOB-MARGIN-2" });
+    await apiPost(req, t, "/api/beta/jobs", { code: "JOB-MARGIN-1" });
+    await apiPost(req, t, "/api/beta/jobs", { code: "JOB-MARGIN-2" });
 
     const pIds: string[] = [];
     for (const item of ITEMS) {
-      const p = await apiPost(req, t, "/api/catalog/skus", {
+      const p = await apiPost(req, t, "/api/beta/catalog/skus", {
         name: item.name,
         price: item.price,
         cost: item.cost,
@@ -74,7 +74,7 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
   });
 
   test("5a — dashboard financials match withdrawal sums", async ({ request }) => {
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
 
     expect(stats.range_revenue).toBeCloseTo(totalRevenue, 2);
     expect(stats.range_cogs).toBeCloseTo(totalCost, 2);
@@ -85,14 +85,14 @@ test.describe.serial("Story 5: Margin and P&L accuracy", () => {
   });
 
   test("5b — P&L report totals match", async ({ request }) => {
-    const pl = await apiGet(request, ctx.token, "/api/beta/reports/reports/pl");
+    const pl = await apiGet(request, ctx.token, "/api/beta/reports/pl");
     expect(pl.summary.revenue).toBeCloseTo(totalRevenue, 2);
     expect(pl.summary.cogs).toBeCloseTo(totalCost, 2);
     expect(pl.summary.gross_profit).toBeCloseTo(totalRevenue - totalCost, 2);
   });
 
   test("5c — inventory report reflects remaining stock value", async ({ request }) => {
-    const inv = await apiGet(request, ctx.token, "/api/beta/reports/reports/inventory");
+    const inv = await apiGet(request, ctx.token, "/api/beta/reports/inventory");
 
     let expectedRetail = 0;
     let expectedCostValue = 0;

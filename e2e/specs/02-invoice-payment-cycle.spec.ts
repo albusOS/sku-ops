@@ -45,9 +45,9 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
       const created = await apiPost(req, t, "/api/beta/catalog/skus", { ...p, category_id: deptId });
       pIds.push(created.id);
     }
-    await apiPost(req, t, "/api/beta/jobs/jobs", { code: "JOB-INV-001" });
+    await apiPost(req, t, "/api/beta/jobs", { code: "JOB-INV-001" });
 
-    const w1 = await apiPost(req, t, "/api/withdrawals/for-contractor", {
+    const w1 = await apiPost(req, t, "/api/beta/operations/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-INV-001",
       service_address: "200 Invoice Ave",
@@ -56,7 +56,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
         { product_id: pIds[1], quantity: 20 },
       ],
     });
-    const w2 = await apiPost(req, t, "/api/withdrawals/for-contractor", {
+    const w2 = await apiPost(req, t, "/api/beta/operations/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
       job_id: "JOB-INV-001",
       service_address: "200 Invoice Ave",
@@ -86,7 +86,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
     expect(invoice.status).toBe("draft");
 
     for (const wId of withdrawalIds) {
-      const w = await apiGet(request, ctx.token, `/api/withdrawals/${wId}`);
+      const w = await apiGet(request, ctx.token, `/api/beta/operations/withdrawals/${wId}`);
       expect(w.invoice_id).toBe(invoiceId);
     }
   });
@@ -106,7 +106,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
     });
 
     for (const wId of withdrawalIds) {
-      const w = await apiGet(request, ctx.token, `/api/withdrawals/${wId}`);
+      const w = await apiGet(request, ctx.token, `/api/beta/operations/withdrawals/${wId}`);
       expect(w.payment_status).toBe("paid");
     }
 

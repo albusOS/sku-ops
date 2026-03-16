@@ -42,7 +42,8 @@ const api = {
     create: (data) => axios.post(`${API}/catalog/skus`, data).then((r) => r.data),
     update: (id, data) => axios.put(`${API}/catalog/skus/${id}`, data).then((r) => r.data),
     delete: (id) => axios.delete(`${API}/catalog/skus/${id}`),
-    adjust: (id, data) => axios.post(`${API}/inventory/stock/${id}/adjust`, data).then((r) => r.data),
+    adjust: (id, data) =>
+      axios.post(`${API}/inventory/stock/${id}/adjust`, data).then((r) => r.data),
     suggestUom: (data) => axios.post(`${API}/catalog/skus/suggest-uom`, data).then((r) => r.data),
     stockHistory: (id) => axios.get(`${API}/inventory/stock/${id}/history`).then((r) => r.data),
     byBarcode: (barcode) =>
@@ -102,7 +103,8 @@ const api = {
   contractors: {
     list: (params) => axios.get(`${API}/operations/contractors`, { params }).then((r) => r.data),
     create: (data) => axios.post(`${API}/operations/contractors`, data).then((r) => r.data),
-    update: (id, data) => axios.put(`${API}/operations/contractors/${id}`, data).then((r) => r.data),
+    update: (id, data) =>
+      axios.put(`${API}/operations/contractors/${id}`, data).then((r) => r.data),
     delete: (id) => axios.delete(`${API}/operations/contractors/${id}`),
   },
 
@@ -126,7 +128,8 @@ const api = {
 
   // ── Material Requests ───────────────────────────────────────────────
   materialRequests: {
-    list: (params) => axios.get(`${API}/operations/material-requests`, { params }).then((r) => r.data),
+    list: (params) =>
+      axios.get(`${API}/operations/material-requests`, { params }).then((r) => r.data),
     create: (data) => axios.post(`${API}/operations/material-requests`, data).then((r) => r.data),
     process: (id, data) =>
       axios.post(`${API}/operations/material-requests/${id}/process`, data).then((r) => r.data),
@@ -134,7 +137,8 @@ const api = {
 
   // ── Purchase Orders ─────────────────────────────────────────────────
   purchaseOrders: {
-    list: (params) => axios.get(`${API}/purchasing/purchase-orders`, { params }).then((r) => r.data),
+    list: (params) =>
+      axios.get(`${API}/purchasing/purchase-orders`, { params }).then((r) => r.data),
     get: (id) => axios.get(`${API}/purchasing/purchase-orders/${id}`).then((r) => r.data),
     create: (data) => axios.post(`${API}/purchasing/purchase-orders`, data).then((r) => r.data),
     markDelivery: (id, data) =>
@@ -152,9 +156,12 @@ const api = {
 
   // ── Financials ──────────────────────────────────────────────────────
   financials: {
-    summary: (params) => axios.get(`${API}/finance/financials/summary`, { params }).then((r) => r.data),
+    summary: (params) =>
+      axios.get(`${API}/finance/financials/summary`, { params }).then((r) => r.data),
     export: (params) =>
-      axios.get(`${API}/finance/financials/export`, { params, responseType: "blob" }).then((r) => r.data),
+      axios
+        .get(`${API}/finance/financials/export`, { params, responseType: "blob" })
+        .then((r) => r.data),
   },
 
   // ── Invoices ────────────────────────────────────────────────────────
@@ -166,7 +173,9 @@ const api = {
     delete: (id) => axios.delete(`${API}/finance/invoices/${id}`),
     syncXero: (id) => axios.post(`${API}/finance/invoices/${id}/sync-xero`).then((r) => r.data),
     bulkSyncXero: (ids) =>
-      axios.post(`${API}/finance/invoices/sync-xero-bulk`, { invoice_ids: ids }).then((r) => r.data),
+      axios
+        .post(`${API}/finance/invoices/sync-xero-bulk`, { invoice_ids: ids })
+        .then((r) => r.data),
   },
 
   // ── Addresses ──────────────────────────────────────────────────────
@@ -182,26 +191,28 @@ const api = {
     list: (params) => axios.get(`${API}/finance/billing-entities`, { params }).then((r) => r.data),
     get: (id) => axios.get(`${API}/finance/billing-entities/${id}`).then((r) => r.data),
     create: (data) => axios.post(`${API}/finance/billing-entities`, data).then((r) => r.data),
-    update: (id, data) => axios.put(`${API}/finance/billing-entities/${id}`, data).then((r) => r.data),
-    search: (params) => axios.get(`${API}/finance/billing-entities/search`, { params }).then((r) => r.data),
+    update: (id, data) =>
+      axios.put(`${API}/finance/billing-entities/${id}`, data).then((r) => r.data),
+    search: (params) =>
+      axios.get(`${API}/finance/billing-entities/search`, { params }).then((r) => r.data),
   },
 
   // ── Jobs ────────────────────────────────────────────────────────────
   jobs: {
-    list: (params) => axios.get(`${API}/jobs/jobs`, { params }).then((r) => r.data),
-    get: (id) => axios.get(`${API}/jobs/jobs/${id}`).then((r) => r.data),
-    create: (data) => axios.post(`${API}/jobs/jobs`, data).then((r) => r.data),
-    update: (id, data) => axios.put(`${API}/jobs/jobs/${id}`, data).then((r) => r.data),
-    search: (params) => axios.get(`${API}/jobs/jobs/search`, { params }).then((r) => r.data),
+    list: (params) => axios.get(`${API}/jobs`, { params }).then((r) => r.data),
+    get: (id) => axios.get(`${API}/jobs/${id}`).then((r) => r.data),
+    create: (data) => axios.post(`${API}/jobs`, data).then((r) => r.data),
+    update: (id, data) => axios.put(`${API}/jobs/${id}`, data).then((r) => r.data),
+    search: (params) => axios.get(`${API}/jobs/search`, { params }).then((r) => r.data),
   },
 
   // ── Documents ───────────────────────────────────────────────────────
   documents: {
-    list: (params) => axios.get(`${API}/documents/documents`, { params }).then((r) => r.data),
-    get: (id) => axios.get(`${API}/documents/documents/${id}`).then((r) => r.data),
+    list: (params) => axios.get(`${API}/documents`, { params }).then((r) => r.data),
+    get: (id) => axios.get(`${API}/documents/${id}`).then((r) => r.data),
     parse: (formData, useAi) =>
       axios
-        .post(`${API}/documents/documents/parse${useAi ? "?use_ai=true" : ""}`, formData)
+        .post(`${API}/documents/parse${useAi ? "?use_ai=true" : ""}`, formData)
         .then((r) => r.data),
   },
 
@@ -214,21 +225,21 @@ const api = {
 
   // ── Reports ─────────────────────────────────────────────────────────
   reports: {
-    sales: (params) => axios.get(`${API}/reports/reports/sales`, { params }).then((r) => r.data),
-    inventory: () => axios.get(`${API}/reports/reports/inventory`).then((r) => r.data),
-    trends: (params) => axios.get(`${API}/reports/reports/trends`, { params }).then((r) => r.data),
+    sales: (params) => axios.get(`${API}/reports/sales`, { params }).then((r) => r.data),
+    inventory: () => axios.get(`${API}/reports/inventory`).then((r) => r.data),
+    trends: (params) => axios.get(`${API}/reports/trends`, { params }).then((r) => r.data),
     productMargins: (params) =>
-      axios.get(`${API}/reports/reports/product-margins`, { params }).then((r) => r.data),
-    jobPl: (params) => axios.get(`${API}/reports/reports/job-pl`, { params }).then((r) => r.data),
-    kpis: (params) => axios.get(`${API}/reports/reports/kpis`, { params }).then((r) => r.data),
+      axios.get(`${API}/reports/product-margins`, { params }).then((r) => r.data),
+    jobPl: (params) => axios.get(`${API}/reports/job-pl`, { params }).then((r) => r.data),
+    kpis: (params) => axios.get(`${API}/reports/kpis`, { params }).then((r) => r.data),
     productPerformance: (params) =>
-      axios.get(`${API}/reports/reports/product-performance`, { params }).then((r) => r.data),
-    pl: (params) => axios.get(`${API}/reports/reports/pl`, { params }).then((r) => r.data),
-    arAging: (params) => axios.get(`${API}/reports/reports/ar-aging`, { params }).then((r) => r.data),
+      axios.get(`${API}/reports/product-performance`, { params }).then((r) => r.data),
+    pl: (params) => axios.get(`${API}/reports/pl`, { params }).then((r) => r.data),
+    arAging: (params) => axios.get(`${API}/reports/ar-aging`, { params }).then((r) => r.data),
     reorderUrgency: (params) =>
-      axios.get(`${API}/reports/reports/reorder-urgency`, { params }).then((r) => r.data),
+      axios.get(`${API}/reports/reorder-urgency`, { params }).then((r) => r.data),
     productActivity: (params) =>
-      axios.get(`${API}/reports/reports/product-activity`, { params }).then((r) => r.data),
+      axios.get(`${API}/reports/product-activity`, { params }).then((r) => r.data),
   },
 
   // ── Cycle Counts ────────────────────────────────────────────────────
@@ -237,7 +248,9 @@ const api = {
     get: (id) => axios.get(`${API}/inventory/cycle-counts/${id}`).then((r) => r.data),
     open: (data) => axios.post(`${API}/inventory/cycle-counts`, data).then((r) => r.data),
     updateItem: (countId, itemId, data) =>
-      axios.patch(`${API}/inventory/cycle-counts/${countId}/items/${itemId}`, data).then((r) => r.data),
+      axios
+        .patch(`${API}/inventory/cycle-counts/${countId}/items/${itemId}`, data)
+        .then((r) => r.data),
     commit: (id) => axios.post(`${API}/inventory/cycle-counts/${id}/commit`).then((r) => r.data),
   },
 
@@ -277,7 +290,8 @@ const api = {
         .post(`${API}/finance/xero/select-tenant`, null, { params: { tenant_id: id } })
         .then((r) => r.data),
     disconnect: () => axios.post(`${API}/finance/xero/disconnect`).then((r) => r.data),
-    trackingCategories: () => axios.get(`${API}/finance/xero/tracking-categories`).then((r) => r.data),
+    trackingCategories: () =>
+      axios.get(`${API}/finance/xero/tracking-categories`).then((r) => r.data),
     selectTrackingCategory: (id) =>
       axios
         .post(`${API}/finance/xero/select-tracking-category`, null, {

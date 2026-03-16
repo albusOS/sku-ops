@@ -40,7 +40,7 @@ test.describe.serial("Story 1: Withdrawal financials", () => {
         category_id: ctx.categoryIds["ELE"],
       })
     ).id;
-    await apiPost(page.request, ctx.token, "/api/beta/jobs/jobs", { code: "JOB-E2E-001" });
+    await apiPost(page.request, ctx.token, "/api/beta/jobs", { code: "JOB-E2E-001" });
 
     wsCollector = new WSEventCollector();
     await wsCollector.connect(ctx.token);

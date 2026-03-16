@@ -218,7 +218,10 @@ class TestConcurrencyExtended:
         assert count == 1, f"Expected exactly 1 AR ledger entry for payment, got {count}"
 
     def test_concurrent_invoice_creation_same_withdrawal(self, client, seed_dept_id):
-        """Two concurrent invoice creations from the same withdrawal: exactly one succeeds."""
+        """Auto-invoicing creates exactly one invoice at withdrawal time.
+        Verify the auto-invoice exists, then test concurrent mark-paid
+        produces exactly one payment ledger entry.
+        """
         headers = admin_headers()
         product = create_product(
             client,
@@ -229,19 +232,33 @@ class TestConcurrencyExtended:
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
 
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            f1 = pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
-            f2 = pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
-
-            results = [f.result() for f in as_completed([f1, f2])]
-
-        successes = [r for r in results if r[0] == 200]
-        assert len(successes) == 1, (
-            f"Exactly one invoice creation should succeed, got {len(successes)}"
-        )
+        # Auto-invoicing already happened — verify
+        resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
+        assert resp.status_code == 200
+        wd_state = resp.json()
+        assert wd_state["payment_status"] == "invoiced"
+        assert wd_state.get("invoice_id") is not None, "Auto-invoice should be linked"
 
         resp = client.get("/api/beta/finance/invoices", headers=headers)
         invoices = [inv for inv in resp.json() if wd["id"] in inv.get("withdrawal_ids", [])]
-        assert len(invoices) <= 1, (
-            f"Withdrawal should be on at most 1 invoice, found {len(invoices)}"
+        assert len(invoices) == 1, (
+            f"Withdrawal should be on exactly 1 invoice, found {len(invoices)}"
         )
+
+        # Test concurrent mark-paid on the auto-invoiced withdrawal
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f1 = pool.submit(_attempt_mark_paid, client, headers, wd["id"])
+            f2 = pool.submit(_attempt_mark_paid, client, headers, wd["id"])
+
+            statuses = [f.result() for f in as_completed([f1, f2])]
+
+        successes = [s for s in statuses if s == 200]
+        assert len(successes) >= 1, "At least one mark-paid should succeed"
+
+        resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
+        assert resp.json()["payment_status"] == "paid"
+
+        count, _total = _query_ledger_entries(
+            client, wd["id"], "accounts_receivable", reference_type="payment"
+        )
+        assert count == 1, f"Expected exactly 1 AR ledger entry for payment, got {count}"

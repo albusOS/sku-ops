@@ -97,13 +97,13 @@ def _sum_ledger_amount(
 
 
 def _get_stock_qty(client: TestClient, product_id: str, headers: dict) -> float:
-    resp = client.get(f"/api/catalog/skus/{product_id}", headers=headers)
+    resp = client.get(f"/api/beta/catalog/skus/{product_id}", headers=headers)
     assert resp.status_code == 200
     return float(resp.json()["quantity"])
 
 
 def _get_withdrawal(client: TestClient, withdrawal_id: str, headers: dict) -> dict[str, Any]:
-    resp = client.get(f"/api/withdrawals/{withdrawal_id}", headers=headers)
+    resp = client.get(f"/api/beta/operations/withdrawals/{withdrawal_id}", headers=headers)
     assert resp.status_code == 200
     return resp.json()
 
@@ -112,12 +112,16 @@ def _get_withdrawal(client: TestClient, withdrawal_id: str, headers: dict) -> di
 
 
 def _attempt_commit(client: TestClient, headers: dict, count_id: str) -> int:
-    resp = client.post(f"/api/cycle-counts/{count_id}/commit", json={}, headers=headers)
+    resp = client.post(
+        f"/api/beta/inventory/cycle-counts/{count_id}/commit", json={}, headers=headers
+    )
     return resp.status_code
 
 
 def _attempt_mark_paid(client: TestClient, headers: dict, withdrawal_id: str) -> int:
-    resp = client.put(f"/api/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers)
+    resp = client.put(
+        f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers
+    )
     return resp.status_code
 
 
@@ -125,7 +129,7 @@ def _attempt_bulk_mark_paid(
     client: TestClient, headers: dict, withdrawal_ids: list[str]
 ) -> tuple[int, Any]:
     resp = client.put(
-        "/api/withdrawals/bulk-mark-paid",
+        "/api/beta/operations/withdrawals/bulk-mark-paid",
         json={"withdrawal_ids": withdrawal_ids},
         headers=headers,
     )
@@ -136,7 +140,7 @@ def _attempt_create_invoice(
     client: TestClient, headers: dict, withdrawal_ids: list[str]
 ) -> tuple[int, Any]:
     resp = client.post(
-        "/api/invoices",
+        "/api/beta/finance/invoices",
         json={"withdrawal_ids": withdrawal_ids},
         headers=headers,
     )
@@ -152,7 +156,7 @@ def _attempt_receive(
         if i.get("status") == "pending"
     ]
     resp = client.post(
-        f"/api/purchase-orders/{po_id}/receive",
+        f"/api/beta/purchasing/purchase-orders/{po_id}/receive",
         json={"items": pending},
         headers=headers,
     )
@@ -164,16 +168,16 @@ def _setup_po_pending(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Create a PO, mark delivery, return (po, pending_items)."""
     po = create_po(client, headers, product, quantity=quantity, vendor_name="Stress Vendor")
-    po_resp = client.get(f"/api/purchase-orders/{po['id']}", headers=headers)
+    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     ordered_ids = [i["id"] for i in items if i.get("status") == "ordered"]
     if ordered_ids:
         client.post(
-            f"/api/purchase-orders/{po['id']}/delivery",
+            f"/api/beta/purchasing/purchase-orders/{po['id']}/delivery",
             json={"item_ids": ordered_ids},
             headers=headers,
         )
-    po_resp = client.get(f"/api/purchase-orders/{po['id']}", headers=headers)
+    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     return po, items
 
@@ -244,7 +248,9 @@ class TestStressScenarios:
 
         # Pre-pay one withdrawal
         resp = client.put(
-            f"/api/withdrawals/{already_paid['id']}/mark-paid", json={}, headers=headers
+            f"/api/beta/operations/withdrawals/{already_paid['id']}/mark-paid",
+            json={},
+            headers=headers,
         )
         assert resp.status_code == 200
 
@@ -256,7 +262,7 @@ class TestStressScenarios:
 
         # Bulk that includes the already-paid one
         resp = client.put(
-            "/api/withdrawals/bulk-mark-paid",
+            "/api/beta/operations/withdrawals/bulk-mark-paid",
             json={"withdrawal_ids": [already_paid["id"], new_wd["id"]]},
             headers=headers,
         )
@@ -329,7 +335,7 @@ class TestStressScenarios:
         count = open_cycle_count(client, headers)
         count_id: str = count["id"]
 
-        detail = client.get(f"/api/cycle-counts/{count_id}", headers=headers).json()
+        detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
         target = next(
             (i for i in detail.get("items", []) if i["product_id"] == product["id"]), None
         )
@@ -365,7 +371,7 @@ class TestStressScenarios:
         count = open_cycle_count(client, headers)
         count_id: str = count["id"]
 
-        detail = client.get(f"/api/cycle-counts/{count_id}", headers=headers).json()
+        detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
         target = next(
             (i for i in detail.get("items", []) if i["product_id"] == product["id"]), None
         )
@@ -396,7 +402,7 @@ class TestStressScenarios:
         count = open_cycle_count(client, headers)
         count_id: str = count["id"]
 
-        detail = client.get(f"/api/cycle-counts/{count_id}", headers=headers).json()
+        detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
         target = next(
             (i for i in detail.get("items", []) if i["product_id"] == product["id"]), None
         )
@@ -489,37 +495,50 @@ class TestStressScenarios:
     def test_n_way_concurrent_invoice_creation_exactly_one(
         self, client: TestClient, seed_dept_id: str
     ) -> None:
-        """N concurrent invoice creation attempts for the same withdrawal set: exactly 1 invoice."""
+        """Auto-invoicing creates exactly one invoice at withdrawal time.
+        Verify the auto-invoice exists, then test N-way concurrent mark-paid
+        produces exactly 1 payment ledger entry.
+        """
         headers = admin_headers()
         product = create_product(
             client, headers, dept_id=seed_dept_id, quantity=100, name="STRESS-InvNway"
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
 
-        with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
-            futures = [
-                pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
-                for _ in range(_N_WORKERS)
-            ]
-            results = [f.result() for f in as_completed(futures)]
-
-        successes = [r for r in results if r[0] == 200]
-        assert len(successes) == 1, (
-            f"Exactly 1 of {_N_WORKERS} concurrent invoice creations should succeed, "
-            f"got {len(successes)}"
+        # Auto-invoicing already happened — verify
+        wd_state = _get_withdrawal(client, wd["id"], headers)
+        assert wd_state["payment_status"] == "invoiced", (
+            f"Withdrawal should be auto-invoiced, got {wd_state['payment_status']}"
         )
+        assert wd_state.get("invoice_id") is not None, "Auto-invoice should be linked"
 
         # Withdrawal must be linked to exactly one invoice
-        resp = client.get("/api/invoices", headers=headers)
+        resp = client.get("/api/beta/finance/invoices", headers=headers)
         invoices = [inv for inv in resp.json() if wd["id"] in inv.get("withdrawal_ids", [])]
         assert len(invoices) == 1, (
             f"Withdrawal should be on exactly 1 invoice, found {len(invoices)}"
         )
 
-        # Withdrawal status should be invoiced
+        # Now test concurrent mark-paid on the auto-invoiced withdrawal
+        with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
+            futures = [
+                pool.submit(_attempt_mark_paid, client, headers, wd["id"])
+                for _ in range(_N_WORKERS)
+            ]
+            statuses = [f.result() for f in as_completed(futures)]
+
+        successes = sum(1 for s in statuses if s == 200)
+        assert successes >= 1, "At least one mark-paid must succeed"
+
         wd_state = _get_withdrawal(client, wd["id"], headers)
-        assert wd_state["payment_status"] == "invoiced", (
-            f"Withdrawal should be 'invoiced', got {wd_state['payment_status']}"
+        assert wd_state["payment_status"] == "paid"
+
+        payment_entries = _count_ledger_by_account(
+            client, wd["id"], "payment", "accounts_receivable"
+        )
+        assert payment_entries == 1, (
+            f"Exactly 1 payment AR entry expected across {_N_WORKERS} concurrent mark-paid calls. "
+            f"Got {payment_entries}"
         )
 
     # ── Mark-paid: exact ledger count under N-way concurrency ────────────────
@@ -618,7 +637,7 @@ class TestStressScenarios:
 
         def _attempt_withdrawal_floor(job_id: str) -> int:
             return client.post(
-                "/api/withdrawals",
+                "/api/beta/operations/withdrawals",
                 json={
                     "items": [
                         {
@@ -660,7 +679,7 @@ def _attempt_return(
     client: TestClient, headers: dict, withdrawal_id: str, product: dict[str, Any], qty: int
 ) -> tuple[int, Any]:
     resp = client.post(
-        "/api/returns",
+        "/api/beta/operations/returns",
         json={
             "withdrawal_id": withdrawal_id,
             "items": [
@@ -678,7 +697,7 @@ def _attempt_return(
 
 
 def _attempt_delete_invoice(client: TestClient, headers: dict, invoice_id: str) -> int:
-    resp = client.delete(f"/api/invoices/{invoice_id}", headers=headers)
+    resp = client.delete(f"/api/beta/finance/invoices/{invoice_id}", headers=headers)
     return resp.status_code
 
 
@@ -692,19 +711,21 @@ class TestAdversarialBehavior:
     def test_mark_paid_while_invoicing_same_withdrawal(
         self, client: TestClient, seed_dept_id: str
     ) -> None:
-        """Concurrent mark-paid and invoice-creation on the same unpaid withdrawal.
+        """Withdrawal is auto-invoiced at creation. Concurrent mark-paid and
+        redundant invoice-creation race on the already-invoiced withdrawal.
 
-        Only one lifecycle path should win. The withdrawal should end up either:
-          - invoiced (invoice won) — 0 payment ledger entries, 1 invoice link
-          - paid (mark-paid won) — 1 payment ledger entry, no invoice link
-
-        It must NOT end up both invoiced AND paid with a stale invoice link.
+        The invoice creation should fail (already invoiced). Mark-paid should
+        succeed. The withdrawal ends up either paid or still invoiced.
         """
         headers = admin_headers()
         product = create_product(
             client, headers, dept_id=seed_dept_id, quantity=100, name="ADV-PayInvoiceRace"
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
+
+        # Verify auto-invoiced
+        wd_pre = _get_withdrawal(client, wd["id"], headers)
+        assert wd_pre["payment_status"] == "invoiced"
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             f_pay = pool.submit(_attempt_mark_paid, client, headers, wd["id"])
@@ -716,7 +737,6 @@ class TestAdversarialBehavior:
         status = wd_state["payment_status"]
         invoice_id = wd_state.get("invoice_id")
 
-        # At most one path should succeed cleanly
         if status == "paid":
             payment_entries = _count_ledger_by_account(
                 client, wd["id"], "payment", "accounts_receivable"
@@ -733,8 +753,7 @@ class TestAdversarialBehavior:
                 f"Invoiced (not paid) withdrawal should have 0 payment entries, got {payment_entries}"
             )
         else:
-            # 'unpaid' is acceptable if both failed due to contention
-            assert status == "unpaid", f"Unexpected payment_status: {status}"
+            pytest.fail(f"Unexpected payment_status: {status}")
 
     # ── Rapid mark-paid retries: user mashes the Pay button ──────────────────
 
@@ -788,7 +807,9 @@ class TestAdversarialBehavior:
         wd = create_withdrawal(client, headers, product, quantity=withdraw_qty)
 
         # Pay first
-        resp = client.put(f"/api/withdrawals/{wd['id']}/mark-paid", json={}, headers=headers)
+        resp = client.put(
+            f"/api/beta/operations/withdrawals/{wd['id']}/mark-paid", json={}, headers=headers
+        )
         assert resp.status_code == 200
 
         # Return some items
@@ -844,8 +865,8 @@ class TestAdversarialBehavior:
     def test_invoice_create_then_concurrent_delete(
         self, client: TestClient, seed_dept_id: str
     ) -> None:
-        """User creates an invoice, then immediately fires delete while another
-        request tries to create a second invoice for the same withdrawals.
+        """Withdrawal is auto-invoiced. Immediately fire delete while another
+        request tries to re-create an invoice for the same withdrawal.
         After the dust settles: each withdrawal is on 0 or 1 invoice, never orphaned.
         """
         headers = admin_headers()
@@ -854,10 +875,11 @@ class TestAdversarialBehavior:
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
 
-        # Create the first invoice
-        inv_status, inv_body = _attempt_create_invoice(client, headers, [wd["id"]])
-        assert inv_status == 200, f"First invoice creation should succeed: {inv_body}"
-        invoice_id = inv_body["id"]
+        # Auto-invoicing already happened — fetch the existing invoice
+        wd_state = _get_withdrawal(client, wd["id"], headers)
+        assert wd_state["payment_status"] == "invoiced"
+        invoice_id = wd_state["invoice_id"]
+        assert invoice_id is not None, "Auto-invoice should be linked"
 
         # Fire delete + re-create concurrently
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -874,7 +896,7 @@ class TestAdversarialBehavior:
         if status == "invoiced":
             assert inv_link is not None, "Invoiced withdrawal must have an invoice_id"
             # Verify the linked invoice actually exists
-            inv_resp = client.get(f"/api/invoices/{inv_link}", headers=headers)
+            inv_resp = client.get(f"/api/beta/finance/invoices/{inv_link}", headers=headers)
             assert inv_resp.status_code == 200, (
                 f"Withdrawal links to invoice {inv_link} but that invoice doesn't exist (orphan)"
             )
@@ -954,11 +976,10 @@ class TestAdversarialBehavior:
             f"Withdrawal AR should equal total {wd_total}. Got {wd_ar}"
         )
 
-        # Step 2: Invoice
-        inv_status, inv_body = _attempt_create_invoice(client, headers, [wd["id"]])
-        assert inv_status == 200, f"Invoice creation should succeed: {inv_body}"
+        # Step 2: Verify auto-invoice
         wd_state = _get_withdrawal(client, wd["id"], headers)
         assert wd_state["payment_status"] == "invoiced"
+        assert wd_state.get("invoice_id") is not None, "Auto-invoice should be linked"
 
         # Step 3: Pay
         pay_status = _attempt_mark_paid(client, headers, wd["id"])
@@ -1007,7 +1028,7 @@ class TestAdversarialBehavior:
 
         def _do_withdrawal(job_suffix: int) -> tuple[int, Any]:
             resp = client.post(
-                "/api/withdrawals",
+                "/api/beta/operations/withdrawals",
                 json={
                     "items": [
                         {

@@ -38,7 +38,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
       category_id: ctx.categoryIds["ELE"],
     });
     productId = product.id;
-    await apiPost(req, t, "/api/jobs", { code: "JOB-LEDGER-001" });
+    await apiPost(req, t, "/api/beta/jobs", { code: "JOB-LEDGER-001" });
 
     await page.close();
   });
@@ -93,7 +93,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
   });
 
   test("6d — P&L reflects net revenue after return", async ({ request }) => {
-    const pl = await apiGet(request, ctx.token, "/api/beta/reports/reports/pl");
+    const pl = await apiGet(request, ctx.token, "/api/beta/reports/pl");
     const netRevenue = PRODUCT.price * WD_QTY - PRODUCT.price * RET_QTY;
     const netCogs = PRODUCT.cost * WD_QTY - PRODUCT.cost * RET_QTY;
 
@@ -103,7 +103,7 @@ test.describe.serial("Story 6: Ledger integrity", () => {
   });
 
   test("6e — inventory report matches remaining stock value", async ({ request }) => {
-    const inv = await apiGet(request, ctx.token, "/api/beta/reports/reports/inventory");
+    const inv = await apiGet(request, ctx.token, "/api/beta/reports/inventory");
     const remainingQty = PRODUCT.quantity - WD_QTY + RET_QTY;
 
     expect(inv.total_retail_value).toBeCloseTo(PRODUCT.price * remainingQty, 2);
