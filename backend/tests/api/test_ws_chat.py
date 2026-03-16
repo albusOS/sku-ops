@@ -365,10 +365,12 @@ class TestWSChatErrors:
             assert "wrong" in error["detail"].lower()
 
     @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._agent")
+    @patch("assistant.api.ws_chat._get_agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_duplicate_generation_rejected(self, mock_agent, mock_route, client):
+    def test_duplicate_generation_rejected(self, mock_get_agent, mock_route, client):
         """Sending a second chat while one is streaming should return an error."""
+        mock_agent = MagicMock()
+        mock_get_agent.return_value = mock_agent
 
         async def _slow_stream(*args, **kwargs):
             from pydantic_ai import AgentRunResultEvent
