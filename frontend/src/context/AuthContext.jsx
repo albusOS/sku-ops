@@ -49,8 +49,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await api.auth.me();
       setUser(data);
+      return data;
     } catch {
       logoutRef.current?.();
+      return null;
     }
   };
 
@@ -120,8 +122,8 @@ export const AuthProvider = ({ children }) => {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     _setAxiosToken(data.session.access_token);
-    await _fetchProfile();
-    return user;
+    const profile = await _fetchProfile();
+    return profile;
   };
 
   const _supabaseRegister = async (email, password, name) => {
