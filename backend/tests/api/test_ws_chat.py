@@ -220,10 +220,12 @@ class TestWSChatStreaming:
             assert error is not None
             assert "not configured" in error["detail"].lower()
 
-    @patch("assistant.api.ws_chat._agent")
+    @patch("assistant.api.ws_chat._get_agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_streaming_event_sequence(self, mock_agent, client):
+    def test_streaming_event_sequence(self, mock_get_agent, client):
         """Verify the full event sequence: status → deltas → done."""
+        mock_agent = MagicMock()
+        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(
             text_chunks=["Hello ", "world!", " How can I help?"],
             tool_names=["search_products"],
@@ -264,10 +266,12 @@ class TestWSChatStreaming:
             assert "usage" in done
 
     @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._agent")
+    @patch("assistant.api.ws_chat._get_agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_session_id_assigned_when_missing(self, mock_agent, mock_route, client):
+    def test_session_id_assigned_when_missing(self, mock_get_agent, mock_route, client):
         """When no session_id is provided, one should be auto-assigned."""
+        mock_agent = MagicMock()
+        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(text_chunks=["Hi there!"])
         mock_agent.run_stream_events = mock_stream
 
@@ -288,10 +292,12 @@ class TestWSChatStreaming:
             assert len(done["session_id"]) > 0
 
     @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._agent")
+    @patch("assistant.api.ws_chat._get_agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_session_id_preserved_when_provided(self, mock_agent, mock_route, client):
+    def test_session_id_preserved_when_provided(self, mock_get_agent, mock_route, client):
         """When session_id is provided, it should be echoed back."""
+        mock_agent = MagicMock()
+        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(text_chunks=["Hi!"])
         mock_agent.run_stream_events = mock_stream
 
@@ -311,9 +317,11 @@ class TestWSChatStreaming:
             assert done["session_id"] == "my-session-123"
 
     @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._agent")
+    @patch("assistant.api.ws_chat._get_agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_done_payload_has_usage_fields(self, mock_agent, mock_route, client):
+    def test_done_payload_has_usage_fields(self, mock_get_agent, mock_route, client):
+        mock_agent = MagicMock()
+        mock_get_agent.return_value = mock_agent
         mock_stream = _make_mock_stream(text_chunks=["Report ready."])
         mock_agent.run_stream_events = mock_stream
 
@@ -335,10 +343,12 @@ class TestWSChatStreaming:
 @pytest.mark.timeout(30)
 class TestWSChatErrors:
     @patch("assistant.api.ws_chat.route_query", new_callable=AsyncMock, return_value="unified")
-    @patch("assistant.api.ws_chat._agent")
+    @patch("assistant.api.ws_chat._get_agent")
     @patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", True)
-    def test_agent_exception_returns_chat_error(self, mock_agent, mock_route, client):
+    def test_agent_exception_returns_chat_error(self, mock_get_agent, mock_route, client):
         """If the agent raises, client should get a chat.error event."""
+        mock_agent = MagicMock()
+        mock_get_agent.return_value = mock_agent
 
         async def _failing_stream(*args, **kwargs):
             raise RuntimeError("LLM provider down")

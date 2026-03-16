@@ -52,7 +52,7 @@ from assistant.agents.core.messages import (
 from assistant.agents.core.model_registry import calc_cost, get_model_name
 from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.core.validators import validate_response
-from assistant.agents.unified.agent import _agent
+from assistant.agents.unified.agent import _get_agent
 from assistant.application import session_store
 from assistant.application.assistant import recall_memory, schedule_memory_extraction
 from assistant.application.query_router import route_query
@@ -348,7 +348,7 @@ async def _handle_chat(
     logger.info("Chat stream started: user=%s session=%s", user_id, session_id)
 
     try:
-        async for event in _agent.run_stream_events(
+        async for event in _get_agent().run_stream_events(
             user_message,
             message_history=msg_history,
             deps=deps,
