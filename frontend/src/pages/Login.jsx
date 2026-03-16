@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
@@ -80,15 +80,21 @@ function LoginPanel({ title, icon: Icon, accentClass, demoHint, testPrefix, onSu
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect when already logged in (e.g. session restored)
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleLogin = async (email, password) => {
     setLoading(true);
     try {
       await login(email, password);
       toast.success("Welcome back!");
-      navigate("/");
+      // Defer navigation so React commits the auth state before ProtectedRoute renders
+      queueMicrotask(() => navigate("/"));
     } catch (error) {
       toast.error(error.response?.data?.detail || "Login failed");
     } finally {
