@@ -162,4 +162,4 @@ async def retrieve_tools_for_query(query: str, top_k: int = DEFAULT_TOP_K) -> li
     if not index._names:
         return None
     tools = await index.search(query, top_k=top_k)
-    return tools if tools else None
+    return tools or None

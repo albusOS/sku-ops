@@ -121,9 +121,9 @@ async def sales_report(
             {**m, "name": p.name if p else "Unknown", "sku": p.sku if p else ""}
         )
 
-    revenue = accounts.get("revenue", 0)
-    cogs = accounts.get("cogs", 0)
-    tax = accounts.get("tax_collected", 0)
+    revenue = float(accounts.get("revenue", 0))
+    cogs = float(accounts.get("cogs", 0))
+    tax = float(accounts.get("tax_collected", 0))
     gross_profit = round_money(revenue - cogs)
     tx_count = counts.get("withdrawal", 0)
     return_count = counts.get("return", 0)
@@ -216,8 +216,8 @@ async def job_pl_report(
         search=search,
     )
     jobs = result["rows"]
-    total_revenue = sum(j["revenue"] for j in jobs)
-    total_cost = sum(j["cost"] for j in jobs)
+    total_revenue = float(sum(j["revenue"] for j in jobs))
+    total_cost = float(sum(j["cost"] for j in jobs))
     total_profit = total_revenue - total_cost
 
     return JobPlReport(
@@ -248,10 +248,10 @@ async def pl_report(
 
     if group_by == "overall":
         accounts = await ledger_repo.summary_by_account(**date_kw, **dim_kw)
-        revenue = accounts.get("revenue", 0)
-        cogs = accounts.get("cogs", 0)
-        tax = accounts.get("tax_collected", 0)
-        shrinkage = accounts.get("shrinkage", 0)
+        revenue = float(accounts.get("revenue", 0))
+        cogs = float(accounts.get("cogs", 0))
+        tax = float(accounts.get("tax_collected", 0))
+        shrinkage = float(accounts.get("shrinkage", 0))
         profit = round_money(revenue - cogs - shrinkage)
         return PlReport(
             group_by="overall",
@@ -303,12 +303,12 @@ async def pl_report(
         rows = []
         label_key = "name"
 
-    total_revenue = (
+    total_revenue = float(
         all_revenue_override
         if all_revenue_override is not None
         else sum(r.get("revenue", 0) for r in rows)
     )
-    total_cost = (
+    total_cost = float(
         all_cost_override if all_cost_override is not None else sum(r.get("cost", 0) for r in rows)
     )
     total_profit = round_money(total_revenue - total_cost)
@@ -355,9 +355,9 @@ async def kpi_report(
         ledger_repo.units_sold_by_product(start_date=start_date, end_date=end_date),
     )
 
-    total_revenue = accounts.get("revenue", 0)
-    total_cogs = accounts.get("cogs", 0)
-    inventory_cost_value = sum(p.cost * p.quantity for p in products_data)
+    total_revenue = float(accounts.get("revenue", 0))
+    total_cogs = float(accounts.get("cogs", 0))
+    inventory_cost_value = float(sum(p.cost * p.quantity for p in products_data))
 
     if start_date and end_date:
         try:
@@ -375,8 +375,8 @@ async def kpi_report(
         ((total_revenue - total_cogs) / total_revenue * 100) if total_revenue > 0 else 0
     )
 
-    total_units_sold = sum(units_sold_map.values())
-    total_stock = sum(p.quantity for p in products_data)
+    total_units_sold = float(sum(units_sold_map.values()))
+    total_stock = float(sum(p.quantity for p in products_data))
     sell_through_pct = (
         (total_units_sold / (total_units_sold + total_stock) * 100)
         if (total_units_sold + total_stock) > 0

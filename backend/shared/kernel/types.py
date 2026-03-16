@@ -29,8 +29,8 @@ class LineItem(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    product_id: str
-    sku: str
+    product_id: str = ""
+    sku: str = ""
     name: str
     quantity: float
     unit_price: float = Field(

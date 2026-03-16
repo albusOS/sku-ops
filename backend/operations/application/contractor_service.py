@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 import bcrypt
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from finance.application.billing_entity_service import ensure_billing_entity
 from shared.infrastructure.database import get_connection, get_org_id, transaction
@@ -28,6 +28,8 @@ def _now_iso() -> str:
 class Contractor(BaseModel):
     """Read model for contractor data."""
 
+    model_config = ConfigDict(extra="ignore")
+
     id: str
     email: str
     name: str
@@ -39,6 +41,11 @@ class Contractor(BaseModel):
     is_active: bool = True
     organization_id: str = ""
     created_at: str = ""
+
+    @field_validator("company", "billing_entity", mode="before")
+    @classmethod
+    def coerce_none_to_empty(cls, v):
+        return v if v is not None else ""
 
 
 class UpdateContractorCommand(BaseModel):
@@ -63,6 +70,11 @@ class ContractorCreateResult(BaseModel):
     is_active: bool = True
     organization_id: str = ""
     created_at: str = ""
+
+    @field_validator("company", "billing_entity", mode="before")
+    @classmethod
+    def coerce_none_to_empty(cls, v):
+        return v if v is not None else ""
 
 
 def _row_to_model(row) -> Contractor | None:

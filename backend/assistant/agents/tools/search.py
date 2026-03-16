@@ -236,25 +236,35 @@ class DomainSearchIndex:
 
     async def _rebuild_jobs(self) -> None:
         try:
+            from pydantic import ValidationError
+
             from operations.application.queries import list_withdrawals
 
             withdrawals = await list_withdrawals(limit=2000)
-        except (RuntimeError, OSError, ValueError) as e:
+        except (RuntimeError, OSError, ValueError, Exception) as e:
             logger.warning("Job index build failed: %s", e)
             return
 
         job_map: dict[str, dict] = {}
+        skipped = 0
         for w in withdrawals:
-            jid = w.job_id or ""
-            if not jid or jid in job_map:
-                continue
-            item_names = ", ".join(i.name for i in (w.items or [])[:5])
-            job_map[jid] = {
-                "job_id": jid,
-                "service_address": w.service_address or "",
-                "contractor": w.contractor_name or "",
-                "items_sample": item_names,
-            }
+            try:
+                jid = w.job_id or ""
+                if not jid or jid in job_map:
+                    continue
+                item_names = ", ".join(i.name for i in (w.items or [])[:5])
+                job_map[jid] = {
+                    "job_id": jid,
+                    "service_address": w.service_address or "",
+                    "contractor": w.contractor_name or "",
+                    "items_sample": item_names,
+                }
+            except (ValidationError, AttributeError, TypeError) as e:
+                skipped += 1
+                if skipped <= 3:
+                    logger.warning("Skipping malformed withdrawal in job index: %s", e)
+        if skipped:
+            logger.warning("Job index: skipped %d malformed withdrawal(s)", skipped)
 
         if not job_map:
             return
@@ -400,6 +410,41 @@ async def refresh_index(org_id: str | None = None) -> None:
     await index.rebuild()
 
 
+# ── Debounced rebuild ────────────────────────────────────────────────────────
+# Multiple InventoryChanged / CatalogChanged events often fire in quick
+# succession (e.g. a 5-item withdrawal emits 5 events). Without debouncing,
+# each event triggers a full rebuild: 4 DB queries + 4 embedding batches.
+# The debouncer coalesces events within a window so only one rebuild runs.
+
+import asyncio
+
+_DEBOUNCE_SECONDS = 5.0
+_pending_rebuilds: dict[str, asyncio.Task] = {}
+
+
+async def _debounced_rebuild(org_id: str, trigger: str) -> None:
+    """Schedule a rebuild for org_id, debounced by _DEBOUNCE_SECONDS.
+
+    If another event arrives for the same org before the timer fires,
+    the previous timer is cancelled and a new one starts.
+    """
+    existing = _pending_rebuilds.get(org_id)
+    if existing and not existing.done():
+        existing.cancel()
+
+    async def _do_rebuild() -> None:
+        await asyncio.sleep(_DEBOUNCE_SECONDS)
+        _pending_rebuilds.pop(org_id, None)
+        try:
+            org_id_var.set(org_id)
+            await refresh_index(org_id)
+            logger.info("Search index rebuilt for org=%s after %s", org_id, trigger)
+        except (RuntimeError, OSError, ValueError) as exc:
+            logger.warning("Search index rebuild failed for org=%s: %s", org_id, exc)
+
+    _pending_rebuilds[org_id] = asyncio.create_task(_do_rebuild())
+
+
 def _register_invalidation_handler() -> None:
     """Register search index invalidation as domain event handlers.
 
@@ -412,21 +457,13 @@ def _register_invalidation_handler() -> None:
     if is_test:
         return
 
-    async def _rebuild_index(org_id: str, trigger: str) -> None:
-        try:
-            org_id_var.set(org_id)
-            await refresh_index(org_id)
-            logger.info("Search index rebuilt for org=%s after %s", org_id, trigger)
-        except (RuntimeError, OSError, ValueError) as exc:
-            logger.warning("Search index rebuild failed for org=%s: %s", org_id, exc)
-
     @on(InventoryChanged)
     async def _invalidate_on_inventory_changed(event: InventoryChanged) -> None:
-        await _rebuild_index(event.org_id, "InventoryChanged")
+        await _debounced_rebuild(event.org_id, "InventoryChanged")
 
     @on(CatalogChanged)
     async def _invalidate_on_catalog_changed(event: CatalogChanged) -> None:
-        await _rebuild_index(event.org_id, "CatalogChanged")
+        await _debounced_rebuild(event.org_id, "CatalogChanged")
 
 
 _register_invalidation_handler()

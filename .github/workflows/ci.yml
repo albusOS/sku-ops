@@ -53,6 +53,9 @@ jobs:
       - name: Format check
         run: uv run ruff format --check backend/
 
+      - name: Audit dependencies
+        run: uv run pip-audit
+
       - name: Run tests
         env:
           ENV: test

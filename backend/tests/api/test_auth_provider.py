@@ -68,10 +68,6 @@ class TestInternalClaims:
 class TestSupabaseClaims:
     """Supabase JWT: role in app_metadata, user id in sub, name in user_metadata."""
 
-    @pytest.fixture(autouse=True)
-    def _force_production(self, monkeypatch):
-        monkeypatch.setattr("shared.api.auth_provider.is_production", True)
-
     def test_full_supabase_claims(self):
         payload = {
             "sub": "sb-user-1",

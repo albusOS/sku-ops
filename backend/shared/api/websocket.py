@@ -17,6 +17,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure import event_hub
 from shared.infrastructure.config import decode_token, is_deployed
+from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.events import CONTRACTOR_VISIBLE_EVENTS, Event, is_shutdown
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ async def ws_endpoint(websocket: WebSocket):
     if is_deployed and claims.organization_id is None:
         await websocket.close(code=4001, reason="Invalid token: missing organization_id claim")
         return
-    org_id = claims.organization_id or ""
+    org_id = claims.organization_id or ("" if is_deployed else DEFAULT_ORG_ID)
     role = claims.role
     user_id = claims.user_id
     await websocket.accept()

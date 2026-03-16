@@ -18,8 +18,7 @@ setup_logging()
 
 from inventory.domain.errors import InsufficientStockError
 from routes import api_router
-from shared.infrastructure.config import CORS_ORIGINS, is_deployed, is_test
-from shared.infrastructure.middleware.rate_limit import setup_rate_limiting
+from shared.infrastructure.config import CORS_ORIGINS, is_deployed
 from shared.infrastructure.middleware.request_id import RequestIDMiddleware
 from shared.infrastructure.middleware.security_headers import SecurityHeadersMiddleware
 from shared.infrastructure.middleware.timeout import RequestTimeoutMiddleware
@@ -94,6 +93,3 @@ app.add_middleware(
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(RequestIDMiddleware)
-
-if not is_test:
-    setup_rate_limiting(app)

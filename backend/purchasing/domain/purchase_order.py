@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from finance.domain.enums import XeroSyncStatus
 from shared.kernel.entity import AuditedEntity, Entity
@@ -167,6 +167,11 @@ class POItemRow(BaseModel):
     matched_name: str | None = None
     matched_quantity: float | None = None
     matched_cost: float | None = None
+
+    @field_validator("delivered_qty", mode="before")
+    @classmethod
+    def _coerce_delivered_qty(cls, v):
+        return v if v is not None else 0
 
     model_config = {"extra": "allow"}
 

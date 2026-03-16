@@ -26,6 +26,7 @@ from shared.infrastructure.config import (
     is_deployed,
 )
 from shared.infrastructure.logging_config import org_id_var, user_id_var
+from shared.infrastructure.user_repo import is_user_active
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
 
@@ -52,6 +53,10 @@ async def get_current_user(
             status_code=401,
             detail="Invalid token: missing organization_id claim",
         )
+
+    if not await is_user_active(claims.user_id):
+        raise HTTPException(status_code=401, detail="Account deactivated")
+
     org_id = claims.organization_id or DEFAULT_ORG_ID
 
     user_id_var.set(claims.user_id)
