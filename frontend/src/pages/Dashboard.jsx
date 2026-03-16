@@ -266,11 +266,7 @@ const Dashboard = () => {
             value={stats?.unpaid_balance != null ? valueFormatter(stats.unpaid_balance) : "—"}
             icon={FileText}
             accent={stats?.unpaid_balance > 0 ? "amber" : "slate"}
-            note={
-              stats?.unpaid_balance > 0
-                ? "needs invoice"
-                : "all invoiced"
-            }
+            note={stats?.unpaid_balance > 0 ? "needs invoice" : "all invoiced"}
             href="/operations"
           />
           <StatCard

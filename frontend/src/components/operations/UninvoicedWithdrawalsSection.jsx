@@ -13,11 +13,7 @@ import { useWithdrawals } from "@/hooks/useWithdrawals";
 import { useViewController } from "@/hooks/useViewController";
 import { buildWithdrawalColumns } from "./withdrawalColumns";
 
-export function UninvoicedWithdrawalsSection({
-  dateParams,
-  onViewInvoice,
-  onCreateInvoice,
-}) {
+export function UninvoicedWithdrawalsSection({ dateParams, onViewInvoice, onCreateInvoice }) {
   const { data: withdrawals = [], isLoading } = useWithdrawals(dateParams);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [createInvoiceModalOpen, setCreateInvoiceModalOpen] = useState(false);
@@ -25,21 +21,12 @@ export function UninvoicedWithdrawalsSection({
   const [detailInvoiceId, setDetailInvoiceId] = useState(null);
   const [detailJobId, setDetailJobId] = useState(null);
 
-  const uninvoiced = useMemo(
-    () => withdrawals.filter((w) => !w.invoice_id),
-    [withdrawals],
-  );
-  const invoiced = useMemo(
-    () => withdrawals.filter((w) => !!w.invoice_id),
-    [withdrawals],
-  );
+  const uninvoiced = useMemo(() => withdrawals.filter((w) => !w.invoice_id), [withdrawals]);
+  const invoiced = useMemo(() => withdrawals.filter((w) => !!w.invoice_id), [withdrawals]);
   const uninvoicedTotal = uninvoiced.reduce((s, w) => s + (w.total || 0), 0);
   const invoicedTotal = invoiced.reduce((s, w) => s + (w.total || 0), 0);
 
-  const columns = useMemo(
-    () => buildWithdrawalColumns(setDetailJobId),
-    [setDetailJobId],
-  );
+  const columns = useMemo(() => buildWithdrawalColumns(setDetailJobId), [setDetailJobId]);
   const view = useViewController({ columns });
   const processed = view.apply(withdrawals);
 
@@ -100,9 +87,7 @@ export function UninvoicedWithdrawalsSection({
 
       {selectedIds.size > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-4 flex items-center justify-between">
-          <span className="text-sm font-semibold text-accent">
-            {selectedIds.size} selected
-          </span>
+          <span className="text-sm font-semibold text-accent">{selectedIds.size} selected</span>
           <div className="flex gap-2">
             <button
               onClick={() => setSelectedIds(new Set())}
