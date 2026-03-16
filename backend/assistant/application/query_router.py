@@ -21,30 +21,33 @@ _ROUTE_EXAMPLES: dict[str, list[str]] = {
         "Which vendor for SKU X?",
         "Reorder plan for low stock",
         "Optimize purchasing",
-        "Vendor performance",
-        "What should we order?",
-        "Which vendor supplies this?",
-        "Procurement plan",
+        "Vendor performance comparison",
+        "What should we order next?",
+        "Which vendor supplies this product?",
+        "Create a procurement plan",
         "Reorder with vendor context",
+        "Compare vendor prices for this SKU",
+        "Build a purchase order for low stock items",
     ],
     "trend": [
-        "Compare to last month",
-        "Trend in revenue",
-        "Anomaly in sales",
-        "Growth rate",
+        "Compare revenue to last month",
+        "Trend in revenue this quarter",
+        "Any anomalies in sales this week?",
+        "What's the growth rate?",
         "What changed compared to last week?",
-        "Revenue over time",
-        "Period over period",
-        "Time series",
+        "Revenue over time by week",
+        "Period over period comparison",
+        "Time series of withdrawals",
+        "Are sales trending up or down?",
+        "How did this month compare to the previous month?",
     ],
     "health": [
-        "Business health",
-        "What needs attention",
-        "Quarterly review",
-        "Holistic assessment",
-        "How's the business?",
-        "Overall business health",
-        "Comprehensive review",
+        "Full business health check",
+        "Quarterly business review",
+        "Holistic assessment of operations",
+        "Give me a comprehensive store review",
+        "Overall business health report",
+        "Complete store assessment with recommendations",
     ],
     "unified": [
         "Product lookup",
@@ -53,7 +56,20 @@ _ROUTE_EXAMPLES: dict[str, list[str]] = {
         "Search for product",
         "Low stock list",
         "Revenue and P&L",
-        "Mixed question",
+        "Who is contractor X?",
+        "Show me outstanding balances",
+        "How many SKUs do we carry?",
+        "What's the margin on plumbing?",
+        "Department activity this week",
+        "Pending material requests",
+        "What should I focus on today?",
+        "How's business?",
+        "What needs attention?",
+        "Good morning, any updates?",
+        "Give me a quick overview",
+        "Anything urgent?",
+        "Weekly summary",
+        "Store overview",
     ],
 }
 
@@ -137,18 +153,35 @@ async def _ensure_router_index() -> None:
         _embeddings = await _embed_batch(_agent_texts, OPENAI_API_KEY)
 
 
-_GENERIC_GREETINGS = frozenset({"hello", "hi", "hey", "howdy", "yo"})
+_GENERIC_GREETINGS = frozenset({"hello", "hi", "hey", "howdy", "yo", "sup", "morning", "afternoon"})
+
+# Minimum cosine similarity to route to a specialist (vs. falling back to unified).
+# Unified agent can delegate to specialists via tool calls anyway, so false negatives
+# are recovered gracefully — false positives (wrong specialist) are much worse.
+_EMBEDDING_THRESHOLD = 0.72
+_BM25_THRESHOLD = 3.0
 
 
 async def route_query(
     user_message: str,
     history: list[dict] | None = None,
 ) -> AgentRoute:
-    """Route user message to unified or specialist agent. Returns agent label."""
+    """Route user message to unified or specialist agent. Returns agent label.
+
+    Conservative routing: only routes to a specialist when confidence is high.
+    The unified agent can always delegate to specialists via tool calls, so
+    defaulting to unified is safe — it just adds one extra LLM turn.
+    """
     query = (user_message or "").strip()
     if not query:
         return "unified"
-    if len(query) < 12 or query.lower() in _GENERIC_GREETINGS:
+
+    q_lower = query.lower()
+    if len(query) < 15 or q_lower in _GENERIC_GREETINGS:
+        return "unified"
+
+    # Multi-turn follow-ups should stay in unified (it has conversation context)
+    if history and len(history) >= 2:
         return "unified"
 
     if not _agent_texts:
@@ -157,24 +190,56 @@ async def route_query(
         return "unified"
 
     await _ensure_router_index()
-    if len(query) < 15 or query.lower() in ("hello", "hi", "hey", "hello!", "hi!"):
-        return "unified"
 
     if _embeddings is not None and OPENAI_API_KEY:
         qvec = await _embed_query(query, OPENAI_API_KEY)
         if qvec is not None:
             scores = np.dot(_embeddings, qvec)
             best_idx = int(np.argmax(scores))
+            best_score = float(scores[best_idx])
             route = _agent_labels[best_idx]
-            logger.debug("Router: embedded route=%s for query=%s", route, query[:50])
+
+            # Only route to specialist if confidence is above threshold
+            if route != "unified" and best_score < _EMBEDDING_THRESHOLD:
+                logger.debug(
+                    "Router: embedded route=%s score=%.3f below threshold, using unified for query=%s",
+                    route,
+                    best_score,
+                    query[:50],
+                )
+                return "unified"
+
+            logger.debug(
+                "Router: embedded route=%s score=%.3f for query=%s",
+                route,
+                best_score,
+                query[:50],
+            )
             return route
 
     if _bm25 is not None:
         tok_q = _tokenize(query)
-        scores = _bm25.get_scores(tok_q)
-        best_idx = int(np.argmax(scores))
-        route = _agent_labels[best_idx]
-        logger.debug("Router: BM25 route=%s for query=%s", route, query[:50])
-        return route
+        if tok_q:
+            scores = _bm25.get_scores(tok_q)
+            best_idx = int(np.argmax(scores))
+            best_score = float(scores[best_idx])
+            route = _agent_labels[best_idx]
+
+            if route != "unified" and best_score < _BM25_THRESHOLD:
+                logger.debug(
+                    "Router: BM25 route=%s score=%.2f below threshold, using unified for query=%s",
+                    route,
+                    best_score,
+                    query[:50],
+                )
+                return "unified"
+
+            logger.debug(
+                "Router: BM25 route=%s score=%.2f for query=%s",
+                route,
+                best_score,
+                query[:50],
+            )
+            return route
 
     return "unified"

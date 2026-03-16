@@ -301,12 +301,21 @@ async def _handle_chat(
     logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
 
     if route in ("procurement", "trend", "health"):
-        if route == "procurement":
-            response = await _procurement_agent_mod.run(user_message, deps=deps)
-        elif route == "trend":
-            response = await _trend_agent_mod.run(user_message, deps=deps)
-        else:
-            response = await _health_agent_mod.run(user_message, deps=deps)
+        await _send(ws, {"type": "chat.status", "status": "thinking"})
+        try:
+            if route == "procurement":
+                response = await _procurement_agent_mod.run(user_message, deps=deps)
+            elif route == "trend":
+                response = await _trend_agent_mod.run(user_message, deps=deps)
+            else:
+                response = await _health_agent_mod.run(user_message, deps=deps)
+        except Exception as exc:
+            error_type, detail = _classify_chat_error(exc)
+            logger.exception("Specialist %s failed for user=%s", route, user_id)
+            chat_message(route, error_type)
+            await _send(ws, {"type": "chat.error", "error_type": error_type, "detail": detail})
+            return
+        chat_message(route, "success")
         new_history = list(history or [])
         new_history.append({"role": "user", "content": user_message})
         new_history.append({"role": "assistant", "content": response})
