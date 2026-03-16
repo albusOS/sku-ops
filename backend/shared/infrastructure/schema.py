@@ -259,8 +259,10 @@ VIEWS: list[str] = [
            wi.product_id    AS target_id,
            'sku'            AS target_type,
            'contains_sku'   AS relation,
-           wi.organization_id AS org_id
-    FROM withdrawal_items wi WHERE wi.product_id IS NOT NULL
+           w.organization_id AS org_id
+    FROM withdrawal_items wi
+    JOIN withdrawals w ON w.id = wi.withdrawal_id
+    WHERE wi.product_id IS NOT NULL
     UNION ALL
     -- job → billing_entity
     SELECT j.id            AS source_id,
@@ -272,7 +274,7 @@ VIEWS: list[str] = [
     FROM jobs j WHERE j.billing_entity_id IS NOT NULL
     UNION ALL
     -- job → invoice (via line items)
-    SELECT ili.job_id      AS source_id,
+    SELECT DISTINCT ili.job_id AS source_id,
            'job'           AS source_type,
            ili.invoice_id  AS target_id,
            'invoice'       AS target_type,
