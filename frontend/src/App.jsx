@@ -16,7 +16,7 @@ const CycleCountsPage = lazy(() => import("./pages/inventory/CycleCountsPage"));
 const CycleCountDetailPage = lazy(() => import("./pages/inventory/CycleCountDetailPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const POS = lazy(() => import("./pages/operations/POS"));
-const PendingRequests = lazy(() => import("./pages/operations/PendingRequests"));
+const OperationsHub = lazy(() => import("./pages/operations/OperationsHub"));
 const RequestMaterials = lazy(() => import("./pages/operations/RequestMaterials"));
 const ScanModePage = lazy(() => import("./pages/operations/ScanModePage"));
 const Contractors = lazy(() => import("./pages/operations/Contractors"));
@@ -105,12 +105,16 @@ function App() {
                               }
                             />
                             <Route
-                              path="/pending-requests"
+                              path="/operations"
                               element={
                                 <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                  <PendingRequests />
+                                  <OperationsHub />
                                 </ProtectedRoute>
                               }
+                            />
+                            <Route
+                              path="/pending-requests"
+                              element={<Navigate to="/operations" replace />}
                             />
                             <Route
                               path="/inventory"
@@ -194,7 +198,7 @@ function App() {
                             />
                             <Route
                               path="/financials"
-                              element={<Navigate to="/reports" replace />}
+                              element={<Navigate to="/operations" replace />}
                             />
                             <Route
                               path="/invoices"

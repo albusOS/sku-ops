@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-import { AlertTriangle, Truck, ClipboardList, ShoppingCart, Package } from "lucide-react";
+import { AlertTriangle, Truck, ClipboardList, ShoppingCart, Package, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, DATE_PRESETS } from "@/lib/constants";
@@ -202,13 +202,13 @@ const Dashboard = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <ActionTile
-            to="/pending-requests"
+            to="/operations"
             icon={ClipboardList}
             title="Review requests"
             description="Process contractor requests waiting for issue."
           />
           <ActionTile
-            to="/pos"
+            to="/operations"
             icon={ShoppingCart}
             title="Issue materials"
             description="Create a new material issue for a contractor."
@@ -239,7 +239,7 @@ const Dashboard = () => {
             icon={ClipboardList}
             accent="blue"
             note={pendingRequests > 0 ? "awaiting processing" : "all clear"}
-            href="/pending-requests"
+            href="/operations"
           />
           <StatCard
             label="Awaiting Delivery"
@@ -260,6 +260,18 @@ const Dashboard = () => {
             accent={partialPOCount > 0 ? "orange" : "slate"}
             note={partialPOCount > 0 ? "ready to receive into stock" : "nothing at dock"}
             href="/purchase-orders"
+          />
+          <StatCard
+            label="Uninvoiced"
+            value={stats?.unpaid_balance != null ? valueFormatter(stats.unpaid_balance) : "—"}
+            icon={FileText}
+            accent={stats?.unpaid_balance > 0 ? "amber" : "slate"}
+            note={
+              stats?.unpaid_balance > 0
+                ? "needs invoice"
+                : "all invoiced"
+            }
+            href="/operations"
           />
           <StatCard
             label="Low Stock Alerts"

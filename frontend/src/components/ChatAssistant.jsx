@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -364,8 +363,6 @@ function StreamingBubble({ text, tools: _tools }) {
 
 /* ── Main panel ────────────────────────────────────────────────────────── */
 
-const PANEL_SPRING = { type: "spring", stiffness: 320, damping: 34 };
-
 export default function ChatAssistant() {
   const location = useLocation();
   const agentType = agentTypeFromPath(location.pathname);
@@ -534,17 +531,8 @@ export default function ChatAssistant() {
         <Sparkles className="w-5 h-5" />
       </button>
 
-      {/* Panel */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 480, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={PANEL_SPRING}
-            className="h-full shrink-0 overflow-hidden relative z-30"
-          >
-            <div className="flex flex-col h-full bg-background border-l border-border/60 shadow-xl w-[480px]">
+      {/* Panel content - width controlled by ResizablePanel in Layout */}
+      <div className="flex flex-col h-full min-w-0 bg-surface border-l border-border/80 shadow-soft">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 bg-surface shrink-0">
                 <div className="flex items-center gap-2.5">
@@ -733,9 +721,7 @@ export default function ChatAssistant() {
                 </p>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </>
   );
 }

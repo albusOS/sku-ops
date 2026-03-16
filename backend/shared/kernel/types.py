@@ -7,7 +7,15 @@ identifying the authenticated caller, you use CurrentUser.
 
 from decimal import ROUND_HALF_EVEN, Decimal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 
 def round_money(value: float) -> float:
@@ -29,9 +37,21 @@ class LineItem(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    product_id: str = ""
-    sku: str = ""
+    product_id: str = Field(default="", validation_alias=AliasChoices("product_id", "id"))
+    sku: str = Field(default="")
     name: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_product_id_sku(cls, data: object) -> object:
+        """Coerce missing or null product_id/sku to empty string for client resilience."""
+        if isinstance(data, dict):
+            data = dict(data)
+            pid = data.get("product_id") or data.get("id")
+            data["product_id"] = "" if pid is None else str(pid)
+            sku = data.get("sku")
+            data["sku"] = "" if sku is None else str(sku)
+        return data
     quantity: float
     unit_price: float = Field(
         default=0.0,

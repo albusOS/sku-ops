@@ -250,7 +250,7 @@ function InvoicingSection({ settings }) {
           <p className="text-sm font-medium text-foreground">Auto-create invoices on withdrawal</p>
           <p className="text-xs text-muted-foreground mt-1">
             When enabled, each new withdrawal gets an invoice automatically. When disabled, create
-            invoices manually from the Financials or Transactions view.
+            invoices manually from Yard Operations.
           </p>
         </div>
         <Switch

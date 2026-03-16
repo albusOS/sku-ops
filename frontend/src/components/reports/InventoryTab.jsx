@@ -80,8 +80,8 @@ export function InventoryTab({ dateParams, onProductClick }) {
   const totalP = inventoryReport?.total_products || 1;
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="space-y-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         <Stat
           label="Total Products"
           value={inventoryReport?.total_products || 0}
@@ -186,7 +186,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
         </ReportPanel>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <ReportPanel>
           <SectionHead
             title="Reorder Urgency — Days to Stockout"

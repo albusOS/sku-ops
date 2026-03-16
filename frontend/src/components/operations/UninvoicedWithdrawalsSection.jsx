@@ -1,10 +1,8 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { FileText, HardHat } from "lucide-react";
+import { FileText } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { StatCard } from "@/components/StatCard";
-import { StatusBadge } from "@/components/StatusBadge";
 import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
 import { CreateInvoiceModal } from "@/components/CreateInvoiceModal";
@@ -13,123 +11,40 @@ import { InvoiceDetailModal } from "@/components/InvoiceDetailModal";
 import { JobDetailPanel } from "@/components/JobDetailPanel";
 import { useWithdrawals } from "@/hooks/useWithdrawals";
 import { useViewController } from "@/hooks/useViewController";
+import { buildWithdrawalColumns } from "./withdrawalColumns";
 
-const buildColumns = (onViewJob) => [
-  {
-    key: "created_at",
-    label: "Date",
-    type: "date",
-    render: (row) => (
-      <span className="font-mono text-xs text-muted-foreground">
-        {new Date(row.created_at).toLocaleDateString()}
-      </span>
-    ),
-    exportValue: (row) => row.created_at,
-  },
-  {
-    key: "contractor_name",
-    label: "Contractor",
-    type: "text",
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <HardHat className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        <div>
-          <p className="font-medium text-foreground">{row.contractor_name}</p>
-          <p className="text-[10px] text-muted-foreground">{row.contractor_company}</p>
-        </div>
-      </div>
-    ),
-    exportValue: (row) => `${row.contractor_name} (${row.contractor_company || ""})`,
-  },
-  {
-    key: "job_id",
-    label: "Job",
-    type: "text",
-    render: (row) =>
-      row.job_id ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewJob(row.job_id);
-          }}
-          className="font-mono text-xs text-info hover:text-info hover:underline"
-        >
-          {row.job_id}
-        </button>
-      ) : (
-        <span className="text-xs text-muted-foreground">—</span>
-      ),
-  },
-  { key: "billing_entity", label: "Entity", type: "enum" },
-  {
-    key: "total",
-    label: "Total",
-    type: "number",
-    align: "right",
-    render: (row) => (
-      <span className="font-semibold tabular-nums">${(row.total || 0).toFixed(2)}</span>
-    ),
-    exportValue: (row) => (row.total || 0).toFixed(2),
-  },
-  {
-    key: "cost_total",
-    label: "Cost",
-    type: "number",
-    align: "right",
-    render: (row) => (
-      <span className="text-muted-foreground tabular-nums">
-        ${(row.cost_total || 0).toFixed(2)}
-      </span>
-    ),
-    exportValue: (row) => (row.cost_total || 0).toFixed(2),
-  },
-  {
-    key: "_margin",
-    label: "Margin",
-    type: "number",
-    sortable: false,
-    filterable: false,
-    searchable: false,
-    render: (row) => (
-      <span className="text-success tabular-nums">
-        ${((row.total || 0) - (row.cost_total || 0)).toFixed(2)}
-      </span>
-    ),
-    exportValue: (row) => ((row.total || 0) - (row.cost_total || 0)).toFixed(2),
-  },
-  {
-    key: "_invoice_status",
-    label: "Status",
-    type: "enum",
-    sortable: false,
-    filterable: false,
-    render: (row) =>
-      row.invoice_id ? (
-        <Link to="/invoices" className="inline-block" onClick={(e) => e.stopPropagation()}>
-          <StatusBadge status="invoiced" />
-        </Link>
-      ) : (
-        <StatusBadge status="uninvoiced" />
-      ),
-    exportValue: (row) => (row.invoice_id ? "invoiced" : "uninvoiced"),
-  },
-];
-
-export function TransactionsTable({ dateParams }) {
-  const { data: withdrawals = [] } = useWithdrawals(dateParams);
+export function UninvoicedWithdrawalsSection({
+  dateParams,
+  onViewInvoice,
+  onCreateInvoice,
+}) {
+  const { data: withdrawals = [], isLoading } = useWithdrawals(dateParams);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [createInvoiceModalOpen, setCreateInvoiceModalOpen] = useState(false);
   const [detailWithdrawalId, setDetailWithdrawalId] = useState(null);
   const [detailInvoiceId, setDetailInvoiceId] = useState(null);
   const [detailJobId, setDetailJobId] = useState(null);
 
-  const columns = useMemo(() => buildColumns(setDetailJobId), []);
+  const uninvoiced = useMemo(
+    () => withdrawals.filter((w) => !w.invoice_id),
+    [withdrawals],
+  );
+  const invoiced = useMemo(
+    () => withdrawals.filter((w) => !!w.invoice_id),
+    [withdrawals],
+  );
+  const uninvoicedTotal = uninvoiced.reduce((s, w) => s + (w.total || 0), 0);
+  const invoicedTotal = invoiced.reduce((s, w) => s + (w.total || 0), 0);
+
+  const columns = useMemo(
+    () => buildWithdrawalColumns(setDetailJobId),
+    [setDetailJobId],
+  );
   const view = useViewController({ columns });
   const processed = view.apply(withdrawals);
 
   const selectAllUninvoiced = () => {
-    setSelectedIds(new Set(withdrawals.filter((w) => !w.invoice_id).map((w) => w.id)));
+    setSelectedIds(new Set(uninvoiced.map((w) => w.id)));
   };
 
   const selectedUninvoicedIds = useMemo(
@@ -141,27 +56,29 @@ export function TransactionsTable({ dateParams }) {
     [selectedIds, withdrawals],
   );
 
-  const invoiceTotals = useMemo(() => {
-    const uninvoiced = withdrawals.filter((w) => !w.invoice_id);
-    const invoiced = withdrawals.filter((w) => !!w.invoice_id);
-    return {
-      uninvoicedTotal: uninvoiced.reduce((s, w) => s + (w.total || 0), 0),
-      invoicedTotal: invoiced.reduce((s, w) => s + (w.total || 0), 0),
-    };
-  }, [withdrawals]);
+  const handleCreateInvoiceCreated = (inv) => {
+    setSelectedIds(new Set());
+    setCreateInvoiceModalOpen(false);
+    onCreateInvoice?.(inv);
+    if (inv?.id) setDetailInvoiceId(inv.id);
+  };
+
+  if (isLoading) return null;
 
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <StatCard
           label="Uninvoiced"
-          value={valueFormatter(invoiceTotals.uninvoicedTotal)}
+          value={valueFormatter(uninvoicedTotal)}
           accent="amber"
+          note={`${uninvoiced.length} withdrawal${uninvoiced.length !== 1 ? "s" : ""}`}
         />
         <StatCard
           label="Invoiced"
-          value={valueFormatter(invoiceTotals.invoicedTotal)}
+          value={valueFormatter(invoicedTotal)}
           accent="blue"
+          note={`${invoiced.length} in range`}
         />
       </div>
 
@@ -183,7 +100,9 @@ export function TransactionsTable({ dateParams }) {
 
       {selectedIds.size > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-4 flex items-center justify-between">
-          <span className="text-sm font-semibold text-accent">{selectedIds.size} selected</span>
+          <span className="text-sm font-semibold text-accent">
+            {selectedIds.size} selected
+          </span>
           <div className="flex gap-2">
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -207,10 +126,10 @@ export function TransactionsTable({ dateParams }) {
       <DataTable
         data={processed}
         columns={view.visibleColumns}
-        title="Transactions"
-        emptyMessage="No transactions found"
+        title="Withdrawals"
+        emptyMessage="No withdrawals in this range"
         exportable
-        exportFilename={`transactions-${format(new Date(), "yyyyMMdd")}.csv`}
+        exportFilename={`withdrawals-${format(new Date(), "yyyyMMdd")}.csv`}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         isSelectable={(row) => !row.invoice_id}
@@ -221,7 +140,7 @@ export function TransactionsTable({ dateParams }) {
       <CreateInvoiceModal
         open={createInvoiceModalOpen}
         onOpenChange={setCreateInvoiceModalOpen}
-        onCreated={() => setSelectedIds(new Set())}
+        onCreated={handleCreateInvoiceCreated}
         preselectedIds={selectedUninvoicedIds}
       />
 
@@ -232,6 +151,7 @@ export function TransactionsTable({ dateParams }) {
         onViewInvoice={(invoiceId) => {
           setDetailWithdrawalId(null);
           setDetailInvoiceId(invoiceId);
+          onViewInvoice?.(invoiceId);
         }}
         onViewJob={(jobId) => {
           setDetailWithdrawalId(null);

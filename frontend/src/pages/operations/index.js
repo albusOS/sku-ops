@@ -1,5 +1,4 @@
 export { default as POS } from "./POS";
-export { default as PendingRequests } from "./PendingRequests";
 export { default as RequestMaterials } from "./RequestMaterials";
 export { default as ScanModePage } from "./ScanModePage";
 export { default as Contractors } from "./Contractors";

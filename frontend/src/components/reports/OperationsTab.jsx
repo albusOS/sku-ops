@@ -4,18 +4,37 @@ import { valueFormatter } from "@/lib/chartConfig";
 import { themeColors } from "@/lib/chartTheme";
 import { StatCard } from "@/components/StatCard";
 import { useReportSales, useReportPL, useReportTrends } from "@/hooks/useReports";
+import { useReportLayout } from "@/hooks/useReportLayout";
 import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
 import { DotColumnChart } from "@/components/charts/DotColumnChart";
 import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
 import { ChartExplainer } from "@/components/charts/ChartExplainer";
 import { ReportPanel, ReportSectionHead } from "@/components/ReportPanel";
 import { PaymentStrip } from "./ReportHelpers";
+import { ReportLayoutCustomizer } from "./ReportLayoutCustomizer";
+import { CustomCsvBuilder } from "./CustomCsvBuilder";
 
 const Stat = StatCard;
 const SectionHead = ({ title, action }) => <ReportSectionHead title={title} action={action} />;
 
+const OPERATIONS_PANELS = [
+  { id: "stats", label: "Summary stats" },
+  { id: "payment", label: "Payment Status" },
+  { id: "job-throughput", label: "Job Throughput" },
+  { id: "contractor", label: "Contractor Activity" },
+  { id: "daily-activity", label: "Daily Operational Activity" },
+  { id: "heatmap", label: "Transaction Activity (12 months)" },
+  { id: "custom-csv", label: "Build custom CSV" },
+];
+
 export function OperationsTab({ reportFilters }) {
   const t = themeColors();
+  const allPanelIds = OPERATIONS_PANELS.map((p) => p.id);
+  const { visiblePanels, setPanelVisible, isVisible, resetToDefault } = useReportLayout(
+    "operations",
+    allPanelIds,
+  );
+
   const { data: salesReport } = useReportSales(reportFilters);
   const jobPlParams = useMemo(() => ({ ...reportFilters, group_by: "job" }), [reportFilters]);
   const contractorPlParams = useMemo(
@@ -55,90 +74,173 @@ export function OperationsTab({ reportFilters }) {
     }));
   }, [heatmapTrends]);
 
-  const paymentChartData = salesReport?.by_payment_status
-    ? Object.entries(salesReport.by_payment_status).map(([name, value]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        value: parseFloat(value.toFixed(2)),
-      }))
-    : [];
+  const paymentChartData = useMemo(
+    () =>
+      salesReport?.by_payment_status
+        ? Object.entries(salesReport.by_payment_status).map(([name, value]) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            value: parseFloat(value.toFixed(2)),
+          }))
+        : [],
+    [salesReport?.by_payment_status],
+  );
+
+  const csvSources = useMemo(
+    () => [
+      {
+        id: "job-pl",
+        label: "Job P&L",
+        getRows: () => jobPlData?.rows ?? [],
+        getDefaultColumns: () => [
+          { key: "job_id", label: "Job ID" },
+          { key: "billing_entity", label: "Billing Entity" },
+          { key: "revenue", label: "Revenue" },
+          { key: "cost", label: "COGS" },
+          { key: "profit", label: "Profit" },
+          { key: "margin_pct", label: "Margin %" },
+          { key: "withdrawal_count", label: "Orders" },
+        ],
+      },
+      {
+        id: "contractor-pl",
+        label: "Contractor P&L",
+        getRows: () =>
+          (contractorPlData?.rows ?? []).map((r) => ({
+            ...r,
+            name: r.name || r.company || r.contractor_id || "Unknown",
+          })),
+        getDefaultColumns: () => [
+          { key: "name", label: "Contractor" },
+          { key: "revenue", label: "Revenue" },
+          { key: "cost", label: "COGS" },
+          { key: "profit", label: "Profit" },
+          { key: "transaction_count", label: "Transactions" },
+        ],
+      },
+      {
+        id: "daily-trends",
+        label: "Daily Activity",
+        getRows: () => dotColumnData,
+        getDefaultColumns: () => [
+          { key: "date", label: "Date" },
+          { key: "value", label: "Transactions" },
+        ],
+      },
+      {
+        id: "payment-status",
+        label: "Payment Status",
+        getRows: () => paymentChartData,
+        getDefaultColumns: () => [
+          { key: "name", label: "Status" },
+          { key: "value", label: "Amount" },
+        ],
+      },
+      {
+        id: "heatmap-data",
+        label: "Transaction Activity (12 mo)",
+        getRows: () => heatmapData,
+        getDefaultColumns: () => [
+          { key: "date", label: "Date" },
+          { key: "value", label: "Transactions" },
+          { key: "revenue", label: "Revenue" },
+        ],
+      },
+    ],
+    [jobPlData?.rows, contractorPlData?.rows, dotColumnData, paymentChartData, heatmapData],
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat
-          label="Total Revenue"
-          value={valueFormatter(salesReport?.total_revenue || 0)}
-          icon={DollarSign}
-          accent="blue"
-          note={`${salesReport?.total_transactions || 0} transactions`}
-        />
-        <Stat
-          label="COGS"
-          value={valueFormatter(salesReport?.total_cogs || 0)}
-          icon={DollarSign}
-          accent="orange"
-        />
-        <Stat
-          label="Gross Profit"
-          value={valueFormatter(salesReport?.gross_profit || 0)}
-          icon={TrendingUp}
-          accent="emerald"
-          note={`${salesReport?.gross_margin_pct ?? 0}% margin`}
-        />
-        <Stat
-          label="Avg Transaction"
-          value={valueFormatter(salesReport?.average_transaction || 0)}
-          accent="violet"
-          note="per order"
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ReportLayoutCustomizer
+          panels={OPERATIONS_PANELS}
+          visiblePanels={visiblePanels}
+          setPanelVisible={setPanelVisible}
+          resetToDefault={resetToDefault}
         />
       </div>
 
-      {paymentChartData.length > 0 && (
+      {isVisible("stats") && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+          <Stat
+            label="Total Revenue"
+            value={valueFormatter(salesReport?.total_revenue || 0)}
+            icon={DollarSign}
+            accent="blue"
+            note={`${salesReport?.total_transactions || 0} transactions`}
+          />
+          <Stat
+            label="COGS"
+            value={valueFormatter(salesReport?.total_cogs || 0)}
+            icon={DollarSign}
+            accent="orange"
+          />
+          <Stat
+            label="Gross Profit"
+            value={valueFormatter(salesReport?.gross_profit || 0)}
+            icon={TrendingUp}
+            accent="emerald"
+            note={`${salesReport?.gross_margin_pct ?? 0}% margin`}
+          />
+          <Stat
+            label="Avg Transaction"
+            value={valueFormatter(salesReport?.average_transaction || 0)}
+            accent="violet"
+            note="per order"
+          />
+        </div>
+      )}
+
+      {isVisible("payment") && paymentChartData.length > 0 && (
         <ReportPanel>
           <SectionHead title="Payment Status" />
           <PaymentStrip data={paymentChartData} />
         </ReportPanel>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ReportPanel>
-          <SectionHead title="Job Throughput — Top by Revenue" />
-          {jobPlData?.rows?.length > 0 ? (
-            <HorizontalBarChart
-              data={jobPlData.rows.slice(0, 12)}
-              categoryKey="job_id"
-              series={[
-                { key: "revenue", label: "Revenue", color: t.category1 },
-                { key: "cost", label: "COGS", color: t.mutedForeground },
-              ]}
-              valueFormatter={valueFormatter}
-              showLegend
-              height={Math.max(200, jobPlData.rows.slice(0, 12).length * 36)}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground py-8 text-center">No job data</p>
-          )}
-        </ReportPanel>
-        <ReportPanel>
-          <SectionHead title="Contractor Activity — Top by Revenue" />
-          {contractorPlData?.rows?.length > 0 ? (
-            <HorizontalBarChart
-              data={contractorPlData.rows.slice(0, 12).map((r) => ({
-                ...r,
-                name: r.name || r.company || r.contractor_id || "Unknown",
-              }))}
-              categoryKey="name"
-              series={[{ key: "revenue", label: "Revenue", color: t.info }]}
-              valueFormatter={valueFormatter}
-              height={Math.max(200, contractorPlData.rows.slice(0, 12).length * 36)}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground py-8 text-center">No contractor data</p>
-          )}
-        </ReportPanel>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {isVisible("job-throughput") && (
+          <ReportPanel>
+            <SectionHead title="Job Throughput — Top by Revenue" />
+            {jobPlData?.rows?.length > 0 ? (
+              <HorizontalBarChart
+                data={jobPlData.rows.slice(0, 12)}
+                categoryKey="job_id"
+                series={[
+                  { key: "revenue", label: "Revenue", color: t.category1 },
+                  { key: "cost", label: "COGS", color: t.mutedForeground },
+                ]}
+                valueFormatter={valueFormatter}
+                showLegend
+                height={Math.max(200, jobPlData.rows.slice(0, 12).length * 36)}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">No job data</p>
+            )}
+          </ReportPanel>
+        )}
+        {isVisible("contractor") && (
+          <ReportPanel>
+            <SectionHead title="Contractor Activity — Top by Revenue" />
+            {contractorPlData?.rows?.length > 0 ? (
+              <HorizontalBarChart
+                data={contractorPlData.rows.slice(0, 12).map((r) => ({
+                  ...r,
+                  name: r.name || r.company || r.contractor_id || "Unknown",
+                }))}
+                categoryKey="name"
+                series={[{ key: "revenue", label: "Revenue", color: t.info }]}
+                valueFormatter={valueFormatter}
+                height={Math.max(200, contractorPlData.rows.slice(0, 12).length * 36)}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">No contractor data</p>
+            )}
+          </ReportPanel>
+        )}
       </div>
 
-      {dotColumnData.length > 0 && (
+      {isVisible("daily-activity") && dotColumnData.length > 0 && (
         <ReportPanel>
           <SectionHead
             title="Daily Operational Activity"
@@ -162,7 +264,7 @@ export function OperationsTab({ reportFilters }) {
         </ReportPanel>
       )}
 
-      {heatmapData.length > 0 && (
+      {isVisible("heatmap") && heatmapData.length > 0 && (
         <ReportPanel>
           <SectionHead
             title="Transaction Activity — Last 12 Months"
@@ -193,6 +295,8 @@ export function OperationsTab({ reportFilters }) {
           </ChartExplainer>
         </ReportPanel>
       )}
+
+      {isVisible("custom-csv") && <CustomCsvBuilder sources={csvSources} />}
     </div>
   );
 }

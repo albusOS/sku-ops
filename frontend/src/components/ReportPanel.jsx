@@ -4,7 +4,7 @@ export function ReportPanel({ children, className }) {
   return (
     <div
       className={cn(
-        "bg-card/70 rounded-2xl border border-border/70 shadow-soft p-6 backdrop-blur-sm relative overflow-hidden",
+        "bg-card/70 rounded-2xl border border-border/70 shadow-soft p-7 md:p-8 backdrop-blur-sm relative overflow-hidden transition-shadow hover:shadow-md",
         "before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-accent/80 before:via-category-4/60 before:to-transparent",
         className,
       )}

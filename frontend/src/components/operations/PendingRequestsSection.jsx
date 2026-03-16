@@ -2,32 +2,39 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HardHat, Package, Clock, AlertTriangle } from "lucide-react";
-import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
-import { useMaterialRequests, useProcessMaterialRequest } from "@/hooks/useMaterialRequests";
+import { ProcessRequestModal } from "./ProcessRequestModal";
 import { getErrorMessage } from "@/lib/api-client";
-import { ProcessRequestModal } from "./_ProcessRequestModal";
 
-const PendingRequests = () => {
-  const {
-    data: allRequests,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useMaterialRequests(undefined, {
-    refetchInterval: 30000,
-  });
-  const processRequest = useProcessMaterialRequest();
+function ageLabel(dateStr) {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
+function ageHours(dateStr) {
+  return (Date.now() - new Date(dateStr).getTime()) / 3600000;
+}
+
+export function PendingRequestsSection({
+  requests,
+  isLoading,
+  error,
+  onRetry,
+  onProcess,
+  isProcessing,
+}) {
   const [processOpen, setProcessOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [jobId, setJobId] = useState("");
   const [serviceAddress, setServiceAddress] = useState("");
   const [notes, setNotes] = useState("");
 
-  const requests = (allRequests || []).filter((r) => r.status === "pending");
-  const sorted = [...requests].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const sorted = [...(requests || [])].sort(
+    (a, b) => new Date(a.created_at) - new Date(b.created_at),
+  );
 
   const openProcess = (req) => {
     setSelectedRequest(req);
@@ -48,53 +55,27 @@ const PendingRequests = () => {
   const handleProcess = async () => {
     if (!selectedRequest || !jobId.trim() || !serviceAddress.trim()) return;
     try {
-      await processRequest.mutateAsync({
-        id: selectedRequest.id,
-        data: {
-          job_id: jobId.trim(),
-          service_address: serviceAddress.trim(),
-          notes: notes.trim() || null,
-        },
+      await onProcess(selectedRequest.id, {
+        job_id: jobId.trim(),
+        service_address: serviceAddress.trim(),
+        notes: notes.trim() || null,
       });
       toast.success("Request processed. Withdrawal created.");
       closeProcess();
-    } catch (error) {
-      toast.error(getErrorMessage(error));
+    } catch (err) {
+      toast.error(getErrorMessage(err));
     }
   };
 
-  const ageLabel = (dateStr) => {
-    const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  };
-
-  const ageHours = (dateStr) => (Date.now() - new Date(dateStr).getTime()) / 3600000;
-
-  if (isLoading) return <PageSkeleton />;
-  if (isError) return <QueryError error={error} onRetry={refetch} />;
+  if (error) return <QueryError error={error} onRetry={onRetry} />;
 
   return (
-    <div className="p-8" data-testid="pending-requests-page">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            Pending Requests
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Process contractor requests into withdrawals at pickup
-          </p>
+    <>
+      {isLoading ? (
+        <div className="bg-card border border-border rounded-xl p-12 text-center">
+          <p className="text-sm text-muted-foreground">Loading requests…</p>
         </div>
-        {requests.length > 0 && (
-          <span className="text-sm font-medium text-muted-foreground">
-            {requests.length} pending
-          </span>
-        )}
-      </div>
-
-      {requests.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-16 text-center shadow-sm">
           <Package className="w-12 h-12 mx-auto text-muted-foreground/60 mb-3" />
           <p className="font-medium text-muted-foreground">No pending requests</p>
@@ -184,10 +165,8 @@ const PendingRequests = () => {
         notes={notes}
         onNotesChange={setNotes}
         onSubmit={handleProcess}
-        isPending={processRequest.isPending}
+        isPending={isProcessing}
       />
-    </div>
+    </>
   );
-};
-
-export default PendingRequests;
+}

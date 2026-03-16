@@ -2,14 +2,13 @@ import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { FileText, Plus, Send, ArrowRight } from "lucide-react";
+import { FileText, Send, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
-import { CreateInvoiceModal } from "@/components/CreateInvoiceModal";
 import { InvoiceDetailModal } from "@/components/InvoiceDetailModal";
 import { useInvoices, useSyncXero, useBulkSyncXero } from "@/hooks/useInvoices";
 import { useViewController } from "@/hooks/useViewController";
@@ -112,7 +111,6 @@ const Invoices = () => {
     },
     [setSearchParams],
   );
-  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailInvoiceId, setDetailInvoiceId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -173,22 +171,22 @@ const Invoices = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-foreground tracking-tight">Invoices</h1>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-1 transition-colors"
-            >
-              Dashboard <ArrowRight className="w-3 h-3" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Dashboard <ArrowRight className="w-3 h-3" />
+              </Link>
+              <span className="text-xs text-muted-foreground">·</span>
+              <Link
+                to="/operations"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Create invoice from uninvoiced withdrawals
+              </Link>
+            </div>
           </div>
-          <Button
-            onClick={() => setCreateModalOpen(true)}
-            size="sm"
-            className="gap-2"
-            data-testid="create-invoice-btn"
-          >
-            <Plus className="w-4 h-4" />
-            Create Invoice
-          </Button>
         </div>
         <DateRangeFilter
           value={dateRange}
@@ -287,11 +285,6 @@ const Invoices = () => {
         )}
       />
 
-      <CreateInvoiceModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        onCreated={(inv) => setDetailInvoiceId(inv?.id)}
-      />
       <InvoiceDetailModal
         invoiceId={detailInvoiceId}
         open={!!detailInvoiceId}

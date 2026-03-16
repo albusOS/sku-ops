@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ChatProvider } from "../context/ChatContext";
+import { ChatProvider, useChatPanel } from "../context/ChatContext";
 import { ROLES } from "@/lib/constants";
 import {
   LayoutDashboard,
@@ -29,8 +29,87 @@ import {
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
 import { CommandPalette } from "./CommandPalette";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 
 const SIDEBAR_KEY = "sidebar-collapsed";
+const PANEL_SIZE_KEY = "sku-ops:chat:panel-size";
+
+const DEFAULT_MAIN_SIZE = 70;
+const DEFAULT_CHAT_SIZE = 30;
+
+function loadPanelSizes() {
+  try {
+    const raw = localStorage.getItem(PANEL_SIZE_KEY);
+    if (raw) {
+      const [main, chat] = JSON.parse(raw);
+      if (
+        typeof main === "number" &&
+        typeof chat === "number" &&
+        main >= 50 &&
+        chat >= 20 &&
+        chat <= 45
+      ) {
+        return [main, chat];
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return [DEFAULT_MAIN_SIZE, DEFAULT_CHAT_SIZE];
+}
+
+function LayoutContent({ children, showChat }) {
+  const { open, setOpen } = useChatPanel();
+  const [sizes, setSizes] = useState(loadPanelSizes);
+
+  const handleLayout = (newSizes) => {
+    if (Array.isArray(newSizes) && newSizes.length >= 2 && newSizes[1] > 0) {
+      setSizes(newSizes);
+      try {
+        localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(newSizes));
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  if (!showChat) {
+    return (
+      <main
+        className="flex-1 min-h-0 min-w-0 overflow-auto bg-surface-muted/35 flex flex-col"
+        data-testid="main-content"
+      >
+        {children}
+      </main>
+    );
+  }
+
+  const [mainSize, chatSize] = sizes;
+  return (
+    <ResizablePanelGroup direction="row" className="flex-1 min-h-0 min-w-0" onLayout={handleLayout}>
+      <ResizablePanel defaultSize={mainSize} minSize={50} order={1}>
+        <main
+          className="h-full min-w-0 overflow-auto bg-surface-muted/35 flex flex-col"
+          data-testid="main-content"
+        >
+          {children}
+        </main>
+      </ResizablePanel>
+      <ResizableHandle withHandle className="bg-sidebar-border/50" />
+      <ResizablePanel
+        collapsible
+        collapsed={!open}
+        onCollapse={(c) => setOpen(!c)}
+        defaultSize={chatSize}
+        minSize={20}
+        maxSize={45}
+        order={2}
+      >
+        <ChatAssistant />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+}
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -84,12 +163,7 @@ const Layout = ({ children }) => {
     }
 
     const operationsItems = [
-      { path: "/pos", icon: ShoppingCart, label: "Issue Materials" },
-      {
-        path: "/pending-requests",
-        icon: ClipboardList,
-        label: "Pending Requests",
-      },
+      { path: "/operations", icon: ClipboardList, label: "Yard Operations" },
       { path: "/contractors", icon: HardHat, label: "Contractors" },
       { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
     ];
@@ -303,14 +377,7 @@ const Layout = ({ children }) => {
           </div>
         </aside>
 
-        <main
-          className="flex-1 min-h-0 min-w-0 overflow-auto bg-surface-muted/35 flex flex-col"
-          data-testid="main-content"
-        >
-          {children}
-        </main>
-
-        {showChat && <ChatAssistant />}
+        <LayoutContent showChat={showChat}>{children}</LayoutContent>
 
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </div>

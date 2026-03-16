@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Send, Trash2, ScanLine, CheckCircle2, Loader2, Camera, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { getErrorMessage } from "@/lib/api-client";
  * Accessible at /scan for contractors and warehouse roles.
  */
 const ScanModePage = () => {
+  const navigate = useNavigate();
   const [lastScanned, setLastScanned] = useState(null);
   const [unknownBarcode, setUnknownBarcode] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -92,7 +94,9 @@ const ScanModePage = () => {
         job_id: jobId.trim(),
         service_address: serviceAddress.trim(),
       });
-      toast.success("Withdrawal logged!");
+      toast.success("Withdrawal logged!", {
+        action: { label: "View in Operations", onClick: () => navigate("/operations") },
+      });
       clearCart();
       setLastScanned(null);
       setJobId("");

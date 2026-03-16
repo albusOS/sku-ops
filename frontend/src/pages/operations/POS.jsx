@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import { ROLES } from "@/lib/constants";
 
 const IssueMaterials = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -194,7 +196,9 @@ const IssueMaterials = () => {
         });
       }
 
-      toast.success("Withdrawal logged — charged to account.");
+      toast.success("Withdrawal logged — charged to account.", {
+        action: { label: "View in Operations", onClick: () => navigate("/operations") },
+      });
       clearCart();
       setJobId("");
       setServiceAddress("");

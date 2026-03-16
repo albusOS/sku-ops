@@ -106,97 +106,111 @@ const Reports = () => {
   }, [activeTab, dateParams]);
 
   return (
-    <div className="p-4 md:p-8" data-testid="reports-page">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Reports</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Financial, operational, and inventory analytics
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
-            {DATE_PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                onClick={() => setDateRange(preset.getValue())}
-                className="text-xs px-3 py-1.5 rounded-md text-muted-foreground hover:bg-card hover:shadow-sm transition-all font-medium"
-              >
-                {preset.label}
-              </button>
-            ))}
+    <div className="p-6 md:p-10" data-testid="reports-page">
+      <div className="max-w-[1600px] mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-10">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Reports</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Financial, operational, and inventory analytics
+            </p>
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2" data-testid="date-range-btn">
-                <CalendarIcon className="w-4 h-4" />
-                {dateRange.from
-                  ? dateRange.to
-                    ? `${format(dateRange.from, "MMM d")} – ${format(dateRange.to, "MMM d")}`
-                    : format(dateRange.from, "MMM d, yyyy")
-                  : "Custom"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="range"
-                selected={dateRange}
-                onSelect={(r) => setDateRange(r || { from: null, to: null })}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
-          {(dateRange.from || dateRange.to) && (
-            <button
-              onClick={() => setDateRange({ from: null, to: null })}
-              className="text-xs text-muted-foreground hover:text-foreground"
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
+              {DATE_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => setDateRange(preset.getValue())}
+                  className="text-xs px-3 py-1.5 rounded-md text-muted-foreground hover:bg-card hover:shadow-sm transition-all font-medium"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2" data-testid="date-range-btn">
+                  <CalendarIcon className="w-4 h-4" />
+                  {dateRange.from
+                    ? dateRange.to
+                      ? `${format(dateRange.from, "MMM d")} – ${format(dateRange.to, "MMM d")}`
+                      : format(dateRange.from, "MMM d, yyyy")
+                    : "Custom"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={(r) => setDateRange(r || { from: null, to: null })}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+            {(dateRange.from || dateRange.to) && (
+              <button
+                onClick={() => setDateRange({ from: null, to: null })}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="gap-2"
+              data-testid="export-csv-btn"
             >
-              Clear
-            </button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="gap-2"
-            data-testid="export-csv-btn"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
+              <Download className="w-4 h-4" />
+              Export
+            </Button>
+          </div>
         </div>
+
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
+          <TabsList
+            className="bg-transparent border-b border-border rounded-none p-0 h-auto gap-0 w-full justify-start overflow-x-auto"
+            data-testid="report-tabs"
+          >
+            {TABS.map(({ value, label, icon: Icon }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:text-foreground text-muted-foreground px-5 py-3 text-sm font-semibold gap-2 bg-transparent shadow-none shrink-0"
+                data-testid={`${value}-tab`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent
+            value="pl"
+            className="mt-8 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
+            data-testid="pl-report-content"
+          >
+            <PLTab reportFilters={reportFilters} dateParams={dateParams} />
+          </TabsContent>
+
+          <TabsContent
+            value="operations"
+            className="mt-8 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
+            data-testid="operations-report-content"
+          >
+            <OperationsTab reportFilters={reportFilters} />
+          </TabsContent>
+
+          <TabsContent
+            value="inventory"
+            className="mt-8 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
+            data-testid="inventory-report-content"
+          >
+            <InventoryTab dateParams={dateParams} onProductClick={handleProductClick} />
+          </TabsContent>
+        </Tabs>
       </div>
-
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList
-          className="bg-transparent border-b border-border rounded-none p-0 h-auto gap-0 w-full justify-start overflow-x-auto"
-          data-testid="report-tabs"
-        >
-          {TABS.map(({ value, label, icon: Icon }) => (
-            <TabsTrigger
-              key={value}
-              value={value}
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:text-foreground text-muted-foreground px-5 py-3 text-sm font-semibold gap-2 bg-transparent shadow-none shrink-0"
-              data-testid={`${value}-tab`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value="pl" className="mt-6" data-testid="pl-report-content">
-          <PLTab reportFilters={reportFilters} dateParams={dateParams} />
-        </TabsContent>
-
-        <TabsContent value="operations" className="mt-6" data-testid="operations-report-content">
-          <OperationsTab reportFilters={reportFilters} />
-        </TabsContent>
-
-        <TabsContent value="inventory" className="mt-6" data-testid="inventory-report-content">
-          <InventoryTab dateParams={dateParams} onProductClick={handleProductClick} />
-        </TabsContent>
-      </Tabs>
 
       <ProductDetailModal
         product={selectedProduct}

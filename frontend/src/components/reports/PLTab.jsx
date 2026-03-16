@@ -124,7 +124,7 @@ export function PLTab({ reportFilters, dateParams }) {
   const showBreakdownTable = plDimension !== "overall" && rows.length > 0 && !activeDrillLabel;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Dimension selector */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
@@ -174,7 +174,7 @@ export function PLTab({ reportFilters, dateParams }) {
       {/* ─── DETAIL VIEW (overall or drilled into a specific item) ─── */}
       {(plDimension === "overall" || activeDrillLabel) && plData?.summary && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             <Stat
               label="Revenue"
               value={valueFormatter(plData.summary.revenue)}
@@ -211,7 +211,7 @@ export function PLTab({ reportFilters, dateParams }) {
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <PLStatement summary={plData.summary} />
             {waterfallItems.length > 0 && (
               <ReportPanel>
@@ -273,7 +273,7 @@ export function PLTab({ reportFilters, dateParams }) {
 
       {/* KPI metrics — overall only */}
       {plDimension === "overall" && !activeDrillLabel && kpis && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <Stat
             label="Inventory Turnover"
             value={`${kpis.inventory_turnover}×`}
