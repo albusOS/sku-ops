@@ -42,10 +42,10 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
 
     const pIds: string[] = [];
     for (const p of PRODUCTS) {
-      const created = await apiPost(req, t, "/api/catalog/skus", { ...p, category_id: deptId });
+      const created = await apiPost(req, t, "/api/beta/catalog/skus", { ...p, category_id: deptId });
       pIds.push(created.id);
     }
-    await apiPost(req, t, "/api/jobs", { code: "JOB-INV-001" });
+    await apiPost(req, t, "/api/beta/jobs/jobs", { code: "JOB-INV-001" });
 
     const w1 = await apiPost(req, t, "/api/withdrawals/for-contractor", {
       contractor_id: ctx.contractorId,
@@ -76,7 +76,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
   });
 
   test("2a — invoice total matches sum of withdrawals", async ({ request }) => {
-    const invoice = await apiPost(request, ctx.token, "/api/invoices", {
+    const invoice = await apiPost(request, ctx.token, "/api/beta/finance/invoices", {
       withdrawal_ids: withdrawalIds,
     });
     invoiceId = invoice.id;
@@ -92,12 +92,12 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
   });
 
   test("2b — payment zeroes unpaid balance", async ({ request }) => {
-    const statsBefore = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const statsBefore = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     expect(statsBefore.unpaid_total).toBeGreaterThan(0);
 
     wsCollector.clear();
 
-    await apiPost(request, ctx.token, "/api/payments", {
+    await apiPost(request, ctx.token, "/api/beta/finance/payments", {
       invoice_id: invoiceId,
       amount: expectedTotal,
       method: "bank_transfer",
@@ -110,7 +110,7 @@ test.describe.serial("Story 2: Invoice & payment cycle", () => {
       expect(w.payment_status).toBe("paid");
     }
 
-    const statsAfter = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const statsAfter = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     expect(statsAfter.unpaid_total).toBe(0);
   });
 

@@ -1,8 +1,8 @@
 """Integration tests for WebSocket endpoints.
 
 Tests cover:
-  - /api/ws     — realtime domain event broadcasting
-  - /api/ws/chat — AI chat streaming (protocol handshake only; LLM mocked)
+  - /api/beta/shared/ws     — realtime domain event broadcasting
+  - /api/beta/assistant/ws/chat — AI chat streaming (protocol handshake only; LLM mocked)
 """
 
 import threading
@@ -22,23 +22,27 @@ def _assert_ws_close(client: TestClient, url: str, expected_code: int):
             pass
         pytest.fail(f"Expected WebSocketDisconnect({expected_code})")
     except WebSocketDisconnect as exc:
-        assert exc.code == expected_code, f"Expected close code {expected_code}, got {exc.code}"
+        assert exc.code == expected_code, (
+            f"Expected close code {expected_code}, got {exc.code}"
+        )
 
 
-# ── /api/ws (realtime domain events) ────────────────────────────────────────
+# ── /api/beta/shared/ws (realtime domain events) ────────────────────────────────────────
 
 
 class TestRealtimeWebSocket:
     def test_rejects_missing_token(self, client: TestClient):
-        _assert_ws_close(client, "/api/ws", 4001)
+        _assert_ws_close(client, "/api/beta/shared/ws", 4001)
 
     def test_rejects_expired_token(self, client: TestClient):
         token = _make_token(expired=True)
-        _assert_ws_close(client, f"/api/ws?token={token}", 4001)
+        _assert_ws_close(client, f"/api/beta/shared/ws?token={token}", 4001)
 
     def test_accepts_valid_token(self, client: TestClient):
         token = _make_token()
-        with client.websocket_connect(f"/api/ws?token={token}") as ws:
+        with client.websocket_connect(
+            f"/api/beta/shared/ws?token={token}"
+        ) as ws:
             ws.close()
 
     def test_receives_heartbeat(self, client: TestClient):
@@ -46,32 +50,43 @@ class TestRealtimeWebSocket:
         from unittest.mock import patch
 
         token = _make_token()
-        with patch("shared.api.websocket.HEARTBEAT_INTERVAL", 0.1):
-            with client.websocket_connect(f"/api/ws?token={token}") as ws:
+        with patch(
+            "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+            0.1,
+        ):
+            with client.websocket_connect(
+                f"/api/beta/shared/ws?token={token}"
+            ) as ws:
                 data = ws.receive_json()
                 assert data["type"] == "ping"
                 ws.close()
 
 
-# ── /api/ws/chat (AI chat streaming) ────────────────────────────────────────
+# ── /api/beta/assistant/ws/chat (AI chat streaming) ────────────────────────────────────────
 
 
 class TestChatWebSocket:
     def test_rejects_missing_token(self, client: TestClient):
-        _assert_ws_close(client, "/api/ws/chat", 4001)
+        _assert_ws_close(client, "/api/beta/assistant/ws/chat", 4001)
 
     def test_rejects_contractor_role(self, client: TestClient):
         token = _make_token(role="contractor")
-        _assert_ws_close(client, f"/api/ws/chat?token={token}", 4003)
+        _assert_ws_close(
+            client, f"/api/beta/assistant/ws/chat?token={token}", 4003
+        )
 
     def test_accepts_admin_token(self, client: TestClient):
         token = _make_token(role="admin")
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(
+            f"/api/beta/assistant/ws/chat?token={token}"
+        ) as ws:
             ws.close()
 
     def test_empty_message_returns_error(self, client: TestClient):
         token = _make_token()
-        with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+        with client.websocket_connect(
+            f"/api/beta/assistant/ws/chat?token={token}"
+        ) as ws:
             ws.send_json({"type": "chat", "message": ""})
             resp = ws.receive_json()
             assert resp["type"] == "chat.error"
@@ -82,10 +97,18 @@ class TestChatWebSocket:
 
         token = _make_token()
         with (
-            patch("assistant.api.ws_chat.ANTHROPIC_AVAILABLE", False),
-            patch("assistant.api.ws_chat.OPENROUTER_AVAILABLE", False),
+            patch(
+                "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+                False,
+            ),
+            patch(
+                "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE",
+                False,
+            ),
         ):
-            with client.websocket_connect(f"/api/ws/chat?token={token}") as ws:
+            with client.websocket_connect(
+                f"/api/beta/assistant/ws/chat?token={token}"
+            ) as ws:
                 ws.send_json(
                     {
                         "type": "chat",
@@ -103,16 +126,18 @@ class TestChatWebSocket:
 
 class TestHealthEndpoint:
     def test_ready_includes_websocket_check(self, client: TestClient):
-        resp = client.get("/api/ready")
+        resp = client.get("/api/beta/shared/ready")
         data = resp.json()
         assert "websocket" in data["checks"]
         ws_check = data["checks"]["websocket"]
         assert ws_check["status"] == "ok"
-        assert "/api/ws" in ws_check["endpoints"]
-        assert "/api/ws/chat" in ws_check["endpoints"]
+        assert any("shared/ws" in e for e in ws_check["endpoints"])
+        assert any(
+            "assistant/ws" in e or "ws/chat" in e for e in ws_check["endpoints"]
+        )
 
     def test_health_returns_ok(self, client: TestClient):
-        resp = client.get("/api/health")
+        resp = client.get("/api/beta/shared/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
@@ -150,10 +175,18 @@ class TestEventDeliveryEndToEnd:
         from unittest.mock import patch
 
         token = _make_token(org_id="default")
-        with patch("shared.api.websocket.HEARTBEAT_INTERVAL", 999):
-            with client.websocket_connect(f"/api/ws?token={token}") as ws:
+        with patch(
+            "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+            999,
+        ):
+            with client.websocket_connect(
+                f"/api/beta/shared/ws?token={token}"
+            ) as ws:
                 t = _delayed_emit(
-                    _EMIT_DELAY, events.INVENTORY_UPDATED, org_id="default", ids=["p-1"]
+                    _EMIT_DELAY,
+                    events.INVENTORY_UPDATED,
+                    org_id="default",
+                    ids=["p-1"],
                 )
                 msg = ws.receive_json()
                 t.join()
@@ -188,12 +221,21 @@ class TestEventDeliveryEndToEnd:
         from shared.infrastructure import event_hub
 
         token = _make_token(org_id="org-A")
-        with patch("shared.api.websocket.HEARTBEAT_INTERVAL", 999):
-            with client.websocket_connect(f"/api/ws?token={token}") as ws:
+        with patch(
+            "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+            999,
+        ):
+            with client.websocket_connect(
+                f"/api/beta/shared/ws?token={token}"
+            ) as ws:
 
                 def _emit_pair():
-                    event_hub.emit_sync(events.INVENTORY_UPDATED, org_id="org-B")
-                    event_hub.emit_sync(events.INVENTORY_UPDATED, org_id="org-A", ids=["hit"])
+                    event_hub.emit_sync(
+                        events.INVENTORY_UPDATED, org_id="org-B"
+                    )
+                    event_hub.emit_sync(
+                        events.INVENTORY_UPDATED, org_id="org-A", ids=["hit"]
+                    )
 
                 t = threading.Timer(_EMIT_DELAY, _emit_pair)
                 t.start()
@@ -210,12 +252,21 @@ class TestEventDeliveryEndToEnd:
         from shared.infrastructure import event_hub
 
         token = _make_token(role="contractor")
-        with patch("shared.api.websocket.HEARTBEAT_INTERVAL", 999):
-            with client.websocket_connect(f"/api/ws?token={token}") as ws:
+        with patch(
+            "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+            999,
+        ):
+            with client.websocket_connect(
+                f"/api/beta/shared/ws?token={token}"
+            ) as ws:
 
                 def _emit_pair():
-                    event_hub.emit_sync(events.INVENTORY_UPDATED, org_id="default")
-                    event_hub.emit_sync(events.WITHDRAWAL_CREATED, org_id="default", id="w-99")
+                    event_hub.emit_sync(
+                        events.INVENTORY_UPDATED, org_id="default"
+                    )
+                    event_hub.emit_sync(
+                        events.WITHDRAWAL_CREATED, org_id="default", id="w-99"
+                    )
 
                 t = threading.Timer(_EMIT_DELAY, _emit_pair)
                 t.start()
@@ -236,15 +287,25 @@ class TestEventDeliveryEndToEnd:
         from shared.infrastructure import event_hub
 
         token_u1 = _make_token(user_id="u-1")
-        with patch("shared.api.websocket.HEARTBEAT_INTERVAL", 999):
-            with client.websocket_connect(f"/api/ws?token={token_u1}") as ws:
+        with patch(
+            "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+            999,
+        ):
+            with client.websocket_connect(
+                f"/api/beta/shared/ws?token={token_u1}"
+            ) as ws:
 
                 def _emit_pair():
                     event_hub.emit_sync(
-                        events.CHAT_DONE, org_id="default", user_id="u-2", response="hi"
+                        events.CHAT_DONE,
+                        org_id="default",
+                        user_id="u-2",
+                        response="hi",
                     )
                     event_hub.emit_sync(
-                        events.INVENTORY_UPDATED, org_id="default", marker="broadcast"
+                        events.INVENTORY_UPDATED,
+                        org_id="default",
+                        marker="broadcast",
                     )
 
                 t = threading.Timer(_EMIT_DELAY, _emit_pair)
@@ -259,5 +320,7 @@ class TestEventDeliveryEndToEnd:
         """Rapid connect/disconnect cycles should not leak tasks or crash."""
         token = _make_token()
         for _ in range(10):
-            with client.websocket_connect(f"/api/ws?token={token}") as ws:
+            with client.websocket_connect(
+                f"/api/beta/shared/ws?token={token}"
+            ) as ws:
                 ws.close()

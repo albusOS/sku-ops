@@ -28,7 +28,7 @@ test.describe.serial("Story 4: Stock adjustments", () => {
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
     ctx = await freshSeed(page.request);
-    const product = await apiPost(page.request, ctx.token, "/api/catalog/skus", {
+    const product = await apiPost(page.request, ctx.token, "/api/beta/catalog/skus", {
       ...PRODUCT,
       category_id: ctx.categoryIds["PNT"],
     });
@@ -37,16 +37,16 @@ test.describe.serial("Story 4: Stock adjustments", () => {
   });
 
   test("4a — positive adjustment increases stock", async ({ request }) => {
-    await apiPost(request, ctx.token, `/api/stock/${productId}/adjust`, {
+    await apiPost(request, ctx.token, `/api/beta/inventory/stock/${productId}/adjust`, {
       quantity_delta: 10,
       reason: "Correction",
     });
 
-    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
+    const products = await apiGet(request, ctx.token, "/api/beta/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity + 10);
 
-    const history = await apiGet(request, ctx.token, `/api/stock/${productId}/history`);
+    const history = await apiGet(request, ctx.token, `/api/beta/inventory/stock/${productId}/history`);
     const adj = history.history.find(
       (h: any) => h.transaction_type === "adjustment" && h.quantity_delta === 10
     );
@@ -55,16 +55,16 @@ test.describe.serial("Story 4: Stock adjustments", () => {
   });
 
   test("4b — negative adjustment decreases stock", async ({ request }) => {
-    await apiPost(request, ctx.token, `/api/stock/${productId}/adjust`, {
+    await apiPost(request, ctx.token, `/api/beta/inventory/stock/${productId}/adjust`, {
       quantity_delta: -3,
       reason: "Damage",
     });
 
-    const products = await apiGet(request, ctx.token, "/api/catalog/skus");
+    const products = await apiGet(request, ctx.token, "/api/beta/catalog/skus");
     const p = products.find((x: any) => x.id === productId);
     expect(p.quantity).toBe(PRODUCT.quantity + 10 - 3);
 
-    const history = await apiGet(request, ctx.token, `/api/stock/${productId}/history`);
+    const history = await apiGet(request, ctx.token, `/api/beta/inventory/stock/${productId}/history`);
     const adj = history.history.find(
       (h: any) => h.transaction_type === "adjustment" && h.quantity_delta === -3
     );
@@ -73,7 +73,7 @@ test.describe.serial("Story 4: Stock adjustments", () => {
   });
 
   test("4c — inventory cost reflects adjusted quantities", async ({ request, page }) => {
-    const stats = await apiGet(request, ctx.token, "/api/dashboard/stats");
+    const stats = await apiGet(request, ctx.token, "/api/beta/reports/dashboard/stats");
     const expectedCost = PRODUCT.cost * (PRODUCT.quantity + 10 - 3);
     expect(stats.inventory_cost).toBeCloseTo(expectedCost, 2);
 

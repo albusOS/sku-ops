@@ -1,0 +1,133 @@
+"""Authenticated WebSocket endpoint for realtime event broadcasting.
+
+Clients connect with their JWT token and receive domain events scoped to
+their organization. Contractor connections are filtered to only receive
+events relevant to their role.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+
+import jwt
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from shared.api.auth_provider import resolve_claims
+from shared.infrastructure import event_hub
+from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET, is_deployed
+from shared.kernel.constants import DEFAULT_ORG_ID
+from shared.kernel.events import CONTRACTOR_VISIBLE_EVENTS, Event, is_shutdown
+
+logger = logging.getLogger(__name__)
+
+HEARTBEAT_INTERVAL = 30
+
+router = APIRouter()
+
+
+def _authenticate(token: str) -> dict | None:
+    """Validate JWT and return payload, or None on failure."""
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+
+
+def _should_deliver(event: Event, org_id: str, role: str, user_id: str) -> bool:
+    if event.org_id != org_id:
+        return False
+    if event.user_id and event.user_id != user_id:
+        return False
+    return not (
+        role == "contractor" and event.type not in CONTRACTOR_VISIBLE_EVENTS
+    )
+
+
+@router.websocket("/ws")
+async def ws_endpoint(websocket: WebSocket):
+    token = websocket.query_params.get("token", "")
+    payload = _authenticate(token)
+    if not payload:
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    try:
+        claims = resolve_claims(payload)
+    except ValueError:
+        await websocket.close(
+            code=4001, reason="Invalid token: missing required claims"
+        )
+        return
+    if is_deployed and claims.organization_id is None:
+        await websocket.close(
+            code=4001, reason="Invalid token: missing organization_id claim"
+        )
+        return
+    org_id = claims.organization_id or DEFAULT_ORG_ID
+    role = claims.role
+    user_id = claims.user_id
+    await websocket.accept()
+
+    queue = event_hub.subscribe()
+    try:
+        await _relay_loop(websocket, queue, org_id, role, user_id)
+    finally:
+        event_hub.unsubscribe(queue)
+
+
+async def _relay_loop(
+    websocket: WebSocket,
+    queue: asyncio.Queue[Event],
+    org_id: str,
+    role: str,
+    user_id: str = "",
+) -> None:
+    """Forward hub events to the client, with periodic heartbeats."""
+
+    async def _sender():
+        while True:
+            ev = await queue.get()
+            if is_shutdown(ev):
+                logger.info("Subscriber shutdown — closing WebSocket")
+                return
+            if not _should_deliver(ev, org_id, role, user_id):
+                continue
+            msg = {"type": ev.type, **ev.data}
+            try:
+                await websocket.send_text(json.dumps(msg))
+            except (RuntimeError, OSError):
+                return
+
+    async def _heartbeat():
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            try:
+                await websocket.send_text(json.dumps({"type": "ping"}))
+            except (RuntimeError, OSError):
+                return
+
+    async def _receiver():
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+
+    tasks = [
+        asyncio.create_task(_sender()),
+        asyncio.create_task(_heartbeat()),
+        asyncio.create_task(_receiver()),
+    ]
+    try:
+        _done, pending = await asyncio.wait(
+            tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+        for t in pending:
+            t.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+    except (RuntimeError, OSError):
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)

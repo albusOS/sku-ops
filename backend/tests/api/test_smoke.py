@@ -8,19 +8,19 @@ import pytest
 from tests.helpers.auth import admin_headers
 
 PROTECTED_ENDPOINTS = [
-    ("GET", "/api/catalog/skus"),
-    ("GET", "/api/catalog/skus/by-barcode"),
-    ("GET", "/api/vendors"),
-    ("GET", "/api/departments"),
-    ("GET", "/api/withdrawals"),
-    ("GET", "/api/material-requests"),
-    ("GET", "/api/purchase-orders"),
-    ("GET", "/api/invoices"),
-    ("GET", "/api/financials/summary"),
-    ("POST", "/api/chat"),
-    ("GET", "/api/audit-log"),
-    ("GET", "/api/dashboard/stats"),
-    ("GET", "/api/dashboard/transactions"),
+    ("GET", "/api/beta/catalog/skus"),
+    ("GET", "/api/beta/catalog/skus/by-barcode"),
+    ("GET", "/api/beta/catalog/vendors"),
+    ("GET", "/api/beta/catalog/departments"),
+    ("GET", "/api/beta/operations/withdrawals"),
+    ("GET", "/api/beta/operations/material-requests"),
+    ("GET", "/api/beta/purchasing/purchase-orders"),
+    ("GET", "/api/beta/finance/invoices"),
+    ("GET", "/api/beta/finance/financials/summary"),
+    ("POST", "/api/beta/assistant/chat"),
+    ("GET", "/api/beta/shared/audit-log"),
+    ("GET", "/api/beta/reports/dashboard/stats"),
+    ("GET", "/api/beta/reports/dashboard/transactions"),
 ]
 
 
@@ -46,13 +46,13 @@ def test_all_context_routers_mounted(client):
     endpoint returns 401/403 (auth required) rather than 404 (route not found).
     """
     context_probes = {
-        "catalog": ("GET", "/api/catalog/skus"),
-        "operations": ("GET", "/api/withdrawals"),
-        "purchasing": ("GET", "/api/purchase-orders"),
-        "finance": ("GET", "/api/invoices"),
-        "documents": ("POST", "/api/documents/parse"),
-        "assistant": ("POST", "/api/chat"),
-        "health": ("GET", "/api/health"),
+        "catalog": ("GET", "/api/beta/catalog/skus"),
+        "operations": ("GET", "/api/beta/operations/withdrawals"),
+        "purchasing": ("GET", "/api/beta/purchasing/purchase-orders"),
+        "finance": ("GET", "/api/beta/finance/invoices"),
+        "documents": ("POST", "/api/beta/documents/documents/parse"),
+        "assistant": ("POST", "/api/beta/assistant/chat"),
+        "health": ("GET", "/api/beta/shared/health"),
     }
     not_mounted = []
     for ctx, (method, path) in context_probes.items():
@@ -60,8 +60,9 @@ def test_all_context_routers_mounted(client):
         if resp.status_code == 404:
             not_mounted.append(f"{ctx}: {method} {path}")
 
-    assert not not_mounted, "These context routers appear unmounted (got 404):\n" + "\n".join(
-        f"  {m}" for m in not_mounted
+    assert not not_mounted, (
+        "These context routers appear unmounted (got 404):\n"
+        + "\n".join(f"  {m}" for m in not_mounted)
     )
 
 
@@ -70,7 +71,7 @@ def test_all_context_routers_mounted(client):
 
 def test_auth_me_requires_auth(client):
     """/api/auth/me must reject unauthenticated requests."""
-    resp = client.get("/api/auth/me")
+    resp = client.get("/api/beta/shared/auth/me")
     assert resp.status_code in (401, 403), (
         f"GET /api/auth/me returned {resp.status_code} — expected 401/403"
     )
@@ -78,21 +79,25 @@ def test_auth_me_requires_auth(client):
 
 def test_auth_login_endpoint_exists(client):
     """POST /api/auth/login must be mounted (returns 4xx, not 404)."""
-    resp = client.post("/api/auth/login", json={"email": "x@x.com", "password": "wrong"})
+    resp = client.post(
+        "/api/beta/shared/auth/login",
+        json={"email": "x@x.com", "password": "wrong"},
+    )
     assert resp.status_code != 404, "POST /api/auth/login is not mounted"
 
 
 def test_auth_register_endpoint_exists(client):
     """POST /api/auth/register must be mounted (returns 4xx, not 404)."""
     resp = client.post(
-        "/api/auth/register", json={"email": "x@x.com", "password": "pw", "name": "X"}
+        "/api/beta/shared/auth/register",
+        json={"email": "x@x.com", "password": "pw", "name": "X"},
     )
     assert resp.status_code != 404, "POST /api/auth/register is not mounted"
 
 
 def test_auth_me_with_valid_token(client):
     """/api/auth/me with a valid token must not 404 or 500."""
-    resp = client.get("/api/auth/me", headers=admin_headers())
+    resp = client.get("/api/beta/shared/auth/me", headers=admin_headers())
     assert resp.status_code not in (404, 500), (
         f"GET /api/auth/me with valid token returned unexpected {resp.status_code}"
     )

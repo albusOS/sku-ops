@@ -63,7 +63,7 @@ function buildWsUrl(token) {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     wsBase = `${proto}//${location.host}`;
   }
-  return `${wsBase}/api/ws?token=${encodeURIComponent(token)}`;
+  return `${wsBase}/api/beta/shared/ws?token=${encodeURIComponent(token)}`;
 }
 
 export function useRealtimeSync() {

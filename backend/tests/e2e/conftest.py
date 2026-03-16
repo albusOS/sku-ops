@@ -31,7 +31,9 @@ def _seed_contractor(app_client: TestClient) -> str:
 
     async def _insert():
         conn = get_connection()
-        cursor = await conn.execute("SELECT id FROM users WHERE id = ?", ("contractor-1",))
+        cursor = await conn.execute(
+            "SELECT id FROM users WHERE id = ?", ("contractor-1",)
+        )
         if await cursor.fetchone():
             return
         await conn.execute(
@@ -60,18 +62,24 @@ def _seed_dept(client: TestClient, headers: dict) -> str:
 
     Idempotent — if the department already exists, returns its ID.
     """
-    resp = client.get("/api/departments", headers=headers)
+    resp = client.get("/api/beta/catalog/departments", headers=headers)
     if resp.status_code == 200:
         for dept in resp.json():
             if dept.get("code") == "HDW":
                 return dept["id"]
 
     resp = client.post(
-        "/api/departments",
-        json={"name": "Hardware", "code": "HDW", "description": "Hardware dept"},
+        "/api/beta/catalog/departments",
+        json={
+            "name": "Hardware",
+            "code": "HDW",
+            "description": "Hardware dept",
+        },
         headers=headers,
     )
-    assert resp.status_code == 200, f"Department seed failed: {resp.status_code} {resp.text}"
+    assert resp.status_code == 200, (
+        f"Department seed failed: {resp.status_code} {resp.text}"
+    )
     return resp.json()["id"]
 
 
@@ -121,7 +129,7 @@ def contractor_auth():
 
 
 class WSEventCollector:
-    """Connects to /api/ws and records all events in a background thread.
+    """Connects to /api/beta/shared/ws and records all events in a background thread.
 
     Uses anyio timed receives through the TestClient portal so the reader
     thread can be cleanly stopped without blocking indefinitely.
@@ -136,7 +144,9 @@ class WSEventCollector:
 
     def start(self, client: TestClient, token: str | None = None) -> None:
         token = token or admin_token()
-        self._ws = client.websocket_connect(f"/api/ws?token={token}")
+        self._ws = client.websocket_connect(
+            f"/api/beta/shared/ws?token={token}"
+        )
         self._ws.__enter__()
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()

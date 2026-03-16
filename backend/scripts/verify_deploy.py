@@ -80,7 +80,11 @@ def check_config_guards() -> None:
         ),
         (
             "Production rejects SQLite DATABASE_URL",
-            {"ENV": "production", "JWT_SECRET": "a" * 32, "CORS_ORIGINS": "https://x.com"},
+            {
+                "ENV": "production",
+                "JWT_SECRET": "a" * 32,
+                "CORS_ORIGINS": "https://x.com",
+            },
             "DATABASE_URL",
             True,
         ),
@@ -94,7 +98,8 @@ def check_config_guards() -> None:
 
     for label, env, missing_var, should_raise in cases:
         merged = dict.fromkeys(
-            ["ENV", "DATABASE_URL", "JWT_SECRET", "CORS_ORIGINS", "REDIS_URL"], ""
+            ["ENV", "DATABASE_URL", "JWT_SECRET", "CORS_ORIGINS", "REDIS_URL"],
+            "",
         )
         merged.update(env)
         if missing_var:
@@ -119,9 +124,14 @@ def check_config_guards() -> None:
         if (should_raise and raised) or (not should_raise and not raised):
             _ok(label)
         elif should_raise and not raised:
-            _fail(label, "Expected RuntimeError but config loaded without error")
+            _fail(
+                label, "Expected RuntimeError but config loaded without error"
+            )
         else:
-            _fail(label, f"Unexpected RuntimeError:\n       {result.stderr.strip()[-300:]}")
+            _fail(
+                label,
+                f"Unexpected RuntimeError:\n       {result.stderr.strip()[-300:]}",
+            )
 
 
 def check_supabase_jwt_shape() -> None:
@@ -151,18 +161,36 @@ def check_supabase_jwt_shape() -> None:
 
     try:
         payload = jwt.decode(
-            token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         role = _extract_role(payload)
-        name = payload.get("name") or (payload.get("user_metadata") or {}).get("name") or ""
+        name = (
+            payload.get("name")
+            or (payload.get("user_metadata") or {}).get("name")
+            or ""
+        )
         user_id = payload.get("user_id") or payload.get("sub")
 
         assert role == "admin", f"Expected role='admin', got {role!r}"
         assert name == "Test Admin", f"Expected name='Test Admin', got {name!r}"
-        assert user_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", f"Wrong user_id: {user_id!r}"
-        _ok("Supabase token: role extracted from app_metadata.role", f"role={role!r}")
-        _ok("Supabase token: name extracted from user_metadata.name", f"name={name!r}")
-        _ok("Supabase token: user_id taken from sub claim", f"sub={user_id[:8]}...")
+        assert user_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", (
+            f"Wrong user_id: {user_id!r}"
+        )
+        _ok(
+            "Supabase token: role extracted from app_metadata.role",
+            f"role={role!r}",
+        )
+        _ok(
+            "Supabase token: name extracted from user_metadata.name",
+            f"name={name!r}",
+        )
+        _ok(
+            "Supabase token: user_id taken from sub claim",
+            f"sub={user_id[:8]}...",
+        )
     except Exception as e:
         _fail("Supabase token decode failed", str(e))
 
@@ -175,10 +203,15 @@ def check_supabase_jwt_shape() -> None:
         "role": "authenticated",
         "exp": int(time.time()) + 3600,
     }
-    no_role_token = jwt.encode(no_role_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    no_role_token = jwt.encode(
+        no_role_payload, JWT_SECRET, algorithm=JWT_ALGORITHM
+    )
     try:
         payload = jwt.decode(
-            no_role_token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            no_role_token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         _extract_role(payload)
         _fail("Token missing role: should raise 401 but did not")
@@ -198,7 +231,10 @@ def check_supabase_jwt_shape() -> None:
     dev_token = jwt.encode(dev_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     try:
         payload = jwt.decode(
-            dev_token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            dev_token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         role = _extract_role(payload)
         assert role == "admin"
@@ -208,10 +244,15 @@ def check_supabase_jwt_shape() -> None:
 
     # Case 4: Expired token → must 401
     expired_payload = {**supabase_payload, "exp": int(time.time()) - 10}
-    expired_token = jwt.encode(expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    expired_token = jwt.encode(
+        expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM
+    )
     try:
         jwt.decode(
-            expired_token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_aud": False}
+            expired_token,
+            JWT_SECRET,
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_aud": False},
         )
         _fail("Expired token: should raise ExpiredSignatureError but did not")
     except jwt.ExpiredSignatureError:
@@ -230,7 +271,10 @@ def check_cors_config() -> None:
     if CORS_ORIGINS == "*":
         _warn("CORS_ORIGINS is '*' (dev default — must be set in production)")
     else:
-        _ok(f"CORS_ORIGINS parsed into {len(origins)} origin(s)", ", ".join(origins))
+        _ok(
+            f"CORS_ORIGINS parsed into {len(origins)} origin(s)",
+            ", ".join(origins),
+        )
 
     # Simulate what server.py does: CORS_ORIGINS.split(",")
     test_cases = [
@@ -264,11 +308,14 @@ def check_websocket_routes() -> None:
         from server import app
 
         ws_paths = {r.path for r in app.routes if isinstance(r, WebSocketRoute)}
-        for expected in ("/api/ws", "/api/ws/chat"):
+        for expected in ("/api/beta/shared/ws", "/api/beta/assistant/ws/chat"):
             if expected in ws_paths:
                 _ok(f"WebSocket route mounted: {expected}")
             else:
-                _fail(f"WebSocket route NOT mounted: {expected}", "Check routes.py")
+                _fail(
+                    f"WebSocket route NOT mounted: {expected}",
+                    "Check routes.py",
+                )
     except Exception as e:
         _fail("Could not import server app", str(e))
 
@@ -295,9 +342,13 @@ def check_production_flags() -> None:
         from shared.infrastructure.config import ALLOW_PUBLIC_AUTH, ALLOW_RESET
 
         if not ALLOW_PUBLIC_AUTH:
-            _ok("ALLOW_PUBLIC_AUTH=False in production (login/register endpoints disabled)")
+            _ok(
+                "ALLOW_PUBLIC_AUTH=False in production (login/register endpoints disabled)"
+            )
         elif os.environ.get("ALLOW_PUBLIC_AUTH", "").lower() in ("1", "true"):
-            _ok("ALLOW_PUBLIC_AUTH=True explicitly set (local auth mode, no Supabase)")
+            _ok(
+                "ALLOW_PUBLIC_AUTH=True explicitly set (local auth mode, no Supabase)"
+            )
         else:
             _fail(
                 "ALLOW_PUBLIC_AUTH=True in production",
@@ -305,11 +356,16 @@ def check_production_flags() -> None:
             )
 
         if not ALLOW_RESET:
-            _ok("ALLOW_RESET=False in production (seed/reset endpoints disabled)")
+            _ok(
+                "ALLOW_RESET=False in production (seed/reset endpoints disabled)"
+            )
         elif os.environ.get("ALLOW_RESET", "").lower() in ("1", "true"):
             _warn("ALLOW_RESET=True explicitly set — disable after seeding")
         else:
-            _fail("ALLOW_RESET=True in production", "Reset endpoint should not be reachable")
+            _fail(
+                "ALLOW_RESET=True in production",
+                "Reset endpoint should not be reachable",
+            )
 
         os.environ["ENV"] = orig_env
         if "shared.infrastructure.config" in sys.modules:
@@ -323,7 +379,9 @@ def check_frontend_build() -> None:
     """Verify the frontend builds cleanly with production-style VITE_* vars set."""
     _section("Frontend build (Vite with VITE_* env vars)")
 
-    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+    frontend_dir = os.path.join(
+        os.path.dirname(__file__), "..", "..", "frontend"
+    )
     frontend_dir = os.path.realpath(frontend_dir)
 
     if not os.path.isdir(frontend_dir):
@@ -361,22 +419,31 @@ def check_live_server(base_url: str) -> None:
 
     # /health
     try:
-        with urllib.request.urlopen(f"{base}/api/health", timeout=10) as resp:  # noqa: S310
+        with urllib.request.urlopen(
+            f"{base}/api/beta/shared/health", timeout=10
+        ) as resp:
             import json
 
             data = json.loads(resp.read())
             env = data.get("env", "unknown")
             version = data.get("version", "?")
-            _ok("/api/health returns 200", f"env={env}, version={version}")
+            _ok(
+                "/api/beta/shared/health returns 200",
+                f"env={env}, version={version}",
+            )
             if env == "development":
-                _warn("Server reports env=development — expected production or staging")
+                _warn(
+                    "Server reports env=development — expected production or staging"
+                )
     except Exception as e:
-        _fail("/api/health unreachable", str(e))
+        _fail("/api/beta/shared/health unreachable", str(e))
         return
 
     # /ready
     try:
-        with urllib.request.urlopen(f"{base}/api/ready", timeout=10) as resp:  # noqa: S310
+        with urllib.request.urlopen(
+            f"{base}/api/beta/shared/ready", timeout=10
+        ) as resp:
             import json
 
             data = json.loads(resp.read())
@@ -392,7 +459,10 @@ def check_live_server(base_url: str) -> None:
                 elif status == "unconfigured":
                     _warn(f"/api/ready check: {name}", f"{status} (optional)")
                 else:
-                    _fail(f"/api/ready check: {name}", f"{status} — {check.get('error', '')}")
+                    _fail(
+                        f"/api/ready check: {name}",
+                        f"{status} — {check.get('error', '')}",
+                    )
     except urllib.error.HTTPError as e:
         import json
 
@@ -401,7 +471,10 @@ def check_live_server(base_url: str) -> None:
             for name, check in data.get("checks", {}).items():
                 status = check.get("status", "?")
                 if status != "ok":
-                    _fail(f"/api/ready check: {name}", f"{status} — {check.get('error', '')}")
+                    _fail(
+                        f"/api/ready check: {name}",
+                        f"{status} — {check.get('error', '')}",
+                    )
         except Exception:
             _fail("/api/ready returned non-200", str(e))
     except Exception as e:
@@ -438,7 +511,9 @@ def main() -> None:
 
     # Add backend to path so imports work
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    sys.path.insert(
+        0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    )
 
     check_config_guards()
     check_supabase_jwt_shape()
@@ -461,11 +536,17 @@ def main() -> None:
         print(f"{_GREEN}{_BOLD}All checks passed.{_RESET} Ready to deploy.\n")
         sys.exit(0)
     elif not _failures:
-        print(f"{_YELLOW}{_BOLD}{len(_warnings)} warning(s), 0 failures.{_RESET}")
-        print("Warnings are non-blocking but worth reviewing before going live.\n")
+        print(
+            f"{_YELLOW}{_BOLD}{len(_warnings)} warning(s), 0 failures.{_RESET}"
+        )
+        print(
+            "Warnings are non-blocking but worth reviewing before going live.\n"
+        )
         sys.exit(0)
     else:
-        print(f"{_RED}{_BOLD}{len(_failures)} failure(s){_RESET}, {len(_warnings)} warning(s).")
+        print(
+            f"{_RED}{_BOLD}{len(_failures)} failure(s){_RESET}, {len(_warnings)} warning(s)."
+        )
         print("\nFailed checks:")
         for f in _failures:
             print(f"  {_RED}✗{_RESET}  {f}")

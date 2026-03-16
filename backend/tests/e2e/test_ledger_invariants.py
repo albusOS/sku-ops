@@ -12,7 +12,7 @@ from tests.helpers.auth import admin_headers
 
 def _query_ledger(client, headers):
     """Fetch all ledger entries via the trial balance endpoint."""
-    resp = client.get("/api/dashboard/stats", headers=headers)
+    resp = client.get("/api/beta/reports/dashboard/stats", headers=headers)
     assert resp.status_code == 200
     return resp.json()
 
@@ -40,12 +40,14 @@ class TestLedgerInvariants:
         wd_cost = wd["cost_total"]
 
         stats = _query_ledger(client, headers)
-        assert stats["range_revenue"] >= wd_total - wd_cost  # at minimum this withdrawal
+        assert (
+            stats["range_revenue"] >= wd_total - wd_cost
+        )  # at minimum this withdrawal
         assert stats["range_cogs"] >= wd_cost
 
         # Phase 2: Partial return (3 of 10 items)
         resp = client.post(
-            "/api/returns",
+            "/api/beta/operations/returns",
             json={
                 "withdrawal_id": wd["id"],
                 "items": [
@@ -63,18 +65,22 @@ class TestLedgerInvariants:
 
         # Phase 3: Pay (mark-paid covers the net amount)
         resp = client.put(
-            f"/api/withdrawals/{wd['id']}/mark-paid",
+            f"/api/beta/operations/withdrawals/{wd['id']}/mark-paid",
             json={},
             headers=headers,
         )
         assert resp.status_code == 200
 
         # Verify final state
-        resp = client.get(f"/api/withdrawals/{wd['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers
+        )
         assert resp.json()["payment_status"] == "paid"
 
         # Stock should be 100 - 10 + 3 = 93
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.json()["quantity"] == 93
 
     def test_no_duplicate_ledger_entries(self, client, seed_dept_id):
@@ -120,26 +126,34 @@ class TestLedgerInvariants:
             name="LEDGER-Unpaid",
         )
 
-        w1 = create_withdrawal(client, headers, product, quantity=5, job_id="JOB-UP-1")
-        w2 = create_withdrawal(client, headers, product, quantity=3, job_id="JOB-UP-2")
+        w1 = create_withdrawal(
+            client, headers, product, quantity=5, job_id="JOB-UP-1"
+        )
+        w2 = create_withdrawal(
+            client, headers, product, quantity=3, job_id="JOB-UP-2"
+        )
 
         # Pay w1 only
         resp = client.put(
-            f"/api/withdrawals/{w1['id']}/mark-paid",
+            f"/api/beta/operations/withdrawals/{w1['id']}/mark-paid",
             json={},
             headers=headers,
         )
         assert resp.status_code == 200
 
         # w2 should still be unpaid
-        resp = client.get(f"/api/withdrawals/{w2['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/operations/withdrawals/{w2['id']}", headers=headers
+        )
         assert resp.json()["payment_status"] == "unpaid"
 
         stats = _query_ledger(client, headers)
         # Unpaid total should include at least w2's total
         assert stats.get("unpaid_total", 0) >= w2["total"]
 
-    def test_gross_profit_matches_revenue_minus_cogs(self, client, seed_dept_id):
+    def test_gross_profit_matches_revenue_minus_cogs(
+        self, client, seed_dept_id
+    ):
         """Gross profit = revenue - COGS, always."""
         headers = admin_headers()
         product = create_product(

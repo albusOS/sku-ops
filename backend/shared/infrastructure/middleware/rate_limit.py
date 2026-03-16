@@ -3,7 +3,7 @@
 nginx enforces:
   - General API:      60 req/min  (zone=api,  /api/)
   - Auth endpoints:   10 req/min  (zone=auth, /api/auth/)
-  - Chat endpoints:   20 req/min  (zone=chat, /api/ws/chat, /api/chat)
+  - Chat endpoints:   20 req/min  (zone=chat, /api/beta/assistant/ws/chat, /api/beta/assistant/chat)
 
 This module is kept as a stub so that any import references survive without
 error during the transition. Nothing here applies runtime limits.

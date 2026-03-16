@@ -53,7 +53,7 @@ function ConnectionSection({ settings }) {
   }, [settings?.xero_token_expiry]);
 
   const handleConnect = () => {
-    window.location.href = `${API}/xero/connect`;
+    window.location.href = `${API}/finance/xero/connect`;
   };
 
   const handleDisconnect = () => {

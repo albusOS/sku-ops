@@ -24,24 +24,32 @@ from tests.e2e.helpers import (
 from tests.helpers.auth import admin_headers
 
 _is_sqlite = "sqlite" in os.environ.get("DATABASE_URL", "sqlite")
-pytestmark = pytest.mark.skipif(_is_sqlite, reason="Requires Postgres for transaction isolation")
+pytestmark = pytest.mark.skipif(
+    _is_sqlite, reason="Requires Postgres for transaction isolation"
+)
 
 
 def _create_po_pending(client, headers, product, *, quantity=10):
     """Create a PO and mark delivery so items are PENDING (ready for receive)."""
-    po = create_po(client, headers, product, quantity=quantity, vendor_name="Race Vendor")
+    po = create_po(
+        client, headers, product, quantity=quantity, vendor_name="Race Vendor"
+    )
 
-    po_resp = client.get(f"/api/purchase-orders/{po['id']}", headers=headers)
+    po_resp = client.get(
+        f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers
+    )
     items = po_resp.json().get("items", [])
     ordered_ids = [i["id"] for i in items if i.get("status") == "ordered"]
     if ordered_ids:
         client.post(
-            f"/api/purchase-orders/{po['id']}/delivery",
+            f"/api/beta/purchasing/purchase-orders/{po['id']}/delivery",
             json={"item_ids": ordered_ids},
             headers=headers,
         )
 
-    po_resp = client.get(f"/api/purchase-orders/{po['id']}", headers=headers)
+    po_resp = client.get(
+        f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers
+    )
     items = po_resp.json().get("items", [])
     return po, items
 
@@ -54,17 +62,20 @@ def _attempt_receive(client, headers, po_id, items):
         if i.get("status") == "pending"
     ]
     resp = client.post(
-        f"/api/purchase-orders/{po_id}/receive",
+        f"/api/beta/purchasing/purchase-orders/{po_id}/receive",
         json={"items": pending_items},
         headers=headers,
     )
-    return resp.status_code, resp.json() if resp.status_code == 200 else resp.text
+    return (
+        resp.status_code,
+        resp.json() if resp.status_code == 200 else resp.text,
+    )
 
 
 def _attempt_commit(client, headers, count_id):
     """Attempt to commit a cycle count."""
     resp = client.post(
-        f"/api/cycle-counts/{count_id}/commit",
+        f"/api/beta/inventory/cycle-counts/{count_id}/commit",
         json={},
         headers=headers,
     )
@@ -74,17 +85,20 @@ def _attempt_commit(client, headers, count_id):
 def _attempt_create_invoice(client, headers, withdrawal_ids):
     """Attempt to create an invoice from withdrawals."""
     resp = client.post(
-        "/api/invoices",
+        "/api/beta/finance/invoices",
         json={"withdrawal_ids": withdrawal_ids},
         headers=headers,
     )
-    return resp.status_code, resp.json() if resp.status_code == 200 else resp.text
+    return (
+        resp.status_code,
+        resp.json() if resp.status_code == 200 else resp.text,
+    )
 
 
 def _attempt_mark_paid(client, headers, withdrawal_id):
     """Attempt to mark a withdrawal paid."""
     resp = client.put(
-        f"/api/withdrawals/{withdrawal_id}/mark-paid",
+        f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid",
         json={},
         headers=headers,
     )
@@ -124,7 +138,11 @@ class TestConcurrencyExtended:
         """Two concurrent receives of the same PO item must not double-count stock."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, name="CC-PO-Race"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            name="CC-PO-Race",
         )
 
         po, items = _create_po_pending(client, headers, product, quantity=50)
@@ -135,29 +153,43 @@ class TestConcurrencyExtended:
 
             [f.result() for f in as_completed([f1, f2])]
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         final_qty = resp.json()["quantity"]
 
         assert final_qty == pytest.approx(150.0), (
             f"Stock should be 100 + 50 = 150 (not 200). Got {final_qty}"
         )
 
-    def test_concurrent_cycle_count_commit_no_double_adjust(self, client, seed_dept_id):
+    def test_concurrent_cycle_count_commit_no_double_adjust(
+        self, client, seed_dept_id
+    ):
         """Two concurrent commits of the same cycle count must not double-apply variances."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, name="CC-CycleRace"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            name="CC-CycleRace",
         )
 
         count = open_cycle_count(client, headers)
         count_id = count["id"]
 
-        detail_resp = client.get(f"/api/cycle-counts/{count_id}", headers=headers)
+        detail_resp = client.get(
+            f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers
+        )
         items = detail_resp.json().get("items", [])
-        target_item = next((i for i in items if i["product_id"] == product["id"]), None)
+        target_item = next(
+            (i for i in items if i["product_id"] == product["id"]), None
+        )
         assert target_item is not None, "Product should be in cycle count"
 
-        update_cycle_count_item(client, headers, count_id, target_item["id"], counted_qty=90)
+        update_cycle_count_item(
+            client, headers, count_id, target_item["id"], counted_qty=90
+        )
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             f1 = pool.submit(_attempt_commit, client, headers, count_id)
@@ -166,19 +198,29 @@ class TestConcurrencyExtended:
             statuses = [f.result() for f in as_completed([f1, f2])]
 
         successes = sum(1 for s in statuses if s == 200)
-        assert successes <= 1, f"At most one commit should succeed, got {successes}"
+        assert successes <= 1, (
+            f"At most one commit should succeed, got {successes}"
+        )
 
-        resp = client.get(f"/api/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         final_qty = resp.json()["quantity"]
         assert final_qty == pytest.approx(90.0), (
             f"Stock should be 90 (adjusted once by -10), got {final_qty}"
         )
 
-    def test_concurrent_mark_paid_single_ledger_entry(self, client, seed_dept_id):
+    def test_concurrent_mark_paid_single_ledger_entry(
+        self, client, seed_dept_id
+    ):
         """Two concurrent mark-paid calls must produce exactly one AR ledger entry."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=50, name="CC-LedgerRace"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=50,
+            name="CC-LedgerRace",
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
 
@@ -191,25 +233,39 @@ class TestConcurrencyExtended:
         successes = [s for s in statuses if s == 200]
         assert len(successes) >= 1, "At least one mark-paid should succeed"
 
-        resp = client.get(f"/api/withdrawals/{wd['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers
+        )
         assert resp.json()["payment_status"] == "paid"
 
         count, _total = _query_ledger_entries(
             client, wd["id"], "accounts_receivable", reference_type="payment"
         )
-        assert count == 1, f"Expected exactly 1 AR ledger entry for payment, got {count}"
+        assert count == 1, (
+            f"Expected exactly 1 AR ledger entry for payment, got {count}"
+        )
 
-    def test_concurrent_invoice_creation_same_withdrawal(self, client, seed_dept_id):
+    def test_concurrent_invoice_creation_same_withdrawal(
+        self, client, seed_dept_id
+    ):
         """Two concurrent invoice creations from the same withdrawal: exactly one succeeds."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=50, name="CC-InvRace"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=50,
+            name="CC-InvRace",
         )
         wd = create_withdrawal(client, headers, product, quantity=5)
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f1 = pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
-            f2 = pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
+            f1 = pool.submit(
+                _attempt_create_invoice, client, headers, [wd["id"]]
+            )
+            f2 = pool.submit(
+                _attempt_create_invoice, client, headers, [wd["id"]]
+            )
 
             results = [f.result() for f in as_completed([f1, f2])]
 
@@ -218,8 +274,12 @@ class TestConcurrencyExtended:
             f"Exactly one invoice creation should succeed, got {len(successes)}"
         )
 
-        resp = client.get("/api/invoices", headers=headers)
-        invoices = [inv for inv in resp.json() if wd["id"] in inv.get("withdrawal_ids", [])]
+        resp = client.get("/api/beta/finance/invoices", headers=headers)
+        invoices = [
+            inv
+            for inv in resp.json()
+            if wd["id"] in inv.get("withdrawal_ids", [])
+        ]
         assert len(invoices) <= 1, (
             f"Withdrawal should be on at most 1 invoice, found {len(invoices)}"
         )
