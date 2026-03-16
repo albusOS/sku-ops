@@ -52,6 +52,7 @@ class LineItem(BaseModel):
             sku = data.get("sku")
             data["sku"] = "" if sku is None else str(sku)
         return data
+
     quantity: float
     unit_price: float = Field(
         default=0.0,
