@@ -114,19 +114,6 @@ async def find_by_sku_and_vendor(sku_id: str, vendor_id: str) -> VendorItem | No
     return _row_to_model(row)
 
 
-async def find_preferred_for_sku(sku_id: str) -> VendorItem | None:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT * FROM vendor_items
-           WHERE sku_id = $1 AND is_preferred = 1
-           AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL""",
-        (sku_id, org_id),
-    )
-    row = await cursor.fetchone()
-    return _row_to_model(row)
-
-
 async def update(item_id: str, updates: dict) -> VendorItem | None:
     conn = get_connection()
     org_id = get_org_id()
@@ -189,7 +176,7 @@ async def clear_preferred_for_sku(sku_id: str) -> None:
     conn = get_connection()
     org_id = get_org_id()
     await conn.execute(
-        "UPDATE vendor_items SET is_preferred = 0 WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
         (sku_id, org_id),
     )
 
@@ -201,7 +188,6 @@ class VendorItemRepo:
     list_by_vendor = staticmethod(list_by_vendor)
     find_by_vendor_and_vendor_sku = staticmethod(find_by_vendor_and_vendor_sku)
     find_by_sku_and_vendor = staticmethod(find_by_sku_and_vendor)
-    find_preferred_for_sku = staticmethod(find_preferred_for_sku)
     update = staticmethod(update)
     soft_delete = staticmethod(soft_delete)
     soft_delete_by_sku = staticmethod(soft_delete_by_sku)

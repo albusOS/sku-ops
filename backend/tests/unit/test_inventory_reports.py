@@ -30,6 +30,7 @@ async def test_product_performance_report_handles_mixed_numeric_types(monkeypatc
                 category_name="Hardware",
                 quantity=3.5,
                 cost=4.25,
+                base_unit="each",
             )
         ]
 

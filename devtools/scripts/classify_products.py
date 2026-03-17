@@ -141,17 +141,20 @@ def build_department_prompt(dept_name: str, products: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def classify_department(
+CHUNK_SIZE = 50  # Max products per API call to avoid output truncation
+
+
+def classify_batch(
     client: anthropic.Anthropic,
     dept_name: str,
     products: list[dict],
 ) -> list[dict]:
-    """Send one department batch to Claude and parse the classification."""
+    """Send one batch to Claude and parse the classification."""
     user_prompt = build_department_prompt(dept_name, products)
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=8192,
+        max_tokens=16384,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )
@@ -170,7 +173,6 @@ def classify_department(
     except json.JSONDecodeError as e:
         print(f"  !! JSON parse error for {dept_name}: {e}")
         print(f"  !! Raw response (first 500 chars): {text[:500]}")
-        # Return empty classifications — we'll flag these for manual review
         return [{"error": "parse_failed"} for _ in products]
 
     if len(classifications) != len(products):
@@ -180,6 +182,27 @@ def classify_department(
         )
 
     return classifications
+
+
+def classify_department(
+    client: anthropic.Anthropic,
+    dept_name: str,
+    products: list[dict],
+) -> list[dict]:
+    """Classify a department, chunking large ones to avoid output truncation."""
+    if len(products) <= CHUNK_SIZE:
+        return classify_batch(client, dept_name, products)
+
+    # Chunk large departments
+    all_results: list[dict] = []
+    chunks = [products[i : i + CHUNK_SIZE] for i in range(0, len(products), CHUNK_SIZE)]
+    for ci, chunk in enumerate(chunks, 1):
+        print(f"chunk {ci}/{len(chunks)} ({len(chunk)})...", end=" ", flush=True)
+        results = classify_batch(client, dept_name, chunk)
+        all_results.extend(results)
+        if ci < len(chunks):
+            time.sleep(0.5)  # Brief pause between chunks
+    return all_results
 
 
 # ── Merge classifications back into product data ─────────────────────────────
@@ -285,6 +308,11 @@ def main():
     )
     parser.add_argument("--stats", action="store_true", help="Show stats from existing output file")
     parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Re-classify only products that failed in a previous run",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=OUTPUT_PATH,
@@ -307,6 +335,84 @@ def main():
         print("Error: ANTHROPIC_API_KEY not set")
         sys.exit(1)
 
+    # Retry-failed mode: re-classify only failed products from previous run
+    if args.retry_failed:
+        if not args.output.exists():
+            print(f"No existing file at {args.output} to retry from")
+            sys.exit(1)
+
+        existing = json.loads(args.output.read_text())
+        failed_rows: set[int] = set()
+        ok_products: list[dict] = []
+        failed_products: list[dict] = []
+
+        for p in existing["products"]:
+            if p.get("_review") in ("parse_failed", "api_error"):
+                failed_rows.add(p["row"])
+                # Reconstruct source product from the classified entry
+                failed_products.append(p)
+            else:
+                ok_products.append(p)
+
+        print(f"Found {len(failed_products)} failed products to retry, {len(ok_products)} OK\n")
+
+        if not failed_products:
+            print("Nothing to retry!")
+            return
+
+        by_dept = group_by_department(failed_products)
+        client = anthropic.Anthropic(api_key=api_key)
+        reclassified: list[dict] = []
+        errors: list[str] = []
+
+        for dept_name, dept_products in by_dept.items():
+            n = len(dept_products)
+            print(f"  {dept_name} ({n} products)...", end=" ", flush=True)
+            t0 = time.time()
+
+            try:
+                classifications = classify_department(client, dept_name, dept_products)
+                for product, cls in zip(dept_products, classifications, strict=False):
+                    if cls.get("error"):
+                        merged = merge_classification(product, {})
+                        merged["_review"] = "parse_failed"
+                        reclassified.append(merged)
+                        errors.append(f"Row {product['row']}: {product['name']} — still failed")
+                    else:
+                        reclassified.append(merge_classification(product, cls))
+
+                elapsed = time.time() - t0
+                print(f"done ({elapsed:.1f}s)")
+            except Exception as e:
+                print(f"ERROR: {e}")
+                for product in dept_products:
+                    merged = merge_classification(product, {})
+                    merged["_review"] = "api_error"
+                    reclassified.append(merged)
+                errors.append(f"{dept_name}: API error — {e}")
+
+        # Merge back: ok_products + reclassified, sorted by row
+        all_products = ok_products + reclassified
+        all_products.sort(key=lambda p: p["row"])
+
+        output = {
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "total_products": len(all_products),
+            "departments": existing["departments"],
+            "products": all_products,
+        }
+        args.output.write_text(json.dumps(output, indent=2, ensure_ascii=False))
+        print(f"\nWrote {args.output}")
+
+        if errors:
+            print(f"\nErrors ({len(errors)}):")
+            for err in errors:
+                print(f"  {err}")
+
+        print_stats(output)
+        return
+
+    # Full classification mode
     xlsx_path = DATA_DIR / "Products 2.xlsx"
     if not xlsx_path.exists():
         print(f"Error: {xlsx_path} not found")
@@ -341,7 +447,6 @@ def main():
 
             for product, cls in zip(dept_products, classifications, strict=False):
                 if cls.get("error"):
-                    # Fallback: product becomes its own family
                     merged = merge_classification(product, {})
                     merged["_review"] = "parse_failed"
                     all_classified.append(merged)
@@ -354,7 +459,6 @@ def main():
 
         except Exception as e:
             print(f"ERROR: {e}")
-            # On total failure, keep products as solo families
             for product in dept_products:
                 merged = merge_classification(product, {})
                 merged["_review"] = "api_error"

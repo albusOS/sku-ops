@@ -1,10 +1,23 @@
 """Shared helper functions for E2E tests."""
 
+import uuid
+
+
+def _unique_suffix() -> str:
+    return uuid.uuid4().hex[:8]
+
 
 def create_product(client, headers, *, dept_id: str, **overrides) -> dict:
-    """Create a product via the API. Returns the JSON body."""
+    """Create a product via the API. Returns the JSON body.
+
+    Appends a random suffix to the name so SKU slugs and barcodes
+    never collide across tests in the session-scoped e2e suite.
+    """
+    suffix = _unique_suffix()
+    base_name = overrides.pop("name", "E2E Test Widget")
     data = {
-        "name": "E2E Test Widget",
+        "name": f"{base_name} {suffix}",
+        "barcode": f"E2E-{suffix}",
         "price": 10.00,
         "cost": 5.00,
         "quantity": 100,

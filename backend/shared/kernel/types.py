@@ -84,12 +84,6 @@ class Address(BaseModel):
     postal_code: str = ""
     country: str = "US"
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def display(self) -> str:
-        parts = [p for p in [self.line1, self.line2, self.city, self.state, self.postal_code] if p]
-        return ", ".join(parts)
-
 
 class CurrentUser(BaseModel):
     """Authenticated user context threaded through every request.

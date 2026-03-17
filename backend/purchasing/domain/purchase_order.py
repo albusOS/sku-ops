@@ -7,7 +7,6 @@ Status enums and transition rules live here — no free-form strings.
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import ClassVar
 
 from pydantic import BaseModel, field_validator
 
@@ -45,15 +44,6 @@ class PurchaseOrder(AuditedEntity):
     received_by_id: str | None = None
     received_by_name: str | None = None
 
-    ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
-        "ordered": {"partial", "received"},
-        "partial": {"received"},
-        "received": set(),
-    }
-
-    def can_transition_to(self, target: str) -> bool:
-        return target in self.ALLOWED_TRANSITIONS.get(self.status.value, set())
-
 
 class PurchaseOrderItem(Entity):
     po_id: str
@@ -71,15 +61,6 @@ class PurchaseOrderItem(Entity):
     suggested_department: str = "HDW"
     status: POItemStatus = POItemStatus.ORDERED
     sku_id: str | None = None
-
-    ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
-        "ordered": {"pending"},
-        "pending": {"arrived"},
-        "arrived": set(),
-    }
-
-    def can_transition_to(self, target: str) -> bool:
-        return target in self.ALLOWED_TRANSITIONS.get(self.status.value, set())
 
 
 # ── Request DTOs ───────────────────────────────────────────────────────────────

@@ -402,8 +402,8 @@ def test_receive_sku_id_override_matches_explicit(call):
     """When the review modal sets sku_id, it should be used instead of auto-match."""
 
     async def _body():
-        product_a = await _create_test_product(name="Widget A", quantity=50.0, cost=10.0)
-        product_b = await _create_test_product(name="Widget B", quantity=30.0, cost=12.0)
+        product_a = await _create_test_product(name="Alpha Widget", quantity=50.0, cost=10.0)
+        product_b = await _create_test_product(name="Bravo Widget", quantity=30.0, cost=12.0)
         po, item = await _create_po_with_item(
             sku_id=product_a.id,
             cost=8.0,

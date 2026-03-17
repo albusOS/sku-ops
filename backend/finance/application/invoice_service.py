@@ -309,7 +309,7 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:
         return None
-    if inv.status != InvoiceStatus.DRAFT:
+    if not inv.can_transition_to(InvoiceStatus.APPROVED):
         raise ValueError(f"Cannot approve invoice in '{inv.status}' status")
 
     now = datetime.now(UTC).isoformat()

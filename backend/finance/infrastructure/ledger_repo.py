@@ -65,18 +65,3 @@ async def get_journal(journal_id: str) -> list[dict]:
         [journal_id, org_id],
     )
     return [dict(r) for r in await cursor.fetchall()]
-
-
-async def trial_balance() -> dict[str, float]:
-    """Sum all entries by account — should produce balanced totals."""
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT account, ROUND(CAST(SUM(amount) AS NUMERIC), 2) AS balance
-           FROM financial_ledger
-           WHERE organization_id = $1
-           GROUP BY account
-           ORDER BY account""",
-        (org_id,),
-    )
-    return {row[0]: float(row[1]) for row in await cursor.fetchall()}
