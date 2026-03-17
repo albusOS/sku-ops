@@ -41,11 +41,23 @@ def _synthesis_model_id() -> str:
 
 
 _DEFAULTS: dict[str, str] = {
+    # Unified orchestrator
     "agent:unified": _agent_model_id(),
+    # Specialist agents — default to the primary model but each can be overridden
+    # independently via MODEL_REGISTRY_AGENT_ANALYST / _TREND / _HEALTH / _PROCUREMENT.
+    "agent:analyst": _agent_model_id(),
+    "agent:trend": _agent_model_id(),
+    "agent:health": _agent_model_id(),
+    "agent:procurement": _agent_model_id(),
+    # Legacy task keys (kept for compatibility)
     "agent:inventory": _agent_model_id(),
     "agent:ops": _agent_model_id(),
     "agent:finance": _agent_model_id(),
+    # Infrastructure tasks
     "infra:synthesis": _synthesis_model_id(),
+    # Intent classifier — same cheap model as synthesis by default.
+    # Override with MODEL_REGISTRY_INFRA_CLASSIFIER if you want a different one.
+    "infra:classifier": _synthesis_model_id(),
 }
 
 

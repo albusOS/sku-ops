@@ -6,6 +6,7 @@ Consumers resolve tools by canonical name.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -58,16 +59,16 @@ async def run_tool(name: str, args: dict) -> str:
     """Execute a tool by canonical name. Used by DAG executor and assistant."""
     entry = _TOOLS.get(name)
     if not entry:
-        return f'{{"error": "unknown tool: {name}"}}'
+        return json.dumps({"error": f"unknown tool: {name}"})
     try:
         if entry.takes_args:
             result = await entry.fn(args)
         else:
             result = await entry.fn()
         return result if isinstance(result, str) else str(result)
-    except (ValueError, RuntimeError, OSError, KeyError) as e:
+    except Exception as e:
         logger.warning("Tool %s failed: %s", name, e)
-        return f'{{"error": "{e}"}}'
+        return json.dumps({"error": str(e)})
 
 
 def init_tools() -> None:

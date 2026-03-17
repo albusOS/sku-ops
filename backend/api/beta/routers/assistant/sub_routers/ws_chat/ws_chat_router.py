@@ -23,6 +23,7 @@ Protocol (server -> client):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import uuid
@@ -49,7 +50,7 @@ from assistant.agents.core.messages import (
 )
 from assistant.agents.core.model_registry import calc_cost, get_model_name
 from assistant.agents.core.tokens import compress_history_async
-from assistant.agents.core.validators import validate_response
+from assistant.agents.core.validators import classify_intent, validate_response
 from assistant.agents.health_analyst.agent import _get_agent as _get_health_agent
 from assistant.agents.procurement_analyst.agent import _get_agent as _get_procurement_agent
 from assistant.agents.trend_analyst.agent import _get_agent as _get_trend_agent
@@ -57,6 +58,7 @@ from assistant.agents.unified.agent import _get_agent
 from assistant.application import session_store
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
+from assistant.infrastructure.agent_run_repo import log_agent_run
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
@@ -254,9 +256,17 @@ async def ws_chat_endpoint(websocket: WebSocket):
         _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for t in pending:
             t.cancel()
-    except (RuntimeError, OSError):
+        # Await cancelled tasks so their finally-blocks run and no "task destroyed
+        # while pending" warnings are emitted. Shield the gather so an external
+        # CancelledError (e.g. from the test client or a server shutdown) doesn't
+        # prevent cleanup from completing.
+        if pending:
+            await asyncio.shield(asyncio.gather(*pending, return_exceptions=True))
+    except (RuntimeError, OSError, asyncio.CancelledError):
         for t in tasks:
             t.cancel()
+        with contextlib.suppress(Exception):
+            await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
     finally:
         chat_session_closed()
         logger.info("Chat WS closed: user=%s org=%s", user_id, org_id)
@@ -324,17 +334,22 @@ async def _handle_chat(
     specialist_agents = frozenset({"procurement", "trend", "health", "analyst"})
     route = requested_agent if requested_agent in specialist_agents else "unified"
 
-    history = await compress_task or history
+    compressed = await compress_task
+    # Treat an empty list from compression as a successful result (falsy check would
+    # incorrectly fall back to the uncompressed history when compression returns []).
+    history = compressed if compressed is not None else history
+
     assembled = await context_task
 
     context_block = assembled.format_for_agent()
-    if context_block:
-        history = [{"role": "system", "content": context_block}] + (history or [])
 
-    # Clean conversation turns for specialist history (no system context messages).
+    # Only store clean conversation turns (no system context messages) in history.
+    # System context is delivered to every agent via message enrichment, not history.
     clean_history = [h for h in (history or []) if h.get("role") != "system"]
     deps = AgentDeps(user_id=user_id, user_name=user_name, history=clean_history)
-    msg_history = build_message_history(history)
+    # All agents receive clean history — system context block is prepended to the
+    # user message instead so it never appears as a ModelResponse in the message list.
+    msg_history = build_message_history(clean_history)
 
     logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
 
@@ -347,37 +362,42 @@ async def _handle_chat(
 
     if route in specialist_agents:
         enriched = _enrich_specialist_message(user_message, context_block)
-        specialist_msg_history = build_message_history(clean_history)
         await _stream_agent(
             ws=ws,
             agent=_specialist_agent_map[route](),
             user_message=enriched,
             original_message=user_message,
-            msg_history=specialist_msg_history,
+            msg_history=msg_history,
             deps=deps,
             cancel_event=cancel_event,
             agent_label=route,
             session_id=session_id,
-            history=history,
+            history=clean_history,
             user_id=user_id,
         )
         return
 
     await _send(ws, {"type": "chat.status", "status": "thinking"})
 
+    # For the unified agent, prepend the context block to the user message so it
+    # reaches the model without polluting the persistent history as a system turn.
+    unified_message = _enrich_specialist_message(user_message, context_block)
     await _stream_agent(
         ws=ws,
         agent=_get_agent(),
-        user_message=user_message,
+        user_message=unified_message,
         original_message=user_message,
         msg_history=msg_history,
         deps=deps,
         cancel_event=cancel_event,
         agent_label="unified",
         session_id=session_id,
-        history=history,
+        history=clean_history,
         user_id=user_id,
     )
+
+
+_STREAM_TIMEOUT_SECONDS = 90  # hard ceiling on LLM stream; prevents hung-provider WebSocket leaks
 
 
 async def _stream_agent(
@@ -409,111 +429,174 @@ async def _stream_agent(
     )
 
     try:
-        async for event in agent.run_stream_events(
-            user_message,
-            message_history=msg_history,
-            deps=deps,
-        ):
-            if cancel_event.is_set():
-                logger.info("Chat stream cancelled: user=%s session=%s", user_id, session_id)
-                break
+        async with asyncio.timeout(_STREAM_TIMEOUT_SECONDS):
+            async for event in agent.run_stream_events(
+                user_message,
+                message_history=msg_history,
+                deps=deps,
+            ):
+                if cancel_event.is_set():
+                    logger.info("Chat stream cancelled: user=%s session=%s", user_id, session_id)
+                    break
 
-            if isinstance(event, PartStartEvent):
-                if isinstance(event.part, ToolCallPart):
-                    tool_name = event.part.tool_name
-                    tool_calls_seen.append({"tool": tool_name})
-                    await _send(ws, {"type": "chat.tool_start", "tool": tool_name})
-                elif isinstance(event.part, TextPart):
-                    if event.part.content:
-                        full_text += event.part.content
-                        await _send(ws, {"type": "chat.delta", "content": event.part.content})
+                if isinstance(event, PartStartEvent):
+                    if isinstance(event.part, ToolCallPart):
+                        tool_name = event.part.tool_name
+                        tool_calls_seen.append({"tool": tool_name})
+                        await _send(ws, {"type": "chat.tool_start", "tool": tool_name})
+                    elif isinstance(event.part, TextPart):
+                        if event.part.content:
+                            full_text += event.part.content
+                            await _send(ws, {"type": "chat.delta", "content": event.part.content})
 
-            elif isinstance(event, PartDeltaEvent):
-                if isinstance(event.delta, TextPartDelta):
-                    chunk = event.delta.content_delta
-                    if chunk:
-                        full_text += chunk
-                        await _send(ws, {"type": "chat.delta", "content": chunk})
+                elif isinstance(event, PartDeltaEvent):
+                    if isinstance(event.delta, TextPartDelta):
+                        chunk = event.delta.content_delta
+                        if chunk:
+                            full_text += chunk
+                            await _send(ws, {"type": "chat.delta", "content": chunk})
 
-            elif isinstance(event, FinalResultEvent):
-                pass
+                elif isinstance(event, FinalResultEvent):
+                    pass
 
-            elif isinstance(event, AgentRunResultEvent):
-                result = event.result
-                response_text = (
-                    result.output if isinstance(result.output, str) else str(result.output)
-                )
-
-                if not full_text:
-                    full_text = response_text
-
-                model_name = get_model_name(f"agent:{agent_label}")
-                usage = result.usage()
-                cost = calc_cost(model_name, usage)
-
-                all_msgs = result.all_messages()
-                tool_calls_final = extract_tool_calls(all_msgs)
-                tool_calls_det = extract_tool_calls_detailed(all_msgs)
-                text_history = extract_text_history(all_msgs)
-
-                validate_response(original_message, response_text, tool_calls_final, tool_calls_det)
-
-                turn_cost = cost
-                if text_history:
-                    new_history = text_history
-                else:
-                    new_history = list(history or [])
-                    new_history.append({"role": "user", "content": original_message})
-                    new_history.append({"role": "assistant", "content": full_text})
-
-                await session_store.update(session_id, new_history, cost_usd=turn_cost)
-
-                if len(new_history) % 8 == 0:
-                    schedule_memory_extraction(
-                        user_id=user_id,
-                        session_id=session_id,
-                        history=new_history,
+                elif isinstance(event, AgentRunResultEvent):
+                    result = event.result
+                    response_text = (
+                        result.output if isinstance(result.output, str) else str(result.output)
                     )
 
-                chat_message(agent_label, "success")
-                llm_usage(
-                    model=model_name,
-                    input_tokens=usage.input_tokens,
-                    output_tokens=usage.output_tokens,
-                    cost_usd=cost,
-                    agent=agent_label,
-                )
+                    if not full_text:
+                        full_text = response_text
 
-                logger.info(
-                    "Chat stream done: user=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
-                    user_id,
-                    session_id,
-                    agent_label,
-                    cost,
-                    usage.input_tokens,
-                    usage.output_tokens,
-                )
+                    model_name = get_model_name(f"agent:{agent_label}")
+                    usage = result.usage()
+                    cost = calc_cost(model_name, usage)
 
-                await _send(
-                    ws,
-                    {
-                        "type": "chat.done",
-                        "response": full_text,
-                        "agent": agent_label,
-                        "tool_calls": tool_calls_final,
-                        "thinking": [],
-                        "blocks": deps.blocks or [],
-                        "session_id": session_id,
-                        "usage": {
-                            "cost_usd": cost,
-                            "input_tokens": usage.input_tokens,
-                            "output_tokens": usage.output_tokens,
-                            "model": model_name,
-                            "session_cost_usd": await session_store.get_cost(session_id),
+                    all_msgs = result.all_messages()
+                    tool_calls_final = extract_tool_calls(all_msgs)
+                    tool_calls_det = extract_tool_calls_detailed(all_msgs)
+                    text_history = extract_text_history(all_msgs)
+
+                    intent = await classify_intent(original_message)
+                    validation = validate_response(
+                        original_message,
+                        response_text,
+                        tool_calls_final,
+                        tool_calls_det,
+                        intent=intent,
+                    )
+
+                    turn_cost = cost
+                    # Use PydanticAI-extracted history (clean user/assistant pairs only).
+                    # Fall back to manually appending to clean_history — never to the
+                    # raw history which may contain system context entries.
+                    if text_history:
+                        new_history = text_history
+                    else:
+                        new_history = list(history or [])
+                        new_history.append({"role": "user", "content": original_message})
+                        new_history.append({"role": "assistant", "content": full_text})
+
+                    await session_store.update(session_id, new_history, cost_usd=turn_cost)
+
+                    if len(new_history) % 8 == 0:
+                        schedule_memory_extraction(
+                            user_id=user_id,
+                            session_id=session_id,
+                            history=new_history,
+                        )
+
+                    chat_message(agent_label, "success")
+                    llm_usage(
+                        model=model_name,
+                        input_tokens=usage.input_tokens,
+                        output_tokens=usage.output_tokens,
+                        cost_usd=cost,
+                        agent=agent_label,
+                    )
+
+                    if not validation.passed:
+                        logger.warning(
+                            "Validation failures: session=%s agent=%s failures=%s scores=%s",
+                            session_id,
+                            agent_label,
+                            validation.failures,
+                            validation.scores,
+                        )
+
+                    logger.info(
+                        "Chat stream done: user=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
+                        user_id,
+                        session_id,
+                        agent_label,
+                        cost,
+                        usage.input_tokens,
+                        usage.output_tokens,
+                    )
+
+                    _snap_model = model_name
+                    _snap_text = full_text
+                    _snap_det = tool_calls_det
+                    _snap_usage = usage
+                    _snap_cost = cost
+                    _snap_val = validation
+
+                    async def _log_run(
+                        _m=_snap_model,
+                        _t=_snap_text,
+                        _d=_snap_det,
+                        _u=_snap_usage,
+                        _c=_snap_cost,
+                        _v=_snap_val,
+                    ):
+                        try:
+                            await log_agent_run(
+                                session_id=session_id,
+                                user_id=user_id,
+                                agent_name=agent_label,
+                                model=_m,
+                                mode="stream",
+                                user_message=original_message,
+                                response_text=_t,
+                                tool_calls=_d,
+                                input_tokens=_u.input_tokens,
+                                output_tokens=_u.output_tokens,
+                                cost_usd=_c,
+                                duration_ms=0,
+                                validation_passed=_v.passed,
+                                validation_failures=_v.failures,
+                                validation_scores=_v.scores,
+                            )
+                        except Exception as _e:
+                            logger.warning("Failed to log streamed agent run: %s", _e)
+
+                    asyncio.create_task(_log_run())  # noqa: RUF006
+
+                    await _send(
+                        ws,
+                        {
+                            "type": "chat.done",
+                            "response": full_text,
+                            "agent": agent_label,
+                            "tool_calls": tool_calls_final,
+                            "thinking": [],
+                            "blocks": deps.blocks or [],
+                            "session_id": session_id,
+                            "usage": {
+                                "cost_usd": cost,
+                                "input_tokens": usage.input_tokens,
+                                "output_tokens": usage.output_tokens,
+                                "model": model_name,
+                                "session_cost_usd": await session_store.get_cost(session_id),
+                            },
+                            "validation": {
+                                "passed": validation.passed,
+                                "failures": validation.failures,
+                                "scores": validation.scores,
+                            },
                         },
-                    },
-                )
-                return
+                    )
+                    return
 
         if cancel_event.is_set():
             response = full_text or "Generation cancelled."

@@ -45,7 +45,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     if _agent is not None:
         return _agent
     _agent = Agent(
-        get_model("agent:unified"),
+        get_model("agent:procurement"),
         deps_type=AgentDeps,
         system_prompt=SYSTEM_PROMPT,
         model_settings={"temperature": 0},

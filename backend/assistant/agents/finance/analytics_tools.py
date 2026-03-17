@@ -21,6 +21,29 @@ from finance.application.ledger_queries import (
 logger = logging.getLogger(__name__)
 
 
+def _to_float(v):
+    """Coerce Decimal (and other numeric types) to float for JSON serialization."""
+    from decimal import Decimal
+
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def _normalise(obj):
+    """Recursively convert Decimal values in dicts/lists to float."""
+    if isinstance(obj, dict):
+        return {k: _normalise(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalise(v) for v in obj]
+    return _to_float(obj)
+
+
+def _dumps(obj) -> str:
+    """json.dumps with Decimal → float conversion so numeric values stay numeric in JSON."""
+    return json.dumps(_normalise(obj))
+
+
 def _date_range(days: int) -> tuple[str, str]:
     end = datetime.now(UTC)
     start = end - timedelta(days=days)
@@ -32,7 +55,7 @@ async def _get_trend_series(args: dict) -> str:
     group_by = args.get("group_by") or ("week" if days > 60 else "day")
     start, end = _date_range(days)
     series = await trend_series(start, end, group_by)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "group_by": group_by,
@@ -47,7 +70,7 @@ async def _get_ar_aging(args: dict) -> str:
     start, end = _date_range(days)
     buckets = await ar_aging(start, end)
     total_ar = round(sum(b.get("total_ar", 0) for b in buckets), 2)
-    return json.dumps(
+    return _dumps(
         {
             "total_ar": total_ar,
             "entity_count": len(buckets),
@@ -61,7 +84,7 @@ async def _get_product_margins(args: dict) -> str:
     limit = min(int(args.get("limit") or 20), 50)
     start, end = _date_range(days)
     margins = await product_margins(start, end, limit)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "count": len(margins),
@@ -74,7 +97,7 @@ async def _get_department_profitability(args: dict) -> str:
     days = min(int(args.get("days") or 30), 365)
     start, end = _date_range(days)
     depts = await summary_by_department(start, end)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "department_count": len(depts),
@@ -88,7 +111,7 @@ async def _get_job_profitability(args: dict) -> str:
     limit = min(int(args.get("limit") or 20), 50)
     start, end = _date_range(days)
     result = await summary_by_job(start, end, limit=limit)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "total_jobs": result.get("total", 0),
@@ -103,7 +126,7 @@ async def _get_entity_summary(args: dict) -> str:
     days = min(int(args.get("days") or 30), 365)
     start, end = _date_range(days)
     entities = await summary_by_billing_entity(start, end)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "entity_count": len(entities),
@@ -116,7 +139,7 @@ async def _get_contractor_spend(args: dict) -> str:
     days = min(int(args.get("days") or 30), 365)
     start, end = _date_range(days)
     contractors = await summary_by_contractor(start, end)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "contractor_count": len(contractors),
@@ -129,7 +152,7 @@ async def _get_purchase_spend(args: dict) -> str:
     days = min(int(args.get("days") or 30), 365)
     start, end = _date_range(days)
     total = await purchase_spend(start, end)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "total_purchase_spend": total,

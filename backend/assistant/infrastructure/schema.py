@@ -1,5 +1,11 @@
 """Assistant context schema — agent runs, memory artifacts, and embeddings."""
 
+MIGRATIONS: list[str] = [
+    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_passed BOOLEAN",
+    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_failures TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_scores TEXT NOT NULL DEFAULT '{}'",
+]
+
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS memory_artifacts (
         id TEXT PRIMARY KEY,

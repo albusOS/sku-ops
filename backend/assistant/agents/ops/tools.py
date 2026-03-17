@@ -15,6 +15,29 @@ from operations.application.queries import (
 logger = logging.getLogger(__name__)
 
 
+def _to_float(v):
+    """Coerce Decimal (and other numeric types) to float for JSON serialization."""
+    from decimal import Decimal
+
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def _normalise(obj):
+    """Recursively convert Decimal values in dicts/lists to float."""
+    if isinstance(obj, dict):
+        return {k: _normalise(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalise(v) for v in obj]
+    return _to_float(obj)
+
+
+def _dumps(obj) -> str:
+    """json.dumps with Decimal → float conversion so numeric values stay numeric in JSON."""
+    return json.dumps(_normalise(obj))
+
+
 async def _get_contractor_history(args: dict) -> str:
     name = (args.get("name") or "").strip()
     limit = min(int(args.get("limit") or 20), 100)
@@ -42,7 +65,7 @@ async def _get_contractor_history(args: dict) -> str:
     ]
     total_spent = sum(w.total for w in matched)
     unpaid = sum(w.total for w in matched if w.payment_status == "unpaid")
-    return json.dumps(
+    return _dumps(
         {
             "contractor_search": name,
             "count": len(out),
@@ -60,7 +83,7 @@ async def _get_job_materials(args: dict) -> str:
     if not job_withdrawals:
         job_withdrawals = [w for w in all_withdrawals if job_id.lower() in (w.job_id or "").lower()]
     if not job_withdrawals:
-        return json.dumps({"error": f"No withdrawals found for job '{job_id}'"})
+        return _dumps({"error": f"No withdrawals found for job '{job_id}'"})
     item_map: dict = {}
     for w in job_withdrawals:
         for item in w.items:
@@ -79,7 +102,7 @@ async def _get_job_materials(args: dict) -> str:
                 }
     items_out = [{**v, "subtotal": round(v["subtotal"], 2)} for v in item_map.values()]
     total = sum(w.total for w in job_withdrawals)
-    return json.dumps(
+    return _dumps(
         {
             "job_id": job_id,
             "service_address": job_withdrawals[0].service_address,
@@ -109,7 +132,7 @@ async def _list_recent_withdrawals(args: dict) -> str:
         for w in withdrawals
     ]
     total_value = sum(w.total for w in withdrawals)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "count": len(out),
@@ -135,7 +158,7 @@ async def _list_pending_material_requests(args: dict) -> str:
                 "requested_at": (r.created_at or "")[:16],
             }
         )
-    return json.dumps({"count": len(out), "pending_requests": out})
+    return _dumps({"count": len(out), "pending_requests": out})
 
 
 async def _get_daily_withdrawal_activity(args: dict) -> str:
@@ -143,7 +166,7 @@ async def _get_daily_withdrawal_activity(args: dict) -> str:
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     product_id = (args.get("product_id") or "").strip() or None
     activity = await daily_withdrawal_activity(since, product_id=product_id)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "data_points": len(activity),
@@ -158,7 +181,7 @@ async def _get_payment_status_breakdown(args: dict) -> str:
     end = datetime.now(UTC).isoformat()
     breakdown = await payment_status_breakdown(since, end)
     total = round(sum(breakdown.values()), 2)
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "total": total,

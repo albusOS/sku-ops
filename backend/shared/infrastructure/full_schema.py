@@ -10,6 +10,9 @@ from assistant.infrastructure.schema import (
     INDEXES as _assistant_indexes,
 )
 from assistant.infrastructure.schema import (
+    MIGRATIONS as _assistant_migrations,
+)
+from assistant.infrastructure.schema import (
     TABLES as _assistant_tables,
 )
 from catalog.infrastructure.schema import (
@@ -111,7 +114,7 @@ ALL_VIEWS: list[str] = _shared_views
 
 # Additive ALTER TABLE migrations — applied after tables and indexes.
 # Each entry is idempotent (uses IF NOT EXISTS).
-ALL_MIGRATIONS: list[str] = _catalog_migrations
+ALL_MIGRATIONS: list[str] = _catalog_migrations + _assistant_migrations
 
 # Per-context table DDL — used by the analyst agent's schema introspection.
 # Exported here (composition root) so the assistant context doesn't need
