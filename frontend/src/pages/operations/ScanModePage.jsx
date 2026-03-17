@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Send, Trash2, ScanLine, CheckCircle2, Loader2, Camera, Keyboard } from "lucide-react";
+import { Send, Trash2, ScanLine, Loader2, Camera, Keyboard, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { QuantityControl } from "@/components/QuantityControl";
 import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
 import { CameraScanner } from "@/components/CameraScanner";
@@ -18,13 +19,33 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCreateWithdrawal } from "@/hooks/useWithdrawals";
 import { getErrorMessage } from "@/lib/api-client";
 
-/**
- * Full-screen iPad-optimised scan-and-checkout kiosk.
- *
- * Camera is the primary input; manual text entry is the fallback.
- * Creates direct withdrawals (not material requests) with job linkage.
- * Accessible at /scan for contractors and warehouse roles.
- */
+const STATUS_CONFIG = {
+  added: {
+    color: "text-success",
+    bg: "bg-success/10 border-success/30",
+    ring: "ring-success/20",
+    label: "Added",
+  },
+  not_found: {
+    color: "text-warning",
+    bg: "bg-warning/10 border-warning/30",
+    ring: "ring-warning/20",
+    label: "Not found",
+  },
+  invalid: {
+    color: "text-destructive",
+    bg: "bg-destructive/10 border-destructive/30",
+    ring: "ring-destructive/20",
+    label: "Invalid barcode",
+  },
+  out_of_stock: {
+    color: "text-muted-foreground",
+    bg: "bg-muted border-border",
+    ring: "ring-border",
+    label: "Out of stock",
+  },
+};
+
 const ScanModePage = () => {
   const navigate = useNavigate();
   const [lastScanned, setLastScanned] = useState(null);
@@ -120,31 +141,9 @@ const ScanModePage = () => {
     }
   };
 
-  const statusConfig = {
-    added: {
-      color: "text-success",
-      bg: "bg-success/10 border-success/30",
-      label: "Added",
-    },
-    not_found: {
-      color: "text-accent",
-      bg: "bg-warning/10 border-warning/30",
-      label: "Not found",
-    },
-    invalid: {
-      color: "text-destructive",
-      bg: "bg-destructive/10 border-destructive/30",
-      label: "Invalid barcode",
-    },
-    out_of_stock: {
-      color: "text-muted-foreground",
-      bg: "bg-muted border-border",
-      label: "Out of stock",
-    },
-  };
-
-  const status = lastScanned ? statusConfig[lastScanned.status] : null;
+  const status = lastScanned ? STATUS_CONFIG[lastScanned.status] : null;
   const canSubmit = items.length > 0 && jobId.trim() && serviceAddress.trim();
+  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
 
   if (productsLoading) return <PageSkeleton />;
   if (productsIsError) {
@@ -160,30 +159,47 @@ const ScanModePage = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-muted">
-      {/* ── Job details + scan mode ── */}
-      <div className="flex-shrink-0 bg-card border-b border-border px-6 pt-4 pb-3">
-        <div className="max-w-xl mx-auto space-y-3">
+    <div className="flex flex-col h-screen bg-muted/50">
+      {/* ── Header: Job + Address ── */}
+      <div className="flex-shrink-0 bg-card border-b border-border px-6 pt-5 pb-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">
+              Scan & Checkout
+            </h1>
+            {items.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {itemCount} item{itemCount !== 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-muted-foreground text-xs font-medium mb-1 block">Job *</Label>
+              <Label className="text-muted-foreground text-xs font-medium mb-1.5 block">
+                Job *
+              </Label>
               <JobPicker value={jobId} onChange={setJobId} required />
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs font-medium mb-1 block">
+              <Label className="text-muted-foreground text-xs font-medium mb-1.5 block">
                 Address *
               </Label>
               <AddressPicker value={serviceAddress} onChange={setServiceAddress} required />
             </div>
           </div>
+        </div>
+      </div>
 
+      {/* ── Mode toggle + Scanner ── */}
+      <div className="flex-shrink-0 bg-card border-b border-border px-6 py-4">
+        <div className="max-w-2xl mx-auto">
           {/* Mode toggle */}
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
+          <div className="flex gap-1 bg-muted rounded-xl p-1 mb-4">
             <button
               onClick={() => setCameraMode(true)}
-              className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                 cameraMode
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/50"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -192,9 +208,9 @@ const ScanModePage = () => {
             </button>
             <button
               onClick={() => setCameraMode(false)}
-              className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                 !cameraMode
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/50"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -202,12 +218,8 @@ const ScanModePage = () => {
               Manual
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* ── Scanner area ── */}
-      <div className="flex-shrink-0 bg-card border-b border-border p-4">
-        <div className="max-w-xl mx-auto">
+          {/* Scanner area */}
           {cameraMode ? (
             <CameraScanner
               onScan={(code) => scanner.submit(code)}
@@ -215,46 +227,56 @@ const ScanModePage = () => {
               scanning={scanner.scanning}
             />
           ) : (
-            <>
-              <div
-                className={`rounded-2xl border-2 p-5 mb-2 transition-colors ${status ? status.bg : "bg-muted border-border"}`}
-              >
-                <div className="flex items-center gap-3 mb-3">
+            <div
+              className={`rounded-2xl border-2 p-5 transition-all ${
+                status ? status.bg : "bg-muted/50 border-border"
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ring-1 ${
+                    status ? `${status.bg} ${status.ring}` : "bg-muted ring-border"
+                  }`}
+                >
                   <ScanLine
-                    className={`w-6 h-6 ${status ? status.color : "text-muted-foreground"}`}
+                    className={`w-5 h-5 ${status ? status.color : "text-muted-foreground"}`}
                   />
-                  <span
-                    className={`font-semibold text-lg ${status ? status.color : "text-muted-foreground"}`}
-                  >
-                    {lastScanned
-                      ? `${status?.label}: ${lastScanned.name || lastScanned.sku}`
-                      : "Ready to scan…"}
-                  </span>
                 </div>
-                <Input
-                  ref={scanner.inputRef}
-                  type="text"
-                  value={scanner.value}
-                  onChange={(e) => scanner.setValue(e.target.value)}
-                  onKeyDown={scanner.onKeyDown}
-                  placeholder="Scan barcode or type SKU…"
-                  className="text-lg h-14 font-mono text-center tracking-widest"
-                  autoFocus
-                  disabled={scanner.scanning}
-                />
+                <span
+                  className={`font-semibold text-base ${status ? status.color : "text-muted-foreground"}`}
+                >
+                  {lastScanned
+                    ? `${status?.label}: ${lastScanned.name || lastScanned.sku}`
+                    : "Ready to scan…"}
+                </span>
               </div>
-              <p className="text-xs text-center text-muted-foreground">
+              <Input
+                ref={scanner.inputRef}
+                type="text"
+                value={scanner.value}
+                onChange={(e) => scanner.setValue(e.target.value)}
+                onKeyDown={scanner.onKeyDown}
+                placeholder="Scan barcode or type SKU…"
+                className="text-lg h-14 font-mono text-center tracking-widest bg-card"
+                autoFocus
+                disabled={scanner.scanning}
+              />
+              <p className="text-xs text-center text-muted-foreground mt-2">
                 {scanner.scanning ? "Looking up…" : "Type a barcode or SKU and press Enter"}
               </p>
-            </>
+            </div>
           )}
 
-          {/* Status badge for camera mode */}
+          {/* Camera mode status toast */}
           {cameraMode && lastScanned && status && (
             <div
-              className={`mt-3 rounded-xl border-2 px-4 py-2.5 flex items-center gap-2 ${status.bg}`}
+              className={`mt-3 rounded-xl border-2 px-4 py-3 flex items-center gap-3 transition-all ${status.bg}`}
             >
-              <ScanLine className={`w-4 h-4 ${status.color}`} />
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center ring-1 ${status.ring} ${status.bg}`}
+              >
+                <ScanLine className={`w-4 h-4 ${status.color}`} />
+              </div>
               <span className={`text-sm font-medium ${status.color}`}>
                 {status.label}: {lastScanned.name || lastScanned.sku}
               </span>
@@ -264,19 +286,24 @@ const ScanModePage = () => {
       </div>
 
       {/* ── Cart ── */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-xl mx-auto">
+      <div className="flex-1 overflow-auto px-6 py-4">
+        <div className="max-w-2xl mx-auto">
           {items.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Scan items to add them to your cart</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                <Package className="w-7 h-7 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">Cart is empty</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Scan items to add them to your cart
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
               {items.map((item) => (
                 <div
                   key={item.product_id}
-                  className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3"
+                  className="bg-card border border-border/80 rounded-xl px-4 py-3 flex items-center gap-3 shadow-soft"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-mono text-[10px] text-muted-foreground">{item.sku}</p>
@@ -287,9 +314,12 @@ const ScanModePage = () => {
                     onChange={(v) => updateQuantity(item.product_id, v)}
                     max={item.max_quantity}
                   />
+                  <span className="font-semibold text-sm text-foreground tabular-nums min-w-[60px] text-right">
+                    ${(item.quantity * item.unit_price).toFixed(2)}
+                  </span>
                   <button
                     onClick={() => removeItem(item.product_id)}
-                    className="text-muted-foreground/60 hover:text-destructive transition-colors p-1"
+                    className="text-muted-foreground/50 hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/5"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -301,18 +331,18 @@ const ScanModePage = () => {
       </div>
 
       {/* ── Footer ── */}
-      <div className="flex-shrink-0 bg-card border-t border-border p-4 safe-area-bottom">
-        <div className="max-w-xl mx-auto flex items-center gap-4">
+      <div className="flex-shrink-0 bg-card border-t border-border px-6 py-4 safe-area-bottom">
+        <div className="max-w-2xl mx-auto flex items-center gap-4">
           <div className="flex-1">
             <p className="text-xs text-muted-foreground">
-              {items.length} item{items.length !== 1 ? "s" : ""}
+              {itemCount} item{itemCount !== 1 ? "s" : ""}
             </p>
-            <p className="font-semibold text-foreground tabular-nums">${subtotal.toFixed(2)}</p>
+            <p className="text-xl font-bold text-foreground tabular-nums">${subtotal.toFixed(2)}</p>
           </div>
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting}
-            className="btn-primary h-14 px-10 text-base"
+            className="btn-primary h-14 px-10 text-base font-semibold shadow-sm"
           >
             {submitting ? (
               <>

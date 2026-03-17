@@ -1,7 +1,8 @@
 """Chat assistant entrypoint.
 
-All messages are routed via the query router; specialists may handle directly
-when the query clearly matches procurement, trend, or health analysis.
+Routing is determined by the user's explicit mode selection in the frontend.
+Specialist agents (procurement, trend, health, analyst) are invoked directly
+when the user picks that mode; otherwise the unified agent handles the request.
 
 Context assembly pipeline enriches each request with entity graph data,
 semantic memory, and session state before agent dispatch.
@@ -20,7 +21,6 @@ from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.memory.extract import extract_and_save
 from assistant.agents.memory.store import recall
 from assistant.application.context_assembly import assemble_context
-from assistant.application.query_router import route_query
 from assistant.application.session_state import SessionState
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
@@ -62,7 +62,7 @@ async def chat(
     session_id: str = "",
     session_state: SessionState | None = None,
 ) -> dict:
-    """Route message via query router; specialists handle when appropriate."""
+    """Route message to specialist or unified agent based on explicit mode selection."""
     if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
         return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": [], "agent": None}
 
@@ -73,7 +73,6 @@ async def chat(
         user_name=ctx.get("user_name", ""),
     )
 
-    # Single embedding for the query — reused by context assembly, memory, and routing
     query_embedding = await _get_query_embedding(user_message)
 
     # Run independent pre-processing concurrently
@@ -86,35 +85,44 @@ async def chat(
             query_embedding=query_embedding,
         )
     )
-    route_task = asyncio.create_task(
-        route_query(user_message, history, query_embedding=query_embedding)
-    )
 
     history = await compress_task or history
-    assembled, route = await asyncio.gather(context_task, route_task)
+    assembled = await context_task
+
+    # Capture clean conversation turns before injecting the context system message.
+    # Specialists receive this as message_history so follow-up questions work.
+    deps.history = [h for h in (history or []) if h.get("role") != "system"]
 
     context_block = assembled.format_for_agent()
     if context_block:
         history = [{"role": "system", "content": context_block}] + (history or [])
 
-    logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
+    # Route is determined by the user's explicit mode selection from the frontend.
+    specialist_agents = frozenset({"procurement", "trend", "health", "analyst"})
+    route = agent_type if agent_type in specialist_agents else "unified"
 
-    if route == "procurement":
+    logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
+
+    if route in specialist_agents:
         enriched = _enrich_specialist_message(user_message, context_block)
-        spec_result = await _procurement_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, spec_result, "procurement", history or [])
-    if route == "trend":
-        enriched = _enrich_specialist_message(user_message, context_block)
-        spec_result = await _trend_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, spec_result, "trend", history or [])
-    if route == "health":
-        enriched = _enrich_specialist_message(user_message, context_block)
-        spec_result = await _health_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, spec_result, "health", history or [])
-    if route == "analyst":
-        enriched = _enrich_specialist_message(user_message, context_block)
-        spec_result = await _analyst_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, spec_result, "analyst", history or [])
+        agent_mod = {
+            "procurement": _procurement_agent_mod,
+            "trend": _trend_agent_mod,
+            "health": _health_agent_mod,
+            "analyst": _analyst_agent_mod,
+        }[route]
+        try:
+            spec_result = await agent_mod.run(enriched, deps=deps)
+        except Exception:
+            logger.exception("Specialist agent %s failed", route)
+            return {
+                "response": "I ran into an issue. Please try again in a moment.",
+                "tool_calls": [],
+                "history": history or [],
+                "agent": route,
+                "routed_to": [route],
+            }
+        return _specialist_result(user_message, spec_result, route, history or [])
 
     result = await _unified_agent.run(
         user_message, history=history, deps=deps, session_id=session_id

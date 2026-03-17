@@ -11,6 +11,7 @@ from pydantic_ai import Agent, RunContext
 
 from assistant.agents.core.contracts import SpecialistResult, UsageInfo
 from assistant.agents.core.deps import AgentDeps
+from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import calc_cost, get_model, get_model_name
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.inventory.tools import (
@@ -114,10 +115,21 @@ def _get_agent() -> Agent[AgentDeps, str]:
     return _agent
 
 
-async def run(question: str, deps: AgentDeps) -> SpecialistResult:
+async def run(question: str, deps: AgentDeps, *, usage=None) -> SpecialistResult:
     """Run the procurement analyst and return result with usage info."""
     agent = _get_agent()
-    result = await agent.run(question, deps=deps)
+    msg_history = build_message_history(deps.history)
+    run_kwargs = {"message_history": msg_history, "deps": deps}
+    if usage is not None:
+        run_kwargs["usage"] = usage
+    try:
+        result = await agent.run(question, **run_kwargs)
+    except Exception:
+        logger.exception("procurement_analyst failed")
+        return SpecialistResult(
+            response="I ran into an issue running procurement analysis. Please try again.",
+            usage=UsageInfo(),
+        )
     response = result.output if isinstance(result.output, str) else str(result.output)
     model_name = get_model_name("agent:procurement")
     usage = result.usage()

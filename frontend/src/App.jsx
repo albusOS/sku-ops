@@ -28,6 +28,7 @@ const MyHistory = lazy(() => import("./pages/operations/MyHistory"));
 const Jobs = lazy(() => import("./pages/operations/Jobs"));
 const XeroHealthPage = lazy(() => import("./pages/finance/XeroHealthPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
+const ProductScanLanding = lazy(() => import("./pages/ProductScanLanding"));
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -214,6 +215,14 @@ function App() {
                                 element={
                                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                                     <XeroHealthPage />
+                                  </ProtectedRoute>
+                                }
+                              />
+                              <Route
+                                path="/product/scan/:code"
+                                element={
+                                  <ProtectedRoute>
+                                    <ProductScanLanding />
                                   </ProtectedRoute>
                                 }
                               />

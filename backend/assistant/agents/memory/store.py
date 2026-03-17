@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import numpy as np
 
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.database import get_connection, get_org_id, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,6 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
     """
     if not artifacts:
         return
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC).isoformat()
     expires_at = (datetime.now(UTC) + timedelta(days=_DEFAULT_TTL_DAYS)).isoformat()
@@ -77,17 +76,19 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
 
     if not rows:
         return
-    await conn.executemany(
-        """INSERT INTO memory_artifacts
-               (id, org_id, user_id, session_id, type, subject, content, tags, created_at, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
-        rows,
-    )
-    await conn.commit()
+    async with transaction():
+        conn = get_connection()
+        await conn.executemany(
+            """INSERT INTO memory_artifacts
+                   (id, org_id, user_id, session_id, type, subject, content, tags, created_at, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
+            rows,
+        )
     logger.info("Memory: saved %d artifacts for user=%s", len(rows), user_id)
 
-    # Embed + persist vectors in background (non-blocking)
-    asyncio.create_task(_embed_artifacts(org_id, artifact_ids, artifact_contents))
+    # Embed + persist vectors in background (non-blocking). Keep reference to prevent GC.
+    _embed_task = asyncio.create_task(_embed_artifacts(org_id, artifact_ids, artifact_contents))
+    _embed_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
 
 async def _embed_artifacts(org_id: str, artifact_ids: list[str], contents: list[str]) -> None:
@@ -217,7 +218,7 @@ async def _semantic_recall(
                 days_old = 30  # assume moderate age if unparseable
             recency = math.exp(-0.02 * days_old)
             type_boost = _TYPE_BOOST.get(r["type"], 0.0)
-            hybrid_score = 0.6 * sim + 0.3 * recency + 0.1 * (type_boost / 0.1)
+            hybrid_score = 0.6 * sim + 0.3 * recency + type_boost
 
             scored.append((hybrid_score, r))
 

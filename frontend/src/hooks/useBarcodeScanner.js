@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback } from "react";
 import api from "@/lib/api-client";
+import { extractCodeFromScan } from "@/lib/productQrCode";
 
 /**
  * Encapsulates the barcode scan loop state machine for keyboard-wedge scanners.
@@ -21,7 +22,7 @@ export function useBarcodeScanner({ onSuccess, onNotFound, onInvalidCheckDigit }
 
   const submit = useCallback(
     async (code) => {
-      const trimmed = code.trim();
+      const trimmed = extractCodeFromScan(code);
       if (!trimmed) return;
 
       setScanning(true);

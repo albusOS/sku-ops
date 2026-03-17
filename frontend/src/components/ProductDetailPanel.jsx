@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import {
-  X,
   Edit2,
   Trash2,
   SlidersHorizontal,
@@ -25,7 +23,7 @@ import {
   useRemoveVendorItem,
   useSetPreferredVendor,
 } from "@/hooks/useProducts";
-import { StockBadge } from "@/components/StatusBadge";
+import { DetailPanel, DetailSection, DetailField } from "./DetailPanel";
 import { toast } from "sonner";
 
 function DeltaBadge({ delta }) {
@@ -49,27 +47,10 @@ function DeltaBadge({ delta }) {
   );
 }
 
-function StatRow({ label, value, mono = false, muted = false }) {
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span
-        className={`text-sm font-medium ${mono ? "font-mono" : ""} ${muted ? "text-muted-foreground" : ""}`}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Slide-in product detail panel — rendered alongside the table, not as a modal.
- * Parent must position this absolutely or use a flex/grid split layout.
- */
 export function ProductDetailPanel({
   product,
   open,
-  onClose,
+  onOpenChange,
   onEdit,
   onAdjust,
   onDelete,
@@ -107,70 +88,77 @@ export function ProductDetailPanel({
       : null;
 
   return (
-    <AnimatePresence>
-      {open && product && (
-        <motion.div
-          key="product-panel"
-          initial={{ x: "100%", opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: "100%", opacity: 0 }}
-          transition={{ type: "spring", stiffness: 340, damping: 38 }}
-          className="flex flex-col h-full bg-card border-l border-border/60 overflow-hidden shadow-xl"
-          style={{ width: "100%" }}
-        >
-          {/* Header */}
-          <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-                  <Package className="w-4 h-4 text-accent" />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="font-semibold text-sm leading-tight truncate">{product.name}</h2>
-                  <p className="font-mono text-xs text-muted-foreground mt-0.5">{product.sku}</p>
-                </div>
+    <DetailPanel
+      open={open}
+      onOpenChange={onOpenChange}
+      title={product?.name || "Product"}
+      subtitle={product?.sku}
+      icon={Package}
+      width="lg"
+      actions={
+        product && (
+          <div className="flex items-center gap-2 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => onEdit?.(product)}
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => onAdjust?.(product)}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Adjust Stock
+            </Button>
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
+              onClick={() => onDelete?.(product)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </Button>
+          </div>
+        )
+      }
+    >
+      {product && (
+        <>
+          {/* Quick stats strip */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Price", value: `$${(product.price || 0).toFixed(2)}`, accent: false },
+              {
+                label: "Stock",
+                value: product.quantity ?? 0,
+                accent: product.quantity <= (product.min_stock ?? 5),
+              },
+              { label: "Margin", value: margin ? `${margin}%` : "—", accent: false },
+            ].map(({ label, value, accent }) => (
+              <div
+                key={label}
+                className={`rounded-lg px-3 py-2 text-center ${accent ? "bg-warning/10 border border-warning/20" : "bg-muted/50 border border-border/40"}`}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
+                  {label}
+                </p>
+                <p className={`font-mono font-semibold text-sm ${accent ? "text-warning" : ""}`}>
+                  {value}
+                </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <StockBadge product={product} />
-                <button
-                  onClick={onClose}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  aria-label="Close panel"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Quick stats strip */}
-            <div className="grid grid-cols-3 gap-2 mt-4">
-              {[
-                { label: "Price", value: `$${(product.price || 0).toFixed(2)}`, accent: false },
-                {
-                  label: "Stock",
-                  value: product.quantity ?? 0,
-                  accent: product.quantity <= (product.min_stock ?? 5),
-                },
-                { label: "Margin", value: margin ? `${margin}%` : "—", accent: false },
-              ].map(({ label, value, accent }) => (
-                <div
-                  key={label}
-                  className={`rounded-lg px-3 py-2 text-center ${accent ? "bg-warning/10 border border-warning/20" : "bg-muted/50 border border-border/40"}`}
-                >
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
-                    {label}
-                  </p>
-                  <p className={`font-mono font-semibold text-sm ${accent ? "text-warning" : ""}`}>
-                    {value}
-                  </p>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="info" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid grid-cols-4 mx-5 mt-3 shrink-0">
+          <Tabs defaultValue="info" className="flex flex-col min-h-0">
+            <TabsList className="grid grid-cols-4 shrink-0">
               <TabsTrigger value="info" className="text-xs">
                 Info
               </TabsTrigger>
@@ -185,76 +173,36 @@ export function ProductDetailPanel({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="info" className="flex-1 overflow-auto px-5 mt-3 pb-5">
-              <div className="rounded-xl border border-border/50 overflow-hidden">
-                <StatRow label="Category" value={product.category_name || "—"} />
-                <StatRow
-                  label="Unit"
-                  value={`${product.sell_uom || "each"}${(product.pack_qty || 1) > 1 ? ` ×${product.pack_qty}` : ""}`}
-                />
-                <StatRow label="Cost" value={`$${(product.cost || 0).toFixed(2)}`} mono muted />
-                <StatRow label="Min Stock" value={product.min_stock ?? 5} mono />
-                <StatRow label="Scan code" value={product.barcode || product.sku || "—"} mono />
-                {product.purchase_uom && product.purchase_uom !== "each" && (
-                  <StatRow
-                    label="Purchase UOM"
-                    value={`${product.purchase_uom}${(product.purchase_pack_qty || 1) > 1 ? ` ×${product.purchase_pack_qty}` : ""}`}
+            <TabsContent value="info" className="mt-3">
+              <DetailSection label="Details">
+                <div className="grid grid-cols-2 gap-4">
+                  <DetailField label="Category" value={product.category_name} />
+                  <DetailField
+                    label="Unit"
+                    value={`${product.sell_uom || "each"}${(product.pack_qty || 1) > 1 ? ` ×${product.pack_qty}` : ""}`}
                   />
-                )}
-              </div>
+                  <DetailField label="Cost" value={`$${(product.cost || 0).toFixed(2)}`} mono />
+                  <DetailField label="Min Stock" value={product.min_stock ?? 5} mono />
+                  <DetailField label="Scan Code" value={product.barcode || product.sku} mono />
+                  {product.purchase_uom && product.purchase_uom !== "each" && (
+                    <DetailField
+                      label="Purchase UOM"
+                      value={`${product.purchase_uom}${(product.purchase_pack_qty || 1) > 1 ? ` ×${product.purchase_pack_qty}` : ""}`}
+                    />
+                  )}
+                </div>
+              </DetailSection>
 
               {product.description && (
-                <div className="mt-4 rounded-xl border border-border/50 px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    Description
-                  </p>
+                <DetailSection label="Description" className="mt-4">
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {product.description}
                   </p>
-                </div>
+                </DetailSection>
               )}
-
-              <div className="mt-4 flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    onEdit?.(product);
-                    onClose();
-                  }}
-                >
-                  <Edit2 className="w-3.5 h-3.5 mr-2" />
-                  Edit product
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    onAdjust?.(product);
-                    onClose();
-                  }}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 mr-2" />
-                  Adjust stock
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
-                  onClick={() => {
-                    onDelete?.(product);
-                    onClose();
-                  }}
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-2" />
-                  Delete product
-                </Button>
-              </div>
             </TabsContent>
 
-            <TabsContent value="suppliers" className="flex-1 overflow-auto px-5 mt-3 pb-5">
+            <TabsContent value="suppliers" className="mt-3">
               {vendorsLoading ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : vendorItems.length === 0 ? (
@@ -328,9 +276,9 @@ export function ProductDetailPanel({
               )}
             </TabsContent>
 
-            <TabsContent value="labels" className="flex-1 overflow-auto px-5 mt-3 pb-5 space-y-4">
+            <TabsContent value="labels" className="mt-3 space-y-4">
               <p className="text-xs text-muted-foreground">
-                Print barcode labels (2×1&quot; format).
+                Print QR code labels (scannable by camera).
               </p>
               {hasBarcode ? (
                 <div className="flex flex-col gap-3">
@@ -358,7 +306,7 @@ export function ProductDetailPanel({
               )}
             </TabsContent>
 
-            <TabsContent value="history" className="flex-1 overflow-auto px-5 mt-3 pb-5">
+            <TabsContent value="history" className="mt-3">
               {historyLoading ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : recentHistory.length === 0 ? (
@@ -385,18 +333,15 @@ export function ProductDetailPanel({
                 variant="outline"
                 size="sm"
                 className="mt-4 w-full"
-                onClick={() => {
-                  onViewHistory?.(product);
-                  onClose();
-                }}
+                onClick={() => onViewHistory?.(product)}
               >
                 <History className="w-4 h-4 mr-2" />
                 Full history
               </Button>
             </TabsContent>
           </Tabs>
-        </motion.div>
+        </>
       )}
-    </AnimatePresence>
+    </DetailPanel>
   );
 }

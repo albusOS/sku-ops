@@ -35,12 +35,19 @@ async def _get_outstanding_balances(args: dict) -> str:
     entity_map: dict[str, dict] = {}
     for w in withdrawals:
         entity = w.billing_entity or w.contractor_name or "Unknown"
+        created = w.created_at or ""
         if entity not in entity_map:
             entity_map[entity] = {
                 "balance": 0.0,
                 "withdrawal_count": 0,
-                "oldest": w.created_at or "",
+                "oldest": created,
             }
+        else:
+            # Track the earliest (lexicographically smallest ISO date) across all withdrawals
+            if created and (
+                not entity_map[entity]["oldest"] or created < entity_map[entity]["oldest"]
+            ):
+                entity_map[entity]["oldest"] = created
         entity_map[entity]["balance"] += w.total
         entity_map[entity]["withdrawal_count"] += 1
     sorted_entities = sorted(entity_map.items(), key=lambda x: x[1]["balance"], reverse=True)

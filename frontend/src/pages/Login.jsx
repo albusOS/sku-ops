@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, HardHat } from "lucide-react";
 import { AuthLayout } from "@/components/AuthLayout";
+import { ArchExplorer } from "@/components/ArchExplorer";
 
 function LoginPanel({ title, icon: Icon, accentClass, demoHint, testPrefix, onSubmit, loading }) {
   const [email, setEmail] = useState("");
@@ -124,6 +125,7 @@ const Login = () => {
           loading={loading}
         />
       </div>
+      <ArchExplorer />
     </AuthLayout>
   );
 };

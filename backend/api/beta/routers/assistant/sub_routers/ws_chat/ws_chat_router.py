@@ -39,10 +39,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 
-import assistant.agents.analyst.agent as _analyst_agent_mod
-import assistant.agents.health_analyst.agent as _health_agent_mod
-import assistant.agents.procurement_analyst.agent as _procurement_agent_mod
-import assistant.agents.trend_analyst.agent as _trend_agent_mod
+from assistant.agents.analyst.agent import _get_agent as _get_analyst_agent
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import (
     build_message_history,
@@ -53,11 +50,13 @@ from assistant.agents.core.messages import (
 from assistant.agents.core.model_registry import calc_cost, get_model_name
 from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.core.validators import validate_response
+from assistant.agents.health_analyst.agent import _get_agent as _get_health_agent
+from assistant.agents.procurement_analyst.agent import _get_agent as _get_procurement_agent
+from assistant.agents.trend_analyst.agent import _get_agent as _get_trend_agent
 from assistant.agents.unified.agent import _get_agent
 from assistant.application import session_store
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
-from assistant.application.query_router import route_query
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
@@ -78,6 +77,13 @@ logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
+
+
+def _enrich_specialist_message(user_message: str, context_block: str) -> str:
+    """Prepend assembled context to the user message for specialist agents."""
+    if not context_block:
+        return user_message
+    return f"<context>\n{context_block}\n</context>\n\n{user_message}"
 
 
 async def _get_query_embedding(query: str):
@@ -301,8 +307,7 @@ async def _handle_chat(
 
     is_first_turn = not history
 
-    # Run independent pre-processing concurrently:
-    # compress history, assemble context (entity graph + memory), and route query
+    # Run independent pre-processing concurrently
     compress_task = asyncio.create_task(compress_history_async(history))
     context_task = asyncio.create_task(
         assemble_context(
@@ -312,85 +317,99 @@ async def _handle_chat(
             query_embedding=query_embedding,
         )
     )
-    route_task = asyncio.create_task(
-        route_query(user_message, history, query_embedding=query_embedding)
-    )
+
+    # Route is determined by the user's explicit mode selection from the frontend.
+    # No embedding-based routing — the frontend sends the agent_type directly.
+    requested_agent = (msg.get("agent_type") or "").strip().lower()
+    specialist_agents = frozenset({"procurement", "trend", "health", "analyst"})
+    route = requested_agent if requested_agent in specialist_agents else "unified"
 
     history = await compress_task or history
-    assembled, route = await asyncio.gather(context_task, route_task)
+    assembled = await context_task
 
     context_block = assembled.format_for_agent()
     if context_block:
         history = [{"role": "system", "content": context_block}] + (history or [])
 
-    deps = AgentDeps(user_id=user_id, user_name=user_name)
+    # Clean conversation turns for specialist history (no system context messages).
+    clean_history = [h for h in (history or []) if h.get("role") != "system"]
+    deps = AgentDeps(user_id=user_id, user_name=user_name, history=clean_history)
     msg_history = build_message_history(history)
 
-    logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
+    logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
 
-    if route in ("procurement", "trend", "health", "analyst"):
-        await _send(ws, {"type": "chat.status", "status": "thinking"})
-        try:
-            if route == "procurement":
-                spec_result = await _procurement_agent_mod.run(user_message, deps=deps)
-            elif route == "trend":
-                spec_result = await _trend_agent_mod.run(user_message, deps=deps)
-            elif route == "analyst":
-                spec_result = await _analyst_agent_mod.run(user_message, deps=deps)
-            else:
-                spec_result = await _health_agent_mod.run(user_message, deps=deps)
-        except Exception as exc:
-            error_type, detail = _classify_chat_error(exc)
-            logger.exception("Specialist %s failed for user=%s", route, user_id)
-            chat_message(route, error_type)
-            await _send(ws, {"type": "chat.error", "error_type": error_type, "detail": detail})
-            return
+    _specialist_agent_map = {
+        "procurement": _get_procurement_agent,
+        "trend": _get_trend_agent,
+        "health": _get_health_agent,
+        "analyst": _get_analyst_agent,
+    }
 
-        turn_cost = spec_result.usage.cost_usd
-        chat_message(route, "success")
-        llm_usage(
-            model=spec_result.usage.model,
-            input_tokens=spec_result.usage.input_tokens,
-            output_tokens=spec_result.usage.output_tokens,
-            cost_usd=turn_cost,
-            agent=route,
-        )
-        new_history = list(history or [])
-        new_history.append({"role": "user", "content": user_message})
-        new_history.append({"role": "assistant", "content": spec_result.response})
-        await session_store.update(session_id, new_history, cost_usd=turn_cost)
-        if len(new_history) % 8 == 0:
-            schedule_memory_extraction(user_id=user_id, session_id=session_id, history=new_history)
-        await _send(
-            ws,
-            {
-                "type": "chat.done",
-                "response": spec_result.response,
-                "agent": route,
-                "tool_calls": [],
-                "thinking": [],
-                "session_id": session_id,
-                "usage": {
-                    "cost_usd": turn_cost,
-                    "input_tokens": spec_result.usage.input_tokens,
-                    "output_tokens": spec_result.usage.output_tokens,
-                    "model": spec_result.usage.model,
-                    "session_cost_usd": await session_store.get_cost(session_id),
-                },
-            },
+    if route in specialist_agents:
+        enriched = _enrich_specialist_message(user_message, context_block)
+        specialist_msg_history = build_message_history(clean_history)
+        await _stream_agent(
+            ws=ws,
+            agent=_specialist_agent_map[route](),
+            user_message=enriched,
+            original_message=user_message,
+            msg_history=specialist_msg_history,
+            deps=deps,
+            cancel_event=cancel_event,
+            agent_label=route,
+            session_id=session_id,
+            history=history,
+            user_id=user_id,
         )
         return
 
     await _send(ws, {"type": "chat.status", "status": "thinking"})
 
+    await _stream_agent(
+        ws=ws,
+        agent=_get_agent(),
+        user_message=user_message,
+        original_message=user_message,
+        msg_history=msg_history,
+        deps=deps,
+        cancel_event=cancel_event,
+        agent_label="unified",
+        session_id=session_id,
+        history=history,
+        user_id=user_id,
+    )
+
+
+async def _stream_agent(
+    *,
+    ws: WebSocket,
+    agent,
+    user_message: str,
+    original_message: str,
+    msg_history,
+    deps: AgentDeps,
+    cancel_event: asyncio.Event,
+    agent_label: str,
+    session_id: str,
+    history: list[dict] | None,
+    user_id: str,
+) -> None:
+    """Stream any PydanticAI agent to the WebSocket client.
+
+    Shared by both the unified agent and all specialist agents so every mode
+    gets live token deltas, tool_start events, and cancel support.
+    """
+    await _send(ws, {"type": "chat.status", "status": "thinking"})
+
     full_text = ""
     tool_calls_seen: list[dict] = []
-    agent_label = "unified"
 
-    logger.info("Chat stream started: user=%s session=%s", user_id, session_id)
+    logger.info(
+        "Chat stream started: user=%s session=%s agent=%s", user_id, session_id, agent_label
+    )
 
     try:
-        async for event in _get_agent().run_stream_events(
+        async for event in agent.run_stream_events(
             user_message,
             message_history=msg_history,
             deps=deps,
@@ -437,14 +456,14 @@ async def _handle_chat(
                 tool_calls_det = extract_tool_calls_detailed(all_msgs)
                 text_history = extract_text_history(all_msgs)
 
-                validate_response(user_message, response_text, tool_calls_final, tool_calls_det)
+                validate_response(original_message, response_text, tool_calls_final, tool_calls_det)
 
                 turn_cost = cost
                 if text_history:
                     new_history = text_history
                 else:
                     new_history = list(history or [])
-                    new_history.append({"role": "user", "content": user_message})
+                    new_history.append({"role": "user", "content": original_message})
                     new_history.append({"role": "assistant", "content": full_text})
 
                 await session_store.update(session_id, new_history, cost_usd=turn_cost)
@@ -466,9 +485,10 @@ async def _handle_chat(
                 )
 
                 logger.info(
-                    "Chat stream done: user=%s session=%s cost=%.4f tokens=%d+%d",
+                    "Chat stream done: user=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
                     user_id,
                     session_id,
+                    agent_label,
                     cost,
                     usage.input_tokens,
                     usage.output_tokens,
@@ -497,7 +517,7 @@ async def _handle_chat(
 
         if cancel_event.is_set():
             response = full_text or "Generation cancelled."
-            await _save_turn(session_id, history, user_message, response)
+            await _save_turn(session_id, history, original_message, response)
             await _send(
                 ws,
                 {
@@ -515,7 +535,7 @@ async def _handle_chat(
                 },
             )
         elif full_text:
-            await _save_turn(session_id, history, user_message, full_text)
+            await _save_turn(session_id, history, original_message, full_text)
             await _send(
                 ws,
                 {
@@ -536,7 +556,7 @@ async def _handle_chat(
         logger.debug("Chat generation task cancelled: session=%s", session_id)
         chat_message(agent_label, "cancelled")
         if full_text:
-            await _save_turn(session_id, history, user_message, full_text)
+            await _save_turn(session_id, history, original_message, full_text)
             await _send(
                 ws,
                 {
@@ -555,7 +575,13 @@ async def _handle_chat(
             )
     except Exception as exc:
         error_type, detail = _classify_chat_error(exc)
-        logger.exception("Chat stream %s for user=%s session=%s", error_type, user_id, session_id)
+        logger.exception(
+            "Chat stream %s for user=%s session=%s agent=%s",
+            error_type,
+            user_id,
+            session_id,
+            agent_label,
+        )
         chat_message(agent_label, error_type)
         await _send(
             ws,

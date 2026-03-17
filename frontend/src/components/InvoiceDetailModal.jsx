@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { FileText, Trash2, Plus, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { StatusBadge } from "@/components/StatusBadge";
+import { DetailPanel } from "./DetailPanel";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useInvoice, useUpdateInvoice, useDeleteInvoice, useSyncXero } from "@/hooks/useInvoices";
 
@@ -151,355 +150,353 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
     }
   };
 
-  if (!invoice && !isLoading) return null;
-
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-muted-foreground" />
-              <span>{invoice?.invoice_number || "Invoice"}</span>
-              {invoice && <StatusBadge status={invoice.status} />}
-            </DialogTitle>
-          </DialogHeader>
-
-          {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading…</div>
-          ) : (
-            <div className="flex-1 overflow-auto space-y-6">
+      <DetailPanel
+        open={open}
+        onOpenChange={onOpenChange}
+        title={invoice?.invoice_number || "Invoice"}
+        status={invoice?.status}
+        icon={FileText}
+        loading={isLoading}
+        width="xl"
+        actions={
+          <div className="flex items-center gap-2 w-full">
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncXero}
+              disabled={syncXero.isPending}
+              className="gap-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Send to Xero
+            </Button>
+            {canEdit && (
+              <Button size="sm" onClick={handleSave} disabled={updateInvoice.isPending}>
+                {updateInvoice.isPending ? "Saving…" : "Save"}
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          {/* Invoice Details */}
+          <div>
+            <Label className="text-xs uppercase text-muted-foreground">Invoice Details</Label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
               <div>
-                <Label className="text-xs uppercase text-muted-foreground">Invoice Details</Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Invoice Date</label>
-                    <Input
-                      type="date"
-                      value={form.invoice_date}
-                      onChange={(e) => setForm((f) => ({ ...f, invoice_date: e.target.value }))}
-                      disabled={!canEdit}
-                      className="mt-0.5"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Due Date</label>
-                    <Input
-                      type="date"
-                      value={form.due_date}
-                      onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
-                      disabled={!canEdit}
-                      className="mt-0.5"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Payment Terms</label>
-                    <Select
-                      value={form.payment_terms}
-                      onValueChange={(v) => setForm((f) => ({ ...f, payment_terms: v }))}
-                      disabled={!canEdit}
-                    >
-                      <SelectTrigger className="mt-0.5">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_TERMS.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">PO Reference</label>
-                    <Input
-                      value={form.po_reference}
-                      onChange={(e) => setForm((f) => ({ ...f, po_reference: e.target.value }))}
-                      disabled={!canEdit}
-                      className="mt-0.5"
-                      placeholder="Contractor PO #"
-                    />
-                  </div>
-                </div>
+                <label className="text-xs text-muted-foreground">Invoice Date</label>
+                <Input
+                  type="date"
+                  value={form.invoice_date}
+                  onChange={(e) => setForm((f) => ({ ...f, invoice_date: e.target.value }))}
+                  disabled={!canEdit}
+                  className="mt-0.5"
+                />
               </div>
-
               <div>
-                <Label className="text-xs uppercase text-muted-foreground">Bill To</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                  {[
-                    { key: "billing_entity", label: "Billing Entity" },
-                    { key: "contact_name", label: "Contact Name" },
-                    {
-                      key: "contact_email",
-                      label: "Contact Email",
-                      type: "email",
-                    },
-                    {
-                      key: "billing_address",
-                      label: "Billing Address",
-                      placeholder: "Street, City, State ZIP",
-                    },
-                  ].map((f) => (
-                    <div key={f.key}>
-                      <label className="text-xs text-muted-foreground">{f.label}</label>
-                      <Input
-                        type={f.type || "text"}
-                        value={form[f.key]}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            [f.key]: e.target.value,
-                          }))
-                        }
-                        disabled={!canEdit}
-                        className="mt-0.5"
-                        placeholder={f.placeholder}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <label className="text-xs text-muted-foreground">Due Date</label>
+                <Input
+                  type="date"
+                  value={form.due_date}
+                  onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
+                  disabled={!canEdit}
+                  className="mt-0.5"
+                />
               </div>
-
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <Label className="text-xs uppercase text-muted-foreground">Line Items</Label>
-                  {canEdit && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setLineItems([
-                          ...lineItems,
-                          {
-                            id: crypto.randomUUID(),
-                            description: "",
-                            quantity: 1,
-                            unit_price: 0,
-                            amount: 0,
-                          },
-                        ])
-                      }
-                    >
-                      <Plus className="w-4 h-4 mr-1" /> Add row
-                    </Button>
-                  )}
-                </div>
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted border-b border-border">
-                        <th className="px-3 py-2 text-left">Description</th>
-                        <th className="px-3 py-2 text-right w-20">Qty</th>
-                        <th className="px-3 py-2 text-right w-24">Unit $</th>
-                        <th className="px-3 py-2 text-right w-24">Amount</th>
-                        {canEdit && <th className="w-10"></th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lineItems.map((item, idx) => (
-                        <tr key={item.id || idx} className="border-b border-border/50">
-                          <td className="px-3 py-2">
-                            {canEdit ? (
-                              <Input
-                                value={item.description || ""}
-                                onChange={(e) => updateLineItem(idx, "description", e.target.value)}
-                                className="h-8 text-sm"
-                              />
-                            ) : (
-                              item.description || "—"
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {canEdit ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                value={item.quantity ?? ""}
-                                onChange={(e) => updateLineItem(idx, "quantity", e.target.value)}
-                                className="h-8 w-20 text-right"
-                              />
-                            ) : (
-                              item.quantity
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {canEdit ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                value={item.unit_price ?? ""}
-                                onChange={(e) => updateLineItem(idx, "unit_price", e.target.value)}
-                                className="h-8 w-24 text-right"
-                              />
-                            ) : (
-                              `$${(item.unit_price ?? 0).toFixed(2)}`
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            $
-                            {(item.amount ?? (item.quantity ?? 0) * (item.unit_price ?? 0)).toFixed(
-                              2,
-                            )}
-                          </td>
-                          {canEdit && (
-                            <td>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive h-8 w-8 p-0"
-                                onClick={() => setLineItems(lineItems.filter((_, i) => i !== idx))}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <div className="w-72 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-mono">${subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm items-center gap-2">
-                    <span className="text-muted-foreground">Tax Rate</span>
-                    {canEdit ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={0.1}
-                          value={((parseFloat(form.tax_rate) || 0) * 100).toFixed(1)}
-                          onChange={(e) => {
-                            const rate = (parseFloat(e.target.value) || 0) / 100;
-                            setForm((f) => ({ ...f, tax_rate: rate }));
-                          }}
-                          className="w-20 h-8 text-right"
-                        />
-                        <span className="text-xs text-muted-foreground">%</span>
-                      </div>
-                    ) : (
-                      <span className="font-mono">
-                        {((parseFloat(form.tax_rate) || 0) * 100).toFixed(1)}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex justify-between text-sm items-center">
-                    <span className="text-muted-foreground">Tax</span>
-                    <span className="font-mono">${taxAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold pt-2 border-t">
-                    <span>Total</span>
-                    <span className="font-mono">${total.toFixed(2)}</span>
-                  </div>
-                  {(invoice?.amount_credited ?? 0) > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm text-success">
-                        <span>Credits Applied</span>
-                        <span className="font-mono">
-                          -${(invoice.amount_credited ?? 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between font-bold">
-                        <span>Balance Due</span>
-                        <span className="font-mono">
-                          ${(total - (invoice.amount_credited ?? 0)).toFixed(2)}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs uppercase text-muted-foreground">Notes</Label>
-                {canEdit ? (
-                  <Textarea
-                    value={form.notes || ""}
-                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                    className="mt-1 min-h-[60px]"
-                    placeholder="Optional notes"
-                  />
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">{invoice?.notes || "—"}</p>
-                )}
-              </div>
-
-              {invoice?.withdrawal_ids?.length > 0 && (
-                <div>
-                  <Label className="text-xs uppercase text-muted-foreground">Linked Sales</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {invoice.withdrawal_ids.map((wid) => (
-                      <Link
-                        key={wid}
-                        to="/"
-                        className="px-2 py-1 bg-muted rounded font-mono text-xs hover:bg-muted hover:underline"
-                        title={wid}
-                      >
-                        {wid.slice(0, 8)}…
-                      </Link>
+                <label className="text-xs text-muted-foreground">Payment Terms</label>
+                <Select
+                  value={form.payment_terms}
+                  onValueChange={(v) => setForm((f) => ({ ...f, payment_terms: v }))}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger className="mt-0.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_TERMS.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {canEdit && (
-                <div>
-                  <Label className="text-xs uppercase text-muted-foreground">Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
-                  >
-                    <SelectTrigger className="mt-1 w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">PO Reference</label>
+                <Input
+                  value={form.po_reference}
+                  onChange={(e) => setForm((f) => ({ ...f, po_reference: e.target.value }))}
+                  disabled={!canEdit}
+                  className="mt-0.5"
+                  placeholder="Contractor PO #"
+                />
+              </div>
             </div>
-          )}
+          </div>
 
-          <div className="flex justify-between pt-4 border-t">
-            <div>
+          {/* Bill To */}
+          <div>
+            <Label className="text-xs uppercase text-muted-foreground">Bill To</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              {[
+                { key: "billing_entity", label: "Billing Entity" },
+                { key: "contact_name", label: "Contact Name" },
+                { key: "contact_email", label: "Contact Email", type: "email" },
+                {
+                  key: "billing_address",
+                  label: "Billing Address",
+                  placeholder: "Street, City, State ZIP",
+                },
+              ].map((f) => (
+                <div key={f.key}>
+                  <label className="text-xs text-muted-foreground">{f.label}</label>
+                  <Input
+                    type={f.type || "text"}
+                    value={form[f.key]}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        [f.key]: e.target.value,
+                      }))
+                    }
+                    disabled={!canEdit}
+                    className="mt-0.5"
+                    placeholder={f.placeholder}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Line Items */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label className="text-xs uppercase text-muted-foreground">Line Items</Label>
               {canEdit && (
                 <Button
-                  variant="outline"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => setDeleteConfirmOpen(true)}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setLineItems([
+                      ...lineItems,
+                      {
+                        id: crypto.randomUUID(),
+                        description: "",
+                        quantity: 1,
+                        unit_price: 0,
+                        amount: 0,
+                      },
+                    ])
+                  }
                 >
-                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                  <Plus className="w-4 h-4 mr-1" /> Add row
                 </Button>
               )}
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleSyncXero} disabled={syncXero.isPending}>
-                <ExternalLink className="w-4 h-4 mr-2" /> Send to Xero
-              </Button>
-              {canEdit && (
-                <Button onClick={handleSave} disabled={updateInvoice.isPending}>
-                  {updateInvoice.isPending ? "Saving…" : "Save"}
-                </Button>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted border-b border-border">
+                    <th className="px-3 py-2 text-left">Description</th>
+                    <th className="px-3 py-2 text-right w-20">Qty</th>
+                    <th className="px-3 py-2 text-right w-24">Unit $</th>
+                    <th className="px-3 py-2 text-right w-24">Amount</th>
+                    {canEdit && <th className="w-10"></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((item, idx) => (
+                    <tr key={item.id || idx} className="border-b border-border/50">
+                      <td className="px-3 py-2">
+                        {canEdit ? (
+                          <Input
+                            value={item.description || ""}
+                            onChange={(e) => updateLineItem(idx, "description", e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          item.description || "—"
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {canEdit ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={item.quantity ?? ""}
+                            onChange={(e) => updateLineItem(idx, "quantity", e.target.value)}
+                            className="h-8 w-20 text-right"
+                          />
+                        ) : (
+                          item.quantity
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {canEdit ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={item.unit_price ?? ""}
+                            onChange={(e) => updateLineItem(idx, "unit_price", e.target.value)}
+                            className="h-8 w-24 text-right"
+                          />
+                        ) : (
+                          `$${(item.unit_price ?? 0).toFixed(2)}`
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        ${(item.amount ?? (item.quantity ?? 0) * (item.unit_price ?? 0)).toFixed(2)}
+                      </td>
+                      {canEdit && (
+                        <td>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive h-8 w-8 p-0"
+                            onClick={() => setLineItems(lineItems.filter((_, i) => i !== idx))}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Totals */}
+          <div className="flex justify-end">
+            <div className="w-72 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-mono">${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm items-center gap-2">
+                <span className="text-muted-foreground">Tax Rate</span>
+                {canEdit ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={((parseFloat(form.tax_rate) || 0) * 100).toFixed(1)}
+                      onChange={(e) => {
+                        const rate = (parseFloat(e.target.value) || 0) / 100;
+                        setForm((f) => ({ ...f, tax_rate: rate }));
+                      }}
+                      className="w-20 h-8 text-right"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                ) : (
+                  <span className="font-mono">
+                    {((parseFloat(form.tax_rate) || 0) * 100).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-muted-foreground">Tax</span>
+                <span className="font-mono">${taxAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold pt-2 border-t">
+                <span>Total</span>
+                <span className="font-mono">${total.toFixed(2)}</span>
+              </div>
+              {(invoice?.amount_credited ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-sm text-success">
+                    <span>Credits Applied</span>
+                    <span className="font-mono">-${(invoice.amount_credited ?? 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                    <span>Balance Due</span>
+                    <span className="font-mono">
+                      ${(total - (invoice.amount_credited ?? 0)).toFixed(2)}
+                    </span>
+                  </div>
+                </>
               )}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* Notes */}
+          <div>
+            <Label className="text-xs uppercase text-muted-foreground">Notes</Label>
+            {canEdit ? (
+              <Textarea
+                value={form.notes || ""}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                className="mt-1 min-h-[60px]"
+                placeholder="Optional notes"
+              />
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">{invoice?.notes || "—"}</p>
+            )}
+          </div>
+
+          {/* Linked Sales */}
+          {invoice?.withdrawal_ids?.length > 0 && (
+            <div>
+              <Label className="text-xs uppercase text-muted-foreground">Linked Sales</Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {invoice.withdrawal_ids.map((wid) => (
+                  <Link
+                    key={wid}
+                    to="/"
+                    className="px-2 py-1 bg-muted rounded font-mono text-xs hover:bg-muted hover:underline"
+                    title={wid}
+                  >
+                    {wid.slice(0, 8)}…
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Status */}
+          {canEdit && (
+            <div>
+              <Label className="text-xs uppercase text-muted-foreground">Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
+              >
+                <SelectTrigger className="mt-1 w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </DetailPanel>
+
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}

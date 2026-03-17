@@ -97,9 +97,14 @@ def budget_tool_result(raw_json: str, max_tokens: int = 2000) -> str:
     if count_tokens(trimmed) <= max_tokens:
         return trimmed
 
-    # Phase 3: hard truncation
-    chars = max_tokens * 3
-    return trimmed[:chars] + '..."}'
+    # Phase 3: result still too large — return a structured truncation notice so the
+    # model receives valid JSON rather than a broken fragment.
+    return json.dumps(
+        {
+            "_truncated": True,
+            "_note": f"Result exceeded {max_tokens} token budget after trimming. Ask for a more specific query.",
+        }
+    )
 
 
 def estimate_turn_tokens(

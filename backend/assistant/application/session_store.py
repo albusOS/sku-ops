@@ -112,7 +112,10 @@ async def update(session_id: str, history: list[dict], cost_usd: float = 0.0) ->
 
 async def clear(session_id: str) -> None:
     if _use_redis():
-        await _redis().delete(f"{_KEY_PREFIX}{session_id}")
+        try:
+            await _redis().delete(f"{_KEY_PREFIX}{session_id}")
+        except Exception as e:
+            logger.debug("Redis clear failed for session %s: %s", session_id, e)
         return
     _SESSIONS.pop(session_id, None)
 

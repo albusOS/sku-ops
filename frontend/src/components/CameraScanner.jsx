@@ -4,13 +4,10 @@ import { Button } from "@/components/ui/button";
 import { useCameraScanner } from "@/hooks/useCameraScanner";
 
 /**
- * Camera viewfinder for barcode/QR scanning.
+ * Camera viewfinder for barcode + QR scanning.
  *
- * Self-contained UI — decodes barcodes and calls onScan(code).
- * Does not do product lookup; the parent wires onScan to the
- * barcode scanner hook's submit() function.
- *
- * @param {{ onScan: (code: string) => void, onClose: () => void, scanning?: boolean }} props
+ * Decodes vendor barcodes (UPC-A, EAN-13, CODE-128) and printed QR labels.
+ * Calls onScan(code) — parent wires it to useBarcodeScanner.submit().
  */
 export function CameraScanner({ onScan, onClose, scanning = false }) {
   const { videoRef, start, stop, active, error } = useCameraScanner({ onScan });
@@ -24,7 +21,6 @@ export function CameraScanner({ onScan, onClose, scanning = false }) {
 
   return (
     <div className="relative rounded-2xl overflow-hidden bg-black">
-      {/* Video element is always rendered so the ref is available on mount */}
       <video
         ref={videoRef}
         className="w-full aspect-[4/3] object-cover"
@@ -32,6 +28,24 @@ export function CameraScanner({ onScan, onClose, scanning = false }) {
         playsInline
         muted
       />
+
+      {/* Targeting reticle */}
+      {active && !scanning && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div
+            className="relative border-2 border-white/40 rounded-xl"
+            style={{ width: "65%", height: "55%" }}
+          >
+            <div className="absolute -top-px -left-px w-6 h-6 border-t-[3px] border-l-[3px] border-white rounded-tl-lg" />
+            <div className="absolute -top-px -right-px w-6 h-6 border-t-[3px] border-r-[3px] border-white rounded-tr-lg" />
+            <div className="absolute -bottom-px -left-px w-6 h-6 border-b-[3px] border-l-[3px] border-white rounded-bl-lg" />
+            <div className="absolute -bottom-px -right-px w-6 h-6 border-b-[3px] border-r-[3px] border-white rounded-br-lg" />
+          </div>
+          <p className="absolute bottom-4 text-white/70 text-xs font-medium">
+            Point at barcode or QR code
+          </p>
+        </div>
+      )}
 
       {scanning && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
