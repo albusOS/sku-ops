@@ -1,6 +1,17 @@
-import { ShoppingCart, HardHat, Briefcase, Building2, MapPin, FileText } from "lucide-react";
+import { useState } from "react";
+import {
+  ShoppingCart,
+  HardHat,
+  Briefcase,
+  Building2,
+  MapPin,
+  FileText,
+  RotateCcw,
+} from "lucide-react";
 import { format } from "date-fns";
+import { Button } from "./ui/button";
 import { DetailPanel, DetailSection, DetailField } from "./DetailPanel";
+import { CreateReturnModal } from "./operations/CreateReturnModal";
 import { useWithdrawal } from "@/hooks/useWithdrawals";
 
 export function WithdrawalDetailPanel({
@@ -11,6 +22,7 @@ export function WithdrawalDetailPanel({
   onViewJob,
 }) {
   const { data: wd, isLoading } = useWithdrawal(withdrawalId);
+  const [returnOpen, setReturnOpen] = useState(false);
 
   const items = wd?.items || [];
   const total = wd?.total || items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
@@ -25,6 +37,19 @@ export function WithdrawalDetailPanel({
       icon={ShoppingCart}
       loading={isLoading}
       width="lg"
+      actions={
+        wd && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReturnOpen(true)}
+            className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Process Return
+          </Button>
+        )
+      }
     >
       <DetailSection label="Details">
         <div className="grid grid-cols-2 gap-4">
@@ -183,6 +208,12 @@ export function WithdrawalDetailPanel({
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{wd.notes}</p>
         </DetailSection>
       )}
+
+      <CreateReturnModal
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        prefillWithdrawalId={withdrawalId}
+      />
     </DetailPanel>
   );
 }

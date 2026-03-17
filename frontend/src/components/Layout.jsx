@@ -242,16 +242,28 @@ const Layout = ({ children }) => {
                   <Wrench className="w-5 h-5 text-accent-foreground" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="font-semibold text-sidebar-foreground tracking-tight truncate">
-                    Supply Yard
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-semibold text-sidebar-foreground tracking-tight truncate">
+                      Supply Yard
+                    </h1>
+                    {import.meta.env.DEV && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/20">
+                        Dev
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-sidebar-muted truncate">Material management</p>
                 </div>
               </div>
             )}
             {collapsed && (
-              <div className="w-10 h-10 bg-gradient-to-br from-accent-gradient-from to-accent-gradient-to rounded-xl flex items-center justify-center shadow-sm ring-1 ring-accent/40 mx-auto">
-                <Wrench className="w-5 h-5 text-accent-foreground" />
+              <div className="relative mx-auto">
+                <div className="w-10 h-10 bg-gradient-to-br from-accent-gradient-from to-accent-gradient-to rounded-xl flex items-center justify-center shadow-sm ring-1 ring-accent/40">
+                  <Wrench className="w-5 h-5 text-accent-foreground" />
+                </div>
+                {import.meta.env.DEV && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-warning ring-1 ring-sidebar" />
+                )}
               </div>
             )}
             <button
@@ -352,31 +364,40 @@ const Layout = ({ children }) => {
                 <LogOut className="w-5 h-5" />
               </button>
             ) : (
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm text-sidebar-foreground truncate">
-                    {user?.name}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`} />
-                    <p className="text-xs text-sidebar-muted truncate">{getRoleLabel()}</p>
-                    <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-success" : "bg-warning animate-pulse"}`}
-                      title={connected ? "Live" : "Reconnecting…"}
-                    />
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm text-sidebar-foreground truncate">
+                      {user?.name}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`} />
+                      <p className="text-xs text-sidebar-muted truncate">{getRoleLabel()}</p>
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-success" : "bg-warning animate-pulse"}`}
+                        title={connected ? "Live" : "Reconnecting…"}
+                      />
+                    </div>
+                    {user?.company && (
+                      <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">
+                        {user.company}
+                      </p>
+                    )}
                   </div>
-                  {user?.company && (
-                    <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">{user.company}</p>
-                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                    data-testid="logout-btn"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-sidebar-muted hover:text-sidebar-foreground hover:bg-white/5 rounded-lg transition-colors shrink-0"
-                  data-testid="logout-btn"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
+                <div className="mt-2 pt-2 border-t border-sidebar-border/50 flex items-center gap-3 text-[10px] text-sidebar-muted/50">
+                  <span className="flex items-center gap-1">
+                    <kbd className="font-mono bg-white/5 px-1 rounded">⌘K</kbd> Search
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </aside>

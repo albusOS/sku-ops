@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useContext } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { Truck, ShoppingCart } from "lucide-react";
+import { RealtimeSyncContext } from "@/context/RealtimeSyncContext";
+import { Truck, ShoppingCart, AlertTriangle, Flame } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, DATE_PRESETS } from "@/lib/constants";
@@ -14,37 +15,61 @@ import { ActionTile } from "@/components/ActionTile";
 import { useDashboardStats } from "@/hooks/useDashboard";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { Panel, SectionHead } from "@/components/Panel";
+import WorkflowGraph from "@/components/workflows/WorkflowGraph";
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function LivePulse({ connected }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className="relative flex h-2 w-2">
+        <span
+          className={`absolute inset-0 rounded-full ${connected ? "bg-success animate-live-pulse" : "bg-warning animate-pulse"}`}
+        />
+        <span
+          className={`relative rounded-full h-2 w-2 ${connected ? "bg-success" : "bg-warning"}`}
+        />
+      </span>
+      {connected ? "Live" : "Reconnecting"}
+    </span>
+  );
+}
 
 const POSummaryStrip = ({ summary = {} }) => {
   const statuses = [
-    { key: "ordered", label: "On Order", color: "bg-muted-foreground/40" },
-    { key: "partial", label: "At Dock", color: "bg-muted-foreground/60" },
-    { key: "received", label: "Received", color: "bg-muted-foreground/80" },
+    { key: "ordered", label: "On Order", bar: "bg-info", dot: "bg-info" },
+    { key: "partial", label: "At Dock", bar: "bg-warning", dot: "bg-warning" },
+    { key: "received", label: "Received", bar: "bg-success", dot: "bg-success" },
   ];
   const total = Object.values(summary).reduce((s, v) => s + (v?.total || 0), 0) || 1;
   return (
     <div>
-      <div className="flex h-2.5 rounded-full overflow-hidden gap-px mb-2">
+      <div className="flex h-3 rounded-full overflow-hidden gap-0.5 mb-3 bg-muted">
         {statuses.map((s) => {
           const val = summary[s.key]?.total || 0;
           if (!val) return null;
           return (
             <div
               key={s.key}
-              className={s.color}
+              className={`${s.bar} transition-all`}
               style={{ width: `${(val / total) * 100}%` }}
               title={`${s.label}: ${valueFormatter(val)}`}
             />
           );
         })}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
         {statuses.map((s) => {
           const v = summary[s.key];
           if (!v) return null;
           return (
             <div key={s.key} className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${s.color}`} />
+              <div className={`w-2 h-2 rounded-full ${s.dot}`} />
               <span className="text-xs text-muted-foreground">{s.label}</span>
               <span className="text-xs font-bold text-foreground tabular-nums">{v.count}</span>
               <span className="text-[10px] text-muted-foreground tabular-nums">
@@ -60,6 +85,7 @@ const POSummaryStrip = ({ summary = {} }) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { connected } = useContext(RealtimeSyncContext);
 
   const defaultRange = DATE_PRESETS[1].getValue();
   const [dateRange, setDateRange] = useState(defaultRange);
@@ -89,9 +115,14 @@ const Dashboard = () => {
       <div className="p-8" data-testid="dashboard-page">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+                {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
+              </h1>
+              <LivePulse connected={connected} />
+            </div>
             <p className="text-muted-foreground mt-1 text-sm">
-              Welcome back, {user?.name} · {user?.company || "Independent"}
+              {user?.company || "Independent"} · {format(new Date(), "EEEE, MMM d")}
             </p>
           </div>
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
@@ -167,9 +198,14 @@ const Dashboard = () => {
     <div className="p-8" data-testid="dashboard-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+              {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
+            </h1>
+            <LivePulse connected={connected} />
+          </div>
           <p className="text-muted-foreground mt-1 text-sm">
-            Daily yard activity, inbound deliveries, and contractor work · {rangeLabel}
+            {format(new Date(), "EEEE, MMM d")} · {rangeLabel}
           </p>
         </div>
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
@@ -194,6 +230,11 @@ const Dashboard = () => {
           />
         </div>
       </div>
+
+      <Panel className="mb-8">
+        <SectionHead title="Workflows" />
+        <WorkflowGraph />
+      </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {hasPOs && (
@@ -224,39 +265,81 @@ const Dashboard = () => {
           </Panel>
         )}
 
-        {stats?.low_stock_alerts?.length > 0 && (
-          <Panel>
-            <SectionHead
-              title="Low stock items"
-              action={
-                <Link
-                  to="/inventory?low_stock=1"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  {stats.low_stock_count} items →
-                </Link>
-              }
-            />
-            <div className="space-y-2 max-h-[260px] overflow-auto -mx-6 px-6">
-              {stats.low_stock_alerts.map((product, i) => (
-                <Link
-                  key={product.id || i}
-                  to="/inventory"
-                  className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted"
-                >
-                  <div>
-                    <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>
-                    <p className="text-sm text-foreground truncate max-w-[200px]">{product.name}</p>
-                  </div>
-                  <div className="flex items-center gap-3 text-right shrink-0 text-xs text-muted-foreground">
-                    <span>{product.quantity} left</span>
-                    <span className="text-muted-foreground">min {product.min_stock}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </Panel>
-        )}
+        {stats?.low_stock_alerts?.length > 0 &&
+          (() => {
+            const hasOutOfStock = stats.low_stock_alerts.some((p) => p.quantity === 0);
+            return (
+              <Panel severity={hasOutOfStock ? "danger" : "warn"}>
+                <SectionHead
+                  title="Low stock items"
+                  icon={hasOutOfStock ? Flame : AlertTriangle}
+                  action={
+                    <Link
+                      to="/inventory?low_stock=1"
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {stats.low_stock_count} items →
+                    </Link>
+                  }
+                />
+                <div className="space-y-1.5 max-h-[260px] overflow-auto -mx-6 px-6">
+                  {stats.low_stock_alerts.map((product, i) => {
+                    const isEmpty = product.quantity === 0;
+                    const pct =
+                      product.min_stock > 0
+                        ? Math.min((product.quantity / product.min_stock) * 100, 100)
+                        : 0;
+                    return (
+                      <Link
+                        key={product.id || i}
+                        to="/inventory"
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-colors hover:bg-muted/60 ${
+                          isEmpty
+                            ? "border-destructive/25 bg-destructive/[0.04]"
+                            : "border-warning/20 bg-warning/[0.02]"
+                        }`}
+                      >
+                        <div
+                          className={`w-1 h-9 rounded-full shrink-0 ${isEmpty ? "bg-destructive" : "bg-warning"}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm text-foreground truncate">{product.name}</p>
+                              <p className="font-mono text-[10px] text-muted-foreground">
+                                {product.sku}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isEmpty ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+                                  Out
+                                </span>
+                              ) : (
+                                <span className="text-xs font-bold tabular-nums text-warning">
+                                  {product.quantity}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                / {product.min_stock}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="mt-1.5 h-1 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${isEmpty ? "bg-destructive" : "bg-warning"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </Panel>
+            );
+          })()}
       </div>
     </div>
   );

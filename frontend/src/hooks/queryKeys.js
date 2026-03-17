@@ -61,6 +61,11 @@ export const keys = {
     list: (params) => ["documents", "list", params],
     detail: (id) => ["documents", "detail", id],
   },
+  returns: {
+    all: ["returns"],
+    list: (params) => ["returns", "list", params],
+    detail: (id) => ["returns", "detail", id],
+  },
   financials: {
     all: ["financials"],
     summary: (params) => ["financials", "summary", params],

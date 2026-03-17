@@ -106,12 +106,13 @@ async def sales_report(
 ) -> SalesReport:
     dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
 
-    accounts, top_products, counts, catalog, payment_status = await asyncio.gather(
+    accounts, top_products, counts, catalog, payment_status, ret_total = await asyncio.gather(
         ledger_repo.summary_by_account(start_date=start_date, end_date=end_date, **dim_kw),
         ledger_repo.product_margins(start_date=start_date, end_date=end_date, limit=10, **dim_kw),
         ledger_repo.reference_counts(start_date=start_date, end_date=end_date),
         list_skus(),
         ledger_repo.payment_status_breakdown(start_date=start_date, end_date=end_date),
+        ledger_repo.returns_total(start_date=start_date, end_date=end_date, **dim_kw),
     )
     product_map = {p.id: p for p in catalog}
     enriched_products = []
@@ -121,27 +122,28 @@ async def sales_report(
             {**m, "name": p.name if p else "Unknown", "sku": p.sku if p else ""}
         )
 
-    revenue = float(accounts.get("revenue", 0))
+    net_revenue = float(accounts.get("revenue", 0))
     cogs = float(accounts.get("cogs", 0))
     tax = float(accounts.get("tax_collected", 0))
-    gross_profit = round_money(revenue - cogs)
+    gross_revenue = round_money(net_revenue + ret_total)
+    gross_profit = round_money(net_revenue - cogs)
     tx_count = counts.get("withdrawal", 0)
     return_count = counts.get("return", 0)
 
     return SalesReport(
-        gross_revenue=round_money(revenue),
-        returns_total=0,
-        net_revenue=round_money(revenue),
+        gross_revenue=gross_revenue,
+        returns_total=round_money(ret_total),
+        net_revenue=round_money(net_revenue),
         total_cogs=round_money(cogs),
         gross_profit=gross_profit,
-        gross_margin_pct=round(gross_profit / revenue * 100, 1) if revenue > 0 else 0,
+        gross_margin_pct=round(gross_profit / net_revenue * 100, 1) if net_revenue > 0 else 0,
         total_tax=round_money(tax),
         total_transactions=tx_count,
         return_count=return_count,
-        average_transaction=round_money(revenue / tx_count) if tx_count > 0 else 0,
+        average_transaction=round_money(net_revenue / tx_count) if tx_count > 0 else 0,
         by_payment_status=payment_status,
         top_products=enriched_products,
-        total_revenue=round_money(revenue),
+        total_revenue=round_money(net_revenue),
     )
 
 

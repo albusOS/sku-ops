@@ -123,6 +123,8 @@ const api = {
 
   // ── Returns ─────────────────────────────────────────────────────────
   returns: {
+    list: (params) => axios.get(`${API}/operations/returns`, { params }).then((r) => r.data),
+    get: (id) => axios.get(`${API}/operations/returns/${id}`).then((r) => r.data),
     create: (data) => axios.post(`${API}/operations/returns`, data).then((r) => r.data),
   },
 

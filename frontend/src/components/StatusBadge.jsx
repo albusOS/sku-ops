@@ -13,6 +13,7 @@ const VARIANTS = {
   authorised: "bg-success/15 text-success border border-success/30",
   voided: "bg-destructive/15 text-destructive border border-destructive/30",
   deleted: "bg-destructive/15 text-destructive border border-destructive/30",
+  returned: "bg-destructive/15 text-destructive border border-destructive/30",
   pending: "badge-warning",
   processed: "badge-success",
   active: "badge-success",
@@ -31,14 +32,17 @@ const DISPLAY_LABELS = {
 export function StatusBadge({ status, className }) {
   const variant = VARIANTS[status] || "bg-muted text-muted-foreground border border-border";
   const label = DISPLAY_LABELS[status] || status;
+  const isAlert = ["overdue", "voided", "deleted", "returned"].includes(status);
   return (
     <span
       className={cn(
-        "inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold capitalize",
+        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold capitalize",
         variant,
+        isAlert && "shadow-[inset_0_1px_0_0_rgb(220_38_38/0.08)]",
         className,
       )}
     >
+      {isAlert && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" />}
       {label}
     </span>
   );

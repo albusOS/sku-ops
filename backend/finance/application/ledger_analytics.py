@@ -289,3 +289,40 @@ async def reference_counts(
     query += " GROUP BY reference_type"
     cursor = await conn.execute(query, params)
     return {row[0]: row[1] for row in await cursor.fetchall()}
+
+
+async def returns_total(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> float:
+    """Sum of revenue reversed by returns (positive number)."""
+    conn = get_connection()
+    params: list = [get_org_id()]
+    date_filter = ""
+    if start_date:
+        n = len(params) + 1
+        date_filter += f" AND created_at >= ${n}"
+        params.append(start_date)
+    if end_date:
+        n = len(params) + 1
+        date_filter += f" AND created_at <= ${n}"
+        params.append(end_date)
+    dim_filter = _build_dimension_filter(
+        params, job_id=job_id, department=department, billing_entity=billing_entity
+    )
+
+    query = (
+        "SELECT COALESCE(ROUND(CAST(ABS(SUM(amount)) AS NUMERIC), 2), 0)"
+        " FROM financial_ledger"
+        " WHERE organization_id = $1"
+        " AND reference_type = 'return'"
+        " AND account = 'revenue'"
+    )
+    query += date_filter + dim_filter
+    cursor = await conn.execute(query, params)
+    row = await cursor.fetchone()
+    return float(row[0]) if row and row[0] else 0.0

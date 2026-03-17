@@ -21,6 +21,7 @@ from finance.application.ledger_analytics import (  # noqa: F401
     product_margins,
     purchase_spend,
     reference_counts,
+    returns_total,
     trend_series,
 )
 from finance.infrastructure.ledger_repo import get_journal, trial_balance  # noqa: F401

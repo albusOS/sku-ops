@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Package, MapPin, ChevronDown, Send, Clock, FileText, X } from "lucide-react";
+import { Package, MapPin, ChevronDown, Send, Clock, FileText, X, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import {
   Select,
@@ -14,7 +14,9 @@ import { QueryError } from "@/components/QueryError";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { CreateReturnModal } from "@/components/operations/CreateReturnModal";
 import { useWithdrawals } from "@/hooks/useWithdrawals";
+import { useReturns } from "@/hooks/useReturns";
 import { useMaterialRequests } from "@/hooks/useMaterialRequests";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 
@@ -33,6 +35,8 @@ const MyHistory = () => {
     [dateRange, paymentStatus],
   );
 
+  const [returnWithdrawalId, setReturnWithdrawalId] = useState(null);
+
   const {
     data: withdrawals = [],
     isLoading: wdLoading,
@@ -41,9 +45,20 @@ const MyHistory = () => {
     refetch: wdRefetch,
   } = useWithdrawals(params);
   const { data: allRequests = [], isLoading: reqLoading } = useMaterialRequests();
+  const { data: returns = [] } = useReturns(params);
+
+  const returnsByWithdrawal = useMemo(() => {
+    const map = {};
+    for (const r of returns) {
+      if (!map[r.withdrawal_id]) map[r.withdrawal_id] = [];
+      map[r.withdrawal_id].push(r);
+    }
+    return map;
+  }, [returns]);
 
   const requests = allRequests.filter?.((r) => r.status === "pending") || [];
   const totalSpent = withdrawals.reduce((sum, w) => sum + (w.total || 0), 0);
+  const totalReturned = returns.reduce((sum, r) => sum + (r.total || 0), 0);
   const totalUninvoiced = withdrawals
     .filter((w) => !w.invoice_id)
     .reduce((sum, w) => sum + (w.total || 0), 0);
@@ -65,7 +80,7 @@ const MyHistory = () => {
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Orders" value={withdrawals.length} />
         <StatCard
           label="Total Value"
@@ -77,6 +92,13 @@ const MyHistory = () => {
           value={`$${totalUninvoiced.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
           accent="amber"
         />
+        {returns.length > 0 && (
+          <StatCard
+            label="Returns"
+            value={`-$${totalReturned.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+            accent="rose"
+          />
+        )}
       </div>
 
       {requests.length > 0 && (
@@ -246,6 +268,52 @@ const MyHistory = () => {
                         {w.notes}
                       </div>
                     )}
+
+                    {returnsByWithdrawal[w.id]?.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-border/50">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-2">
+                          Returns
+                        </p>
+                        <div className="space-y-2">
+                          {returnsByWithdrawal[w.id].map((ret) => (
+                            <div
+                              key={ret.id}
+                              className="flex items-center justify-between p-2.5 bg-destructive/5 rounded-lg border border-destructive/20"
+                            >
+                              <div className="flex items-center gap-2">
+                                <RotateCcw className="w-3.5 h-3.5 text-destructive" />
+                                <div>
+                                  <p className="text-xs font-medium text-foreground capitalize">
+                                    {(ret.reason || "other").replace(/_/g, " ")}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {format(new Date(ret.created_at), "MMM d, yyyy")} ·{" "}
+                                    {ret.items?.length || 0} items
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="font-semibold tabular-nums text-destructive text-sm">
+                                -${(ret.total || 0).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-4 pt-3 border-t border-border/50 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReturnWithdrawalId(w.id);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive hover:text-destructive/80 transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Return items
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -253,6 +321,11 @@ const MyHistory = () => {
           </div>
         )}
       </div>
+      <CreateReturnModal
+        open={!!returnWithdrawalId}
+        onOpenChange={(open) => !open && setReturnWithdrawalId(null)}
+        prefillWithdrawalId={returnWithdrawalId}
+      />
     </div>
   );
 };

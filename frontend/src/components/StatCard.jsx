@@ -2,13 +2,48 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const ACCENTS = {
-  amber: { bar: "bg-category-1", icon: "bg-category-1/10 text-category-1" },
-  emerald: { bar: "bg-category-2", icon: "bg-category-2/10 text-category-2" },
-  blue: { bar: "bg-category-3", icon: "bg-category-3/10 text-category-3" },
-  orange: { bar: "bg-category-5", icon: "bg-category-5/10 text-category-5" },
-  violet: { bar: "bg-category-4", icon: "bg-category-4/10 text-category-4" },
-  rose: { bar: "bg-destructive", icon: "bg-destructive/10 text-destructive" },
-  slate: { bar: "bg-muted", icon: "bg-muted text-muted-foreground" },
+  amber: {
+    bar: "bg-category-1",
+    icon: "bg-category-1/10 text-category-1",
+    glow: "shadow-[inset_0_-20px_40px_-20px_rgb(245_158_11/0.06)]",
+    value: "text-category-1",
+  },
+  emerald: {
+    bar: "bg-category-2",
+    icon: "bg-category-2/10 text-category-2",
+    glow: "shadow-[inset_0_-20px_40px_-20px_rgb(16_185_129/0.06)]",
+    value: "text-category-2",
+  },
+  blue: {
+    bar: "bg-category-3",
+    icon: "bg-category-3/10 text-category-3",
+    glow: "shadow-[inset_0_-20px_40px_-20px_rgb(59_130_246/0.06)]",
+    value: "text-category-3",
+  },
+  orange: {
+    bar: "bg-category-5",
+    icon: "bg-category-5/10 text-category-5",
+    glow: "shadow-[inset_0_-20px_40px_-20px_rgb(251_146_60/0.06)]",
+    value: "text-category-5",
+  },
+  violet: {
+    bar: "bg-category-4",
+    icon: "bg-category-4/10 text-category-4",
+    glow: "shadow-[inset_0_-20px_40px_-20px_rgb(139_92_246/0.06)]",
+    value: "text-category-4",
+  },
+  rose: {
+    bar: "bg-destructive",
+    icon: "bg-destructive/10 text-destructive",
+    glow: "shadow-[inset_0_-20px_40px_-20px_rgb(220_38_38/0.06)]",
+    value: "text-destructive",
+  },
+  slate: {
+    bar: "bg-muted",
+    icon: "bg-muted text-muted-foreground",
+    glow: "",
+    value: "text-foreground",
+  },
 };
 
 export function StatCard({ label, value, note, icon: Icon, accent = "slate", className, href }) {
@@ -21,6 +56,7 @@ export function StatCard({ label, value, note, icon: Icon, accent = "slate", cla
       {...wrapperProps}
       className={cn(
         "bg-surface rounded-xl border border-border/80 p-5 relative overflow-hidden shadow-soft block",
+        cfg.glow,
         href && "hover:border-accent/40 hover:shadow-md transition-all cursor-pointer",
         className,
       )}
@@ -41,7 +77,7 @@ export function StatCard({ label, value, note, icon: Icon, accent = "slate", cla
           </div>
         )}
       </div>
-      <p className="text-2xl font-bold text-foreground tabular-nums leading-none">{value}</p>
+      <p className={cn("text-2xl font-bold tabular-nums leading-none", cfg.value)}>{value}</p>
       {note && <p className="text-xs text-muted-foreground mt-2">{note}</p>}
     </Wrapper>
   );

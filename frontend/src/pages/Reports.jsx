@@ -1,41 +1,22 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { toast } from "sonner";
+import { useState, useMemo } from "react";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, DollarSign, Calendar as CalendarIcon, Download, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { DATE_PRESETS } from "@/lib/constants";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
-import { PLTab } from "@/components/reports/PLTab";
-import { OperationsTab } from "@/components/reports/OperationsTab";
-import { InventoryTab } from "@/components/reports/InventoryTab";
-import api from "@/lib/api-client";
-
-const TABS = [
-  { value: "pl", label: "Financial", icon: DollarSign },
-  { value: "operations", label: "Operations", icon: Activity },
-  { value: "inventory", label: "Inventory", icon: Package },
-];
+import { ProfitCard } from "@/components/reports/cards/ProfitCard";
+import { RevenueTrendCard } from "@/components/reports/cards/RevenueTrendCard";
+import { PortfolioCard } from "@/components/reports/cards/PortfolioCard";
+import { StockPulseCard } from "@/components/reports/cards/StockPulseCard";
+import { InventoryHealthCard } from "@/components/reports/cards/InventoryHealthCard";
+import { TopPerformersCard } from "@/components/reports/cards/TopPerformersCard";
 
 const Reports = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "pl");
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [selectedProduct, setSelectedProduct] = useState(null);
-
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && tab !== activeTab) setActiveTab(tab);
-  }, [searchParams, activeTab]);
-
-  const handleTabChange = (value) => {
-    setActiveTab(value);
-    setSearchParams({ tab: value }, { replace: true });
-  };
 
   const dateParams = useMemo(
     () => ({
@@ -55,56 +36,6 @@ const Reports = () => {
     });
   };
 
-  const handleExportCSV = useCallback(async () => {
-    try {
-      const filename = `report-${activeTab}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-
-      if (activeTab === "pl") {
-        const blob = await api.financials.export({
-          start_date: dateParams.start_date || undefined,
-          end_date: dateParams.end_date || undefined,
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("CSV downloaded");
-        return;
-      }
-
-      if (activeTab === "inventory") {
-        const products = await api.products.list({ limit: 10000 });
-        const rows = (products.items || products).map((p) => [
-          p.sku,
-          p.name,
-          p.category_name || "",
-          p.quantity,
-          p.min_stock,
-          p.price,
-          p.cost || 0,
-        ]);
-        const csv = [["SKU", "Name", "Category", "Qty", "Min Stock", "Price", "Cost"], ...rows]
-          .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-          .join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("CSV downloaded");
-        return;
-      }
-
-      toast.info("Export is available for the Financials and Stock tabs");
-    } catch {
-      toast.error("Export failed — please try again");
-    }
-  }, [activeTab, dateParams]);
-
   return (
     <div className="p-6 md:p-10" data-testid="reports-page">
       <div className="max-w-[1600px] mx-auto">
@@ -112,7 +43,8 @@ const Reports = () => {
           <div>
             <h1 className="text-2xl font-semibold text-foreground tracking-tight">Reports</h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Financial, operational, and inventory analytics
+              Revenue, margins, inventory health, and product performance — click any card to drill
+              in
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -155,61 +87,40 @@ const Reports = () => {
                 Clear
               </button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              className="gap-2"
-              data-testid="export-csv-btn"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </Button>
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
-          <TabsList
-            className="bg-transparent border-b border-border rounded-none p-0 h-auto gap-0 w-full justify-start overflow-x-auto"
-            data-testid="report-tabs"
-          >
-            {TABS.map(({ value, label, icon: Icon }) => (
-              <TabsTrigger
-                key={value}
-                value={value}
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent data-[state=active]:text-foreground text-muted-foreground px-5 py-3 text-sm font-semibold gap-2 bg-transparent shadow-none shrink-0"
-                data-testid={`${value}-tab`}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <div className="space-y-8">
+          <section>
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground border-l-2 border-accent pl-3 mb-4">
+              Financial
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+              <ProfitCard dateParams={dateParams} reportFilters={reportFilters} />
+              <RevenueTrendCard reportFilters={reportFilters} />
+            </div>
+          </section>
 
-          <TabsContent
-            value="pl"
-            className="mt-8 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
-            data-testid="pl-report-content"
-          >
-            <PLTab reportFilters={reportFilters} dateParams={dateParams} />
-          </TabsContent>
+          <section>
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground border-l-2 border-category-2 pl-3 mb-4">
+              Inventory & Operations
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+              <InventoryHealthCard dateParams={dateParams} onProductClick={handleProductClick} />
+              <StockPulseCard />
+            </div>
+          </section>
 
-          <TabsContent
-            value="operations"
-            className="mt-8 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
-            data-testid="operations-report-content"
-          >
-            <OperationsTab reportFilters={reportFilters} />
-          </TabsContent>
-
-          <TabsContent
-            value="inventory"
-            className="mt-8 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-200"
-            data-testid="inventory-report-content"
-          >
-            <InventoryTab dateParams={dateParams} onProductClick={handleProductClick} />
-          </TabsContent>
-        </Tabs>
+          <section>
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground border-l-2 border-category-4 pl-3 mb-4">
+              Product Intelligence
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+              <PortfolioCard dateParams={dateParams} onProductClick={handleProductClick} />
+              <TopPerformersCard dateParams={dateParams} />
+            </div>
+          </section>
+        </div>
       </div>
 
       <ProductDetailModal

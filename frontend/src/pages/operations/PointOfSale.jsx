@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, ScanBarcode, Send, FileText } from "lucide-react";
+import { ShoppingCart, ScanBarcode, Send, FileText, RotateCcw, HardHat } from "lucide-react";
 import { format } from "date-fns";
 import { Panel } from "@/components/Panel";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -11,8 +11,11 @@ import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
 import { InvoiceDetailModal } from "@/components/InvoiceDetailModal";
 import { PendingRequestsSection } from "@/components/operations/PendingRequestsSection";
+import { ReturnDetailPanel } from "@/components/operations/ReturnDetailPanel";
+import { CreateReturnModal } from "@/components/operations/CreateReturnModal";
 import { useMaterialRequests, useProcessMaterialRequest } from "@/hooks/useMaterialRequests";
 import { useInvoices, useSyncXero, useBulkSyncXero } from "@/hooks/useInvoices";
+import { useReturns } from "@/hooks/useReturns";
 import { useViewController } from "@/hooks/useViewController";
 import { getErrorMessage } from "@/lib/api-client";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
@@ -92,6 +95,63 @@ const INVOICE_COLUMNS = [
   },
 ];
 
+const RETURN_COLUMNS = [
+  {
+    key: "created_at",
+    label: "Date",
+    type: "date",
+    render: (row) => (
+      <span className="font-mono text-xs text-muted-foreground">
+        {new Date(row.created_at).toLocaleDateString()}
+      </span>
+    ),
+  },
+  {
+    key: "contractor_name",
+    label: "Contractor",
+    type: "text",
+    render: (row) => (
+      <div className="flex items-center gap-2">
+        <HardHat className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <span className="font-medium text-foreground">{row.contractor_name || "—"}</span>
+      </div>
+    ),
+  },
+  {
+    key: "reason",
+    label: "Reason",
+    type: "enum",
+    filterValues: ["wrong_item", "defective", "overorder", "job_cancelled", "other"],
+    render: (row) => (
+      <span className="text-xs capitalize text-muted-foreground">
+        {(row.reason || "other").replace(/_/g, " ")}
+      </span>
+    ),
+  },
+  {
+    key: "total",
+    label: "Refund",
+    type: "number",
+    align: "right",
+    render: (row) => (
+      <span className="font-semibold tabular-nums text-destructive">
+        -${(row.total || 0).toFixed(2)}
+      </span>
+    ),
+  },
+  {
+    key: "credit_note_id",
+    label: "Credit Note",
+    type: "text",
+    render: (row) =>
+      row.credit_note_id ? (
+        <StatusBadge status="approved" className="text-[10px]" />
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
+      ),
+  },
+];
+
 export default function PointOfSale() {
   const defaultRange = DATE_PRESETS[1].getValue();
   const [dateRange, setDateRange] = useState(defaultRange);
@@ -119,11 +179,23 @@ export default function PointOfSale() {
   const syncXero = useSyncXero();
   const bulkSyncXero = useBulkSyncXero();
 
+  const { data: returns = [] } = useReturns(dateParams);
+
   const [detailInvoiceId, setDetailInvoiceId] = useState(null);
+  const [detailReturnId, setDetailReturnId] = useState(null);
+  const [createReturnOpen, setCreateReturnOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const view = useViewController({ columns: INVOICE_COLUMNS });
   const processedInvoices = view.apply(invoices);
+
+  const returnsView = useViewController({ columns: RETURN_COLUMNS });
+  const processedReturns = returnsView.apply(returns);
+
+  const returnsSummary = useMemo(() => {
+    const total = returns.reduce((s, r) => s + (r.total || 0), 0);
+    return { count: returns.length, total };
+  }, [returns]);
 
   const handleProcess = async (requestId, data) => {
     try {
@@ -203,7 +275,10 @@ export default function PointOfSale() {
                 isProcessing={processRequest.isPending}
               />
             </Panel>
-            <QuickActions pendingCount={requests.length} />
+            <QuickActions
+              pendingCount={requests.length}
+              onProcessReturn={() => setCreateReturnOpen(true)}
+            />
           </div>
         </section>
 
@@ -308,6 +383,58 @@ export default function PointOfSale() {
             />
           </Panel>
         </section>
+
+        {/* Returns */}
+        <section className="mt-10">
+          <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Returns</h2>
+              <p className="text-sm text-muted-foreground">
+                Material returns restock inventory and create credit notes automatically.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateReturnOpen(true)}
+              className="gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Process Return
+            </Button>
+          </div>
+
+          <Panel className="p-5 md:p-6">
+            {returnsSummary.count > 0 && (
+              <div className="flex gap-2 mb-4">
+                <div className="px-3 py-1.5 rounded-lg border border-destructive/30 bg-destructive/5 text-xs">
+                  <span className="font-semibold text-destructive">
+                    {returnsSummary.count} return{returnsSummary.count !== 1 ? "s" : ""}
+                  </span>
+                  <span className="opacity-60 ml-1">· -${returnsSummary.total.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            <ViewToolbar
+              controller={returnsView}
+              columns={RETURN_COLUMNS}
+              data={returns}
+              resultCount={processedReturns.length}
+              className="mb-3"
+            />
+
+            <DataTable
+              data={processedReturns}
+              columns={returnsView.visibleColumns}
+              title="Returns"
+              emptyMessage="No returns in this range"
+              emptyIcon={RotateCcw}
+              onRowClick={(row) => setDetailReturnId(row.id)}
+              disableSort
+            />
+          </Panel>
+        </section>
       </div>
 
       <InvoiceDetailModal
@@ -317,11 +444,19 @@ export default function PointOfSale() {
         onSaved={() => {}}
         onDeleted={() => setDetailInvoiceId(null)}
       />
+
+      <ReturnDetailPanel
+        returnId={detailReturnId}
+        open={!!detailReturnId}
+        onOpenChange={(open) => !open && setDetailReturnId(null)}
+      />
+
+      <CreateReturnModal open={createReturnOpen} onOpenChange={setCreateReturnOpen} />
     </div>
   );
 }
 
-function QuickActions({ pendingCount = 0 }) {
+function QuickActions({ pendingCount = 0, onProcessReturn }) {
   return (
     <Panel className="p-5 md:p-6">
       <div className="space-y-5">
@@ -376,6 +511,22 @@ function QuickActions({ pendingCount = 0 }) {
               </p>
             </div>
           </Link>
+
+          <button
+            type="button"
+            onClick={onProcessReturn}
+            className="flex w-full items-start gap-3 rounded-2xl border border-destructive/20 bg-surface/80 px-4 py-4 text-foreground transition-all hover:border-destructive/40 hover:bg-destructive/5"
+          >
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+              <RotateCcw className="w-4 h-4 text-destructive" />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold text-sm">Process return</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Return items, restock inventory, and issue a credit note.
+              </p>
+            </div>
+          </button>
         </div>
       </div>
     </Panel>
