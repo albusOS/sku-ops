@@ -26,20 +26,15 @@ import {
   CommandItem,
   CommandSeparator,
 } from "@/components/ui/command";
+import { useAuth } from "@/context/AuthContext";
+import { ROLES } from "@/lib/constants";
 import api from "@/lib/api-client";
 
-const NAV_ITEMS = [
+const ADMIN_NAV_ITEMS = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard, section: "Pages" },
   { label: "Point of Sale", path: "/pos", icon: ShoppingCart, section: "Operations" },
   { label: "Direct Issue", path: "/pos/issue", icon: ShoppingCart, section: "Operations" },
   { label: "Scan Mode", path: "/pos/scan", icon: ScanBarcode, section: "Operations" },
-  {
-    label: "Request Materials",
-    path: "/request-materials",
-    icon: ShoppingCart,
-    section: "Operations",
-  },
-  { label: "My History", path: "/my-history", icon: History, section: "Operations" },
   { label: "Contractors", path: "/contractors", icon: HardHat, section: "Operations" },
   { label: "Jobs", path: "/jobs", icon: ClipboardCheck, section: "Operations" },
   { label: "Purchasing", path: "/purchasing", icon: Truck, section: "Purchasing" },
@@ -52,8 +47,18 @@ const NAV_ITEMS = [
   { label: "Settings", path: "/settings", icon: Settings, section: "Pages" },
 ];
 
+const CONTRACTOR_NAV_ITEMS = [
+  { label: "Dashboard", path: "/", icon: LayoutDashboard, section: "Pages" },
+  { label: "Browse & Order", path: "/request-materials", icon: ShoppingCart, section: "Materials" },
+  { label: "Scan & Checkout", path: "/scan", icon: ScanBarcode, section: "Materials" },
+  { label: "My Orders", path: "/my-history", icon: History, section: "Account" },
+];
+
 export function CommandPalette({ open, onOpenChange }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isContractor = user?.role === ROLES.CONTRACTOR;
+  const navItems = isContractor ? CONTRACTOR_NAV_ITEMS : ADMIN_NAV_ITEMS;
   const [search, setSearch] = useState("");
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -96,7 +101,9 @@ export function CommandPalette({ open, onOpenChange }) {
     [navigate, onOpenChange],
   );
 
-  const grouped = NAV_ITEMS.reduce((acc, item) => {
+  const productLinkPath = isContractor ? "/request-materials" : "/inventory";
+
+  const grouped = navItems.reduce((acc, item) => {
     if (!acc[item.section]) acc[item.section] = [];
     acc[item.section].push(item);
     return acc;
@@ -165,7 +172,7 @@ export function CommandPalette({ open, onOpenChange }) {
                         <CommandItem
                           key={p.id}
                           value={`product-${p.name}-${p.sku || ""}`}
-                          onSelect={() => handleSelect(`/inventory?product=${p.id}`)}
+                          onSelect={() => handleSelect(`${productLinkPath}?product=${p.id}`)}
                           className="mx-1 rounded-lg px-3 py-2 cursor-pointer data-[selected=true]:bg-accent/15 data-[selected=true]:text-foreground"
                         >
                           <Package className="h-4 w-4 text-muted-foreground shrink-0" />

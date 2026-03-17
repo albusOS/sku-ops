@@ -158,16 +158,18 @@ const Layout = ({ children }) => {
     if (role === ROLES.CONTRACTOR) {
       return [
         {
+          items: [{ path: "/", icon: LayoutDashboard, label: "Dashboard" }],
+        },
+        {
+          section: "Materials",
           items: [
-            { path: "/", icon: LayoutDashboard, label: "Dashboard" },
-            {
-              path: "/request-materials",
-              icon: ShoppingCart,
-              label: "Request Materials",
-            },
+            { path: "/request-materials", icon: ShoppingCart, label: "Browse & Order" },
             { path: "/scan", icon: ScanBarcode, label: "Scan & Checkout" },
-            { path: "/my-history", icon: History, label: "My History" },
           ],
+        },
+        {
+          section: "Account",
+          items: [{ path: "/my-history", icon: History, label: "My Orders" }],
         },
       ];
     }
@@ -191,15 +193,17 @@ const Layout = ({ children }) => {
 
     const financeItems = [{ path: "/xero-health", icon: ShieldCheck, label: "Xero Status" }];
 
-    const reportItems = [{ path: "/reports", icon: BarChart3, label: "Reports" }];
-
     const groups = [
-      { items: [{ path: "/", icon: LayoutDashboard, label: "Dashboard" }] },
+      {
+        items: [
+          { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+          { path: "/reports", icon: BarChart3, label: "Reports" },
+        ],
+      },
       { section: "Operations", items: operationsItems },
       { section: "Purchasing", items: purchasingItems },
       { section: "Inventory", items: inventoryItems },
       { section: "Finance", items: financeItems },
-      { section: "Reports", items: reportItems },
     ];
 
     if (role === ROLES.ADMIN) {

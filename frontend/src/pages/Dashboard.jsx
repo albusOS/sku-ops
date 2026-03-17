@@ -2,7 +2,18 @@ import { useState, useMemo, useContext } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { RealtimeSyncContext } from "@/context/RealtimeSyncContext";
-import { Truck, ShoppingCart, AlertTriangle, Flame } from "lucide-react";
+import {
+  Truck,
+  ShoppingCart,
+  AlertTriangle,
+  Flame,
+  Package,
+  FileText,
+  Clock,
+  ScanBarcode,
+  History,
+  Send,
+} from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, DATE_PRESETS } from "@/lib/constants";
@@ -16,6 +27,8 @@ import { useDashboardStats } from "@/hooks/useDashboard";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { Panel, SectionHead } from "@/components/Panel";
 import WorkflowGraph from "@/components/workflows/WorkflowGraph";
+import { PortfolioCard } from "@/components/reports/cards/PortfolioCard";
+import { ProductDetailModal } from "@/components/ProductDetailModal";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -98,6 +111,7 @@ const Dashboard = () => {
   }, [dateRange]);
 
   const { data: stats, isLoading, isError, error, refetch } = useDashboardStats(statsParams);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const isContractor = user?.role === ROLES.CONTRACTOR;
 
@@ -111,82 +125,196 @@ const Dashboard = () => {
   if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   if (isContractor) {
+    const pendingCount = stats?.pending_requests || 0;
     return (
-      <div className="p-8" data-testid="dashboard-page">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+      <div className="p-6 lg:p-8 max-w-6xl mx-auto" data-testid="dashboard-page">
+        {/* Hero greeting */}
+        <div className="relative rounded-2xl bg-gradient-to-br from-accent/10 via-surface to-surface border border-accent/20 p-6 lg:p-8 mb-8 overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_70%_-20%,hsl(var(--accent)/0.12),transparent)]" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
                 {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
               </h1>
-              <LivePulse connected={connected} />
+              <p className="text-muted-foreground mt-1.5 text-sm flex items-center gap-2">
+                <span>{user?.company || "Independent"}</span>
+                <span className="text-border">·</span>
+                <span>{format(new Date(), "EEEE, MMM d")}</span>
+                <LivePulse connected={connected} />
+              </p>
             </div>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {user?.company || "Independent"} · {format(new Date(), "EEEE, MMM d")}
-            </p>
+            <DateRangeFilter value={dateRange} onChange={setDateRange} />
           </div>
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard label="Total Orders" value={stats?.total_withdrawals || 0} />
+        {/* Quick actions */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          <Link
+            to="/request-materials"
+            className="group relative rounded-xl border border-border/80 bg-surface p-4 shadow-soft hover:border-accent/40 hover:shadow-md transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mb-3 ring-1 ring-accent/20 group-hover:ring-accent/40 transition-colors">
+              <ShoppingCart className="w-5 h-5 text-accent" />
+            </div>
+            <p className="font-semibold text-sm text-foreground">Request Materials</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Browse & order</p>
+          </Link>
+          <Link
+            to="/scan"
+            className="group relative rounded-xl border border-border/80 bg-surface p-4 shadow-soft hover:border-accent/40 hover:shadow-md transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-info/10 flex items-center justify-center mb-3 ring-1 ring-info/20 group-hover:ring-info/40 transition-colors">
+              <ScanBarcode className="w-5 h-5 text-info" />
+            </div>
+            <p className="font-semibold text-sm text-foreground">Scan & Checkout</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Quick pickup</p>
+          </Link>
+          <Link
+            to="/my-history"
+            className="group relative rounded-xl border border-border/80 bg-surface p-4 shadow-soft hover:border-accent/40 hover:shadow-md transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-category-4/10 flex items-center justify-center mb-3 ring-1 ring-category-4/20 group-hover:ring-category-4/40 transition-colors">
+              <History className="w-5 h-5 text-category-4" />
+            </div>
+            <p className="font-semibold text-sm text-foreground">My History</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Orders & returns</p>
+          </Link>
+          <Link
+            to="/my-history"
+            className="group relative rounded-xl border border-border/80 bg-surface p-4 shadow-soft hover:border-accent/40 hover:shadow-md transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center mb-3 ring-1 ring-warning/20 group-hover:ring-warning/40 transition-colors">
+              <Send className="w-5 h-5 text-warning" />
+            </div>
+            <p className="font-semibold text-sm text-foreground">Pending</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {pendingCount > 0 ? `${pendingCount} awaiting` : "None right now"}
+            </p>
+          </Link>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <StatCard
+            label="Total Orders"
+            value={stats?.total_withdrawals || 0}
+            icon={ShoppingCart}
+          />
           <StatCard
             label="Total Value"
             value={valueFormatter(stats?.total_spent || 0)}
             accent="emerald"
+            icon={Package}
           />
           <StatCard
             label="Uninvoiced"
             value={valueFormatter(stats?.unpaid_balance || 0)}
             accent="amber"
+            icon={FileText}
           />
         </div>
 
+        {/* Recent orders */}
         <Panel>
-          <h2 className="text-base font-semibold text-foreground mb-4">Recent Orders</h2>
+          <SectionHead
+            title="Recent Orders"
+            action={
+              stats?.recent_withdrawals?.length > 0 ? (
+                <Link
+                  to="/my-history"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  View all →
+                </Link>
+              ) : null
+            }
+          />
           {stats?.recent_withdrawals?.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {stats.recent_withdrawals.map((w, i) => (
-                <div key={w.id || i} className="p-4 bg-muted/80 rounded-lg border border-border/50">
+                <Link
+                  key={w.id || i}
+                  to="/my-history"
+                  className="block p-4 bg-muted/60 rounded-xl border border-border/50 hover:border-border hover:bg-muted/80 transition-all group"
+                >
                   <div className="flex items-center justify-between mb-2">
-                    <p className="font-mono text-xs text-muted-foreground">Job: {w.job_id}</p>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-foreground tabular-nums">
-                        ${w.total?.toFixed(2)}
-                      </span>
-                      <StatusBadge status={w.invoice_id ? "invoiced" : "uninvoiced"} />
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          w.invoice_id ? "bg-info/10 text-info" : "bg-warning/10 text-warning"
+                        }`}
+                      >
+                        {w.invoice_id ? (
+                          <FileText className="w-4 h-4" />
+                        ) : (
+                          <Clock className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {(w.id || "").slice(0, 8).toUpperCase()}
+                          </span>
+                          <StatusBadge status={w.invoice_id ? "invoiced" : "uninvoiced"} />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {w.created_at ? format(new Date(w.created_at), "MMM d") : ""}
+                          {w.job_id ? ` · Job: ${w.job_id}` : ""}
+                          {w.items?.length
+                            ? ` · ${w.items.length} item${w.items.length !== 1 ? "s" : ""}`
+                            : ""}
+                        </p>
+                      </div>
                     </div>
+                    <span className="font-semibold text-foreground tabular-nums text-sm">
+                      ${(w.total ?? 0).toFixed(2)}
+                    </span>
                   </div>
                   {w.items?.length > 0 && (
-                    <div className="space-y-1 mt-2 border-t border-border/50 pt-2">
-                      {w.items.map((item, j) => (
-                        <div
+                    <div className="ml-[42px] flex flex-wrap gap-1.5 mt-1">
+                      {w.items.slice(0, 4).map((item, j) => (
+                        <span
                           key={j}
-                          className="flex items-center justify-between text-xs text-muted-foreground"
+                          className="inline-flex items-center text-[10px] text-muted-foreground bg-muted rounded-md px-2 py-0.5 border border-border/50"
                         >
-                          <span className="truncate max-w-[200px]">
-                            {item.name || item.product_name || "Item"}
-                          </span>
-                          <span className="tabular-nums text-muted-foreground">
-                            {item.quantity} × ${(item.unit_price ?? 0).toFixed(2)}
-                          </span>
-                        </div>
+                          {item.quantity}× {(item.name || item.product_name || "Item").slice(0, 20)}
+                        </span>
                       ))}
+                      {w.items.length > 4 && (
+                        <span className="text-[10px] text-muted-foreground/60">
+                          +{w.items.length - 4} more
+                        </span>
+                      )}
                     </div>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
-              <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No orders in this range</p>
+              <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-medium">No orders in this period</p>
+              <p className="text-xs mt-1">
+                Head to{" "}
+                <Link to="/request-materials" className="text-accent hover:underline">
+                  Request Materials
+                </Link>{" "}
+                to get started
+              </p>
             </div>
           )}
         </Panel>
       </div>
     );
   }
+
+  const handleProductClick = (product) => {
+    setSelectedProduct({
+      id: product.product_id || product.id,
+      name: product.name,
+      sku: product.sku,
+    });
+  };
 
   const hasPOs = stats?.po_summary && Object.keys(stats.po_summary).length > 0;
   const orderedPOCount = stats?.po_summary?.ordered?.count || 0;
@@ -341,6 +469,16 @@ const Dashboard = () => {
             );
           })()}
       </div>
+
+      <div className="mb-6">
+        <PortfolioCard dateParams={statsParams} onProductClick={handleProductClick} />
+      </div>
+
+      <ProductDetailModal
+        product={selectedProduct}
+        open={!!selectedProduct}
+        onOpenChange={(open) => !open && setSelectedProduct(null)}
+      />
     </div>
   );
 };

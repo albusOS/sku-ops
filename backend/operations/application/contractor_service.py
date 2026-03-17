@@ -264,7 +264,17 @@ async def update_contractor(
     if not set_clauses:
         return contractor
 
+    billing_name_changed = (
+        updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
+    )
+
     async with transaction():
+        if billing_name_changed:
+            be = await ensure_billing_entity(updates.billing_entity)
+            set_clauses.append(f"billing_entity_id = ${n}")
+            values.append(be.id if be else None)
+            n += 1
+
         conn = get_connection()
         values.extend([contractor_id, org_id])
         await conn.execute(

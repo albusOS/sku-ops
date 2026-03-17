@@ -62,13 +62,13 @@ const PALETTE = [
 ];
 
 const FALLBACK_COLORS = {
-  foreground: "#e5e7eb",
-  mutedForeground: "#94a3b8",
-  muted: "#1e293b",
-  border: "#334155",
-  card: "#111827",
-  sidebar: "#0b1220",
-  sidebarForeground: "#e2e8f0",
+  foreground: "#1e293b",
+  mutedForeground: "#64748b",
+  muted: "#f1f5f9",
+  border: "#d4d8e0",
+  card: "#ffffff",
+  sidebar: "#1e293b",
+  sidebarForeground: "#f1f5f9",
 };
 
 export function themePalette() {
@@ -118,7 +118,7 @@ echarts.registerTheme("skuops", {
     borderColor: resolved.border,
     borderWidth: 1,
     textStyle: { fontSize: 12, color: resolved.sidebarForeground },
-    extraCssText: "border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:10px 14px;",
+    extraCssText: "border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:10px 14px;",
   },
   grid: {
     left: 12,

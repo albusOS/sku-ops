@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Layers, Package, Edit2, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Plus, Layers, Package, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,11 +21,11 @@ import { ViewToolbar } from "@/components/ViewToolbar";
 import { useViewController } from "@/hooks/useViewController";
 import { getErrorMessage } from "@/lib/api-client";
 import { getDeptColor } from "@/lib/constants";
+import { DepartmentDetailPanel } from "@/components/DepartmentDetailPanel";
 import {
   useDepartments,
   useSkuOverview,
   useCreateDepartment,
-  useUpdateDepartment,
   useDeleteDepartment,
 } from "@/hooks/useDepartments";
 
@@ -58,13 +58,12 @@ const DEFAULTS = { name: "", code: "", description: "" };
 
 const Departments = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingDept, setEditingDept] = useState(null);
+  const [selectedDept, setSelectedDept] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dept: null });
 
   const { data: departments = [], isLoading, isError, error, refetch } = useDepartments();
   const { data: skuOverview } = useSkuOverview();
   const createMutation = useCreateDepartment();
-  const updateMutation = useUpdateDepartment();
   const deleteMutation = useDeleteDepartment();
 
   const columns = useMemo(
@@ -144,20 +143,10 @@ const Departments = () => {
   const view = useViewController({ columns });
   const processed = view.apply(departments);
 
-  const openDialog = (dept = null) => {
-    setEditingDept(dept);
-    setDialogOpen(true);
-  };
-
-  const handleSubmit = async (data, isEditing) => {
+  const handleCreate = async (data) => {
     try {
-      if (isEditing) {
-        await updateMutation.mutateAsync({ id: editingDept.id, data });
-        toast.success("Category updated!");
-      } else {
-        await createMutation.mutateAsync(data);
-        toast.success("Category created!");
-      }
+      await createMutation.mutateAsync(data);
+      toast.success("Category created!");
       setDialogOpen(false);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -187,7 +176,7 @@ const Departments = () => {
           subtitle={`${departments.length} categories`}
           action={
             <Button
-              onClick={() => openDialog()}
+              onClick={() => setDialogOpen(true)}
               className="btn-primary h-12 px-6"
               data-testid="add-department-btn"
             >
@@ -225,18 +214,18 @@ const Departments = () => {
           emptyMessage="No categories yet"
           emptyIcon={Layers}
           disableSort
+          onRowClick={(row) => setSelectedDept(row)}
           rowActions={(row) => (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <button
+                  className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => openDialog(row)}>
-                  <Edit2 className="w-4 h-4" />
-                  Edit
-                </DropdownMenuItem>
                 {(row.sku_count || 0) > 0 && (
                   <DropdownMenuItem asChild>
                     <Link to={`/inventory?category=${encodeURIComponent(row.name)}`}>
@@ -258,6 +247,13 @@ const Departments = () => {
         />
       </div>
 
+      <DepartmentDetailPanel
+        department={selectedDept}
+        open={!!selectedDept}
+        onOpenChange={(open) => !open && setSelectedDept(null)}
+        skuOverview={skuOverview}
+      />
+
       <EntityFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -265,9 +261,9 @@ const Departments = () => {
         schema={deptSchema}
         fields={FIELDS}
         defaults={DEFAULTS}
-        entity={editingDept}
-        onSubmit={handleSubmit}
-        saving={createMutation.isPending || updateMutation.isPending}
+        entity={null}
+        onSubmit={handleCreate}
+        saving={createMutation.isPending}
         testIdPrefix="dept"
       />
 

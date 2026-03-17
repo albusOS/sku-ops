@@ -3,15 +3,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Edit2,
   Trash2,
   HardHat,
   Mail,
@@ -29,7 +19,6 @@ import {
   Building2,
   ToggleLeft,
   ToggleRight,
-  Search,
   MoreHorizontal,
   User,
   CreditCard,
@@ -40,6 +29,8 @@ import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EntityFormDialog } from "@/components/EntityFormDialog";
+import { DataTable } from "@/components/DataTable";
+import { ContractorDetailPanel } from "@/components/ContractorDetailPanel";
 import { BillingEntityDetailPanel } from "@/pages/identity/_BillingEntityDetailPanel";
 import { ROLES } from "@/lib/constants";
 import { getErrorMessage } from "@/lib/api-client";
@@ -60,30 +51,10 @@ const createSchema = z.object({
   phone: z.string().optional().default(""),
 });
 
-const editSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Valid email required"),
-  password: z.string().optional().default(""),
-  company: z.string().optional().default(""),
-  billing_entity: z.string().optional().default(""),
-  phone: z.string().optional().default(""),
-});
-
-const FIELDS = [
+const CREATE_FIELDS = [
   { name: "name", label: "Full Name *", placeholder: "John Smith" },
-  {
-    name: "email",
-    label: "Email *",
-    type: "email",
-    placeholder: "john@company.com",
-    disabled: (isEditing) => isEditing,
-  },
-  {
-    name: "password",
-    label: "Password *",
-    type: "password",
-    placeholder: "••••••••",
-  },
+  { name: "email", label: "Email *", type: "email", placeholder: "john@company.com" },
+  { name: "password", label: "Password *", type: "password", placeholder: "••••••••" },
   {
     name: "company",
     label: "Company",
@@ -97,7 +68,7 @@ const FIELDS = [
   { name: "phone", label: "Phone", placeholder: "(555) 123-4567" },
 ];
 
-const DEFAULTS = {
+const CREATE_DEFAULTS = {
   name: "",
   email: "",
   password: "",
@@ -108,49 +79,97 @@ const DEFAULTS = {
 
 const Contractors = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingContractor, setEditingContractor] = useState(null);
+  const [selectedContractor, setSelectedContractor] = useState(null);
   const [billingDetailId, setBillingDetailId] = useState(null);
   const [createBillingEntityOpen, setCreateBillingEntityOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({
     open: false,
     contractor: null,
   });
-  const [search, setSearch] = useState("");
 
-  const { data: contractors = [], isLoading, isError, error, refetch } = useContractors(search);
+  const { data: contractors = [], isLoading, isError, error, refetch } = useContractors();
   const { data: billingEntities = [] } = useBillingEntities();
   const createMutation = useCreateContractor();
   const updateMutation = useUpdateContractor();
   const deleteMutation = useDeleteContractor();
   const createBillingEntity = useCreateBillingEntity();
 
-  const openDialog = (contractor = null) => {
-    setEditingContractor(contractor);
-    setDialogOpen(true);
-  };
-
-  const visibleFields = useMemo(
-    () => (editingContractor ? FIELDS.filter((f) => f.name !== "password") : FIELDS),
-    [editingContractor],
-  );
   const activeBillingEntityCount = useMemo(
     () => billingEntities.filter((entity) => entity.is_active !== false).length,
     [billingEntities],
   );
 
-  const handleSubmit = async (data, isEditing) => {
+  const columns = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Name",
+        render: (row) => <span className="font-medium">{row.name}</span>,
+      },
+      {
+        key: "email",
+        label: "Email",
+        render: (row) => (
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
+            <Mail className="w-3.5 h-3.5" />
+            {row.email}
+          </span>
+        ),
+      },
+      {
+        key: "company",
+        label: "Company",
+        render: (row) => <span className="text-muted-foreground">{row.company || "—"}</span>,
+      },
+      {
+        key: "phone",
+        label: "Phone",
+        render: (row) =>
+          row.phone ? (
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
+              <Phone className="w-3.5 h-3.5" />
+              {row.phone}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        key: "billing_entity",
+        label: "Billing",
+        render: (row) => (
+          <span className="text-muted-foreground text-xs">{row.billing_entity || "—"}</span>
+        ),
+      },
+      {
+        key: "is_active",
+        label: "Status",
+        align: "center",
+        render: (row) =>
+          row.is_active ? (
+            <Badge
+              variant="outline"
+              className="bg-success/10 text-success border-success/20 text-xs"
+            >
+              Active
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="bg-destructive/10 text-destructive border-destructive/20 text-xs"
+            >
+              Disabled
+            </Badge>
+          ),
+      },
+    ],
+    [],
+  );
+
+  const handleCreate = async (data) => {
     try {
-      if (isEditing) {
-        const { email: _email, password: _password, ...rest } = data;
-        await updateMutation.mutateAsync({
-          id: editingContractor.id,
-          data: rest,
-        });
-        toast.success("Contractor updated!");
-      } else {
-        await createMutation.mutateAsync({ ...data, role: ROLES.CONTRACTOR });
-        toast.success("Contractor created!");
-      }
+      await createMutation.mutateAsync({ ...data, role: ROLES.CONTRACTOR });
+      toast.success("Contractor created!");
       setDialogOpen(false);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -174,9 +193,10 @@ const Contractors = () => {
     try {
       await deleteMutation.mutateAsync(contractor.id);
       toast.success("Contractor deleted");
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-      throw error;
+      if (selectedContractor?.id === contractor.id) setSelectedContractor(null);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+      throw err;
     }
   };
 
@@ -195,163 +215,76 @@ const Contractors = () => {
   if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
-    <div className="p-8" data-testid="contractors-page">
-      <PageHeader
-        title="Contractors"
-        subtitle={`${contractors.length} contractor${contractors.length !== 1 ? "s" : ""} · ${billingEntities.length} billing entit${billingEntities.length !== 1 ? "ies" : "y"}`}
-        action={
-          <Button
-            onClick={() => openDialog()}
-            className="btn-primary h-10 px-5"
-            data-testid="add-contractor-btn"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Contractor
-          </Button>
-        }
-      />
-
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-        <Input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, email, company..."
-          className="pl-9 h-9 input-workshop"
-          data-testid="contractor-search-input"
+    <div className="h-full flex flex-col" data-testid="contractors-page">
+      <div className="px-8 pt-8 pb-0 shrink-0">
+        <PageHeader
+          title="Contractors"
+          subtitle={`${contractors.length} contractor${contractors.length !== 1 ? "s" : ""} · ${billingEntities.length} billing entit${billingEntities.length !== 1 ? "ies" : "y"}`}
+          action={
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="btn-primary h-10 px-5"
+              data-testid="add-contractor-btn"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Contractor
+            </Button>
+          }
         />
       </div>
 
-      {contractors.length === 0 ? (
-        <div className="card-workshop p-12 text-center">
-          <HardHat className="w-16 h-16 mx-auto mb-4 text-muted-foreground/60" />
-          <p className="text-muted-foreground font-medium">
-            {search.trim() ? "No contractors match your search" : "No contractors yet"}
-          </p>
-          <p className="text-muted-foreground text-sm mb-4">
-            {search.trim()
-              ? "Try a different search term"
-              : "Add contractors to enable sales and ordering"}
-          </p>
-          <Button onClick={() => openDialog()} className="btn-primary">
-            <Plus className="w-5 h-5 mr-2" />
-            Add First Contractor
-          </Button>
-        </div>
-      ) : (
-        <div className="card-workshop overflow-hidden" data-testid="contractors-grid">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Email</TableHead>
-                <TableHead className="hidden lg:table-cell">Company</TableHead>
-                <TableHead className="hidden lg:table-cell">Phone</TableHead>
-                <TableHead className="hidden md:table-cell">Billing</TableHead>
-                <TableHead className="w-[80px] text-center">Status</TableHead>
-                <TableHead className="w-[50px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contractors.map((contractor) => (
-                <TableRow
-                  key={contractor.id}
-                  className={!contractor.is_active ? "opacity-50" : ""}
-                  data-testid={`contractor-card-${contractor.id}`}
+      <div className="flex-1 min-h-0 mt-4 px-8 pb-4 overflow-auto">
+        <DataTable
+          data={contractors}
+          columns={columns}
+          emptyMessage="No contractors yet"
+          emptyIcon={HardHat}
+          searchable
+          onRowClick={(row) => setSelectedContractor(row)}
+          rowActions={(row) => (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <TableCell className="font-medium">{contractor.name}</TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
-                      <Mail className="w-3.5 h-3.5" />
-                      {contractor.email}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-muted-foreground">
-                    {contractor.company || "—"}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {contractor.phone ? (
-                      <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
-                        <Phone className="w-3.5 h-3.5" />
-                        {contractor.phone}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
-                    {contractor.billing_entity || "—"}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {contractor.is_active ? (
-                      <Badge
-                        variant="outline"
-                        className="bg-success/10 text-success border-success/20 text-xs"
-                      >
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="bg-destructive/10 text-destructive border-destructive/20 text-xs"
-                      >
-                        Disabled
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem
-                          onClick={() => openDialog(contractor)}
-                          data-testid={`edit-contractor-${contractor.id}`}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => toggleActive(contractor)}
-                          data-testid={`toggle-contractor-${contractor.id}`}
-                        >
-                          {contractor.is_active ? (
-                            <>
-                              <ToggleLeft className="w-4 h-4" />
-                              Disable
-                            </>
-                          ) : (
-                            <>
-                              <ToggleRight className="w-4 h-4" />
-                              Enable
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setDeleteConfirm({ open: true, contractor })}
-                          className="text-destructive focus:text-destructive"
-                          data-testid={`delete-contractor-${contractor.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  onClick={() => toggleActive(row)}
+                  data-testid={`toggle-contractor-${row.id}`}
+                >
+                  {row.is_active ? (
+                    <>
+                      <ToggleLeft className="w-4 h-4" />
+                      Disable
+                    </>
+                  ) : (
+                    <>
+                      <ToggleRight className="w-4 h-4" />
+                      Enable
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setDeleteConfirm({ open: true, contractor: row })}
+                  className="text-destructive focus:text-destructive"
+                  data-testid={`delete-contractor-${row.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        />
+      </div>
 
-      {/* Billing entities — compact list, not cards */}
-      <div className="mt-10">
+      {/* Billing entities — compact list */}
+      <div className="px-8 pb-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Billing Entities</h2>
@@ -438,16 +371,22 @@ const Contractors = () => {
         )}
       </div>
 
+      <ContractorDetailPanel
+        contractor={selectedContractor}
+        open={!!selectedContractor}
+        onOpenChange={(open) => !open && setSelectedContractor(null)}
+      />
+
       <EntityFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         title="Contractor"
-        schema={editingContractor ? editSchema : createSchema}
-        fields={visibleFields}
-        defaults={DEFAULTS}
-        entity={editingContractor}
-        onSubmit={handleSubmit}
-        saving={createMutation.isPending || updateMutation.isPending}
+        schema={createSchema}
+        fields={CREATE_FIELDS}
+        defaults={CREATE_DEFAULTS}
+        entity={null}
+        onSubmit={handleCreate}
+        saving={createMutation.isPending}
         testIdPrefix="contractor"
         presentation="sheet"
       />

@@ -359,26 +359,14 @@ export default function PointOfSale() {
               onRowClick={(row) => setDetailInvoiceId(row.id)}
               disableSort
               rowActions={(inv) => (
-                <div className="flex items-center gap-1 justify-end">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDetailInvoiceId(inv.id);
-                    }}
-                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    View
-                  </button>
-                  <button
-                    onClick={(e) => handleSendToXero(inv.id, e)}
-                    disabled={syncXero.isPending}
-                    className="text-xs text-info hover:text-info flex items-center gap-1 ml-2"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    Xero
-                  </button>
-                </div>
+                <button
+                  onClick={(e) => handleSendToXero(inv.id, e)}
+                  disabled={syncXero.isPending}
+                  className="text-xs text-info hover:text-info flex items-center gap-1"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Xero
+                </button>
               )}
             />
           </Panel>

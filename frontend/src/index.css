@@ -32,67 +32,67 @@ code,
     "cv05" 1;
 }
 
-/* Design tokens - dark tech */
+/* Design tokens - light */
 @layer base {
   :root {
-    --background: 224 36% 8%;
-    --foreground: 210 30% 96%;
-    --card: 223 24% 12%;
-    --card-foreground: 210 30% 96%;
-    --popover: 223 24% 13%;
-    --popover-foreground: 210 30% 96%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 224 32% 10%;
-    --secondary: 223 20% 18%;
-    --secondary-foreground: 210 30% 96%;
-    --muted: 223 20% 16%;
-    --muted-foreground: 215 16% 70%;
-    --accent: 199 92% 54%;
-    --accent-foreground: 224 32% 10%;
-    --destructive: 0 72% 56%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 223 18% 24%;
-    --input: 223 18% 24%;
-    --ring: 199 92% 54%;
-    --chart-1: 199 92% 54%;
-    --chart-2: 217 91% 60%;
-    --chart-3: 262 83% 68%;
-    --chart-4: 160 84% 42%;
-    --chart-5: 36 95% 58%;
+    --background: 220 20% 97%;
+    --foreground: 224 30% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 30% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 30% 14%;
+    --primary: 217 91% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 224 30% 14%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 215 16% 44%;
+    --accent: 199 92% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+    --ring: 199 92% 42%;
+    --chart-1: 199 92% 42%;
+    --chart-2: 217 91% 50%;
+    --chart-3: 262 83% 58%;
+    --chart-4: 160 84% 36%;
+    --chart-5: 36 95% 48%;
     --radius: 0.5rem;
     --radius-lg: 0.75rem;
-    --success: 160 84% 42%;
+    --success: 160 84% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 36 95% 58%;
-    --warning-foreground: 222 47% 10%;
-    --info: 217 91% 60%;
+    --warning: 36 95% 48%;
+    --warning-foreground: 224 30% 14%;
+    --info: 217 91% 50%;
     --info-foreground: 0 0% 100%;
-    --shadow-sm: 0 2px 8px 0 rgb(0 0 0 / 0.25);
-    --shadow: 0 4px 16px 0 rgb(0 0 0 / 0.28), 0 2px 6px -1px rgb(0 0 0 / 0.22);
-    --shadow-md: 0 10px 28px -8px rgb(0 0 0 / 0.35), 0 6px 10px -6px rgb(0 0 0 / 0.25);
-    --shadow-lg: 0 22px 48px -18px rgb(0 0 0 / 0.44), 0 10px 20px -10px rgb(0 0 0 / 0.28);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
 
-    --sidebar: 224 40% 7%;
+    --sidebar: 224 28% 16%;
     --sidebar-foreground: 210 30% 96%;
     --sidebar-muted: 216 15% 66%;
-    --sidebar-border: 223 28% 17%;
-    --sidebar-accent: 199 92% 54%;
+    --sidebar-border: 224 20% 22%;
+    --sidebar-accent: 199 92% 50%;
 
-    --surface: 223 24% 12%;
-    --surface-muted: 223 20% 16%;
-    --surface-subtle: 223 18% 14%;
+    --surface: 220 16% 96%;
+    --surface-muted: 220 14% 94%;
+    --surface-subtle: 220 16% 96%;
 
-    --accent-gradient-from: 199 92% 54%;
-    --accent-gradient-to: 217 91% 60%;
+    --accent-gradient-from: 199 92% 42%;
+    --accent-gradient-to: 217 91% 50%;
 
-    --category-1: 199 92% 54%;
-    --category-2: 160 84% 42%;
-    --category-3: 217 91% 60%;
-    --category-4: 262 83% 68%;
-    --category-5: 36 95% 58%;
-    --category-6: 319 83% 62%;
-    --category-7: 43 96% 56%;
-    --category-8: 215 16% 70%;
+    --category-1: 199 92% 42%;
+    --category-2: 160 84% 36%;
+    --category-3: 217 91% 50%;
+    --category-4: 262 83% 58%;
+    --category-5: 36 95% 48%;
+    --category-6: 319 83% 52%;
+    --category-7: 43 96% 46%;
+    --category-8: 215 16% 52%;
   }
 }
 
@@ -216,11 +216,11 @@ code,
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-sidebar-muted/50 rounded-full;
+  @apply bg-foreground/15 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-sidebar-muted/70;
+  @apply bg-foreground/25;
 }
 
 /* Animations */
@@ -288,7 +288,7 @@ code,
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.02;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 180px;

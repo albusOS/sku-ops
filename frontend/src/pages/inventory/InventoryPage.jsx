@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { Plus, Printer, Package, LayoutGrid, LayoutList } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
@@ -21,8 +20,6 @@ import { toast } from "sonner";
 import { ProductFormDialog } from "./ProductFormDialog";
 import { AdjustStockDialog } from "./AdjustStockDialog";
 import { StockBadge } from "@/components/StatusBadge";
-
-// ─── Product Card (grid view) ─────────────────────────────────────────────────
 
 function ProductCard({ product, selected, onClick }) {
   const isLow = product.quantity > 0 && product.quantity <= (product.min_stock ?? 5);
@@ -48,7 +45,6 @@ function ProductCard({ product, selected, onClick }) {
         }
       `}
     >
-      {/* Stock indicator strip */}
       <div
         className={`absolute top-0 left-4 right-4 h-0.5 rounded-b-full transition-colors ${
           isOut ? "bg-destructive" : isLow ? "bg-warning" : "bg-success"
@@ -85,8 +81,6 @@ function ProductCard({ product, selected, onClick }) {
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
-
 const InventoryPage = () => {
   const [searchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -98,7 +92,7 @@ const InventoryPage = () => {
   const [labelsProducts, setLabelsProducts] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, product: null });
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [viewMode, setViewMode] = useState("table"); // "table" | "grid"
+  const [viewMode, setViewMode] = useState("table");
 
   const categoryParam = searchParams.get("category");
   const initialFilters = useMemo(
@@ -255,227 +249,185 @@ const InventoryPage = () => {
     }
   };
 
-  const panelOpen = !!detailProduct;
-
   if (loading) return <PageSkeleton />;
   if (productsError) return <QueryError error={productsErr} onRetry={refetchProducts} />;
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="h-full flex flex-col" data-testid="inventory-page">
-        {/* Page header */}
-        <div className="px-8 pt-8 pb-0 shrink-0">
-          <PageHeader
-            title="Products"
-            subtitle={`${allProducts.length} products`}
-            action={
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setLabelsProducts(processedProducts);
-                    setLabelsModalOpen(true);
-                  }}
-                  className="h-12 px-6"
-                >
-                  <Printer className="w-5 h-5 mr-2" />
-                  Print Labels
-                </Button>
-                <Button
-                  onClick={() => openDialog()}
-                  className="btn-primary h-12 px-6"
-                  data-testid="add-product-btn"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Add Product
-                </Button>
-              </div>
-            }
-          />
-        </div>
-
-        {/* Toolbar row */}
-        <div className="px-8 pt-4 shrink-0 flex items-center gap-2">
-          <ViewToolbar
-            controller={view}
-            columns={columns}
-            data={allProducts}
-            resultCount={processedProducts.length}
-            className="flex-1"
-          />
-          {/* View toggle */}
-          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 shrink-0">
-            <button
-              onClick={() => setViewMode("table")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              title="Table view"
-            >
-              <LayoutList className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              title="Grid view"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {selectedIds.size > 0 && (
-          <div className="mx-8 mt-3 shrink-0 flex items-center gap-3 rounded-lg border border-border bg-muted px-4 py-2.5">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground ml-auto"
-              onClick={() => setSelectedIds(new Set())}
-            >
-              Deselect
-            </Button>
-          </div>
-        )}
-
-        {/* Content area — splits when panel is open */}
-        <div className="flex-1 flex min-h-0 mt-3">
-          {/* Table / Grid */}
-          <motion.div
-            layout
-            animate={{ width: panelOpen ? "58%" : "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 36 }}
-            className="h-full overflow-auto px-8 pb-8 shrink-0"
-          >
-            {viewMode === "table" ? (
-              <DataTable
-                data={processedProducts}
-                columns={view.visibleColumns}
-                emptyMessage="No products found"
-                emptyIcon={Package}
-                onRowClick={(p) => setDetailProduct(p)}
-                selectedIds={selectedIds}
-                onSelectionChange={setSelectedIds}
-                exportable
-                exportFilename="inventory.csv"
-                disableSort
-              />
-            ) : (
-              <AnimatePresence mode="popLayout">
-                {processedProducts.length === 0 ? (
-                  <motion.div
-                    key="empty"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex flex-col items-center justify-center py-24 gap-3"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
-                      <Package className="w-7 h-7 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">No products found</p>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="grid"
-                    className="grid gap-3"
-                    style={{
-                      gridTemplateColumns: panelOpen
-                        ? "repeat(auto-fill, minmax(200px, 1fr))"
-                        : "repeat(auto-fill, minmax(220px, 1fr))",
-                    }}
-                  >
-                    {processedProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        selected={detailProduct?.id === product.id}
-                        onClick={setDetailProduct}
-                      />
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
-          </motion.div>
-
-          {/* Detail panel */}
-          <AnimatePresence>
-            {panelOpen && (
-              <motion.div
-                key="panel"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "42%", opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 36 }}
-                className="h-full shrink-0 overflow-hidden"
+    <div className="h-full flex flex-col" data-testid="inventory-page">
+      <div className="px-8 pt-8 pb-0 shrink-0">
+        <PageHeader
+          title="Products"
+          subtitle={`${allProducts.length} products`}
+          action={
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setLabelsProducts(processedProducts);
+                  setLabelsModalOpen(true);
+                }}
+                className="h-12 px-6"
               >
-                <ProductDetailPanel
-                  product={detailProduct}
-                  open={panelOpen}
-                  onClose={() => setDetailProduct(null)}
-                  onEdit={(p) => {
-                    setDetailProduct(null);
-                    openDialog(p);
-                  }}
-                  onAdjust={(p) => {
-                    setDetailProduct(null);
-                    setAdjustProduct(p);
-                  }}
-                  onDelete={handleDeleteClick}
-                  onPrintLabels={(prods) => {
-                    setLabelsProducts(prods);
-                    setLabelsModalOpen(true);
-                  }}
-                  onViewHistory={(p) => {
-                    setDetailProduct(null);
-                    setStockHistoryProduct(p);
-                  }}
-                />
+                <Printer className="w-5 h-5 mr-2" />
+                Print Labels
+              </Button>
+              <Button
+                onClick={() => openDialog()}
+                className="btn-primary h-12 px-6"
+                data-testid="add-product-btn"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Add Product
+              </Button>
+            </div>
+          }
+        />
+      </div>
+
+      <div className="px-8 pt-4 shrink-0 flex items-center gap-2">
+        <ViewToolbar
+          controller={view}
+          columns={columns}
+          data={allProducts}
+          resultCount={processedProducts.length}
+          className="flex-1"
+        />
+        <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 shrink-0">
+          <button
+            onClick={() => setViewMode("table")}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            title="Table view"
+          >
+            <LayoutList className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode("grid")}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            title="Grid view"
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {selectedIds.size > 0 && (
+        <div className="mx-8 mt-3 shrink-0 flex items-center gap-3 rounded-lg border border-border bg-muted px-4 py-2.5">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground ml-auto"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Deselect
+          </Button>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 mt-3 px-8 pb-8 overflow-auto">
+        {viewMode === "table" ? (
+          <DataTable
+            data={processedProducts}
+            columns={view.visibleColumns}
+            emptyMessage="No products found"
+            emptyIcon={Package}
+            onRowClick={(p) => setDetailProduct(p)}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            exportable
+            exportFilename="inventory.csv"
+            disableSort
+          />
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {processedProducts.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center py-24 gap-3"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+                  <Package className="w-7 h-7 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">No products found</p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="grid"
+                className="grid gap-3"
+                style={{
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                }}
+              >
+                {processedProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    selected={detailProduct?.id === product.id}
+                    onClick={setDetailProduct}
+                  />
+                ))}
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-
-        {/* Dialogs that remain modal (add/edit, adjust, labels, history, confirm) */}
-        <ProductFormDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          editingProduct={editingProduct}
-          departments={departments}
-        />
-
-        <AdjustStockDialog
-          product={adjustProduct}
-          open={!!adjustProduct}
-          onOpenChange={(open) => !open && setAdjustProduct(null)}
-        />
-
-        <BarcodeLabelsModal
-          products={labelsProducts}
-          open={labelsModalOpen}
-          onOpenChange={setLabelsModalOpen}
-        />
-
-        <StockHistoryModal
-          product={stockHistoryProduct}
-          open={!!stockHistoryProduct}
-          onOpenChange={(open) => !open && setStockHistoryProduct(null)}
-        />
-
-        <ConfirmDialog
-          open={deleteConfirm.open}
-          onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
-          title="Delete product"
-          description={
-            deleteConfirm.product
-              ? `Delete "${deleteConfirm.product.name}"? This cannot be undone.`
-              : ""
-          }
-          confirmLabel="Delete"
-          cancelLabel="Cancel"
-          onConfirm={handleDeleteConfirm}
-          variant="danger"
-        />
+        )}
       </div>
-    </TooltipProvider>
+
+      <ProductDetailPanel
+        product={detailProduct}
+        open={!!detailProduct}
+        onOpenChange={(open) => !open && setDetailProduct(null)}
+        onEdit={(p) => openDialog(p)}
+        onAdjust={(p) => setAdjustProduct(p)}
+        onDelete={handleDeleteClick}
+        onPrintLabels={(prods) => {
+          setLabelsProducts(prods);
+          setLabelsModalOpen(true);
+        }}
+        onViewHistory={(p) => setStockHistoryProduct(p)}
+      />
+
+      <ProductFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingProduct={editingProduct}
+        departments={departments}
+      />
+
+      <AdjustStockDialog
+        product={adjustProduct}
+        open={!!adjustProduct}
+        onOpenChange={(open) => !open && setAdjustProduct(null)}
+      />
+
+      <BarcodeLabelsModal
+        products={labelsProducts}
+        open={labelsModalOpen}
+        onOpenChange={setLabelsModalOpen}
+      />
+
+      <StockHistoryModal
+        product={stockHistoryProduct}
+        open={!!stockHistoryProduct}
+        onOpenChange={(open) => !open && setStockHistoryProduct(null)}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm((p) => ({ ...p, open }))}
+        title="Delete product"
+        description={
+          deleteConfirm.product
+            ? `Delete "${deleteConfirm.product.name}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="danger"
+      />
+    </div>
   );
 };
 

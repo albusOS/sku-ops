@@ -35,30 +35,28 @@ const mdComponents = {
       </td>
     );
   },
-  p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed text-[13px]">{children}</p>,
+  p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed text-[15px]">{children}</p>,
   strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
   ul: ({ children }) => (
-    <ul className="mb-1.5 space-y-0.5 pl-4 list-disc marker:text-muted-foreground">{children}</ul>
+    <ul className="mb-2 space-y-1 pl-5 list-disc marker:text-muted-foreground">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="mb-1.5 space-y-0.5 pl-4 list-decimal marker:text-muted-foreground">
-      {children}
-    </ol>
+    <ol className="mb-2 space-y-1 pl-5 list-decimal marker:text-muted-foreground">{children}</ol>
   ),
   li: ({ children }) => (
-    <li className="text-foreground/90 leading-relaxed text-[13px]">{children}</li>
+    <li className="text-foreground/90 leading-relaxed text-[15px]">{children}</li>
   ),
   h1: ({ children }) => (
-    <h1 className="font-bold text-foreground text-sm mb-1 mt-2.5 first:mt-0">{children}</h1>
+    <h1 className="font-bold text-foreground text-base mb-1.5 mt-3 first:mt-0">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="font-semibold text-foreground text-[13px] mb-1 mt-2.5 first:mt-0">{children}</h2>
+    <h2 className="font-semibold text-foreground text-[15px] mb-1.5 mt-3 first:mt-0">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="font-medium text-foreground text-xs mb-0.5 mt-2 first:mt-0">{children}</h3>
+    <h3 className="font-medium text-foreground text-sm mb-1 mt-2.5 first:mt-0">{children}</h3>
   ),
   pre: ({ children }) => (
-    <pre className="my-2 p-2.5 bg-sidebar/80 rounded-lg overflow-x-auto text-[11px] text-foreground/80 font-mono leading-relaxed border border-border/40">
+    <pre className="my-2.5 p-3 bg-sidebar/80 rounded-lg overflow-x-auto text-xs text-foreground/80 font-mono leading-relaxed border border-border/40">
       {children}
     </pre>
   ),
@@ -66,13 +64,13 @@ const mdComponents = {
     className ? (
       <code className={className}>{children}</code>
     ) : (
-      <code className="px-1 py-0.5 bg-muted/80 rounded text-[11px] font-mono text-accent">
+      <code className="px-1 py-0.5 bg-muted/80 rounded text-xs font-mono text-accent">
         {children}
       </code>
     ),
-  hr: () => <hr className="my-2.5 border-border/40" />,
+  hr: () => <hr className="my-3 border-border/40" />,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-accent/60 pl-3 my-2 text-muted-foreground text-xs">
+    <blockquote className="border-l-2 border-accent/60 pl-3 my-2.5 text-muted-foreground text-sm">
       {children}
     </blockquote>
   ),

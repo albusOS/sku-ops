@@ -205,7 +205,7 @@ export default function ChatAssistant() {
 
         <div className="absolute inset-0 flex items-center justify-center p-4 md:p-8">
           <div
-            className={`relative flex h-[min(88vh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background shadow-2xl transition-all duration-200 ${
+            className={`relative flex h-[min(90vh,960px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background shadow-2xl transition-all duration-200 ${
               open ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
             }`}
           >
@@ -258,7 +258,7 @@ export default function ChatAssistant() {
             {streaming && <AgentActivity tools={activeTools} agentType={agentType} />}
 
             <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
-              <div className="mx-auto flex h-full w-full max-w-3xl flex-col space-y-4">
+              <div className="mx-auto flex h-full w-full max-w-4xl flex-col space-y-5">
                 {aiAvailable === false && (
                   <div className="rounded-2xl bg-warning/10 border border-warning/30 p-4">
                     <p className="font-medium text-sm text-foreground mb-1.5">
@@ -325,7 +325,7 @@ export default function ChatAssistant() {
                         className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                       >
                         {m.role === "user" ? (
-                          <div className="max-w-[85%] rounded-3xl rounded-br-md bg-accent px-4 py-3 text-sm leading-relaxed text-accent-foreground shadow-sm">
+                          <div className="max-w-[85%] rounded-3xl rounded-br-md bg-accent px-5 py-3.5 text-[15px] leading-relaxed text-accent-foreground shadow-sm">
                             {m.content}
                           </div>
                         ) : (
@@ -351,7 +351,7 @@ export default function ChatAssistant() {
             </div>
 
             <div className="border-t border-border/60 bg-card/70 px-6 py-5 backdrop-blur-sm shrink-0 md:px-8">
-              <div className="mx-auto w-full max-w-3xl">
+              <div className="mx-auto w-full max-w-4xl">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();

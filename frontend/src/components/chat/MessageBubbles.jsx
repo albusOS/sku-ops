@@ -12,8 +12,8 @@ function AgentBubble({ msg, thinkingOpen, onToggleThinking }) {
   const blocks = msg.blocks || [];
 
   return (
-    <div className="flex flex-col gap-1 max-w-[94%]">
-      <div className="bg-surface border border-border/40 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-foreground shadow-sm">
+    <div className="flex flex-col gap-1.5 max-w-[94%]">
+      <div className="bg-surface border border-border/40 rounded-2xl rounded-tl-sm px-5 py-4 text-[15px] leading-relaxed text-foreground shadow-sm">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
           {msg.content}
         </ReactMarkdown>
@@ -60,8 +60,8 @@ function AgentBubble({ msg, thinkingOpen, onToggleThinking }) {
 
 function StreamingBubble({ text, tools: _tools }) {
   return (
-    <div className="flex flex-col gap-1 max-w-[94%]">
-      <div className="bg-surface border border-border/40 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-foreground shadow-sm">
+    <div className="flex flex-col gap-1.5 max-w-[94%]">
+      <div className="bg-surface border border-border/40 rounded-2xl rounded-tl-sm px-5 py-4 text-[15px] leading-relaxed text-foreground shadow-sm">
         {text ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
             {text}
