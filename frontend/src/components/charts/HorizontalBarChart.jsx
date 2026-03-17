@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /**
  * Reusable horizontal bar chart for ranked lists.

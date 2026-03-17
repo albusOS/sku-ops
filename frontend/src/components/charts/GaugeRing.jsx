@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /**
  * Thin-arc gauge ring for a single KPI value.

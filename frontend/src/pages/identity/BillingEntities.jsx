@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EntityFormDialog } from "@/components/EntityFormDialog";
 import { BillingEntityDetailPanel } from "./_BillingEntityDetailPanel";
@@ -35,7 +36,7 @@ const BillingEntities = () => {
   const [detailId, setDetailId] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: entities = [], isLoading } = useBillingEntities();
+  const { data: entities = [], isLoading, isError, error, refetch } = useBillingEntities();
   const createEntity = useCreateBillingEntity();
 
   const activeCount = useMemo(
@@ -55,6 +56,7 @@ const BillingEntities = () => {
   };
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="billing-entities-page">

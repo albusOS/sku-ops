@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /**
  * Waterfall chart for P&L decomposition.

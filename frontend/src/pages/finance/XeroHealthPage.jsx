@@ -10,23 +10,7 @@ import {
 } from "@/components/ui/table";
 import { ReportPanel, ReportSectionHead } from "@/components/ReportPanel";
 import { useXeroHealth, useTriggerXeroSync } from "@/hooks/useXeroHealth";
-
-function formatDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatMoney(val) {
-  if (val == null) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(val);
-}
+import { formatDate, formatMoney } from "@/lib/utils";
 
 function SectionHeader({ icon: Icon, label, count, variant = "neutral" }) {
   const colors = {

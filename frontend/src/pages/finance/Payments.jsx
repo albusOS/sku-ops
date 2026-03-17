@@ -3,6 +3,7 @@ import { DollarSign, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -80,7 +81,7 @@ const Payments = () => {
     [dateRange],
   );
 
-  const { data: payments = [], isLoading } = usePayments(dateParams);
+  const { data: payments = [], isLoading, isError, error, refetch } = usePayments(dateParams);
 
   const totalAmount = useMemo(() => payments.reduce((s, p) => s + (p.amount || 0), 0), [payments]);
 
@@ -88,6 +89,7 @@ const Payments = () => {
   const processed = view.apply(payments);
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="payments-page">

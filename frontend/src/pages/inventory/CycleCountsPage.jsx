@@ -12,20 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useCycleCounts, useOpenCycleCount } from "@/hooks/useCycleCounts";
 import { useDepartments } from "@/hooks/useDepartments";
 import { getErrorMessage } from "@/lib/api-client";
-
-function formatDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+import { formatDate } from "@/lib/utils";
 
 function OpenCountDialog({ open, onOpenChange }) {
   const [scope, setScope] = useState("__all__");
@@ -124,8 +118,11 @@ const COLUMNS = [
 
 export default function CycleCountsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: counts = [] } = useCycleCounts();
+  const { data: counts = [], isLoading, isError, error, refetch } = useCycleCounts();
   const navigate = useNavigate();
+
+  if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="flex-1 p-6 space-y-4">

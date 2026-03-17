@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { DataTable } from "@/components/DataTable";
 import { ViewToolbar } from "@/components/ViewToolbar";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -65,7 +66,7 @@ const Jobs = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ code: "", name: "" });
 
-  const { data: jobs = [], isLoading } = useJobs();
+  const { data: jobs = [], isLoading, isError, error, refetch } = useJobs();
   const createJob = useCreateJob();
 
   const view = useViewController({ columns: COLUMNS });
@@ -100,6 +101,7 @@ const Jobs = () => {
   };
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="jobs-page">

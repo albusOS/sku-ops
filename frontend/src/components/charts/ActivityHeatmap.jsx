@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /**
  * Calendar heatmap showing daily activity intensity over trailing months.

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /**
  * Bubble scatter plot: sell-through vs margin, sized by revenue, colored by department.

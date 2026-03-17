@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import * as echarts from "echarts/core";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /* URGENCY_COLORS moved inside useMemo — depends on runtime theme */
 

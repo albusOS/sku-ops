@@ -13,20 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime as formatDate } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-client";
 import { useCycleCount, useUpdateCountItem, useCommitCycleCount } from "@/hooks/useCycleCounts";
-
-function formatDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function VarianceCell({ variance }) {
   if (variance == null) return <span className="text-muted-foreground/60">—</span>;

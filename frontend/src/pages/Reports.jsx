@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "../components/ui/button";
-import { Calendar } from "../components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, DollarSign, Calendar as CalendarIcon, Download, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { DATE_PRESETS } from "@/lib/constants";

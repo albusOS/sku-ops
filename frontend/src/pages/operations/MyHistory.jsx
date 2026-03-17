@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -32,7 +33,13 @@ const MyHistory = () => {
     [dateRange, paymentStatus],
   );
 
-  const { data: withdrawals = [], isLoading: wdLoading } = useWithdrawals(params);
+  const {
+    data: withdrawals = [],
+    isLoading: wdLoading,
+    isError: wdError,
+    error: wdErr,
+    refetch: wdRefetch,
+  } = useWithdrawals(params);
   const { data: allRequests = [], isLoading: reqLoading } = useMaterialRequests();
 
   const requests = allRequests.filter?.((r) => r.status === "pending") || [];
@@ -44,6 +51,7 @@ const MyHistory = () => {
   const hasFilters = dateRange.from || dateRange.to || paymentStatus;
 
   if (wdLoading || reqLoading) return <PageSkeleton />;
+  if (wdError) return <QueryError error={wdErr} onRetry={wdRefetch} />;
 
   return (
     <div className="p-8" data-testid="my-history-page">

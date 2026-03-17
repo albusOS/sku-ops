@@ -93,11 +93,15 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const supabaseSubRef = useRef(null);
+
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
-    let subscription;
+    let cancelled = false;
     getSupabase().then((sb) => {
+      if (cancelled) return;
+
       const {
         data: { subscription: sub },
       } = sb.auth.onAuthStateChange(async (_event, session) => {
@@ -110,10 +114,10 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
         }
       });
-      subscription = sub;
+      supabaseSubRef.current = sub;
 
-      // Hydrate on mount from existing session
       sb.auth.getSession().then(({ data: { session } }) => {
+        if (cancelled) return;
         if (session?.access_token) {
           _setAxiosToken(session.access_token);
           _fetchProfile().finally(() => setLoading(false));
@@ -123,7 +127,10 @@ export const AuthProvider = ({ children }) => {
       });
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      cancelled = true;
+      supabaseSubRef.current?.unsubscribe();
+    };
   }, []);
 
   const _supabaseLogin = async (email, password) => {
@@ -145,9 +152,9 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
     if (data.session?.access_token) {
       _setAxiosToken(data.session.access_token);
-      await _fetchProfile();
+      return await _fetchProfile();
     }
-    return user;
+    return null;
   };
 
   // ── Bridge mode (dev, no Supabase) ──────────────────────────────────────────

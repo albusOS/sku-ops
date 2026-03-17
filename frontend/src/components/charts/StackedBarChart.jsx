@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { themeColors } from "../../lib/chartTheme";
+import { themeColors } from "@/lib/chartTheme";
 
 /**
  * Stacked horizontal bar chart, e.g. AR aging buckets per entity.

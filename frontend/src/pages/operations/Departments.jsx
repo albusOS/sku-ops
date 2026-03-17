@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Edit2, Trash2, Layers, Package } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EntityFormDialog } from "@/components/EntityFormDialog";
 import { getErrorMessage } from "@/lib/api-client";
@@ -52,7 +53,7 @@ const Departments = () => {
     dept: null,
   });
 
-  const { data: departments = [], isLoading } = useDepartments();
+  const { data: departments = [], isLoading, isError, error, refetch } = useDepartments();
   const { data: skuOverview } = useSkuOverview();
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
@@ -91,6 +92,7 @@ const Departments = () => {
   };
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="departments-page">

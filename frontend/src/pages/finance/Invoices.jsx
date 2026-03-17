@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Send, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { DataTable } from "@/components/DataTable";
@@ -122,7 +123,7 @@ const Invoices = () => {
     [dateRange],
   );
 
-  const { data: invoices = [], isLoading } = useInvoices(dateParams);
+  const { data: invoices = [], isLoading, isError, error, refetch } = useInvoices(dateParams);
   const syncXero = useSyncXero();
   const bulkSyncXero = useBulkSyncXero();
 
@@ -164,6 +165,7 @@ const Invoices = () => {
   const processedInvoices = view.apply(invoices);
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="invoices-page">

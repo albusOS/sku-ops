@@ -75,7 +75,7 @@ const OperationsHub = () => {
             <PendingRequestsSection
               requests={requests}
               isLoading={requestsLoading}
-              error={requestsError}
+              error={requestsError ? _requestsErr : null}
               onRetry={refetchRequests}
               onProcess={handleProcess}
               isProcessing={processRequest.isPending}

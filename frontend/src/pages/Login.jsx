@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ShieldCheck, HardHat } from "lucide-react";
-import { AuthLayout } from "../components/AuthLayout";
+import { AuthLayout } from "@/components/AuthLayout";
 
 function LoginPanel({ title, icon: Icon, accentClass, demoHint, testPrefix, onSubmit, loading }) {
   const [email, setEmail] = useState("");

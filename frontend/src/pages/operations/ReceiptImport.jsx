@@ -56,6 +56,13 @@ const ReceiptImport = () => {
     reset: resetMatches,
   } = useProductMatch();
 
+  const setPreviewSafe = (url) => {
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+  };
+
   const isImageOrPdf = (file) => {
     if (!file) return false;
     const t = file.type?.toLowerCase() || "";
@@ -71,7 +78,7 @@ const ReceiptImport = () => {
         return;
       }
       setFile(selectedFile);
-      setPreview(
+      setPreviewSafe(
         selectedFile.type?.startsWith("image/") ? URL.createObjectURL(selectedFile) : null,
       );
       setExtractedData(null);
@@ -88,7 +95,9 @@ const ReceiptImport = () => {
         return;
       }
       setFile(droppedFile);
-      setPreview(droppedFile.type?.startsWith("image/") ? URL.createObjectURL(droppedFile) : null);
+      setPreviewSafe(
+        droppedFile.type?.startsWith("image/") ? URL.createObjectURL(droppedFile) : null,
+      );
       setExtractedData(null);
       setEditedProducts([]);
     }
@@ -203,7 +212,7 @@ const ReceiptImport = () => {
 
       toast.success(`Purchase order saved — ${productsToSave.length} item(s) pending receipt`);
       setFile(null);
-      setPreview(null);
+      setPreviewSafe(null);
       setExtractedData(null);
       setEditedProducts([]);
       setVendorName("");
@@ -217,7 +226,7 @@ const ReceiptImport = () => {
 
   const clearAll = () => {
     setFile(null);
-    setPreview(null);
+    setPreviewSafe(null);
     setExtractedData(null);
     setEditedProducts([]);
     setVendorName("");

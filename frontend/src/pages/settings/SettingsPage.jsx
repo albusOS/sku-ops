@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Panel, SectionHead } from "@/components/Panel";
+import { QueryError } from "@/components/QueryError";
 import { Switch } from "@/components/ui/switch";
 import { API } from "@/lib/api-client";
 import {
@@ -412,7 +413,7 @@ function AccountCodesSection({ settings }) {
 }
 
 export default function SettingsPage() {
-  const { data: settings, isLoading } = useXeroSettings();
+  const { data: settings, isLoading, isError, error, refetch } = useXeroSettings();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -430,6 +431,7 @@ export default function SettingsPage() {
       </div>
     );
   }
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="flex-1 p-6 md:p-8 space-y-6 max-w-4xl">

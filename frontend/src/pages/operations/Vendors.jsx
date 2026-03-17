@@ -7,6 +7,7 @@ import { Plus, Edit2, Trash2, Users, Mail, Phone, MapPin, FileUp } from "lucide-
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
+import { QueryError } from "@/components/QueryError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EntityFormDialog } from "@/components/EntityFormDialog";
 import { getErrorMessage } from "@/lib/api-client";
@@ -62,7 +63,7 @@ const Vendors = () => {
     vendor: null,
   });
 
-  const { data: vendors = [], isLoading } = useVendors();
+  const { data: vendors = [], isLoading, isError, error, refetch } = useVendors();
   const createMutation = useCreateVendor();
   const updateMutation = useUpdateVendor();
   const deleteMutation = useDeleteVendor();
@@ -100,6 +101,7 @@ const Vendors = () => {
   };
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
     <div className="p-8" data-testid="vendors-page">

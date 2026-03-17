@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useContext } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { ChatProvider, useChatPanel } from "../context/ChatContext";
-import { RealtimeSyncContext } from "../context/RealtimeSyncContext";
+import { useAuth } from "@/context/AuthContext";
+import { ChatProvider, useChatPanel } from "@/context/ChatContext";
+import { RealtimeSyncContext } from "@/context/RealtimeSyncContext";
 import { ROLES } from "@/lib/constants";
 import {
   LayoutDashboard,

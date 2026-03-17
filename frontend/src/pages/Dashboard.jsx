@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { AlertTriangle, Truck, ClipboardList, ShoppingCart, Package, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
