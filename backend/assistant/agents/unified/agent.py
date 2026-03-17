@@ -394,7 +394,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def get_sku_vendor_options(ctx: RunContext[AgentDeps], sku_id: str) -> str:
-        """All vendors that supply a specific SKU with cost, lead time, MOQ, preferred, last PO date."""
+        """All vendors that supply a specific SKU with cost, lead time, MOQ, preferred, last PO date. Pass the SKU code (e.g. 'PLU-001') or internal ID."""
         return budget_tool_result(await _get_sku_vendor_options({"sku_id": sku_id}))
 
     @_agent.tool
@@ -501,22 +501,26 @@ def _get_agent() -> Agent[AgentDeps, str]:
     @_agent.tool
     async def analyze_procurement(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to the procurement analyst for reorder optimization, vendor selection, cost comparison, and order grouping. Pass a clear question about what to order, which vendors to use, or how to optimize purchasing."""
-        return await _procurement_agent_mod.run(question, deps=ctx.deps)
+        result = await _procurement_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
+        return result.response
 
     @_agent.tool
     async def analyze_trends(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to the trend analyst for time series analysis, anomaly detection, and period-over-period comparison. Pass a question about trends, growth, changes, or what's different compared to a prior period."""
-        return await _trend_agent_mod.run(question, deps=ctx.deps)
+        result = await _trend_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
+        return result.response
 
     @_agent.tool
     async def assess_business_health(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to the business health analyst for a holistic assessment across inventory, finance, and operations. Pass a question about overall business health, what needs attention, or a comprehensive review."""
-        return await _health_agent_mod.run(question, deps=ctx.deps)
+        result = await _health_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
+        return result.response
 
     @_agent.tool
     async def run_deep_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to the data analyst for ad hoc SQL queries, cross-table analysis, custom aggregations, and deep data exploration. Use when pre-built tools can't answer the question or when the user asks to 'dig deeper', 'analyze', 'compare across', 'find patterns', or 'run a query'."""
-        return await _analyst_agent_mod.run(question, deps=ctx.deps)
+        result = await _analyst_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
+        return result.response
 
     return _agent
 

@@ -163,7 +163,7 @@ async def _list_departments() -> str:
 
 async def _list_vendors() -> str:
     vendors = await catalog_list_vendors()
-    out = [{"name": v.name} for v in vendors]
+    out = [{"id": v.id, "name": v.name} for v in vendors]
     return json.dumps({"vendors": out})
 
 

@@ -54,11 +54,14 @@ async def extract_and_save(
         if not raw or not raw.strip():
             return
 
-        if raw.startswith("```"):
-            raw = raw.split("```")[1].lstrip("json").strip()
+        # Strip optional code fence (```json ... ``` or ``` ... ```)
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            stripped = stripped.removeprefix("```json").removeprefix("```")
+            stripped = stripped.removesuffix("```").strip()
 
-        artifacts = json.loads(raw)
-        if isinstance(artifacts, list) and artifacts:
+        artifacts = json.loads(stripped)
+        if isinstance(artifacts, list) and artifacts and len(artifacts) <= 50:
             await save(user_id, session_id, artifacts)
 
     except (json.JSONDecodeError, ValueError, TypeError, RuntimeError, OSError) as e:

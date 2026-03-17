@@ -17,3 +17,4 @@ class AgentDeps:
     trace_id: str = field(default="")
     blocks: list[dict[str, Any]] = field(default_factory=list)
     query_results: dict[str, Any] = field(default_factory=dict)
+    history: list[dict] = field(default_factory=list)

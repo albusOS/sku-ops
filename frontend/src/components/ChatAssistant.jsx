@@ -202,7 +202,7 @@ export default function ChatAssistant() {
         className={`fixed inset-0 z-50 transition-all duration-200 ${
           open ? "pointer-events-auto" : "pointer-events-none"
         }`}
-        aria-hidden={!open}
+        inert={!open ? "" : undefined}
       >
         <div
           className={`absolute inset-0 bg-background/55 backdrop-blur-sm transition-opacity duration-200 ${

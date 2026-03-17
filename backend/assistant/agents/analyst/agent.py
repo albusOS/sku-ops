@@ -17,6 +17,7 @@ from assistant.agents.analyst.sql_executor import (
 )
 from assistant.agents.core.contracts import SpecialistResult, UsageInfo
 from assistant.agents.core.deps import AgentDeps
+from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import calc_cost, get_model, get_model_name
 from assistant.agents.core.tokens import budget_tool_result
 from shared.infrastructure.prompt_loader import load_prompt
@@ -79,11 +80,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
             )
 
         try:
-            result = execute_sandboxed(query)
+            result_obj = await execute_sandboxed(query)
         except AnalystQueryError as e:
             return json.dumps({"error": str(e)})
-
-        result_obj = await result
         formatted = format_result(result_obj)
 
         label = description or f"query_{query_count + 1}"
@@ -114,10 +113,21 @@ def _get_agent() -> Agent[AgentDeps, str]:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
-async def run(question: str, deps: AgentDeps) -> SpecialistResult:
+async def run(question: str, deps: AgentDeps, *, usage=None) -> SpecialistResult:
     """Run the data analyst and return result with usage info."""
     agent = _get_agent()
-    result = await agent.run(question, deps=deps)
+    msg_history = build_message_history(deps.history)
+    run_kwargs = {"message_history": msg_history, "deps": deps}
+    if usage is not None:
+        run_kwargs["usage"] = usage
+    try:
+        result = await agent.run(question, **run_kwargs)
+    except Exception:
+        logger.exception("analyst failed")
+        return SpecialistResult(
+            response="I ran into an issue running the analysis. Please try again.",
+            usage=UsageInfo(),
+        )
     response = result.output if isinstance(result.output, str) else str(result.output)
     model_name = get_model_name("agent:analyst")
     usage = result.usage()

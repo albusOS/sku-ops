@@ -89,6 +89,10 @@ async def chat(
     history = await compress_task or history
     assembled = await context_task
 
+    # Capture clean conversation turns before injecting the context system message.
+    # Specialists receive this as message_history so follow-up questions work.
+    deps.history = [h for h in (history or []) if h.get("role") != "system"]
+
     context_block = assembled.format_for_agent()
     if context_block:
         history = [{"role": "system", "content": context_block}] + (history or [])
@@ -107,7 +111,17 @@ async def chat(
             "health": _health_agent_mod,
             "analyst": _analyst_agent_mod,
         }[route]
-        spec_result = await agent_mod.run(enriched, deps=deps)
+        try:
+            spec_result = await agent_mod.run(enriched, deps=deps)
+        except Exception:
+            logger.exception("Specialist agent %s failed", route)
+            return {
+                "response": "I ran into an issue. Please try again in a moment.",
+                "tool_calls": [],
+                "history": history or [],
+                "agent": route,
+                "routed_to": [route],
+            }
         return _specialist_result(user_message, spec_result, route, history or [])
 
     result = await _unified_agent.run(

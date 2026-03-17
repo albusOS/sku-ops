@@ -5,6 +5,7 @@ import logging
 
 from assistant.agents.tools.registry import register as _reg
 from catalog.application.queries import (
+    find_sku_by_sku_code,
     find_vendor_by_name,
     get_vendor_by_id,
     list_vendors,
@@ -80,6 +81,13 @@ async def _get_sku_vendor_options(args: dict) -> str:
     sku_id = (args.get("sku_id") or "").strip()
     if not sku_id:
         return json.dumps({"error": "sku_id required"})
+    # Accept either the internal UUID or the human-readable SKU code.
+    # If the value doesn't look like a UUID, try resolving it as a SKU code.
+    if "-" not in sku_id:
+        product = await find_sku_by_sku_code(sku_id.upper())
+        if not product:
+            return json.dumps({"error": f"SKU '{sku_id}' not found"})
+        sku_id = product.id
     options = await sku_vendor_options(sku_id)
     return json.dumps(
         {
