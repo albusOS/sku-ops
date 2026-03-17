@@ -1,8 +1,8 @@
 """Xero OAuth 2.0 and sync health routes - connect, callback, disconnect, tenants, health, sync."""
 
 import asyncio
-import secrets
 import logging
+import secrets
 from datetime import UTC, datetime
 from urllib.parse import urlencode
 
@@ -252,7 +252,7 @@ async def trigger_sync(current_user: AdminDep):
             finally:
                 await r.delete(lock_key)
 
-        asyncio.create_task(_run_redis())
+        _sync_tasks[org_id] = asyncio.create_task(_run_redis())
         return {"success": True, "status": "started"}
 
     existing = _sync_tasks.get(org_id)

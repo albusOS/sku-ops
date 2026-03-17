@@ -62,6 +62,7 @@ class AdminDashboard:
     total_vendors: int
     total_contractors: int
     unpaid_total: float
+    invoiced_total: float
     low_stock_alerts: list[dict]
     inventory_cost: float
     inventory_retail: float
@@ -141,6 +142,7 @@ async def admin_dashboard(
     (
         range_withdrawals,
         unpaid_withdrawals,
+        invoiced_withdrawals,
         products,
         total_products,
         low_stock_products,
@@ -151,6 +153,7 @@ async def admin_dashboard(
     ) = await asyncio.gather(
         list_withdrawals(start_date=sd, end_date=ed, limit=10000),
         list_withdrawals(payment_status="unpaid", start_date=sd, end_date=ed, limit=10000),
+        list_withdrawals(payment_status="invoiced", start_date=sd, end_date=ed, limit=10000),
         list_skus(),
         count_all_skus(),
         count_low_stock(),
@@ -164,6 +167,7 @@ async def admin_dashboard(
     range_cogs = sum(w.cost_total for w in range_withdrawals)
     range_transactions = len(range_withdrawals)
     unpaid_total = sum(w.total for w in unpaid_withdrawals)
+    invoiced_total = sum(w.total for w in invoiced_withdrawals)
 
     inventory_cost = round_money(sum(p.cost * p.quantity for p in products))
     inventory_retail = round_money(sum(p.price * p.quantity for p in products))
@@ -210,6 +214,7 @@ async def admin_dashboard(
         total_vendors=total_vendors,
         total_contractors=total_contractors,
         unpaid_total=round_money(unpaid_total),
+        invoiced_total=round_money(invoiced_total),
         low_stock_alerts=[p.model_dump() for p in low_stock_items],
         inventory_cost=inventory_cost,
         inventory_retail=inventory_retail,

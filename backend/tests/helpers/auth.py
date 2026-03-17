@@ -28,12 +28,12 @@ def make_token(
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def admin_headers() -> dict:
+def admin_headers() -> dict[str, str]:
     token = make_token("user-1", role="admin", email="test@test.com")
     return {"Authorization": f"Bearer {token}"}
 
 
-def contractor_headers() -> dict:
+def contractor_headers() -> dict[str, str]:
     token = make_token(
         "contractor-1", role="contractor", name="Contractor User", email="contractor@test.com"
     )

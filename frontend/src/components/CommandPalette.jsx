@@ -32,7 +32,7 @@ import {
 const NAV_ITEMS = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard, section: "Pages" },
   { label: "Products", path: "/inventory", icon: Package, section: "Pages" },
-  { label: "Yard Operations", path: "/operations", icon: ClipboardList, section: "Pages" },
+  { label: "Issue Materials", path: "/operations", icon: ClipboardList, section: "Pages" },
   { label: "Request Materials", path: "/request-materials", icon: ShoppingCart, section: "Pages" },
   { label: "Scan & Checkout", path: "/scan", icon: ScanBarcode, section: "Pages" },
   { label: "My History", path: "/my-history", icon: History, section: "Pages" },

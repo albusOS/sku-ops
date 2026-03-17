@@ -175,7 +175,7 @@ const Layout = ({ children }) => {
     }
 
     const operationsItems = [
-      { path: "/operations", icon: ClipboardList, label: "Yard Operations" },
+      { path: "/operations", icon: ClipboardList, label: "Issue Materials" },
       { path: "/contractors", icon: HardHat, label: "Contractors" },
       { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
     ];
@@ -241,7 +241,10 @@ const Layout = ({ children }) => {
 
   return (
     <ChatProvider>
-      <div className="min-h-screen bg-background text-foreground flex" data-testid="app-layout">
+      <div
+        className="h-screen overflow-hidden bg-background text-foreground flex"
+        data-testid="app-layout"
+      >
         <aside
           className={`${collapsed ? "w-16" : "w-64"} bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border/80 shadow-soft transition-[width] duration-200 ease-in-out overflow-hidden shrink-0`}
           data-testid="sidebar"

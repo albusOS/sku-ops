@@ -50,8 +50,14 @@ export const AuthProvider = ({ children }) => {
       const data = await api.auth.me();
       setUser(data);
       return data;
-    } catch {
-      logoutRef.current?.();
+    } catch (err) {
+      const status = err?.response?.status;
+      // Only invalidate the session on explicit auth rejections.
+      // Network errors, 5xx during startup/restart, etc. should not log the
+      // user out — they would silently destroy a valid session.
+      if (status === 401 || status === 403) {
+        logoutRef.current?.();
+      }
       return null;
     }
   };

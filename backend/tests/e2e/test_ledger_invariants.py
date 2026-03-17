@@ -136,8 +136,9 @@ class TestLedgerInvariants:
         assert resp.json()["payment_status"] == "invoiced"
 
         stats = _query_ledger(client, headers)
-        # Unpaid total should include at least w2's total
-        assert stats.get("unpaid_total", 0) >= w2["total"]
+        # w2 is auto-invoiced, so it appears in invoiced_total (not unpaid_total)
+        outstanding = stats.get("unpaid_total", 0) + stats.get("invoiced_total", 0)
+        assert outstanding >= w2["total"]
 
     def test_gross_profit_matches_revenue_minus_cogs(self, client, seed_dept_id):
         """Gross profit = revenue - COGS, always."""

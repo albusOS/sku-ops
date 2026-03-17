@@ -23,7 +23,7 @@ import jwt as pyjwt
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from shared.api.deps import CurrentUserDep  # noqa: TC001
+from shared.api.deps import CurrentUserDep
 from shared.infrastructure.config import (
     JWT_ACCESS_EXPIRATION_MINUTES,
     JWT_ALGORITHM,

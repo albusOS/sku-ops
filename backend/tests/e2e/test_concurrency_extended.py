@@ -107,13 +107,13 @@ def _query_ledger_entries(client, reference_id, account, reference_type=None):
         if reference_type:
             cursor = await conn.execute(
                 "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger "
-                "WHERE reference_id = ? AND account = ? AND reference_type = ?",
+                "WHERE reference_id = $1 AND account = $2 AND reference_type = $3",
                 (reference_id, account, reference_type),
             )
         else:
             cursor = await conn.execute(
                 "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger "
-                "WHERE reference_id = ? AND account = ?",
+                "WHERE reference_id = $1 AND account = $2",
                 (reference_id, account),
             )
         row = await cursor.fetchone()

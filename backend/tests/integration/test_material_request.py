@@ -1,7 +1,18 @@
 """Tests for material request creation and processing via HTTP API."""
 
+from typing import Any, cast
 
-def _create_product(client, auth, name="Widget", quantity=100.0, cost=5.0, price=10.0):
+from starlette.testclient import TestClient
+
+
+def _create_product(
+    client: TestClient,
+    auth: dict[str, str],
+    name: str = "Widget",
+    quantity: float = 100.0,
+    cost: float = 5.0,
+    price: float = 10.0,
+) -> dict[str, Any]:
     """Create a product via API and return the response JSON."""
     resp = client.post(
         "/api/catalog/skus",
@@ -16,10 +27,10 @@ def _create_product(client, auth, name="Widget", quantity=100.0, cost=5.0, price
         headers=auth,
     )
     assert resp.status_code == 200, resp.text
-    return resp.json()
+    return cast("dict[str, Any]", resp.json())
 
 
-def _item_from_product(product, quantity=3):
+def _item_from_product(product: dict[str, Any], quantity: int = 3) -> dict[str, Any]:
     return {
         "product_id": product["id"],
         "sku": product["sku"],
@@ -30,7 +41,12 @@ def _item_from_product(product, quantity=3):
     }
 
 
-def _create_material_request(client, contractor_auth, product, **kwargs):
+def _create_material_request(
+    client: TestClient,
+    contractor_auth: dict[str, str],
+    product: dict[str, Any],
+    **kwargs: Any,
+):
     """Create a material request as contractor. Returns response."""
     payload = {
         "items": [_item_from_product(product)],
@@ -53,11 +69,11 @@ def test_material_request_round_trip(client, auth, contractor_auth):
         service_address="123 Main St",
     )
     assert resp.status_code == 200
-    created = resp.json()
+    created = cast("dict[str, Any]", resp.json())
 
     get_resp = client.get(f"/api/material-requests/{created['id']}", headers=contractor_auth)
     assert get_resp.status_code == 200
-    fetched = get_resp.json()
+    fetched = cast("dict[str, Any]", get_resp.json())
 
     assert fetched["contractor_id"] == "contractor-1"
     assert fetched["job_id"] == "JOB-001"
@@ -77,11 +93,11 @@ def test_material_request_fallback_fields_preserved(client, auth, contractor_aut
         service_address="456 Elm",
     )
     assert resp.status_code == 200
-    created = resp.json()
+    created = cast("dict[str, Any]", resp.json())
 
     get_resp = client.get(f"/api/material-requests/{created['id']}", headers=contractor_auth)
     assert get_resp.status_code == 200
-    fetched = get_resp.json()
+    fetched = cast("dict[str, Any]", get_resp.json())
 
     assert fetched["job_id"] == "FALLBACK-JOB"
     assert fetched["service_address"] == "456 Elm"
@@ -101,7 +117,7 @@ def test_create_material_request_as_contractor(client, auth, contractor_auth):
         service_address="100 Main St",
     )
     assert resp.status_code == 200
-    result = resp.json()
+    result = cast("dict[str, Any]", resp.json())
 
     assert result["contractor_id"] == "contractor-1"
     assert result["contractor_name"] == "Contractor User"
@@ -130,7 +146,7 @@ def test_create_material_request_rejects_empty_items(client, contractor_auth):
         headers=contractor_auth,
     )
     assert resp.status_code == 400
-    assert "item" in resp.json()["detail"].lower()
+    assert "item" in cast("dict[str, Any]", resp.json())["detail"].lower()
 
 
 # ── API handler: list ────────────────────────────────────────────────────────
@@ -145,7 +161,7 @@ def test_list_material_requests_contractor_sees_own(client, auth, contractor_aut
 
     resp = client.get("/api/material-requests", headers=contractor_auth)
     assert resp.status_code == 200
-    results = resp.json()
+    results = cast("list[dict[str, Any]]", resp.json())
 
     assert len(results) >= 1
     assert all(r["contractor_id"] == "contractor-1" for r in results)
@@ -160,7 +176,7 @@ def test_list_material_requests_admin_sees_pending(client, auth, contractor_auth
 
     resp = client.get("/api/material-requests", headers=auth)
     assert resp.status_code == 200
-    results = resp.json()
+    results = cast("list[dict[str, Any]]", resp.json())
 
     assert len(results) >= 1
     assert all(r["status"] == "pending" for r in results)
@@ -180,7 +196,7 @@ def test_process_rejects_already_processed(client, auth, contractor_auth):
         service_address="1 Elm",
     )
     assert create_resp.status_code == 200
-    req_id = create_resp.json()["id"]
+    req_id = cast("dict[str, Any]", create_resp.json())["id"]
 
     # Process the first time — should succeed
     first = client.post(
@@ -197,7 +213,7 @@ def test_process_rejects_already_processed(client, auth, contractor_auth):
         headers=auth,
     )
     assert second.status_code == 400
-    assert "already processed" in second.json()["detail"].lower()
+    assert "already processed" in cast("dict[str, Any]", second.json())["detail"].lower()
 
 
 def test_process_rejects_missing_job_id(client, auth, contractor_auth):
@@ -211,7 +227,7 @@ def test_process_rejects_missing_job_id(client, auth, contractor_auth):
         service_address="1 Oak",
     )
     assert create_resp.status_code == 200
-    req_id = create_resp.json()["id"]
+    req_id = cast("dict[str, Any]", create_resp.json())["id"]
 
     resp = client.post(
         f"/api/material-requests/{req_id}/process",
@@ -219,7 +235,7 @@ def test_process_rejects_missing_job_id(client, auth, contractor_auth):
         headers=auth,
     )
     assert resp.status_code == 400
-    assert "job id" in resp.json()["detail"].lower()
+    assert "job id" in cast("dict[str, Any]", resp.json())["detail"].lower()
 
 
 def test_process_rejects_missing_service_address(client, auth, contractor_auth):
@@ -233,7 +249,7 @@ def test_process_rejects_missing_service_address(client, auth, contractor_auth):
         service_address="",
     )
     assert create_resp.status_code == 200
-    req_id = create_resp.json()["id"]
+    req_id = cast("dict[str, Any]", create_resp.json())["id"]
 
     resp = client.post(
         f"/api/material-requests/{req_id}/process",
@@ -241,7 +257,7 @@ def test_process_rejects_missing_service_address(client, auth, contractor_auth):
         headers=auth,
     )
     assert resp.status_code == 400
-    assert "service address" in resp.json()["detail"].lower()
+    assert "service address" in cast("dict[str, Any]", resp.json())["detail"].lower()
 
 
 def test_process_not_found(client, auth):
@@ -265,7 +281,7 @@ def test_process_success_creates_withdrawal_and_updates_status(client, auth, con
         service_address="100 Success Rd",
     )
     assert create_resp.status_code == 200
-    req_id = create_resp.json()["id"]
+    req_id = cast("dict[str, Any]", create_resp.json())["id"]
 
     # Process the request
     process_resp = client.post(
@@ -274,13 +290,13 @@ def test_process_success_creates_withdrawal_and_updates_status(client, auth, con
         headers=auth,
     )
     assert process_resp.status_code == 200
-    withdrawal = process_resp.json()
+    withdrawal = cast("dict[str, Any]", process_resp.json())
     assert withdrawal["id"]
     assert withdrawal["contractor_id"] == "contractor-1"
 
     # Verify the request is now marked as processed
     get_resp = client.get(f"/api/material-requests/{req_id}", headers=auth)
     assert get_resp.status_code == 200
-    updated = get_resp.json()
+    updated = cast("dict[str, Any]", get_resp.json())
     assert updated["status"] == "processed"
     assert updated["withdrawal_id"] == withdrawal["id"]

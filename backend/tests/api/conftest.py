@@ -58,12 +58,12 @@ def _db_with_bcrypt_user(db, _app_client):
 
 
 @pytest.fixture
-def auth_headers():
+def auth_headers() -> dict[str, str]:
     """Admin auth headers."""
     return admin_headers()
 
 
 @pytest.fixture
-def contractor_auth_headers():
+def contractor_auth_headers() -> dict[str, str]:
     """Contractor auth headers."""
     return contractor_headers()

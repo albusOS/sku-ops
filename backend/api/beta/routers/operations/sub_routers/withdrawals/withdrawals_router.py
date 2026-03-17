@@ -17,7 +17,7 @@ from operations.domain.withdrawal import (
     MaterialWithdrawal,
     MaterialWithdrawalCreate,
 )
-from shared.api.deps import AdminDep, CurrentUserDep  # noqa: TC001
+from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])

@@ -333,7 +333,7 @@ async def seed_withdrawals(
     return withdrawal_ids
 
 
-async def seed_invoices(now: datetime, org_id: str, withdrawal_ids: list[str]) -> None:
+async def seed_invoices(now: datetime, withdrawal_ids: list[str]) -> None:
     """Create invoices for the first 4 withdrawals; mark first 2 as paid."""
     from finance.application.invoice_service import create_invoice_from_withdrawals
     from operations.infrastructure.withdrawal_repo import withdrawal_repo
@@ -352,7 +352,7 @@ async def seed_invoices(now: datetime, org_id: str, withdrawal_ids: list[str]) -
     for wid in withdrawal_ids[:2]:
         try:
             paid_at = (now - timedelta(days=5)).isoformat()
-            result = await withdrawal_repo.mark_paid(wid, paid_at)
+            await withdrawal_repo.mark_paid(wid, paid_at)
             logger.info("  Marked withdrawal %s... as paid", wid[:8])
         except (ValueError, RuntimeError, OSError, TypeError) as e:
             logger.warning("  Mark paid skip: %s", e)
@@ -419,7 +419,7 @@ async def main(org_id_arg: str = "", org_name_arg: str = "") -> None:
 
         logger.info("--- Creating invoices ---")
         now = datetime.now(UTC)
-        await seed_invoices(now, org_id, withdrawal_ids)
+        await seed_invoices(now, withdrawal_ids)
 
         logger.info("--- Setting low-stock alerts ---")
         await seed_low_stock(conn, sku_map)

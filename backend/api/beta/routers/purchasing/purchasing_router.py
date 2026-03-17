@@ -102,7 +102,7 @@ async def create_po(
 
 @router.get("")
 async def list_purchase_orders(
-    current_user: AdminDep,  # noqa: ARG001
+    current_user: AdminDep,
     status: str | None = None,
 ):
     """List purchase orders, optionally filtered by status (ordered/received)."""
@@ -126,7 +126,7 @@ async def list_purchase_orders(
 @router.get("/{po_id}")
 async def get_purchase_order(
     po_id: str,
-    current_user: AdminDep,  # noqa: ARG001
+    current_user: AdminDep,
 ):
     """Get a purchase order with all its items."""
     po = await get_po(po_id)

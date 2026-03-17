@@ -1,12 +1,24 @@
 """Integration test fixtures — TestClient with portal for org-scoped operations.
 
-Uses the root session-scoped _app_client. Each test gets a clean DB
-via the autouse _clean_db fixture.
+Uses its own session-scoped _app_client so the event loop is independent
+from the api/ test suite. Each test gets a clean DB via the autouse
+_clean_db fixture.
 """
 
 import pytest
 
 from tests.helpers.auth import admin_headers, contractor_headers
+
+
+@pytest.fixture(scope="session")
+def _app_client():
+    """Session-scoped TestClient for integration tests — independent event loop."""
+    from starlette.testclient import TestClient
+
+    from server import app
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield client
 
 
 @pytest.fixture(autouse=True)
@@ -24,13 +36,13 @@ def client(_app_client):
 
 
 @pytest.fixture
-def auth():
+def auth() -> dict[str, str]:
     """Admin auth headers."""
     return admin_headers()
 
 
 @pytest.fixture
-def contractor_auth():
+def contractor_auth() -> dict[str, str]:
     """Contractor auth headers."""
     return contractor_headers()
 

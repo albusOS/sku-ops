@@ -4,9 +4,11 @@ from fastapi import APIRouter, HTTPException
 
 from finance.application.billing_entity_service import (
     create_billing_entity as svc_create,
-    update_billing_entity as svc_update,
 )
 from finance.application.billing_entity_service import get_by_name
+from finance.application.billing_entity_service import (
+    update_billing_entity as svc_update,
+)
 from finance.application.queries import get_billing_entity_by_id
 from finance.application.queries import list_billing_entities as query_list
 from finance.application.queries import search_billing_entities as query_search
