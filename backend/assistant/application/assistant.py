@@ -66,23 +66,26 @@ async def chat(
     )
     context_block = assembled.format_for_agent()
     if context_block:
-        # Inject as system message at the start of history
         history = [{"role": "system", "content": context_block}] + (history or [])
 
     route = await route_query(user_message, history)
     logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
 
     if route == "procurement":
-        response = await _procurement_agent_mod.run(user_message, deps=deps)
+        enriched = _enrich_specialist_message(user_message, context_block)
+        response = await _procurement_agent_mod.run(enriched, deps=deps)
         return _specialist_result(user_message, response, "procurement", history or [])
     if route == "trend":
-        response = await _trend_agent_mod.run(user_message, deps=deps)
+        enriched = _enrich_specialist_message(user_message, context_block)
+        response = await _trend_agent_mod.run(enriched, deps=deps)
         return _specialist_result(user_message, response, "trend", history or [])
     if route == "health":
-        response = await _health_agent_mod.run(user_message, deps=deps)
+        enriched = _enrich_specialist_message(user_message, context_block)
+        response = await _health_agent_mod.run(enriched, deps=deps)
         return _specialist_result(user_message, response, "health", history or [])
     if route == "analyst":
-        response = await _analyst_agent_mod.run(user_message, deps=deps)
+        enriched = _enrich_specialist_message(user_message, context_block)
+        response = await _analyst_agent_mod.run(enriched, deps=deps)
         return _specialist_result(user_message, response, "analyst", history or [])
 
     result = await _unified_agent.run(
@@ -90,6 +93,13 @@ async def chat(
     )
     result["routed_to"] = ["unified"]
     return result
+
+
+def _enrich_specialist_message(user_message: str, context_block: str) -> str:
+    """Prepend assembled context to the user message for specialist agents."""
+    if not context_block:
+        return user_message
+    return f"<context>\n{context_block}\n</context>\n\n{user_message}"
 
 
 def _specialist_result(

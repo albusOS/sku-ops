@@ -11,8 +11,8 @@ import {
   CreditCard,
   ListChecks,
   SlidersHorizontal,
-  Truck,
   BarChart3,
+  Sparkles,
 } from "lucide-react";
 
 const GAP = 220;
@@ -33,6 +33,7 @@ function nodes(raw) {
       label: n.label,
       icon: n.icon,
       route: n.route,
+      prompt: n.prompt,
       nodeType: n.nodeType ?? "action",
       hint: n.hint,
     },
@@ -183,11 +184,12 @@ const WORKFLOWS = {
       },
       {
         id: "reorder",
-        label: "Reorder",
-        icon: Truck,
-        route: "/purchasing",
+        label: "Reorder Plan",
+        icon: Sparkles,
+        prompt:
+          "Build a reorder plan: what's low on stock and selling fast vs not urgent, group by vendor, and recommend quantities based on past orders",
         nodeType: "outcome",
-        hint: "Create a PO to replenish low-stock items.",
+        hint: "AI builds a reorder plan grouped by vendor based on stock levels and velocity.",
       },
     ]),
     edges: edges([
@@ -211,17 +213,19 @@ const WORKFLOWS = {
         id: "lowstock",
         label: "Low Stock",
         icon: SlidersHorizontal,
-        route: "/inventory?low_stock=1",
+        prompt:
+          "What should we reorder urgently? Rank by days until stockout and flag critical items",
         nodeType: "decision",
-        hint: "Items below minimum stock — decide what to reorder.",
+        hint: "AI analyzes low stock items ranked by urgency and stockout risk.",
       },
       {
         id: "reorder",
-        label: "Reorder",
-        icon: Truck,
-        route: "/purchasing",
+        label: "Reorder Plan",
+        icon: Sparkles,
+        prompt:
+          "Build a reorder plan: what's low on stock and selling fast vs not urgent, group by vendor, and recommend quantities based on past orders",
         nodeType: "outcome",
-        hint: "Create purchase orders to replenish.",
+        hint: "AI builds a vendor-grouped reorder plan with quantity recommendations.",
       },
     ]),
     edges: edges([

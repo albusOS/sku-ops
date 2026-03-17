@@ -16,7 +16,7 @@ import { AgentBubble, StreamingBubble } from "./chat/MessageBubbles";
 export default function ChatAssistant() {
   const location = useLocation();
   const agentType = agentTypeFromPath(location.pathname);
-  const { open, setOpen } = useChatPanel();
+  const { open, setOpen, pendingPromptRef } = useChatPanel();
 
   const [messages, setMessages] = useState(() => {
     try {
@@ -125,6 +125,15 @@ export default function ChatAssistant() {
     }
     if (open) setTimeout(() => inputRef.current?.focus(), 150);
   }, [open, aiAvailable]);
+
+  useEffect(() => {
+    if (!open || streaming) return;
+    const prompt = pendingPromptRef.current;
+    if (!prompt) return;
+    pendingPromptRef.current = null;
+    const timer = setTimeout(() => sendMessage(prompt), 200);
+    return () => clearTimeout(timer);
+  }, [open, streaming, pendingPromptRef, sendMessage]);
 
   const sendMessage = useCallback(
     async (text) => {

@@ -44,8 +44,8 @@ const AGENT_META = {
 };
 
 function agentTypeFromPath(pathname) {
-  if (["/inventory", "/vendors", "/departments", "/purchasing"].some((p) => pathname.startsWith(p)))
-    return "inventory";
+  if (["/purchasing", "/vendors"].some((p) => pathname.startsWith(p))) return "procurement";
+  if (["/inventory", "/departments"].some((p) => pathname.startsWith(p))) return "inventory";
   if (
     ["/pos", "/pending-requests", "/contractors", "/billing-entities"].some((p) =>
       pathname.startsWith(p),
@@ -96,6 +96,28 @@ const AGENT_SUGGESTIONS = {
       prompt: "Which products have stock on hand but haven't moved in 30 days?",
     },
   ],
+  procurement: [
+    {
+      label: "Reorder plan",
+      prompt:
+        "Build a reorder plan: what's low on stock and selling fast vs not urgent, group by vendor, and recommend quantities based on past orders",
+    },
+    {
+      label: "Vendor performance",
+      prompt:
+        "Compare our vendors — who has the best fill rate, lead time, and pricing? Flag any reliability issues",
+    },
+    {
+      label: "What should we order?",
+      prompt:
+        "What should we order next? Prioritize by stockout risk, group items by vendor, and estimate total spend",
+    },
+    {
+      label: "Purchase history",
+      prompt:
+        "Show recent purchase orders — what did we order, from which vendors, and at what cost?",
+    },
+  ],
   ops: [
     {
       label: "Recent activity",
@@ -140,6 +162,7 @@ const AGENT_SUGGESTIONS = {
 const AGENT_PLACEHOLDER = {
   auto: "Ask about inventory, finance, or operations…",
   inventory: "Ask about products, stock levels, reorders…",
+  procurement: "Ask about vendors, reorder plans, purchasing…",
   ops: "Ask about sales, contractors, orders…",
   finance: "Ask about invoices, revenue, P&L, balances…",
 };

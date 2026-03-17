@@ -1,7 +1,7 @@
 """Canonical tool registry — single source of truth for all agent tool functions.
 
-Every tool that agents, DAG, and lookups can invoke is registered here once.
-Consumers resolve tools by canonical name or (domain, lookup_key) pair.
+Every tool that agents, DAG, and workflows can invoke is registered here once.
+Consumers resolve tools by canonical name.
 """
 
 from __future__ import annotations
@@ -21,11 +21,9 @@ class ToolEntry:
     domain: str
     fn: ToolFn
     takes_args: bool = True
-    lookup_key: str | None = None
 
 
 _TOOLS: dict[str, ToolEntry] = {}
-_LOOKUP_INDEX: dict[tuple[str, str], ToolEntry] = {}
 
 
 def register(
@@ -34,23 +32,16 @@ def register(
     fn: ToolFn,
     *,
     takes_args: bool = True,
-    lookup_key: str | None = None,
+    **_kwargs: object,
 ) -> None:
     """Register a tool. Called at import time by each agent package."""
-    entry = ToolEntry(name=name, domain=domain, fn=fn, takes_args=takes_args, lookup_key=lookup_key)
+    entry = ToolEntry(name=name, domain=domain, fn=fn, takes_args=takes_args)
     _TOOLS[name] = entry
-    if lookup_key:
-        _LOOKUP_INDEX[(domain, lookup_key)] = entry
 
 
 def get(name: str) -> ToolEntry | None:
     """Look up a tool by its canonical name (e.g. 'search_products')."""
     return _TOOLS.get(name)
-
-
-def get_by_lookup_key(domain: str, key: str) -> ToolEntry | None:
-    """Look up a tool by (domain, lookup_key) pair — used by the lookup engine."""
-    return _LOOKUP_INDEX.get((domain, key))
 
 
 def all_tools() -> dict[str, ToolEntry]:

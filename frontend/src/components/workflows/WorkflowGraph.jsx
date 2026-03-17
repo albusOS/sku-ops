@@ -2,21 +2,28 @@ import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReactFlow, Handle, Position } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChatPanel } from "@/context/ChatContext";
 import WORKFLOWS, { WORKFLOW_KEYS } from "./workflowData";
 
 function WorkflowNode({ data }) {
   const navigate = useNavigate();
+  const { sendPrompt } = useChatPanel();
   const [hovered, setHovered] = useState(false);
   const Icon = data.icon;
   const isOutcome = data.nodeType === "outcome";
   const isDecision = data.nodeType === "decision";
-  const clickable = !!data.route;
+  const isAssistant = !!data.prompt;
+  const clickable = !!data.route || isAssistant;
 
   const handleClick = useCallback(() => {
-    if (data.route) navigate(data.route);
-  }, [data.route, navigate]);
+    if (data.prompt) {
+      sendPrompt(data.prompt);
+    } else if (data.route) {
+      navigate(data.route);
+    }
+  }, [data.route, data.prompt, navigate, sendPrompt]);
 
   return (
     <>
@@ -60,9 +67,11 @@ function WorkflowNode({ data }) {
             {Icon && <Icon className="w-3 h-3 opacity-80" />}
           </div>
           <span className="text-[11px] font-medium whitespace-nowrap">{data.label}</span>
-          {clickable && (
+          {isAssistant ? (
+            <Sparkles className="w-3 h-3 ml-0.5 opacity-40 group-hover:opacity-80 transition-opacity text-accent shrink-0" />
+          ) : clickable ? (
             <ArrowRight className="w-3 h-3 ml-0.5 opacity-0 group-hover:opacity-50 transition-opacity text-accent shrink-0" />
-          )}
+          ) : null}
         </button>
 
         {hovered && data.hint && (
