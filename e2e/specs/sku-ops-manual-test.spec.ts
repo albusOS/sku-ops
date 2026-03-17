@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 const BASE_URL = "http://localhost:3000";
-const ADMIN_EMAIL = "admin@demo.local";
-const ADMIN_PASSWORD = "demo123";
+const ADMIN_EMAIL = "dev@supply-yard.local";
+const ADMIN_PASSWORD = "dev123";
 
 test.describe("SKU-Ops Manual Testing Suite", () => {
   test.beforeEach(async ({ page }) => {
@@ -13,7 +13,7 @@ test.describe("SKU-Ops Manual Testing Suite", () => {
     // Take screenshot of login page
     await page.screenshot({ path: "test-results/01-login-page.png", fullPage: true });
 
-    // Attempt login with admin@demo.local / demo123
+    // Attempt login with dev@supply-yard.local / dev123
     // There are two login forms (admin and contractor), use the admin one
     const emailInput = page.getByTestId('admin-login-email-input');
     const passwordInput = page.locator('#admin-login-email').locator('..').locator('input[type="password"]');

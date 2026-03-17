@@ -18,11 +18,12 @@ npm run dev              # from project root — starts backend + frontend toget
 - Backend: uvicorn with `--reload` on http://localhost:8000
 - Frontend: Vite dev server on http://localhost:3000
 - DB: Postgres via `docker-compose.dev.yml` on localhost:5432
-- `./bin/dev server` and `./bin/dev seed` auto-start Postgres if not running
-- Seed realistic data (run once after first start):
+- `./bin/dev server` auto-starts Postgres if not running
+- Provision data (run once after first start):
 
 ```bash
-./bin/dev seed
+./bin/dev provision --dev        # org + departments + dev users
+./bin/dev import --vendors --products  # real Hike POS data
 ```
 
 ### Mode 2: Production verification (before deploy)
@@ -60,7 +61,7 @@ All commands run from the project root via `./bin/dev`:
 ./bin/dev commit           # commitizen conventional commit
 ./bin/dev server           # backend only (no frontend)
 ./bin/dev ui               # frontend only (no backend)
-./bin/dev seed [args]      # run seed_realistic
+./bin/dev provision [args] # provision org, departments, dev users
 ./bin/dev eval [args]      # run LLM evals
 ./bin/dev db               # start dev Postgres only
 ./bin/dev db:stop          # stop dev Postgres

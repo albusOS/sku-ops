@@ -4,23 +4,23 @@ Complete walkthrough of all actors and flows in a real day at the Supply Yard. U
 
 ---
 
-## Auth Seeding — Current State
+## Auth — Current State
 
-The app seeds users on startup via `seed_mock_user()` in `scripts/seed.py`, triggered in `server.py`:
+Dev users are created via `./bin/dev provision --dev`:
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `admin@demo.local` | `demo123` |
-| Contractor | `contractor@demo.local` | `demo123` |
+| Admin | `dev@supply-yard.local` | `dev123` |
+| Contractor | `contractor@supply-yard.local` | `dev123` |
 
-Runs automatically when `DEMO_USER_EMAIL` is set (dev script sets via `ENV=development`). Standard departments are also seeded.
+Production uses Supabase auth (admin@supplyyard.com). The org schema is bootstrapped on startup; departments and products are provisioned via `devtools/scripts/provision.py` and `devtools/scripts/import_hike.py`.
 
 ---
 
 ## Act 1: Morning — Admin Sets Up the Yard
 
 ### Scene 1: Login
-Admin opens `localhost:3000`, logs in as `admin@demo.local` / `demo123`.
+Admin opens `localhost:3000`, logs in as `dev@supply-yard.local` / `dev123`.
 - `POST /api/auth/login` → JWT
 - Frontend stores token in sessionStorage, redirects to `/` (Dashboard)
 
@@ -56,7 +56,7 @@ Admin goes to `/inventory`. Sees all products with current quantities.
 ## Act 2: Midday — Contractors Pick Up Materials
 
 ### Scene 6: Contractor Logs In
-Contractor opens `localhost:3000`, logs in as `contractor@demo.local` / `demo123`.
+Contractor opens `localhost:3000`, logs in as `contractor@supply-yard.local` / `dev123`.
 - Sees contractor dashboard (own withdrawals, pending requests)
 
 ### Scene 7a: Contractor Requests Materials (Async flow)

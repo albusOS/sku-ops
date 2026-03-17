@@ -154,7 +154,7 @@ async def import_products(
         # Barcode — skip validation for non-standard barcodes
         barcode_raw = str(data.get("Barcode") or "").strip()
         # If barcode is purely digits and fails check-digit validation, store as vendor_barcode only
-        barcode = barcode_raw if barcode_raw else None
+        barcode = barcode_raw or None
         if barcode and barcode.isdigit() and len(barcode) not in (12, 13):
             barcode = None  # non-standard length, skip barcode field
 

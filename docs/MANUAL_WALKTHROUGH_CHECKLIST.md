@@ -20,51 +20,19 @@ npm run dev
 - **Backend:** http://localhost:8000  
 - **Frontend:** http://localhost:3000  
 
-`ENV=development` is set by `npm run dev`, so demo users are seeded on first startup.
+### 2. Provision Data
 
-### 2. Quick Start for Walkthrough (Recommended)
+```bash
+./bin/dev provision --dev              # org + 58 departments + dev users
+./bin/dev import --vendors --products  # 7 vendors + 1,294 products from Hike POS
+```
 
-**Option A — Single-org with inventory:**
-
-1. Start app: `npm run dev`
-2. Log in as `admin@demo.local` / `demo123`
-3. In browser DevTools → Console (while on localhost:3000, logged in as admin):
-   ```js
-   const t = sessionStorage.getItem('token');
-   fetch('/api/seed/reset-inventory', { method: 'POST', headers: { 'Authorization': `Bearer ${t}` } })
-     .then(r => r.json()).then(console.log);
-   ```
-4. Refresh — Dashboard and Inventory should show ~150 products
-
-**Option B — Multi-tenant (North + South):**
-
-1. Start app
-2. `curl -X POST http://localhost:8000/api/seed/reset`
-3. Log in as `admin@north.demo` or `admin@south.demo` / `demo123`
-4. Each org has ~80 products
-
-**Option C — Fresh empty state:**
-
-1. `curl -X POST http://localhost:8000/api/seed/reset-empty`
-2. Log in as `admin@demo.local`
-3. No products — good for testing import/POS from scratch
-
-### 3. Seed Options (Reference)
-
-| Seed Mode | How to Trigger | Result |
-|-----------|----------------|--------|
-| **Single-org (empty)** | `POST /api/seed/reset-empty` | Default org, admin + contractor, 8 departments. No products. |
-| **Single-org (with inventory)** | After reset-empty: Admin → Dashboard → `POST /api/seed/reset-inventory` (or call via API) | ~150 products from CSV, departments, vendors. |
-| **Multi-tenant** | `POST /api/seed/reset` | North + South orgs, users per org, ~80 products each. Requires `ALLOW_RESET=true` or `ENV=development`. |
-
-**Note:** `seed_mock_user` and `seed_standard_departments` run on server startup. `seed_demo_inventory` does NOT — call `/api/seed/reset-inventory` to populate products (admin only).
-
-### 4. Demo Credentials (Single-Org)
+### 3. Log In
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@demo.local | demo123 |
-| Contractor | contractor@demo.local | demo123 |
+| Admin | dev@supply-yard.local | dev123 |
+| Contractor | contractor@supply-yard.local | dev123 |
 
 ---
 
@@ -75,7 +43,7 @@ npm run dev
 | Step | Action | Expected Outcome |
 |------|--------|-------------------|
 | 1 | Open http://localhost:3000 | Login page loads |
-| 2 | Enter `admin@demo.local` / `demo123` | POST /api/auth/login succeeds |
+| 2 | Enter `dev@supply-yard.local` / `dev123` | POST /api/auth/login succeeds |
 | 3 | Click Login | JWT stored, redirect to `/` (Dashboard) |
 | 4 | Check sessionStorage | Token present |
 
@@ -83,10 +51,10 @@ npm run dev
 
 | Case | Action | Expected |
 |------|--------|----------|
-| Wrong password | `demo1234` | Error toast, stay on login |
+| Wrong password | `dev1234` | Error toast, stay on login |
 | Wrong email | `admin@wrong.local` | Error toast |
 | Empty fields | Submit without input | Validation error or error toast |
-| Contractor login | `contractor@demo.local` / `demo123` | Dashboard, different nav (no Financials, Invoices, etc.) |
+| Contractor login | `contractor@supply-yard.local` / `dev123` | Dashboard, different nav (no Financials, Invoices, etc.) |
 
 ---
 
@@ -188,7 +156,7 @@ npm run dev
 
 | Step | Action | Expected Outcome |
 |------|--------|-------------------|
-| 1 | Log out, log in as `contractor@demo.local` / `demo123` | Contractor dashboard |
+| 1 | Log out, log in as `contractor@supply-yard.local` / `dev123` | Contractor dashboard |
 | 2 | Check nav | Request Materials, My History (no POS, Financials, Invoices) |
 
 ---
@@ -490,7 +458,7 @@ Use this to record your manual run:
 ```markdown
 ## Walkthrough Date: YYYY-MM-DD
 ## Tester: [name]
-## Seed: reset-empty + reset-inventory | reset (multi-tenant)
+## Setup: provision --dev + import
 
 | Scene | Pass/Fail | Notes |
 |-------|-----------|-------|
@@ -515,18 +483,12 @@ Use this to record your manual run:
 
 ---
 
-## Quick Seed Commands (curl)
+## Provisioning Commands
 
 ```bash
-# Reset to empty (dev only)
-curl -X POST http://localhost:8000/api/seed/reset-empty
+# Provision org + departments + dev users
+./bin/dev provision --dev
 
-# Reset + multi-tenant
-curl -X POST http://localhost:8000/api/seed/reset
-
-# Reset inventory (requires admin JWT)
-curl -X POST http://localhost:8000/api/seed/reset-inventory \
-  -H "Authorization: Bearer YOUR_JWT"
+# Import real data from Hike POS exports
+./bin/dev import --vendors --products
 ```
-
-Or use a REST client (Postman, Insomnia) with the admin token after login.

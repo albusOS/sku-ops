@@ -151,7 +151,7 @@ curl -X POST localhost:8000/api/seed/reset
 # 2. Login as admin
 TOKEN=$(curl -s -X POST localhost:8000/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@demo.local","password":"demo123"}' | jq -r '.access_token')
+  -d '{"email":"dev@supply-yard.local","password":"dev123"}' | jq -r '.access_token')
 
 # 3. Check financial summary
 curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/financials/summary | jq .

@@ -166,7 +166,7 @@ echo ""
 echo "Waiting for services to become healthy..."
 sleep 5
 
-BACKEND_HEALTH=$($DC exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').status)" 2>/dev/null || echo "unhealthy")
+BACKEND_HEALTH=$($DC exec backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/beta/shared/health').status)" 2>/dev/null || echo "unhealthy")
 DB_HEALTH=$($DC exec db pg_isready -U sku_ops 2>/dev/null && echo "healthy" || echo "unhealthy")
 
 echo ""
@@ -177,7 +177,7 @@ echo "  Database: ${DB_HEALTH}"
 echo ""
 echo "Post-deploy checklist:"
 echo "  [ ] Verify https://${DOMAIN} loads the frontend"
-echo "  [ ] Verify https://${DOMAIN}/api/health returns OK"
+echo "  [ ] Verify https://${DOMAIN}/api/beta/shared/health returns OK"
 echo "  [ ] Set up backup cron: 0 3 * * * $(pwd)/deploy/scripts/backup-postgres.sh"
 echo "  [ ] Configure firewall: allow 80, 443; block all else"
 echo "  [ ] Set up monitoring/alerting for the health endpoint"

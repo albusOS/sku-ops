@@ -6,7 +6,7 @@ const API = "http://localhost:8000";
 
 export async function getAdminToken(request: APIRequestContext): Promise<string> {
   const resp = await request.post(`${API}/api/beta/shared/auth/login`, {
-    data: { email: "admin@demo.local", password: "demo123" },
+    data: { email: "dev@supply-yard.local", password: "dev123" },
   });
   expect(resp.ok(), `Login failed: ${resp.status()}`).toBeTruthy();
   return (await resp.json()).token;
@@ -16,12 +16,7 @@ export function authHeader(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
 
-// ── Seed ───────────────────────────────────────────────────────────────────────
-
-export async function seedResetEmpty(request: APIRequestContext) {
-  const resp = await request.post(`${API}/api/seed/reset-empty`);
-  expect(resp.ok(), `Seed reset-empty failed: ${resp.status()}`).toBeTruthy();
-}
+// ── Seed (provision must be run before e2e tests via bin/dev) ────────────────
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
@@ -54,8 +49,8 @@ export async function apiPut(request: APIRequestContext, token: string, path: st
 export async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.waitForLoadState("networkidle");
-  await page.getByTestId("admin-login-email-input").fill("admin@demo.local");
-  await page.getByTestId("admin-login-password-input").fill("demo123");
+  await page.getByTestId("admin-login-email-input").fill("dev@supply-yard.local");
+  await page.getByTestId("admin-login-password-input").fill("dev123");
   await page.getByTestId("admin-login-submit-btn").click();
   await page.waitForLoadState("networkidle");
   await expect(page.getByTestId("app-layout")).toBeVisible();
@@ -150,7 +145,7 @@ export class WSEventCollector {
   }
 }
 
-// ── Fixture: seed empty + get token + lookup IDs ───────────────────────────────
+// ── Fixture: get token + lookup IDs (assumes provisioned DB) ────────────────
 
 export interface SeedContext {
   token: string;
@@ -159,7 +154,6 @@ export interface SeedContext {
 }
 
 export async function freshSeed(request: APIRequestContext): Promise<SeedContext> {
-  await seedResetEmpty(request);
   const token = await getAdminToken(request);
   const categories = await apiGet(request, token, "/api/beta/catalog/departments");
   const categoryIds: Record<string, string> = {};

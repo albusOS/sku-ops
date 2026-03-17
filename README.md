@@ -15,21 +15,20 @@ npm run dev                           # starts backend + frontend
 - **Backend:** http://localhost:8000
 - **Frontend:** http://localhost:3000
 
-## Demo Credentials
+## Dev Credentials
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@demo.local | demo123 |
-| Contractor | contractor@demo.local | demo123 |
+| Admin | dev@supply-yard.local | dev123 |
+| Contractor | contractor@supply-yard.local | dev123 |
 
-Demo users are auto-created in development. Seed full demo data with:
+Dev users are created via provisioning:
 
 ```bash
-curl -X POST http://localhost:8000/api/seed/seed-full \
-  -H "Authorization: Bearer <token>"
+./bin/dev provision --dev        # org + 58 departments + dev users
+./bin/dev import --vendors       # 7 vendors from Hike POS
+./bin/dev import --products      # 1,294 products from Hike POS
 ```
-
-See [docs/MULTI_TENANT_DEMO_SCRIPT.md](docs/MULTI_TENANT_DEMO_SCRIPT.md) for a full walkthrough.
 
 ## Features
 
@@ -42,16 +41,16 @@ See [docs/MULTI_TENANT_DEMO_SCRIPT.md](docs/MULTI_TENANT_DEMO_SCRIPT.md) for a f
 - **Reports:** P&L, inventory valuation, operations metrics, trend analysis
 - **Invoicing:** Unpaid -> Invoiced -> Paid flows; Xero sync
 - **Real-time:** WebSocket event broadcasting — UI updates automatically when data changes
-- **Multi-tenant:** Org-scoped data isolation
+- **Org-scoped:** Data isolation via organization_id
 
 ## Tech Stack
 
-- **Backend:** Python 3.13, FastAPI, uv (package manager), SQLite (dev) / PostgreSQL (prod)
+- **Backend:** Python 3.13, FastAPI, uv (package manager), PostgreSQL
 - **Frontend:** React 18, Vite, Tailwind CSS, Radix UI, TanStack Query, ECharts
 - **AI:** Anthropic Claude (documents, UOM, assistant), OpenAI (embeddings), OpenRouter (agent gateway)
 - **Infra:** Redis (event pub/sub, chat sessions, distributed locks), Prometheus metrics, Sentry error tracking
 - **Quality:** Ruff (Python lint + format), ESLint 9 + Prettier (frontend), commitizen (conventional commits), CI on every push
-- **Deploy:** Docker, Nginx, docker-compose, GitHub Actions CI/CD
+- **Deploy:** Railway (backend), Vercel (frontend), Supabase (auth + DB)
 
 ## Dev Commands
 
@@ -78,8 +77,8 @@ Configuration is environment-aware (`ENV=development|test|production`). See `bac
 |---|---|---|---|
 | JWT_SECRET | default | default | required |
 | CORS | permissive (*) | permissive (*) | required |
-| Demo seed | auto | disabled | disabled |
-| Database | SQLite file | Postgres | Postgres |
+| Provisioning | via bin/dev | conftest fixtures | via provision script |
+| Database | Postgres (Docker) | Postgres | Postgres |
 | Redis | optional | required | required |
 | WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |
 
