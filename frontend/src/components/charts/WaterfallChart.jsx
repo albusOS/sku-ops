@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
+import ReactEChartsCore from "echarts-for-react/lib/core";
+import echarts from "@/lib/echarts";
 import { themeColors } from "@/lib/chartTheme";
 
 /**
@@ -129,7 +130,8 @@ export function WaterfallChart({
   if (!items.length) return null;
 
   return (
-    <ReactECharts
+    <ReactEChartsCore
+      echarts={echarts}
       option={option}
       style={{ height, width: "100%" }}
       theme="skuops"

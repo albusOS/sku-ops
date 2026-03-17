@@ -13,7 +13,6 @@ from pydantic import (
     ConfigDict,
     Field,
     computed_field,
-    field_validator,
     model_validator,
 )
 
@@ -93,7 +92,12 @@ class Address(BaseModel):
 
 
 class CurrentUser(BaseModel):
-    """Authenticated user context threaded through every request."""
+    """Authenticated user context threaded through every request.
+
+    Only contains JWT-derived identity fields. Profile data (company,
+    billing_entity, phone) belongs on contractor/user records in the DB
+    and must be resolved via explicit lookups — not carried on the token.
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -102,11 +106,3 @@ class CurrentUser(BaseModel):
     name: str
     role: str
     organization_id: str
-    company: str = ""
-    billing_entity: str = ""
-    phone: str = ""
-
-    @field_validator("company", "billing_entity", "phone", mode="before")
-    @classmethod
-    def coerce_none_to_empty(cls, v):
-        return v if v is not None else ""

@@ -23,7 +23,7 @@ There are three environments: `development`, `test`, `production`. There is no s
 - `JWT_SECRET` must be the Supabase project's JWT secret — not a random value.
 - `CORS_ORIGINS` must include all stable Vercel domains. `CORS_ORIGIN_REGEX` can match preview deploys.
 - `FRONTEND_URL` needed for Xero OAuth redirects.
-- Health check: `GET /api/health` (configured in `railway.toml`).
+- Health check: `GET /api/beta/shared/health` (configured in `railway.toml`).
 
 ## Vercel
 - Root `vercel.json` controls monorepo build: `cd frontend && npm ci && npm run build`.

@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from "react";
-import ReactECharts from "echarts-for-react";
-import * as echarts from "echarts/core";
+import ReactEChartsCore from "echarts-for-react/lib/core";
+import echarts from "@/lib/echarts";
 import { themeColors } from "@/lib/chartTheme";
 
 /* URGENCY_COLORS moved inside useMemo — depends on runtime theme */
@@ -32,11 +32,6 @@ export function LollipopChart({ data = [], valueLabel = "days", onDotClick, heig
       const raw = d.name || "—";
       return raw.length > 22 ? raw.slice(0, 20) + "…" : raw;
     });
-
-    echarts.registerCustomSeries ||
-      (() => {
-        /* noop */
-      })();
 
     return {
       tooltip: {
@@ -130,7 +125,8 @@ export function LollipopChart({ data = [], valueLabel = "days", onDotClick, heig
   if (!data.length) return null;
 
   return (
-    <ReactECharts
+    <ReactEChartsCore
+      echarts={echarts}
       option={option}
       style={{ height, width: "100%" }}
       theme="skuops"

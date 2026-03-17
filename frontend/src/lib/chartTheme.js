@@ -1,4 +1,4 @@
-import * as echarts from "echarts/core";
+import echarts from "./echarts";
 
 function hslToHex(hslStr) {
   const [h, sRaw, lRaw] = hslStr.trim().split(/\s+/).map(parseFloat);

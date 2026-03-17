@@ -31,13 +31,16 @@ class BulkMarkPaidRequest(BaseModel):
 async def create_withdrawal(
     data: MaterialWithdrawalCreate, request: Request, current_user: CurrentUserDep
 ):
-    """Create a material withdrawal - Contractors withdraw materials charged to their account"""
+    """Create a material withdrawal - Contractors withdraw materials charged to their account."""
+    contractor_record = await get_contractor_by_id(current_user.id)
+    if not contractor_record:
+        raise HTTPException(status_code=404, detail="Contractor profile not found")
     contractor = ContractorContext(
-        id=current_user.id,
-        name=current_user.name,
-        company=getattr(current_user, "company", ""),
-        billing_entity=getattr(current_user, "billing_entity", ""),
-        billing_entity_id=getattr(current_user, "billing_entity_id", None),
+        id=contractor_record.id,
+        name=contractor_record.name,
+        company=contractor_record.company,
+        billing_entity=contractor_record.billing_entity,
+        billing_entity_id=contractor_record.billing_entity_id,
     )
     result = await create_withdrawal_wired(data, contractor, current_user)
     await audit_log(

@@ -52,9 +52,7 @@ _SELECT_COLS = (
     "id, email, password, name, role, company, billing_entity, phone, is_active, organization_id"
 )
 
-_SELECT_COLS_SAFE = (
-    "id, email, name, role, company, billing_entity, phone, is_active, organization_id"
-)
+_SELECT_COLS_SAFE = "id, email, name, role, company, billing_entity, billing_entity_id, phone, is_active, organization_id"
 
 
 async def fetch_by_email(email: str) -> dict | None:

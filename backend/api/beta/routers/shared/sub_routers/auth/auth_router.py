@@ -64,6 +64,7 @@ class UserResponse(BaseModel):
     organization_id: str
     company: str
     billing_entity: str
+    billing_entity_id: str | None = None
     phone: str
 
 
@@ -99,6 +100,7 @@ def _row_to_user(row) -> UserResponse:
         organization_id=row["organization_id"] or DEFAULT_ORG_ID,
         company=row["company"] or "",
         billing_entity=row["billing_entity"] or "",
+        billing_entity_id=row.get("billing_entity_id"),
         phone=row["phone"] or "",
     )
 
@@ -124,6 +126,7 @@ def _user_from_claims(current_user) -> UserResponse:
         organization_id=current_user.organization_id,
         company="",
         billing_entity="",
+        billing_entity_id=None,
         phone="",
     )
 

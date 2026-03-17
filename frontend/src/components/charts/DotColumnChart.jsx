@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
+import ReactEChartsCore from "echarts-for-react/lib/core";
+import echarts from "@/lib/echarts";
 import { themeColors } from "@/lib/chartTheme";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -92,7 +93,8 @@ export function DotColumnChart({ data = [], height = 260 }) {
   if (!data.length) return null;
 
   return (
-    <ReactECharts
+    <ReactEChartsCore
+      echarts={echarts}
       option={option}
       style={{ height, width: "100%" }}
       theme="skuops"

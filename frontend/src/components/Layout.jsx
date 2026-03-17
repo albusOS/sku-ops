@@ -61,12 +61,12 @@ function loadPanelSizes() {
 
 function LayoutContent({ children, showChat }) {
   const { open, setOpen } = useChatPanel();
-  const [sizes, setSizes] = useState(loadPanelSizes);
+  const sizesRef = useRef(loadPanelSizes());
   const groupRef = useRef(null);
 
   const handleLayout = (newSizes) => {
     if (Array.isArray(newSizes) && newSizes.length >= 2 && newSizes[1] > 0) {
-      setSizes(newSizes);
+      sizesRef.current = newSizes;
       try {
         localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(newSizes));
       } catch {
@@ -75,13 +75,11 @@ function LayoutContent({ children, showChat }) {
     }
   };
 
-  const [mainSize, chatSize] = sizes;
-
   useEffect(() => {
     if (!showChat || !groupRef.current?.setLayout) return;
-    const layout = open ? [mainSize, chatSize] : [100, 0];
-    groupRef.current.setLayout(layout);
-  }, [open, showChat, mainSize, chatSize]);
+    const [mainSize, chatSize] = sizesRef.current;
+    groupRef.current.setLayout(open ? [mainSize, chatSize] : [100, 0]);
+  }, [open, showChat]);
 
   if (!showChat) {
     return (
@@ -101,7 +99,7 @@ function LayoutContent({ children, showChat }) {
       className="flex-1 min-h-0 min-w-0"
       onLayout={handleLayout}
     >
-      <ResizablePanel defaultSize={mainSize} minSize={50} order={1}>
+      <ResizablePanel defaultSize={sizesRef.current[0]} minSize={50} order={1}>
         <main
           className="h-full min-w-0 overflow-auto bg-surface-muted/35 flex flex-col"
           data-testid="main-content"

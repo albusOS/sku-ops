@@ -40,6 +40,12 @@ export default [
       "src/components/ui/**/*.{js,jsx}",
       "src/context/**/*.{js,jsx}",
       "src/components/reports/ReportHelpers.jsx",
+      "src/components/reports/PaymentStrip.jsx",
+      "src/components/reports/LowStockList.jsx",
+      "src/components/reports/PLBreakdownTable.jsx",
+      "src/components/reports/ARAgingTable.jsx",
+      "src/components/reports/FinanceTab.jsx",
+      "src/components/reports/PLStatement.jsx",
     ],
     rules: {
       "react-refresh/only-export-components": "off",

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
+import ReactEChartsCore from "echarts-for-react/lib/core";
+import echarts from "@/lib/echarts";
 import { themeColors } from "@/lib/chartTheme";
 
 /**
@@ -66,7 +67,8 @@ export function GaugeRing({ value = 0, max = 100, label = "", unit = "", zones, 
   }, [value, max, label, unit, zones]);
 
   return (
-    <ReactECharts
+    <ReactEChartsCore
+      echarts={echarts}
       option={option}
       style={{ height: size, width: size }}
       theme="skuops"
