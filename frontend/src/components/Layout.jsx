@@ -61,7 +61,7 @@ function loadPanelSizes() {
 function LayoutContent({ children, showChat }) {
   const { open, setOpen } = useChatPanel();
   const [sizes, setSizes] = useState(loadPanelSizes);
-  const chatPanelRef = useRef(null);
+  const groupRef = useRef(null);
 
   const handleLayout = (newSizes) => {
     if (Array.isArray(newSizes) && newSizes.length >= 2 && newSizes[1] > 0) {
@@ -77,13 +77,10 @@ function LayoutContent({ children, showChat }) {
   const [mainSize, chatSize] = sizes;
 
   useEffect(() => {
-    if (!showChat || !chatPanelRef.current) return;
-    if (open) {
-      chatPanelRef.current.expand();
-    } else {
-      chatPanelRef.current.collapse();
-    }
-  }, [open, showChat]);
+    if (!showChat || !groupRef.current?.setLayout) return;
+    const layout = open ? [mainSize, chatSize] : [100, 0];
+    groupRef.current.setLayout(layout);
+  }, [open, showChat, mainSize, chatSize]);
 
   if (!showChat) {
     return (
@@ -97,7 +94,12 @@ function LayoutContent({ children, showChat }) {
   }
 
   return (
-    <ResizablePanelGroup direction="row" className="flex-1 min-h-0 min-w-0" onLayout={handleLayout}>
+    <ResizablePanelGroup
+      ref={groupRef}
+      direction="row"
+      className="flex-1 min-h-0 min-w-0"
+      onLayout={handleLayout}
+    >
       <ResizablePanel defaultSize={mainSize} minSize={50} order={1}>
         <main
           className="h-full min-w-0 overflow-auto bg-surface-muted/35 flex flex-col"
@@ -108,11 +110,10 @@ function LayoutContent({ children, showChat }) {
       </ResizablePanel>
       <ResizableHandle withHandle className="bg-sidebar-border/50" />
       <ResizablePanel
-        ref={chatPanelRef}
         collapsible
         onCollapse={() => setOpen(false)}
         onExpand={() => setOpen(true)}
-        defaultSize={chatSize}
+        defaultSize={0}
         minSize={20}
         maxSize={45}
         order={2}
