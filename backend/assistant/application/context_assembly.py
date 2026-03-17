@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 from assistant.application.entity_graph import GraphContext, multi_neighbors
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from assistant.application.session_state import EntityRef, SessionState
 
 logger = logging.getLogger(__name__)
@@ -87,11 +89,15 @@ async def assemble_context(
     include_memory: bool = True,
     max_entity_hits: int = 5,
     max_memory_items: int = 8,
+    query_embedding: np.ndarray | None = None,
 ) -> AssembledContext:
     """Build rich context for an agent call.
 
     Runs vector search, graph traversal, and memory recall concurrently.
     Each source is independent — failures in one don't affect the others.
+
+    When *query_embedding* is provided, it's reused for both vector search
+    and memory recall to avoid redundant OpenAI embedding calls.
     """
     ctx = AssembledContext()
 
@@ -99,25 +105,24 @@ async def assemble_context(
         ctx.active_entities = session_state.entities[:5]
         ctx.last_topic = session_state.last_topic
 
-    # Run independent lookups concurrently
     tasks = {}
 
-    tasks["vector"] = asyncio.create_task(_vector_search(query, max_entity_hits))
+    tasks["vector"] = asyncio.create_task(
+        _vector_search(query, max_entity_hits, query_embedding=query_embedding)
+    )
 
     if include_memory:
-        tasks["memory"] = asyncio.create_task(_recall_memory(user_id, query, max_memory_items))
+        tasks["memory"] = asyncio.create_task(
+            _recall_memory(user_id, query, max_memory_items, query_embedding=query_embedding)
+        )
 
-    # Wait for vector search first (needed for graph traversal)
     entity_hits = await tasks["vector"]
     ctx.entity_hits = entity_hits
 
-    # Graph traversal for top hits + active session entities
     if include_graph and (entity_hits or ctx.active_entities):
         graph_entities: list[tuple[str, str]] = []
-        # From vector search hits
         for h in entity_hits[:3]:
             graph_entities.append((h["entity_type"], h["entity_id"]))
-        # From active session state
         for e in ctx.active_entities[:2]:
             pair = (e.type, e.id)
             if pair not in graph_entities:
@@ -129,7 +134,6 @@ async def assemble_context(
             except Exception as e:
                 logger.debug("Graph traversal failed (non-critical): %s", e)
 
-    # Collect memory result
     if "memory" in tasks:
         try:
             ctx.memory_context = await tasks["memory"]
@@ -139,7 +143,11 @@ async def assemble_context(
     return ctx
 
 
-async def _vector_search(query: str, limit: int) -> list[dict]:
+async def _vector_search(
+    query: str,
+    limit: int,
+    query_embedding: np.ndarray | None = None,
+) -> list[dict]:
     """Search embeddings for relevant entities. Returns empty list on failure."""
     try:
         from assistant.infrastructure.embedding_store import (
@@ -152,31 +160,36 @@ async def _vector_search(query: str, limit: int) -> list[dict]:
         if not await is_pgvector_available():
             return []
 
-        qvec = await embed_query(query)
+        qvec = query_embedding if query_embedding is not None else await embed_query(query)
         if qvec is None:
             return []
 
         org_id = get_org_id()
-        # Search across domain entities (not memory — that's handled separately)
         hits = await search(
             qvec,
             org_id,
             entity_types=["sku", "vendor", "purchase_order", "job"],
             limit=limit,
         )
-        # Filter low-relevance hits
         return [h for h in hits if h.get("similarity", 0) > 0.25]
     except Exception as e:
         logger.debug("Vector search failed (non-critical): %s", e)
         return []
 
 
-async def _recall_memory(user_id: str, query: str, limit: int) -> str:
+async def _recall_memory(
+    user_id: str,
+    query: str,
+    limit: int,
+    query_embedding: np.ndarray | None = None,
+) -> str:
     """Recall semantic memory. Returns empty string on failure."""
     try:
         from assistant.agents.memory.store import recall
 
-        return await recall(user_id=user_id, query=query, limit=limit)
+        return await recall(
+            user_id=user_id, query=query, limit=limit, query_embedding=query_embedding
+        )
     except Exception as e:
         logger.debug("Memory recall failed (non-critical): %s", e)
         return ""

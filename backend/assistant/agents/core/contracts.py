@@ -44,6 +44,17 @@ class UsageInfo:
     tier: str = ""
 
 
+@dataclass(frozen=True)
+class SpecialistResult:
+    """Lightweight result from specialist agent runs (procurement, trend, health, analyst).
+
+    Carries the response text plus usage info so cost is never silently dropped.
+    """
+
+    response: str
+    usage: UsageInfo = field(default_factory=UsageInfo)
+
+
 @dataclass
 class AgentResult:
     """Typed output from any agent run — replaces raw dict returns."""

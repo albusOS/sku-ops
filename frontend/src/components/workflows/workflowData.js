@@ -61,10 +61,10 @@ const WORKFLOWS = {
     nodes: nodes([
       {
         id: "import",
-        label: "Import Invoice",
+        label: "Import Vendor Bill",
         icon: FileUp,
         route: "/purchasing",
-        hint: "Upload a vendor invoice — AI extracts items into a purchase order.",
+        hint: "Upload a vendor bill or receipt — AI extracts items into a purchase order.",
       },
       {
         id: "receive",

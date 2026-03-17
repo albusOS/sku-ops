@@ -36,6 +36,11 @@ You have two tools:
 - The `financial_ledger` is the best table for P&L, margin, and revenue analysis — it has `account`, `amount`, and dimensional columns (department, job_id, billing_entity_id, product_id)
 - `financial_ledger.account` values include: `revenue`, `cost_of_goods_sold`, `accounts_receivable`, `inventory`, `shrinkage`
 
+## TERMINOLOGY
+
+- **"invoice"** (in the `invoices` table) = an outbound sales document the supply yard sends to a customer/contractor after issuing materials. Linked to withdrawals and billing entities. NOT a vendor purchase bill.
+- **"vendor bill"** / **"PO bill"** = an inbound purchase document from a supplier, synced to Xero as ACCPAY. These live in the `purchase_orders` table, not `invoices`.
+
 ## KEY TABLES FOR COMMON ANALYSES
 
 | Analysis Type | Primary Tables |

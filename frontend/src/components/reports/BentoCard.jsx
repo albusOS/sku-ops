@@ -1,11 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Expand } from "lucide-react";
 
-const SIZE_CLASSES = {
-  medium: "col-span-1 md:col-span-1 xl:col-span-2",
-  large: "col-span-1 md:col-span-2 xl:col-span-2",
-};
-
 const STATUS_STYLES = {
   danger: {
     bar: "before:from-destructive/80 before:via-destructive/40 before:to-transparent",
@@ -28,7 +23,7 @@ export function BentoCard({
   title,
   metric,
   insight,
-  size = "medium",
+  size: _size,
   status,
   onClick,
   children,
@@ -48,7 +43,6 @@ export function BentoCard({
         s
           ? cn(s.bar, s.border, s.glow)
           : "before:from-accent/80 before:via-category-4/60 before:to-transparent",
-        SIZE_CLASSES[size],
         className,
       )}
     >

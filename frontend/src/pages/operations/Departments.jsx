@@ -1,8 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Plus, Edit2, Trash2, Layers, Package } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Search, MoreHorizontal, Edit2, Trash2, Layers, Package } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
@@ -52,12 +68,24 @@ const Departments = () => {
     open: false,
     dept: null,
   });
+  const [search, setSearch] = useState("");
 
   const { data: departments = [], isLoading, isError, error, refetch } = useDepartments();
   const { data: skuOverview } = useSkuOverview();
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
   const deleteMutation = useDeleteDepartment();
+
+  const filtered = useMemo(() => {
+    if (!search) return departments;
+    const q = search.toLowerCase();
+    return departments.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.code.toLowerCase().includes(q) ||
+        d.description?.toLowerCase().includes(q),
+    );
+  }, [departments, search]);
 
   const openDialog = (dept = null) => {
     setEditingDept(dept);
@@ -102,23 +130,22 @@ const Departments = () => {
         action={
           <Button
             onClick={() => openDialog()}
-            className="btn-primary h-12 px-6"
+            className="btn-primary h-10 px-5"
             data-testid="add-department-btn"
           >
-            <Plus className="w-5 h-5 mr-2" />
+            <Plus className="w-4 h-4 mr-2" />
             Add Category
           </Button>
         }
       />
 
-      <div className="card-workshop p-4 mb-6 bg-muted border-border">
-        <p className="text-sm text-muted-foreground">
-          <strong>Automated SKU System:</strong> Format{" "}
-          <span className="font-mono bg-card px-2 py-1 rounded border border-border">
-            DEPT-XXXXX
+      <div className="card-workshop p-3 mb-4 bg-muted border-border">
+        <p className="text-xs text-muted-foreground">
+          <strong>SKU Format:</strong>{" "}
+          <span className="font-mono bg-card px-1.5 py-0.5 rounded border border-border">
+            DEPT-ITM-XXXXX
           </span>{" "}
-          — each product gets a unique SKU from its category code + sequence. SKUs are assigned
-          automatically when you add products.
+          — auto-assigned from category code + sequence when products are added.
         </p>
       </div>
 
@@ -131,61 +158,105 @@ const Departments = () => {
           </p>
         </div>
       ) : (
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-          data-testid="departments-grid"
-        >
-          {departments.map((dept) => (
-            <div
-              key={dept.id}
-              className="card-workshop p-6"
-              data-testid={`department-card-${dept.code}`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div
-                  className={`w-14 h-14 ${getDeptColor(dept.code)} rounded-sm flex items-center justify-center`}
-                >
-                  <span className="font-mono font-bold text-lg">{dept.code}</span>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => openDialog(dept)}
-                    className="p-2 text-muted-foreground hover:text-accent hover:bg-warning/10 rounded-sm transition-colors"
-                    data-testid={`edit-dept-${dept.code}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm({ open: true, dept })}
-                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors"
-                    data-testid={`delete-dept-${dept.code}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <h3 className="font-heading font-bold text-xl text-foreground uppercase tracking-wide mb-2">
-                {dept.name}
-              </h3>
-              {dept.description && (
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                  {dept.description}
-                </p>
-              )}
-              <div className="space-y-2 pt-4 border-t border-border">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Package className="w-4 h-4" />
-                  <span>{dept.sku_count || 0} SKUs</span>
-                </div>
-                {skuOverview?.departments?.find((d) => d.id === dept.id)?.next_sku && (
-                  <p className="text-xs font-mono text-muted-foreground">
-                    Next SKU: {skuOverview.departments.find((d) => d.id === dept.id).next_sku}
-                  </p>
+        <>
+          <div className="relative mb-4 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search categories..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 input-workshop"
+              data-testid="departments-search"
+            />
+          </div>
+
+          <div className="card-workshop overflow-hidden" data-testid="departments-grid">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[80px]">Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="hidden md:table-cell">Description</TableHead>
+                  <TableHead className="w-[100px] text-right">SKUs</TableHead>
+                  <TableHead className="hidden lg:table-cell w-[180px]">Next SKU</TableHead>
+                  <TableHead className="w-[50px]" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      {search ? `No categories matching "${search}"` : "No categories"}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((dept) => {
+                    const nextSku = skuOverview?.departments?.find(
+                      (d) => d.id === dept.id,
+                    )?.next_sku;
+                    return (
+                      <TableRow key={dept.id} data-testid={`department-card-${dept.code}`}>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={`font-mono font-bold text-xs ${getDeptColor(dept.code)} border-transparent`}
+                          >
+                            {dept.code}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{dept.name}</TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground text-xs max-w-[300px] truncate">
+                          {dept.description || "—"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                            <Package className="w-3.5 h-3.5" />
+                            {dept.sku_count || 0}
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell font-mono text-xs text-muted-foreground">
+                          {nextSku || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem
+                                onClick={() => openDialog(dept)}
+                                data-testid={`edit-dept-${dept.code}`}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setDeleteConfirm({ open: true, dept })}
+                                className="text-destructive focus:text-destructive"
+                                data-testid={`delete-dept-${dept.code}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
-              </div>
-            </div>
-          ))}
-        </div>
+              </TableBody>
+            </Table>
+          </div>
+
+          {search && filtered.length !== departments.length && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Showing {filtered.length} of {departments.length} categories
+            </p>
+          )}
+        </>
       )}
 
       <EntityFormDialog

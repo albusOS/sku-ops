@@ -232,8 +232,8 @@ const Dashboard = () => {
       </div>
 
       <Panel className="mb-8">
-        <SectionHead title="Workflows" />
-        <WorkflowGraph />
+        <SectionHead title="Live Pipeline" />
+        <WorkflowGraph stats={stats} />
       </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

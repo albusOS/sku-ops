@@ -180,7 +180,7 @@ export function ImportFlow({ onComplete, onCancel }) {
               <Upload className="w-7 h-7 text-accent" />
             </div>
             <p className="text-muted-foreground font-medium">
-              Upload a receipt, invoice, or packing slip
+              Upload a vendor bill, receipt, or packing slip
             </p>
             <p className="text-muted-foreground text-sm mt-2">
               Drop a file here, or tap to choose one
@@ -260,7 +260,7 @@ export function ImportFlow({ onComplete, onCancel }) {
             </p>
             <div className="space-y-3 text-sm text-muted-foreground">
               {[
-                "Upload a receipt, invoice, or packing slip from any supplier",
+                "Upload a vendor bill, receipt, or packing slip from any supplier",
                 "We'll read the document and pull out items, quantities, and prices",
                 "Review the details, make any corrections, and save",
               ].map((text, i) => (

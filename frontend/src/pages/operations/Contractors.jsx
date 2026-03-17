@@ -2,7 +2,23 @@ import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Plus,
   Edit2,
@@ -11,12 +27,13 @@ import {
   Mail,
   Phone,
   Building2,
-  DollarSign,
-  CreditCard,
   ToggleLeft,
   ToggleRight,
   Search,
+  MoreHorizontal,
   User,
+  CreditCard,
+  ChevronRight,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
@@ -185,27 +202,25 @@ const Contractors = () => {
         action={
           <Button
             onClick={() => openDialog()}
-            className="btn-primary h-12 px-6"
+            className="btn-primary h-10 px-5"
             data-testid="add-contractor-btn"
           >
-            <Plus className="w-5 h-5 mr-2" />
+            <Plus className="w-4 h-4 mr-2" />
             Add Contractor
           </Button>
         }
       />
 
-      <div className="mb-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-          <Input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, company…"
-            className="pl-10 input-workshop"
-            data-testid="contractor-search-input"
-          />
-        </div>
+      <div className="relative mb-4 max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, email, company..."
+          className="pl-9 h-9 input-workshop"
+          data-testid="contractor-search-input"
+        />
       </div>
 
       {contractors.length === 0 ? (
@@ -225,97 +240,121 @@ const Contractors = () => {
           </Button>
         </div>
       ) : (
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          data-testid="contractors-grid"
-        >
-          {contractors.map((contractor) => (
-            <div
-              key={contractor.id}
-              className={`card-workshop p-6 ${!contractor.is_active ? "opacity-60" : ""}`}
-              data-testid={`contractor-card-${contractor.id}`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-12 h-12 rounded-sm flex items-center justify-center ${contractor.is_active ? "bg-success/15" : "bg-muted"}`}
-                  >
-                    <HardHat
-                      className={`w-6 h-6 ${contractor.is_active ? "text-success" : "text-muted-foreground"}`}
-                    />
-                  </div>
-                  {!contractor.is_active && <span className="badge-error text-xs">Disabled</span>}
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => toggleActive(contractor)}
-                    className="p-2 text-muted-foreground hover:text-info hover:bg-info/10 rounded-sm transition-colors"
-                    title={contractor.is_active ? "Disable" : "Enable"}
-                    data-testid={`toggle-contractor-${contractor.id}`}
-                  >
-                    {contractor.is_active ? (
-                      <ToggleRight className="w-5 h-5" />
+        <div className="card-workshop overflow-hidden" data-testid="contractors-grid">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Name</TableHead>
+                <TableHead className="hidden md:table-cell">Email</TableHead>
+                <TableHead className="hidden lg:table-cell">Company</TableHead>
+                <TableHead className="hidden lg:table-cell">Phone</TableHead>
+                <TableHead className="hidden md:table-cell">Billing</TableHead>
+                <TableHead className="w-[80px] text-center">Status</TableHead>
+                <TableHead className="w-[50px]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contractors.map((contractor) => (
+                <TableRow
+                  key={contractor.id}
+                  className={!contractor.is_active ? "opacity-50" : ""}
+                  data-testid={`contractor-card-${contractor.id}`}
+                >
+                  <TableCell className="font-medium">{contractor.name}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
+                      <Mail className="w-3.5 h-3.5" />
+                      {contractor.email}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-muted-foreground">
+                    {contractor.company || "—"}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {contractor.phone ? (
+                      <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
+                        <Phone className="w-3.5 h-3.5" />
+                        {contractor.phone}
+                      </span>
                     ) : (
-                      <ToggleLeft className="w-5 h-5" />
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </button>
-                  <button
-                    onClick={() => openDialog(contractor)}
-                    className="p-2 text-muted-foreground hover:text-accent hover:bg-warning/10 rounded-sm transition-colors"
-                    data-testid={`edit-contractor-${contractor.id}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm({ open: true, contractor })}
-                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors"
-                    data-testid={`delete-contractor-${contractor.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <h3 className="font-heading font-bold text-xl text-foreground uppercase tracking-wide mb-2">
-                {contractor.name}
-              </h3>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  <span>{contractor.email}</span>
-                </div>
-                {contractor.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    <span>{contractor.phone}</span>
-                  </div>
-                )}
-                {contractor.company && (
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    <span>{contractor.company}</span>
-                  </div>
-                )}
-                {contractor.billing_entity && (
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4" />
-                    <span className="text-xs">Bills to: {contractor.billing_entity}</span>
-                  </div>
-                )}
-              </div>
-              <div className="mt-4 pt-4 border-t border-border">
-                <span className="text-xs text-muted-foreground">
-                  Created {new Date(contractor.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-          ))}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
+                    {contractor.billing_entity || "—"}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {contractor.is_active ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-success/10 text-success border-success/20 text-xs"
+                      >
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="bg-destructive/10 text-destructive border-destructive/20 text-xs"
+                      >
+                        Disabled
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          onClick={() => openDialog(contractor)}
+                          data-testid={`edit-contractor-${contractor.id}`}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => toggleActive(contractor)}
+                          data-testid={`toggle-contractor-${contractor.id}`}
+                        >
+                          {contractor.is_active ? (
+                            <>
+                              <ToggleLeft className="w-4 h-4" />
+                              Disable
+                            </>
+                          ) : (
+                            <>
+                              <ToggleRight className="w-4 h-4" />
+                              Enable
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeleteConfirm({ open: true, contractor })}
+                          className="text-destructive focus:text-destructive"
+                          data-testid={`delete-contractor-${contractor.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
+      {/* Billing entities — compact list, not cards */}
       <div className="mt-10">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Billing entities</h2>
+            <h2 className="text-lg font-semibold text-foreground">Billing Entities</h2>
             <p className="text-sm text-muted-foreground">
               {billingEntities.length} entit{billingEntities.length !== 1 ? "ies" : "y"} ·{" "}
               {activeBillingEntityCount} active
@@ -324,7 +363,7 @@ const Contractors = () => {
           <Button
             onClick={() => setCreateBillingEntityOpen(true)}
             variant="outline"
-            className="gap-2"
+            className="gap-2 h-9"
           >
             <Plus className="w-4 h-4" />
             New Entity
@@ -348,40 +387,51 @@ const Contractors = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="card-workshop overflow-hidden divide-y divide-border">
             {billingEntities.map((entity) => (
               <button
                 key={entity.id}
                 type="button"
                 onClick={() => setBillingDetailId(entity.id)}
-                className={`text-left bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md hover:border-border transition-all ${entity.is_active === false ? "opacity-60" : ""}`}
+                className={`w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-muted/50 transition-colors ${entity.is_active === false ? "opacity-50" : ""}`}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-info" />
+                <div className="w-8 h-8 rounded-md bg-info/10 flex items-center justify-center shrink-0">
+                  <Building2 className="w-4 h-4 text-info" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-foreground truncate">{entity.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {entity.contact_name && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <User className="w-3 h-3" />
+                        {entity.contact_name}
+                      </span>
+                    )}
+                    {entity.contact_email && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Mail className="w-3 h-3" />
+                        {entity.contact_email}
+                      </span>
+                    )}
+                    {entity.payment_terms && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <CreditCard className="w-3 h-3" />
+                        <span className="capitalize">
+                          {entity.payment_terms.replace(/_/g, " ")}
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">{entity.name}</h3>
-                <div className="space-y-1.5 text-sm text-muted-foreground">
-                  {entity.contact_name && (
-                    <div className="flex items-center gap-2">
-                      <User className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span>{entity.contact_name}</span>
-                    </div>
-                  )}
-                  {entity.contact_email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="truncate">{entity.contact_email}</span>
-                    </div>
-                  )}
-                  {entity.payment_terms && (
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="capitalize">{entity.payment_terms.replace(/_/g, " ")}</span>
-                    </div>
-                  )}
-                </div>
+                {entity.is_active === false && (
+                  <Badge
+                    variant="outline"
+                    className="bg-destructive/10 text-destructive border-destructive/20 text-xs shrink-0"
+                  >
+                    Inactive
+                  </Badge>
+                )}
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </button>
             ))}
           </div>

@@ -3,6 +3,7 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { DATE_PRESETS } from "@/lib/constants";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
@@ -37,14 +38,14 @@ const Reports = () => {
   };
 
   return (
-    <div className="p-6 md:p-10" data-testid="reports-page">
-      <div className="max-w-[1600px] mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-10">
+    <div className="p-6 md:p-8" data-testid="reports-page">
+      <div className="max-w-[1400px] mx-auto">
+        {/* Header with date controls */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground tracking-tight">Reports</h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Revenue, margins, inventory health, and product performance — click any card to drill
-              in
+              Financial performance, inventory health, and product intelligence
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -90,37 +91,45 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className="space-y-8">
-          <section>
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground border-l-2 border-accent pl-3 mb-4">
-              Financial
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-              <ProfitCard dateParams={dateParams} reportFilters={reportFilters} />
-              <RevenueTrendCard reportFilters={reportFilters} />
-            </div>
-          </section>
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="products">Products</TabsTrigger>
+          </TabsList>
 
-          <section>
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground border-l-2 border-category-2 pl-3 mb-4">
-              Inventory & Operations
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          {/* Overview tab — financial KPIs */}
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2">
+                <ProfitCard dateParams={dateParams} reportFilters={reportFilters} />
+              </div>
+              <div className="lg:col-span-1">
+                <RevenueTrendCard reportFilters={reportFilters} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <StockPulseCard />
+              <TopPerformersCard dateParams={dateParams} />
+            </div>
+          </TabsContent>
+
+          {/* Inventory tab — stock-focused */}
+          <TabsContent value="inventory" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <InventoryHealthCard dateParams={dateParams} onProductClick={handleProductClick} />
               <StockPulseCard />
             </div>
-          </section>
+          </TabsContent>
 
-          <section>
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground border-l-2 border-category-4 pl-3 mb-4">
-              Product Intelligence
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          {/* Products tab — performance & portfolio */}
+          <TabsContent value="products" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <PortfolioCard dateParams={dateParams} onProductClick={handleProductClick} />
               <TopPerformersCard dateParams={dateParams} />
             </div>
-          </section>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <ProductDetailModal

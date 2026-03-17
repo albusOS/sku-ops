@@ -1,4 +1,4 @@
-"""Document parse service: AI-powered document parsing and persistence."""
+"""Document parse service: AI-powered vendor bill/receipt parsing and persistence."""
 
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ async def parse_document_with_ai(
         )
         raise ValueError(
             "Could not extract structured data from the document. "
-            "The file may be too complex, low quality, or not a recognized vendor invoice format."
+            "The file may be too complex, low quality, or not a recognized vendor bill format."
         ) from e
 
     for p in extracted.get("products", []):

@@ -165,6 +165,16 @@ async def _ensure_router_index() -> None:
         _embeddings = await _embed_batch(_agent_texts, OPENAI_API_KEY)
 
 
+async def init_router_index() -> None:
+    """Pre-build the router index at startup so the first request isn't penalized."""
+    if not _agent_texts:
+        _build_router_index()
+    await _ensure_router_index()
+    logger.info(
+        "Router index ready: %d examples, embeddings=%s", len(_agent_texts), _embeddings is not None
+    )
+
+
 _GENERIC_GREETINGS = frozenset({"hello", "hi", "hey", "howdy", "yo", "sup", "morning", "afternoon"})
 
 # Minimum cosine similarity to route to a specialist (vs. falling back to unified).
@@ -177,12 +187,16 @@ _BM25_THRESHOLD = 3.0
 async def route_query(
     user_message: str,
     history: list[dict] | None = None,
+    query_embedding: np.ndarray | None = None,
 ) -> AgentRoute:
     """Route user message to unified or specialist agent. Returns agent label.
 
     Conservative routing: only routes to a specialist when confidence is high.
     The unified agent can always delegate to specialists via tool calls, so
     defaulting to unified is safe — it just adds one extra LLM turn.
+
+    When *query_embedding* is provided, reuses it for cosine routing instead
+    of making a separate OpenAI embedding call.
     """
     query = (user_message or "").strip()
     if not query:
@@ -192,7 +206,6 @@ async def route_query(
     if len(query) < 15 or q_lower in _GENERIC_GREETINGS:
         return "unified"
 
-    # Multi-turn follow-ups should stay in unified (it has conversation context)
     if history and len(history) >= 2:
         return "unified"
 
@@ -204,7 +217,11 @@ async def route_query(
     await _ensure_router_index()
 
     if _embeddings is not None and OPENAI_API_KEY:
-        qvec = await _embed_query(query, OPENAI_API_KEY)
+        qvec = (
+            query_embedding
+            if query_embedding is not None
+            else await _embed_query(query, OPENAI_API_KEY)
+        )
         if qvec is not None:
             scores = np.dot(_embeddings, qvec)
             best_idx = int(np.argmax(scores))

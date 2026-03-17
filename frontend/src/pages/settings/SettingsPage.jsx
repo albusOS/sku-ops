@@ -90,7 +90,7 @@ function ConnectionSection({ settings }) {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Not connected</p>
                   <p className="text-xs text-muted-foreground">
-                    Connect a Xero organisation to enable invoice and bill sync
+                    Connect a Xero organisation to enable sales invoice and vendor bill sync
                   </p>
                 </div>
               </>
@@ -114,8 +114,8 @@ function ConnectionSection({ settings }) {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Disconnect Xero?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will remove all OAuth tokens. Invoices, credit notes, and PO bills will
-                      stop syncing until you reconnect.
+                      This will remove all OAuth tokens. Sales invoices, credit notes, and vendor
+                      bills will stop syncing until you reconnect.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -199,7 +199,7 @@ function TenantTrackingSection({ settings }) {
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-1.5">
-            The Xero org where invoices, credit notes, and bills are posted
+            The Xero org where sales invoices, credit notes, and vendor bills are posted
           </p>
         </div>
 

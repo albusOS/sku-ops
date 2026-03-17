@@ -1,4 +1,4 @@
-"""Document domain models for receipt/invoice parsing and archival."""
+"""Document domain models for vendor bill/receipt parsing and archival."""
 
 from enum import StrEnum
 
@@ -37,7 +37,7 @@ class DocumentImportRequest(BaseModel):
 
 class DocumentType(StrEnum):
     RECEIPT = "receipt"
-    INVOICE = "invoice"
+    VENDOR_BILL = "vendor_bill"
     PACKING_SLIP = "packing_slip"
     OTHER = "other"
 

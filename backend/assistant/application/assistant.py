@@ -30,6 +30,24 @@ from shared.infrastructure.config import (
 
 logger = logging.getLogger(__name__)
 
+
+async def _get_query_embedding(query: str):
+    """Compute a single embedding vector for the user query.
+
+    Returns None if embedding service is unavailable — callers fall back
+    to computing their own or skipping semantic features.
+    """
+    if not query or not query.strip():
+        return None
+    try:
+        from assistant.infrastructure.embedding_store import embed_query
+
+        return await embed_query(query)
+    except Exception as e:
+        logger.debug("Query embedding failed (non-critical): %s", e)
+        return None
+
+
 LLM_NOT_CONFIGURED_MSG = (
     "Chat assistant requires an API key. Set OPENROUTER_API_KEY (preferred) or "
     f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {LLM_SETUP_URL}"
@@ -55,38 +73,48 @@ async def chat(
         user_name=ctx.get("user_name", ""),
     )
 
-    # Progressive summarization (async) — falls back to truncation if LLM unavailable
-    history = await compress_history_async(history) or history
+    # Single embedding for the query — reused by context assembly, memory, and routing
+    query_embedding = await _get_query_embedding(user_message)
 
-    # Assemble rich context from entity graph, memory, and session state
-    assembled = await assemble_context(
-        query=user_message,
-        user_id=user_id,
-        session_state=session_state,
+    # Run independent pre-processing concurrently
+    compress_task = asyncio.create_task(compress_history_async(history))
+    context_task = asyncio.create_task(
+        assemble_context(
+            query=user_message,
+            user_id=user_id,
+            session_state=session_state,
+            query_embedding=query_embedding,
+        )
     )
+    route_task = asyncio.create_task(
+        route_query(user_message, history, query_embedding=query_embedding)
+    )
+
+    history = await compress_task or history
+    assembled, route = await asyncio.gather(context_task, route_task)
+
     context_block = assembled.format_for_agent()
     if context_block:
         history = [{"role": "system", "content": context_block}] + (history or [])
 
-    route = await route_query(user_message, history)
     logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
 
     if route == "procurement":
         enriched = _enrich_specialist_message(user_message, context_block)
-        response = await _procurement_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, response, "procurement", history or [])
+        spec_result = await _procurement_agent_mod.run(enriched, deps=deps)
+        return _specialist_result(user_message, spec_result, "procurement", history or [])
     if route == "trend":
         enriched = _enrich_specialist_message(user_message, context_block)
-        response = await _trend_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, response, "trend", history or [])
+        spec_result = await _trend_agent_mod.run(enriched, deps=deps)
+        return _specialist_result(user_message, spec_result, "trend", history or [])
     if route == "health":
         enriched = _enrich_specialist_message(user_message, context_block)
-        response = await _health_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, response, "health", history or [])
+        spec_result = await _health_agent_mod.run(enriched, deps=deps)
+        return _specialist_result(user_message, spec_result, "health", history or [])
     if route == "analyst":
         enriched = _enrich_specialist_message(user_message, context_block)
-        response = await _analyst_agent_mod.run(enriched, deps=deps)
-        return _specialist_result(user_message, response, "analyst", history or [])
+        spec_result = await _analyst_agent_mod.run(enriched, deps=deps)
+        return _specialist_result(user_message, spec_result, "analyst", history or [])
 
     result = await _unified_agent.run(
         user_message, history=history, deps=deps, session_id=session_id
@@ -103,19 +131,24 @@ def _enrich_specialist_message(user_message: str, context_block: str) -> str:
 
 
 def _specialist_result(
-    user_message: str, response: str, agent_label: str, history: list[dict]
+    user_message: str, spec_result, agent_label: str, history: list[dict]
 ) -> dict:
     """Format specialist run output to match unified agent result shape."""
     new_history = list(history)
     new_history.append({"role": "user", "content": user_message})
-    new_history.append({"role": "assistant", "content": response})
+    new_history.append({"role": "assistant", "content": spec_result.response})
     return {
-        "response": response,
+        "response": spec_result.response,
         "tool_calls": [],
         "history": new_history,
         "agent": agent_label,
         "routed_to": [agent_label],
-        "usage": {"cost_usd": 0, "input_tokens": 0, "output_tokens": 0, "model": ""},
+        "usage": {
+            "cost_usd": spec_result.usage.cost_usd,
+            "input_tokens": spec_result.usage.input_tokens,
+            "output_tokens": spec_result.usage.output_tokens,
+            "model": spec_result.usage.model,
+        },
     }
 
 

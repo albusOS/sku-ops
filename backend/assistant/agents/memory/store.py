@@ -14,7 +14,10 @@ import logging
 import math
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -116,12 +119,14 @@ async def recall(
     user_id: str,
     query: str | None = None,
     limit: int = 10,
+    query_embedding: "np.ndarray | None" = None,
 ) -> str:
     """Return a formatted context string of relevant artifacts for session injection.
 
     When *query* is provided and pgvector is available, uses hybrid scoring:
       0.6 * semantic_similarity + 0.3 * recency_decay + 0.1 * type_boost
 
+    When *query_embedding* is provided, skips the embedding API call.
     Falls back to date-ordered retrieval (original behavior) otherwise.
     Returns empty string if no artifacts exist.
     """
@@ -130,13 +135,13 @@ async def recall(
     now_str = datetime.now(UTC).isoformat()
     now_ts = datetime.now(UTC)
 
-    # Try semantic recall first
     if query:
-        rows = await _semantic_recall(org_id, user_id, query, now_str, now_ts, limit)
+        rows = await _semantic_recall(
+            org_id, user_id, query, now_str, now_ts, limit, query_embedding=query_embedding
+        )
         if rows:
             return _format_rows(rows)
 
-    # Fallback: date-ordered
     cur = await conn.execute(
         """SELECT type, subject, content, created_at
            FROM memory_artifacts
@@ -159,6 +164,7 @@ async def _semantic_recall(
     now_str: str,
     now_ts: datetime,
     limit: int,
+    query_embedding: "np.ndarray | None" = None,
 ) -> list[dict] | None:
     """Attempt pgvector-based semantic recall with hybrid scoring.
 
@@ -173,7 +179,7 @@ async def _semantic_recall(
         if not await is_pgvector_available():
             return None
 
-        qvec = await embed_query(query)
+        qvec = query_embedding if query_embedding is not None else await embed_query(query)
         if qvec is None:
             return None
 

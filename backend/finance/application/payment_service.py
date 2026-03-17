@@ -1,4 +1,4 @@
-"""Payment service: orchestrates recording payments against withdrawals."""
+"""Payment service: orchestrates recording payments against outbound sales invoices."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from finance.application.invoice_service import mark_paid_for_withdrawal
 from finance.application.ledger_service import record_payment as _record_ledger_payment
 from finance.domain.payment import Payment, PaymentCreate
+from finance.infrastructure.invoice_repo import get_by_id as get_invoice_by_id
 from finance.infrastructure.payment_repo import payment_repo
 from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
 from shared.infrastructure.database import get_org_id, transaction
@@ -30,12 +31,23 @@ async def create_payment_for_withdrawals(
     if not data.withdrawal_ids and not data.invoice_id:
         raise ValueError("Provide withdrawal_ids or invoice_id")
 
+    withdrawal_ids = list(data.withdrawal_ids)
+
+    if not withdrawal_ids and data.invoice_id:
+        invoice = await get_invoice_by_id(data.invoice_id)
+        if not invoice:
+            raise ValueError(f"Invoice {data.invoice_id} not found")
+        withdrawal_ids = invoice.withdrawal_ids
+
+    if not withdrawal_ids:
+        raise ValueError("No withdrawals linked to the provided invoice")
+
     total_amount = 0.0
     billing_entity = ""
     billing_entity_id = None
     contractor_id = ""
 
-    for wid in data.withdrawal_ids:
+    for wid in withdrawal_ids:
         w = await get_withdrawal_by_id(wid)
         if not w:
             raise ValueError(f"Withdrawal {wid} not found")
@@ -62,9 +74,9 @@ async def create_payment_for_withdrawals(
     org_id = get_org_id()
 
     async with transaction():
-        await payment_repo.insert(payment, withdrawal_ids=data.withdrawal_ids)
+        await payment_repo.insert(payment, withdrawal_ids=withdrawal_ids)
 
-        for wid in data.withdrawal_ids:
+        for wid in withdrawal_ids:
             await mark_withdrawal_paid(wid, paid_at)
             await mark_paid_for_withdrawal(wid)
             w = await get_withdrawal_by_id(wid)
@@ -80,7 +92,7 @@ async def create_payment_for_withdrawals(
     await dispatch(
         PaymentRecorded(
             org_id=org_id,
-            withdrawal_ids=tuple(data.withdrawal_ids),
+            withdrawal_ids=tuple(withdrawal_ids),
         )
     )
     logger.info(
@@ -90,7 +102,7 @@ async def create_payment_for_withdrawals(
             "payment_id": payment.id,
             "amount": amount,
             "method": data.method,
-            "withdrawal_count": len(data.withdrawal_ids),
+            "withdrawal_count": len(withdrawal_ids),
             "recorded_by_id": recorded_by_id,
         },
     )

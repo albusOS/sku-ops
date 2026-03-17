@@ -111,6 +111,7 @@ For direct lookups (product search, single SKU details, invoice status) call too
 
 ## TERMINOLOGY — be precise
 
+- **"invoice"** = an outbound sales document — the bill the supply yard sends to a customer or contractor after issuing materials. Invoices are linked to withdrawals and billing entities. They are NOT inbound purchase bills from suppliers (those are "vendor bills" or "PO bills" synced to Xero as ACCPAY).
 - "total_skus" = number of distinct product lines (not a physical unit count)
 - "quantity" = stock on hand in that product's sell_uom (e.g. 5 gallons, 3 boxes, 12 each)
 - NEVER say "X units" or "X items" — always include the specific UOM from sell_uom

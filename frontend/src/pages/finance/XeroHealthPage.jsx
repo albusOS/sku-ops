@@ -159,7 +159,8 @@ export default function XeroHealthPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Xero Status</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Documents that failed to sync or have data mismatches with Xero.
+            Sales invoices, credit notes, and vendor bills that failed to sync or have mismatches
+            with Xero.
           </p>
         </div>
         <Button onClick={() => triggerSync()} disabled={isBusy} className="gap-2" variant="outline">
@@ -171,7 +172,7 @@ export default function XeroHealthPage() {
       {!hasProblems && (
         <div className="flex items-center gap-2 text-success bg-success/10 border border-success/30 rounded-lg px-4 py-3 text-sm font-medium">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
-          All documents are synced with Xero — no issues found.
+          All invoices, credit notes, and vendor bills are synced with Xero — no issues found.
         </div>
       )}
 
@@ -238,8 +239,8 @@ export default function XeroHealthPage() {
             }
           />
           <p className="text-xs text-muted-foreground px-1 pb-3">
-            These documents could not be pushed to Xero. Run a sync to retry, or check Xero settings
-            if failures persist.
+            These items could not be pushed to Xero. Run a sync to retry, or check Xero settings if
+            failures persist.
           </p>
           <DocTable rows={failedRows} columns={FAILED_COLS} />
         </ReportPanel>
@@ -259,7 +260,7 @@ export default function XeroHealthPage() {
             }
           />
           <p className="text-xs text-muted-foreground px-1 pb-3">
-            The local total or line items differ from what Xero has. This usually means the document
+            The local total or line items differ from what Xero has. This usually means the record
             was edited locally after it was synced.
           </p>
           <DocTable rows={mismatchRows} columns={MISMATCH_COLS} />

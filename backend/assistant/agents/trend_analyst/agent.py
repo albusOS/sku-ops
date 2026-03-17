@@ -9,8 +9,9 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
+from assistant.agents.core.contracts import SpecialistResult, UsageInfo
 from assistant.agents.core.deps import AgentDeps
-from assistant.agents.core.model_registry import get_model
+from assistant.agents.core.model_registry import calc_cost, get_model, get_model_name
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.finance.analytics_tools import (
     _get_department_profitability,
@@ -98,8 +99,19 @@ def _get_agent() -> Agent[AgentDeps, str]:
     return _agent
 
 
-async def run(question: str, deps: AgentDeps) -> str:
-    """Run the trend analyst and return text output."""
+async def run(question: str, deps: AgentDeps) -> SpecialistResult:
+    """Run the trend analyst and return result with usage info."""
     agent = _get_agent()
     result = await agent.run(question, deps=deps)
-    return result.output if isinstance(result.output, str) else str(result.output)
+    response = result.output if isinstance(result.output, str) else str(result.output)
+    model_name = get_model_name("agent:trend")
+    usage = result.usage()
+    return SpecialistResult(
+        response=response,
+        usage=UsageInfo(
+            cost_usd=calc_cost(model_name, usage),
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            model=model_name,
+        ),
+    )

@@ -97,6 +97,13 @@ async def lifespan(app: FastAPI):
 
     async def _background_warmup() -> None:
         try:
+            from assistant.application.query_router import init_router_index
+
+            await init_router_index()
+        except (RuntimeError, OSError, ValueError) as e:
+            logger.warning("Query router index warm-up skipped: %s", e)
+
+        try:
             from assistant.agents.tools.tool_index import get_tool_index
 
             idx = get_tool_index()

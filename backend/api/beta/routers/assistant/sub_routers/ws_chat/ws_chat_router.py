@@ -55,7 +55,8 @@ from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.core.validators import validate_response
 from assistant.agents.unified.agent import _get_agent
 from assistant.application import session_store
-from assistant.application.assistant import recall_memory, schedule_memory_extraction
+from assistant.application.assistant import schedule_memory_extraction
+from assistant.application.context_assembly import assemble_context
 from assistant.application.query_router import route_query
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
@@ -77,6 +78,18 @@ logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
+
+
+async def _get_query_embedding(query: str):
+    """Compute a single embedding for reuse across context assembly, memory, and routing."""
+    if not query or not query.strip():
+        return None
+    try:
+        from assistant.infrastructure.embedding_store import embed_query
+
+        return await embed_query(query)
+    except Exception:
+        return None
 
 
 def _classify_chat_error(exc: Exception) -> tuple[str, str]:
@@ -282,60 +295,86 @@ async def _handle_chat(
         return
 
     history = await session_store.get_or_create(session_id)
-    if not history:
-        try:
-            memory_ctx = await recall_memory(user_id=user_id, query=user_message)
-        except (ValueError, RuntimeError, OSError) as e:
-            logger.warning("Memory recall failed for user=%s: %s", user_id, e)
-            memory_ctx = ""
-        if memory_ctx:
-            # Inject as system message (not fake user turn) to avoid confusing the agent
-            history = [
-                {"role": "system", "content": memory_ctx},
-            ]
+
+    # Compute a single embedding for the query — reused by context, memory, and routing
+    query_embedding = await _get_query_embedding(user_message)
+
+    is_first_turn = not history
+
+    # Run independent pre-processing concurrently:
+    # compress history, assemble context (entity graph + memory), and route query
+    compress_task = asyncio.create_task(compress_history_async(history))
+    context_task = asyncio.create_task(
+        assemble_context(
+            query=user_message,
+            user_id=user_id,
+            include_memory=is_first_turn,
+            query_embedding=query_embedding,
+        )
+    )
+    route_task = asyncio.create_task(
+        route_query(user_message, history, query_embedding=query_embedding)
+    )
+
+    history = await compress_task or history
+    assembled, route = await asyncio.gather(context_task, route_task)
+
+    context_block = assembled.format_for_agent()
+    if context_block:
+        history = [{"role": "system", "content": context_block}] + (history or [])
 
     deps = AgentDeps(user_id=user_id, user_name=user_name)
-    history = await compress_history_async(history) or history
     msg_history = build_message_history(history)
 
-    route = await route_query(user_message, history)
     logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
 
     if route in ("procurement", "trend", "health", "analyst"):
         await _send(ws, {"type": "chat.status", "status": "thinking"})
         try:
             if route == "procurement":
-                response = await _procurement_agent_mod.run(user_message, deps=deps)
+                spec_result = await _procurement_agent_mod.run(user_message, deps=deps)
             elif route == "trend":
-                response = await _trend_agent_mod.run(user_message, deps=deps)
+                spec_result = await _trend_agent_mod.run(user_message, deps=deps)
             elif route == "analyst":
-                response = await _analyst_agent_mod.run(user_message, deps=deps)
+                spec_result = await _analyst_agent_mod.run(user_message, deps=deps)
             else:
-                response = await _health_agent_mod.run(user_message, deps=deps)
+                spec_result = await _health_agent_mod.run(user_message, deps=deps)
         except Exception as exc:
             error_type, detail = _classify_chat_error(exc)
             logger.exception("Specialist %s failed for user=%s", route, user_id)
             chat_message(route, error_type)
             await _send(ws, {"type": "chat.error", "error_type": error_type, "detail": detail})
             return
+
+        turn_cost = spec_result.usage.cost_usd
         chat_message(route, "success")
+        llm_usage(
+            model=spec_result.usage.model,
+            input_tokens=spec_result.usage.input_tokens,
+            output_tokens=spec_result.usage.output_tokens,
+            cost_usd=turn_cost,
+            agent=route,
+        )
         new_history = list(history or [])
         new_history.append({"role": "user", "content": user_message})
-        new_history.append({"role": "assistant", "content": response})
-        await session_store.update(session_id, new_history, cost_usd=0)
+        new_history.append({"role": "assistant", "content": spec_result.response})
+        await session_store.update(session_id, new_history, cost_usd=turn_cost)
         if len(new_history) % 8 == 0:
             schedule_memory_extraction(user_id=user_id, session_id=session_id, history=new_history)
         await _send(
             ws,
             {
                 "type": "chat.done",
-                "response": response,
+                "response": spec_result.response,
                 "agent": route,
                 "tool_calls": [],
                 "thinking": [],
                 "session_id": session_id,
                 "usage": {
-                    "cost_usd": 0,
+                    "cost_usd": turn_cost,
+                    "input_tokens": spec_result.usage.input_tokens,
+                    "output_tokens": spec_result.usage.output_tokens,
+                    "model": spec_result.usage.model,
                     "session_cost_usd": await session_store.get_cost(session_id),
                 },
             },
