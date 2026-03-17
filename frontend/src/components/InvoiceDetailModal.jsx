@@ -436,9 +436,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
 
               {invoice?.withdrawal_ids?.length > 0 && (
                 <div>
-                  <Label className="text-xs uppercase text-muted-foreground">
-                    Linked Withdrawals
-                  </Label>
+                  <Label className="text-xs uppercase text-muted-foreground">Linked Sales</Label>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.withdrawal_ids.map((wid) => (
                       <Link
@@ -506,7 +504,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title="Delete draft invoice"
-        description="Delete this draft invoice? Withdrawals will be unlinked."
+        description="Delete this draft invoice? Linked sales will be unlinked."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onConfirm={handleDelete}

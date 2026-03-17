@@ -83,7 +83,7 @@ const INVOICE_COLUMNS = [
   },
   {
     key: "withdrawal_count",
-    label: "Wds",
+    label: "Sales",
     type: "number",
     align: "right",
     render: (row) => (
@@ -128,7 +128,7 @@ export default function PointOfSale() {
   const handleProcess = async (requestId, data) => {
     try {
       await processRequest.mutateAsync({ id: requestId, data });
-      toast.success("Request processed — withdrawal and invoice created.");
+      toast.success("Order fulfilled — sale and invoice created.");
     } catch (error) {
       toast.error(getErrorMessage(error));
       throw error;
@@ -355,9 +355,9 @@ function QuickActions({ pendingCount = 0 }) {
               <ShoppingCart className="w-4 h-4 text-accent" />
             </div>
             <div className="text-left">
-              <p className="font-semibold text-sm">Direct issue</p>
+              <p className="font-semibold text-sm">New sale</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Add items manually and create a withdrawal.
+                Add items and charge to a contractor&apos;s account.
               </p>
             </div>
           </Link>

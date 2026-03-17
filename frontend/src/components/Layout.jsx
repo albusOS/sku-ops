@@ -16,11 +16,8 @@ import {
   Wrench,
   HardHat,
   History,
-  FileText,
   ClipboardList,
   ClipboardCheck,
-  Building2,
-  CreditCard,
   ShieldCheck,
   Settings,
   PanelLeftClose,
@@ -176,18 +173,13 @@ const Layout = ({ children }) => {
     }
 
     const operationsItems = [
-      { path: "/operations", icon: ClipboardList, label: "Issue Materials" },
+      { path: "/pos", icon: ShoppingCart, label: "Point of Sale" },
       { path: "/contractors", icon: HardHat, label: "Contractors" },
-      { path: "/billing-entities", icon: Building2, label: "Billing Entities" },
+      { path: "/jobs", icon: ClipboardList, label: "Jobs" },
     ];
 
     const purchasingItems = [
-      { path: "/import", icon: Truck, label: "Receive / Import" },
-      {
-        path: "/purchase-orders",
-        icon: ClipboardList,
-        label: "Purchase Orders",
-      },
+      { path: "/purchasing", icon: Truck, label: "Purchasing" },
       { path: "/vendors", icon: Users, label: "Vendors" },
     ];
 
@@ -197,15 +189,7 @@ const Layout = ({ children }) => {
       { path: "/cycle-counts", icon: ClipboardCheck, label: "Stock Counts" },
     ];
 
-    const financeItems = [
-      { path: "/invoices", icon: FileText, label: "Invoices" },
-      { path: "/payments", icon: CreditCard, label: "Payments" },
-      {
-        path: "/xero-health",
-        icon: ShieldCheck,
-        label: "Xero Sync Health",
-      },
-    ];
+    const financeItems = [{ path: "/xero-health", icon: ShieldCheck, label: "Xero Status" }];
 
     const reportItems = [{ path: "/reports", icon: BarChart3, label: "Reports" }];
 

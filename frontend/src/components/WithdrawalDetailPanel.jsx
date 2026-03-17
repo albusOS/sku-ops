@@ -19,7 +19,7 @@ export function WithdrawalDetailPanel({
     <DetailPanel
       open={open}
       onOpenChange={onOpenChange}
-      title={`Withdrawal`}
+      title="Sale Detail"
       subtitle={wd?.id ? wd.id.slice(0, 12) + "…" : undefined}
       status={wd?.invoice_id ? "invoiced" : "uninvoiced"}
       icon={ShoppingCart}

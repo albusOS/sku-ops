@@ -248,10 +248,10 @@ function InvoicingSection({ settings }) {
       <SectionHead title="Invoicing" />
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-foreground">Auto-create invoices on withdrawal</p>
+          <p className="text-sm font-medium text-foreground">Auto-create invoices on sale</p>
           <p className="text-xs text-muted-foreground mt-1">
-            When enabled, each new withdrawal gets an invoice automatically. When disabled, create
-            invoices manually from Yard Operations.
+            When enabled, each new sale gets an invoice automatically. When disabled, create
+            invoices manually from Point of Sale.
           </p>
         </div>
         <Switch

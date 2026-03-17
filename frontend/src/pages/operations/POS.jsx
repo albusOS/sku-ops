@@ -196,7 +196,7 @@ const IssueMaterials = () => {
         });
       }
 
-      toast.success("Withdrawal logged — charged to account.", {
+      toast.success("Sale complete — charged to account.", {
         action: { label: "View transactions", onClick: () => navigate("/pos") },
       });
       clearCart();
@@ -225,8 +225,10 @@ const IssueMaterials = () => {
     <>
       <div className="max-w-3xl mx-auto p-8" data-testid="pos-page">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Issue Materials</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Log materials going out for a job</p>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">New Sale</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {isContractor ? "Add items and check out" : "Issue materials to a contractor's account"}
+          </p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6 mb-4 shadow-sm">
@@ -429,7 +431,7 @@ const IssueMaterials = () => {
                 ) : (
                   <>
                     <Check className="w-4 h-4 mr-2" />
-                    Log Withdrawal
+                    Complete Sale
                   </>
                 )}
               </Button>

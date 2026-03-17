@@ -61,7 +61,7 @@ export function PendingRequestsSection({
         service_address: serviceAddress.trim(),
         notes: notes.trim() || null,
       });
-      toast.success("Request processed. Withdrawal created.");
+      toast.success("Order fulfilled — sale and invoice created.");
       closeProcess();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -74,9 +74,9 @@ export function PendingRequestsSection({
     <>
       <div className="flex flex-col gap-3 mb-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h3 className="text-base font-semibold text-foreground">Pending requests</h3>
+          <h3 className="text-base font-semibold text-foreground">Pickup orders</h3>
           <p className="text-sm text-muted-foreground">
-            Submitted contractor requests waiting to be turned into withdrawals.
+            Contractor orders waiting to be fulfilled and charged.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 md:min-w-[240px]">
@@ -104,9 +104,9 @@ export function PendingRequestsSection({
       ) : sorted.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-16 text-center shadow-sm min-h-[280px] flex flex-col items-center justify-center">
           <Package className="w-12 h-12 mx-auto text-muted-foreground/60 mb-3" />
-          <p className="font-medium text-muted-foreground">No pending requests</p>
+          <p className="font-medium text-muted-foreground">No pickup orders</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Requests will appear here when contractors submit them.
+            Orders will appear here when contractors submit them.
           </p>
         </div>
       ) : (

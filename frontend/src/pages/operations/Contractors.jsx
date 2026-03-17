@@ -217,7 +217,7 @@ const Contractors = () => {
           <p className="text-muted-foreground text-sm mb-4">
             {search.trim()
               ? "Try a different search term"
-              : "Add contractors to allow material withdrawals"}
+              : "Add contractors to enable sales and ordering"}
           </p>
           <Button onClick={() => openDialog()} className="btn-primary">
             <Plus className="w-5 h-5 mr-2" />

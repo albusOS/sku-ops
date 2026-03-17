@@ -22,12 +22,12 @@ export function ProcessRequestModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Process request</DialogTitle>
+          <DialogTitle>Fulfill order</DialogTitle>
         </DialogHeader>
         {request && (
           <div className="space-y-4 pt-2">
             <p className="text-sm text-muted-foreground">
-              Processing request from{" "}
+              Fulfilling pickup order from{" "}
               <strong className="text-foreground">{request.contractor_name}</strong>
             </p>
             <div>
@@ -66,7 +66,7 @@ export function ProcessRequestModal({
               disabled={isPending || !jobId.trim() || !serviceAddress.trim()}
               className="w-full h-11"
             >
-              {isPending ? "Processing…" : "Create Withdrawal"}
+              {isPending ? "Processing…" : "Fulfill & Charge"}
             </Button>
           </div>
         )}

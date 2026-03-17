@@ -56,18 +56,19 @@ async def open_cycle_count(
         created_by_id=created_by_id,
         created_by_name=created_by_name,
     )
-    await cycle_count_repo.insert_count(count)
 
-    for p in products:
-        item = CycleCountItem(
-            cycle_count_id=count.id,
-            product_id=p.id,
-            sku=p.sku,
-            product_name=p.name,
-            snapshot_qty=float(p.quantity),
-            unit=p.base_unit or "each",
-        )
-        await cycle_count_repo.insert_item(item)
+    async with transaction():
+        await cycle_count_repo.insert_count(count)
+        for p in products:
+            item = CycleCountItem(
+                cycle_count_id=count.id,
+                product_id=p.id,
+                sku=p.sku,
+                product_name=p.name,
+                snapshot_qty=float(p.quantity),
+                unit=p.base_unit or "each",
+            )
+            await cycle_count_repo.insert_item(item)
 
     return count
 

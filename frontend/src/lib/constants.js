@@ -59,7 +59,7 @@ export const ADJUST_REASONS = [
 ];
 
 export const TX_TYPE_LABELS = {
-  withdrawal: "Withdrawal",
+  withdrawal: "Sale",
   import: "Import",
   adjustment: "Adjustment",
   receiving: "Receiving",

@@ -23,8 +23,8 @@ const VARIANTS = {
 };
 
 const DISPLAY_LABELS = {
-  ordered: "On Order",
-  partial: "At Dock",
+  ordered: "Ordered",
+  partial: "Delivered",
   received: "Received",
 };
 

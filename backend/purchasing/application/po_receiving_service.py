@@ -40,6 +40,8 @@ async def mark_delivery_received(
     """Transition selected 'ordered' items to 'pending' (delivery arrived at dock).
 
     Does NOT update inventory — that happens on receive_po_items().
+    All item transitions run inside a single transaction so partial
+    updates cannot occur.
     """
     po = await repo.get_po(po_id)
     if not po:
@@ -49,12 +51,13 @@ async def mark_delivery_received(
     items_by_id = {i.id: i for i in all_items}
 
     transitioned = 0
-    for item_id in item_ids:
-        item = items_by_id.get(item_id)
-        if not item or item.status != POItemStatus.ORDERED.value:
-            continue
-        await repo.update_po_item(item_id, POItemStatus.PENDING)
-        transitioned += 1
+    async with transaction():
+        for item_id in item_ids:
+            item = items_by_id.get(item_id)
+            if not item or item.status != POItemStatus.ORDERED.value:
+                continue
+            await repo.update_po_item(item_id, POItemStatus.PENDING)
+            transitioned += 1
 
     result = MarkDeliveryResult(po_id=po_id, status=po.status, transitioned=transitioned)
     logger.info(
@@ -259,7 +262,7 @@ async def receive_po_items(
                 performed_by_user_id=current_user.id,
             )
 
-    new_status = await _recompute_po_status(po_id, po, current_user, repo)
+        new_status = await _recompute_po_status(po_id, po, current_user, repo)
 
     if ledger_items:
         product_ids = tuple(li.product_id for li in ledger_items if li.product_id)

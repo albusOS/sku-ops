@@ -12,7 +12,6 @@ import { ChartExplainer } from "@/components/charts/ChartExplainer";
 import { ReportPanel, ReportSectionHead } from "@/components/ReportPanel";
 import { PaymentStrip } from "./ReportHelpers";
 import { ReportLayoutCustomizer } from "./ReportLayoutCustomizer";
-import { CustomCsvBuilder } from "./CustomCsvBuilder";
 
 const Stat = StatCard;
 const SectionHead = ({ title, action }) => <ReportSectionHead title={title} action={action} />;
@@ -24,7 +23,6 @@ const OPERATIONS_PANELS = [
   { id: "contractor", label: "Contractor Activity" },
   { id: "daily-activity", label: "Daily Operational Activity" },
   { id: "heatmap", label: "Transaction Activity (12 months)" },
-  { id: "custom-csv", label: "Build custom CSV" },
 ];
 
 export function OperationsTab({ reportFilters }) {
@@ -83,70 +81,6 @@ export function OperationsTab({ reportFilters }) {
           }))
         : [],
     [salesReport?.by_payment_status],
-  );
-
-  const csvSources = useMemo(
-    () => [
-      {
-        id: "job-pl",
-        label: "Job P&L",
-        getRows: () => jobPlData?.rows ?? [],
-        getDefaultColumns: () => [
-          { key: "job_id", label: "Job ID" },
-          { key: "billing_entity", label: "Billing Entity" },
-          { key: "revenue", label: "Revenue" },
-          { key: "cost", label: "COGS" },
-          { key: "profit", label: "Profit" },
-          { key: "margin_pct", label: "Margin %" },
-          { key: "withdrawal_count", label: "Orders" },
-        ],
-      },
-      {
-        id: "contractor-pl",
-        label: "Contractor P&L",
-        getRows: () =>
-          (contractorPlData?.rows ?? []).map((r) => ({
-            ...r,
-            name: r.name || r.company || r.contractor_id || "Unknown",
-          })),
-        getDefaultColumns: () => [
-          { key: "name", label: "Contractor" },
-          { key: "revenue", label: "Revenue" },
-          { key: "cost", label: "COGS" },
-          { key: "profit", label: "Profit" },
-          { key: "transaction_count", label: "Transactions" },
-        ],
-      },
-      {
-        id: "daily-trends",
-        label: "Daily Activity",
-        getRows: () => dotColumnData,
-        getDefaultColumns: () => [
-          { key: "date", label: "Date" },
-          { key: "value", label: "Transactions" },
-        ],
-      },
-      {
-        id: "payment-status",
-        label: "Payment Status",
-        getRows: () => paymentChartData,
-        getDefaultColumns: () => [
-          { key: "name", label: "Status" },
-          { key: "value", label: "Amount" },
-        ],
-      },
-      {
-        id: "heatmap-data",
-        label: "Transaction Activity (12 mo)",
-        getRows: () => heatmapData,
-        getDefaultColumns: () => [
-          { key: "date", label: "Date" },
-          { key: "value", label: "Transactions" },
-          { key: "revenue", label: "Revenue" },
-        ],
-      },
-    ],
-    [jobPlData?.rows, contractorPlData?.rows, dotColumnData, paymentChartData, heatmapData],
   );
 
   return (
@@ -295,8 +229,6 @@ export function OperationsTab({ reportFilters }) {
           </ChartExplainer>
         </ReportPanel>
       )}
-
-      {isVisible("custom-csv") && <CustomCsvBuilder sources={csvSources} />}
     </div>
   );
 }

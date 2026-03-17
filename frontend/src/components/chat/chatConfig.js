@@ -99,7 +99,7 @@ const AGENT_SUGGESTIONS = {
   ops: [
     {
       label: "Recent activity",
-      prompt: "Show me all withdrawals from the last 7 days",
+      prompt: "Show me all sales from the last 7 days",
     },
     {
       label: "Pending requests",
@@ -140,7 +140,7 @@ const AGENT_SUGGESTIONS = {
 const AGENT_PLACEHOLDER = {
   auto: "Ask about inventory, finance, or operations…",
   inventory: "Ask about products, stock levels, reorders…",
-  ops: "Ask about withdrawals, contractors, requests…",
+  ops: "Ask about sales, contractors, orders…",
   finance: "Ask about invoices, revenue, P&L, balances…",
 };
 

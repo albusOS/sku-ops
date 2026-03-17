@@ -66,7 +66,7 @@ const MyHistory = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <StatCard label="Total Withdrawals" value={withdrawals.length} />
+        <StatCard label="Total Orders" value={withdrawals.length} />
         <StatCard
           label="Total Value"
           value={`$${totalSpent.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
@@ -99,7 +99,7 @@ const MyHistory = () => {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        Request submitted — pending pickup
+                        Pickup order — awaiting fulfillment
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {itemCount} items · {new Date(r.created_at).toLocaleDateString()}
@@ -117,7 +117,7 @@ const MyHistory = () => {
       <div data-testid="withdrawals-list">
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-            Withdrawals
+            Orders
           </p>
           <Select
             value={paymentStatus || "all"}
@@ -150,11 +150,11 @@ const MyHistory = () => {
           <div className="bg-card border border-border rounded-xl p-16 text-center shadow-sm">
             <Package className="w-10 h-10 mx-auto text-muted-foreground/60 mb-2" />
             <p className="text-sm text-muted-foreground">
-              {hasFilters ? "No withdrawals match these filters" : "No withdrawals yet"}
+              {hasFilters ? "No orders match these filters" : "No orders yet"}
             </p>
             {!hasFilters && (
               <p className="text-xs text-muted-foreground mt-1">
-                Submit a material request and staff will process it at pickup
+                Submit a pickup order or visit the yard to check out materials
               </p>
             )}
           </div>

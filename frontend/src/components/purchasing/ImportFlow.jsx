@@ -89,10 +89,10 @@ export function ImportFlow({ onComplete, onCancel }) {
         matched_product: null,
       }));
       setEditedProducts(mapped);
-      toast.success("Document extracted — review items below");
+      toast.success("Items found — review them below");
     } catch (error) {
       if (error.response?.status === 503) {
-        toast.error("AI not configured — add ANTHROPIC_API_KEY or use Free OCR");
+        toast.error("Smart reading is not set up yet — try basic text extraction instead");
       } else {
         toast.error(error.response?.data?.detail || "Failed to extract document");
       }
@@ -117,7 +117,7 @@ export function ImportFlow({ onComplete, onCancel }) {
         total: extractedData?.total || null,
         products: payload,
       });
-      toast.success(`Purchase order saved — ${payload.length} item(s) pending receipt`);
+      toast.success(`Purchase order saved with ${payload.length} item(s)`);
       onComplete?.();
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -148,7 +148,7 @@ export function ImportFlow({ onComplete, onCancel }) {
         onConfirm={handleConfirm}
         onBack={clearAll}
         submitting={importing}
-        confirmLabel="Save as Purchase Order"
+        confirmLabel="Save Order"
       />
     );
   }
@@ -164,7 +164,7 @@ export function ImportFlow({ onComplete, onCancel }) {
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h2 className="text-base font-semibold">New Import</h2>
+          <h2 className="text-base font-semibold">Add Purchase Order</h2>
         </div>
       </div>
 
@@ -180,9 +180,14 @@ export function ImportFlow({ onComplete, onCancel }) {
               <Upload className="w-7 h-7 text-accent" />
             </div>
             <p className="text-muted-foreground font-medium">
-              Drop document here or click to browse
+              Upload a receipt, invoice, or packing slip
             </p>
-            <p className="text-muted-foreground text-sm mt-2">JPG, PNG, WEBP, PDF</p>
+            <p className="text-muted-foreground text-sm mt-2">
+              Drop a file here, or tap to choose one
+            </p>
+            <p className="text-muted-foreground/60 text-xs mt-1">
+              Supports JPG, PNG, WEBP, and PDF
+            </p>
             <input
               id="import-file-input"
               type="file"
@@ -220,36 +225,29 @@ export function ImportFlow({ onComplete, onCancel }) {
               <span className="truncate">{file.name}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               <Button
                 onClick={() => extractReceipt(true)}
                 disabled={extracting}
-                className="btn-primary h-11"
+                className="btn-primary h-11 w-full"
               >
                 {extracting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Extract with AI
+                    Read Document
                   </>
                 )}
               </Button>
-              <Button
+              <button
+                type="button"
                 onClick={() => extractReceipt(false)}
                 disabled={extracting}
-                variant="outline"
-                className="h-11 text-muted-foreground"
+                className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1 disabled:opacity-50"
               >
-                {extracting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Free OCR
-                  </>
-                )}
-              </Button>
+                {extracting ? "Reading…" : "Use basic text extraction instead"}
+              </button>
             </div>
           </div>
         )}
@@ -262,9 +260,9 @@ export function ImportFlow({ onComplete, onCancel }) {
             </p>
             <div className="space-y-3 text-sm text-muted-foreground">
               {[
-                "Upload a receipt, invoice, or PDF from any vendor",
-                "AI extracts vendor, items, UOM, costs, and quantities",
-                "Review matches, confirm details, save as purchase order",
+                "Upload a receipt, invoice, or packing slip from any supplier",
+                "We'll read the document and pull out items, quantities, and prices",
+                "Review the details, make any corrections, and save",
               ].map((text, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="w-6 h-6 bg-accent/10 text-accent rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-accent/20">

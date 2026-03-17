@@ -66,7 +66,7 @@ export function ReviewItemCard({
         </div>
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-          <span className="tabular-nums">qty: {item.delivered_qty ?? item.quantity ?? 1}</span>
+          <span className="tabular-nums">&times;{item.delivered_qty ?? item.quantity ?? 1}</span>
           {item.cost != null && item.cost !== "" && (
             <span className="tabular-nums">${Number(item.cost).toFixed(2)}</span>
           )}
@@ -74,11 +74,11 @@ export function ReviewItemCard({
 
         {matched ? (
           <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-success/15 text-success shrink-0">
-            Matched
+            Found
           </span>
         ) : (
           <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-warning/15 text-warning shrink-0">
-            New SKU
+            New
           </span>
         )}
       </button>
@@ -140,14 +140,14 @@ function MatchedFields({ item, matched, onChange, mode }) {
       {mode === "receive" && (
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div className="bg-card rounded-lg border border-border px-3 py-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase">Current</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">In stock now</p>
             <p className="font-mono font-semibold text-foreground">{currentQty}</p>
           </div>
           <div className="flex items-center justify-center">
             <ArrowRight className="w-4 h-4 text-muted-foreground/50" />
           </div>
           <div className="bg-card rounded-lg border border-success/30 px-3 py-2">
-            <p className="text-[10px] font-medium text-success uppercase">After</p>
+            <p className="text-[10px] font-medium text-success uppercase">After receiving</p>
             <p className="font-mono font-semibold text-success">{newQty}</p>
           </div>
         </div>
@@ -155,7 +155,7 @@ function MatchedFields({ item, matched, onChange, mode }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="text-muted-foreground text-xs">Delivered qty</Label>
+          <Label className="text-muted-foreground text-xs">Quantity received</Label>
           <Input
             type="number"
             min="0"
@@ -178,7 +178,9 @@ function MatchedFields({ item, matched, onChange, mode }) {
       </div>
 
       {item.original_sku && (
-        <p className="text-xs text-muted-foreground font-mono">Vendor SKU: {item.original_sku}</p>
+        <p className="text-xs text-muted-foreground font-mono">
+          Supplier code: {item.original_sku}
+        </p>
       )}
     </div>
   );

@@ -218,7 +218,7 @@ export function ReviewFlow({
             </button>
           )}
           <h2 className="text-base font-semibold">
-            {mode === "import" ? "Review & Import" : "Review & Receive"}
+            {mode === "import" ? "Review Items" : "Review & Add to Inventory"}
           </h2>
         </div>
 
@@ -226,17 +226,20 @@ export function ReviewFlow({
         <div className="grid grid-cols-3 gap-2">
           <SummaryChip
             icon={<CheckCircle className="w-3.5 h-3.5 text-success" />}
-            label="Matched"
+            label="Recognized"
             value={matchedCount}
             color="success"
           />
           <SummaryChip
             icon={<PackagePlus className="w-3.5 h-3.5 text-warning" />}
-            label="New"
+            label="New items"
             value={newCount}
             color="warning"
           />
-          <SummaryChip label="Est. cost" value={totalCost > 0 ? `$${totalCost.toFixed(2)}` : "—"} />
+          <SummaryChip
+            label="Total cost"
+            value={totalCost > 0 ? `$${totalCost.toFixed(2)}` : "—"}
+          />
         </div>
 
         {hasUnresolvedSuggestions && (
@@ -248,7 +251,7 @@ export function ReviewFlow({
             className="mt-3 w-full text-xs h-8"
           >
             <CheckCircle className="w-3.5 h-3.5 mr-1.5 text-success" />
-            Accept all suggested matches
+            Accept all suggestions
           </Button>
         )}
       </div>
@@ -259,12 +262,12 @@ export function ReviewFlow({
         {mode === "import" && (
           <div className="space-y-3">
             <div>
-              <Label className="text-muted-foreground font-medium text-sm">Vendor *</Label>
+              <Label className="text-muted-foreground font-medium text-sm">Supplier name</Label>
               <Input
                 value={vendorName}
                 onChange={(e) => onVendorChange?.(e.target.value)}
                 className="input-field mt-1.5"
-                placeholder="Vendor / store name"
+                placeholder="e.g. Builders Warehouse"
               />
             </div>
 
@@ -278,21 +281,24 @@ export function ReviewFlow({
                 htmlFor="create-vendor-review"
                 className="text-sm text-muted-foreground cursor-pointer"
               >
-                Create vendor if missing
+                Add as new supplier if not found
               </Label>
             </div>
 
             <div>
-              <Label className="text-muted-foreground font-medium text-sm">Category override</Label>
+              <Label className="text-muted-foreground font-medium text-sm">Department</Label>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5 mb-1.5">
+                Assign all items to a department, or leave blank to use per-item suggestions
+              </p>
               <Select
                 value={selectedDept || "none"}
                 onValueChange={(v) => setSelectedDept(v === "none" ? "" : v)}
               >
-                <SelectTrigger className="input-field mt-1.5">
-                  <SelectValue placeholder="Use suggested per product" />
+                <SelectTrigger className="input-field">
+                  <SelectValue placeholder="Auto-detect per item" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Use suggested per product</SelectItem>
+                  <SelectItem value="none">Auto-detect per item</SelectItem>
                   {departments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id}>
                       {dept.name} ({dept.code})
@@ -309,7 +315,7 @@ export function ReviewFlow({
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning flex items-center gap-1.5">
               <AlertTriangle className="w-3 h-3" />
-              Needs review ({needsAttention.length})
+              Needs your attention ({needsAttention.length})
             </p>
             {needsAttention.map((item) => (
               <ReviewItemCard
@@ -337,7 +343,7 @@ export function ReviewFlow({
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-success flex items-center gap-1.5">
               <CheckCircle className="w-3 h-3" />
-              Ready ({ready.length})
+              Good to go ({ready.length})
             </p>
             {ready.map((item) => (
               <ReviewItemCard
@@ -370,7 +376,7 @@ export function ReviewFlow({
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
             {resolvedItems.length} item{resolvedItems.length !== 1 ? "s" : ""}
-            {matchedCount > 0 && ` (${matchedCount} matched, ${newCount} new)`}
+            {matchedCount > 0 && newCount > 0 && ` (${matchedCount} existing, ${newCount} new)`}
           </span>
           {totalCost > 0 && (
             <span className="font-mono text-foreground">${totalCost.toFixed(2)}</span>

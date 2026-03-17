@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -6,13 +6,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Truck, CheckCircle, Clock, BoxIcon, Filter, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Truck, CheckCircle, BoxIcon, Filter, X, Search } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 
 const PO_STATUSES = [
-  { value: "", label: "All" },
-  { value: "ordered", label: "On Order" },
-  { value: "partial", label: "At Dock" },
+  { value: "", label: "All orders" },
+  { value: "ordered", label: "Ordered" },
+  { value: "partial", label: "Delivered" },
   { value: "received", label: "Received" },
 ];
 
@@ -36,6 +37,16 @@ export function PurchaseOrderList({
   statusFilter = "",
   onFilterChange,
 }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return orders;
+    const q = search.toLowerCase().trim();
+    return orders.filter(
+      (po) => po.vendor_name?.toLowerCase().includes(q) || String(po.item_count).includes(q),
+    );
+  }, [orders, search]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header + new import */}
@@ -52,10 +63,30 @@ export function PurchaseOrderList({
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-gradient-from/20 to-accent-gradient-to/20 flex items-center justify-center border border-accent/20 shrink-0">
             <Plus className="w-4 h-4 text-accent" />
           </div>
-          New Import
+          Add Order
         </button>
 
-        {/* Filter */}
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search vendors…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 text-xs pl-8 border-border/50"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Status filter */}
         <div className="flex items-center gap-2">
           <Filter className="w-3 h-3 text-muted-foreground shrink-0" />
           <Select
@@ -87,14 +118,21 @@ export function PurchaseOrderList({
 
       {/* Order list */}
       <div className="flex-1 overflow-auto">
-        {orders.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="text-center py-12 px-4">
             <Truck className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-            <p className="text-xs text-muted-foreground">No purchase orders</p>
+            <p className="text-xs text-muted-foreground">
+              {search.trim() ? "No matching orders" : "No orders yet"}
+            </p>
+            {!search.trim() && (
+              <p className="text-[10px] text-muted-foreground/60 mt-1">
+                Tap &ldquo;Add Order&rdquo; above to get started
+              </p>
+            )}
           </div>
         ) : (
           <div className="py-1">
-            {orders.map((po) => (
+            {filtered.map((po) => (
               <button
                 key={po.id}
                 type="button"
@@ -123,7 +161,7 @@ export function PurchaseOrderList({
                   )}
                   {po.pending_count > 0 && (
                     <span className="flex items-center gap-0.5 text-accent">
-                      <Clock className="w-2.5 h-2.5" />
+                      <Truck className="w-2.5 h-2.5" />
                       {po.pending_count}
                     </span>
                   )}

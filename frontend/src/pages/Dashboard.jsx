@@ -98,7 +98,7 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard label="Total Withdrawals" value={stats?.total_withdrawals || 0} />
+          <StatCard label="Total Orders" value={stats?.total_withdrawals || 0} />
           <StatCard
             label="Total Value"
             value={valueFormatter(stats?.total_spent || 0)}
@@ -112,7 +112,7 @@ const Dashboard = () => {
         </div>
 
         <Panel>
-          <h2 className="text-base font-semibold text-foreground mb-4">Recent Withdrawals</h2>
+          <h2 className="text-base font-semibold text-foreground mb-4">Recent Orders</h2>
           {stats?.recent_withdrawals?.length > 0 ? (
             <div className="space-y-2">
               {stats.recent_withdrawals.map((w, i) => (
@@ -149,7 +149,7 @@ const Dashboard = () => {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No withdrawals in this range</p>
+              <p className="text-sm">No orders in this range</p>
             </div>
           )}
         </Panel>

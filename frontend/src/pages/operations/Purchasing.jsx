@@ -50,7 +50,7 @@ export default function Purchasing() {
       <div className="px-8 pt-6 pb-0 shrink-0">
         <h1 className="text-2xl font-semibold text-foreground tracking-tight">Purchasing</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Import documents, track deliveries, and receive inventory
+          Track orders from your suppliers and add deliveries to inventory
         </p>
       </div>
 
@@ -94,10 +94,9 @@ function EmptyDetail({ onNewImport }) {
       <div className="w-16 h-16 rounded-2xl bg-muted/50 border border-border/50 flex items-center justify-center mb-4">
         <Truck className="w-8 h-8 text-muted-foreground/40" />
       </div>
-      <p className="font-medium text-muted-foreground">Select an order or start a new import</p>
+      <p className="font-medium text-muted-foreground">Select an order to get started</p>
       <p className="text-sm text-muted-foreground/70 mt-1 max-w-sm">
-        Choose a purchase order from the list to view details, or import a new document to create
-        one.
+        Choose a purchase order from the list, or add a new one by uploading a receipt or invoice.
       </p>
       <button
         type="button"
@@ -105,7 +104,7 @@ function EmptyDetail({ onNewImport }) {
         className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg border border-accent/30 bg-accent/5 text-accent text-sm font-medium hover:bg-accent/10 transition-colors"
       >
         <Upload className="w-4 h-4" />
-        Import Document
+        Add Order
       </button>
     </div>
   );

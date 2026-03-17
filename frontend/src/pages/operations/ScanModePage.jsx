@@ -100,7 +100,7 @@ const ScanModePage = () => {
         job_id: jobId.trim(),
         service_address: serviceAddress.trim(),
       });
-      toast.success("Withdrawal logged!", {
+      toast.success("Sale complete!", {
         action: { label: "View transactions", onClick: () => navigate("/pos") },
       });
       clearCart();

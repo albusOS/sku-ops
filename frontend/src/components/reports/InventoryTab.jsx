@@ -292,7 +292,7 @@ export function InventoryTab({ dateParams, onProductClick }) {
           >
             <ActivityHeatmap
               data={productHeatmapData}
-              label="withdrawals"
+              label="sales"
               tooltipExtra={(d) => (d?.units ? `Units moved: ${d.units}` : "")}
             />
           </ChartExplainer>

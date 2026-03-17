@@ -21,7 +21,7 @@ from inventory.domain.errors import InsufficientStockError, NegativeStockError
 from inventory.domain.stock import StockDecrement, StockTransaction, StockTransactionType
 from inventory.infrastructure.stock_repo import stock_repo as _default_stock_repo
 from inventory.ports.stock_repo_port import StockRepoPort
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
@@ -214,36 +214,37 @@ async def process_adjustment_stock_changes(
         raise ResourceNotFoundError("Product", product_id)
 
     base_unit = product.base_unit.lower()
-    result = await atomic_adjust_sku(product_id, quantity_delta, now)
-    if not result:
-        raise NegativeStockError(product_id, current=product.quantity, delta=quantity_delta)
+    async with transaction():
+        result = await atomic_adjust_sku(product_id, quantity_delta, now)
+        if not result:
+            raise NegativeStockError(product_id, current=product.quantity, delta=quantity_delta)
 
-    quantity_after = result.quantity
-    quantity_before = quantity_after - quantity_delta
-    adjustment_id = str(uuid4())
-    await _record_stock_transaction(
-        product_id=product_id,
-        sku=product.sku,
-        product_name=product.name,
-        quantity_delta=quantity_delta,
-        quantity_before=quantity_before,
-        transaction_type=StockTransactionType.ADJUSTMENT,
-        user_id=user_id,
-        user_name=user_name,
-        reference_id=adjustment_id,
-        reason=reason,
-        unit=base_unit,
-    )
+        quantity_after = result.quantity
+        quantity_before = quantity_after - quantity_delta
+        adjustment_id = str(uuid4())
+        await _record_stock_transaction(
+            product_id=product_id,
+            sku=product.sku,
+            product_name=product.name,
+            quantity_delta=quantity_delta,
+            quantity_before=quantity_before,
+            transaction_type=StockTransactionType.ADJUSTMENT,
+            user_id=user_id,
+            user_name=user_name,
+            reference_id=adjustment_id,
+            reason=reason,
+            unit=base_unit,
+        )
 
-    await _record_ledger_adjustment(
-        adjustment_ref_id=adjustment_id,
-        product_id=product_id,
-        product_cost=product.cost,
-        quantity_delta=quantity_delta,
-        department=product.category_name,
-        reason=reason,
-        performed_by_user_id=user_id,
-    )
+        await _record_ledger_adjustment(
+            adjustment_ref_id=adjustment_id,
+            product_id=product_id,
+            product_cost=product.cost,
+            quantity_delta=quantity_delta,
+            department=product.category_name,
+            reason=reason,
+            performed_by_user_id=user_id,
+        )
 
     if emit_event:
         await dispatch(
