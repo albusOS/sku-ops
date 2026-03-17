@@ -69,7 +69,6 @@ async def insert(department: Department) -> None:
             dept_dict.get("created_at", ""),
         ),
     )
-    await conn.commit()
 
 
 async def update(dept_id: str, name: str, description: str) -> Department | None:
@@ -89,7 +88,6 @@ async def update(dept_id: str, name: str, description: str) -> Department | None
         "UPDATE products SET category_name = $1 WHERE category_id = $2 AND organization_id = $3",
         (name, dept_id, org_id),
     )
-    await conn.commit()
     return await get_by_id(dept_id)
 
 
@@ -114,7 +112,6 @@ async def delete(dept_id: str) -> int:
     query = "UPDATE departments SET deleted_at = $1 "
     query += where
     cursor = await conn.execute(query, params)
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -127,7 +124,6 @@ async def increment_sku_count(dept_id: str, delta: int) -> None:
     query = "UPDATE departments SET sku_count = sku_count + $1 "
     query += where
     await conn.execute(query, params)
-    await conn.commit()
 
 
 class DepartmentRepo:

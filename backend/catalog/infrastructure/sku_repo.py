@@ -1,5 +1,7 @@
 """SKU repository — read queries and class wrapper."""
 
+import json
+
 from catalog.domain.product import Sku
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -14,6 +16,11 @@ def _row_to_sku(row) -> Sku | None:
         d["min_stock"] = int(d["min_stock"])
     if d.get("organization_id") is None:
         d.pop("organization_id", None)
+    if "variant_attrs" in d and isinstance(d["variant_attrs"], str):
+        try:
+            d["variant_attrs"] = json.loads(d["variant_attrs"])
+        except (ValueError, TypeError):
+            d["variant_attrs"] = {}
     return Sku.model_validate(d)
 
 

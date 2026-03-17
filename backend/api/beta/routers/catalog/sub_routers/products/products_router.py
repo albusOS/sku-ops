@@ -166,6 +166,7 @@ async def create_product(data: SkuCreate, current_user: AdminDep):
             variant_label=getattr(data, "variant_label", ""),
             spec=getattr(data, "spec", ""),
             grade=getattr(data, "grade", ""),
+            variant_attrs=data.variant_attrs or {},
             user_id=current_user.id,
             user_name=current_user.name,
             on_stock_import=process_import_stock_changes,

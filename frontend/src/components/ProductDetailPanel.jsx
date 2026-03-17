@@ -193,6 +193,22 @@ export function ProductDetailPanel({
                 </div>
               </DetailSection>
 
+              {product.variant_attrs && Object.keys(product.variant_attrs).length > 0 && (
+                <DetailSection label="Variant Attributes" className="mt-4">
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(product.variant_attrs).map(([k, v]) => (
+                      <span
+                        key={k}
+                        className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs"
+                      >
+                        <span className="text-muted-foreground">{k}:</span>
+                        <span className="font-medium">{v}</span>
+                      </span>
+                    ))}
+                  </div>
+                </DetailSection>
+              )}
+
               {product.description && (
                 <DetailSection label="Description" className="mt-4">
                   <p className="text-sm text-muted-foreground leading-relaxed">

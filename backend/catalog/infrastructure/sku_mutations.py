@@ -1,5 +1,6 @@
 """SKU write/mutation operations."""
 
+import json
 from datetime import UTC, datetime
 
 from catalog.domain.product import Sku
@@ -15,9 +16,9 @@ async def insert(sku: Sku) -> None:
         """INSERT INTO skus (id, sku, product_id, name, description, price, cost, quantity, min_stock,
            category_id, category_name, barcode, vendor_barcode,
            base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
-           variant_label, spec, grade,
+           variant_label, spec, grade, variant_attrs,
            organization_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)""",
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)""",
         (
             sku_dict["id"],
             sku_dict["sku"],
@@ -40,12 +41,12 @@ async def insert(sku: Sku) -> None:
             sku_dict.get("variant_label", ""),
             sku_dict.get("spec", ""),
             sku_dict.get("grade", ""),
+            json.dumps(sku_dict.get("variant_attrs") or {}),
             org_id,
             sku_dict.get("created_at", ""),
             sku_dict.get("updated_at", ""),
         ),
     )
-    await conn.commit()
 
 
 async def update(sku_id: str, updates: dict) -> Sku | None:
@@ -80,6 +81,11 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
             set_parts.append(f"{key} = ${n}")
             values.append(updates[key])
             n += 1
+
+    if "variant_attrs" in updates and updates["variant_attrs"] is not None:
+        set_parts.append(f"variant_attrs = ${n}")
+        values.append(json.dumps(updates["variant_attrs"]))
+        n += 1
     if len(set_parts) <= 1:
         return await get_by_id(sku_id)
     values.append(sku_id)
@@ -89,7 +95,6 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
     query += ", ".join(set_parts)
     query += " " + where
     await conn.execute(query, values)
-    await conn.commit()
     return await get_by_id(sku_id)
 
 
@@ -103,7 +108,6 @@ async def delete(sku_id: str) -> int:
     query = "UPDATE skus SET deleted_at = $1 "
     query += where
     cursor = await conn.execute(query, params)
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -117,7 +121,6 @@ async def atomic_decrement(sku_id: str, quantity: float, updated_at: str) -> Sku
     query = "UPDATE skus SET quantity = quantity - $1, updated_at = $2 "
     query += where
     cursor = await conn.execute(query, params)
-    await conn.commit()
     if cursor.rowcount == 0:
         return None
     return await get_by_id(sku_id)
@@ -133,7 +136,6 @@ async def increment_quantity(sku_id: str, quantity: float, updated_at: str) -> N
     query = "UPDATE skus SET quantity = quantity + $1, updated_at = $2 "
     query += where
     await conn.execute(query, params)
-    await conn.commit()
 
 
 async def add_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
@@ -146,7 +148,6 @@ async def add_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | N
     query = "UPDATE skus SET quantity = quantity + $1, updated_at = $2 "
     query += where
     await conn.execute(query, params)
-    await conn.commit()
     return await get_by_id(sku_id)
 
 
@@ -166,7 +167,6 @@ async def atomic_adjust(
     query = "UPDATE skus SET quantity = quantity + $1, updated_at = $2 "
     query += where
     cursor = await conn.execute(query, params)
-    await conn.commit()
     if cursor.rowcount == 0:
         return None
     return await get_by_id(sku_id)

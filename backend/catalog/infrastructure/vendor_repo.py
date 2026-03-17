@@ -73,7 +73,6 @@ async def insert(vendor: Vendor) -> None:
             vendor_dict.get("created_at", ""),
         ),
     )
-    await conn.commit()
 
 
 async def update(vendor_id: str, vendor_dict: dict) -> Vendor | None:
@@ -97,7 +96,6 @@ async def update(vendor_id: str, vendor_dict: dict) -> Vendor | None:
         "UPDATE vendor_items SET vendor_name = $1 WHERE vendor_id = $2 AND organization_id = $3",
         (new_name, vendor_id, org_id),
     )
-    await conn.commit()
     return await get_by_id(vendor_id)
 
 
@@ -111,7 +109,6 @@ async def delete(vendor_id: str) -> int:
     query = "UPDATE vendors SET deleted_at = $1 "
     query += where
     cursor = await conn.execute(query, params)
-    await conn.commit()
     return cursor.rowcount
 
 

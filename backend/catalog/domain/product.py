@@ -1,9 +1,11 @@
 """SKU (stock-keeping unit) domain models."""
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from shared.kernel.entity import AuditedEntity
 from shared.kernel.units import ALLOWED_BASE_UNITS
+
+VariantAttrs = dict[str, str]
 
 
 def _validate_unit(v: str) -> str:
@@ -32,6 +34,7 @@ class SkuCreate(BaseModel):
     variant_label: str = ""
     spec: str = ""
     grade: str = ""
+    variant_attrs: VariantAttrs = {}
 
     @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
@@ -65,6 +68,7 @@ class SkuUpdate(BaseModel):
     variant_label: str | None = None
     spec: str | None = None
     grade: str | None = None
+    variant_attrs: VariantAttrs | None = None
 
     @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
@@ -102,6 +106,7 @@ class Sku(AuditedEntity):
     variant_label: str = ""
     spec: str = ""
     grade: str = ""
+    variant_attrs: VariantAttrs = Field(default_factory=dict)
 
     @property
     def is_low_stock(self) -> bool:

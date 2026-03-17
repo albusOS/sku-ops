@@ -15,7 +15,7 @@ from catalog.infrastructure.sku_counter_repo import sku_counter_repo as _counter
 from catalog.infrastructure.sku_repo import sku_repo as _sku_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo as _vi_repo
 from catalog.infrastructure.vendor_repo import vendor_repo as _vendor_repo
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.database import get_connection, get_org_id, transaction
 
 # ── Product family (parent) queries ──────────────────────────────────────────
 
@@ -115,23 +115,28 @@ async def list_low_stock(limit: int = 10) -> list[Sku]:
 
 
 async def update_sku(sku_id: str, updates: SkuUpdate) -> Sku | None:
-    return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
+    async with transaction():
+        return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
 
 
 async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
-    return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
+    async with transaction():
+        return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
 
 
 async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> None:
-    return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
+    async with transaction():
+        return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
 
 
 async def add_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
-    return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
+    async with transaction():
+        return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
 
 
 async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: str) -> Sku | None:
-    return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
+    async with transaction():
+        return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
 
 
 # ── VendorItem queries ───────────────────────────────────────────────────────
@@ -217,7 +222,8 @@ async def get_department_by_code(code: str) -> Department | None:
 
 
 async def insert_department(department: Department | dict) -> None:
-    return await _dept_repo.insert(department)
+    async with transaction():
+        return await _dept_repo.insert(department)
 
 
 async def update_department(
@@ -225,11 +231,13 @@ async def update_department(
     name: str,
     description: str,
 ) -> Department | None:
-    return await _dept_repo.update(dept_id, name, description)
+    async with transaction():
+        return await _dept_repo.update(dept_id, name, description)
 
 
 async def delete_department(dept_id: str) -> int:
-    return await _dept_repo.delete(dept_id)
+    async with transaction():
+        return await _dept_repo.delete(dept_id)
 
 
 async def count_skus_by_department(dept_id: str) -> int:
@@ -254,18 +262,21 @@ async def find_vendor_by_name(name: str) -> Vendor | None:
 async def insert_vendor(vendor: Vendor | dict) -> None:
     if isinstance(vendor, dict):
         vendor = Vendor.model_validate(vendor)
-    return await _vendor_repo.insert(vendor)
+    async with transaction():
+        return await _vendor_repo.insert(vendor)
 
 
 async def update_vendor(
     vendor_id: str,
     vendor_dict: dict,
 ) -> Vendor | None:
-    return await _vendor_repo.update(vendor_id, vendor_dict)
+    async with transaction():
+        return await _vendor_repo.update(vendor_id, vendor_dict)
 
 
 async def delete_vendor(vendor_id: str) -> int:
-    return await _vendor_repo.delete(vendor_id)
+    async with transaction():
+        return await _vendor_repo.delete(vendor_id)
 
 
 async def count_vendors() -> int:

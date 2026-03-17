@@ -271,6 +271,64 @@ export function ProductFields({
         </div>
       )}
 
+      {!isHidden(h, "purchase_uom") && (
+        <div
+          className={
+            compact
+              ? "col-span-2 flex items-end gap-2 flex-wrap"
+              : "col-span-3 flex items-end gap-2 flex-wrap"
+          }
+        >
+          <div className="flex-1 min-w-[100px]">
+            <Label className={labelCls}>
+              Purchase Unit
+              {!compact && (
+                <FieldTip>
+                  The unit used when ordering from suppliers (e.g. case, pallet, gallon).
+                </FieldTip>
+              )}
+            </Label>
+            <Select
+              value={field("purchase_uom") || "each"}
+              onValueChange={(v) => set("purchase_uom", v)}
+              disabled={isReadOnly(ro, "purchase_uom")}
+            >
+              <SelectTrigger className={inputCls}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {UOM_OPTIONS.map((u) => (
+                  <SelectItem key={u} value={u}>
+                    {u}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!isHidden(h, "purchase_pack_qty") && (
+            <div className="min-w-[80px]">
+              <Label className={labelCls}>
+                Purchase Qty
+                {!compact && (
+                  <FieldTip>
+                    How many Base Units are in one Purchase Unit. E.g. a case of 24 = 24.
+                  </FieldTip>
+                )}
+              </Label>
+              <Input
+                type="number"
+                min="1"
+                value={field("purchase_pack_qty")}
+                onChange={(e) => set("purchase_pack_qty", e.target.value)}
+                className={inputCls}
+                readOnly={isReadOnly(ro, "purchase_pack_qty")}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {!isHidden(h, "barcode") && (
         <div className="col-span-2">
           <Label className={labelCls}>Barcode</Label>

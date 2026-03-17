@@ -50,6 +50,7 @@ async def create_sku(
     variant_label: str = "",
     spec: str = "",
     grade: str = "",
+    variant_attrs: dict | None = None,
     user_id: str | None = None,
     user_name: str = "",
     *,
@@ -99,6 +100,7 @@ async def create_sku(
         variant_label=variant_label,
         spec=spec,
         grade=grade,
+        variant_attrs=variant_attrs or {},
         organization_id=org_id,
     )
 
@@ -148,6 +150,7 @@ async def create_product_with_sku(
     variant_label: str = "",
     spec: str = "",
     grade: str = "",
+    variant_attrs: dict | None = None,
     user_id: str | None = None,
     user_name: str = "",
     *,
@@ -182,6 +185,7 @@ async def create_product_with_sku(
         variant_label=variant_label,
         spec=spec,
         grade=grade,
+        variant_attrs=variant_attrs,
         user_id=user_id,
         user_name=user_name,
         on_stock_import=on_stock_import,
@@ -199,6 +203,10 @@ async def update_sku(
         raise ResourceNotFoundError("Sku", sku_id)
 
     update_data = updates.model_dump(exclude_none=True)
+    # quantity is owned by the inventory ledger — never allow a direct overwrite
+    # via the catalog edit path. Stock changes must go through inventory adjustment,
+    # receiving, or withdrawal flows, which maintain the stock_transactions audit trail.
+    update_data.pop("quantity", None)
     update_data["updated_at"] = datetime.now(UTC).isoformat()
 
     if "barcode" in update_data:

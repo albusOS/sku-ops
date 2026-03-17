@@ -35,7 +35,6 @@ async def insert(product: Product) -> None:
             p.get("updated_at", ""),
         ),
     )
-    await conn.commit()
 
 
 async def get_by_id(product_id: str) -> Product | None:
@@ -122,7 +121,6 @@ async def update(product_id: str, updates: dict) -> Product | None:
         f"UPDATE products SET {', '.join(set_parts)} WHERE id = ${n} AND organization_id = ${n + 1}"
     )
     await conn.execute(query, values)
-    await conn.commit()
     return await get_by_id(product_id)
 
 
@@ -134,7 +132,6 @@ async def soft_delete(product_id: str) -> int:
         "UPDATE products SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, product_id, org_id),
     )
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -145,7 +142,6 @@ async def increment_sku_count(product_id: str, delta: int) -> None:
         "UPDATE products SET sku_count = sku_count + $1 WHERE id = $2 AND organization_id = $3",
         (delta, product_id, org_id),
     )
-    await conn.commit()
 
 
 class ProductFamilyRepo:

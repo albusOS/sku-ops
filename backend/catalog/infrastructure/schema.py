@@ -6,6 +6,11 @@ MIGRATIONS: list[str] = [
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS variant_label TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS spec TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT ''",
+    # variant_attrs: free-form key-value pairs describing what makes this SKU unique
+    # within its product family (e.g. {"holes": "1H", "size": "1/2\""}).
+    # Replaces the purpose of variant_label/spec/grade, which remain for compatibility.
+    "ALTER TABLE skus ADD COLUMN IF NOT EXISTS variant_attrs TEXT NOT NULL DEFAULT '{}'",
+    "CREATE INDEX IF NOT EXISTS idx_skus_product_attrs ON skus(product_id) WHERE deleted_at IS NULL",
 ]
 
 TABLES: list[str] = [

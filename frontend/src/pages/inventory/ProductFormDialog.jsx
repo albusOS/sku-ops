@@ -2,13 +2,76 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Sparkles, ChevronDown } from "lucide-react";
+import { Sparkles, ChevronDown, Plus, X } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-client";
 import api from "@/lib/api-client";
 import { useCreateProduct, useUpdateProduct, useSuggestUom } from "@/hooks/useProducts";
 import { ProductFields } from "@/components/ProductFields";
+
+function VariantAttrsEditor({ attrs, onChange }) {
+  const entries = Object.entries(attrs || {});
+
+  const handleKeyChange = (oldKey, newKey) => {
+    const next = {};
+    for (const [k, v] of Object.entries(attrs)) {
+      next[k === oldKey ? newKey : k] = v;
+    }
+    onChange(next);
+  };
+
+  const handleValueChange = (key, value) => {
+    onChange({ ...attrs, [key]: value });
+  };
+
+  const handleRemove = (key) => {
+    const next = { ...attrs };
+    delete next[key];
+    onChange(next);
+  };
+
+  const handleAdd = () => {
+    onChange({ ...attrs, "": "" });
+  };
+
+  return (
+    <div className="space-y-2">
+      {entries.map(([k, v], i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input
+            placeholder="Attribute"
+            value={k}
+            onChange={(e) => handleKeyChange(k, e.target.value)}
+            className="input-workshop flex-1 text-sm"
+          />
+          <Input
+            placeholder="Value"
+            value={v}
+            onChange={(e) => handleValueChange(k, e.target.value)}
+            className="input-workshop flex-1 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => handleRemove(k)}
+            className="p-1.5 text-muted-foreground hover:text-destructive rounded-md transition-colors shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={handleAdd}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Add attribute
+      </button>
+    </div>
+  );
+}
 
 const INITIAL_FORM = {
   name: "",
@@ -22,6 +85,9 @@ const INITIAL_FORM = {
   base_unit: "each",
   sell_uom: "each",
   pack_qty: "1",
+  purchase_uom: "each",
+  purchase_pack_qty: "1",
+  variant_attrs: {},
 };
 
 const ADVANCED_FIELDS = new Set([
@@ -31,6 +97,8 @@ const ADVANCED_FIELDS = new Set([
   "base_unit",
   "sell_uom",
   "pack_qty",
+  "purchase_uom",
+  "purchase_pack_qty",
   "barcode",
 ]);
 
@@ -73,6 +141,9 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
         base_unit: editingProduct.base_unit || "each",
         sell_uom: editingProduct.sell_uom || "each",
         pack_qty: String(editingProduct.pack_qty ?? 1),
+        purchase_uom: editingProduct.purchase_uom || "each",
+        purchase_pack_qty: String(editingProduct.purchase_pack_qty ?? 1),
+        variant_attrs: editingProduct.variant_attrs || {},
       });
       setAdvancedOpen(true);
     } else {
@@ -175,19 +246,26 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
       return;
     }
 
-    const data = {
+    const baseData = {
       name: form.name,
       description: form.description,
       price,
       cost,
-      quantity: parseFloat(form.quantity) || 0,
       min_stock: parseInt(form.min_stock) || 5,
       category_id: form.category_id,
       barcode: form.barcode || null,
       base_unit: form.base_unit || "each",
       sell_uom: form.sell_uom || "each",
       pack_qty: parseInt(form.pack_qty) || 1,
+      purchase_uom: form.purchase_uom || "each",
+      purchase_pack_qty: parseInt(form.purchase_pack_qty) || 1,
+      variant_attrs: form.variant_attrs || {},
     };
+
+    // quantity is only included when creating — edits go through AdjustStockDialog
+    const data = editingProduct
+      ? baseData
+      : { ...baseData, quantity: parseFloat(form.quantity) || 0 };
 
     const mutation = editingProduct ? updateMutation : createMutation;
     const mutationArg = editingProduct ? { id: editingProduct.id, data } : data;
@@ -242,13 +320,22 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
             )}
           </div>
 
-          {/* Essentials: name, department, price, quantity */}
+          {/* Essentials: name, department, price, quantity (quantity hidden when editing) */}
           <ProductFields
             fields={form}
             onChange={handleFieldChange}
             departments={departments}
-            hiddenFields={ADVANCED_FIELDS}
+            hiddenFields={
+              editingProduct ? new Set([...ADVANCED_FIELDS, "quantity"]) : ADVANCED_FIELDS
+            }
           />
+
+          {editingProduct && (
+            <p className="text-xs text-muted-foreground -mt-2">
+              To change stock quantity use{" "}
+              <span className="font-medium text-foreground">Adjust Stock</span>.
+            </p>
+          )}
 
           {/* Advanced: collapsible */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
@@ -266,7 +353,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
                 )}
               </button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
+            <CollapsibleContent className="pt-3 space-y-4">
               <ProductFields
                 fields={form}
                 onChange={handleFieldChange}
@@ -290,6 +377,19 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
                   </Button>
                 }
               />
+
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">
+                  Variant attributes
+                  <span className="text-xs font-normal ml-2">
+                    What makes this SKU unique within its product family
+                  </span>
+                </p>
+                <VariantAttrsEditor
+                  attrs={form.variant_attrs}
+                  onChange={(attrs) => setForm((f) => ({ ...f, variant_attrs: attrs }))}
+                />
+              </div>
             </CollapsibleContent>
           </Collapsible>
 

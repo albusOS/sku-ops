@@ -44,7 +44,6 @@ async def insert(item: VendorItem) -> None:
             d.get("updated_at", ""),
         ),
     )
-    await conn.commit()
 
 
 async def get_by_id(item_id: str) -> VendorItem | None:
@@ -159,7 +158,6 @@ async def update(item_id: str, updates: dict) -> VendorItem | None:
     values.append(org_id)
     query = f"UPDATE vendor_items SET {', '.join(set_parts)} WHERE id = ${n} AND organization_id = ${n + 1}"
     await conn.execute(query, values)
-    await conn.commit()
     return await get_by_id(item_id)
 
 
@@ -171,7 +169,6 @@ async def soft_delete(item_id: str) -> int:
         "UPDATE vendor_items SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND (organization_id = $3 OR organization_id IS NULL)",
         (now, item_id, org_id),
     )
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -184,7 +181,6 @@ async def soft_delete_by_sku(sku_id: str) -> int:
         "UPDATE vendor_items SET deleted_at = $1 WHERE sku_id = $2 AND deleted_at IS NULL AND (organization_id = $3 OR organization_id IS NULL)",
         (now, sku_id, org_id),
     )
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -196,7 +192,6 @@ async def clear_preferred_for_sku(sku_id: str) -> None:
         "UPDATE vendor_items SET is_preferred = 0 WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
         (sku_id, org_id),
     )
-    await conn.commit()
 
 
 class VendorItemRepo:

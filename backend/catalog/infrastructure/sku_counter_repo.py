@@ -49,7 +49,6 @@ async def increment_and_get(department_code: str) -> int:
         (key,),
     )
     row = await cursor.fetchone()
-    await conn.commit()
     return row[0] if row else 1
 
 

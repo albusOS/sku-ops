@@ -14,7 +14,6 @@ from catalog.application.queries import (
     atomic_adjust_sku,
     atomic_decrement_sku,
     get_sku_by_id,
-    increment_sku_quantity,
 )
 from finance.application.ledger_service import record_adjustment as _record_ledger_adjustment
 from inventory.domain.errors import InsufficientStockError, NegativeStockError
@@ -73,22 +72,26 @@ async def process_withdrawal_stock_changes(
     Atomically decrement product quantities for a withdrawal.
     Converts from the requested unit to the product's base_unit before decrementing.
     Uses UPDATE with quantity guard to prevent overselling.
-    Rolls back all completed decrements on any failure.
+    All decrements and ledger entries are committed atomically — if any item
+    fails the quantity guard, the entire transaction rolls back.
     """
     now = datetime.now(UTC).isoformat()
-    completed: list[tuple[str, float]] = []
 
-    try:
-        for item in items:
+    # Resolve UOM conversions before entering the transaction (read-only, no side effects).
+    resolved: list[tuple[StockDecrement, float, str]] = []
+    for item in items:
+        product = await get_sku_by_id(item.product_id)
+        base_unit = (product.base_unit if product else "each").lower()
+        requested_unit = (item.unit or "each").lower()
+        if requested_unit != base_unit and are_compatible(requested_unit, base_unit):
+            canonical_qty = convert_quantity(item.quantity, requested_unit, base_unit)
+        else:
+            canonical_qty = item.quantity
+        resolved.append((item, canonical_qty, base_unit))
+
+    async with transaction():
+        for item, canonical_qty, base_unit in resolved:
             product = await get_sku_by_id(item.product_id)
-            base_unit = (product.base_unit if product else "each").lower()
-            requested_unit = (item.unit or "each").lower()
-
-            if requested_unit != base_unit and are_compatible(requested_unit, base_unit):
-                canonical_qty = convert_quantity(item.quantity, requested_unit, base_unit)
-            else:
-                canonical_qty = item.quantity
-
             result = await atomic_decrement_sku(item.product_id, canonical_qty, now)
 
             if not result:
@@ -110,12 +113,6 @@ async def process_withdrawal_stock_changes(
                 reference_id=withdrawal_id,
                 unit=base_unit,
             )
-            completed.append((item.product_id, canonical_qty))
-
-    except Exception:
-        for product_id, qty in completed:
-            await increment_sku_quantity(product_id, qty, now)
-        raise
 
 
 async def process_receiving_stock_changes(
@@ -132,6 +129,7 @@ async def process_receiving_stock_changes(
     """Add stock (receiving, import, return) and record transaction.
 
     Converts from the supplied unit to the product's base_unit before adding.
+    The quantity increment and ledger entry are committed atomically.
     """
     product = await get_sku_by_id(product_id)
     base_unit = (product.base_unit if product else "each").lower()
@@ -143,23 +141,24 @@ async def process_receiving_stock_changes(
         canonical_qty = quantity
 
     now = datetime.now(UTC).isoformat()
-    result = await add_sku_quantity(product_id, canonical_qty, now)
-    if not result:
-        raise ResourceNotFoundError("Product", product_id)
+    async with transaction():
+        result = await add_sku_quantity(product_id, canonical_qty, now)
+        if not result:
+            raise ResourceNotFoundError("Product", product_id)
 
-    quantity_before = result.quantity - canonical_qty
-    await _record_stock_transaction(
-        product_id=product_id,
-        sku=sku,
-        product_name=product_name,
-        quantity_delta=canonical_qty,
-        quantity_before=quantity_before,
-        transaction_type=transaction_type,
-        user_id=user_id,
-        user_name=user_name,
-        reference_id=reference_id,
-        unit=base_unit,
-    )
+        quantity_before = result.quantity - canonical_qty
+        await _record_stock_transaction(
+            product_id=product_id,
+            sku=sku,
+            product_name=product_name,
+            quantity_delta=canonical_qty,
+            quantity_before=quantity_before,
+            transaction_type=transaction_type,
+            user_id=user_id,
+            user_name=user_name,
+            reference_id=reference_id,
+            unit=base_unit,
+        )
 
 
 async def process_import_stock_changes(
