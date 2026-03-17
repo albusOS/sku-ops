@@ -158,7 +158,7 @@ class TestEventDeliveryEndToEnd:
         """Emit an event and verify the connected client gets it."""
         from unittest.mock import patch
 
-        token = _make_token(org_id="default")
+        token = _make_token(org_id="supply-yard")
         with patch(
             "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
             999,
@@ -167,7 +167,7 @@ class TestEventDeliveryEndToEnd:
                 t = _delayed_emit(
                     _EMIT_DELAY,
                     events.INVENTORY_UPDATED,
-                    org_id="default",
+                    org_id="supply-yard",
                     ids=["p-1"],
                 )
                 msg = ws.receive_json()
@@ -189,7 +189,7 @@ class TestEventDeliveryEndToEnd:
         q2 = hub.subscribe()
         q3 = hub.subscribe()
 
-        hub.emit_sync(events.WITHDRAWAL_CREATED, org_id="default", id="w-1")
+        hub.emit_sync(events.WITHDRAWAL_CREATED, org_id="supply-yard", id="w-1")
 
         for q in (q1, q2, q3):
             ev = q.get_nowait()
@@ -235,8 +235,8 @@ class TestEventDeliveryEndToEnd:
             with client.websocket_connect(f"/api/beta/shared/ws?token={token}") as ws:
 
                 def _emit_pair():
-                    event_hub.emit_sync(events.INVENTORY_UPDATED, org_id="default")
-                    event_hub.emit_sync(events.WITHDRAWAL_CREATED, org_id="default", id="w-99")
+                    event_hub.emit_sync(events.INVENTORY_UPDATED, org_id="supply-yard")
+                    event_hub.emit_sync(events.WITHDRAWAL_CREATED, org_id="supply-yard", id="w-99")
 
                 t = threading.Timer(_EMIT_DELAY, _emit_pair)
                 t.start()
@@ -266,13 +266,13 @@ class TestEventDeliveryEndToEnd:
                 def _emit_pair():
                     event_hub.emit_sync(
                         events.CHAT_DONE,
-                        org_id="default",
+                        org_id="supply-yard",
                         user_id="u-2",
                         response="hi",
                     )
                     event_hub.emit_sync(
                         events.INVENTORY_UPDATED,
-                        org_id="default",
+                        org_id="supply-yard",
                         marker="broadcast",
                     )
 

@@ -109,7 +109,7 @@ const Login = () => {
           title="Admin / Warehouse"
           icon={ShieldCheck}
           accentClass="bg-accent/15 text-accent"
-          demoHint="Demo: admin@demo.local / demo123"
+          demoHint={null}
           testPrefix="admin-login"
           onSubmit={handleLogin}
           loading={loading}
@@ -118,7 +118,7 @@ const Login = () => {
           title="Contractor"
           icon={HardHat}
           accentClass="bg-emerald-500/15 text-emerald-400"
-          demoHint="Demo: contractor@demo.local / demo123"
+          demoHint={null}
           testPrefix="contractor-login"
           onSubmit={handleLogin}
           loading={loading}

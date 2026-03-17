@@ -17,10 +17,12 @@ def create_product(client, headers, *, dept_id: str, **overrides) -> dict:
     return resp.json()
 
 
-def create_withdrawal(client, headers, product, *, quantity=5, job_id="JOB-E2E") -> dict:
-    """Create a withdrawal via the API. Returns the JSON body."""
+def create_withdrawal(
+    client, headers, product, *, quantity=5, job_id="JOB-E2E", contractor_id="contractor-1"
+) -> dict:
+    """Create a withdrawal via the API (admin creates for contractor). Returns the JSON body."""
     resp = client.post(
-        "/api/beta/operations/withdrawals",
+        f"/api/beta/operations/withdrawals/for-contractor?contractor_id={contractor_id}",
         json={
             "items": [
                 {

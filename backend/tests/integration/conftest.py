@@ -65,7 +65,7 @@ def call(_app_client):
         async def _with_ctx():
             from shared.infrastructure.logging_config import org_id_var, user_id_var
 
-            org_id_var.set("default")
+            org_id_var.set("supply-yard")
             user_id_var.set("user-1")
             return await async_fn()
 

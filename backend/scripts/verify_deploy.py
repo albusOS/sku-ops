@@ -149,7 +149,7 @@ def check_supabase_jwt_shape() -> None:
     supabase_payload = {
         "sub": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         "email": "admin@example.com",
-        "app_metadata": {"role": "admin", "organization_id": "default"},
+        "app_metadata": {"role": "admin", "organization_id": "supply-yard"},
         "user_metadata": {"name": "Test Admin"},
         "aud": "authenticated",
         "role": "authenticated",
@@ -171,7 +171,7 @@ def check_supabase_jwt_shape() -> None:
         assert claims.user_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", (
             f"Wrong user_id: {claims.user_id!r}"
         )
-        assert claims.organization_id == "default", (
+        assert claims.organization_id == "supply-yard", (
             f"Expected organization_id='default', got {claims.organization_id!r}"
         )
         _ok("Supabase token: role extracted from app_metadata.role", f"role={claims.role!r}")
@@ -212,7 +212,7 @@ def check_supabase_jwt_shape() -> None:
         "email": "dev@example.com",
         "role": "admin",
         "name": "Dev User",
-        "organization_id": "default",
+        "organization_id": "supply-yard",
         "exp": int(time.time()) + 3600,
     }
     dev_token = jwt.encode(dev_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

@@ -1,0 +1,282 @@
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Upload, FileImage, FileText, XCircle, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import api, { getErrorMessage } from "@/lib/api-client";
+import { ReviewFlow } from "./ReviewFlow";
+
+/**
+ * Import flow: upload document → AI extract → review → save as PO.
+ * Lives in the right column of the purchasing page.
+ *
+ * @param {function} onComplete  Called after PO is created successfully
+ * @param {function} onCancel    Go back / deselect
+ */
+export function ImportFlow({ onComplete, onCancel }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [extracting, setExtracting] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const [extractedData, setExtractedData] = useState(null);
+  const [editedProducts, setEditedProducts] = useState([]);
+  const [vendorName, setVendorName] = useState("");
+  const [createVendorIfMissing, setCreateVendorIfMissing] = useState(true);
+
+  const setPreviewSafe = (url) => {
+    setPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+  };
+
+  const isImageOrPdf = (f) => {
+    if (!f) return false;
+    const t = f.type?.toLowerCase() || "";
+    const n = (f.name || "").toLowerCase();
+    return t.startsWith("image/") || t === "application/pdf" || n.endsWith(".pdf");
+  };
+
+  const handleFileChange = (e) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    if (!isImageOrPdf(selected)) {
+      toast.error("Please select an image (JPG, PNG, WEBP) or PDF");
+      return;
+    }
+    setFile(selected);
+    setPreviewSafe(selected.type?.startsWith("image/") ? URL.createObjectURL(selected) : null);
+    setExtractedData(null);
+    setEditedProducts([]);
+  };
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    const dropped = e.dataTransfer.files?.[0];
+    if (!dropped) return;
+    if (!isImageOrPdf(dropped)) {
+      toast.error("Please select an image (JPG, PNG, WEBP) or PDF");
+      return;
+    }
+    setFile(dropped);
+    setPreviewSafe(dropped.type?.startsWith("image/") ? URL.createObjectURL(dropped) : null);
+    setExtractedData(null);
+    setEditedProducts([]);
+  }, []);
+
+  const extractReceipt = async (useAi = false) => {
+    if (!file) {
+      toast.error("Please select a document");
+      return;
+    }
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await api.documents.parse(formData, useAi);
+      setExtractedData(response);
+      setVendorName(response.vendor_name || "");
+      const mapped = (response.products || []).map((p, idx) => ({
+        ...p,
+        id: idx,
+        selected: true,
+        quantity: p.quantity ?? 1,
+        ordered_qty: p.ordered_qty ?? p.quantity ?? 1,
+        delivered_qty: p.delivered_qty ?? p.quantity ?? 1,
+        base_unit: p.base_unit || "each",
+        pack_qty: p.pack_qty ?? 1,
+        min_stock: 5,
+        matched_product: null,
+      }));
+      setEditedProducts(mapped);
+      toast.success("Document extracted — review items below");
+    } catch (error) {
+      if (error.response?.status === 503) {
+        toast.error("AI not configured — add ANTHROPIC_API_KEY or use Free OCR");
+      } else {
+        toast.error(error.response?.data?.detail || "Failed to extract document");
+      }
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleConfirm = async (payload) => {
+    const vName = (vendorName || "").trim();
+    if (!vName) {
+      toast.error("Vendor name is required");
+      return;
+    }
+    setImporting(true);
+    try {
+      await api.purchaseOrders.create({
+        vendor_name: vName,
+        create_vendor_if_missing: createVendorIfMissing,
+        category_id: null,
+        document_date: extractedData?.document_date || null,
+        total: extractedData?.total || null,
+        products: payload,
+      });
+      toast.success(`Purchase order saved — ${payload.length} item(s) pending receipt`);
+      onComplete?.();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const clearAll = () => {
+    setFile(null);
+    setPreviewSafe(null);
+    setExtractedData(null);
+    setEditedProducts([]);
+    setVendorName("");
+  };
+
+  const inReview = !!extractedData;
+
+  if (inReview) {
+    return (
+      <ReviewFlow
+        items={editedProducts}
+        mode="import"
+        vendorName={vendorName}
+        onVendorChange={setVendorName}
+        createVendor={createVendorIfMissing}
+        onCreateVendorChange={setCreateVendorIfMissing}
+        onConfirm={handleConfirm}
+        onBack={clearAll}
+        submitting={importing}
+        confirmLabel="Save as Purchase Order"
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <h2 className="text-base font-semibold">New Import</h2>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto p-5 space-y-5">
+        {!file ? (
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className="border border-dashed border-border/60 rounded-xl p-12 text-center hover:border-accent/40 hover:bg-accent/5 transition-all cursor-pointer group"
+            onClick={() => document.getElementById("import-file-input").click()}
+          >
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent-gradient-from/20 to-accent-gradient-to/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform border border-accent/20">
+              <Upload className="w-7 h-7 text-accent" />
+            </div>
+            <p className="text-muted-foreground font-medium">
+              Drop document here or click to browse
+            </p>
+            <p className="text-muted-foreground text-sm mt-2">JPG, PNG, WEBP, PDF</p>
+            <input
+              id="import-file-input"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="relative rounded-xl overflow-hidden border border-border/60 shadow-sm">
+              {preview ? (
+                <img
+                  src={preview}
+                  alt="Document preview"
+                  className="w-full max-h-[300px] object-contain bg-muted/30"
+                />
+              ) : (
+                <div className="w-full h-36 bg-muted/30 flex flex-col items-center justify-center gap-2">
+                  <FileText className="w-10 h-10 text-muted-foreground" />
+                  <span className="text-muted-foreground font-medium text-sm">{file.name}</span>
+                  <span className="text-muted-foreground text-xs">PDF document</span>
+                </div>
+              )}
+              <button
+                onClick={clearAll}
+                className="absolute top-2 right-2 p-1.5 bg-card/90 backdrop-blur-sm text-muted-foreground rounded-lg hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+              <span className="truncate">{file.name}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={() => extractReceipt(true)}
+                disabled={extracting}
+                className="btn-primary h-11"
+              >
+                {extracting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Extract with AI
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => extractReceipt(false)}
+                disabled={extracting}
+                variant="outline"
+                className="h-11 text-muted-foreground"
+              >
+                {extracting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Free OCR
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* How it works */}
+        {!file && (
+          <div className="space-y-4 pt-2">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              How it works
+            </p>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              {[
+                "Upload a receipt, invoice, or PDF from any vendor",
+                "AI extracts vendor, items, UOM, costs, and quantities",
+                "Review matches, confirm details, save as purchase order",
+              ].map((text, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="w-6 h-6 bg-accent/10 text-accent rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-accent/20">
+                    {i + 1}
+                  </span>
+                  <p>{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

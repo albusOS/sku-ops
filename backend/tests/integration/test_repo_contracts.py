@@ -143,7 +143,7 @@ class TestPORepoContract:
                 status=POStatus.ORDERED,
                 created_by_id="user-1",
                 created_by_name="Test",
-                organization_id="default",
+                organization_id="supply-yard",
             )
             await po_repo.insert_po(po)
 
@@ -159,7 +159,7 @@ class TestPORepoContract:
                 pack_qty=1,
                 suggested_department="PLU",
                 status=POItemStatus.ORDERED,
-                organization_id="default",
+                organization_id="supply-yard",
             )
             await po_repo.insert_items([item])
 
@@ -186,7 +186,7 @@ class TestPORepoContract:
                 status=POStatus.ORDERED,
                 created_by_id="user-1",
                 created_by_name="Test",
-                organization_id="default",
+                organization_id="supply-yard",
             )
             await po_repo.insert_po(po)
 
@@ -202,7 +202,7 @@ class TestPORepoContract:
                 pack_qty=1,
                 suggested_department="HDW",
                 status=POItemStatus.PENDING,
-                organization_id="default",
+                organization_id="supply-yard",
             )
             await po_repo.insert_items([item])
 
@@ -290,7 +290,7 @@ class TestInvoiceRepoContract:
                     "unpaid",
                     "user-1",
                     "Test",
-                    "default",
+                    "supply-yard",
                 ),
             )
             await conn.commit()
@@ -336,7 +336,7 @@ class TestMaterialRequestRepoContract:
                 status="pending",
                 job_id="JOB-TEST",
                 service_address="456 Oak",
-                organization_id="default",
+                organization_id="supply-yard",
             )
             await material_request_repo.insert(mr)
 

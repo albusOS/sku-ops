@@ -48,7 +48,7 @@ def _db_with_bcrypt_user(db, _app_client):
         await conn.execute(
             "INSERT INTO users "
             "(id, email, password, name, role, is_active, organization_id, created_at) "
-            "VALUES ('bcrypt-user-1', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', 1, 'default', NOW()) "
+            "VALUES ('bcrypt-user-1', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', 1, 'supply-yard', NOW()) "
             "ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password",
             (hashed,),
         )

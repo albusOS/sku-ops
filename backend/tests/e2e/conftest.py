@@ -45,7 +45,7 @@ def _seed_contractor(app_client: TestClient) -> str:
                 "contractor",
                 "E2E Corp",
                 "E2E Corp",
-                "default",
+                "supply-yard",
                 "2024-01-01T00:00:00+00:00",
             ),
         )
@@ -92,8 +92,11 @@ def app_client():
 
 
 @pytest.fixture(scope="session")
-def seed_dept_id(app_client):
-    """Seed the Hardware department once and expose its ID to all tests."""
+def seed_dept_id(app_client, seed_contractor_id):
+    """Seed the Hardware department once and expose its ID to all tests.
+
+    Depends on seed_contractor_id so contractor exists for withdrawal tests.
+    """
     return _seed_dept(app_client, admin_headers())
 
 

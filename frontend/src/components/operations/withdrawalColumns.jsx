@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { HardHat } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 
@@ -95,9 +94,9 @@ export function buildWithdrawalColumns(onViewJob) {
       filterable: false,
       render: (row) =>
         row.invoice_id ? (
-          <Link to="/invoices" className="inline-block" onClick={(e) => e.stopPropagation()}>
+          <span className="inline-block">
             <StatusBadge status="invoiced" />
-          </Link>
+          </span>
         ) : (
           <StatusBadge status="uninvoiced" />
         ),

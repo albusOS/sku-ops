@@ -1,23 +1,19 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { AlertTriangle, Truck, ClipboardList, ShoppingCart, Package, FileText } from "lucide-react";
+import { Truck, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
 import { ROLES, DATE_PRESETS } from "@/lib/constants";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
 import { StatCard } from "@/components/StatCard";
-import { StockHistoryModal } from "@/components/StockHistoryModal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
-import { RecentTransactions } from "@/components/RecentTransactions";
 import { ActionTile } from "@/components/ActionTile";
 import { useDashboardStats } from "@/hooks/useDashboard";
 import { dateToISO, endOfDayISO } from "@/lib/utils";
 import { Panel, SectionHead } from "@/components/Panel";
-import { keys } from "@/hooks/queryKeys";
 
 const POSummaryStrip = ({ summary = {} }) => {
   const statuses = [
@@ -64,11 +60,9 @@ const POSummaryStrip = ({ summary = {} }) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
 
   const defaultRange = DATE_PRESETS[1].getValue();
   const [dateRange, setDateRange] = useState(defaultRange);
-  const [stockHistoryProduct, setStockHistoryProduct] = useState(null);
 
   const statsParams = useMemo(() => {
     const p = {};
@@ -78,21 +72,6 @@ const Dashboard = () => {
   }, [dateRange]);
 
   const { data: stats, isLoading, isError, error, refetch } = useDashboardStats(statsParams);
-
-  // Derive pending-request count from the materialRequests cache so it stays
-  // in sync with the real-time invalidations on keys.materialRequests.all.
-  const pendingRequests = useMemo(() => {
-    const cached = queryClient.getQueriesData({
-      queryKey: keys.materialRequests.all,
-    });
-    for (const [, data] of cached) {
-      if (Array.isArray(data)) {
-        const pending = data.filter((r) => r.status === "pending");
-        if (pending.length > 0 || data.length > 0) return pending.length;
-      }
-    }
-    return stats?.pending_requests_count ?? 0;
-  }, [queryClient, stats]);
 
   const isContractor = user?.role === ROLES.CONTRACTOR;
 
@@ -202,80 +181,16 @@ const Dashboard = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <ActionTile
-            to="/operations"
-            icon={ClipboardList}
-            title="Review requests"
-            description="Process contractor requests waiting for issue."
-          />
-          <ActionTile
-            to="/operations"
+            to="/pos"
             icon={ShoppingCart}
-            title="Issue materials"
-            description="Create a new material issue for a contractor."
+            title="Point of Sale"
+            description="Process requests, issue materials, and track invoices."
           />
           <ActionTile
-            to="/import"
+            to="/purchasing"
             icon={Truck}
-            title="Receive delivery"
-            description="Review inbound documents and receive stock into inventory."
-          />
-          <ActionTile
-            to="/purchase-orders"
-            icon={Package}
-            title="Open purchase orders"
-            description="Track vendor deliveries and what's still on order."
-          />
-        </div>
-      </div>
-
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-foreground">Work queues</h2>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="Pending Requests"
-            value={pendingRequests ?? 0}
-            icon={ClipboardList}
-            accent="blue"
-            note={pendingRequests > 0 ? "awaiting processing" : "all clear"}
-            href="/operations"
-          />
-          <StatCard
-            label="Awaiting Delivery"
-            value={orderedPOCount}
-            icon={Truck}
-            accent={orderedPOCount > 0 ? "violet" : "slate"}
-            note={
-              orderedPOCount > 0
-                ? `${valueFormatter(stats?.po_summary?.ordered?.total || 0)} on order`
-                : "no inbound orders"
-            }
-            href="/purchase-orders"
-          />
-          <StatCard
-            label="At Dock"
-            value={partialPOCount}
-            icon={Package}
-            accent={partialPOCount > 0 ? "orange" : "slate"}
-            note={partialPOCount > 0 ? "ready to receive into stock" : "nothing at dock"}
-            href="/purchase-orders"
-          />
-          <StatCard
-            label="Uninvoiced"
-            value={stats?.unpaid_balance != null ? valueFormatter(stats.unpaid_balance) : "—"}
-            icon={FileText}
-            accent={stats?.unpaid_balance > 0 ? "amber" : "slate"}
-            note={stats?.unpaid_balance > 0 ? "needs invoice" : "all invoiced"}
-            href="/operations"
-          />
-          <StatCard
-            label="Low Stock Alerts"
-            value={stats?.low_stock_count || 0}
-            icon={AlertTriangle}
-            accent={stats?.low_stock_count > 0 ? "amber" : "slate"}
-            note={`${stats?.total_products || 0} SKUs · ${stats?.inventory_units || 0} units on hand`}
-            href="/inventory?low_stock=1"
+            title="Purchasing"
+            description="Import documents, track deliveries, and receive inventory."
           />
         </div>
       </div>
@@ -287,7 +202,7 @@ const Dashboard = () => {
               title="Inbound delivery status"
               action={
                 <Link
-                  to="/purchase-orders"
+                  to="/purchasing"
                   className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                 >
                   All POs <Truck className="w-3 h-3" />
@@ -343,22 +258,6 @@ const Dashboard = () => {
           </Panel>
         )}
       </div>
-
-      <RecentTransactions
-        dateRange={dateRange}
-        onProductStockHistory={setStockHistoryProduct}
-        title="Recent material activity"
-        viewAllHref="/reports?tab=operations"
-        viewAllLabel="Operations view"
-      />
-
-      {!isContractor && (
-        <StockHistoryModal
-          product={stockHistoryProduct}
-          open={!!stockHistoryProduct}
-          onOpenChange={(open) => !open && setStockHistoryProduct(null)}
-        />
-      )}
     </div>
   );
 };

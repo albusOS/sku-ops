@@ -5,7 +5,7 @@ import api from "@/lib/api-client";
  * Shared hook for matching extracted / PO items to existing inventory products.
  *
  * Returns per-item state: { matched, options, searching, query }
- * Used by ReceiptImport and ReceiveReviewModal.
+ * Used by ReviewFlow and ImportFlow in the purchasing module.
  */
 export function useProductMatch() {
   const [matches, setMatches] = useState({});

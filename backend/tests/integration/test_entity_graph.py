@@ -24,7 +24,7 @@ class TestEntityGraph:
             # Seed a vendor + sku + vendor_item link
             await conn.execute(
                 "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) "
-                "VALUES ('v-graph-1', 'Graph Vendor', 'Contact', 'v@test.com', '555', 'default', NOW()) "
+                "VALUES ('v-graph-1', 'Graph Vendor', 'Contact', 'v@test.com', '555', 'supply-yard', NOW()) "
                 "ON CONFLICT DO NOTHING"
             )
             await conn.commit()
@@ -43,7 +43,7 @@ class TestEntityGraph:
             )
             await conn.execute(
                 "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) "
-                "VALUES ('vi-graph-1', 'v-graph-1', $1, 'VND-BOLT', 1.40, 1, 1, 'default', NOW(), NOW()) "
+                "VALUES ('vi-graph-1', 'v-graph-1', $1, 'VND-BOLT', 1.40, 1, 1, 'supply-yard', NOW(), NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (sku.id,),
             )
@@ -79,7 +79,7 @@ class TestEntityGraph:
             # Seed vendor + sku + link
             await conn.execute(
                 "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) "
-                "VALUES ('v-graph-2', 'Reverse Vendor', 'C', 'rv@test.com', '555', 'default', NOW()) "
+                "VALUES ('v-graph-2', 'Reverse Vendor', 'C', 'rv@test.com', '555', 'supply-yard', NOW()) "
                 "ON CONFLICT DO NOTHING"
             )
             await conn.commit()
@@ -98,7 +98,7 @@ class TestEntityGraph:
             )
             await conn.execute(
                 "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) "
-                "VALUES ('vi-graph-2', 'v-graph-2', $1, 'VND-NUT', 0.45, 1, 1, 'default', NOW(), NOW()) "
+                "VALUES ('vi-graph-2', 'v-graph-2', $1, 'VND-NUT', 0.45, 1, 1, 'supply-yard', NOW(), NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (sku.id,),
             )
@@ -164,7 +164,7 @@ class TestEntityGraph:
             conn = get_connection()
             await conn.execute(
                 "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) "
-                "VALUES ('v-graph-fmt', 'Format Vendor', 'C', 'fmt@test.com', '555', 'default', NOW()) "
+                "VALUES ('v-graph-fmt', 'Format Vendor', 'C', 'fmt@test.com', '555', 'supply-yard', NOW()) "
                 "ON CONFLICT DO NOTHING"
             )
             await conn.commit()
@@ -183,7 +183,7 @@ class TestEntityGraph:
             )
             await conn.execute(
                 "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) "
-                "VALUES ('vi-graph-fmt', 'v-graph-fmt', $1, 'VND-FMT', 0.90, 1, 1, 'default', NOW(), NOW()) "
+                "VALUES ('vi-graph-fmt', 'v-graph-fmt', $1, 'VND-FMT', 0.90, 1, 1, 'supply-yard', NOW(), NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (sku.id,),
             )

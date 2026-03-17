@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
     orgs = await list_all()
-    return [o.id for o in orgs] if orgs else ["default"]
+    from shared.kernel.constants import DEFAULT_ORG_ID
+
+    return [o.id for o in orgs] if orgs else [DEFAULT_ORG_ID]
 
 
 async def xero_sync_loop() -> None:

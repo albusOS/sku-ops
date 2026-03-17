@@ -111,7 +111,7 @@ const Vendors = () => {
         action={
           <div className="flex gap-2">
             <Button
-              onClick={() => navigate("/import")}
+              onClick={() => navigate("/purchasing")}
               variant="outline"
               className="h-12 px-6"
               data-testid="import-document-btn"

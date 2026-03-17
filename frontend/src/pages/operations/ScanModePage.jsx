@@ -101,7 +101,7 @@ const ScanModePage = () => {
         service_address: serviceAddress.trim(),
       });
       toast.success("Withdrawal logged!", {
-        action: { label: "View in Operations", onClick: () => navigate("/operations") },
+        action: { label: "View transactions", onClick: () => navigate("/pos") },
       });
       clearCart();
       setLastScanned(null);

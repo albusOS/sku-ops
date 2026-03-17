@@ -1,10 +1,10 @@
-export { default as POS } from "./POS";
+export { default as PointOfSale } from "./PointOfSale";
+export { default as DirectIssue } from "./POS";
 export { default as RequestMaterials } from "./RequestMaterials";
 export { default as ScanModePage } from "./ScanModePage";
 export { default as Contractors } from "./Contractors";
 export { default as Departments } from "./Departments";
 export { default as Vendors } from "./Vendors";
-export { default as PurchaseOrders } from "./PurchaseOrders";
+export { default as Purchasing } from "./Purchasing";
 export { default as MyHistory } from "./MyHistory";
-export { default as ReceiptImport } from "./ReceiptImport";
 export { default as Jobs } from "./Jobs";

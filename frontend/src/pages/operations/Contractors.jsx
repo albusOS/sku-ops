@@ -12,15 +12,18 @@ import {
   Phone,
   Building2,
   DollarSign,
+  CreditCard,
   ToggleLeft,
   ToggleRight,
   Search,
+  User,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EntityFormDialog } from "@/components/EntityFormDialog";
+import { BillingEntityDetailPanel } from "@/pages/identity/_BillingEntityDetailPanel";
 import { ROLES } from "@/lib/constants";
 import { getErrorMessage } from "@/lib/api-client";
 import {
@@ -29,6 +32,7 @@ import {
   useUpdateContractor,
   useDeleteContractor,
 } from "@/hooks/useContractors";
+import { useBillingEntities, useCreateBillingEntity } from "@/hooks/useBillingEntities";
 
 const createSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -88,6 +92,8 @@ const DEFAULTS = {
 const Contractors = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingContractor, setEditingContractor] = useState(null);
+  const [billingDetailId, setBillingDetailId] = useState(null);
+  const [createBillingEntityOpen, setCreateBillingEntityOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({
     open: false,
     contractor: null,
@@ -95,9 +101,11 @@ const Contractors = () => {
   const [search, setSearch] = useState("");
 
   const { data: contractors = [], isLoading, isError, error, refetch } = useContractors(search);
+  const { data: billingEntities = [] } = useBillingEntities();
   const createMutation = useCreateContractor();
   const updateMutation = useUpdateContractor();
   const deleteMutation = useDeleteContractor();
+  const createBillingEntity = useCreateBillingEntity();
 
   const openDialog = (contractor = null) => {
     setEditingContractor(contractor);
@@ -107,6 +115,10 @@ const Contractors = () => {
   const visibleFields = useMemo(
     () => (editingContractor ? FIELDS.filter((f) => f.name !== "password") : FIELDS),
     [editingContractor],
+  );
+  const activeBillingEntityCount = useMemo(
+    () => billingEntities.filter((entity) => entity.is_active !== false).length,
+    [billingEntities],
   );
 
   const handleSubmit = async (data, isEditing) => {
@@ -123,6 +135,17 @@ const Contractors = () => {
         toast.success("Contractor created!");
       }
       setDialogOpen(false);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+
+  const handleCreateBillingEntity = async (data) => {
+    try {
+      const entity = await createBillingEntity.mutateAsync(data);
+      toast.success(`Billing entity "${data.name}" created`);
+      setCreateBillingEntityOpen(false);
+      setBillingDetailId(entity.id);
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -158,7 +181,7 @@ const Contractors = () => {
     <div className="p-8" data-testid="contractors-page">
       <PageHeader
         title="Contractors"
-        subtitle={`${contractors.length} contractor${contractors.length !== 1 ? "s" : ""}`}
+        subtitle={`${contractors.length} contractor${contractors.length !== 1 ? "s" : ""} · ${billingEntities.length} billing entit${billingEntities.length !== 1 ? "ies" : "y"}`}
         action={
           <Button
             onClick={() => openDialog()}
@@ -289,6 +312,82 @@ const Contractors = () => {
         </div>
       )}
 
+      <div className="mt-10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Billing entities</h2>
+            <p className="text-sm text-muted-foreground">
+              {billingEntities.length} entit{billingEntities.length !== 1 ? "ies" : "y"} ·{" "}
+              {activeBillingEntityCount} active
+            </p>
+          </div>
+          <Button
+            onClick={() => setCreateBillingEntityOpen(true)}
+            variant="outline"
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Entity
+          </Button>
+        </div>
+
+        {billingEntities.length === 0 ? (
+          <div className="card-workshop p-8 text-center">
+            <Building2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground/60" />
+            <p className="text-muted-foreground font-medium">No billing entities yet</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              Add billing entities here to assign contractor billing accounts.
+            </p>
+            <Button
+              onClick={() => setCreateBillingEntityOpen(true)}
+              variant="outline"
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Create First Entity
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {billingEntities.map((entity) => (
+              <button
+                key={entity.id}
+                type="button"
+                onClick={() => setBillingDetailId(entity.id)}
+                className={`text-left bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md hover:border-border transition-all ${entity.is_active === false ? "opacity-60" : ""}`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-info" />
+                  </div>
+                </div>
+                <h3 className="font-semibold text-foreground mb-2">{entity.name}</h3>
+                <div className="space-y-1.5 text-sm text-muted-foreground">
+                  {entity.contact_name && (
+                    <div className="flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span>{entity.contact_name}</span>
+                    </div>
+                  )}
+                  {entity.contact_email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="truncate">{entity.contact_email}</span>
+                    </div>
+                  )}
+                  {entity.payment_terms && (
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="capitalize">{entity.payment_terms.replace(/_/g, " ")}</span>
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <EntityFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -300,6 +399,38 @@ const Contractors = () => {
         onSubmit={handleSubmit}
         saving={createMutation.isPending || updateMutation.isPending}
         testIdPrefix="contractor"
+        presentation="sheet"
+      />
+
+      <BillingEntityDetailPanel
+        entityId={billingDetailId}
+        open={!!billingDetailId}
+        onOpenChange={(open) => !open && setBillingDetailId(null)}
+      />
+
+      <EntityFormDialog
+        open={createBillingEntityOpen}
+        onOpenChange={setCreateBillingEntityOpen}
+        title="Billing Entity"
+        schema={z.object({
+          name: z.string().min(1, "Name is required"),
+          contact_name: z.string().optional().default(""),
+          contact_email: z.string().email("Invalid email").or(z.literal("")).optional().default(""),
+        })}
+        fields={[
+          { name: "name", label: "Name *", placeholder: "e.g. Acme Construction LLC" },
+          { name: "contact_name", label: "Contact Name", placeholder: "Optional" },
+          {
+            name: "contact_email",
+            label: "Contact Email",
+            type: "email",
+            placeholder: "Optional",
+          },
+        ]}
+        defaults={{ name: "", contact_name: "", contact_email: "" }}
+        onSubmit={handleCreateBillingEntity}
+        saving={createBillingEntity.isPending}
+        testIdPrefix="billing-entity"
       />
 
       <ConfirmDialog

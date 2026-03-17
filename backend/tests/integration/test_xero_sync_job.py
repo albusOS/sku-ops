@@ -68,7 +68,7 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
             processed_by_id="user-1",
             processed_by_name="Test",
             created_at="2025-01-01T00:00:00Z",
-            organization_id="default",
+            organization_id="supply-yard",
         )
     )
     return wid
@@ -87,7 +87,7 @@ async def _run_sync_with_stub():
     from finance.domain.xero_settings import XeroSettings
 
     stub_settings = XeroSettings(
-        organization_id="default",
+        organization_id="supply-yard",
         xero_access_token=_STUB_XERO_TOKEN,
         xero_tenant_id="stub-tenant",
     )
@@ -142,7 +142,7 @@ class TestSyncJobIdempotency:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default",
+            organization_id="supply-yard",
             xero_access_token=_STUB_XERO_TOKEN,
             xero_tenant_id="stub-tenant",
         )
@@ -233,7 +233,7 @@ class TestSyncStatusGating:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         stub_gateway = StubXeroAdapter()
         call_count = 0
@@ -403,7 +403,7 @@ class TestReconciliationMismatch:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         stub_gateway = StubXeroAdapter()
 
@@ -472,7 +472,7 @@ class TestReconciliationMismatch:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
 
         # First sync
@@ -551,7 +551,7 @@ class TestCreditNoteSync:
                     xero_sync_status, organization_id, created_at, updated_at)
                    VALUES ($1, $2, NULL, NULL, 'On Point LLC',
                            'applied', 30.0, 0.0, 30.0, NULL, NULL,
-                           'pending', 'default', $3, $4)""",
+                           'pending', 'supply-yard', $3, $4)""",
                 (cn_id, cn_number, now, now),
             )
             await conn.execute(
@@ -586,7 +586,7 @@ class TestCreditNoteSync:
                     xero_sync_status, organization_id, created_at, updated_at)
                    VALUES ($1, 'CN-DRAFT', NULL, NULL, 'On Point LLC',
                            'draft', 30.0, 0.0, 30.0, NULL, NULL,
-                           'pending', 'default', $2, $3)""",
+                           'pending', 'supply-yard', $2, $3)""",
                 (cn_id, now, now),
             )
             await conn.commit()
@@ -615,7 +615,7 @@ class TestPOQueuing:
                 status=POStatus.RECEIVED,
                 created_by_id="user-1",
                 created_by_name="Test",
-                organization_id="default",
+                organization_id="supply-yard",
             )
             await po_repo.insert_po(po)
 
@@ -631,7 +631,7 @@ class TestPOQueuing:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         stub_gateway = StubXeroAdapter()
 
@@ -662,7 +662,7 @@ class TestPOQueuing:
                     status=POStatus.RECEIVED,
                     created_by_id="user-1",
                     created_by_name="Test",
-                    organization_id="default",
+                    organization_id="supply-yard",
                 )
                 await po_repo.insert_po(po)
 
@@ -678,7 +678,7 @@ class TestPOQueuing:
                     pack_qty=1,
                     suggested_department="HDW",
                     status=POItemStatus.ARRIVED,
-                    organization_id="default",
+                    organization_id="supply-yard",
                 )
                 await po_repo.insert_items([item])
                 await queue_po_for_sync(po.id)
@@ -698,7 +698,7 @@ class TestPOQueuing:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         stub_gateway = StubXeroAdapter()
 
@@ -729,7 +729,7 @@ class TestPOQueuing:
                     status=POStatus.RECEIVED,
                     created_by_id="user-1",
                     created_by_name="Test",
-                    organization_id="default",
+                    organization_id="supply-yard",
                 )
                 await po_repo.insert_po(po)
                 item = PurchaseOrderItem(
@@ -744,7 +744,7 @@ class TestPOQueuing:
                     pack_qty=1,
                     suggested_department="HDW",
                     status=POItemStatus.ARRIVED,
-                    organization_id="default",
+                    organization_id="supply-yard",
                 )
                 await po_repo.insert_items([item])
 
@@ -786,7 +786,7 @@ class TestSyncSummaryCounts:
         )
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         with (
             patch(
@@ -902,7 +902,7 @@ class TestCogsRepost:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         stub_gateway = StubXeroAdapter()
         repost_called = []
@@ -997,7 +997,7 @@ class TestCogsRepost:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="default", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         failing_gateway = StubXeroAdapter()
         failing_gateway.repost_cogs_journal = AsyncMock(side_effect=Exception("Xero journal error"))

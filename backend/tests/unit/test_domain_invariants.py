@@ -205,7 +205,7 @@ class TestWithdrawalInvariants:
             cost_total=0,
             contractor_id="c1",
             processed_by_id="u1",
-            organization_id="default",
+            organization_id="supply-yard",
         )
 
     def test_compute_totals_with_fractional_items(self):
@@ -303,7 +303,7 @@ class TestContractorContext:
         )
         ctx = ContractorContext(id="")
         user = CurrentUser(
-            id="u1", email="a@b.com", name="A", role="admin", organization_id="default"
+            id="u1", email="a@b.com", name="A", role="admin", organization_id="supply-yard"
         )
 
         with pytest.raises(ValueError, match=r"contractor\.id"):

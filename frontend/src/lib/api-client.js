@@ -147,13 +147,6 @@ const api = {
       axios.post(`${API}/purchasing/purchase-orders/${id}/receive`, data).then((r) => r.data),
   },
 
-  // ── Payments ───────────────────────────────────────────────────────
-  payments: {
-    list: (params) => axios.get(`${API}/finance/payments`, { params }).then((r) => r.data),
-    get: (id) => axios.get(`${API}/finance/payments/${id}`).then((r) => r.data),
-    create: (data) => axios.post(`${API}/finance/payments`, data).then((r) => r.data),
-  },
-
   // ── Financials ──────────────────────────────────────────────────────
   financials: {
     summary: (params) =>

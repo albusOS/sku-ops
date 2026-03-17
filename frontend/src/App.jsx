@@ -16,21 +16,17 @@ const Inventory = lazy(() => import("./pages/inventory"));
 const CycleCountsPage = lazy(() => import("./pages/inventory/CycleCountsPage"));
 const CycleCountDetailPage = lazy(() => import("./pages/inventory/CycleCountDetailPage"));
 const Reports = lazy(() => import("./pages/Reports"));
-const POS = lazy(() => import("./pages/operations/POS"));
-const OperationsHub = lazy(() => import("./pages/operations/OperationsHub"));
+const PointOfSale = lazy(() => import("./pages/operations/PointOfSale"));
+const DirectIssue = lazy(() => import("./pages/operations/POS"));
 const RequestMaterials = lazy(() => import("./pages/operations/RequestMaterials"));
 const ScanModePage = lazy(() => import("./pages/operations/ScanModePage"));
 const Contractors = lazy(() => import("./pages/operations/Contractors"));
 const Departments = lazy(() => import("./pages/operations/Departments"));
 const Vendors = lazy(() => import("./pages/operations/Vendors"));
-const PurchaseOrders = lazy(() => import("./pages/operations/PurchaseOrders"));
+const Purchasing = lazy(() => import("./pages/operations/Purchasing"));
 const MyHistory = lazy(() => import("./pages/operations/MyHistory"));
-const ReceiptImport = lazy(() => import("./pages/operations/ReceiptImport"));
 const Jobs = lazy(() => import("./pages/operations/Jobs"));
-const Invoices = lazy(() => import("./pages/finance/Invoices"));
-const Payments = lazy(() => import("./pages/finance/Payments"));
 const XeroHealthPage = lazy(() => import("./pages/finance/XeroHealthPage"));
-const BillingEntities = lazy(() => import("./pages/identity/BillingEntities"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -85,7 +81,23 @@ function App() {
                                 path="/pos"
                                 element={
                                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <POS />
+                                    <PointOfSale />
+                                  </ProtectedRoute>
+                                }
+                              />
+                              <Route
+                                path="/pos/issue"
+                                element={
+                                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                    <DirectIssue />
+                                  </ProtectedRoute>
+                                }
+                              />
+                              <Route
+                                path="/pos/scan"
+                                element={
+                                  <ProtectedRoute allowedRoles={[ROLES.CONTRACTOR, ROLES.ADMIN]}>
+                                    <ScanModePage />
                                   </ProtectedRoute>
                                 }
                               />
@@ -105,17 +117,10 @@ function App() {
                                   </ProtectedRoute>
                                 }
                               />
-                              <Route
-                                path="/operations"
-                                element={
-                                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <OperationsHub />
-                                  </ProtectedRoute>
-                                }
-                              />
+                              <Route path="/operations" element={<Navigate to="/pos" replace />} />
                               <Route
                                 path="/pending-requests"
-                                element={<Navigate to="/operations" replace />}
+                                element={<Navigate to="/pos" replace />}
                               />
                               <Route
                                 path="/inventory"
@@ -158,20 +163,20 @@ function App() {
                                 }
                               />
                               <Route
-                                path="/import"
+                                path="/purchasing"
                                 element={
                                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <ReceiptImport />
+                                    <Purchasing />
                                   </ProtectedRoute>
                                 }
                               />
                               <Route
+                                path="/import"
+                                element={<Navigate to="/purchasing" replace />}
+                              />
+                              <Route
                                 path="/purchase-orders"
-                                element={
-                                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <PurchaseOrders />
-                                  </ProtectedRoute>
-                                }
+                                element={<Navigate to="/purchasing" replace />}
                               />
                               <Route
                                 path="/reports"
@@ -197,33 +202,12 @@ function App() {
                                   </ProtectedRoute>
                                 }
                               />
-                              <Route
-                                path="/financials"
-                                element={<Navigate to="/operations" replace />}
-                              />
-                              <Route
-                                path="/invoices"
-                                element={
-                                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <Invoices />
-                                  </ProtectedRoute>
-                                }
-                              />
-                              <Route
-                                path="/payments"
-                                element={
-                                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <Payments />
-                                  </ProtectedRoute>
-                                }
-                              />
+                              <Route path="/financials" element={<Navigate to="/pos" replace />} />
+                              <Route path="/invoices" element={<Navigate to="/pos" replace />} />
+                              <Route path="/payments" element={<Navigate to="/pos" replace />} />
                               <Route
                                 path="/billing-entities"
-                                element={
-                                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
-                                    <BillingEntities />
-                                  </ProtectedRoute>
-                                }
+                                element={<Navigate to="/contractors" replace />}
                               />
                               <Route
                                 path="/xero-health"

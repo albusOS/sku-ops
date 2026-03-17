@@ -171,7 +171,7 @@ export default function ChatAssistant() {
   const suggestions = AGENT_SUGGESTIONS[agentType] || AGENT_SUGGESTIONS.auto;
 
   return (
-    <div className="contents">
+    <>
       {/* FAB trigger */}
       <button
         onClick={() => setOpen(true)}
@@ -181,180 +181,219 @@ export default function ChatAssistant() {
         <Sparkles className="w-5 h-5" />
       </button>
 
-      {/* Panel content - width controlled by ResizablePanel in Layout */}
-      <div className="flex flex-col h-full min-w-0 bg-surface border-l border-border/80 shadow-soft">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 bg-surface shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-accent/15 border border-accent/30 rounded-lg flex items-center justify-center">
-              <Bot className="w-4 h-4 text-accent" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground text-sm leading-none">Assistant</h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {connected ? (
-                  <Wifi className="w-2.5 h-2.5 text-success" />
-                ) : (
-                  <WifiOff className="w-2.5 h-2.5 text-muted-foreground" />
-                )}
-                <span className="text-[9px] text-muted-foreground">
-                  {connected ? "Connected" : "Offline"}
-                </span>
-                {sessionCost > 0 && (
-                  <span className="text-[9px] text-muted-foreground ml-1">
-                    · ${sessionCost.toFixed(4)}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-0.5">
-            {messages.length > 0 && (
-              <button
-                type="button"
-                onClick={startNewChat}
-                title="New chat"
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setOpen(false)}
-              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      <div
+        className={`fixed inset-0 z-50 transition-all duration-200 ${
+          open ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+        aria-hidden={!open}
+      >
+        <div
+          className={`absolute inset-0 bg-background/55 backdrop-blur-sm transition-opacity duration-200 ${
+            open ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={() => setOpen(false)}
+        />
 
-        {/* Agent activity bar */}
-        {streaming && <AgentActivity tools={activeTools} agentType={agentType} />}
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {aiAvailable === false && (
-            <div className="rounded-lg bg-warning/10 border border-warning/30 p-3">
-              <p className="font-medium text-xs text-foreground mb-1">
-                AI assistant not configured
-              </p>
-              <p className="text-[11px] text-muted-foreground mb-2">
-                Add{" "}
-                <code className="px-1 bg-muted rounded font-mono text-[10px]">
-                  ANTHROPIC_API_KEY
-                </code>{" "}
-                or{" "}
-                <code className="px-1 bg-muted rounded font-mono text-[10px]">
-                  OPENROUTER_API_KEY
-                </code>{" "}
-                to <code className="px-1 bg-muted rounded font-mono text-[10px]">backend/.env</code>
-              </p>
-              {setupUrl && (
-                <a
-                  href={setupUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-accent underline hover:text-foreground"
-                >
-                  Get an API key
-                </a>
-              )}
-            </div>
-          )}
-
-          {messages.length === 0 && aiAvailable !== false && (
-            <div className="flex flex-col py-10 gap-5">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-center mx-auto mb-3">
-                  <Sparkles className="w-6 h-6 text-accent" />
-                </div>
-                <p className="text-sm font-medium text-foreground mb-1">What can I help with?</p>
-                <p className="text-xs text-muted-foreground">{AGENT_PLACEHOLDER[agentType]}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s.label}
-                    onClick={() => sendMessage(s.prompt)}
-                    disabled={streaming || aiAvailable === false}
-                    className="text-xs text-left px-3 py-2.5 rounded-xl border border-border/50 bg-surface hover:bg-accent/5 hover:border-accent/30 text-muted-foreground hover:text-foreground transition-all leading-snug disabled:opacity-50"
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              {m.role === "user" ? (
-                <div className="max-w-[85%] bg-accent text-accent-foreground rounded-2xl rounded-tr-sm px-3.5 py-2 text-[13px] leading-relaxed">
-                  {m.content}
-                </div>
-              ) : (
-                <AgentBubble
-                  msg={m}
-                  thinkingOpen={openThinking.has(i)}
-                  onToggleThinking={() => toggleThinking(i)}
-                />
-              )}
-            </div>
-          ))}
-
-          {streaming && (
-            <div className="flex justify-start">
-              <StreamingBubble text={streamText} tools={activeTools} />
-            </div>
-          )}
-
-          <div ref={scrollRef} />
-        </div>
-
-        {/* Input */}
-        <div className="px-4 py-3 border-t border-border/60 bg-surface shrink-0">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendMessage(input);
-            }}
-            className="flex gap-2"
+        <div className="absolute inset-0 flex items-center justify-center p-4 md:p-8">
+          <div
+            className={`relative flex h-[min(88vh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background shadow-2xl transition-all duration-200 ${
+              open ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
+            }`}
           >
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                aiAvailable === false ? "Configure API key to enable" : AGENT_PLACEHOLDER[agentType]
-              }
-              rows={1}
-              className="flex-1 px-3 py-2.5 bg-background border border-border/60 rounded-xl text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/50 disabled:opacity-50 transition-colors resize-none min-h-[40px] max-h-[120px]"
-              disabled={aiAvailable === false}
-              style={{ fieldSizing: "content" }}
-            />
-            {streaming ? (
-              <button
-                type="button"
-                onClick={wsCancel}
-                className="px-3 py-2.5 bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-xl transition-colors self-end"
-                title="Stop generating"
-              >
-                <Square className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!input.trim() || aiAvailable === false}
-                className="px-3 py-2.5 bg-accent hover:bg-accent/90 disabled:opacity-30 disabled:cursor-not-allowed text-accent-foreground rounded-xl transition-colors self-end"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            )}
-          </form>
-          <p className="text-[9px] text-muted-foreground/50 mt-1.5 text-center">⌘+Enter to send</p>
+            <div className="border-b border-border/60 bg-gradient-to-b from-accent/5 to-background px-6 py-5 shrink-0">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10">
+                    <Bot className="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-foreground leading-none">
+                      Assistant
+                    </h2>
+                    <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        {connected ? (
+                          <Wifi className="w-3 h-3 text-success" />
+                        ) : (
+                          <WifiOff className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        {connected ? "Connected" : "Offline"}
+                      </span>
+                      {sessionCost > 0 && <span>Session ${sessionCost.toFixed(4)}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {messages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={startNewChat}
+                      title="New chat"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-background px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      New chat
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl border border-border/60 bg-background p-2 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                    aria-label="Close assistant"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {streaming && <AgentActivity tools={activeTools} agentType={agentType} />}
+
+            <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
+              <div className="mx-auto flex h-full w-full max-w-3xl flex-col space-y-4">
+                {aiAvailable === false && (
+                  <div className="rounded-2xl bg-warning/10 border border-warning/30 p-4">
+                    <p className="font-medium text-sm text-foreground mb-1.5">
+                      AI assistant not configured
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Add{" "}
+                      <code className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                        ANTHROPIC_API_KEY
+                      </code>{" "}
+                      or{" "}
+                      <code className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                        OPENROUTER_API_KEY
+                      </code>{" "}
+                      to{" "}
+                      <code className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                        backend/.env
+                      </code>
+                    </p>
+                    {setupUrl && (
+                      <a
+                        href={setupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-accent underline hover:text-foreground"
+                      >
+                        Get an API key
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {messages.length === 0 && aiAvailable !== false ? (
+                  <div className="flex flex-1 flex-col items-center justify-center py-10">
+                    <div className="w-full max-w-2xl text-center">
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-accent/20 bg-accent/10">
+                        <Sparkles className="w-8 h-8 text-accent" />
+                      </div>
+                      <p className="text-2xl font-semibold text-foreground mb-2">
+                        What can I help with?
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-8">
+                        {AGENT_PLACEHOLDER[agentType]}
+                      </p>
+                      <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
+                        {suggestions.map((s) => (
+                          <button
+                            key={s.label}
+                            onClick={() => sendMessage(s.prompt)}
+                            disabled={streaming || aiAvailable === false}
+                            className="rounded-2xl border border-border/60 bg-card px-4 py-4 text-sm text-muted-foreground shadow-sm transition-all hover:border-accent/30 hover:bg-accent/5 hover:text-foreground disabled:opacity-50"
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {messages.map((m, i) => (
+                      <div
+                        key={i}
+                        className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                      >
+                        {m.role === "user" ? (
+                          <div className="max-w-[85%] rounded-3xl rounded-br-md bg-accent px-4 py-3 text-sm leading-relaxed text-accent-foreground shadow-sm">
+                            {m.content}
+                          </div>
+                        ) : (
+                          <AgentBubble
+                            msg={m}
+                            thinkingOpen={openThinking.has(i)}
+                            onToggleThinking={() => toggleThinking(i)}
+                          />
+                        )}
+                      </div>
+                    ))}
+
+                    {streaming && (
+                      <div className="flex justify-start">
+                        <StreamingBubble text={streamText} tools={activeTools} />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div ref={scrollRef} />
+              </div>
+            </div>
+
+            <div className="border-t border-border/60 bg-card/70 px-6 py-5 backdrop-blur-sm shrink-0 md:px-8">
+              <div className="mx-auto w-full max-w-3xl">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    sendMessage(input);
+                  }}
+                  className="rounded-3xl border border-border/70 bg-background p-3 shadow-sm"
+                >
+                  <div className="flex items-end gap-3">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        aiAvailable === false
+                          ? "Configure API key to enable"
+                          : AGENT_PLACEHOLDER[agentType]
+                      }
+                      rows={1}
+                      className="min-h-[52px] max-h-[180px] flex-1 resize-none bg-transparent px-2 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50"
+                      disabled={aiAvailable === false}
+                      style={{ fieldSizing: "content" }}
+                    />
+                    {streaming ? (
+                      <button
+                        type="button"
+                        onClick={wsCancel}
+                        className="rounded-2xl bg-destructive/90 px-4 py-3 text-destructive-foreground transition-colors hover:bg-destructive"
+                        title="Stop generating"
+                      >
+                        <Square className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={!input.trim() || aiAvailable === false}
+                        className="rounded-2xl bg-accent px-4 py-3 text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </form>
+                <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
+                  ⌘+Enter to send
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

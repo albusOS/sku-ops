@@ -15,11 +15,6 @@ export const keys = {
     list: (params) => ["withdrawals", "list", params],
     detail: (id) => ["withdrawals", "detail", id],
   },
-  payments: {
-    all: ["payments"],
-    list: (params) => ["payments", "list", params],
-    detail: (id) => ["payments", "detail", id],
-  },
   purchaseOrders: {
     all: ["purchaseOrders"],
     list: (params) => ["purchaseOrders", "list", params],

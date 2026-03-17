@@ -88,7 +88,7 @@ class TestWithdrawalPipeline:
         )
 
         resp = client.post(
-            "/api/beta/operations/withdrawals",
+            "/api/beta/operations/withdrawals/for-contractor?contractor_id=contractor-1",
             json={
                 "items": [
                     {

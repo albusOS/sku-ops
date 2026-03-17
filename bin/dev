@@ -64,10 +64,15 @@ case "${1:-help}" in
     echo "Starting frontend dev server..."
     npm run dev --prefix frontend
     ;;
-  seed)
+  provision)
     _ensure_pg
-    echo "Running seed script..."
-    PYTHONPATH=backend:. uv run python -m devtools.scripts.seed_realistic "${@:2}"
+    echo "Provisioning org + departments..."
+    PYTHONPATH=backend:. uv run python -m devtools.scripts.provision "${@:2}"
+    ;;
+  import)
+    _ensure_pg
+    echo "Importing Hike data..."
+    PYTHONPATH=backend:. uv run python -m devtools.scripts.import_hike "${@:2}"
     ;;
   eval)
     echo "Running evals..."
@@ -110,7 +115,8 @@ case "${1:-help}" in
     echo "  ./bin/dev commit           - Commitizen commit"
     echo "  ./bin/dev server           - Start backend dev server"
     echo "  ./bin/dev ui               - Start frontend dev server"
-    echo "  ./bin/dev seed [args]      - Run seed_realistic"
+    echo "  ./bin/dev provision [--dev] - Provision org + departments (+ dev user)"
+    echo "  ./bin/dev import [flags]   - Import Hike data (--vendors, --products)"
     echo "  ./bin/dev eval [args]      - Run LLM evals"
     echo "  ./bin/dev create-admin     - Create/update admin user in DB"
     echo "  ./bin/dev verify [args]    - Pre-deploy verification (pass --url to also hit a live server)"

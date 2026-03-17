@@ -44,16 +44,14 @@ const AGENT_META = {
 };
 
 function agentTypeFromPath(pathname) {
+  if (["/inventory", "/vendors", "/departments", "/purchasing"].some((p) => pathname.startsWith(p)))
+    return "inventory";
   if (
-    ["/inventory", "/vendors", "/departments", "/import", "/purchase-orders"].some((p) =>
+    ["/pos", "/pending-requests", "/contractors", "/billing-entities"].some((p) =>
       pathname.startsWith(p),
     )
   )
-    return "inventory";
-  if (["/pos", "/pending-requests", "/contractors"].some((p) => pathname.startsWith(p)))
     return "ops";
-  if (["/invoices", "/payments", "/billing-entities"].some((p) => pathname.startsWith(p)))
-    return "finance";
   return "auto";
 }
 
@@ -67,7 +65,7 @@ const AGENT_SUGGESTIONS = {
     {
       label: "Weekly summary",
       prompt:
-        "Write a weekly summary covering sales, top products, outstanding payments, and any low stock alerts",
+        "Write a weekly summary covering sales, top products, outstanding invoices, and any low stock alerts",
     },
     {
       label: "What needs attention?",

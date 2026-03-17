@@ -197,7 +197,7 @@ const IssueMaterials = () => {
       }
 
       toast.success("Withdrawal logged — charged to account.", {
-        action: { label: "View in Operations", onClick: () => navigate("/operations") },
+        action: { label: "View transactions", onClick: () => navigate("/pos") },
       });
       clearCart();
       setJobId("");

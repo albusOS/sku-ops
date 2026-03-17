@@ -35,6 +35,7 @@ export function PendingRequestsSection({
   const sorted = [...(requests || [])].sort(
     (a, b) => new Date(a.created_at) - new Date(b.created_at),
   );
+  const oldestRequest = sorted[0];
 
   const openProcess = (req) => {
     setSelectedRequest(req);
@@ -71,20 +72,45 @@ export function PendingRequestsSection({
 
   return (
     <>
+      <div className="flex flex-col gap-3 mb-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Pending requests</h3>
+          <p className="text-sm text-muted-foreground">
+            Submitted contractor requests waiting to be turned into withdrawals.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:min-w-[240px]">
+          <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Queue
+            </p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{sorted.length}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Oldest
+            </p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
+              {oldestRequest ? ageLabel(oldestRequest.created_at) : "None"}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {isLoading ? (
-        <div className="bg-card border border-border rounded-xl p-12 text-center">
+        <div className="bg-card border border-border rounded-xl p-12 text-center min-h-[280px] flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Loading requests…</p>
         </div>
       ) : sorted.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl p-16 text-center shadow-sm">
+        <div className="bg-card border border-border rounded-xl p-16 text-center shadow-sm min-h-[280px] flex flex-col items-center justify-center">
           <Package className="w-12 h-12 mx-auto text-muted-foreground/60 mb-3" />
           <p className="font-medium text-muted-foreground">No pending requests</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Requests appear here when contractors submit them
+            Requests will appear here when contractors submit them.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {sorted.map((req) => {
             const hours = ageHours(req.created_at);
             const border =
@@ -101,7 +127,10 @@ export function PendingRequestsSection({
                   : "text-muted-foreground";
             const itemCount = (req.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
             return (
-              <div key={req.id} className={`bg-card border rounded-xl p-5 shadow-sm ${border}`}>
+              <div
+                key={req.id}
+                className={`bg-card border rounded-xl p-5 shadow-sm h-full ${border}`}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
@@ -111,7 +140,9 @@ export function PendingRequestsSection({
                       <p className="font-semibold text-foreground text-sm">
                         {req.contractor_name || "Unknown"}
                       </p>
-                      <p className="text-xs text-muted-foreground">{itemCount} items</p>
+                      <p className="text-xs text-muted-foreground">
+                        {itemCount} item{itemCount !== 1 ? "s" : ""}
+                      </p>
                     </div>
                   </div>
                   <Button
@@ -123,7 +154,7 @@ export function PendingRequestsSection({
                   </Button>
                 </div>
                 {req.items?.length > 0 && (
-                  <div className="border-t border-border/50 pt-2 mb-2">
+                  <div className="border-t border-border/50 pt-3 mb-3">
                     <ul className="space-y-0.5 text-xs text-muted-foreground">
                       {req.items.map((i, idx) => (
                         <li key={idx} className="flex justify-between">

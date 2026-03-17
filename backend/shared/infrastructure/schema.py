@@ -287,5 +287,5 @@ VIEWS: list[str] = [
 ]
 
 SEED: list[str] = [
-    "INSERT INTO organizations (id, name, slug, created_at) VALUES ('default', 'Default', 'default', '2024-01-01T00:00:00+00:00') ON CONFLICT DO NOTHING",
+    "INSERT INTO organizations (id, name, slug, created_at) VALUES ('supply-yard', 'Supply Yard', 'supply-yard', '2024-01-01T00:00:00+00:00') ON CONFLICT DO NOTHING",
 ]

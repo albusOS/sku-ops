@@ -63,24 +63,24 @@ async def _truncate_and_seed():
     )
     await conn.commit()
 
-    org_id_var.set("default")
+    org_id_var.set("supply-yard")
     user_id_var.set("user-1")
 
     await conn.execute(
         """INSERT INTO organizations (id, name, slug, created_at)
-           VALUES ('default', 'Default', 'default', NOW())
+           VALUES ('supply-yard', 'Default', 'supply-yard', NOW())
            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug"""
     )
     await conn.execute(
         """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
-           VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'default', NOW())
+           VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'supply-yard', NOW())
            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code,
            description = EXCLUDED.description, sku_count = EXCLUDED.sku_count,
            organization_id = EXCLUDED.organization_id"""
     )
     await conn.execute(
         """INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)
-           VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', 1, 'default', NOW())
+           VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', 1, 'supply-yard', NOW())
            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
            name = EXCLUDED.name, role = EXCLUDED.role, is_active = EXCLUDED.is_active,
            organization_id = EXCLUDED.organization_id"""
@@ -89,7 +89,7 @@ async def _truncate_and_seed():
         """INSERT INTO users (id, email, password, name, role, company, billing_entity,
            is_active, organization_id, created_at)
            VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User',
-           'contractor', 'ACME', 'ACME Inc', 1, 'default', NOW())
+           'contractor', 'ACME', 'ACME Inc', 1, 'supply-yard', NOW())
            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
            name = EXCLUDED.name, role = EXCLUDED.role, company = EXCLUDED.company,
            billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,

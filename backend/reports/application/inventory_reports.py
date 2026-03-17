@@ -9,12 +9,19 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import TypedDict
 
 from catalog.application.queries import list_low_stock, list_skus
 from finance.application import ledger_queries as ledger_repo
 from inventory.application.queries import daily_withdrawal_activity, withdrawal_velocity
 from shared.kernel.types import round_money
+
+
+def _to_decimal(value: object) -> Decimal:
+    if value is None:
+        return Decimal(0)
+    return Decimal(str(value))
 
 
 class DepartmentInventory(TypedDict):
@@ -116,13 +123,18 @@ async def product_performance_report(
     for m in margin_data:
         pid = m["product_id"]
         p = product_map.get(pid)
-        current_stock = p.quantity if p else 0
-        units_sold = units_sold_map.get(pid, 0)
-        avg_cost = m["cost"] / units_sold if units_sold > 0 else 0
+        current_stock = _to_decimal(p.quantity if p else 0)
+        units_sold = _to_decimal(units_sold_map.get(pid, 0))
+        revenue = _to_decimal(m["revenue"])
+        cost = _to_decimal(m["cost"])
+        profit = _to_decimal(m["profit"])
+        margin_pct = _to_decimal(m["margin_pct"])
+        catalog_unit_cost = _to_decimal(p.cost if p else 0)
+        avg_cost = cost / units_sold if units_sold > 0 else Decimal(0)
         sell_through = (
-            (units_sold / (units_sold + current_stock) * 100)
+            (units_sold / (units_sold + current_stock) * Decimal(100))
             if (units_sold + current_stock) > 0
-            else 0
+            else Decimal(0)
         )
         result.append(
             {
@@ -130,15 +142,15 @@ async def product_performance_report(
                 "name": p.name if p else "Unknown",
                 "sku": p.sku if p else "",
                 "department": p.category_name if p else "",
-                "current_stock": current_stock,
-                "catalog_unit_cost": round(p.cost if p else 0, 2),
-                "units_sold": units_sold,
-                "avg_cost_per_unit": round(avg_cost, 2),
-                "revenue": m["revenue"],
-                "cogs": m["cost"],
-                "gross_profit": m["profit"],
-                "margin_pct": m["margin_pct"],
-                "sell_through_pct": round(sell_through, 1),
+                "current_stock": float(current_stock),
+                "catalog_unit_cost": round(float(catalog_unit_cost), 2),
+                "units_sold": float(units_sold),
+                "avg_cost_per_unit": round(float(avg_cost), 2),
+                "revenue": round_money(float(revenue)),
+                "cogs": round_money(float(cost)),
+                "gross_profit": round_money(float(profit)),
+                "margin_pct": float(margin_pct),
+                "sell_through_pct": round(float(sell_through), 1),
             }
         )
 

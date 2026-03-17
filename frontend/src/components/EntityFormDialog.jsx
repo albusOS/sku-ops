@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -33,6 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
  *   onSubmit: (data: object, isEditing: boolean) => Promise<void>,
  *   saving?: boolean,
  *   testIdPrefix?: string,
+ *   presentation?: "dialog" | "sheet",
  * }} props
  */
 export function EntityFormDialog({
@@ -47,6 +49,7 @@ export function EntityFormDialog({
   onSubmit,
   saving = false,
   testIdPrefix = "entity",
+  presentation = "dialog",
 }) {
   const isEditing = !!entity;
 
@@ -76,77 +79,118 @@ export function EntityFormDialog({
     await onSubmit(data, isEditing);
   });
 
+  const titleText = isEditing ? `Edit ${title}` : `Add New ${title}`;
+
+  const fieldsMarkup = fields.map((field) => {
+    const error = form.formState.errors[field.name];
+    const isDisabled =
+      typeof field.disabled === "function" ? field.disabled(isEditing) : field.disabled;
+
+    return (
+      <div key={field.name}>
+        <Label className="text-foreground font-semibold uppercase text-sm tracking-wide">
+          {field.label}
+        </Label>
+        {field.type === "textarea" ? (
+          <Textarea
+            {...form.register(field.name)}
+            placeholder={field.placeholder}
+            disabled={isDisabled}
+            className={`input-workshop mt-2 ${field.className || ""}`}
+            data-testid={`${testIdPrefix}-${field.name}-input`}
+          />
+        ) : field.type === "select" ? (
+          <Select
+            value={form.watch(field.name) || ""}
+            onValueChange={(v) => form.setValue(field.name, v)}
+            disabled={isDisabled}
+          >
+            <SelectTrigger className="mt-2" data-testid={`${testIdPrefix}-${field.name}-input`}>
+              <SelectValue placeholder={field.placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options || []).map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            type={field.type || "text"}
+            {...form.register(field.name, {
+              onChange: field.transform
+                ? (e) => {
+                    e.target.value = field.transform(e.target.value);
+                  }
+                : undefined,
+            })}
+            placeholder={field.placeholder}
+            disabled={isDisabled}
+            maxLength={field.maxLength}
+            className={`input-workshop mt-2 ${field.className || ""}`}
+            data-testid={`${testIdPrefix}-${field.name}-input`}
+          />
+        )}
+        {field.note && isEditing && (
+          <p className="text-xs text-muted-foreground mt-1">{field.note}</p>
+        )}
+        {error && <p className="text-xs text-destructive mt-1">{error.message}</p>}
+      </div>
+    );
+  });
+
+  if (presentation === "sheet") {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-lg p-0 flex flex-col"
+          data-testid={`${testIdPrefix}-dialog`}
+        >
+          <form onSubmit={handleSubmit} className="flex h-full flex-col">
+            <div className="px-6 py-4 border-b border-border bg-card shrink-0">
+              <SheetTitle className="font-heading font-bold text-xl uppercase tracking-wider">
+                {titleText}
+              </SheetTitle>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">{fieldsMarkup}</div>
+            <div className="px-6 py-4 border-t border-border bg-muted/80 shrink-0 flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1 btn-secondary h-12"
+                data-testid={`${testIdPrefix}-cancel-btn`}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="flex-1 btn-primary h-12"
+                data-testid={`${testIdPrefix}-save-btn`}
+              >
+                {saving ? "Saving..." : isEditing ? "Update" : "Create"}
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" data-testid={`${testIdPrefix}-dialog`}>
         <DialogHeader>
           <DialogTitle className="font-heading font-bold text-xl uppercase tracking-wider">
-            {isEditing ? `Edit ${title}` : `Add New ${title}`}
+            {titleText}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          {fields.map((field) => {
-            const error = form.formState.errors[field.name];
-            const isDisabled =
-              typeof field.disabled === "function" ? field.disabled(isEditing) : field.disabled;
-
-            return (
-              <div key={field.name}>
-                <Label className="text-foreground font-semibold uppercase text-sm tracking-wide">
-                  {field.label}
-                </Label>
-                {field.type === "textarea" ? (
-                  <Textarea
-                    {...form.register(field.name)}
-                    placeholder={field.placeholder}
-                    disabled={isDisabled}
-                    className={`input-workshop mt-2 ${field.className || ""}`}
-                    data-testid={`${testIdPrefix}-${field.name}-input`}
-                  />
-                ) : field.type === "select" ? (
-                  <Select
-                    value={form.watch(field.name) || ""}
-                    onValueChange={(v) => form.setValue(field.name, v)}
-                    disabled={isDisabled}
-                  >
-                    <SelectTrigger
-                      className="mt-2"
-                      data-testid={`${testIdPrefix}-${field.name}-input`}
-                    >
-                      <SelectValue placeholder={field.placeholder} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(field.options || []).map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    type={field.type || "text"}
-                    {...form.register(field.name, {
-                      onChange: field.transform
-                        ? (e) => {
-                            e.target.value = field.transform(e.target.value);
-                          }
-                        : undefined,
-                    })}
-                    placeholder={field.placeholder}
-                    disabled={isDisabled}
-                    maxLength={field.maxLength}
-                    className={`input-workshop mt-2 ${field.className || ""}`}
-                    data-testid={`${testIdPrefix}-${field.name}-input`}
-                  />
-                )}
-                {field.note && isEditing && (
-                  <p className="text-xs text-muted-foreground mt-1">{field.note}</p>
-                )}
-                {error && <p className="text-xs text-destructive mt-1">{error.message}</p>}
-              </div>
-            );
-          })}
+          {fieldsMarkup}
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
