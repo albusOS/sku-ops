@@ -1,21 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
 import { X, Send, Plus, Sparkles, Square, Wifi, WifiOff, Bot } from "lucide-react";
 import api from "@/lib/api-client";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { useChatPanel } from "@/context/ChatContext";
 import {
   STORAGE_KEY,
-  agentTypeFromPath,
+  CHAT_MODES,
   AGENT_SUGGESTIONS,
   AGENT_PLACEHOLDER,
+  agentTypeForMode,
 } from "./chat/chatConfig";
 import { AgentActivity } from "./chat/AgentActivity";
 import { AgentBubble, StreamingBubble } from "./chat/MessageBubbles";
 
 export default function ChatAssistant() {
-  const location = useLocation();
-  const agentType = agentTypeFromPath(location.pathname);
   const { open, setOpen, pendingPromptRef } = useChatPanel();
 
   const [messages, setMessages] = useState(() => {
@@ -32,6 +30,14 @@ export default function ChatAssistant() {
       return null;
     }
   });
+  const [chatMode, setChatMode] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.chatMode ?? "general";
+    } catch {
+      return "general";
+    }
+  });
+  const agentType = agentTypeForMode(chatMode);
   const [input, setInput] = useState("");
   const [aiAvailable, setAiAvailable] = useState(null);
   const [setupUrl, setSetupUrl] = useState(null);
@@ -39,7 +45,6 @@ export default function ChatAssistant() {
   const [sessionCost, setSessionCost] = useState(0);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
-  const prevAgentType = useRef(agentType);
   const sessionIdRef = useRef(sessionId);
 
   useEffect(() => {
@@ -83,15 +88,18 @@ export default function ChatAssistant() {
     if (sid) api.chat.deleteSession(sid).catch(() => {});
   };
 
-  useEffect(() => {
-    if (prevAgentType.current !== agentType) {
+  const switchMode = useCallback(
+    (newMode) => {
+      if (newMode === chatMode) return;
+      if (streaming) wsCancel();
       clearSession(sessionId);
       setMessages([]);
       setSessionId(null);
       setSessionCost(0);
-      prevAgentType.current = agentType;
-    }
-  }, [agentType, sessionId]);
+      setChatMode(newMode);
+    },
+    [chatMode, streaming, wsCancel, sessionId],
+  );
 
   const startNewChat = () => {
     if (streaming) wsCancel();
@@ -107,11 +115,11 @@ export default function ChatAssistant() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId, chatMode }));
     } catch {
       /* sessionStorage may be full or disabled */
     }
-  }, [messages, sessionId]);
+  }, [messages, sessionId, chatMode]);
 
   useEffect(() => {
     if (open && aiAvailable === null) {
@@ -177,7 +185,7 @@ export default function ChatAssistant() {
     }
   };
 
-  const suggestions = AGENT_SUGGESTIONS[agentType] || AGENT_SUGGESTIONS.auto;
+  const suggestions = AGENT_SUGGESTIONS[chatMode] || AGENT_SUGGESTIONS.general;
 
   return (
     <>
@@ -255,6 +263,24 @@ export default function ChatAssistant() {
               </div>
             </div>
 
+            <div className="flex items-center gap-1 border-b border-border/60 bg-muted/30 px-4 py-2 shrink-0 overflow-x-auto">
+              {CHAT_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => switchMode(mode.id)}
+                  disabled={streaming}
+                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                    chatMode === mode.id
+                      ? "bg-accent text-accent-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+
             {streaming && <AgentActivity tools={activeTools} agentType={agentType} />}
 
             <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
@@ -301,7 +327,7 @@ export default function ChatAssistant() {
                         What can I help with?
                       </p>
                       <p className="text-sm text-muted-foreground mb-8">
-                        {AGENT_PLACEHOLDER[agentType]}
+                        {AGENT_PLACEHOLDER[chatMode]}
                       </p>
                       <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
                         {suggestions.map((s) => (
@@ -368,7 +394,7 @@ export default function ChatAssistant() {
                       placeholder={
                         aiAvailable === false
                           ? "Configure API key to enable"
-                          : AGENT_PLACEHOLDER[agentType]
+                          : AGENT_PLACEHOLDER[chatMode]
                       }
                       rows={1}
                       className="min-h-[52px] max-h-[180px] flex-1 resize-none bg-transparent px-2 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50"

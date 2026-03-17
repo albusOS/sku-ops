@@ -1,21 +1,26 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { NotFoundException } from "@zxing/library";
+import { DecodeHintType, BarcodeFormat, NotFoundException } from "@zxing/library";
 
-const DEBOUNCE_MS = 500;
+const DEBOUNCE_MS = 600;
+
+const hints = new Map();
+hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.QR_CODE,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.CODE_128,
+]);
+hints.set(DecodeHintType.TRY_HARDER, true);
 
 /**
- * Manages camera lifecycle for barcode/QR scanning via @zxing/browser.
+ * Manages camera lifecycle for barcode + QR scanning via @zxing/browser.
  *
- * Supports UPC-A, EAN-13, CODE-128, QR and more via BrowserMultiFormatReader.
- * Works on iOS Safari, Chrome Android, and desktop browsers.
+ * Supports both vendor barcodes (UPC-A, EAN-13, CODE-128) and QR codes
+ * from printed labels. Requests 1280×720 for reliable iPad decoding.
  *
- * Does NOT perform product lookup — it only decodes barcodes and
- * calls onScan(code). Wire onScan to useBarcodeScanner.submit(code)
- * in the parent to keep lookup logic in one place.
- *
- * @param {object} options
- * @param {(code: string) => void} options.onScan - decoded barcode string
+ * Does NOT perform product lookup — it only decodes and calls onScan(code).
+ * Wire onScan to useBarcodeScanner.submit(code) in the parent.
  */
 export function useCameraScanner({ onScan } = {}) {
   const readerRef = useRef(null);
@@ -55,11 +60,17 @@ export function useCameraScanner({ onScan } = {}) {
     }
 
     try {
-      const reader = new BrowserMultiFormatReader();
+      const reader = new BrowserMultiFormatReader(hints);
       readerRef.current = reader;
 
       const controls = await reader.decodeFromConstraints(
-        { video: { facingMode: "environment" } },
+        {
+          video: {
+            facingMode: "environment",
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 },
+          },
+        },
         videoRef.current,
         (result, err) => {
           if (result) {
@@ -70,7 +81,7 @@ export function useCameraScanner({ onScan } = {}) {
             lastTimeRef.current = now;
             onScanRef.current?.(code);
           } else if (err && !(err instanceof NotFoundException)) {
-            // NotFoundException is thrown every frame when no barcode is found — expected, not an error
+            // NotFoundException is thrown every frame when no code is visible — expected
           }
         },
       );

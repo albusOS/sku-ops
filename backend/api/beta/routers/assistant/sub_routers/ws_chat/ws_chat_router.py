@@ -57,7 +57,6 @@ from assistant.agents.unified.agent import _get_agent
 from assistant.application import session_store
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
-from assistant.application.query_router import route_query
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
@@ -78,6 +77,13 @@ logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
+
+
+def _enrich_specialist_message(user_message: str, context_block: str) -> str:
+    """Prepend assembled context to the user message for specialist agents."""
+    if not context_block:
+        return user_message
+    return f"<context>\n{context_block}\n</context>\n\n{user_message}"
 
 
 async def _get_query_embedding(query: str):
@@ -301,8 +307,7 @@ async def _handle_chat(
 
     is_first_turn = not history
 
-    # Run independent pre-processing concurrently:
-    # compress history, assemble context (entity graph + memory), and route query
+    # Run independent pre-processing concurrently
     compress_task = asyncio.create_task(compress_history_async(history))
     context_task = asyncio.create_task(
         assemble_context(
@@ -312,12 +317,15 @@ async def _handle_chat(
             query_embedding=query_embedding,
         )
     )
-    route_task = asyncio.create_task(
-        route_query(user_message, history, query_embedding=query_embedding)
-    )
+
+    # Route is determined by the user's explicit mode selection from the frontend.
+    # No embedding-based routing — the frontend sends the agent_type directly.
+    requested_agent = (msg.get("agent_type") or "").strip().lower()
+    specialist_agents = frozenset({"procurement", "trend", "health", "analyst"})
+    route = requested_agent if requested_agent in specialist_agents else "unified"
 
     history = await compress_task or history
-    assembled, route = await asyncio.gather(context_task, route_task)
+    assembled = await context_task
 
     context_block = assembled.format_for_agent()
     if context_block:
@@ -326,19 +334,20 @@ async def _handle_chat(
     deps = AgentDeps(user_id=user_id, user_name=user_name)
     msg_history = build_message_history(history)
 
-    logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
+    logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
 
-    if route in ("procurement", "trend", "health", "analyst"):
+    if route in specialist_agents:
         await _send(ws, {"type": "chat.status", "status": "thinking"})
+        enriched = _enrich_specialist_message(user_message, context_block)
         try:
             if route == "procurement":
-                spec_result = await _procurement_agent_mod.run(user_message, deps=deps)
+                spec_result = await _procurement_agent_mod.run(enriched, deps=deps)
             elif route == "trend":
-                spec_result = await _trend_agent_mod.run(user_message, deps=deps)
+                spec_result = await _trend_agent_mod.run(enriched, deps=deps)
             elif route == "analyst":
-                spec_result = await _analyst_agent_mod.run(user_message, deps=deps)
+                spec_result = await _analyst_agent_mod.run(enriched, deps=deps)
             else:
-                spec_result = await _health_agent_mod.run(user_message, deps=deps)
+                spec_result = await _health_agent_mod.run(enriched, deps=deps)
         except Exception as exc:
             error_type, detail = _classify_chat_error(exc)
             logger.exception("Specialist %s failed for user=%s", route, user_id)

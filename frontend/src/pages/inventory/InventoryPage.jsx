@@ -263,13 +263,18 @@ const InventoryPage = () => {
               <Button
                 variant="outline"
                 onClick={() => {
-                  setLabelsProducts(processedProducts);
+                  const source =
+                    selectedIds.size > 0
+                      ? processedProducts.filter((p) => selectedIds.has(p.id))
+                      : processedProducts;
+                  setLabelsProducts(source);
                   setLabelsModalOpen(true);
                 }}
                 className="h-12 px-6"
               >
                 <Printer className="w-5 h-5 mr-2" />
                 Print Labels
+                {selectedIds.size > 0 && ` (${selectedIds.size})`}
               </Button>
               <Button
                 onClick={() => openDialog()}

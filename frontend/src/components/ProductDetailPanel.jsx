@@ -278,7 +278,7 @@ export function ProductDetailPanel({
 
             <TabsContent value="labels" className="mt-3 space-y-4">
               <p className="text-xs text-muted-foreground">
-                Print barcode labels (2×1&quot; format).
+                Print QR code labels (scannable by camera).
               </p>
               {hasBarcode ? (
                 <div className="flex flex-col gap-3">

@@ -1,4 +1,4 @@
-const STORAGE_KEY = "sku-ops:chat:v4";
+const STORAGE_KEY = "sku-ops:chat:v5";
 
 const AGENT_META = {
   inventory: {
@@ -41,22 +41,27 @@ const AGENT_META = {
     label: "Health",
     cls: "bg-success/10 text-success border border-success/30",
   },
+  analyst: {
+    label: "Analysis",
+    cls: "bg-category-1/10 text-category-1 border border-category-1/30",
+  },
 };
 
-function agentTypeFromPath(pathname) {
-  if (["/purchasing", "/vendors"].some((p) => pathname.startsWith(p))) return "procurement";
-  if (["/inventory", "/departments"].some((p) => pathname.startsWith(p))) return "inventory";
-  if (
-    ["/pos", "/pending-requests", "/contractors", "/billing-entities"].some((p) =>
-      pathname.startsWith(p),
-    )
-  )
-    return "ops";
-  return "auto";
+const CHAT_MODES = [
+  { id: "general", label: "General" },
+  { id: "procurement", label: "Procurement" },
+  { id: "trend", label: "Trends" },
+  { id: "health", label: "Health Check" },
+  { id: "analyst", label: "Deep Analysis" },
+];
+
+function agentTypeForMode(mode) {
+  if (mode === "general") return "general";
+  return mode;
 }
 
 const AGENT_SUGGESTIONS = {
-  auto: [
+  general: [
     {
       label: "Store overview",
       prompt:
@@ -75,25 +80,6 @@ const AGENT_SUGGESTIONS = {
     {
       label: "Stockout forecast",
       prompt: "Which items are at risk of stocking out in the next 2 weeks?",
-    },
-  ],
-  inventory: [
-    {
-      label: "Low stock alerts",
-      prompt: "List all products running low that need to be reordered soon",
-    },
-    {
-      label: "Inventory health",
-      prompt:
-        "Do a full inventory analysis — stock health by category, slow movers, and reorder suggestions",
-    },
-    {
-      label: "Reorder priority",
-      prompt: "What should we reorder urgently? Rank by days until stockout",
-    },
-    {
-      label: "Slow movers",
-      prompt: "Which products have stock on hand but haven't moved in 30 days?",
     },
   ],
   procurement: [
@@ -118,53 +104,75 @@ const AGENT_SUGGESTIONS = {
         "Show recent purchase orders — what did we order, from which vendors, and at what cost?",
     },
   ],
-  ops: [
+  trend: [
     {
-      label: "Recent activity",
-      prompt: "Show me all sales from the last 7 days",
+      label: "Revenue trend",
+      prompt: "How has revenue trended over the last 4 weeks? Any anomalies?",
     },
     {
-      label: "Pending requests",
-      prompt: "List all pending material requests awaiting approval",
+      label: "Period comparison",
+      prompt: "Compare this month to last month — revenue, margins, and top products",
     },
     {
-      label: "Contractor summary",
-      prompt:
-        "Give me a summary of contractor activity this week — who's been active and any unpaid jobs",
+      label: "Growth rate",
+      prompt: "What's our growth rate? Are sales trending up or down?",
     },
     {
-      label: "Unpaid jobs",
-      prompt: "Which jobs have outstanding unpaid balances?",
+      label: "Seasonal patterns",
+      prompt: "Are there any seasonal patterns in our sales data?",
     },
   ],
-  finance: [
+  health: [
     {
-      label: "Finance overview",
-      prompt:
-        "Give me a finance overview: P&L summary, outstanding invoices, and who owes us the most",
+      label: "Full health check",
+      prompt: "Run a full business health check — inventory, finance, and operations",
     },
     {
-      label: "Outstanding balances",
-      prompt: "Who has outstanding unpaid balances and how much do they owe?",
+      label: "Quarterly review",
+      prompt: "Give me a quarterly business review with key metrics and recommendations",
     },
     {
-      label: "This month's P&L",
-      prompt: "Show me the profit and loss for the last 30 days including gross margin",
+      label: "What needs attention?",
+      prompt: "What areas of the business need the most attention right now?",
     },
     {
-      label: "Weekly sales report",
-      prompt:
-        "Write a weekly sales report covering revenue, top-selling products, and outstanding balances",
+      label: "Store assessment",
+      prompt: "Complete store assessment with actionable recommendations",
+    },
+  ],
+  analyst: [
+    {
+      label: "Margin analysis",
+      prompt: "Compare product margins across different job types and departments",
+    },
+    {
+      label: "Spending patterns",
+      prompt: "What patterns exist in contractor spending across departments?",
+    },
+    {
+      label: "Payment correlations",
+      prompt: "Analyze the correlation between order size and payment delays",
+    },
+    {
+      label: "Custom query",
+      prompt: "Dig into vendor pricing trends and find cost optimization opportunities",
     },
   ],
 };
 
 const AGENT_PLACEHOLDER = {
-  auto: "Ask about inventory, finance, or operations…",
-  inventory: "Ask about products, stock levels, reorders…",
+  general: "Ask about inventory, finance, or operations…",
   procurement: "Ask about vendors, reorder plans, purchasing…",
-  ops: "Ask about sales, contractors, orders…",
-  finance: "Ask about invoices, revenue, P&L, balances…",
+  trend: "Ask about trends, growth, period comparisons…",
+  health: "Ask for a business health assessment…",
+  analyst: "Ask for deep analysis or custom data queries…",
 };
 
-export { STORAGE_KEY, AGENT_META, AGENT_SUGGESTIONS, AGENT_PLACEHOLDER, agentTypeFromPath };
+export {
+  STORAGE_KEY,
+  AGENT_META,
+  CHAT_MODES,
+  AGENT_SUGGESTIONS,
+  AGENT_PLACEHOLDER,
+  agentTypeForMode,
+};
