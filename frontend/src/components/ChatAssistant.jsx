@@ -126,15 +126,6 @@ export default function ChatAssistant() {
     if (open) setTimeout(() => inputRef.current?.focus(), 150);
   }, [open, aiAvailable]);
 
-  useEffect(() => {
-    if (!open || streaming) return;
-    const prompt = pendingPromptRef.current;
-    if (!prompt) return;
-    pendingPromptRef.current = null;
-    const timer = setTimeout(() => sendMessage(prompt), 200);
-    return () => clearTimeout(timer);
-  }, [open, streaming, pendingPromptRef, sendMessage]);
-
   const sendMessage = useCallback(
     async (text) => {
       text = (text || input).trim();
@@ -161,6 +152,15 @@ export default function ChatAssistant() {
     },
     [input, streaming, connected, wsSend, agentType, handleDone, handleError],
   );
+
+  useEffect(() => {
+    if (!open || streaming) return;
+    const prompt = pendingPromptRef.current;
+    if (!prompt) return;
+    pendingPromptRef.current = null;
+    const timer = setTimeout(() => sendMessage(prompt), 200);
+    return () => clearTimeout(timer);
+  }, [open, streaming, pendingPromptRef, sendMessage]);
 
   const toggleThinking = (idx) => {
     setOpenThinking((prev) => {
