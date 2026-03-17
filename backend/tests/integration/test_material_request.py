@@ -15,7 +15,7 @@ def _create_product(
 ) -> dict[str, Any]:
     """Create a product via API and return the response JSON."""
     resp = client.post(
-        "/api/catalog/skus",
+        "/api/beta/catalog/skus",
         json={
             "name": name,
             "price": price,
@@ -52,7 +52,9 @@ def _create_material_request(
         "items": [_item_from_product(product)],
         **kwargs,
     }
-    return client.post("/api/material-requests", json=payload, headers=contractor_auth)
+    return client.post(
+        "/api/beta/operations/material-requests", json=payload, headers=contractor_auth
+    )
 
 
 # ── Round-trip / persistence ────────────────────────────────────────────────
@@ -71,7 +73,9 @@ def test_material_request_round_trip(client, auth, contractor_auth):
     assert resp.status_code == 200
     created = cast("dict[str, Any]", resp.json())
 
-    get_resp = client.get(f"/api/material-requests/{created['id']}", headers=contractor_auth)
+    get_resp = client.get(
+        f"/api/beta/operations/material-requests/{created['id']}", headers=contractor_auth
+    )
     assert get_resp.status_code == 200
     fetched = cast("dict[str, Any]", get_resp.json())
 
@@ -95,7 +99,9 @@ def test_material_request_fallback_fields_preserved(client, auth, contractor_aut
     assert resp.status_code == 200
     created = cast("dict[str, Any]", resp.json())
 
-    get_resp = client.get(f"/api/material-requests/{created['id']}", headers=contractor_auth)
+    get_resp = client.get(
+        f"/api/beta/operations/material-requests/{created['id']}", headers=contractor_auth
+    )
     assert get_resp.status_code == 200
     fetched = cast("dict[str, Any]", get_resp.json())
 
@@ -131,7 +137,7 @@ def test_create_material_request_rejects_non_contractor(client, auth):
     """Admin/staff cannot create material requests — only contractors."""
     product = _create_product(client, auth)
     resp = client.post(
-        "/api/material-requests",
+        "/api/beta/operations/material-requests",
         json={"items": [_item_from_product(product)]},
         headers=auth,
     )
@@ -141,7 +147,7 @@ def test_create_material_request_rejects_non_contractor(client, auth):
 def test_create_material_request_rejects_empty_items(client, contractor_auth):
     """Request with no items is rejected."""
     resp = client.post(
-        "/api/material-requests",
+        "/api/beta/operations/material-requests",
         json={"items": []},
         headers=contractor_auth,
     )
@@ -159,7 +165,7 @@ def test_list_material_requests_contractor_sees_own(client, auth, contractor_aut
         client, contractor_auth, product, job_id="J-LIST", service_address="1 Elm"
     )
 
-    resp = client.get("/api/material-requests", headers=contractor_auth)
+    resp = client.get("/api/beta/operations/material-requests", headers=contractor_auth)
     assert resp.status_code == 200
     results = cast("list[dict[str, Any]]", resp.json())
 
@@ -174,7 +180,7 @@ def test_list_material_requests_admin_sees_pending(client, auth, contractor_auth
         client, contractor_auth, product, job_id="J-LIST2", service_address="2 Elm"
     )
 
-    resp = client.get("/api/material-requests", headers=auth)
+    resp = client.get("/api/beta/operations/material-requests", headers=auth)
     assert resp.status_code == 200
     results = cast("list[dict[str, Any]]", resp.json())
 
@@ -200,7 +206,7 @@ def test_process_rejects_already_processed(client, auth, contractor_auth):
 
     # Process the first time — should succeed
     first = client.post(
-        f"/api/material-requests/{req_id}/process",
+        f"/api/beta/operations/material-requests/{req_id}/process",
         json={"job_id": "J-1", "service_address": "1 Elm"},
         headers=auth,
     )
@@ -208,7 +214,7 @@ def test_process_rejects_already_processed(client, auth, contractor_auth):
 
     # Process again — should fail
     second = client.post(
-        f"/api/material-requests/{req_id}/process",
+        f"/api/beta/operations/material-requests/{req_id}/process",
         json={"job_id": "J-1", "service_address": "1 Elm"},
         headers=auth,
     )
@@ -230,7 +236,7 @@ def test_process_rejects_missing_job_id(client, auth, contractor_auth):
     req_id = cast("dict[str, Any]", create_resp.json())["id"]
 
     resp = client.post(
-        f"/api/material-requests/{req_id}/process",
+        f"/api/beta/operations/material-requests/{req_id}/process",
         json={"service_address": "1 Oak"},
         headers=auth,
     )
@@ -252,7 +258,7 @@ def test_process_rejects_missing_service_address(client, auth, contractor_auth):
     req_id = cast("dict[str, Any]", create_resp.json())["id"]
 
     resp = client.post(
-        f"/api/material-requests/{req_id}/process",
+        f"/api/beta/operations/material-requests/{req_id}/process",
         json={"job_id": "J-1"},
         headers=auth,
     )
@@ -263,7 +269,7 @@ def test_process_rejects_missing_service_address(client, auth, contractor_auth):
 def test_process_not_found(client, auth):
     """Processing a non-existent request returns 404."""
     resp = client.post(
-        "/api/material-requests/nonexistent-id/process",
+        "/api/beta/operations/material-requests/nonexistent-id/process",
         json={"job_id": "J-1", "service_address": "1 Elm"},
         headers=auth,
     )
@@ -285,7 +291,7 @@ def test_process_success_creates_withdrawal_and_updates_status(client, auth, con
 
     # Process the request
     process_resp = client.post(
-        f"/api/material-requests/{req_id}/process",
+        f"/api/beta/operations/material-requests/{req_id}/process",
         json={"job_id": "J-SUCCESS", "service_address": "100 Success Rd"},
         headers=auth,
     )
@@ -295,7 +301,7 @@ def test_process_success_creates_withdrawal_and_updates_status(client, auth, con
     assert withdrawal["contractor_id"] == "contractor-1"
 
     # Verify the request is now marked as processed
-    get_resp = client.get(f"/api/material-requests/{req_id}", headers=auth)
+    get_resp = client.get(f"/api/beta/operations/material-requests/{req_id}", headers=auth)
     assert get_resp.status_code == 200
     updated = cast("dict[str, Any]", get_resp.json())
     assert updated["status"] == "processed"
