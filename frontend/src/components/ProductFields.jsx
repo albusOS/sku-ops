@@ -217,6 +217,11 @@ export function ProductFields({
                 ))}
               </SelectContent>
             </Select>
+            {!compact && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                How you count this item in inventory
+              </p>
+            )}
           </div>
 
           {!isHidden(h, "sell_uom") && (
@@ -243,6 +248,9 @@ export function ProductFields({
                   ))}
                 </SelectContent>
               </Select>
+              {!compact && (
+                <p className="text-xs text-muted-foreground mt-0.5">How customers buy it</p>
+              )}
             </div>
           )}
 
@@ -264,6 +272,9 @@ export function ProductFields({
                 className={inputCls}
                 readOnly={isReadOnly(ro, "pack_qty")}
               />
+              {!compact && (
+                <p className="text-xs text-muted-foreground mt-0.5">Items per sell unit</p>
+              )}
             </div>
           )}
 
@@ -304,6 +315,9 @@ export function ProductFields({
                 ))}
               </SelectContent>
             </Select>
+            {!compact && (
+              <p className="text-xs text-muted-foreground mt-0.5">How your vendor ships it</p>
+            )}
           </div>
 
           {!isHidden(h, "purchase_pack_qty") && (
@@ -324,6 +338,9 @@ export function ProductFields({
                 className={inputCls}
                 readOnly={isReadOnly(ro, "purchase_pack_qty")}
               />
+              {!compact && (
+                <p className="text-xs text-muted-foreground mt-0.5">Items per purchase unit</p>
+              )}
             </div>
           )}
         </div>

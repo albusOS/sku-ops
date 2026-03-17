@@ -222,9 +222,9 @@ function WithdrawalItem({ item, onProductStockHistory }) {
       <button
         type="button"
         onClick={() =>
-          item.product_id &&
+          item.sku_id &&
           onProductStockHistory?.({
-            id: item.product_id,
+            id: item.sku_id,
             sku: item.sku,
             name: item.name,
           })
@@ -236,7 +236,7 @@ function WithdrawalItem({ item, onProductStockHistory }) {
       </button>
       <span className="shrink-0 flex items-center gap-2">
         <span className="text-muted-foreground text-sm tabular-nums">{priceStr}</span>
-        {item.product_id && (
+        {item.sku_id && (
           <Link
             to={`/inventory?search=${encodeURIComponent(item.sku || "")}`}
             className="p-1 rounded text-muted-foreground hover:text-accent hover:bg-warning/10 transition-colors opacity-60 hover:opacity-100"

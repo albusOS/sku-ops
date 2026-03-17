@@ -25,7 +25,7 @@ def _specs(days: int) -> list[FetchSpec]:
     return [
         FetchSpec("get_revenue_summary", {"days": days}, "revenue_summary"),
         FetchSpec("get_pl_summary", {"days": days}, "pl_summary"),
-        FetchSpec("get_top_products_fin", {"days": days, "limit": 10}, "top_products_raw"),
+        FetchSpec("get_top_skus_fin", {"days": days, "limit": 10}, "top_skus_raw"),
         FetchSpec("get_outstanding_balances", {"limit": 20}, "outstanding_balances_raw"),
     ]
 
@@ -39,10 +39,10 @@ def _build_synthesis_prompt(data: dict) -> str:
     pl = data.get("pl_summary", {})
     if pl:
         parts.append("## P&L Summary\n" + json.dumps(pl, indent=2))
-    top_raw = data.get("top_products_raw", {})
-    top = top_raw.get("products", []) if isinstance(top_raw, dict) else []
+    top_raw = data.get("top_skus_raw", {})
+    top = top_raw.get("skus", []) if isinstance(top_raw, dict) else []
     if top:
-        parts.append("## Top Products\n" + json.dumps(top[:10], indent=2))
+        parts.append("## Top SKUs\n" + json.dumps(top[:10], indent=2))
     bal_raw = data.get("outstanding_balances_raw", {})
     bal = bal_raw.get("balances", []) if isinstance(bal_raw, dict) else []
     if bal:
@@ -77,15 +77,15 @@ async def run_weekly_sales_report(days: int = 30) -> WeeklySalesReportResult:
         _fallback_markdown,
     )
 
-    top_raw = data.get("top_products_raw", {})
-    top_products = top_raw.get("products", []) if isinstance(top_raw, dict) else []
+    top_raw = data.get("top_skus_raw", {})
+    top_skus = top_raw.get("skus", []) if isinstance(top_raw, dict) else []
     bal_raw = data.get("outstanding_balances_raw", {})
     outstanding_balances = bal_raw.get("balances", []) if isinstance(bal_raw, dict) else []
 
     return WeeklySalesReportResult(
         revenue_summary=data.get("revenue_summary", {}),
         pl_summary=data.get("pl_summary", {}),
-        top_products=top_products,
+        top_skus=top_skus,
         outstanding_balances=outstanding_balances,
         synthesized_markdown=markdown,
     )

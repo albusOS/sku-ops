@@ -28,7 +28,7 @@ class ContractorContext:
 class WithdrawalItem(LineItem):
     """A line item on a material withdrawal — extends the universal LineItem."""
 
-    product_id: str = ""
+    sku_id: str = ""
 
 
 class MaterialWithdrawalCreate(BaseModel):

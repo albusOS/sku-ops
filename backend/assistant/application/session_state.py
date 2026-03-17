@@ -1,7 +1,7 @@
 """Structured session state — working memory for follow-up and drill-down.
 
 Entities and last_topic are stored per session for context injection
-on the next turn (e.g. "tell me more about that product").
+on the next turn (e.g. "tell me more about that SKU").
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class EntityRef:
     """Reference to an entity recently mentioned in the conversation."""
 
-    type: str  # product, vendor, job, po
+    type: str  # sku, vendor, job, po
     id: str
     label: str  # display name
 

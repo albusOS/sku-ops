@@ -18,8 +18,8 @@ class InsufficientStockError(DomainError):
 class NegativeStockError(DomainError):
     """Raised when a stock adjustment would result in negative quantity."""
 
-    def __init__(self, product_id: str, current: float, delta: float):
-        self.product_id = product_id
+    def __init__(self, sku_id: str, current: float, delta: float):
+        self.sku_id = sku_id
         self.current = current
         self.delta = delta
         super().__init__(

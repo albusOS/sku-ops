@@ -88,14 +88,14 @@ def _db_product_sku_count(client: TestClient, product_id: str) -> int:
     return client.portal.call(_q)
 
 
-def _db_product_id_for_sku(client: TestClient, sku_id: str) -> str:
-    """Read skus.product_id directly from the database."""
+def _db_product_family_id_for_sku(client: TestClient, sku_id: str) -> str:
+    """Read skus.product_family_id directly from the database."""
 
     async def _q() -> str:
         from shared.infrastructure.database import get_connection
 
         conn = get_connection()
-        cur = await conn.execute("SELECT product_id FROM skus WHERE id = $1", (sku_id,))
+        cur = await conn.execute("SELECT product_family_id FROM skus WHERE id = $1", (sku_id,))
         row = await cur.fetchone()
         return str(row[0]) if row else ""
 
@@ -110,7 +110,7 @@ def _db_count_inventory_transactions(client: TestClient, sku_id: str, tx_type: s
 
         conn = get_connection()
         cur = await conn.execute(
-            "SELECT COUNT(*) FROM stock_transactions WHERE product_id = $1 AND transaction_type = $2",
+            "SELECT COUNT(*) FROM stock_transactions WHERE sku_id = $1 AND transaction_type = $2",
             (sku_id, tx_type),
         )
         row = await cur.fetchone()
@@ -377,7 +377,7 @@ class TestCatalogIntegrity:
         self, client: TestClient, seed_dept_id: str
     ) -> None:
         """PATCH /products/{family_id}/adopt-sku/{sku_id} must atomically:
-        - Update skus.product_id to family_id in DB
+        - Update skus.product_family_id in DB
         - Make the SKU appear in GET /products/{family_id}/skus
         - Be idempotent (re-adopting the same SKU returns 200 with no side-effects)
         """
@@ -391,7 +391,7 @@ class TestCatalogIntegrity:
             name="Orphan-Paint-Brush-2in",
             quantity=10,
         )
-        orphan_original_product_id = _db_product_id_for_sku(client, orphan["id"])
+        orphan_original_family_id = _db_product_family_id_for_sku(client, orphan["id"])
 
         # Target family
         resp = client.post(
@@ -410,11 +410,11 @@ class TestCatalogIntegrity:
         assert resp.status_code == 200, f"Adopt-sku failed: {resp.text}"
 
         # DB must reflect the new parent
-        db_product_id = _db_product_id_for_sku(client, orphan["id"])
-        assert db_product_id == family_id, (
-            f"DB product_id should be {family_id}, got {db_product_id}"
+        db_family_id = _db_product_family_id_for_sku(client, orphan["id"])
+        assert db_family_id == family_id, (
+            f"DB product_family_id should be {family_id}, got {db_family_id}"
         )
-        assert db_product_id != orphan_original_product_id, (
+        assert db_family_id != orphan_original_family_id, (
             "SKU should have moved away from its auto-created solo parent"
         )
 
@@ -432,8 +432,8 @@ class TestCatalogIntegrity:
             headers=headers,
         )
         assert resp2.status_code == 200
-        db_product_id_again = _db_product_id_for_sku(client, orphan["id"])
-        assert db_product_id_again == family_id, "Re-adopt must not corrupt the product_id"
+        db_family_id_again = _db_product_family_id_for_sku(client, orphan["id"])
+        assert db_family_id_again == family_id, "Re-adopt must not corrupt the product_family_id"
 
     # ── 5. Stock ledger coherence: receiving ─────────────────────────────────
 
@@ -550,7 +550,7 @@ class TestCatalogIntegrity:
                 json={
                     "items": [
                         {
-                            "product_id": product["id"],
+                            "sku_id": product["id"],
                             "sku": product["sku"],
                             "name": product["name"],
                             "quantity": withdraw_qty,
@@ -675,3 +675,129 @@ class TestCatalogIntegrity:
             f"HTTP variant_attrs should be dict, got {http_attrs!r}"
         )
         assert http_attrs == {}, f"HTTP variant_attrs should be {{}}, got {http_attrs}"
+
+    # ── 10. Pack conversion: sell-side decrement ──────────────────────────────
+
+    def test_pack_sell_decrement_applies_pack_qty(
+        self, client: TestClient, seed_dept_id: str, seed_contractor_id: str
+    ) -> None:
+        """Withdrawing 3 packs of a pack_qty=6 SKU (base_unit=each, sell_uom=pack)
+        must deduct 18 each from stock, not 3.
+        """
+        headers = admin_headers()
+        sku = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Pack-Sell-Widget",
+            quantity=100,
+            cost=1.0,
+            base_unit="each",
+            sell_uom="pack",
+            pack_qty=6,
+        )
+        sku_id = sku["id"]
+        qty_before = _db_qty(client, sku_id)
+
+        create_withdrawal(
+            client,
+            headers,
+            sku,
+            quantity=3,
+            contractor_id=seed_contractor_id,
+        )
+        qty_after = _db_qty(client, sku_id)
+        expected = qty_before - 18  # 3 packs × 6 each/pack
+        assert qty_after == expected, (
+            f"Stock should be {expected} (3 packs × 6 = 18 deducted from {qty_before}), got {qty_after}"
+        )
+
+    # ── 11. Full round-trip: receive in cases, sell in packs ────────────────
+
+    def test_receive_cases_sell_packs_round_trip(
+        self, client: TestClient, seed_dept_id: str, seed_contractor_id: str
+    ) -> None:
+        """Full cycle: create a SKU with base_unit=each, purchase_uom=case,
+        purchase_pack_qty=12, sell_uom=pack, pack_qty=6. Receive 5 cases via
+        PO (should add 60 each). Then withdraw 3 packs (should deduct 18 each).
+        Final stock = initial + 60 - 18.
+        """
+        from tests.e2e.helpers import create_po, receive_po
+
+        headers = admin_headers()
+        initial_qty = 10
+        sku = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="RoundTrip-Pipe-Fitting",
+            quantity=initial_qty,
+            cost=2.0,
+            base_unit="each",
+            sell_uom="pack",
+            pack_qty=6,
+            purchase_uom="case",
+            purchase_pack_qty=12,
+        )
+        sku_id = sku["id"]
+
+        # Receive 5 cases (5 × 12 = 60 each)
+        po = create_po(
+            client,
+            headers,
+            sku,
+            quantity=5,
+            purchase_uom="case",
+            purchase_pack_qty=12,
+        )
+        receive_po(client, headers, po["id"])
+        qty_after_receive = _db_qty(client, sku_id)
+        assert qty_after_receive == initial_qty + 60, (
+            f"After receiving 5 cases of 12, stock should be {initial_qty + 60}, "
+            f"got {qty_after_receive}"
+        )
+
+        # Withdraw 3 packs (3 × 6 = 18 each)
+        create_withdrawal(
+            client,
+            headers,
+            sku,
+            quantity=3,
+            contractor_id=seed_contractor_id,
+        )
+        qty_final = _db_qty(client, sku_id)
+        expected_final = initial_qty + 60 - 18
+        assert qty_final == expected_final, (
+            f"After receive 5 cases + sell 3 packs, stock should be {expected_final}, "
+            f"got {qty_final}"
+        )
+
+    # ── 12. Simple unit withdrawal still works ────────────────────────────────
+
+    def test_simple_each_withdrawal_unchanged(
+        self, client: TestClient, seed_dept_id: str, seed_contractor_id: str
+    ) -> None:
+        """Withdrawing N each of a base_unit=each, sell_uom=each, pack_qty=1 SKU
+        must deduct exactly N. Regression test for the pack conversion fix.
+        """
+        headers = admin_headers()
+        sku = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Simple-Each-Widget",
+            quantity=50,
+            cost=2.0,
+        )
+        sku_id = sku["id"]
+        qty_before = _db_qty(client, sku_id)
+
+        create_withdrawal(
+            client,
+            headers,
+            sku,
+            quantity=7,
+            contractor_id=seed_contractor_id,
+        )
+        qty_after = _db_qty(client, sku_id)
+        assert qty_after == qty_before - 7, f"Stock should be {qty_before - 7}, got {qty_after}"

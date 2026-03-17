@@ -164,8 +164,8 @@ async def _list_pending_material_requests(args: dict) -> str:
 async def _get_daily_withdrawal_activity(args: dict) -> str:
     days = min(int(args.get("days") or 30), 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    product_id = (args.get("product_id") or "").strip() or None
-    activity = await daily_withdrawal_activity(since, product_id=product_id)
+    sku_id = (args.get("sku_id") or "").strip() or None
+    activity = await daily_withdrawal_activity(since, sku_id=sku_id)
     return _dumps(
         {
             "period_days": days,

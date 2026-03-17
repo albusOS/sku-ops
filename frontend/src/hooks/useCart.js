@@ -19,7 +19,7 @@ function loadPersistedCart() {
 /**
  * Shared cart state for material-picking flows (POS, RequestMaterials, ScanMode).
  *
- * Each item shape: { product_id, sku, name, quantity, max_quantity, unit, unit_price }
+ * Each item shape: { sku_id, sku, name, quantity, max_quantity, unit, unit_price }
  * Cart is persisted to localStorage so a page refresh doesn't lose items.
  *
  * @param {object} [options]
@@ -37,20 +37,20 @@ export function useCart({ getPrice, persist = false } = {}) {
 
   function addItem(product) {
     const sellQty = product.sell_quantity ?? product.quantity;
-    const existing = items.find((i) => i.product_id === product.id);
+    const existing = items.find((i) => i.sku_id === product.id);
     if (existing) {
       if (existing.quantity >= sellQty) {
         toast.error("Not enough stock");
         return;
       }
       setItems((prev) =>
-        prev.map((i) => (i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i)),
+        prev.map((i) => (i.sku_id === product.id ? { ...i, quantity: i.quantity + 1 } : i)),
       );
     } else {
       setItems((prev) => [
         ...prev,
         {
-          product_id: product.id,
+          sku_id: product.id,
           sku: product.sku,
           name: product.name,
           quantity: 1,
@@ -66,7 +66,7 @@ export function useCart({ getPrice, persist = false } = {}) {
     setItems((prev) =>
       prev
         .map((item) => {
-          if (item.product_id !== productId) return item;
+          if (item.sku_id !== productId) return item;
           if (newQty <= 0) return null;
           if (newQty > item.max_quantity) {
             toast.error("Not enough stock");
@@ -79,7 +79,7 @@ export function useCart({ getPrice, persist = false } = {}) {
   }
 
   function removeItem(productId) {
-    setItems((prev) => prev.filter((i) => i.product_id !== productId));
+    setItems((prev) => prev.filter((i) => i.sku_id !== productId));
   }
 
   function clear() {
@@ -92,7 +92,7 @@ export function useCart({ getPrice, persist = false } = {}) {
     const productMap = new Map(products.map((p) => [p.id, p]));
     setItems((prev) =>
       prev.map((item) => {
-        const fresh = productMap.get(item.product_id);
+        const fresh = productMap.get(item.sku_id);
         if (!fresh) return item;
         const newMax = fresh.sell_quantity ?? fresh.quantity;
         return { ...item, max_quantity: newMax };

@@ -82,7 +82,7 @@ async def create_withdrawal(
     dept_map = {p.id: p.category_name for p in products}
     enriched_items = []
     for item in data.items:
-        p = product_map.get(item.product_id)
+        p = product_map.get(item.sku_id)
         base_unit = (p.base_unit if p else "each").lower()
         req_unit = (item.unit or base_unit).lower()
         sell_uom = (p.sell_uom if p else base_unit).lower()
@@ -140,17 +140,17 @@ async def create_withdrawal(
     )
     withdrawal.compute_totals(tax_rate=tax_rate)
 
-    product_ids = tuple(i.product_id for i in data.items)
+    sku_ids = tuple(i.sku_id for i in data.items)
     ledger_items = tuple(
         LedgerItem(
-            product_id=i.product_id,
+            sku_id=i.sku_id,
             quantity=i.quantity,
             unit=i.unit or "each",
             unit_price=i.unit_price,
             cost=i.cost,
             sell_uom=i.sell_uom,
             sell_cost=i.sell_cost,
-            category_name=dept_map.get(i.product_id),
+            category_name=dept_map.get(i.sku_id),
         )
         for i in data.items
     )
@@ -158,7 +158,7 @@ async def create_withdrawal(
     async with transaction():
         decrements = [
             StockDecrement(
-                product_id=i.product_id,
+                sku_id=i.sku_id,
                 sku=i.sku,
                 name=i.name,
                 quantity=i.quantity,
@@ -192,7 +192,7 @@ async def create_withdrawal(
         WithdrawalCreated(
             org_id=org_id,
             withdrawal_id=withdrawal.id,
-            product_ids=product_ids,
+            sku_ids=sku_ids,
             contractor_id=contractor.id,
             job_id=withdrawal.job_id or "",
             billing_entity=withdrawal.billing_entity or "",
@@ -205,7 +205,7 @@ async def create_withdrawal(
     await dispatch(
         InventoryChanged(
             org_id=org_id,
-            product_ids=product_ids,
+            sku_ids=sku_ids,
             change_type="withdrawal",
         )
     )

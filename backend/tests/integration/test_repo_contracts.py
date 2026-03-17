@@ -114,7 +114,7 @@ class TestStockRepoContract:
             assert len(txs) >= 1
             tx = txs[0]
 
-            assert tx.product_id is not None
+            assert tx.sku_id is not None
             assert tx.sku is not None
             assert tx.user_id is not None
             assert tx.unit is not None
@@ -234,7 +234,7 @@ class TestCreditNoteRepoContract:
                         "quantity": 2.5,
                         "unit_price": 10.0,
                         "cost": 5.0,
-                        "product_id": None,
+                        "sku_id": None,
                     },
                 ],
                 subtotal=25.0,
@@ -276,7 +276,7 @@ class TestInvoiceRepoContract:
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NULL, NULL)""",
                 (
                     "w-inv-test",
-                    '[{"product_id":"p1","sku":"S","name":"X","quantity":2.5,"unit_price":10.0,"cost":5.0,"subtotal":25.0,"cost_total":12.5,"unit":"each"}]',
+                    '[{"sku_id":"p1","sku":"S","name":"X","quantity":2.5,"unit_price":10.0,"cost":5.0,"subtotal":25.0,"cost_total":12.5,"unit":"each"}]',
                     "JOB-1",
                     "123 Main St",
                     25.0,
@@ -324,7 +324,7 @@ class TestMaterialRequestRepoContract:
                 contractor_name="Contractor User",
                 items=[
                     WithdrawalItem(
-                        product_id="p1",
+                        sku_id="p1",
                         sku="HDW-001",
                         name="Widget",
                         quantity=2.5,

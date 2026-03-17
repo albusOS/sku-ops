@@ -107,7 +107,7 @@ export function InventoryHealthCard({ dateParams, onProductClick }) {
         name: p.name,
         value: p.days_until_stockout,
         urgency: p.urgency,
-        id: p.product_id,
+        id: p.sku_id,
         ...p,
       })),
     [reorderProducts],

@@ -57,12 +57,12 @@ async def insert(withdrawal: MaterialWithdrawal) -> None:
         cost = float(item.cost)
         await conn.execute(
             """INSERT INTO withdrawal_items
-               (id, withdrawal_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
+               (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
             (
                 str(uuid4()),
                 withdrawal.id,
-                item.product_id or "",
+                item.sku_id or "",
                 item.sku or "",
                 item.name or "",
                 qty,
@@ -225,7 +225,7 @@ async def units_sold_by_product(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, float]:
-    """Sum of quantities sold per product_id from withdrawal_items."""
+    """Sum of quantities sold per sku_id from withdrawal_items."""
     conn = get_connection()
     org_id = get_org_id()
     params: list = [org_id]
@@ -240,13 +240,13 @@ async def units_sold_by_product(
         params.append(end_date)
         n += 1
     query = (
-        "SELECT wi.product_id, SUM(wi.quantity) AS total_qty"
+        "SELECT wi.sku_id, SUM(wi.quantity) AS total_qty"
         " FROM withdrawal_items wi"
         " JOIN withdrawals w ON wi.withdrawal_id = w.id"
         " WHERE w.organization_id = $1"
     )
     query += date_filter
-    query += " GROUP BY wi.product_id"
+    query += " GROUP BY wi.sku_id"
     cursor = await conn.execute(query, params)
     return {row[0]: row[1] for row in await cursor.fetchall()}
 

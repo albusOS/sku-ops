@@ -50,7 +50,7 @@ class TestLedgerInvariants:
                 "withdrawal_id": wd["id"],
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 3,

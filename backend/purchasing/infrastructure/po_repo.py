@@ -53,7 +53,7 @@ class PgPORepo(PORepoPort):
                 """INSERT INTO purchase_order_items
                    (id, po_id, name, original_sku, ordered_qty, delivered_qty, unit_price, cost,
                     base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
-                    suggested_department, status, product_id, organization_id)
+                    suggested_department, status, sku_id, organization_id)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)""",
                 (
                     d["id"],
@@ -71,7 +71,7 @@ class PgPORepo(PORepoPort):
                     d.get("purchase_pack_qty", 1),
                     d["suggested_department"],
                     d["status"],
-                    d.get("product_id"),
+                    d.get("sku_id"),
                     d["organization_id"],
                 ),
             )
@@ -117,17 +117,17 @@ class PgPORepo(PORepoPort):
         self,
         item_id: str,
         status: POItemStatus,
-        product_id: str | None = None,
+        sku_id: str | None = None,
         delivered_qty: float | None = None,
     ) -> bool:
         conn = get_connection()
         org_id = get_org_id()
         cursor = await conn.execute(
             """UPDATE purchase_order_items
-               SET status = $1, product_id = COALESCE($2, product_id),
+               SET status = $1, sku_id = COALESCE($2, sku_id),
                    delivered_qty = COALESCE($3, delivered_qty)
                WHERE id = $4 AND status != $5 AND organization_id = $6""",
-            (status.value, product_id, delivered_qty, item_id, POItemStatus.ARRIVED.value, org_id),
+            (status.value, sku_id, delivered_qty, item_id, POItemStatus.ARRIVED.value, org_id),
         )
         await conn.commit()
         return cursor.rowcount > 0

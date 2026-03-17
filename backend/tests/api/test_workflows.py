@@ -34,7 +34,7 @@ class TestWithdrawalWorkflow:
             json={
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 5,
@@ -63,7 +63,7 @@ class TestWithdrawalWorkflow:
             json={
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 10,
@@ -109,7 +109,7 @@ class TestMaterialRequestWorkflow:
             json={
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 3,
@@ -143,7 +143,7 @@ class TestMaterialRequestWorkflow:
             json={
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 1,

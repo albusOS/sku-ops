@@ -45,7 +45,7 @@ class FinancialEntry(Entity):
     billing_entity: str | None = None
     contractor_id: str | None = None
     vendor_name: str | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     performed_by_user_id: str | None = None
     reference_type: ReferenceType
     reference_id: str

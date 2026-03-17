@@ -21,7 +21,7 @@ class DocumentLineItem(BaseModel):
     sell_uom: str = "each"
     pack_qty: int = 1
     suggested_department: str | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     selected: bool = True
     ai_parsed: bool = False
 

@@ -115,7 +115,7 @@ def _build_line_items_from_withdrawal(w, inv_id: str) -> list[dict]:
                 "quantity": line.quantity,
                 "unit_price": line.unit_price,
                 "cost": line.cost,
-                "product_id": line.product_id,
+                "sku_id": line.sku_id,
                 "job_id": line.job_id,
                 "unit": item.unit or "each",
                 "sell_cost": float(item.sell_cost or item.cost),

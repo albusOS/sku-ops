@@ -82,7 +82,7 @@ Schema:
 }
 
 Domain guide:
-  inventory        — products, stock levels, SKUs, departments, reorder
+  inventory        — SKUs, stock levels, departments, reorder
   ops              — withdrawals, contractors, jobs, material requests
   finance          — invoices, payments, revenue, P&L, balances
   finance_analytics — trends, margins, AR aging, profitability, spend analysis
@@ -90,8 +90,8 @@ Domain guide:
 
 Examples:
   "hi there" → {"needs_tools":false,"domains":[],"expects_table":false,"is_conversational":true}
-  "what are our top selling products this month?" → {"needs_tools":true,"domains":["inventory"],"expects_table":true,"is_conversational":false}
-  "show me product margins" → {"needs_tools":true,"domains":["finance_analytics"],"expects_table":true,"is_conversational":false}
+  "what are our top selling SKUs this month?" → {"needs_tools":true,"domains":["inventory"],"expects_table":true,"is_conversational":false}
+    "show me SKU margins" → {"needs_tools":true,"domains":["finance_analytics"],"expects_table":true,"is_conversational":false}
   "are any POs outstanding?" → {"needs_tools":true,"domains":["purchasing","finance"],"expects_table":false,"is_conversational":false}
   "what's the AR aging?" → {"needs_tools":true,"domains":["finance_analytics"],"expects_table":true,"is_conversational":false}
 """

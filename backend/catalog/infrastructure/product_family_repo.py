@@ -2,20 +2,20 @@
 
 from datetime import UTC, datetime
 
-from catalog.domain.product_family import Product
+from catalog.domain.product_family import ProductFamily
 from shared.infrastructure.database import get_connection, get_org_id
 
 
-def _row_to_product(row) -> Product | None:
+def _row_to_product(row) -> ProductFamily | None:
     if row is None:
         return None
     d = dict(row)
     if d.get("organization_id") is None:
         d.pop("organization_id", None)
-    return Product.model_validate(d)
+    return ProductFamily.model_validate(d)
 
 
-async def insert(product: Product) -> None:
+async def insert(product: ProductFamily) -> None:
     p = product.model_dump()
     conn = get_connection()
     org_id = p.get("organization_id") or get_org_id()
@@ -37,7 +37,7 @@ async def insert(product: Product) -> None:
     )
 
 
-async def get_by_id(product_id: str) -> Product | None:
+async def get_by_id(product_id: str) -> ProductFamily | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
@@ -53,7 +53,7 @@ async def list_all(
     search: str | None = None,
     limit: int | None = None,
     offset: int = 0,
-) -> list[Product]:
+) -> list[ProductFamily]:
     conn = get_connection()
     org_id = get_org_id()
     n = 1
@@ -101,7 +101,7 @@ async def count(
     return row[0] if row else 0
 
 
-async def update(product_id: str, updates: dict) -> Product | None:
+async def update(product_id: str, updates: dict) -> ProductFamily | None:
     conn = get_connection()
     org_id = get_org_id()
     n = 1

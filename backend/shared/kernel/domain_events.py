@@ -54,7 +54,7 @@ class WithdrawalCreated(DomainEvent):
     """Emitted after a material withdrawal is persisted and stock decremented."""
 
     withdrawal_id: str = ""
-    product_ids: tuple[str, ...] = ()
+    sku_ids: tuple[str, ...] = ()
     contractor_id: str = ""
     job_id: str = ""
     billing_entity: str = ""
@@ -87,7 +87,7 @@ class ReturnCreated(DomainEvent):
     tax: float = 0.0
     total: float = 0.0
     performed_by_user_id: str = ""
-    product_ids: tuple[str, ...] = ()
+    sku_ids: tuple[str, ...] = ()
     ledger_items: tuple[LedgerItem, ...] = ()
     invoice_id: str | None = None
 
@@ -119,7 +119,7 @@ class POItemsReceived(DomainEvent):
     vendor_name: str = ""
     performed_by_user_id: str = ""
     items: tuple[ReceivedItemSummary, ...] = ()
-    product_ids: tuple[str, ...] = ()
+    sku_ids: tuple[str, ...] = ()
 
 
 # ── Inventory context ────────────────────────────────────────────────────────
@@ -130,10 +130,10 @@ class InventoryChanged(DomainEvent):
     """Emitted whenever stock levels change.
 
     change_type is one of: withdrawal, receiving, adjustment, return, cycle_count.
-    product_ids is empty for bulk changes (e.g. cycle count).
+    sku_ids is empty for bulk changes (e.g. cycle count).
     """
 
-    product_ids: tuple[str, ...] = ()
+    sku_ids: tuple[str, ...] = ()
     change_type: str = ""
 
 
@@ -141,7 +141,7 @@ class InventoryChanged(DomainEvent):
 class LowStockDetected(DomainEvent):
     """Emitted when a product's quantity drops to or below its reorder point (min_stock)."""
 
-    product_id: str = ""
+    sku_id: str = ""
     product_name: str = ""
     sku: str = ""
     current_qty: float = 0.0
@@ -196,5 +196,5 @@ class CreditNoteApplied(DomainEvent):
 class CatalogChanged(DomainEvent):
     """Emitted when products, SKUs, departments, or vendors are created/updated/deleted."""
 
-    product_ids: tuple[str, ...] = ()
+    sku_ids: tuple[str, ...] = ()
     change_type: str = ""

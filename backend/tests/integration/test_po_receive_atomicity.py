@@ -64,7 +64,7 @@ async def _create_test_product(
 
 
 async def _create_po_with_item(
-    product_id=None,
+    sku_id=None,
     cost=None,
     unit_price=10.0,
     ordered_qty=50.0,
@@ -97,7 +97,7 @@ async def _create_po_with_item(
         purchase_pack_qty=purchase_pack_qty,
         suggested_department="HDW",
         status=status,
-        product_id=product_id,
+        sku_id=sku_id,
         organization_id="supply-yard",
     )
     await po_repo.insert_items([item])
@@ -159,7 +159,7 @@ def test_po_receive_rolls_back_stock_on_ledger_failure(call):
 
         async def _body():
             product = await _create_test_product(quantity=100.0)
-            po, item = await _create_po_with_item(product_id=product.id, cost=7.0, ordered_qty=50)
+            po, item = await _create_po_with_item(sku_id=product.id, cost=7.0, ordered_qty=50)
 
             with pytest.raises(RuntimeError, match="Simulated ledger failure"):
                 await receive_po_items(
@@ -210,7 +210,7 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
             pack_qty=1,
             suggested_department="HDW",
             status=POItemStatus.PENDING,
-            product_id=None,
+            sku_id=None,
             organization_id="supply-yard",
         )
         await po_repo.insert_items([item])
@@ -255,7 +255,7 @@ def test_po_receive_case_uom_converts_to_base_units(call):
             purchase_pack_qty=12,
         )
         po, item = await _create_po_with_item(
-            product_id=product.id,
+            sku_id=product.id,
             cost=24.0,
             ordered_qty=5,
             purchase_uom="case",
@@ -294,7 +294,7 @@ def test_po_receive_wac_correct_with_uom_conversion(call):
             purchase_pack_qty=12,
         )
         po, item = await _create_po_with_item(
-            product_id=product.id,
+            sku_id=product.id,
             cost=24.0,
             ordered_qty=5,
             purchase_uom="case",
@@ -322,7 +322,7 @@ def test_po_receive_same_uom_no_multiplication(call):
 
     async def _body():
         product = await _create_test_product(quantity=50.0, cost=5.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=6.0, ordered_qty=20)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=20)
 
         await receive_po_items(
             po_id=po.id,

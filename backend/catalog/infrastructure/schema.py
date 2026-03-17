@@ -6,11 +6,10 @@ MIGRATIONS: list[str] = [
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS variant_label TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS spec TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT ''",
-    # variant_attrs: free-form key-value pairs describing what makes this SKU unique
-    # within its product family (e.g. {"holes": "1H", "size": "1/2\""}).
-    # Replaces the purpose of variant_label/spec/grade, which remain for compatibility.
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS variant_attrs TEXT NOT NULL DEFAULT '{}'",
-    "CREATE INDEX IF NOT EXISTS idx_skus_product_attrs ON skus(product_id) WHERE deleted_at IS NULL",
+    "CREATE INDEX IF NOT EXISTS idx_skus_family_attrs ON skus(product_family_id) WHERE deleted_at IS NULL",
+    # Rename: skus.product_id -> product_family_id (existing dev DBs)
+    "ALTER TABLE skus RENAME COLUMN product_id TO product_family_id",
 ]
 
 TABLES: list[str] = [
@@ -51,7 +50,7 @@ TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS skus (
         id TEXT PRIMARY KEY,
         sku TEXT NOT NULL,
-        product_id TEXT NOT NULL REFERENCES products(id),
+        product_family_id TEXT NOT NULL REFERENCES products(id),
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         price REAL NOT NULL,
@@ -103,7 +102,7 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_sku ON skus(sku)",
-    "CREATE INDEX IF NOT EXISTS idx_skus_product ON skus(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_skus_product_family ON skus(product_family_id)",
     "CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(category_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_barcode ON skus(barcode) WHERE barcode IS NOT NULL AND TRIM(barcode) != ''",
     "CREATE INDEX IF NOT EXISTS idx_skus_vendor_barcode ON skus(vendor_barcode) WHERE vendor_barcode IS NOT NULL AND TRIM(vendor_barcode) != ''",

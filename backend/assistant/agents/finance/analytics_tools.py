@@ -79,7 +79,7 @@ async def _get_ar_aging(args: dict) -> str:
     )
 
 
-async def _get_product_margins(args: dict) -> str:
+async def _get_sku_margins(args: dict) -> str:
     days = min(int(args.get("days") or 30), 365)
     limit = min(int(args.get("limit") or 20), 50)
     start, end = _date_range(days)
@@ -88,7 +88,7 @@ async def _get_product_margins(args: dict) -> str:
         {
             "period_days": days,
             "count": len(margins),
-            "products": margins,
+            "skus": margins,
         }
     )
 
@@ -164,7 +164,7 @@ async def _get_purchase_spend(args: dict) -> str:
 
 _reg("get_trend_series", "finance_analytics", _get_trend_series)
 _reg("get_ar_aging", "finance_analytics", _get_ar_aging)
-_reg("get_product_margins", "finance_analytics", _get_product_margins)
+_reg("get_sku_margins", "finance_analytics", _get_sku_margins)
 _reg("get_department_profitability", "finance_analytics", _get_department_profitability)
 _reg("get_job_profitability", "finance_analytics", _get_job_profitability)
 _reg("get_entity_summary", "finance_analytics", _get_entity_summary)

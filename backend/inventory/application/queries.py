@@ -7,42 +7,42 @@ from shared.infrastructure.database import get_connection, get_org_id
 
 
 async def withdrawal_velocity(
-    product_ids: list[str],
+    sku_ids: list[str],
     since: str,
 ) -> dict[str, float]:
-    """Total units withdrawn per product since a date. Keyed by product_id."""
-    if not product_ids:
+    """Total units withdrawn per SKU since a date. Keyed by sku_id."""
+    if not sku_ids:
         return {}
     conn = get_connection()
     org_id = get_org_id()
-    placeholders = ",".join(f"${i}" for i in range(1, len(product_ids) + 1))
-    since_idx = len(product_ids) + 1
+    placeholders = ",".join(f"${i}" for i in range(1, len(sku_ids) + 1))
+    since_idx = len(sku_ids) + 1
     org_idx = since_idx + 1
     cur = await conn.execute(
-        "SELECT product_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
+        "SELECT sku_id, COALESCE(SUM(ABS(quantity_delta)), 0) as total_used"
         " FROM stock_transactions"
-        " WHERE product_id IN ("
+        " WHERE sku_id IN ("
         + placeholders
         + f") AND transaction_type = 'WITHDRAWAL' AND created_at >= ${since_idx}"
         f" AND (organization_id = ${org_idx} OR organization_id IS NULL)"
-        " GROUP BY product_id",
-        (*product_ids, since, org_id),
+        " GROUP BY sku_id",
+        (*sku_ids, since, org_id),
     )
-    return {row["product_id"]: row["total_used"] for row in await cur.fetchall()}
+    return {row["sku_id"]: row["total_used"] for row in await cur.fetchall()}
 
 
 async def daily_withdrawal_activity(
     since: str,
-    product_id: str | None = None,
+    sku_id: str | None = None,
 ) -> list[dict]:
     """Daily withdrawal activity: transaction_count + units_moved per day."""
     conn = get_connection()
     org_id = get_org_id()
     params: list = [org_id, since]
-    product_filter = ""
-    if product_id:
-        product_filter = " AND product_id = $3"
-        params.append(product_id)
+    sku_filter = ""
+    if sku_id:
+        sku_filter = " AND sku_id = $3"
+        params.append(sku_id)
 
     cur = await conn.execute(
         "SELECT DATE(created_at) AS day,"
@@ -51,7 +51,7 @@ async def daily_withdrawal_activity(
         " FROM stock_transactions"
         " WHERE (organization_id = $1 OR organization_id IS NULL)"
         " AND transaction_type = 'WITHDRAWAL'"
-        " AND created_at >= $2" + product_filter + " GROUP BY day"
+        " AND created_at >= $2" + sku_filter + " GROUP BY day"
         " ORDER BY day",
         params,
     )

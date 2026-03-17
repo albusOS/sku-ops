@@ -14,6 +14,9 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Layers,
+  Plus,
+  ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { TX_TYPE_LABELS } from "@/lib/constants";
@@ -22,6 +25,7 @@ import {
   useVendorItems,
   useRemoveVendorItem,
   useSetPreferredVendor,
+  useProductFamily,
 } from "@/hooks/useProducts";
 import { DetailPanel, DetailSection, DetailField } from "./DetailPanel";
 import { toast } from "sonner";
@@ -56,6 +60,8 @@ export function ProductDetailPanel({
   onDelete,
   onPrintLabels,
   onViewHistory,
+  onAddVariant,
+  onSelectProduct,
 }) {
   const [printQty, setPrintQty] = useState(1);
 
@@ -69,6 +75,11 @@ export function ProductDetailPanel({
   );
   const removeVendorItem = useRemoveVendorItem();
   const setPreferred = useSetPreferredVendor();
+
+  const familyId = product?.product_family_id;
+  const { data: familyData } = useProductFamily(open ? familyId : null);
+  const isMultiSkuFamily = (familyData?.skus?.length ?? 0) > 1;
+  const siblingSkus = (familyData?.skus ?? []).filter((s) => s.id !== product?.id);
 
   useEffect(() => {
     if (open && product) setPrintQty(1);
@@ -86,6 +97,10 @@ export function ProductDetailPanel({
     product?.price > 0
       ? (((product.price - (product.cost || 0)) / product.price) * 100).toFixed(1)
       : null;
+
+  const baseUnit = product?.base_unit || "each";
+  const sellUom = product?.sell_uom || baseUnit;
+  const showSellQty = sellUom !== baseUnit && product?.sell_quantity != null;
 
   return (
     <DetailPanel
@@ -132,15 +147,36 @@ export function ProductDetailPanel({
     >
       {product && (
         <>
+          {isMultiSkuFamily && familyData && (
+            <div className="flex items-center gap-2 rounded-lg bg-accent/10 border border-accent/20 px-3 py-2">
+              <Layers className="w-4 h-4 text-accent shrink-0" />
+              <span className="text-sm text-foreground">
+                Variant of <span className="font-semibold">{familyData.name}</span>
+              </span>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {familyData.skus.length} variants
+              </span>
+            </div>
+          )}
+
           {/* Quick stats strip */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${showSellQty ? "grid-cols-4" : "grid-cols-3"}`}>
             {[
               { label: "Price", value: `$${(product.price || 0).toFixed(2)}`, accent: false },
               {
                 label: "Stock",
-                value: product.quantity ?? 0,
+                value: `${product.quantity ?? 0} ${baseUnit}`,
                 accent: product.quantity <= (product.min_stock ?? 5),
               },
+              ...(showSellQty
+                ? [
+                    {
+                      label: "Sell Qty",
+                      value: `${product.sell_quantity} ${sellUom}`,
+                      accent: false,
+                    },
+                  ]
+                : []),
               { label: "Margin", value: margin ? `${margin}%` : "—", accent: false },
             ].map(({ label, value, accent }) => (
               <div
@@ -182,7 +218,11 @@ export function ProductDetailPanel({
                     value={`${product.sell_uom || "each"}${(product.pack_qty || 1) > 1 ? ` ×${product.pack_qty}` : ""}`}
                   />
                   <DetailField label="Cost" value={`$${(product.cost || 0).toFixed(2)}`} mono />
-                  <DetailField label="Min Stock" value={product.min_stock ?? 5} mono />
+                  <DetailField
+                    label="Min Stock"
+                    value={`${product.min_stock ?? 5} ${baseUnit}`}
+                    mono
+                  />
                   <DetailField label="Scan Code" value={product.barcode || product.sku} mono />
                   {product.purchase_uom && product.purchase_uom !== "each" && (
                     <DetailField
@@ -214,6 +254,59 @@ export function ProductDetailPanel({
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {product.description}
                   </p>
+                </DetailSection>
+              )}
+
+              {isMultiSkuFamily && siblingSkus.length > 0 && (
+                <DetailSection label="Sibling Variants" className="mt-4">
+                  <div className="space-y-1.5">
+                    {siblingSkus.map((sibling) => (
+                      <button
+                        key={sibling.id}
+                        onClick={() => onSelectProduct?.(sibling)}
+                        className="flex items-center justify-between w-full rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-left hover:bg-muted/50 transition-colors group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{sibling.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{sibling.sku}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 ml-3">
+                          <div className="text-right">
+                            <p className="font-mono text-xs">${(sibling.price || 0).toFixed(2)}</p>
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {sibling.quantity ?? 0} {sibling.base_unit || "ea"}
+                            </p>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {onAddVariant && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 w-full gap-1.5"
+                      onClick={() => onAddVariant(familyId, product.category_id)}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add variant
+                    </Button>
+                  )}
+                </DetailSection>
+              )}
+
+              {!isMultiSkuFamily && familyId && onAddVariant && (
+                <DetailSection className="mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5"
+                    onClick={() => onAddVariant(familyId, product.category_id)}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add variant to this product
+                  </Button>
                 </DetailSection>
               )}
             </TabsContent>
@@ -329,20 +422,33 @@ export function ProductDetailPanel({
                 <p className="text-sm text-muted-foreground">No transactions yet</p>
               ) : (
                 <div className="rounded-xl border border-border/50 overflow-hidden">
-                  {recentHistory.map((tx, i) => (
-                    <div
-                      key={tx.id}
-                      className={`flex items-center justify-between px-4 py-2.5 text-sm ${i < recentHistory.length - 1 ? "border-b border-border/40" : ""}`}
-                    >
-                      <span className="text-muted-foreground text-xs">
-                        {TX_TYPE_LABELS[tx.transaction_type] || tx.transaction_type}
-                      </span>
-                      <DeltaBadge delta={tx.quantity_delta} />
-                      <span className="text-muted-foreground text-xs">
-                        {tx.created_at ? format(new Date(tx.created_at), "MMM d, HH:mm") : "—"}
-                      </span>
-                    </div>
-                  ))}
+                  {recentHistory.map((tx, i) => {
+                    const hasOriginal =
+                      tx.original_quantity != null &&
+                      tx.original_unit &&
+                      tx.original_unit !== (tx.unit || "each");
+                    return (
+                      <div
+                        key={tx.id}
+                        className={`flex items-center justify-between px-4 py-2.5 text-sm ${i < recentHistory.length - 1 ? "border-b border-border/40" : ""}`}
+                      >
+                        <span className="text-muted-foreground text-xs">
+                          {TX_TYPE_LABELS[tx.transaction_type] || tx.transaction_type}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <DeltaBadge delta={tx.quantity_delta} />
+                          {hasOriginal && (
+                            <span className="text-[10px] text-muted-foreground">
+                              ({tx.original_quantity} {tx.original_unit})
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          {tx.created_at ? format(new Date(tx.created_at), "MMM d, HH:mm") : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <Button

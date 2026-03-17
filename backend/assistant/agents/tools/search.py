@@ -2,7 +2,7 @@
 Domain search index. Uses OpenAI text-embedding-3-small for semantic search when
 OPENAI_API_KEY is set; falls back to BM25 keyword search otherwise.
 
-Indexes multiple entity types: products, vendors, purchase orders, and jobs.
+Indexes multiple entity types: SKUs, vendors, purchase orders, and jobs.
 Each type has its own embedding matrix for filtered search, plus a unified
 cross-entity search mode.
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 EMBEDDING_DIM = 1536  # text-embedding-3-small; adjust if switching to larger model
 
 
-class ProductLike(Protocol):
+class SkuLike(Protocol):
     name: str
     description: str
     category_name: str
@@ -54,7 +54,7 @@ def _tokenize(text: str) -> list[str]:
     return [t for t in tokens if len(t) > 1]
 
 
-def _product_text(p: ProductLike) -> str:
+def _sku_text(p: SkuLike) -> str:
     parts = [p.name or "", p.description or "", p.category_name or "", p.sku or ""]
     return " ".join(filter(None, parts))
 
@@ -112,58 +112,59 @@ class _EntitySlice:
 
 class DomainSearchIndex:
     def __init__(self):
-        self._products: list[ProductLike] = []
-        self._product_embeddings: np.ndarray | None = None
-        self._product_bm25 = None
+        self._skus: list[SkuLike] = []
+        self._sku_embeddings: np.ndarray | None = None
+        self._sku_bm25 = None
         self._slices: dict[str, _EntitySlice] = {}
 
     async def rebuild(self) -> None:
         """Rebuild all entity indexes."""
-        await self._rebuild_products()
+        await self._rebuild_skus()
         await self._rebuild_vendors()
         await self._rebuild_pos()
         await self._rebuild_jobs()
 
-    # ── Products (primary, backward-compatible) ───────────────────────────
+    # ── SKUs (primary, backward-compatible) ───────────────────────────────
 
-    async def _rebuild_products(self) -> None:
-        products = await list_skus(limit=10000)
-        if not products:
-            self._products = []
-            self._product_embeddings = None
-            self._product_bm25 = None
+    async def _rebuild_skus(self) -> None:
+        skus = await list_skus(limit=10000)
+        if not skus:
+            self._skus = []
+            self._sku_embeddings = None
+            self._sku_bm25 = None
             return
 
-        self._products = products
-        texts = [_product_text(p) for p in products]
+        self._skus = skus
+        texts = [_sku_text(s) for s in skus]
 
         if OPENAI_API_KEY:
-            self._product_embeddings = await _embed_batch(texts, OPENAI_API_KEY)
-            if self._product_embeddings is None:
-                self._build_product_bm25(products)
+            self._sku_embeddings = await _embed_batch(texts, OPENAI_API_KEY)
+            if self._sku_embeddings is None:
+                self._build_sku_bm25(skus)
             else:
-                self._product_bm25 = None
+                self._sku_bm25 = None
         else:
-            self._build_product_bm25(products)
+            self._build_sku_bm25(skus)
 
         s = _EntitySlice(
-            entity_type="product",
-            ids=[p.sku for p in products],
+            entity_type="sku",
+            ids=[sk.sku for sk in skus],
             texts=texts,
-            data=[{"sku": p.sku, "name": p.name, "department": p.category_name} for p in products],
-            embeddings=self._product_embeddings,
+            data=[{"sku": sk.sku, "name": sk.name, "department": sk.category_name} for sk in skus],
+            embeddings=self._sku_embeddings,
         )
-        self._slices["product"] = s
-        logger.info("Product index: %d items", len(products))
+        self._slices["sku"] = s
+        self._slices["product"] = s  # backward compat for entity_graph "product" alias
+        logger.info("SKU index: %d items", len(skus))
 
-    def _build_product_bm25(self, products: list[ProductLike]) -> None:
+    def _build_sku_bm25(self, skus: list[SkuLike]) -> None:
         try:
             from rank_bm25 import BM25Okapi
         except ImportError:
             logger.warning("rank-bm25 not installed — keyword search unavailable")
             return
-        corpus = [_tokenize(_product_text(p)) or ["_"] for p in products]
-        self._product_bm25 = BM25Okapi(corpus)
+        corpus = [_tokenize(_sku_text(s)) or ["_"] for s in skus]
+        self._sku_bm25 = BM25Okapi(corpus)
 
     # ── Vendors ───────────────────────────────────────────────────────────
 
@@ -293,16 +294,16 @@ class DomainSearchIndex:
 
     async def search_semantic(
         self, query: str, limit: int = 10, api_key: str = ""
-    ) -> list[ProductLike]:
-        """Product semantic search (backward-compatible)."""
-        if self._product_embeddings is None or not self._products:
+    ) -> list[SkuLike]:
+        """SKU semantic search."""
+        if self._sku_embeddings is None or not self._skus:
             return self.search_bm25(query, limit)
         qvec = await _embed_query(query, api_key or OPENAI_API_KEY or "")
         if qvec is None:
             return self.search_bm25(query, limit)
-        scores = self._product_embeddings @ qvec
+        scores = self._sku_embeddings @ qvec
         top_idx = np.argsort(scores)[::-1][:limit]
-        return [self._products[i] for i in top_idx if scores[i] > 0.2]
+        return [self._skus[i] for i in top_idx if scores[i] > 0.2]
 
     async def search_entity(
         self, query: str, entity_type: str, limit: int = 10
@@ -366,30 +367,30 @@ class DomainSearchIndex:
             )
         return results
 
-    def search_bm25(self, query: str, limit: int = 10) -> list[ProductLike]:
-        if not self._product_bm25 or not self._products:
+    def search_bm25(self, query: str, limit: int = 10) -> list[SkuLike]:
+        if not self._sku_bm25 or not self._skus:
             return []
         tokens = _tokenize(query)
         if not tokens:
             return []
-        scores = self._product_bm25.get_scores(tokens)
+        scores = self._sku_bm25.get_scores(tokens)
         ranked = sorted(
-            ((score, p) for score, p in zip(scores, self._products, strict=False) if score > 0),
+            ((score, s) for score, s in zip(scores, self._skus, strict=False) if score > 0),
             key=lambda x: x[0],
             reverse=True,
         )
-        return [p for _, p in ranked[:limit]]
+        return [s for _, s in ranked[:limit]]
 
-    def search(self, query: str, limit: int = 10) -> list[ProductLike]:
+    def search(self, query: str, limit: int = 10) -> list[SkuLike]:
         """Sync BM25 search — keyword fallback."""
         return self.search_bm25(query, limit)
 
     def is_ready(self) -> bool:
-        return bool(self._products)
+        return bool(self._skus)
 
 
-# Keep backward-compatible alias
-ProductSearchIndex = DomainSearchIndex
+SkuSearchIndex = DomainSearchIndex
+ProductSearchIndex = DomainSearchIndex  # backward-compatible alias
 
 
 async def get_index() -> DomainSearchIndex:

@@ -72,7 +72,7 @@ async def _record_sale_event(
         sell_cost = li.sell_cost or li.cost
         sell_uom = li.sell_uom or unit
         dept = li.category_name
-        pid = li.product_id
+        pid = li.sku_id
         entries.append(
             FinancialEntry(
                 account=Account.REVENUE,
@@ -81,7 +81,7 @@ async def _record_sale_event(
                 unit=unit,
                 unit_cost=unit_price,
                 department=dept,
-                product_id=pid,
+                sku_id=pid,
                 **common,
             )
         )
@@ -93,7 +93,7 @@ async def _record_sale_event(
                 unit=sell_uom,
                 unit_cost=sell_cost,
                 department=dept,
-                product_id=pid,
+                sku_id=pid,
                 **common,
             )
         )
@@ -105,7 +105,7 @@ async def _record_sale_event(
                 unit=sell_uom,
                 unit_cost=sell_cost,
                 department=dept,
-                product_id=pid,
+                sku_id=pid,
                 **common,
             )
         )
@@ -209,7 +209,7 @@ async def record_po_receipt(
             continue
 
         dept = ri.department
-        pid = ri.product_id
+        pid = ri.sku_id
         entries.append(
             FinancialEntry(
                 account=Account.INVENTORY,
@@ -220,7 +220,7 @@ async def record_po_receipt(
                 journal_id=journal_id,
                 department=dept,
                 vendor_name=vendor_name,
-                product_id=pid,
+                sku_id=pid,
                 performed_by_user_id=performed_by_user_id,
                 reference_type=ReferenceType.PO_RECEIPT,
                 reference_id=po_id,
@@ -237,7 +237,7 @@ async def record_po_receipt(
                 journal_id=journal_id,
                 department=dept,
                 vendor_name=vendor_name,
-                product_id=pid,
+                sku_id=pid,
                 performed_by_user_id=performed_by_user_id,
                 reference_type=ReferenceType.PO_RECEIPT,
                 reference_id=po_id,
@@ -265,7 +265,7 @@ def _offset_account_for_reason(reason: str | None) -> Account:
 
 async def record_adjustment(
     adjustment_ref_id: str,
-    product_id: str,
+    sku_id: str,
     product_cost: float,
     quantity_delta: float,
     department: str | None,
@@ -296,7 +296,7 @@ async def record_adjustment(
             amount=sign * amount,
             journal_id=journal_id,
             department=department,
-            product_id=product_id,
+            sku_id=sku_id,
             performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.ADJUSTMENT,
             reference_id=adjustment_ref_id,
@@ -307,7 +307,7 @@ async def record_adjustment(
             amount=-sign * amount,
             journal_id=journal_id,
             department=department,
-            product_id=product_id,
+            sku_id=sku_id,
             performed_by_user_id=performed_by_user_id,
             reference_type=ReferenceType.ADJUSTMENT,
             reference_id=adjustment_ref_id,

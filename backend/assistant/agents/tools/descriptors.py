@@ -17,20 +17,20 @@ class ToolDescriptor:
 def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
     """Return descriptors for all unified agent tools. Used by tool index."""
     return {
-        "search_products": ToolDescriptor(
-            "search_products",
-            "Search products by name, SKU, or barcode.",
-            ["find product", "lookup SKU", "barcode search"],
+        "search_skus": ToolDescriptor(
+            "search_skus",
+            "Search SKUs by name, SKU code, or barcode.",
+            ["find SKU", "lookup SKU", "barcode search"],
         ),
         "search_semantic": ToolDescriptor(
             "search_semantic",
-            "Semantic/concept search for products. Use when exact search fails or query is descriptive.",
-            ["concept search", "find by description", "fuzzy product search"],
+            "Semantic/concept search for SKUs. Use when exact search fails or query is descriptive.",
+            ["concept search", "find by description", "fuzzy SKU search"],
         ),
-        "get_product_details": ToolDescriptor(
-            "get_product_details",
-            "Get full details for one product by SKU: price, cost, vendor, UOM, barcode, reorder point.",
-            ["product details", "single product", "SKU info"],
+        "get_sku_details": ToolDescriptor(
+            "get_sku_details",
+            "Get full details for one SKU: price, cost, vendor, UOM, barcode, reorder point.",
+            ["SKU details", "single SKU", "SKU info"],
         ),
         "get_inventory_stats": ToolDescriptor(
             "get_inventory_stats",
@@ -39,43 +39,43 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
         ),
         "list_low_stock": ToolDescriptor(
             "list_low_stock",
-            "List products at or below their reorder point.",
+            "List SKUs at or below their reorder point.",
             ["low stock", "reorder point", "needs reorder"],
         ),
         "list_departments": ToolDescriptor(
             "list_departments",
-            "List all departments with product counts.",
+            "List all departments with SKU counts.",
             ["departments", "categories"],
         ),
         "list_vendors": ToolDescriptor(
             "list_vendors",
-            "List all vendors with product counts.",
+            "List all vendors with SKU counts.",
             ["vendors", "suppliers"],
         ),
         "get_usage_velocity": ToolDescriptor(
             "get_usage_velocity",
-            "How fast a product moves: total and average daily withdrawals over the last N days.",
+            "How fast a SKU moves: total and average daily withdrawals over the last N days.",
             ["velocity", "usage rate", "movement"],
         ),
         "get_reorder_suggestions": ToolDescriptor(
             "get_reorder_suggestions",
-            "Priority reorder list: low-stock products ranked by urgency.",
+            "Priority reorder list: low-stock SKUs ranked by urgency.",
             ["reorder", "what to order", "urgent stock"],
         ),
         "get_department_health": ToolDescriptor(
             "get_department_health",
-            "Per-department breakdown showing healthy, low-stock, and out-of-stock product counts.",
+            "Per-department breakdown showing healthy, low-stock, and out-of-stock SKU counts.",
             ["department health", "department stats"],
         ),
         "get_slow_movers": ToolDescriptor(
             "get_slow_movers",
-            "Products with stock on hand but very low or zero withdrawal activity.",
+            "SKUs with stock on hand but very low or zero withdrawal activity.",
             ["slow movers", "dead stock", "stale inventory"],
         ),
-        "get_top_products": ToolDescriptor(
-            "get_top_products",
-            "Top products by volume or revenue over a period.",
-            ["top products", "best sellers", "revenue leaders"],
+        "get_top_skus": ToolDescriptor(
+            "get_top_skus",
+            "Top SKUs by volume or revenue over a period.",
+            ["top SKUs", "best sellers", "revenue leaders"],
         ),
         "get_department_activity": ToolDescriptor(
             "get_department_activity",
@@ -84,7 +84,7 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
         ),
         "forecast_stockout": ToolDescriptor(
             "forecast_stockout",
-            "Products predicted to run out soonest based on recent withdrawal velocity.",
+            "SKUs predicted to run out soonest based on recent withdrawal velocity.",
             ["stockout", "run out", "forecast"],
         ),
         "get_contractor_history": ToolDescriptor(
@@ -109,7 +109,7 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
         ),
         "get_daily_withdrawal_activity": ToolDescriptor(
             "get_daily_withdrawal_activity",
-            "Daily withdrawal volume trends for a product or overall.",
+            "Daily withdrawal volume trends for a SKU or overall.",
             ["daily activity", "withdrawal trends"],
         ),
         "get_payment_status_breakdown": ToolDescriptor(
@@ -137,10 +137,10 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
             "Profit & loss for the last N days: revenue, COGS, gross profit and margin.",
             ["P&L", "profit loss", "margin"],
         ),
-        "get_finance_top_products": ToolDescriptor(
-            "get_finance_top_products",
-            "Top revenue-generating products over a period.",
-            ["top revenue", "finance top products"],
+        "get_finance_top_skus": ToolDescriptor(
+            "get_finance_top_skus",
+            "Top revenue-generating SKUs over a period.",
+            ["top revenue", "finance top SKUs"],
         ),
         "get_trend_series": ToolDescriptor(
             "get_trend_series",
@@ -152,10 +152,10 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
             "Accounts receivable aging buckets by billing entity (current, 1-30, 31-60, 61-90, 90+).",
             ["AR aging", "receivables aging"],
         ),
-        "get_product_margins": ToolDescriptor(
-            "get_product_margins",
-            "Per-product revenue, COGS, profit, and margin percentage.",
-            ["margins", "product profitability"],
+        "get_sku_margins": ToolDescriptor(
+            "get_sku_margins",
+            "Per-SKU revenue, COGS, profit, and margin percentage.",
+            ["margins", "SKU profitability"],
         ),
         "get_department_profitability": ToolDescriptor(
             "get_department_profitability",
@@ -185,7 +185,7 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
         "get_vendor_catalog": ToolDescriptor(
             "get_vendor_catalog",
             "SKUs a vendor supplies with cost, lead time, MOQ, preferred status.",
-            ["vendor catalog", "vendor products"],
+            ["vendor catalog", "vendor SKUs"],
         ),
         "get_vendor_performance": ToolDescriptor(
             "get_vendor_performance",
@@ -234,7 +234,7 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
         ),
         "run_weekly_sales_report": ToolDescriptor(
             "run_weekly_sales_report",
-            "Generate a full weekly sales report: revenue, P&L, top products, outstanding balances.",
+            "Generate a full weekly sales report: revenue, P&L, top SKUs, outstanding balances.",
             ["weekly report", "sales report", "finance overview"],
         ),
         "run_inventory_overview": ToolDescriptor(

@@ -77,6 +77,13 @@ const api = {
     },
   },
 
+  // ── Product Families (convenience aliases for catalog.products) ─────
+  productFamilies: {
+    get: (id) => axios.get(`${API}/catalog/products/${id}`).then((r) => r.data),
+    createSku: (familyId, data) =>
+      axios.post(`${API}/catalog/products/${familyId}/skus`, data).then((r) => r.data),
+  },
+
   // ── SKU ───────────────────────────────────────────────────────────────
   sku: {
     preview: (params) => axios.get(`${API}/catalog/sku/preview`, { params }).then((r) => r.data),

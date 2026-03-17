@@ -139,7 +139,7 @@ async def receive_po_items(
                     transitioned = await repo.update_po_item(
                         item_id,
                         POItemStatus.ARRIVED,
-                        product_id=existing.id,
+                        sku_id=existing.id,
                         delivered_qty=delivered,
                     )
                     if not transitioned:
@@ -157,13 +157,15 @@ async def receive_po_items(
                     )
 
                     await deps.process_receiving_stock_changes(
-                        product_id=existing.id,
+                        sku_id=existing.id,
                         sku=existing.sku,
                         product_name=existing.name,
                         quantity=stock_qty,
                         user_id=current_user.id,
                         user_name=current_user.name,
                         reference_id=po_id,
+                        original_quantity=delivered,
+                        original_unit=purchase_uom,
                     )
                     po_item_cost = _resolve_po_item_cost(working)
                     per_base_cost = (
@@ -196,14 +198,25 @@ async def receive_po_items(
                         continue
 
                     cost_val = _resolve_po_item_cost(working)
+                    new_purchase_uom = (working.get("purchase_uom") or "each").lower()
+                    new_base_unit = (working.get("base_unit") or "each").lower()
+                    new_pack_qty = int(working.get("purchase_pack_qty") or 1)
+                    new_stock_qty = _convert_purchase_to_base(
+                        delivered, new_purchase_uom, new_base_unit, new_pack_qty
+                    )
+                    per_base_cost_new = (
+                        cost_val / new_pack_qty
+                        if new_pack_qty > 1 and new_purchase_uom in _DISCRETE_CONTAINER_UOMS
+                        else cost_val
+                    )
                     new_sku = await deps.create_product_with_sku(
                         category_id=dept.id,
                         category_name=dept.name,
                         name=working.get("name", "Unknown"),
                         description="",
                         price=float(working.get("unit_price") or working.get("price") or 0),
-                        cost=round(cost_val, 2),
-                        quantity=delivered,
+                        cost=round(per_base_cost_new, 2),
+                        quantity=new_stock_qty,
                         min_stock=5,
                         barcode=working.get("barcode") or None,
                         base_unit=working.get("base_unit") or "each",
@@ -230,7 +243,7 @@ async def receive_po_items(
                     transitioned = await repo.update_po_item(
                         item_id,
                         POItemStatus.ARRIVED,
-                        product_id=new_sku.id,
+                        sku_id=new_sku.id,
                         delivered_qty=delivered,
                     )
                     if not transitioned:
@@ -245,7 +258,7 @@ async def receive_po_items(
                     ReceivedItemSummary(
                         cost=item_cost,
                         delivered_qty=delivered,
-                        product_id=resolved_pid,
+                        sku_id=resolved_pid,
                         department=dept_by_code[dept_code].name
                         if dept_code in dept_by_code
                         else dept_code,
@@ -265,7 +278,7 @@ async def receive_po_items(
         new_status = await _recompute_po_status(po_id, po, current_user, repo)
 
     if ledger_items:
-        product_ids = tuple(li.product_id for li in ledger_items if li.product_id)
+        sku_ids = tuple(li.sku_id for li in ledger_items if li.sku_id)
         await dispatch(
             POItemsReceived(
                 org_id=current_user.organization_id,
@@ -273,13 +286,13 @@ async def receive_po_items(
                 vendor_name=po.vendor_name,
                 performed_by_user_id=current_user.id,
                 items=tuple(ledger_items),
-                product_ids=product_ids,
+                sku_ids=sku_ids,
             )
         )
         await dispatch(
             InventoryChanged(
                 org_id=current_user.organization_id,
-                product_ids=product_ids,
+                sku_ids=sku_ids,
                 change_type="receiving",
             )
         )
@@ -353,15 +366,15 @@ def _apply_overrides(item: POItemRow, update: ReceiveItemUpdate) -> dict:
         val = getattr(update, field, None)
         if val is not None:
             working[field] = val
-    if update.product_id:
-        working["product_id"] = update.product_id
+    if update.sku_id:
+        working["sku_id"] = update.sku_id
     return working
 
 
 async def _match_sku(item: dict, vendor_id: str, deps: PurchasingDeps):
-    """3-tier matching: explicit product_id -> vendor SKU via VendorItem -> name."""
-    if item.get("product_id"):
-        existing = await deps.get_sku_by_id(item["product_id"])
+    """3-tier matching: explicit sku_id -> vendor SKU via VendorItem -> name."""
+    if item.get("sku_id"):
+        existing = await deps.get_sku_by_id(item["sku_id"])
         if existing:
             return existing
     if item.get("original_sku") and vendor_id:

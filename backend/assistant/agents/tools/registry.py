@@ -41,7 +41,7 @@ def register(
 
 
 def get(name: str) -> ToolEntry | None:
-    """Look up a tool by its canonical name (e.g. 'search_products')."""
+    """Look up a tool by its canonical name (e.g. 'search_skus')."""
     return _TOOLS.get(name)
 
 

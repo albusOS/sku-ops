@@ -58,7 +58,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Products predicted to run out soonest based on withdrawal velocity."""
+        """SKUs predicted to run out soonest based on withdrawal velocity."""
         return budget_tool_result(await _forecast_stockout({"limit": limit}))
 
     @_agent.tool

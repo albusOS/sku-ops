@@ -17,7 +17,7 @@ from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.finance.analytics_tools import (
     _get_ar_aging,
     _get_department_profitability,
-    _get_product_margins,
+    _get_sku_margins,
 )
 from assistant.agents.finance.tools import (
     _get_outstanding_balances,
@@ -66,17 +66,17 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def get_department_health(ctx: RunContext[AgentDeps]) -> str:
-        """Per-department healthy/low/out-of-stock product counts."""
+        """Per-department healthy/low/out-of-stock SKU counts."""
         return budget_tool_result(await _get_department_health())
 
     @_agent.tool
     async def list_low_stock(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Products at or below reorder point."""
+        """SKUs at or below reorder point."""
         return budget_tool_result(await _list_low_stock({"limit": limit}))
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
-        """Products predicted to run out soonest."""
+        """SKUs predicted to run out soonest."""
         return budget_tool_result(await _forecast_stockout({"limit": limit}))
 
     @_agent.tool
@@ -105,11 +105,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
         return budget_tool_result(await _get_department_profitability({"days": days}))
 
     @_agent.tool
-    async def get_product_margins(
-        ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20
-    ) -> str:
-        """Per-product margins."""
-        return budget_tool_result(await _get_product_margins({"days": days, "limit": limit}))
+    async def get_sku_margins(ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20) -> str:
+        """Per-SKU margins."""
+        return budget_tool_result(await _get_sku_margins({"days": days, "limit": limit}))
 
     @_agent.tool
     async def get_payment_status_breakdown(ctx: RunContext[AgentDeps], days: int = 30) -> str:

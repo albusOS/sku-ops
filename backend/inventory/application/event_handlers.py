@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 @on(InventoryChanged)
 async def check_reorder_points(event: InventoryChanged) -> None:
     """Evaluate reorder points for every product affected by a stock change."""
-    for product_id in event.product_ids:
+    for sku_id in event.sku_ids:
         try:
-            product = await get_sku_by_id(product_id)
+            product = await get_sku_by_id(sku_id)
             if not product:
                 continue
             if product.quantity <= product.min_stock:
                 await dispatch(
                     LowStockDetected(
                         org_id=event.org_id,
-                        product_id=product_id,
+                        sku_id=sku_id,
                         product_name=product.name,
                         sku=product.sku,
                         current_qty=product.quantity,
@@ -36,7 +36,7 @@ async def check_reorder_points(event: InventoryChanged) -> None:
                     )
                 )
         except (RuntimeError, OSError, ValueError):
-            logger.warning("Reorder check failed for product %s", product_id, exc_info=True)
+            logger.warning("Reorder check failed for sku %s", sku_id, exc_info=True)
 
 
 @on(LowStockDetected)

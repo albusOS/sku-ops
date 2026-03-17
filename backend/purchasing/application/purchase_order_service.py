@@ -194,9 +194,11 @@ async def create_purchase_order(
                 base_unit=item.get("base_unit") or "each",
                 sell_uom=item.get("sell_uom") or "each",
                 pack_qty=int(item.get("pack_qty") or 1),
+                purchase_uom=item.get("purchase_uom") or "each",
+                purchase_pack_qty=int(item.get("purchase_pack_qty") or 1),
                 suggested_department=(item.get("suggested_department") or "HDW").upper(),
                 status=POItemStatus.ORDERED,
-                product_id=item.get("product_id") or None,
+                sku_id=item.get("sku_id") or None,
                 organization_id=org_id,
             )
         )

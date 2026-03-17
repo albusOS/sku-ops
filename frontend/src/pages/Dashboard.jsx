@@ -310,7 +310,7 @@ const Dashboard = () => {
 
   const handleProductClick = (product) => {
     setSelectedProduct({
-      id: product.product_id || product.id,
+      id: product.sku_id || product.id,
       name: product.name,
       sku: product.sku,
     });

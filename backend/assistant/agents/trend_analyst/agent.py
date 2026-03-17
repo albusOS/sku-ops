@@ -16,13 +16,13 @@ from assistant.agents.core.model_registry import calc_cost, get_model, get_model
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.finance.analytics_tools import (
     _get_department_profitability,
-    _get_product_margins,
+    _get_sku_margins,
     _get_trend_series,
 )
 from assistant.agents.inventory.tools import (
     _forecast_stockout,
     _get_slow_movers,
-    _get_top_products,
+    _get_top_skus,
 )
 from assistant.agents.ops.tools import (
     _get_daily_withdrawal_activity,
@@ -61,19 +61,17 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def get_daily_withdrawal_activity(
-        ctx: RunContext[AgentDeps], days: int = 30, product_id: str = ""
+        ctx: RunContext[AgentDeps], days: int = 30, sku_id: str = ""
     ) -> str:
         """Daily withdrawal volume over the last N days."""
         return budget_tool_result(
-            await _get_daily_withdrawal_activity({"days": days, "product_id": product_id})
+            await _get_daily_withdrawal_activity({"days": days, "sku_id": sku_id})
         )
 
     @_agent.tool
-    async def get_product_margins(
-        ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20
-    ) -> str:
-        """Per-product revenue, COGS, profit, and margin percentage."""
-        return budget_tool_result(await _get_product_margins({"days": days, "limit": limit}))
+    async def get_sku_margins(ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20) -> str:
+        """Per-SKU revenue, COGS, profit, and margin percentage."""
+        return budget_tool_result(await _get_sku_margins({"days": days, "limit": limit}))
 
     @_agent.tool
     async def get_department_profitability(ctx: RunContext[AgentDeps], days: int = 30) -> str:
@@ -82,20 +80,20 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
-        """Products predicted to run out soonest."""
+        """SKUs predicted to run out soonest."""
         return budget_tool_result(await _forecast_stockout({"limit": limit}))
 
     @_agent.tool
     async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int = 30) -> str:
-        """Products with stock but very low withdrawal activity."""
+        """SKUs with stock but very low withdrawal activity."""
         return budget_tool_result(await _get_slow_movers({"limit": limit, "days": days}))
 
     @_agent.tool
-    async def get_top_products(
+    async def get_top_skus(
         ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10
     ) -> str:
-        """Top products by volume or revenue."""
-        return budget_tool_result(await _get_top_products({"days": days, "by": by, "limit": limit}))
+        """Top SKUs by volume or revenue."""
+        return budget_tool_result(await _get_top_skus({"days": days, "by": by, "limit": limit}))
 
     return _agent
 

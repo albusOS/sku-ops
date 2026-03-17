@@ -1,8 +1,27 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Plus, Printer, Package, LayoutGrid, LayoutList } from "lucide-react";
+import {
+  Plus,
+  Printer,
+  Package,
+  LayoutGrid,
+  LayoutList,
+  ChevronRight,
+  ChevronDown,
+  Layers,
+  List,
+} from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
 import { PageHeader } from "@/components/PageHeader";
@@ -69,8 +88,15 @@ function ProductCard({ product, selected, onClick }) {
           <p
             className={`font-mono font-semibold text-sm ${isOut ? "text-destructive" : isLow ? "text-warning" : ""}`}
           >
-            {product.quantity ?? 0}
+            {product.quantity ?? 0} {product.base_unit || "ea"}
           </p>
+          {product.sell_uom &&
+            product.sell_uom !== product.base_unit &&
+            product.sell_quantity != null && (
+              <p className="font-mono text-xs text-muted-foreground">
+                {product.sell_quantity} {product.sell_uom}
+              </p>
+            )}
         </div>
       </div>
 
@@ -81,10 +107,178 @@ function ProductCard({ product, selected, onClick }) {
   );
 }
 
+function GroupedProductTable({
+  groups,
+  columns,
+  expandedFamilies,
+  onToggleFamily,
+  onRowClick,
+  onAddVariant,
+}) {
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/80 hover:bg-muted/80">
+              <TableHead className="w-8 px-2" />
+              {columns.map((col) => (
+                <TableHead
+                  key={col.key}
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground px-3 py-2.5",
+                    col.align === "right" && "text-right",
+                    col.align === "center" && "text-center",
+                    col.className,
+                  )}
+                >
+                  {col.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length + 1}
+                  className="text-center py-12 text-muted-foreground text-sm"
+                >
+                  No products found
+                </TableCell>
+              </TableRow>
+            ) : (
+              groups.map((group) => {
+                const expanded = expandedFamilies.has(group.familyId);
+                if (!group.isMulti) {
+                  const row = group.skus[0];
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className="hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0 cursor-pointer"
+                      onClick={() => onRowClick?.(row)}
+                    >
+                      <TableCell className="px-2 py-2.5" />
+                      {columns.map((col) => (
+                        <TableCell
+                          key={col.key}
+                          className={cn(
+                            "px-3 py-2.5",
+                            col.align === "right" && "text-right",
+                            col.align === "center" && "text-center",
+                            col.cellClassName,
+                          )}
+                        >
+                          {col.render ? col.render(row) : row[col.key]}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                }
+                return (
+                  <FamilyGroupRows
+                    key={group.familyId}
+                    group={group}
+                    columns={columns}
+                    expanded={expanded}
+                    onToggle={() => onToggleFamily(group.familyId)}
+                    onRowClick={onRowClick}
+                    onAddVariant={onAddVariant}
+                  />
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function FamilyGroupRows({ group, columns, expanded, onToggle, onRowClick, onAddVariant }) {
+  const totalOutOfStock = group.skus.filter((s) => s.quantity === 0).length;
+  const totalLowStock = group.skus.filter(
+    (s) => s.quantity > 0 && s.quantity <= (s.min_stock ?? 5),
+  ).length;
+
+  return (
+    <>
+      <TableRow
+        className="hover:bg-muted/60 transition-colors border-b border-border/40 cursor-pointer bg-muted/30"
+        onClick={onToggle}
+      >
+        <TableCell className="px-2 py-2.5">
+          {expanded ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
+        </TableCell>
+        <TableCell className="px-3 py-2.5" colSpan={columns.length}>
+          <div className="flex items-center gap-3">
+            <span className="font-semibold">{group.name}</span>
+            <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+              {group.skus.length} variants
+            </span>
+            <span className="font-mono text-sm text-muted-foreground">
+              {group.totalQty} {group.baseUnit} total
+            </span>
+            {group.category && (
+              <span className="text-xs text-muted-foreground">{group.category}</span>
+            )}
+            {totalOutOfStock > 0 && (
+              <span className="badge-error text-[10px]">{totalOutOfStock} out</span>
+            )}
+            {totalLowStock > 0 && (
+              <span className="badge-warning text-[10px]">{totalLowStock} low</span>
+            )}
+            {onAddVariant && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddVariant(group.familyId, group.skus[0]?.category_id);
+                }}
+                className="ml-auto text-xs text-accent hover:text-accent/80 font-medium flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add variant
+              </button>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+      {expanded &&
+        group.skus.map((row) => (
+          <TableRow
+            key={row.id}
+            className="hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0 cursor-pointer bg-card"
+            onClick={() => onRowClick?.(row)}
+          >
+            <TableCell className="px-2 py-2.5" />
+            {columns.map((col) => (
+              <TableCell
+                key={col.key}
+                className={cn(
+                  "px-3 py-2.5 pl-6",
+                  col.align === "right" && "text-right pl-3",
+                  col.align === "center" && "text-center pl-3",
+                  col.cellClassName,
+                )}
+              >
+                {col.render ? col.render(row) : row[col.key]}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+    </>
+  );
+}
+
 const InventoryPage = () => {
   const [searchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [variantContext, setVariantContext] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
   const [stockHistoryProduct, setStockHistoryProduct] = useState(null);
   const [adjustProduct, setAdjustProduct] = useState(null);
@@ -93,6 +287,8 @@ const InventoryPage = () => {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, product: null });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [viewMode, setViewMode] = useState("table");
+  const [groupMode, setGroupMode] = useState("grouped");
+  const [expandedFamilies, setExpandedFamilies] = useState(new Set());
 
   const categoryParam = searchParams.get("category");
   const initialFilters = useMemo(
@@ -177,7 +373,19 @@ const InventoryPage = () => {
         label: "Quantity",
         type: "number",
         align: "right",
-        render: (row) => <span className="font-mono">{row.quantity}</span>,
+        render: (row) => (
+          <div className="text-right">
+            <span className="font-mono">
+              {row.quantity} {row.base_unit || "ea"}
+            </span>
+            {row.sell_uom && row.sell_uom !== row.base_unit && row.sell_quantity != null && (
+              <span className="block text-xs text-muted-foreground font-mono">
+                {row.sell_quantity} {row.sell_uom}
+              </span>
+            )}
+          </div>
+        ),
+        exportValue: (row) => `${row.quantity} ${row.base_unit || "ea"}`,
       },
       {
         key: "created_at",
@@ -228,8 +436,40 @@ const InventoryPage = () => {
   const view = useViewController({ columns, initialFilters });
   const processedProducts = view.apply(allProducts);
 
-  const openDialog = (product = null) => {
+  const productFamilyGroups = useMemo(() => {
+    const byFamily = new Map();
+    for (const p of processedProducts) {
+      const fid = p.product_family_id || p.id;
+      if (!byFamily.has(fid)) byFamily.set(fid, []);
+      byFamily.get(fid).push(p);
+    }
+    return Array.from(byFamily.entries()).map(([familyId, skus]) => {
+      const first = skus[0];
+      const totalQty = skus.reduce((sum, s) => sum + (s.quantity ?? 0), 0);
+      return {
+        familyId,
+        name: first.name,
+        category: first.category_name,
+        skus,
+        totalQty,
+        baseUnit: first.base_unit || "ea",
+        isMulti: skus.length > 1,
+      };
+    });
+  }, [processedProducts]);
+
+  const toggleFamily = useCallback((familyId) => {
+    setExpandedFamilies((prev) => {
+      const next = new Set(prev);
+      if (next.has(familyId)) next.delete(familyId);
+      else next.add(familyId);
+      return next;
+    });
+  }, []);
+
+  const openDialog = (product = null, familyCtx = null) => {
     setEditingProduct(product);
+    setVariantContext(familyCtx);
     setDialogOpen(true);
   };
 
@@ -257,7 +497,11 @@ const InventoryPage = () => {
       <div className="px-8 pt-8 pb-0 shrink-0">
         <PageHeader
           title="Products"
-          subtitle={`${allProducts.length} products`}
+          subtitle={
+            groupMode === "grouped" && viewMode === "table"
+              ? `${productFamilyGroups.length} families · ${allProducts.length} SKUs`
+              : `${allProducts.length} products`
+          }
           action={
             <div className="flex gap-2">
               <Button
@@ -297,6 +541,24 @@ const InventoryPage = () => {
           resultCount={processedProducts.length}
           className="flex-1"
         />
+        {viewMode === "table" && (
+          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 shrink-0">
+            <button
+              onClick={() => setGroupMode("grouped")}
+              className={`p-1.5 rounded-md transition-colors ${groupMode === "grouped" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              title="Grouped by family"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setGroupMode("flat")}
+              className={`p-1.5 rounded-md transition-colors ${groupMode === "flat" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              title="Flat list"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 shrink-0">
           <button
             onClick={() => setViewMode("table")}
@@ -330,7 +592,16 @@ const InventoryPage = () => {
       )}
 
       <div className="flex-1 min-h-0 mt-3 px-8 pb-8 overflow-auto">
-        {viewMode === "table" ? (
+        {viewMode === "table" && groupMode === "grouped" ? (
+          <GroupedProductTable
+            groups={productFamilyGroups}
+            columns={view.visibleColumns}
+            expandedFamilies={expandedFamilies}
+            onToggleFamily={toggleFamily}
+            onRowClick={(p) => setDetailProduct(p)}
+            onAddVariant={(familyId, categoryId) => openDialog(null, { familyId, categoryId })}
+          />
+        ) : viewMode === "table" ? (
           <DataTable
             data={processedProducts}
             columns={view.visibleColumns}
@@ -391,13 +662,19 @@ const InventoryPage = () => {
           setLabelsModalOpen(true);
         }}
         onViewHistory={(p) => setStockHistoryProduct(p)}
+        onAddVariant={(familyId, categoryId) => openDialog(null, { familyId, categoryId })}
+        onSelectProduct={(p) => setDetailProduct(p)}
       />
 
       <ProductFormDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setVariantContext(null);
+        }}
         editingProduct={editingProduct}
         departments={departments}
+        variantContext={variantContext}
       />
 
       <AdjustStockDialog

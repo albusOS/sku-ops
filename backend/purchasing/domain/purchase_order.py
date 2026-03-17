@@ -70,7 +70,7 @@ class PurchaseOrderItem(Entity):
     purchase_pack_qty: int = 1
     suggested_department: str = "HDW"
     status: POItemStatus = POItemStatus.ORDERED
-    product_id: str | None = None
+    sku_id: str | None = None
 
     ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
         "ordered": {"pending"},
@@ -101,7 +101,7 @@ class POItemCreate(BaseModel):
     purchase_uom: str = "each"
     purchase_pack_qty: int = 1
     suggested_department: str | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     selected: bool = True
     ai_parsed: bool = False
 
@@ -118,7 +118,7 @@ class CreatePORequest(BaseModel):
 class ReceiveItemUpdate(BaseModel):
     id: str
     delivered_qty: float | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     name: str | None = None
     cost: float | None = None
     unit_price: float | None = None
@@ -160,7 +160,7 @@ class POItemRow(BaseModel):
     purchase_pack_qty: int = 1
     suggested_department: str = "HDW"
     status: POItemStatus = POItemStatus.ORDERED
-    product_id: str | None = None
+    sku_id: str | None = None
     organization_id: str = ""
     # Enriched fields — populated by get_po_items when a matched SKU is found
     matched_sku: str | None = None

@@ -1,19 +1,18 @@
-"""SKU counter repository."""
+"""SKU counter repository — per-product-family counters."""
 
 from shared.infrastructure.database import get_connection, get_org_id
 
 
-def _counter_key(department_code: str) -> str:
-    """Composite key for org-scoped SKU counters."""
+def _counter_key(product_family_id: str) -> str:
+    """Composite key for org-scoped, family-scoped SKU counters."""
     org = get_org_id()
-    code = (department_code or "").strip().upper()
-    return f"{org}|{code}"
+    return f"{org}|{product_family_id}"
 
 
-async def get_next_number(department_code: str) -> int:
+async def get_next_number(product_family_id: str) -> int:
     """Return the next counter value without incrementing (for preview)."""
     conn = get_connection()
-    key = _counter_key(department_code)
+    key = _counter_key(product_family_id)
     cursor = await conn.execute(
         "SELECT counter FROM sku_counters WHERE department_code = $1",
         (key,),
@@ -23,7 +22,7 @@ async def get_next_number(department_code: str) -> int:
 
 
 async def get_all_counters() -> dict:
-    """Return {department_code: counter} for org's departments with counters."""
+    """Return {family_key: counter} for org's families with counters."""
     conn = get_connection()
     org_id = get_org_id()
     prefix = f"{org_id}|"
@@ -35,9 +34,8 @@ async def get_all_counters() -> dict:
     return {row[0].split("|", 1)[-1]: row[1] for row in rows} if rows else {}
 
 
-async def increment_and_get(department_code: str) -> int:
-    code = (department_code or "").strip().upper()
-    key = _counter_key(code)
+async def increment_and_get(product_family_id: str) -> int:
+    key = _counter_key(product_family_id)
     conn = get_connection()
     await conn.execute(
         """INSERT INTO sku_counters (department_code, counter) VALUES ($1, 1)

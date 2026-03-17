@@ -27,6 +27,47 @@ import { UnknownBarcodeSheet } from "@/components/UnknownBarcodeSheet";
 import { getErrorMessage } from "@/lib/api-client";
 import { ROLES } from "@/lib/constants";
 
+function variantDescription(product) {
+  const attrs = product.variant_attrs;
+  if (attrs && typeof attrs === "object" && Object.keys(attrs).length > 0) {
+    return Object.values(attrs).join(" · ");
+  }
+  if (product.variant_label) return product.variant_label;
+  return product.sku;
+}
+
+function SearchResultRow({ product, onSelect, isVariant = false }) {
+  return (
+    <button
+      onClick={() => onSelect(product)}
+      className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted border-b border-border/50 last:border-b-0 text-left transition-colors"
+      data-testid={`search-result-${product.sku}`}
+    >
+      <div className="min-w-0">
+        <span className="font-mono text-xs text-muted-foreground mr-2">{product.sku}</span>
+        {isVariant ? (
+          <span className="font-medium text-foreground">{variantDescription(product)}</span>
+        ) : (
+          <span className="font-medium text-foreground">{product.name}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-4 shrink-0 ml-4">
+        <span className="text-xs text-muted-foreground">
+          {Math.floor(product.sell_quantity ?? product.quantity)} {product.sell_uom || "ea"} in
+          stock
+        </span>
+        <span className="font-semibold text-foreground tabular-nums">
+          ${(product.sell_price ?? product.price).toFixed(2)}
+          <span className="text-xs font-normal text-muted-foreground ml-0.5">
+            /{product.sell_uom || "ea"}
+          </span>
+        </span>
+        <Plus className="w-4 h-4 text-muted-foreground/60" />
+      </div>
+    </button>
+  );
+}
+
 const IssueMaterials = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -120,8 +161,19 @@ const IssueMaterials = () => {
             const q = search.toLowerCase();
             return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
           })
-          .slice(0, 8)
+          .slice(0, 12)
       : [];
+
+  const groupedResults = (() => {
+    if (searchResults.length === 0) return [];
+    const byFamily = new Map();
+    for (const p of searchResults) {
+      const fid = p.product_family_id || p.id;
+      if (!byFamily.has(fid)) byFamily.set(fid, []);
+      byFamily.get(fid).push(p);
+    }
+    return Array.from(byFamily.values());
+  })();
 
   const handleAddItem = (product) => {
     addItem(product);
@@ -173,8 +225,8 @@ const IssueMaterials = () => {
 
     try {
       const payload = {
-        items: items.map(({ product_id, sku, name, quantity, unit }) => ({
-          product_id,
+        items: items.map(({ sku_id, sku, name, quantity, unit }) => ({
+          sku_id,
           sku,
           name,
           quantity,
@@ -302,34 +354,37 @@ const IssueMaterials = () => {
                 className="absolute z-20 left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden"
                 data-testid="search-dropdown"
               >
-                {searchResults.length > 0 ? (
-                  searchResults.map((product) => (
-                    <button
-                      key={product.id}
-                      onClick={() => handleAddItem(product)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted border-b border-border/50 last:border-b-0 text-left transition-colors"
-                      data-testid={`search-result-${product.sku}`}
-                    >
-                      <div>
-                        <span className="font-mono text-xs text-muted-foreground mr-2">
-                          {product.sku}
-                        </span>
-                        <span className="font-medium text-foreground">{product.name}</span>
-                      </div>
-                      <div className="flex items-center gap-4 shrink-0 ml-4">
-                        <span className="text-xs text-muted-foreground">
-                          {Math.floor(product.sell_quantity ?? product.quantity)} in stock
-                        </span>
-                        <span className="font-semibold text-foreground tabular-nums">
-                          ${(product.sell_price ?? product.price).toFixed(2)}
-                          <span className="text-xs font-normal text-muted-foreground ml-0.5">
-                            /{product.sell_uom || "ea"}
+                {groupedResults.length > 0 ? (
+                  groupedResults.map((group) => {
+                    const isMulti = group.length > 1;
+                    if (!isMulti) {
+                      const product = group[0];
+                      return (
+                        <SearchResultRow
+                          key={product.id}
+                          product={product}
+                          onSelect={handleAddItem}
+                        />
+                      );
+                    }
+                    return (
+                      <div key={group[0].product_family_id}>
+                        <div className="px-4 py-1.5 bg-muted/50 border-b border-border/50">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {group[0].name}
                           </span>
-                        </span>
-                        <Plus className="w-4 h-4 text-muted-foreground/60" />
+                        </div>
+                        {group.map((product) => (
+                          <SearchResultRow
+                            key={product.id}
+                            product={product}
+                            onSelect={handleAddItem}
+                            isVariant
+                          />
+                        ))}
                       </div>
-                    </button>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="px-4 py-3 text-sm text-muted-foreground">
                     No matching products in stock
@@ -350,7 +405,7 @@ const IssueMaterials = () => {
             <div className="divide-y divide-border/50">
               {items.map((item) => (
                 <div
-                  key={item.product_id}
+                  key={item.sku_id}
                   className="flex items-center gap-4 px-6 py-4"
                   data-testid={`item-row-${item.sku}`}
                 >
@@ -363,7 +418,7 @@ const IssueMaterials = () => {
                   </div>
                   <QuantityControl
                     value={item.quantity}
-                    onChange={(v) => updateQuantity(item.product_id, v)}
+                    onChange={(v) => updateQuantity(item.sku_id, v)}
                     max={item.max_quantity}
                     unit={item.unit}
                   />
@@ -373,7 +428,7 @@ const IssueMaterials = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => removeItem(item.product_id)}
+                    onClick={() => removeItem(item.sku_id)}
                     className="text-muted-foreground/60 hover:text-destructive transition-colors shrink-0"
                     data-testid={`remove-item-${item.sku}`}
                   >

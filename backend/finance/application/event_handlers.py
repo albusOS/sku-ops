@@ -44,11 +44,11 @@ async def auto_credit_note_on_return(event: ReturnCreated) -> None:
     try:
         items = [
             {
-                "name": li.product_id,
+                "name": li.sku_id,
                 "quantity": li.quantity,
                 "unit_price": li.unit_price,
                 "cost": li.cost,
-                "product_id": li.product_id,
+                "sku_id": li.sku_id,
                 "unit": li.unit,
             }
             for li in event.ledger_items

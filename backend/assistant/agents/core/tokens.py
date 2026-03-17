@@ -36,7 +36,7 @@ _LOW_VALUE_FIELDS = frozenset(
 
 # JSON keys that typically contain list items
 _LIST_KEYS = (
-    "products",
+    "skus",
     "forecast",
     "suggestions",
     "slow_movers",

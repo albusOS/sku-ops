@@ -88,17 +88,17 @@ async def get_po(po_id: str) -> PORow | None:
 
 async def get_po_items(po_id: str) -> list[POItemRow]:
     items = await _po_repo.get_po_items(po_id)
-    product_ids = [i.product_id for i in items if i.product_id]
-    if not product_ids:
+    sku_ids = [i.sku_id for i in items if i.sku_id]
+    if not sku_ids:
         return items
     products = {}
-    for pid in set(product_ids):
+    for pid in set(sku_ids):
         p = await _get_product(pid)
         if p:
             products[pid] = p
     enriched = []
     for item in items:
-        pid = item.product_id
+        pid = item.sku_id
         if pid and pid in products:
             p = products[pid]
             enriched.append(

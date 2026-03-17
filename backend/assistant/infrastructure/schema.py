@@ -42,7 +42,7 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL
     )""",
     # Persistent embedding store — pgvector-backed semantic search across
-    # all entity types (products, vendors, POs, jobs, memory artifacts, tools).
+    # all entity types (SKUs, vendors, POs, jobs, memory artifacts, tools).
     # Replaces in-memory NumPy matrices with durable, ANN-indexed vectors.
     """CREATE TABLE IF NOT EXISTS embeddings (
         id TEXT PRIMARY KEY,

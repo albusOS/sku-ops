@@ -40,7 +40,7 @@ class TestReturnPipeline:
                 "withdrawal_id": withdrawal["id"],
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 4,
@@ -90,7 +90,7 @@ class TestReturnPipeline:
                 "withdrawal_id": withdrawal["id"],
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 10,
@@ -120,7 +120,7 @@ class TestReturnPipeline:
                 "withdrawal_id": withdrawal["id"],
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 2,

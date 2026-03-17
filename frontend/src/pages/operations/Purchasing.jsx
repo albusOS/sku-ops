@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Upload, Truck, Package } from "lucide-react";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
@@ -115,121 +114,119 @@ export default function Purchasing() {
   if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="h-full flex flex-col" data-testid="purchasing-page">
-        {/* Page header */}
-        <div className="px-8 pt-8 pb-0 shrink-0">
-          <PageHeader
-            title="Purchasing"
-            subtitle={`${stats.total} orders · $${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total spend`}
-            action={
-              <Button onClick={() => setShowImport(true)} className="btn-primary h-12 px-6">
-                <Upload className="w-5 h-5 mr-2" />
-                Add Order
-              </Button>
-            }
-          />
-        </div>
-
-        {/* Stats strip */}
-        <div className="px-8 shrink-0">
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <StatPill
-              label="Awaiting Delivery"
-              value={stats.ordered}
-              icon={Package}
-              color={stats.ordered > 0 ? "text-warning" : "text-muted-foreground"}
-              highlight={stats.ordered > 0}
-            />
-            <StatPill
-              label="In Transit"
-              value={stats.inTransit}
-              icon={Truck}
-              color={stats.inTransit > 0 ? "text-info" : "text-muted-foreground"}
-              highlight={stats.inTransit > 0}
-            />
-            <StatPill
-              label="Total Spend"
-              value={`$${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-              icon={Package}
-              color="text-foreground"
-            />
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div className="px-8 shrink-0">
-          <ViewToolbar
-            controller={view}
-            columns={columns}
-            data={orders}
-            resultCount={processedOrders.length}
-          />
-        </div>
-
-        {/* Content area — splits when panel is open */}
-        <div className="flex-1 flex min-h-0 mt-3">
-          {/* Table */}
-          <motion.div
-            layout
-            animate={{ width: panelOpen ? "58%" : "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 36 }}
-            className="h-full overflow-auto px-8 pb-8 shrink-0"
-          >
-            <DataTable
-              data={processedOrders}
-              columns={view.visibleColumns}
-              emptyMessage="No purchase orders yet"
-              emptyIcon={Truck}
-              onRowClick={(po) => setDetailPo(po)}
-              exportable
-              exportFilename="purchase-orders.csv"
-              disableSort
-            />
-          </motion.div>
-
-          {/* Detail panel */}
-          <AnimatePresence>
-            {panelOpen && (
-              <motion.div
-                key="panel"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "42%", opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 36 }}
-                className="h-full shrink-0 overflow-hidden"
-              >
-                <PODetailPanel
-                  po={detailPo}
-                  open={panelOpen}
-                  onClose={() => setDetailPo(null)}
-                  onUpdated={refetch}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Import sheet */}
-        <Sheet open={showImport} onOpenChange={setShowImport}>
-          <SheetContent side="right" className="sm:max-w-lg w-full p-0 overflow-hidden">
-            <SheetHeader className="sr-only">
-              <SheetTitle>Add Purchase Order</SheetTitle>
-              <SheetDescription>
-                Upload a vendor bill, receipt, or packing slip to create a purchase order
-              </SheetDescription>
-            </SheetHeader>
-            <ImportFlow
-              onComplete={() => {
-                setShowImport(false);
-                refetch();
-              }}
-              onCancel={() => setShowImport(false)}
-            />
-          </SheetContent>
-        </Sheet>
+    <div className="h-full flex flex-col" data-testid="purchasing-page">
+      {/* Page header */}
+      <div className="px-8 pt-8 pb-0 shrink-0">
+        <PageHeader
+          title="Purchasing"
+          subtitle={`${stats.total} orders · $${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total spend`}
+          action={
+            <Button onClick={() => setShowImport(true)} className="btn-primary h-12 px-6">
+              <Upload className="w-5 h-5 mr-2" />
+              Add Order
+            </Button>
+          }
+        />
       </div>
-    </TooltipProvider>
+
+      {/* Stats strip */}
+      <div className="px-8 shrink-0">
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <StatPill
+            label="Awaiting Delivery"
+            value={stats.ordered}
+            icon={Package}
+            color={stats.ordered > 0 ? "text-warning" : "text-muted-foreground"}
+            highlight={stats.ordered > 0}
+          />
+          <StatPill
+            label="In Transit"
+            value={stats.inTransit}
+            icon={Truck}
+            color={stats.inTransit > 0 ? "text-info" : "text-muted-foreground"}
+            highlight={stats.inTransit > 0}
+          />
+          <StatPill
+            label="Total Spend"
+            value={`$${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+            icon={Package}
+            color="text-foreground"
+          />
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="px-8 shrink-0">
+        <ViewToolbar
+          controller={view}
+          columns={columns}
+          data={orders}
+          resultCount={processedOrders.length}
+        />
+      </div>
+
+      {/* Content area — splits when panel is open */}
+      <div className="flex-1 flex min-h-0 mt-3">
+        {/* Table */}
+        <motion.div
+          layout
+          animate={{ width: panelOpen ? "58%" : "100%" }}
+          transition={{ type: "spring", stiffness: 300, damping: 36 }}
+          className="h-full overflow-auto px-8 pb-8 shrink-0"
+        >
+          <DataTable
+            data={processedOrders}
+            columns={view.visibleColumns}
+            emptyMessage="No purchase orders yet"
+            emptyIcon={Truck}
+            onRowClick={(po) => setDetailPo(po)}
+            exportable
+            exportFilename="purchase-orders.csv"
+            disableSort
+          />
+        </motion.div>
+
+        {/* Detail panel */}
+        <AnimatePresence>
+          {panelOpen && (
+            <motion.div
+              key="panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "42%", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 36 }}
+              className="h-full shrink-0 overflow-hidden"
+            >
+              <PODetailPanel
+                po={detailPo}
+                open={panelOpen}
+                onClose={() => setDetailPo(null)}
+                onUpdated={refetch}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Import sheet */}
+      <Sheet open={showImport} onOpenChange={setShowImport}>
+        <SheetContent side="right" className="sm:max-w-lg w-full p-0 overflow-hidden">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Add Purchase Order</SheetTitle>
+            <SheetDescription>
+              Upload a vendor bill, receipt, or packing slip to create a purchase order
+            </SheetDescription>
+          </SheetHeader>
+          <ImportFlow
+            onComplete={() => {
+              setShowImport(false);
+              refetch();
+            }}
+            onCancel={() => setShowImport(false)}
+          />
+        </SheetContent>
+      </Sheet>
+    </div>
   );
 }
 

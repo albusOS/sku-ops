@@ -18,22 +18,29 @@ def create_product(client, headers, *, dept_id: str, **overrides) -> dict:
 
 
 def create_withdrawal(
-    client, headers, product, *, quantity=5, job_id="JOB-E2E", contractor_id="contractor-1"
+    client,
+    headers,
+    product,
+    *,
+    quantity=5,
+    unit=None,
+    job_id="JOB-E2E",
+    contractor_id="contractor-1",
 ) -> dict:
     """Create a withdrawal via the API (admin creates for contractor). Returns the JSON body."""
+    item = {
+        "sku_id": product["id"],
+        "sku": product["sku"],
+        "name": product["name"],
+        "quantity": quantity,
+        "unit": unit or product.get("sell_uom", "each"),
+        "unit_price": product["price"],
+        "cost": product["cost"],
+    }
     resp = client.post(
         f"/api/beta/operations/withdrawals/for-contractor?contractor_id={contractor_id}",
         json={
-            "items": [
-                {
-                    "product_id": product["id"],
-                    "sku": product["sku"],
-                    "name": product["name"],
-                    "quantity": quantity,
-                    "unit_price": product["price"],
-                    "cost": product["cost"],
-                }
-            ],
+            "items": [item],
             "job_id": job_id,
             "service_address": "100 E2E Test Lane",
         },
@@ -43,29 +50,41 @@ def create_withdrawal(
     return resp.json()
 
 
-def create_po(client, headers, product, *, quantity=10, vendor_name="E2E Vendor") -> dict:
+def create_po(
+    client,
+    headers,
+    product,
+    *,
+    quantity=10,
+    vendor_name="E2E Vendor",
+    purchase_uom=None,
+    purchase_pack_qty=None,
+) -> dict:
     """Create a purchase order via the API. Returns the PO JSON body.
 
     Sets ai_parsed=True and suggested_department to bypass LLM enrichment.
     """
+    po_item = {
+        "name": product["name"],
+        "sku_id": product["id"],
+        "quantity": quantity,
+        "cost": product["cost"],
+        "price": product["cost"],
+        "base_unit": product.get("base_unit", "box"),
+        "sell_uom": product.get("sell_uom", "box"),
+        "suggested_department": "HDW",
+        "ai_parsed": True,
+    }
+    if purchase_uom is not None:
+        po_item["purchase_uom"] = purchase_uom
+    if purchase_pack_qty is not None:
+        po_item["purchase_pack_qty"] = purchase_pack_qty
     resp = client.post(
         "/api/beta/purchasing/purchase-orders",
         json={
             "vendor_name": vendor_name,
             "create_vendor_if_missing": True,
-            "products": [
-                {
-                    "name": product["name"],
-                    "product_id": product["id"],
-                    "quantity": quantity,
-                    "cost": product["cost"],
-                    "price": product["cost"],
-                    "base_unit": "box",
-                    "sell_uom": "box",
-                    "suggested_department": "HDW",
-                    "ai_parsed": True,
-                }
-            ],
+            "products": [po_item],
         },
         headers=headers,
     )
@@ -150,7 +169,7 @@ def create_material_request(client, contractor_headers, product, *, quantity=3) 
         json={
             "items": [
                 {
-                    "product_id": product["id"],
+                    "sku_id": product["id"],
                     "sku": product["sku"],
                     "name": product["name"],
                     "quantity": quantity,

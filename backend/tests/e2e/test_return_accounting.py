@@ -16,8 +16,8 @@ def _sales_report(client, headers):
     return resp.json()
 
 
-def _stock(client, headers, product_id):
-    resp = client.get(f"/api/beta/catalog/skus/{product_id}", headers=headers)
+def _stock(client, headers, sku_id):
+    resp = client.get(f"/api/beta/catalog/skus/{sku_id}", headers=headers)
     assert resp.status_code == 200
     return resp.json()["quantity"]
 
@@ -29,7 +29,7 @@ def _create_return(client, headers, withdrawal_id, product, quantity, reason="ot
             "withdrawal_id": withdrawal_id,
             "items": [
                 {
-                    "product_id": product["id"],
+                    "sku_id": product["id"],
                     "sku": product["sku"],
                     "name": product["name"],
                     "quantity": quantity,
@@ -150,7 +150,7 @@ class TestReturnAccounting:
                 "withdrawal_id": wd["id"],
                 "items": [
                     {
-                        "product_id": product["id"],
+                        "sku_id": product["id"],
                         "sku": product["sku"],
                         "name": product["name"],
                         "quantity": 1,

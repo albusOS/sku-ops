@@ -108,8 +108,8 @@ const ScanModePage = () => {
     setSubmitting(true);
     try {
       await createWithdrawal.mutateAsync({
-        items: items.map(({ product_id, sku, name, quantity, unit_price, unit }) => ({
-          product_id,
+        items: items.map(({ sku_id, sku, name, quantity, unit_price, unit }) => ({
+          sku_id,
           sku,
           name,
           quantity,
@@ -302,23 +302,27 @@ const ScanModePage = () => {
             <div className="space-y-2">
               {items.map((item) => (
                 <div
-                  key={item.product_id}
+                  key={item.sku_id}
                   className="bg-card border border-border/80 rounded-xl px-4 py-3 flex items-center gap-3 shadow-soft"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-mono text-[10px] text-muted-foreground">{item.sku}</p>
                     <p className="font-medium text-foreground truncate">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      ${item.unit_price.toFixed(2)} / {item.unit || item.sell_uom || "ea"}
+                    </p>
                   </div>
                   <QuantityControl
                     value={item.quantity}
-                    onChange={(v) => updateQuantity(item.product_id, v)}
+                    onChange={(v) => updateQuantity(item.sku_id, v)}
                     max={item.max_quantity}
+                    unit={item.unit || item.sell_uom || "ea"}
                   />
                   <span className="font-semibold text-sm text-foreground tabular-nums min-w-[60px] text-right">
                     ${(item.quantity * item.unit_price).toFixed(2)}
                   </span>
                   <button
-                    onClick={() => removeItem(item.product_id)}
+                    onClick={() => removeItem(item.sku_id)}
                     className="text-muted-foreground/50 hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-destructive/5"
                   >
                     <Trash2 className="w-4 h-4" />

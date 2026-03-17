@@ -5,8 +5,8 @@ Thin delegation layer that decouples consumers from infrastructure details.
 """
 
 from catalog.domain.department import Department
-from catalog.domain.product import Sku, SkuUpdate
-from catalog.domain.product_family import Product
+from catalog.domain.product_family import ProductFamily
+from catalog.domain.sku import Sku, SkuUpdate
 from catalog.domain.vendor import Vendor
 from catalog.domain.vendor_item import VendorItem
 from catalog.infrastructure.department_repo import department_repo as _dept_repo
@@ -25,7 +25,7 @@ async def list_product_families(
     search: str | None = None,
     limit: int | None = None,
     offset: int = 0,
-) -> list[Product]:
+) -> list[ProductFamily]:
     return await _prod_repo.list_all(
         category_id=category_id,
         search=search,
@@ -41,7 +41,7 @@ async def count_product_families(
     return await _prod_repo.count(category_id=category_id, search=search)
 
 
-async def get_product_family_by_id(product_id: str) -> Product | None:
+async def get_product_family_by_id(product_id: str) -> ProductFamily | None:
     return await _prod_repo.get_by_id(product_id)
 
 
@@ -54,7 +54,7 @@ async def list_skus(
     low_stock: bool = False,
     limit: int | None = None,
     offset: int = 0,
-    product_id: str | None = None,
+    product_family_id: str | None = None,
 ) -> list[Sku]:
     return await _sku_repo.list_skus(
         category_id=category_id,
@@ -62,7 +62,7 @@ async def list_skus(
         low_stock=low_stock,
         limit=limit,
         offset=offset,
-        product_id=product_id,
+        product_family_id=product_family_id,
     )
 
 
@@ -70,13 +70,13 @@ async def count_skus(
     category_id: str | None = None,
     search: str | None = None,
     low_stock: bool = False,
-    product_id: str | None = None,
+    product_family_id: str | None = None,
 ) -> int:
     return await _sku_repo.count_skus(
         category_id=category_id,
         search=search,
         low_stock=low_stock,
-        product_id=product_id,
+        product_family_id=product_family_id,
     )
 
 
@@ -95,8 +95,8 @@ async def find_sku_by_barcode(
     return await _sku_repo.find_by_barcode(barcode, exclude_sku_id=exclude_sku_id)
 
 
-async def list_skus_by_product(product_id: str) -> list[Sku]:
-    return await _sku_repo.find_by_product_id(product_id)
+async def list_skus_by_product_family(product_family_id: str) -> list[Sku]:
+    return await _sku_repo.find_by_product_family_id(product_family_id)
 
 
 async def count_all_skus() -> int:
@@ -185,7 +185,7 @@ async def sku_vendor_options(sku_id: str) -> list[dict]:
                FROM purchase_orders po
                JOIN purchase_order_items poi ON poi.po_id = po.id
                WHERE po.vendor_id = $1 AND po.organization_id = $2
-                 AND poi.product_id = $3""",
+                 AND poi.sku_id = $3""",
             (vi.vendor_id, org_id, sku_id),
         )
         row = await cursor.fetchone()
@@ -290,5 +290,5 @@ async def get_sku_counters() -> dict:
     return await _counter_repo.get_all_counters()
 
 
-async def get_next_sku_number(department_code: str) -> int:
-    return await _counter_repo.get_next_number(department_code)
+async def get_next_sku_number(product_family_id: str) -> int:
+    return await _counter_repo.get_next_number(product_family_id)

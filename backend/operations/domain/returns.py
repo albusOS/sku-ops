@@ -21,7 +21,7 @@ class ReturnItem(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    product_id: str
+    sku_id: str
     sku: str
     name: str
     quantity: float

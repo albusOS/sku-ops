@@ -251,12 +251,12 @@ async def get_reorder_urgency(
 @router.get("/product-activity")
 async def get_product_activity(
     current_user: AdminDep,
-    product_id: str | None = None,
+    sku_id: str | None = None,
     days: int = 365,
 ):
-    """Daily withdrawal activity heatmap data. Optional product_id filter."""
+    """Daily withdrawal activity heatmap data. Optional sku_id filter."""
     try:
-        return await product_activity_report(product_id=product_id, days=days)
+        return await product_activity_report(sku_id=sku_id, days=days)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception:

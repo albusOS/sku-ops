@@ -46,7 +46,7 @@ class InvoiceLineItem(BaseModel):
     cost: float = 0.0
     sell_cost: float = 0.0
     unit: str | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     job_id: str | None = None
 
     @property
@@ -74,7 +74,7 @@ class InvoiceLineItem(BaseModel):
             unit_price=item.unit_price,
             amount=item.subtotal,
             cost=item.cost,
-            product_id=item.product_id,
+            sku_id=item.sku_id,
             job_id=job_id,
         )
 

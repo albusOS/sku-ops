@@ -6,7 +6,7 @@ Each item must be:
 {"type": "entity_fact"|"session_summary"|"user_preference", "subject": "<domain>:<id> or 'general'", "content": "<1-2 sentence fact>", "tags": ["tag1"]}
 
 Types:
-- entity_fact: specific facts about contractors, products, or jobs (subject: "contractor:john-smith", "product:PLU-001")
+- entity_fact: specific facts about contractors, SKUs, or jobs (subject: "contractor:john-smith", "sku:PLU-001")
 - session_summary: what the user was investigating or working on (subject: "session")
 - user_preference: how the user prefers data presented, what they care about (subject: "general")
 

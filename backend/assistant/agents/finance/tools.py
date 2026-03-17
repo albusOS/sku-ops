@@ -113,31 +113,31 @@ async def _get_pl_summary(args: dict) -> str:
     )
 
 
-async def _get_top_products(args: dict) -> str:
+async def _get_top_skus(args: dict) -> str:
     days = min(int(args.get("days") or 7), 365)
     limit = min(int(args.get("limit") or 10), 50)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
-    product_map: dict[str, dict] = {}
+    sku_map: dict[str, dict] = {}
     for w in withdrawals:
         for item in w.items:
             sku = item.sku or item.name or "unknown"
             name = item.name or sku
             qty = item.quantity
             revenue = item.subtotal
-            if sku not in product_map:
-                product_map[sku] = {
+            if sku not in sku_map:
+                sku_map[sku] = {
                     "sku": sku,
                     "name": name,
                     "total_units": 0,
                     "total_revenue": 0.0,
                 }
-            product_map[sku]["total_units"] += qty
-            product_map[sku]["total_revenue"] += revenue
-    ranked = sorted(product_map.values(), key=lambda x: x["total_revenue"], reverse=True)[:limit]
+            sku_map[sku]["total_units"] += qty
+            sku_map[sku]["total_revenue"] += revenue
+    ranked = sorted(sku_map.values(), key=lambda x: x["total_revenue"], reverse=True)[:limit]
     for r in ranked:
         r["total_revenue"] = round(r["total_revenue"], 2)
-    return json.dumps({"period_days": days, "count": len(ranked), "products": ranked})
+    return json.dumps({"period_days": days, "count": len(ranked), "skus": ranked})
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
@@ -146,4 +146,4 @@ _reg("get_invoice_summary", "finance", _get_invoice_summary, takes_args=False)
 _reg("get_outstanding_balances", "finance", _get_outstanding_balances, lookup_key="outstanding")
 _reg("get_revenue_summary", "finance", _get_revenue_summary)
 _reg("get_pl_summary", "finance", _get_pl_summary)
-_reg("get_top_products_fin", "finance", _get_top_products)
+_reg("get_top_skus_fin", "finance", _get_top_skus)

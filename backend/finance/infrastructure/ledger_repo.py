@@ -29,7 +29,7 @@ async def insert_entries(entries: list[FinancialEntry]) -> None:
             """INSERT INTO financial_ledger
                (id, journal_id, account, amount, quantity, unit, unit_cost,
                 department, job_id, billing_entity,
-                contractor_id, vendor_name, product_id, performed_by_user_id,
+                contractor_id, vendor_name, sku_id, performed_by_user_id,
                 reference_type, reference_id, organization_id, created_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)""",
             (
@@ -45,7 +45,7 @@ async def insert_entries(entries: list[FinancialEntry]) -> None:
                 e.billing_entity,
                 e.contractor_id,
                 e.vendor_name,
-                e.product_id,
+                e.sku_id,
                 e.performed_by_user_id,
                 e.reference_type.value,
                 e.reference_id,

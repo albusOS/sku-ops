@@ -80,7 +80,7 @@ export function ReviewFlow({
     const preMatched = [];
     const needMatch = [];
     for (const item of seeded) {
-      if (item.product_id && item.matched_sku) {
+      if (item.sku_id && item.matched_sku) {
         preMatched.push(item);
       } else {
         needMatch.push({ ...item, id: item._rid });
@@ -89,7 +89,7 @@ export function ReviewFlow({
 
     for (const item of preMatched) {
       confirmMatch(item._rid, {
-        id: item.product_id,
+        id: item.sku_id,
         sku: item.matched_sku,
         name: item.matched_name || item.name,
         quantity: item.matched_quantity ?? 0,
@@ -171,7 +171,7 @@ export function ReviewFlow({
 
       const matched = it._resolved_match;
       if (matched) {
-        entry.product_id = matched.id;
+        entry.sku_id = matched.id;
       } else {
         entry.price = parseFloat(it.price) || 0;
         entry.original_sku = it.original_sku;

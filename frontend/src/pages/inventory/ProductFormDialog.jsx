@@ -8,7 +8,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sparkles, ChevronDown, Plus, X } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-client";
 import api from "@/lib/api-client";
-import { useCreateProduct, useUpdateProduct, useSuggestUom } from "@/hooks/useProducts";
+import {
+  useCreateProduct,
+  useUpdateProduct,
+  useCreateVariant,
+  useSuggestUom,
+} from "@/hooks/useProducts";
 import { ProductFields } from "@/components/ProductFields";
 
 function VariantAttrsEditor({ attrs, onChange }) {
@@ -104,22 +109,30 @@ const ADVANCED_FIELDS = new Set([
 
 const ESSENTIAL_FIELDS = new Set(["name", "category_id", "price", "quantity"]);
 
-export function ProductFormDialog({ open, onOpenChange, editingProduct, departments = [] }) {
+export function ProductFormDialog({
+  open,
+  onOpenChange,
+  editingProduct,
+  departments = [],
+  variantContext = null,
+}) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const suggestTimeout = useRef(null);
 
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
+  const variantMutation = useCreateVariant();
   const suggestMutation = useSuggestUom();
-  const saving = createMutation.isPending || updateMutation.isPending;
+  const isVariantMode = !!variantContext?.familyId;
+  const saving = createMutation.isPending || updateMutation.isPending || variantMutation.isPending;
 
   const skuPreviewEnabled = open && !editingProduct && !!form.category_id;
   const { data: skuPreviewData } = useQuery({
     queryKey: ["skuPreview", form.category_id, form.name],
     queryFn: () => {
       const params = { category_id: form.category_id };
-      if (form.name?.trim()) params.product_name = form.name.trim();
+      if (form.name?.trim()) params.family_name = form.name.trim();
       return api.sku.preview(params);
     },
     enabled: skuPreviewEnabled,
@@ -146,11 +159,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
         variant_attrs: editingProduct.variant_attrs || {},
       });
       setAdvancedOpen(true);
+    } else if (isVariantMode) {
+      setForm({ ...INITIAL_FORM, category_id: variantContext.categoryId || "" });
+      setAdvancedOpen(false);
     } else {
       setForm(INITIAL_FORM);
       setAdvancedOpen(false);
     }
-  }, [open, editingProduct]);
+  }, [open, editingProduct, isVariantMode, variantContext]);
 
   useEffect(() => {
     return () => {
@@ -267,13 +283,24 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
       ? baseData
       : { ...baseData, quantity: parseFloat(form.quantity) || 0 };
 
-    const mutation = editingProduct ? updateMutation : createMutation;
-    const mutationArg = editingProduct ? { id: editingProduct.id, data } : data;
+    let mutation, mutationArg;
+    if (editingProduct) {
+      mutation = updateMutation;
+      mutationArg = { id: editingProduct.id, data };
+    } else if (isVariantMode) {
+      mutation = variantMutation;
+      mutationArg = { familyId: variantContext.familyId, data };
+    } else {
+      mutation = createMutation;
+      mutationArg = data;
+    }
 
     mutation.mutate(mutationArg, {
       onSuccess: (result) => {
         toast.success(
-          editingProduct ? "Product updated!" : `Product created with SKU ${result?.sku ?? ""}`,
+          editingProduct
+            ? "Product updated!"
+            : `${isVariantMode ? "Variant" : "Product"} created with SKU ${result?.sku ?? ""}`,
         );
         onOpenChange(false);
       },
@@ -286,7 +313,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
       <DialogContent className="sm:max-w-lg rounded-2xl" data-testid="product-dialog">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            {editingProduct ? "Edit product" : "Add new product"}
+            {editingProduct ? "Edit product" : isVariantMode ? "Add variant" : "Add new product"}
           </DialogTitle>
         </DialogHeader>
 
@@ -409,7 +436,13 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, departme
               className="flex-1 btn-primary h-12"
               data-testid="product-save-btn"
             >
-              {saving ? "Saving..." : editingProduct ? "Update Product" : "Create Product"}
+              {saving
+                ? "Saving..."
+                : editingProduct
+                  ? "Update Product"
+                  : isVariantMode
+                    ? "Create Variant"
+                    : "Create Product"}
             </Button>
           </div>
         </form>

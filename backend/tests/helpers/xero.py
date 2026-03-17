@@ -46,7 +46,7 @@ def make_invoice(xero_invoice_id=None) -> dict:
                 "unit_price": 10.0,
                 "amount": 100.0,
                 "cost": 6.0,
-                "product_id": "prod-1",
+                "sku_id": "prod-1",
                 "job_id": "JOB-42",
             }
         ],

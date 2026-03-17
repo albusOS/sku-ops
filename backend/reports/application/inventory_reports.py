@@ -60,7 +60,7 @@ class ReorderUrgencyReport:
 @dataclass(frozen=True)
 class ProductActivityReport:
     series: list[dict]
-    product_id: str | None
+    sku_id: str | None
     days: int
 
 
@@ -121,7 +121,7 @@ async def product_performance_report(
 
     result = []
     for m in margin_data:
-        pid = m["product_id"]
+        pid = m["sku_id"]
         p = product_map.get(pid)
         current_stock = _to_decimal(p.quantity if p else 0)
         units_sold = _to_decimal(units_sold_map.get(pid, 0))
@@ -138,10 +138,11 @@ async def product_performance_report(
         )
         result.append(
             {
-                "product_id": pid,
+                "sku_id": pid,
                 "name": p.name if p else "Unknown",
                 "sku": p.sku if p else "",
                 "department": p.category_name if p else "",
+                "base_unit": p.base_unit if p else "each",
                 "current_stock": float(current_stock),
                 "catalog_unit_cost": round(float(catalog_unit_cost), 2),
                 "units_sold": float(units_sold),
@@ -169,11 +170,11 @@ async def reorder_urgency_report(
         list_skus(),
     )
 
-    product_ids = [p.id for p in low_stock]
-    if not product_ids:
+    sku_ids = [p.id for p in low_stock]
+    if not sku_ids:
         return ReorderUrgencyReport(products=[], total=0)
 
-    velocity_map = await withdrawal_velocity(product_ids, since)
+    velocity_map = await withdrawal_velocity(sku_ids, since)
 
     result = []
     for p in low_stock:
@@ -194,10 +195,11 @@ async def reorder_urgency_report(
         )
         result.append(
             {
-                "product_id": p.id,
+                "sku_id": p.id,
                 "name": p.name,
                 "sku": p.sku,
                 "department": p.category_name,
+                "base_unit": p.base_unit,
                 "current_stock": qty,
                 "min_stock": p.min_stock,
                 "avg_daily_use": round(avg_daily, 2),
@@ -218,9 +220,9 @@ async def reorder_urgency_report(
 
 async def product_activity_report(
     *,
-    product_id: str | None = None,
+    sku_id: str | None = None,
     days: int = 365,
 ) -> ProductActivityReport:
     since = (datetime.now(UTC) - timedelta(days=min(days, 730))).isoformat()
-    rows = await daily_withdrawal_activity(since, product_id=product_id)
-    return ProductActivityReport(series=rows, product_id=product_id, days=days)
+    rows = await daily_withdrawal_activity(since, sku_id=sku_id)
+    return ProductActivityReport(series=rows, sku_id=sku_id, days=days)

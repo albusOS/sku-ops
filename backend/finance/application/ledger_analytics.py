@@ -29,7 +29,7 @@ class ArAgingRow(TypedDict):
 
 
 class ProductMarginRow(TypedDict):
-    product_id: str
+    sku_id: str
     revenue: float
     cost: float
     profit: float
@@ -203,16 +203,16 @@ async def product_margins(
 
     limit_n = len(params) + 1
     query = (
-        "SELECT product_id,"
+        "SELECT sku_id,"
         " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
         " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost"
         " FROM financial_ledger"
         " WHERE organization_id = $1"
         " AND account IN ('revenue', 'cogs')"
-        " AND product_id IS NOT NULL"
+        " AND sku_id IS NOT NULL"
     )
     query += date_filter + dim_filter
-    query += f" GROUP BY product_id ORDER BY revenue DESC LIMIT ${limit_n}"
+    query += f" GROUP BY sku_id ORDER BY revenue DESC LIMIT ${limit_n}"
     cursor = await conn.execute(query, [*params, limit])
     rows = await cursor.fetchall()
     result = []
@@ -223,7 +223,7 @@ async def product_margins(
         profit = round(revenue - cost, 2)
         result.append(
             ProductMarginRow(
-                product_id=row["product_id"],
+                sku_id=row["sku_id"],
                 revenue=revenue,
                 cost=cost,
                 profit=profit,

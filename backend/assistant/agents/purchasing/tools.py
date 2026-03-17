@@ -84,10 +84,10 @@ async def _get_sku_vendor_options(args: dict) -> str:
     # Accept either the internal UUID or the human-readable SKU code.
     # If the value doesn't look like a UUID, try resolving it as a SKU code.
     if "-" not in sku_id:
-        product = await find_sku_by_sku_code(sku_id.upper())
-        if not product:
+        sku = await find_sku_by_sku_code(sku_id.upper())
+        if not sku:
             return json.dumps({"error": f"SKU '{sku_id}' not found"})
-        sku_id = product.id
+        sku_id = sku.id
     options = await sku_vendor_options(sku_id)
     return json.dumps(
         {

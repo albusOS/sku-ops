@@ -3,7 +3,7 @@
 import json
 from datetime import UTC, datetime
 
-from catalog.domain.product import Sku
+from catalog.domain.sku import Sku
 from catalog.infrastructure.sku_repo import get_by_id
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -13,7 +13,7 @@ async def insert(sku: Sku) -> None:
     conn = get_connection()
     org_id = sku_dict.get("organization_id") or get_org_id()
     await conn.execute(
-        """INSERT INTO skus (id, sku, product_id, name, description, price, cost, quantity, min_stock,
+        """INSERT INTO skus (id, sku, product_family_id, name, description, price, cost, quantity, min_stock,
            category_id, category_name, barcode, vendor_barcode,
            base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
            variant_label, spec, grade, variant_attrs,
@@ -22,7 +22,7 @@ async def insert(sku: Sku) -> None:
         (
             sku_dict["id"],
             sku_dict["sku"],
-            sku_dict["product_id"],
+            sku_dict["product_family_id"],
             sku_dict["name"],
             sku_dict.get("description", ""),
             sku_dict["price"],
@@ -65,7 +65,7 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
         "min_stock",
         "category_id",
         "category_name",
-        "product_id",
+        "product_family_id",
         "barcode",
         "vendor_barcode",
         "base_unit",

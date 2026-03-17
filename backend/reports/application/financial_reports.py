@@ -117,9 +117,14 @@ async def sales_report(
     product_map = {p.id: p for p in catalog}
     enriched_products = []
     for m in top_products:
-        p = product_map.get(m["product_id"])
+        p = product_map.get(m["sku_id"])
         enriched_products.append(
-            {**m, "name": p.name if p else "Unknown", "sku": p.sku if p else ""}
+            {
+                **m,
+                "name": p.name if p else "Unknown",
+                "sku": p.sku if p else "",
+                "base_unit": p.base_unit if p else "each",
+            }
         )
 
     net_revenue = float(accounts.get("revenue", 0))
@@ -197,8 +202,15 @@ async def product_margins_report(
     product_map = {p.id: p for p in catalog}
     enriched = []
     for m in margin_data:
-        p = product_map.get(m["product_id"])
-        enriched.append({**m, "name": p.name if p else "Unknown", "sku": p.sku if p else ""})
+        p = product_map.get(m["sku_id"])
+        enriched.append(
+            {
+                **m,
+                "name": p.name if p else "Unknown",
+                "sku": p.sku if p else "",
+                "base_unit": p.base_unit if p else "each",
+            }
+        )
     return ProductMarginsReport(products=enriched)
 
 
@@ -297,7 +309,11 @@ async def pl_report(
         )
         pmap = {p.id: p for p in catalog}
         rows = [
-            {**m, "name": pmap[m["product_id"]].name if m["product_id"] in pmap else "Unknown"}
+            {
+                **m,
+                "name": pmap[m["sku_id"]].name if m["sku_id"] in pmap else "Unknown",
+                "base_unit": pmap[m["sku_id"]].base_unit if m["sku_id"] in pmap else "each",
+            }
             for m in margin_rows
         ]
         label_key = "name"

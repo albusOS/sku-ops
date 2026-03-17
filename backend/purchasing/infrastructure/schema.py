@@ -1,5 +1,10 @@
 """Purchasing context schema — purchase orders and line items."""
 
+# Rename: product_id -> sku_id (existing dev DBs)
+MIGRATIONS: list[str] = [
+    "ALTER TABLE purchase_order_items RENAME COLUMN product_id TO sku_id",
+]
+
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS purchase_orders (
         id TEXT PRIMARY KEY,
@@ -37,7 +42,7 @@ TABLES: list[str] = [
         purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
         suggested_department TEXT NOT NULL DEFAULT 'HDW',
         status TEXT NOT NULL DEFAULT 'ordered',
-        product_id TEXT,
+        sku_id TEXT,
         organization_id TEXT
     )""",
 ]

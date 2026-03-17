@@ -153,8 +153,8 @@ async def import_document(
             delivered = max(0.0, float(delivered))
 
             existing = None
-            if item.get("product_id"):
-                existing = await deps.get_sku_by_id(item["product_id"])
+            if item.get("sku_id"):
+                existing = await deps.get_sku_by_id(item["sku_id"])
             if not existing and item.get("original_sku") and vendor_id:
                 existing = await deps.find_product_by_sku_and_vendor(
                     str(item["original_sku"]).strip(), vendor_id
@@ -164,7 +164,7 @@ async def import_document(
 
             if existing:
                 await deps.process_receiving_stock_changes(
-                    product_id=existing.id,
+                    sku_id=existing.id,
                     sku=existing.sku,
                     product_name=existing.name,
                     quantity=delivered,

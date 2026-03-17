@@ -5,6 +5,10 @@ export const keys = {
     detail: (id) => ["products", "detail", id],
     stockHistory: (id) => ["products", "stockHistory", id],
   },
+  productFamilies: {
+    all: ["productFamilies"],
+    detail: (id) => ["productFamilies", "detail", id],
+  },
   invoices: {
     all: ["invoices"],
     list: (params) => ["invoices", "list", params],

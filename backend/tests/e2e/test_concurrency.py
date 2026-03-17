@@ -19,7 +19,7 @@ def _attempt_withdrawal(client, headers, product, quantity, job_id):
         json={
             "items": [
                 {
-                    "product_id": product["id"],
+                    "sku_id": product["id"],
                     "sku": product["sku"],
                     "name": product["name"],
                     "quantity": quantity,

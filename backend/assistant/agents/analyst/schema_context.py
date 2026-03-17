@@ -151,7 +151,7 @@ _RELATIONSHIPS = """
 - withdrawals.billing_entity_id -> billing_entities.id
 - withdrawals.contractor_id -> users.id (contractor user)
 - withdrawal_items.withdrawal_id -> withdrawals.id
-- withdrawal_items.product_id -> skus.id
+- withdrawal_items.sku_id -> skus.id
 - invoice_withdrawals links invoices.id <-> withdrawals.id (many-to-many)
 - invoice_line_items.invoice_id -> invoices.id
 - invoice_line_items.job_id -> jobs.id (optional)
@@ -162,17 +162,17 @@ _RELATIONSHIPS = """
 - credit_notes.return_id -> returns.id
 - returns.withdrawal_id -> withdrawals.id
 - return_items.return_id -> returns.id
-- skus.product_id -> products.id
+- skus.product_family_id -> products.id (the `products` table stores product families, not individual SKUs)
 - skus.category_id -> departments.id (department)
 - products.category_id -> departments.id
 - vendor_items.vendor_id -> vendors.id
 - vendor_items.sku_id -> skus.id
 - purchase_orders.vendor_id -> vendors.id
 - purchase_order_items.po_id -> purchase_orders.id
-- purchase_order_items.product_id -> skus.id
+- purchase_order_items.sku_id -> skus.id
 - jobs.billing_entity_id -> billing_entities.id
-- financial_ledger: dimensions are department, job_id, billing_entity_id, contractor_id, product_id, vendor_name
-- stock_transactions.product_id -> skus.id (reference_id + reference_type for traceability)
+- financial_ledger: dimensions are department, job_id, billing_entity_id, contractor_id, sku_id, vendor_name
+- stock_transactions.sku_id -> skus.id (reference_id + reference_type for traceability)
 """
 
 

@@ -23,7 +23,7 @@ async def main():
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
 
-        # Build product cost map: {product_id: cost}
+        # Build product cost map: {sku_id: cost}
         cur = await conn.execute("SELECT id, cost FROM products")
         rows = await cur.fetchall()
         cost_map = {r["id"]: (r["cost"] or 0.0) for r in rows}
@@ -39,8 +39,8 @@ async def main():
             items = json.loads(w["items"])
             changed = False
             for item in items:
-                if (item.get("cost", 0.0) == 0.0) and item.get("product_id") in cost_map:
-                    item["cost"] = cost_map[item["product_id"]]
+                if (item.get("cost", 0.0) == 0.0) and item.get("sku_id") in cost_map:
+                    item["cost"] = cost_map[item["sku_id"]]
                     changed = True
 
             if changed:
