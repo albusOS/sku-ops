@@ -95,16 +95,16 @@ async def lifespan(app: FastAPI):
     init_tools()
     logger.info("Tool registry initialized")
 
-    try:
-        from assistant.agents.tools.tool_index import get_tool_index
-
-        idx = get_tool_index()
-        await idx.rebuild()
-        logger.info("Tool index rebuilt (%d tools)", len(idx._names))
-    except (RuntimeError, OSError, ValueError) as e:
-        logger.warning("Tool index warm-up skipped: %s", e)
-
     async def _background_warmup() -> None:
+        try:
+            from assistant.agents.tools.tool_index import get_tool_index
+
+            idx = get_tool_index()
+            await idx.rebuild()
+            logger.info("Tool index rebuilt (%d tools)", len(idx._names))
+        except (RuntimeError, OSError, ValueError) as e:
+            logger.warning("Tool index warm-up skipped: %s", e)
+
         from shared.infrastructure.logging_config import org_id_var
 
         org_ids = await _get_active_org_ids()
