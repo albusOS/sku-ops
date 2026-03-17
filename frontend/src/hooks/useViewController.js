@@ -21,9 +21,9 @@ function compareValues(a, b) {
  * filterAccessor: (row) => value — for computed/derived columns
  * filterStyle: "pills" | "dropdown" — pills for ≤5 options, dropdown otherwise
  */
-export function useViewController({ columns }) {
+export function useViewController({ columns, initialFilters = {} }) {
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState(initialFilters);
   const [sortBy, setSortBy] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [hiddenColumns, setHiddenColumns] = useState(new Set());

@@ -3,8 +3,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { X, Truck, CheckCircle, BoxIcon, Loader2, Package, ArrowRight } from "lucide-react";
+import {
+  X,
+  Truck,
+  CheckCircle,
+  BoxIcon,
+  Loader2,
+  Package,
+  ArrowRight,
+  ArrowDown,
+} from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useMarkDelivery, useReceivePO } from "@/hooks/usePurchaseOrders";
 import api, { getErrorMessage } from "@/lib/api-client";
@@ -40,6 +48,28 @@ function StepIndicator({ label, count, active, done, icon }) {
         </span>
       )}
     </div>
+  );
+}
+
+function Checkbox({ checked, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+        checked ? "bg-accent border-accent" : "border-border hover:border-accent/50"
+      }`}
+    >
+      {checked && (
+        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fillRule="evenodd"
+            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+            clipRule="evenodd"
+          />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -262,297 +292,244 @@ export function PODetailPanel({ po, open, onClose, onUpdated }) {
             )}
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="items" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid grid-cols-2 mx-5 mt-3 shrink-0">
-              <TabsTrigger value="items" className="text-xs">
-                Items ({items.length || po.item_count})
-              </TabsTrigger>
-              <TabsTrigger value="receive" className="text-xs">
-                Receive
-                {pendingItems.length > 0 && (
-                  <span className="ml-1 bg-info/20 text-info text-[9px] px-1.5 py-0 rounded-full font-bold">
-                    {pendingItems.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Items tab */}
-            <TabsContent value="items" className="flex-1 overflow-auto px-5 mt-3 pb-5">
-              {loading ? (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Loading items…
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orderedItems.length > 0 && (
-                    <ItemGroup
-                      label="Waiting for delivery"
-                      icon={<BoxIcon className="w-3 h-3" />}
-                      color="text-muted-foreground"
-                      items={orderedItems}
-                      selected={selectedOrdered}
-                      onToggle={(id) => setSelectedOrdered((p) => ({ ...p, [id]: !p[id] }))}
-                      action={
-                        <Button
-                          onClick={handleMarkDelivery}
-                          disabled={acting === "delivery" || selectedOrderedCount === 0}
-                          size="sm"
-                          className="gap-1.5 w-full"
-                        >
-                          {acting === "delivery" ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Truck className="w-3.5 h-3.5" />
-                          )}
-                          Mark Delivered ({selectedOrderedCount})
-                        </Button>
-                      }
-                    />
-                  )}
-
-                  {pendingItems.length > 0 && (
-                    <div className="rounded-xl border border-info/30 bg-info/5 px-4 py-3">
-                      <p className="text-sm font-medium">Items ready to receive</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Switch to the <strong>Receive</strong> tab to confirm quantities and add to
-                        inventory.
+          {/* Single scrollable workflow — no tabs */}
+          <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
+            {loading ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                Loading items…
+              </div>
+            ) : (
+              <>
+                {/* ── Step 1: Ordered → Mark Delivered ──────────────── */}
+                {orderedItems.length > 0 && (
+                  <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground flex items-center gap-1.5">
+                        <BoxIcon className="w-3 h-3" />
+                        Step 1 · Waiting for delivery ({orderedItems.length})
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allSelected = orderedItems.every((i) => selectedOrdered[i.id]);
+                          const next = {};
+                          if (!allSelected) orderedItems.forEach((i) => (next[i.id] = true));
+                          setSelectedOrdered(next);
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        {orderedItems.every((i) => selectedOrdered[i.id])
+                          ? "Deselect all"
+                          : "Select all"}
+                      </button>
                     </div>
-                  )}
 
-                  {arrivedItems.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-success flex items-center gap-1.5">
-                        <CheckCircle className="w-3 h-3" />
-                        In Inventory ({arrivedItems.length})
-                      </p>
-                      {arrivedItems.map((item) => (
+                    {orderedItems.map((item) => {
+                      const isSelected = selectedOrdered[item.id];
+                      return (
                         <div
                           key={item.id}
-                          className="flex items-center gap-3 p-3 rounded-lg border border-success/30 bg-success/5"
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                            isSelected
+                              ? "border-border bg-card"
+                              : "border-border/50 bg-muted/20 opacity-60"
+                          }`}
                         >
-                          <CheckCircle className="w-4 h-4 text-success shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{item.name}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {item.suggested_department}
-                              {item.original_sku && (
-                                <>
-                                  {" "}
-                                  · <span className="font-mono">{item.original_sku}</span>
-                                </>
-                              )}
-                            </p>
-                          </div>
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {item.delivered_qty ?? item.ordered_qty}
+                          <Checkbox
+                            checked={isSelected}
+                            onClick={() =>
+                              setSelectedOrdered((p) => ({ ...p, [item.id]: !p[item.id] }))
+                            }
+                          />
+                          <ItemInfo item={item} />
+                          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                            ×{item.ordered_qty}
                           </span>
-                          {item.cost > 0 && (
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                              ${Number(item.cost).toFixed(2)}
-                            </span>
-                          )}
                         </div>
-                      ))}
+                      );
+                    })}
+
+                    <Button
+                      onClick={handleMarkDelivery}
+                      disabled={acting === "delivery" || selectedOrderedCount === 0}
+                      size="sm"
+                      className="gap-1.5 w-full"
+                    >
+                      {acting === "delivery" ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Truck className="w-3.5 h-3.5" />
+                      )}
+                      Mark Delivered ({selectedOrderedCount})
+                    </Button>
+
+                    {pendingItems.length > 0 && (
+                      <div className="flex justify-center pt-1">
+                        <ArrowDown className="w-4 h-4 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* ── Step 2: Delivered → Confirm Quantities → Add to Inventory ── */}
+                {pendingItems.length > 0 && (
+                  <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-info flex items-center gap-1.5">
+                        <Truck className="w-3 h-3" />
+                        Step 2 · Confirm received quantities ({pendingItems.length})
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allSelected = pendingItems.every((i) => selectedPending[i.id]);
+                          const next = {};
+                          if (!allSelected) pendingItems.forEach((i) => (next[i.id] = true));
+                          setSelectedPending(next);
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        {pendingItems.every((i) => selectedPending[i.id])
+                          ? "Deselect all"
+                          : "Select all"}
+                      </button>
                     </div>
-                  )}
 
-                  {items.length === 0 && !loading && (
-                    <div className="text-center py-12 text-muted-foreground text-sm">
-                      No items found
+                    <div className="rounded-xl border border-info/20 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+                      Check each quantity matches what you received, then add to inventory.
                     </div>
-                  )}
 
-                  {po.status === "received" && (
-                    <div className="flex items-center gap-2 text-xs text-success pt-3 border-t border-border/50">
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      <span>
-                        All items added to inventory
-                        {po.received_by_name && ` by ${po.received_by_name}`}
-                        {po.received_at && ` on ${new Date(po.received_at).toLocaleDateString()}`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </TabsContent>
+                    {pendingItems.map((item) => {
+                      const isSelected = selectedPending[item.id];
+                      return (
+                        <div
+                          key={item.id}
+                          className={`rounded-xl border p-3 transition-all ${
+                            isSelected
+                              ? "border-border bg-card"
+                              : "border-border/50 bg-muted/20 opacity-60"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onClick={() =>
+                                setSelectedPending((p) => ({ ...p, [item.id]: !p[item.id] }))
+                              }
+                            />
+                            <ItemInfo item={item} />
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                Ord: {item.ordered_qty}
+                              </span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={deliveredQtys[item.id] ?? item.ordered_qty ?? 1}
+                                onChange={(e) =>
+                                  setDeliveredQtys((p) => ({
+                                    ...p,
+                                    [item.id]: e.target.value,
+                                  }))
+                                }
+                                className="h-8 text-sm text-right w-16 font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
 
-            {/* Receive tab */}
-            <TabsContent value="receive" className="flex-1 overflow-auto px-5 mt-3 pb-5">
-              {pendingItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Truck className="w-8 h-8 text-muted-foreground/40 mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    {orderedItems.length > 0
-                      ? "Mark items as delivered first"
-                      : "All items have been received"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Confirm the received quantities, then add to inventory.
-                  </p>
+                    <Button
+                      onClick={handleOpenReceive}
+                      disabled={acting === "receive" || selectedPendingCount === 0}
+                      className="btn-primary gap-1.5 w-full"
+                    >
+                      {acting === "receive" ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      )}
+                      Add to Inventory ({selectedPendingCount})
+                    </Button>
 
-                  {pendingItems.map((item) => {
-                    const isSelected = selectedPending[item.id];
-                    return (
+                    {arrivedItems.length > 0 && (
+                      <div className="flex justify-center pt-1">
+                        <ArrowDown className="w-4 h-4 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* ── Done: In inventory ───────────────────────────── */}
+                {arrivedItems.length > 0 && (
+                  <section className="space-y-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-success flex items-center gap-1.5">
+                      <CheckCircle className="w-3 h-3" />
+                      In Inventory ({arrivedItems.length})
+                    </p>
+                    {arrivedItems.map((item) => (
                       <div
                         key={item.id}
-                        className={`rounded-xl border p-3 transition-all ${
-                          isSelected
-                            ? "border-border bg-card"
-                            : "border-border/50 bg-muted/20 opacity-60"
-                        }`}
+                        className="flex items-center gap-3 p-3 rounded-lg border border-success/30 bg-success/5"
                       >
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedPending((p) => ({ ...p, [item.id]: !p[item.id] }))
-                            }
-                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
-                              isSelected ? "bg-accent border-accent" : "border-border"
-                            }`}
-                          >
-                            {isSelected && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            )}
-                          </button>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{item.name}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              Ordered: {item.ordered_qty}
-                              {item.cost > 0 && ` · $${Number(item.cost).toFixed(2)}`}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-[10px] text-muted-foreground">Qty</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={deliveredQtys[item.id] ?? item.ordered_qty ?? 1}
-                              onChange={(e) =>
-                                setDeliveredQtys((p) => ({ ...p, [item.id]: e.target.value }))
-                              }
-                              className="h-8 text-sm text-right w-20"
-                            />
-                          </div>
-                        </div>
+                        <CheckCircle className="w-4 h-4 text-success shrink-0" />
+                        <ItemInfo item={item} />
+                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                          ×{item.delivered_qty ?? item.ordered_qty}
+                        </span>
+                        {item.cost > 0 && (
+                          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                            ${Number(item.cost).toFixed(2)}
+                          </span>
+                        )}
                       </div>
-                    );
-                  })}
+                    ))}
+                  </section>
+                )}
 
-                  <Button
-                    onClick={handleOpenReceive}
-                    disabled={acting === "receive" || selectedPendingCount === 0}
-                    className="btn-primary gap-1.5 w-full mt-2"
-                  >
-                    {acting === "receive" ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <CheckCircle className="w-3.5 h-3.5" />
-                    )}
-                    Add to Inventory ({selectedPendingCount} item
-                    {selectedPendingCount !== 1 ? "s" : ""})
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+                {po.status === "received" && (
+                  <div className="flex items-center gap-2 text-xs text-success pt-3 border-t border-border/50">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>
+                      All items added to inventory
+                      {po.received_by_name && ` by ${po.received_by_name}`}
+                      {po.received_at && ` on ${new Date(po.received_at).toLocaleDateString()}`}
+                    </span>
+                  </div>
+                )}
+
+                {items.length === 0 && !loading && (
+                  <div className="text-center py-12 text-muted-foreground text-sm">
+                    No items found
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-function ItemGroup({ label, icon, color, items, selected, onToggle, action }) {
-  const selectedCount = items.filter((i) => selected[i.id]).length;
-
+function ItemInfo({ item }) {
   return (
-    <div className="space-y-1.5">
-      <p
-        className={`text-[10px] font-bold uppercase tracking-[0.12em] ${color} flex items-center gap-1.5`}
-      >
-        {icon}
-        {label} ({items.length})
+    <div className="min-w-0 flex-1">
+      <p className="text-sm font-medium truncate">{item.name}</p>
+      <p className="text-[10px] text-muted-foreground">
+        {item.suggested_department}
+        {item.base_unit && item.base_unit !== "each" && ` · ${item.base_unit}`}
+        {item.original_sku && (
+          <>
+            {" · "}
+            <span className="font-mono">{item.original_sku}</span>
+          </>
+        )}
+        {item.cost > 0 && ` · $${Number(item.cost).toFixed(2)}`}
       </p>
-      {items.map((item) => {
-        const isSelected = selected[item.id];
-        return (
-          <div
-            key={item.id}
-            className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-              isSelected ? "border-border bg-card" : "border-border/50 bg-muted/20 opacity-60"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => onToggle(item.id)}
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
-                isSelected ? "bg-accent border-accent" : "border-border"
-              }`}
-            >
-              {isSelected && (
-                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
-            </button>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{item.name}</p>
-              <p className="text-[10px] text-muted-foreground">
-                {item.suggested_department}
-                {item.base_unit && item.base_unit !== "each" && ` · ${item.base_unit}`}
-                {item.original_sku && (
-                  <>
-                    {" "}
-                    · <span className="font-mono">{item.original_sku}</span>
-                  </>
-                )}
-              </p>
-            </div>
-            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-              {item.ordered_qty}
-            </span>
-            {item.cost > 0 && (
-              <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                ${Number(item.cost).toFixed(2)}
-              </span>
-            )}
-          </div>
-        );
-      })}
-      <div className="flex items-center justify-between pt-1">
-        <p className="text-xs text-muted-foreground">
-          {selectedCount === items.length ? (
-            "All selected"
-          ) : (
-            <>
-              <strong>{selectedCount}</strong> of {items.length} selected
-            </>
-          )}
-        </p>
-      </div>
-      {action}
     </div>
   );
 }

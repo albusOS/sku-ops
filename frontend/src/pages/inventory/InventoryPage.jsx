@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -87,6 +88,7 @@ function ProductCard({ product, selected, onClick }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const InventoryPage = () => {
+  const [searchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
@@ -97,6 +99,12 @@ const InventoryPage = () => {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, product: null });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [viewMode, setViewMode] = useState("table"); // "table" | "grid"
+
+  const categoryParam = searchParams.get("category");
+  const initialFilters = useMemo(
+    () => (categoryParam ? { category_name: categoryParam } : {}),
+    [], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const deleteMutation = useDeleteProduct();
 
@@ -178,6 +186,21 @@ const InventoryPage = () => {
         render: (row) => <span className="font-mono">{row.quantity}</span>,
       },
       {
+        key: "created_at",
+        label: "Added",
+        type: "date",
+        align: "right",
+        render: (row) =>
+          row.created_at ? (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {new Date(row.created_at).toLocaleDateString()}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+        exportValue: (row) => (row.created_at ? new Date(row.created_at).toLocaleDateString() : ""),
+      },
+      {
         key: "_status",
         label: "Status",
         type: "enum",
@@ -208,7 +231,7 @@ const InventoryPage = () => {
     [departments],
   );
 
-  const view = useViewController({ columns });
+  const view = useViewController({ columns, initialFilters });
   const processedProducts = view.apply(allProducts);
 
   const openDialog = (product = null) => {
