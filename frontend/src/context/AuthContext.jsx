@@ -18,6 +18,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { toast } from "sonner";
 import api from "@/lib/api-client";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase";
 
@@ -56,6 +57,7 @@ export const AuthProvider = ({ children }) => {
       // Network errors, 5xx during startup/restart, etc. should not log the
       // user out — they would silently destroy a valid session.
       if (status === 401 || status === 403) {
+        toast.error("Session expired — please log in again.");
         logoutRef.current?.();
       }
       return null;
@@ -73,6 +75,7 @@ export const AuthProvider = ({ children }) => {
       (res) => res,
       (error) => {
         if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
+          toast.error("Session expired — please log in again.");
           logoutRef.current?.();
         }
         return Promise.reject(error);
@@ -167,6 +170,7 @@ export const AuthProvider = ({ children }) => {
           _setAxiosToken(newJwt);
           scheduleBridgeRefreshRef.current?.(newJwt);
         } catch {
+          toast.error("Session expired — please log in again.");
           logoutRef.current?.();
         }
       }, delay);

@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ChatProvider, useChatPanel } from "../context/ChatContext";
+import { RealtimeSyncContext } from "../context/RealtimeSyncContext";
 import { ROLES } from "@/lib/constants";
 import {
   LayoutDashboard,
@@ -126,6 +127,7 @@ function LayoutContent({ children, showChat }) {
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
+  const { connected } = useContext(RealtimeSyncContext);
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "true");
@@ -376,6 +378,10 @@ const Layout = ({ children }) => {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${getRoleBadge()}`} />
                     <p className="text-xs text-sidebar-muted truncate">{getRoleLabel()}</p>
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-success" : "bg-warning animate-pulse"}`}
+                      title={connected ? "Live" : "Reconnecting…"}
+                    />
                   </div>
                   {user?.company && (
                     <p className="text-xs text-sidebar-muted/70 truncate mt-0.5">{user.company}</p>
