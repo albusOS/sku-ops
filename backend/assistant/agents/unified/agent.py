@@ -12,6 +12,7 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
+from assistant.agents.analyst import agent as _analyst_agent_mod
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import get_model
@@ -511,6 +512,11 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def assess_business_health(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to the business health analyst for a holistic assessment across inventory, finance, and operations. Pass a question about overall business health, what needs attention, or a comprehensive review."""
         return await _health_agent_mod.run(question, deps=ctx.deps)
+
+    @_agent.tool
+    async def run_deep_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
+        """Delegate to the data analyst for ad hoc SQL queries, cross-table analysis, custom aggregations, and deep data exploration. Use when pre-built tools can't answer the question or when the user asks to 'dig deeper', 'analyze', 'compare across', 'find patterns', or 'run a query'."""
+        return await _analyst_agent_mod.run(question, deps=ctx.deps)
 
     return _agent
 

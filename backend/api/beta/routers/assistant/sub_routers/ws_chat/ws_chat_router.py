@@ -39,6 +39,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 
+import assistant.agents.analyst.agent as _analyst_agent_mod
 import assistant.agents.health_analyst.agent as _health_agent_mod
 import assistant.agents.procurement_analyst.agent as _procurement_agent_mod
 import assistant.agents.trend_analyst.agent as _trend_agent_mod
@@ -300,13 +301,15 @@ async def _handle_chat(
     route = await route_query(user_message, history)
     logger.info("Query router: %s for message='%s...'", route, (user_message or "")[:50])
 
-    if route in ("procurement", "trend", "health"):
+    if route in ("procurement", "trend", "health", "analyst"):
         await _send(ws, {"type": "chat.status", "status": "thinking"})
         try:
             if route == "procurement":
                 response = await _procurement_agent_mod.run(user_message, deps=deps)
             elif route == "trend":
                 response = await _trend_agent_mod.run(user_message, deps=deps)
+            elif route == "analyst":
+                response = await _analyst_agent_mod.run(user_message, deps=deps)
             else:
                 response = await _health_agent_mod.run(user_message, deps=deps)
         except Exception as exc:

@@ -10,6 +10,7 @@ semantic memory, and session state before agent dispatch.
 import asyncio
 import logging
 
+import assistant.agents.analyst.agent as _analyst_agent_mod
 import assistant.agents.health_analyst.agent as _health_agent_mod
 import assistant.agents.procurement_analyst.agent as _procurement_agent_mod
 import assistant.agents.trend_analyst.agent as _trend_agent_mod
@@ -80,6 +81,9 @@ async def chat(
     if route == "health":
         response = await _health_agent_mod.run(user_message, deps=deps)
         return _specialist_result(user_message, response, "health", history or [])
+    if route == "analyst":
+        response = await _analyst_agent_mod.run(user_message, deps=deps)
+        return _specialist_result(user_message, response, "analyst", history or [])
 
     result = await _unified_agent.run(
         user_message, history=history, deps=deps, session_id=session_id

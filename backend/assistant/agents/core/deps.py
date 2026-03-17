@@ -16,3 +16,4 @@ class AgentDeps:
     config: AgentConfig | None = None
     trace_id: str = field(default="")
     blocks: list[dict[str, Any]] = field(default_factory=list)
+    query_results: dict[str, Any] = field(default_factory=dict)

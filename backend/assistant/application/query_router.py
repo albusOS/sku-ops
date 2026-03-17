@@ -14,9 +14,21 @@ from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
 
 logger = logging.getLogger(__name__)
 
-AgentRoute = str  # "unified" | "procurement" | "trend" | "health"
+AgentRoute = str  # "unified" | "procurement" | "trend" | "health" | "analyst"
 
 _ROUTE_EXAMPLES: dict[str, list[str]] = {
+    "analyst": [
+        "Run a custom query on withdrawals",
+        "Analyze the correlation between order size and payment delays",
+        "What patterns exist in contractor spending across departments",
+        "Compare product margins across different job types",
+        "Show me a breakdown I haven't seen before",
+        "Dig into the data on vendor pricing trends",
+        "Cross-reference invoices with withdrawal patterns",
+        "Which products have the widest margin variance by contractor",
+        "Deep dive into seasonal purchasing patterns",
+        "Ad hoc analysis of payment timing vs invoice size",
+    ],
     "procurement": [
         "Which vendor for SKU X?",
         "Reorder plan for low stock",

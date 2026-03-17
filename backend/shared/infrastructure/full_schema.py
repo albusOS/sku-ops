@@ -112,3 +112,18 @@ ALL_VIEWS: list[str] = _shared_views
 # Additive ALTER TABLE migrations — applied after tables and indexes.
 # Each entry is idempotent (uses IF NOT EXISTS).
 ALL_MIGRATIONS: list[str] = _catalog_migrations
+
+# Per-context table DDL — used by the analyst agent's schema introspection.
+# Exported here (composition root) so the assistant context doesn't need
+# cross-context infrastructure imports.
+TABLES_BY_CONTEXT: dict[str, list[str]] = {
+    "shared": _shared_tables,
+    "catalog": _catalog_tables,
+    "inventory": _inventory_tables,
+    "operations": _operations_tables,
+    "finance": _finance_tables,
+    "purchasing": _purchasing_tables,
+    "documents": _documents_tables,
+    "jobs": _jobs_tables,
+    "assistant": _assistant_tables,
+}
