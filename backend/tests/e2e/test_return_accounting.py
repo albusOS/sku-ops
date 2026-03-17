@@ -221,6 +221,6 @@ class TestReturnAccounting:
         )
         assert resp.status_code == 200
         history = resp.json().get("history", [])
-        return_txns = [t for t in history if t.get("transaction_type") == "RETURN"]
+        return_txns = [t for t in history if t.get("transaction_type") == "return"]
         assert len(return_txns) >= 1
         assert return_txns[0]["quantity_delta"] == 2
