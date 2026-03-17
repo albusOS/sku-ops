@@ -25,9 +25,7 @@ class TestPOReceivingPipeline:
             name="PO-Recv",
         )
 
-        po = create_po(
-            client, headers, product, quantity=20, vendor_name="PO-E2E-Vendor"
-        )
+        po = create_po(client, headers, product, quantity=20, vendor_name="PO-E2E-Vendor")
         po_id = po["id"]
         assert po_id
 
@@ -35,19 +33,13 @@ class TestPOReceivingPipeline:
 
         receive_po(client, headers, po_id)
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.status_code == 200
         updated_qty = resp.json()["quantity"]
-        assert updated_qty > 10, (
-            f"Stock should have increased from 10, got {updated_qty}"
-        )
+        assert updated_qty > 10, f"Stock should have increased from 10, got {updated_qty}"
 
         ws_inv = ws_events.wait_for("inventory.updated", timeout=3)
-        assert ws_inv is not None, (
-            "inventory.updated event not received after PO receive"
-        )
+        assert ws_inv is not None, "inventory.updated event not received after PO receive"
 
     def test_po_receive_records_stock_history(self, client, seed_dept_id):
         headers = admin_headers()
@@ -75,12 +67,8 @@ class TestPOReceivingPipeline:
         )
         assert resp.status_code == 200
         history = resp.json()["history"]
-        receiving_entries = [
-            h for h in history if h["reference_type"] == "receiving"
-        ]
-        assert len(receiving_entries) >= 1, (
-            "Should have at least one receiving stock entry"
-        )
+        receiving_entries = [h for h in history if h["reference_type"] == "receiving"]
+        assert len(receiving_entries) >= 1, "Should have at least one receiving stock entry"
         assert receiving_entries[0]["quantity_delta"] > 0
 
     def test_po_status_after_receive(self, client, seed_dept_id):
@@ -103,9 +91,7 @@ class TestPOReceivingPipeline:
         )
         receive_po(client, headers, po["id"])
 
-        resp = client.get(
-            f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
         assert resp.status_code == 200
         po_detail = resp.json()
         assert po_detail["status"] in ("partial", "received"), (
@@ -124,13 +110,9 @@ class TestPOReceivingPipeline:
             name="PO-List",
         )
 
-        po = create_po(
-            client, headers, product, quantity=5, vendor_name="PO-List-Vendor"
-        )
+        po = create_po(client, headers, product, quantity=5, vendor_name="PO-List-Vendor")
 
-        resp = client.get(
-            "/api/beta/purchasing/purchase-orders", headers=headers
-        )
+        resp = client.get("/api/beta/purchasing/purchase-orders", headers=headers)
         assert resp.status_code == 200
         ids = [p["id"] for p in resp.json()]
         assert po["id"] in ids

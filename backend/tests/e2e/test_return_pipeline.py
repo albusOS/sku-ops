@@ -14,9 +14,7 @@ from tests.helpers.auth import admin_headers
 class TestReturnPipeline:
     """Full return lifecycle through the live HTTP API."""
 
-    def test_return_restocks_and_emits_events(
-        self, client, ws_events, seed_dept_id
-    ):
+    def test_return_restocks_and_emits_events(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
         product = create_product(
             client,
@@ -29,9 +27,7 @@ class TestReturnPipeline:
         withdrawal = create_withdrawal(client, headers, product, quantity=10)
 
         # Stock after withdrawal
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         stock_after_wd = resp.json()["quantity"]
         assert stock_after_wd == 40
 
@@ -60,23 +56,17 @@ class TestReturnPipeline:
         assert ret["total"] > 0
 
         # Stock restocked
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 44
 
         # Return persisted
-        resp = client.get(
-            f"/api/beta/operations/returns/{ret['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/operations/returns/{ret['id']}", headers=headers)
         assert resp.status_code == 200
         assert resp.json()["withdrawal_id"] == withdrawal["id"]
 
         # WebSocket events
         ws_updated = ws_events.wait_for("withdrawal.updated", timeout=3)
-        assert ws_updated is not None, (
-            "withdrawal.updated not received after return"
-        )
+        assert ws_updated is not None, "withdrawal.updated not received after return"
 
         ws_inv = ws_events.wait_for("inventory.updated", timeout=3)
         assert ws_inv is not None, "inventory.updated not received after return"
@@ -109,14 +99,10 @@ class TestReturnPipeline:
             },
             headers=headers,
         )
-        assert resp.status_code in (400, 422), (
-            f"Expected rejection, got {resp.status_code}"
-        )
+        assert resp.status_code in (400, 422), f"Expected rejection, got {resp.status_code}"
 
         # Stock unchanged from the withdrawal
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 47
 
     def test_returns_listed_by_withdrawal(self, client, seed_dept_id):

@@ -37,12 +37,8 @@ class TestMaterialRequestPipeline:
         assert mr.get("status") == "pending"
         assert mr.get("contractor_id") == "contractor-1"
 
-        ws_mr_created = ws_events.wait_for(
-            "material_request.created", timeout=3
-        )
-        assert ws_mr_created is not None, (
-            "material_request.created not received"
-        )
+        ws_mr_created = ws_events.wait_for("material_request.created", timeout=3)
+        assert ws_mr_created is not None, "material_request.created not received"
 
         ws_events.clear()
 
@@ -50,29 +46,19 @@ class TestMaterialRequestPipeline:
         withdrawal = process_material_request(client, headers, mr_id)
         assert withdrawal.get("id")
 
-        resp = client.get(
-            f"/api/beta/operations/material-requests/{mr_id}", headers=headers
-        )
+        resp = client.get(f"/api/beta/operations/material-requests/{mr_id}", headers=headers)
         assert resp.status_code == 200
         updated_mr = resp.json()
         assert updated_mr["status"] == "processed"
         assert updated_mr["withdrawal_id"] == withdrawal["id"]
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 45
 
-        ws_mr_processed = ws_events.wait_for(
-            "material_request.processed", timeout=3
-        )
-        assert ws_mr_processed is not None, (
-            "material_request.processed not received"
-        )
+        ws_mr_processed = ws_events.wait_for("material_request.processed", timeout=3)
+        assert ws_mr_processed is not None, "material_request.processed not received"
 
-    def test_contractor_cannot_process(
-        self, client, seed_dept_id, seed_contractor_id
-    ):
+    def test_contractor_cannot_process(self, client, seed_dept_id, seed_contractor_id):
         """Contractor role should not be allowed to process a request."""
         headers = admin_headers()
         c_headers = contractor_headers()
@@ -126,9 +112,7 @@ class TestMaterialRequestPipeline:
             f"Admin should not create material requests, got {resp.status_code}"
         )
 
-    def test_double_process_rejected(
-        self, client, seed_dept_id, seed_contractor_id
-    ):
+    def test_double_process_rejected(self, client, seed_dept_id, seed_contractor_id):
         """Cannot process the same material request twice."""
         headers = admin_headers()
         c_headers = contractor_headers()
@@ -150,21 +134,15 @@ class TestMaterialRequestPipeline:
         )
         assert resp.status_code == 400, "Double process should be rejected"
 
-    def test_material_requests_listed(
-        self, client, seed_dept_id, seed_contractor_id
-    ):
+    def test_material_requests_listed(self, client, seed_dept_id, seed_contractor_id):
         """Contractor's own requests appear in GET /api/beta/operations/material-requests."""
         headers = admin_headers()
         c_headers = contractor_headers()
-        product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=50, name="MR-List"
-        )
+        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-List")
 
         mr = create_material_request(client, c_headers, product, quantity=1)
 
-        resp = client.get(
-            "/api/beta/operations/material-requests", headers=c_headers
-        )
+        resp = client.get("/api/beta/operations/material-requests", headers=c_headers)
         assert resp.status_code == 200
         ids = [r["id"] for r in resp.json()]
         assert mr["id"] in ids
