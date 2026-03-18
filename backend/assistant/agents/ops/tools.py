@@ -73,33 +73,30 @@ async def _get_job_materials(job_id: str = "") -> str:
         job_withdrawals = [w for w in all_withdrawals if job_id.lower() in (w.job_id or "").lower()]
     if not job_withdrawals:
         return ErrorResult(error=f"No withdrawals found for job '{job_id}'").serialize()
-    item_map: dict = {}
+    item_map: dict[str, JobMaterialItem] = {}
     for w in job_withdrawals:
         for item in w.items:
             sku = item.sku
             if sku in item_map:
-                item_map[sku]["quantity"] += float(item.quantity)
-                item_map[sku]["subtotal"] += float(item.subtotal)
+                prev = item_map[sku]
+                item_map[sku] = JobMaterialItem(
+                    sku=prev.sku,
+                    name=prev.name,
+                    quantity=prev.quantity + float(item.quantity),
+                    unit=prev.unit,
+                    price=prev.price,
+                    subtotal=round(prev.subtotal + float(item.subtotal), 2),
+                )
             else:
-                item_map[sku] = {
-                    "sku": sku,
-                    "name": item.name,
-                    "quantity": float(item.quantity),
-                    "unit": item.unit,
-                    "price": float(item.unit_price),
-                    "subtotal": round(float(item.subtotal), 2),
-                }
-    items_out = [
-        JobMaterialItem(
-            sku=v["sku"],
-            name=v["name"],
-            quantity=v["quantity"],
-            unit=v["unit"],
-            price=v["price"],
-            subtotal=round(v["subtotal"], 2),
-        )
-        for v in item_map.values()
-    ]
+                item_map[sku] = JobMaterialItem(
+                    sku=sku,
+                    name=item.name,
+                    quantity=float(item.quantity),
+                    unit=item.unit,
+                    price=float(item.unit_price),
+                    subtotal=round(float(item.subtotal), 2),
+                )
+    items_out = list(item_map.values())
     total = sum(float(w.total) for w in job_withdrawals)
     return JobMaterialsResult(
         job_id=job_id,
