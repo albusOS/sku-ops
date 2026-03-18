@@ -1,4 +1,8 @@
-"""Document parse service: AI-powered vendor bill/receipt parsing and persistence."""
+"""Document parse service: AI-powered vendor bill/receipt parsing.
+
+Single LLM call extracts AND classifies products. A lightweight DB pass
+matches vendor SKUs against the existing catalog.
+"""
 
 from __future__ import annotations
 
@@ -9,13 +13,10 @@ import logging
 import os
 import re
 import tempfile
-from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from assistant.application.llm import generate_with_image, generate_with_pdf
-from assistant.application.llm_facade import get_generate_text
-from catalog.application.product_intelligence import analyze_products
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
     find_vendor_by_name,
@@ -28,24 +29,12 @@ from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from shared.infrastructure.db import get_org_id, transaction
 
 if TYPE_CHECKING:
-    from catalog.domain.product_analysis import ProductAnalysis
     from shared.kernel.types import CurrentUser
 
 logger = logging.getLogger(__name__)
 
 _PARSE_MAX_RETRIES = 2
 _PARSE_RETRY_DELAYS = (5, 15)
-
-
-async def _search_families(query: str) -> list[dict]:
-    """Adapter: search product families by name for the batch enrichment path."""
-    try:
-        families = await list_product_families(search=query, limit=3)
-        return [{"id": f.id, "name": f.name, "similarity": 0.5} for f in families]
-    except Exception as e:
-        logger.warning("Family search during parse failed: %s", e)
-        return []
-
 
 _PROMPT_DIR = Path(__file__).resolve().parent.parent / "api"
 _DOCUMENT_PARSE_SYSTEM: str | None = None
@@ -95,10 +84,11 @@ async def parse_document_with_ai(
     content_type: str,
     filename: str,
     current_user: CurrentUser,
-    *,
-    build_run_agent=None,
 ) -> dict:
     """Parse a document (image or PDF) using Claude AI.
+
+    Single LLM call handles both extraction and product classification.
+    A lightweight DB pass then matches vendor SKUs against the catalog.
 
     Returns the extracted structured data with a document_id after persisting.
     Raises ValueError on rate limit exhaustion or parse failure.
@@ -119,7 +109,7 @@ async def parse_document_with_ai(
                 temp_path = tf.name
             try:
                 return generate_with_pdf(
-                    "Extract all product and vendor information. Return only valid JSON.",
+                    "Extract all product and vendor information. Classify each product with UOM, department, and variant info. Return only valid JSON.",
                     temp_path,
                     system_instruction=system_prompt,
                 )
@@ -128,7 +118,7 @@ async def parse_document_with_ai(
                     os.unlink(temp_path)
         else:
             return generate_with_image(
-                "Extract all product and vendor information. Return only valid JSON.",
+                "Extract all product and vendor information. Classify each product with UOM, department, and variant info. Return only valid JSON.",
                 contents,
                 system_instruction=system_prompt,
             )
@@ -164,7 +154,8 @@ async def parse_document_with_ai(
             "The file may be too complex, low quality, or not a recognized vendor bill format."
         ) from e
 
-    for p in extracted.get("products", []):
+    products = extracted.get("products", [])
+    for p in products:
         qty = p.get("quantity", 1)
         p.setdefault("ordered_qty", qty)
         p.setdefault("delivered_qty", qty)
@@ -173,78 +164,122 @@ async def parse_document_with_ai(
         if p["delivered_qty"] is None:
             p["delivered_qty"] = qty
         p["_ai_parsed"] = True
+        if "confidence" in p:
+            p["_confidence"] = p.pop("confidence")
+        _add_warnings(p)
 
-    # Run product intelligence pipeline to enrich raw extraction.
-    # Resolve vendor context so the agent/batch path can match against existing catalog.
-    products = extracted.get("products", [])
     if products:
-        vendor_name = extracted.get("vendor_name")
-        vendor_id = None
-        if vendor_name:
-            try:
-                vendor = await find_vendor_by_name(vendor_name)
-                if vendor:
-                    vendor_id = vendor.id
-            except Exception as e:
-                logger.debug("Vendor lookup during parse failed: %s", e)
-
-        run_agent = None
-        if build_run_agent:
-            run_agent = build_run_agent(vendor_id, vendor_name)
-
-        try:
-            analyses = await analyze_products(
-                products,
-                generate_text=get_generate_text(),
-                vendor_id=vendor_id,
-                search_families=_search_families,
-                find_by_vendor_sku=find_vendor_item_by_vendor_and_sku_code if vendor_id else None,
-                find_by_name_and_vendor=find_product_by_name_and_vendor if vendor_id else None,
-                run_agent=run_agent,
-            )
-            _apply_analyses_to_products(products, analyses)
-        except Exception as e:
-            logger.warning(
-                "Product intelligence enrichment failed (%s: %s) — returning raw extraction",
-                type(e).__name__,
-                e,
-            )
+        await _match_vendor_skus(products, extracted.get("vendor_name"))
 
     return await persist_parsed_document(
         extracted, filename, content_type, len(contents), current_user
     )
 
 
-def _apply_analyses_to_products(products: list[dict], analyses: list[ProductAnalysis]) -> None:
-    """Merge ProductAnalysis results back into the raw product dicts."""
-    for p, analysis in zip(products, analyses, strict=False):
-        ap = analysis.product
-        p["name"] = ap.clean_name
-        p["base_unit"] = ap.base_unit
-        p["sell_uom"] = ap.sell_uom
-        p["pack_qty"] = ap.pack_qty
-        p["purchase_uom"] = ap.purchase_uom
-        p["purchase_pack_qty"] = ap.purchase_pack_qty
-        p["suggested_department"] = ap.suggested_department
-        if ap.original_sku:
-            p["original_sku"] = ap.original_sku
-        if ap.brand:
-            p["brand"] = ap.brand
-        if ap.variant_label:
-            p["variant_label"] = ap.variant_label
-        if ap.variant_attrs:
-            p["variant_attrs"] = ap.variant_attrs
-        if ap.specifications:
-            p["specifications"] = ap.specifications
-        p["_confidence"] = ap.confidence
-        p["_recommendation"] = analysis.recommendation
-        p["_recommendation_reason"] = analysis.recommendation_reason
+_KNOWN_DEPTS = {"PLU", "ELE", "PNT", "LUM", "TOL", "HDW", "GDN", "APP"}
 
-        if analysis.family_candidates:
-            p["_family_candidates"] = [asdict(fc) for fc in analysis.family_candidates]
-        if analysis.matched_sku_id:
-            p["sku_id"] = analysis.matched_sku_id
-        if analysis.matched_vendor_item_id:
-            p["_matched_vendor_item_id"] = analysis.matched_vendor_item_id
-        if analysis.warnings:
-            p["_warnings"] = analysis.warnings
+
+def _add_warnings(product: dict) -> None:
+    """Add lightweight validation warnings based on LLM output."""
+    warnings: list[str] = []
+    confidence = product.get("_confidence", 0)
+    if confidence and confidence < 0.7:
+        warnings.append("Low confidence classification — verify department and UOM")
+    dept = product.get("suggested_department", "")
+    if dept and dept.upper() not in _KNOWN_DEPTS:
+        warnings.append(f"Unknown department '{dept}' — defaulting to HDW")
+    if warnings:
+        product["_warnings"] = warnings
+
+
+async def _match_vendor_skus(products: list[dict], vendor_name: str | None) -> None:
+    """Lightweight DB pass: match products against vendor catalog and product families.
+
+    Mutates product dicts in-place, adding _recommendation, _recommendation_reason,
+    sku_id, _matched_vendor_item_id, and _family_candidates where applicable.
+    """
+    vendor_id = None
+    if vendor_name:
+        try:
+            vendor = await find_vendor_by_name(vendor_name)
+            if vendor:
+                vendor_id = vendor.id
+        except Exception as e:
+            logger.debug("Vendor lookup during parse failed: %s", e)
+
+    tasks = [_match_single_product(p, vendor_id) for p in products]
+    await asyncio.gather(*tasks)
+
+
+async def _match_single_product(product: dict, vendor_id: str | None) -> None:
+    """Try to match a single product against vendor items and product families."""
+    sku_id = None
+    vendor_item_id = None
+    family_candidates: list[dict] = []
+
+    if vendor_id:
+        original_sku = product.get("original_sku")
+        if original_sku:
+            try:
+                vi = await find_vendor_item_by_vendor_and_sku_code(vendor_id, original_sku)
+                if vi:
+                    sku_id = vi.sku_id
+                    vendor_item_id = vi.id
+            except Exception as e:
+                logger.debug("Vendor SKU match failed: %s", e)
+
+        if not sku_id:
+            clean_name = product.get("name", "")
+            if clean_name:
+                try:
+                    sku = await find_product_by_name_and_vendor(clean_name, vendor_id)
+                    if sku:
+                        sku_id = sku.id
+                except Exception as e:
+                    logger.debug("Name+vendor match failed: %s", e)
+
+    if not sku_id:
+        query = product.get("name", "")
+        brand = product.get("brand")
+        if brand:
+            query = f"{brand} {query}"
+        if query:
+            try:
+                families = await list_product_families(search=query, limit=3)
+                family_candidates = [
+                    {
+                        "family_id": f.id,
+                        "family_name": f.name,
+                        "similarity": 0.5,
+                    }
+                    for f in families
+                ]
+            except Exception as e:
+                logger.debug("Family search during parse failed: %s", e)
+
+    if sku_id:
+        product["sku_id"] = sku_id
+        if vendor_item_id:
+            product["_matched_vendor_item_id"] = vendor_item_id
+            product["_recommendation"] = "link_existing"
+            product["_recommendation_reason"] = (
+                f"Matched existing SKU via vendor item lookup for '{product.get('name', '')}'."
+            )
+        else:
+            product["_recommendation"] = "link_existing"
+            product["_recommendation_reason"] = (
+                f"Found existing SKU matching '{product.get('name', '')}'."
+            )
+    elif family_candidates:
+        product["_family_candidates"] = family_candidates
+        best = family_candidates[0]
+        product["_recommendation"] = "add_variant"
+        product["_recommendation_reason"] = (
+            f"Found '{best['family_name']}' product family. Consider adding as a new variant."
+        )
+    else:
+        product["_recommendation"] = "create_new"
+        product["_recommendation_reason"] = (
+            f"No existing match found for '{product.get('name', '')}'. "
+            f"Will create as a new product."
+        )

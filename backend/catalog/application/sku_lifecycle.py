@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 
 from catalog.application.product_family_lifecycle import create_product as create_product_parent
 from catalog.application.sku_service import generate_sku
-from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
+from catalog.domain.errors import DuplicateBarcodeError, DuplicateSkuError, InvalidBarcodeError
 from catalog.domain.sku import Sku, SkuUpdate
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.product_family_repo import product_family_repo
@@ -227,6 +227,16 @@ async def update_sku(
             existing = await sku_repo.find_by_barcode(update_data["barcode"], exclude_sku_id=sku_id)
             if existing:
                 raise DuplicateBarcodeError(update_data["barcode"], existing.name)
+
+    if "sku" in update_data:
+        new_code = update_data["sku"].strip()
+        if new_code and new_code != sku.sku:
+            existing = await sku_repo.find_by_sku(new_code)
+            if existing:
+                raise DuplicateSkuError(new_code, existing.name)
+            update_data["sku"] = new_code
+        else:
+            update_data.pop("sku")
 
     if "category_id" in update_data:
         department = await department_repo.get_by_id(update_data["category_id"])

@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   X,
   Trash2,
@@ -21,6 +22,8 @@ import {
   ChevronRight,
   Pencil,
   Check,
+  Settings2,
+  Tag,
 } from "lucide-react";
 import {
   useVendorItems,
@@ -30,6 +33,7 @@ import {
   useUpdateProduct,
 } from "@/hooks/useProducts";
 import { useDepartments } from "@/hooks/useDepartments";
+import { UnitCombobox } from "@/components/UnitCombobox";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-client";
 
@@ -145,11 +149,20 @@ function ReadField({ label, value, mono }) {
   );
 }
 
-function SectionLabel({ children }) {
+function SectionHeader({ icon: Icon, label, open, badge, onToggle }) {
   return (
-    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-      {children}
-    </p>
+    <button onClick={onToggle} className="flex items-center gap-2 w-full py-2 text-left group">
+      <ChevronRight
+        className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
+      />
+      {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
+      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground flex-1">
+        {label}
+      </span>
+      {badge != null && (
+        <span className="text-[10px] text-muted-foreground tabular-nums">{badge}</span>
+      )}
+    </button>
   );
 }
 
@@ -164,6 +177,12 @@ export function CatalogDetailPanel({
   onSelectProduct,
 }) {
   const [printQty, setPrintQty] = useState(1);
+  const [sections, setSections] = useState({
+    details: false,
+    variants: false,
+    suppliers: false,
+    labels: false,
+  });
 
   const { data: vendorItems = [], isLoading: vendorsLoading } = useVendorItems(
     open ? product?.id : null,
@@ -179,8 +198,19 @@ export function CatalogDetailPanel({
   const siblingSkus = (familyData?.skus ?? []).filter((s) => s.id !== product?.id);
 
   useEffect(() => {
-    if (open && product) setPrintQty(1);
-  }, [open, product]);
+    if (open && product) {
+      setPrintQty(1);
+      setSections({
+        details: false,
+        variants: false,
+        suppliers: false,
+        labels: false,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset sections on panel open/product change, not every re-render
+  }, [open, product?.id]);
+
+  const toggleSection = (key) => setSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const hasBarcode = (product?.barcode || product?.sku)?.toString().trim();
 
@@ -203,6 +233,16 @@ export function CatalogDetailPanel({
       { id: product.id, data: { category_id: categoryId } },
       {
         onSuccess: () => toast.success("Category updated"),
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    );
+  };
+
+  const handleUnitChange = (field, value) => {
+    updateMutation.mutate(
+      { id: product.id, data: { [field]: value } },
+      {
+        onSuccess: () => toast.success("Unit updated"),
         onError: (err) => toast.error(getErrorMessage(err)),
       },
     );
@@ -262,11 +302,10 @@ export function CatalogDetailPanel({
               )}
             </div>
 
-            {/* Single scrollable body — no tabs */}
-            <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
-              {/* Pricing — inline editable */}
-              <div className="space-y-3">
-                <SectionLabel>Pricing</SectionLabel>
+            {/* Scrollable body — collapsible sections */}
+            <div className="flex-1 overflow-auto px-5 py-4 space-y-1">
+              {/* Pricing — always visible, inline editable */}
+              <div className="space-y-3 pb-3 border-b border-border/40">
                 <div className="grid grid-cols-3 gap-3">
                   <EditableField
                     label="Price"
@@ -290,238 +329,310 @@ export function CatalogDetailPanel({
                 </div>
               </div>
 
-              {/* Product info — mixed editable + read-only */}
-              <div className="space-y-3">
-                <SectionLabel>Details</SectionLabel>
-                <div className="grid grid-cols-2 gap-3">
+              {/* Details — collapsed by default */}
+              <Collapsible open={sections.details} onOpenChange={() => toggleSection("details")}>
+                <CollapsibleTrigger asChild>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Category</p>
-                    <Select
-                      value={product.category_id}
-                      onValueChange={handleCategoryChange}
-                      disabled={updateMutation.isPending}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            <span className="font-mono text-xs">{dept.code}</span>
-                            <span className="text-muted-foreground mx-1">—</span>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <ReadField
-                    label="Sell Unit"
-                    value={`${sellUom}${(product.pack_qty || 1) > 1 ? ` ×${product.pack_qty}` : ""}`}
-                  />
-                  <ReadField label="Base Unit" value={baseUnit} />
-                  <ReadField label="Scan Code" value={product.barcode || product.sku} mono />
-                  {product.purchase_uom && product.purchase_uom !== "each" && (
-                    <ReadField
-                      label="Purchase UOM"
-                      value={`${product.purchase_uom}${(product.purchase_pack_qty || 1) > 1 ? ` ×${product.purchase_pack_qty}` : ""}`}
+                    <SectionHeader
+                      icon={Settings2}
+                      label="Details"
+                      open={sections.details}
+                      onToggle={() => toggleSection("details")}
                     />
-                  )}
-                  <EditableField
-                    label="Min Stock"
-                    value={product.min_stock ?? 5}
-                    field="min_stock"
-                    productId={product.id}
-                    type="number"
-                    mono
-                  />
-                </div>
-
-                {/* Full edit button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-1.5 text-xs mt-1"
-                  onClick={() => onEdit?.(product)}
-                >
-                  <Pencil className="w-3 h-3" />
-                  Edit all fields
-                </Button>
-              </div>
-
-              {/* Variant attributes */}
-              {product.variant_attrs && Object.keys(product.variant_attrs).length > 0 && (
-                <div className="space-y-3">
-                  <SectionLabel>Variant Attributes</SectionLabel>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(product.variant_attrs).map(([k, v]) => (
-                      <span
-                        key={k}
-                        className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs"
-                      >
-                        <span className="text-muted-foreground">{k}:</span>
-                        <span className="font-medium">{v}</span>
-                      </span>
-                    ))}
                   </div>
-                </div>
-              )}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="pb-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Category</p>
+                        <Select
+                          value={product.category_id}
+                          onValueChange={handleCategoryChange}
+                          disabled={updateMutation.isPending}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.id}>
+                                <span className="font-mono text-xs">{dept.code}</span>
+                                <span className="text-muted-foreground mx-1">—</span>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Sell Unit</p>
+                        <UnitCombobox
+                          value={sellUom}
+                          onValueChange={(v) => handleUnitChange("sell_uom", v)}
+                          disabled={updateMutation.isPending}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Base Unit</p>
+                        <UnitCombobox
+                          value={baseUnit}
+                          onValueChange={(v) => handleUnitChange("base_unit", v)}
+                          disabled={updateMutation.isPending}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <ReadField label="Scan Code" value={product.barcode || product.sku} mono />
+                      {product.purchase_uom && product.purchase_uom !== "each" && (
+                        <ReadField
+                          label="Purchase UOM"
+                          value={`${product.purchase_uom}${(product.purchase_pack_qty || 1) > 1 ? ` ×${product.purchase_pack_qty}` : ""}`}
+                        />
+                      )}
+                      <EditableField
+                        label="Min Stock"
+                        value={product.min_stock ?? 5}
+                        field="min_stock"
+                        productId={product.id}
+                        type="number"
+                        mono
+                      />
+                    </div>
 
-              {/* Sibling variants */}
-              {isMultiSkuFamily && siblingSkus.length > 0 && (
-                <div className="space-y-3">
-                  <SectionLabel>Sibling Variants</SectionLabel>
-                  <div className="space-y-1.5">
-                    {siblingSkus.map((sibling) => (
-                      <button
-                        key={sibling.id}
-                        onClick={() => onSelectProduct?.(sibling)}
-                        className="flex items-center justify-between w-full rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-left hover:bg-muted/50 transition-colors group"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{sibling.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{sibling.sku}</p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0 ml-3">
-                          <p className="font-mono text-xs">${(sibling.price || 0).toFixed(2)}</p>
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  {onAddVariant && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-1 w-full gap-1.5 text-xs"
-                      onClick={() => onAddVariant(familyId, product.category_id)}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add variant
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {!isMultiSkuFamily && familyId && onAddVariant && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-1.5 text-xs"
-                  onClick={() => onAddVariant(familyId, product.category_id)}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add variant to this product
-                </Button>
-              )}
-
-              {/* Suppliers — inline, no tab */}
-              <div className="space-y-3">
-                <SectionLabel>
-                  Suppliers{vendorItems.length > 0 ? ` (${vendorItems.length})` : ""}
-                </SectionLabel>
-                {vendorsLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading...</p>
-                ) : vendorItems.length === 0 ? (
-                  <div className="flex items-center gap-2 py-4 text-muted-foreground">
-                    <Truck className="w-4 h-4 opacity-40" />
-                    <p className="text-xs">No suppliers linked</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {vendorItems.map((vi) => (
-                      <div
-                        key={vi.id}
-                        className="rounded-lg border border-border/50 p-3 bg-muted/20"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-medium text-sm truncate">
-                              {vi.vendor_name || "Unknown vendor"}
-                            </span>
-                            {vi.is_preferred && (
-                              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
-                            )}
-                          </div>
-                          <div className="flex gap-1 shrink-0">
-                            {!vi.is_preferred && (
-                              <button
-                                className="p-1 text-muted-foreground hover:text-amber-500 rounded-md transition-colors"
-                                title="Set as preferred"
-                                onClick={() =>
-                                  setPreferred.mutate(
-                                    { skuId: product.id, itemId: vi.id },
-                                    { onSuccess: () => toast.success("Preferred supplier set") },
-                                  )
-                                }
-                              >
-                                <Star className="w-3 h-3" />
-                              </button>
-                            )}
-                            <button
-                              className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors"
-                              title="Remove supplier"
-                              onClick={() =>
-                                removeVendorItem.mutate(
-                                  { skuId: product.id, itemId: vi.id },
-                                  { onSuccess: () => toast.success("Supplier removed") },
-                                )
-                              }
+                    {/* Variant attributes */}
+                    {product.variant_attrs && Object.keys(product.variant_attrs).length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Variant Attributes</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(product.variant_attrs).map(([k, v]) => (
+                            <span
+                              key={k}
+                              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs"
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
-                          {vi.vendor_sku && (
-                            <span>
-                              SKU: <span className="font-mono">{vi.vendor_sku}</span>
+                              <span className="text-muted-foreground">{k}:</span>
+                              <span className="font-medium">{v}</span>
                             </span>
-                          )}
-                          <span>
-                            Cost: <span className="font-mono">${(vi.cost || 0).toFixed(2)}</span>
-                          </span>
-                          {vi.purchase_uom !== "each" && (
-                            <span>
-                              {vi.purchase_uom}
-                              {(vi.purchase_pack_qty || 1) > 1 && ` ×${vi.purchase_pack_qty}`}
-                            </span>
-                          )}
-                          {vi.lead_time_days != null && <span>{vi.lead_time_days}d lead</span>}
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    )}
 
-              {/* Labels — compact inline */}
-              {hasBarcode && (
-                <div className="space-y-3">
-                  <SectionLabel>Labels</SectionLabel>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={99}
-                      value={printQty}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        setPrintQty(isNaN(v) ? 1 : Math.min(99, Math.max(1, v)));
-                      }}
-                      className="w-16 h-8 text-sm"
-                    />
                     <Button
-                      size="sm"
                       variant="outline"
-                      onClick={handlePrint}
-                      className="gap-1.5 text-xs"
+                      size="sm"
+                      className="w-full gap-1.5 text-xs mt-1"
+                      onClick={() => onEdit?.(product)}
                     >
-                      <Printer className="w-3.5 h-3.5" />
-                      Print {printQty} label{printQty !== 1 ? "s" : ""}
+                      <Pencil className="w-3 h-3" />
+                      Edit all fields
                     </Button>
                   </div>
-                </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Variants — collapsed, only shown for families */}
+              {familyId && (
+                <Collapsible
+                  open={sections.variants}
+                  onOpenChange={() => toggleSection("variants")}
+                >
+                  <CollapsibleTrigger asChild>
+                    <div>
+                      <SectionHeader
+                        icon={Layers}
+                        label="Variants"
+                        open={sections.variants}
+                        badge={isMultiSkuFamily ? familyData?.skus?.length : null}
+                        onToggle={() => toggleSection("variants")}
+                      />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="pb-3 space-y-2">
+                      {siblingSkus.length > 0 && (
+                        <div className="space-y-1.5">
+                          {siblingSkus.map((sibling) => (
+                            <button
+                              key={sibling.id}
+                              onClick={() => onSelectProduct?.(sibling)}
+                              className="flex items-center justify-between w-full rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-left hover:bg-muted/50 transition-colors group"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium truncate">{sibling.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  {sibling.sku}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0 ml-3">
+                                <p className="font-mono text-xs">
+                                  ${(sibling.price || 0).toFixed(2)}
+                                </p>
+                                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {!isMultiSkuFamily && (
+                        <p className="text-xs text-muted-foreground py-2">
+                          Single-SKU product. Add a variant to create a product family.
+                        </p>
+                      )}
+                      {onAddVariant && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5 text-xs"
+                          onClick={() => onAddVariant(familyId, product.category_id)}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add variant
+                        </Button>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {/* Suppliers — collapsed */}
+              <Collapsible
+                open={sections.suppliers}
+                onOpenChange={() => toggleSection("suppliers")}
+              >
+                <CollapsibleTrigger asChild>
+                  <div>
+                    <SectionHeader
+                      icon={Truck}
+                      label="Suppliers"
+                      open={sections.suppliers}
+                      badge={vendorItems.length || null}
+                      onToggle={() => toggleSection("suppliers")}
+                    />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="pb-3">
+                    {vendorsLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading...</p>
+                    ) : vendorItems.length === 0 ? (
+                      <div className="flex items-center gap-2 py-3 text-muted-foreground">
+                        <Truck className="w-4 h-4 opacity-40" />
+                        <p className="text-xs">No suppliers linked</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {vendorItems.map((vi) => (
+                          <div
+                            key={vi.id}
+                            className="rounded-lg border border-border/50 p-3 bg-muted/20"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-medium text-sm truncate">
+                                  {vi.vendor_name || "Unknown vendor"}
+                                </span>
+                                {vi.is_preferred && (
+                                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                                )}
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                {!vi.is_preferred && (
+                                  <button
+                                    className="p-1 text-muted-foreground hover:text-amber-500 rounded-md transition-colors"
+                                    title="Set as preferred"
+                                    onClick={() =>
+                                      setPreferred.mutate(
+                                        { skuId: product.id, itemId: vi.id },
+                                        {
+                                          onSuccess: () => toast.success("Preferred supplier set"),
+                                        },
+                                      )
+                                    }
+                                  >
+                                    <Star className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <button
+                                  className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors"
+                                  title="Remove supplier"
+                                  onClick={() =>
+                                    removeVendorItem.mutate(
+                                      { skuId: product.id, itemId: vi.id },
+                                      { onSuccess: () => toast.success("Supplier removed") },
+                                    )
+                                  }
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-muted-foreground">
+                              {vi.vendor_sku && (
+                                <span>
+                                  SKU: <span className="font-mono">{vi.vendor_sku}</span>
+                                </span>
+                              )}
+                              <span>
+                                Cost:{" "}
+                                <span className="font-mono">${(vi.cost || 0).toFixed(2)}</span>
+                              </span>
+                              {vi.purchase_uom !== "each" && (
+                                <span>
+                                  {vi.purchase_uom}
+                                  {(vi.purchase_pack_qty || 1) > 1 && ` ×${vi.purchase_pack_qty}`}
+                                </span>
+                              )}
+                              {vi.lead_time_days != null && <span>{vi.lead_time_days}d lead</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Labels — collapsed, only if barcode */}
+              {hasBarcode && (
+                <Collapsible open={sections.labels} onOpenChange={() => toggleSection("labels")}>
+                  <CollapsibleTrigger asChild>
+                    <div>
+                      <SectionHeader
+                        icon={Tag}
+                        label="Labels"
+                        open={sections.labels}
+                        onToggle={() => toggleSection("labels")}
+                      />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="pb-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={printQty}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value, 10);
+                            setPrintQty(isNaN(v) ? 1 : Math.min(99, Math.max(1, v)));
+                          }}
+                          className="w-16 h-8 text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handlePrint}
+                          className="gap-1.5 text-xs"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Print {printQty} label{printQty !== 1 ? "s" : ""}
+                        </Button>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
             </div>
           </div>

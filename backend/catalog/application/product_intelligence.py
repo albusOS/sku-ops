@@ -1,12 +1,11 @@
-"""Product intelligence pipeline: agent-based product analysis with batch fallback.
+"""Product intelligence pipeline: batch LLM decomposition + parallel DB matching.
 
-Smart path: ReAct agent that researches each product against the catalog,
-decomposes structurally, and produces typed ProductAnalysis results.
+Batch path: Single LLM call for decomposition + parallel DB matching.
+Rule fallback: Pure regex/keyword inference when no LLM is available.
 
-Fast path: Single batched LLM call for decomposition + parallel DB matching.
-Used when the agent infrastructure is unavailable.
-
-Rule fallback: Pure regex/keyword inference when no LLM is available at all.
+Agent utilities (_agent_dict_to_analysis, _run_agent_from_dicts) are kept
+for the standalone product analyst agent but are not used in the document
+parse flow.
 """
 
 from __future__ import annotations
@@ -173,15 +172,8 @@ def _rule_fallback(item: dict) -> AnalyzedProduct:
 _FALLBACK_DEPTS = dict.fromkeys(("PLU", "ELE", "PNT", "LUM", "TOL", "HDW", "GDN", "APP"), True)
 
 
-# ── Agent path (smart) ──────────────────────────────────────────────────────
-
-AgentRunFn = (
-    Callable[
-        [list[dict]],
-        Awaitable[list[ProductAnalysis] | None],
-    ]
-    | None
-)
+# ── Agent utilities ──────────────────────────────────────────────────────────
+# Used by assistant/agents/product_analyst when run standalone.
 
 
 def _agent_dict_to_analysis(raw: dict, source_item: dict) -> ProductAnalysis:
@@ -430,37 +422,18 @@ async def analyze_products(
     search_families: SearchFamiliesFn | None = None,
     find_by_vendor_sku: FindByVendorSkuFn | None = None,
     find_by_name_and_vendor: FindByNameVendorFn | None = None,
-    run_agent: AgentRunFn = None,
-    use_agent: bool = True,
 ) -> list[ProductAnalysis]:
-    """Run the product intelligence pipeline.
+    """Batch product intelligence: single LLM call for decomposition + parallel DB matching.
 
-    Strategy (in order):
-    1. Agent path — ReAct agent researches each product against the catalog.
-       Used when run_agent is provided and use_agent=True.
-    2. Batch LLM path — single LLM call for decomposition + parallel DB matching.
-       Used when generate_text is provided.
-    3. Rule fallback — regex/keyword inference. Used when no LLM is available.
+    Strategy:
+    1. Batch LLM — single call for decomposition when generate_text is provided.
+    2. Rule fallback — regex/keyword inference when no LLM is available.
 
     Returns list of ProductAnalysis, one per input item, in the same order.
     """
     if not items:
         return []
 
-    if use_agent and run_agent is not None:
-        try:
-            agent_result = await run_agent(items)
-            if agent_result is not None:
-                return agent_result
-            logger.info("Agent path returned no results, falling through to batch LLM")
-        except Exception as e:
-            logger.warning(
-                "Product analyst agent failed (%s: %s) — falling back to batch pipeline",
-                type(e).__name__,
-                e,
-            )
-
-    # Batch LLM path (fast, no catalog research)
     valid_depts = set(dept_codes or []) | set(_FALLBACK_DEPTS.keys())
     analyzed = await _decompose_products(items, generate_text)
 

@@ -57,6 +57,7 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
     values = [updates.get("updated_at", "")]
     n += 1
     for key in (
+        "sku",
         "name",
         "description",
         "price",

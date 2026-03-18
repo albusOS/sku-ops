@@ -30,26 +30,6 @@ export const DOCUMENT_STATUSES = {
   REJECTED: "rejected",
 };
 
-export const UOM_OPTIONS = [
-  "each",
-  "case",
-  "box",
-  "pack",
-  "bag",
-  "roll",
-  "gallon",
-  "quart",
-  "pint",
-  "liter",
-  "pound",
-  "ounce",
-  "foot",
-  "meter",
-  "yard",
-  "sqft",
-  "kit",
-];
-
 export const ADJUST_REASONS = [
   { value: "correction", label: "Correction" },
   { value: "count", label: "Count" },

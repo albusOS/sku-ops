@@ -3,15 +3,15 @@
 from pydantic import BaseModel, Field, field_validator
 
 from shared.kernel.entity import AuditedEntity
-from shared.kernel.units import ALLOWED_BASE_UNITS
 
 VariantAttrs = dict[str, str]
 
 
-def _validate_unit(v: str) -> str:
+def _normalise_unit(v: str) -> str:
+    """Normalise to non-empty lowercase. Does not validate against DB."""
     v = (v or "each").lower().strip()
-    if v not in ALLOWED_BASE_UNITS:
-        raise ValueError(f"Unit must be one of: {sorted(ALLOWED_BASE_UNITS)}")
+    if not v:
+        return "each"
     return v
 
 
@@ -38,8 +38,8 @@ class SkuCreate(BaseModel):
 
     @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
-    def valid_unit(cls, v: str) -> str:
-        return _validate_unit(v)
+    def normalise_unit(cls, v: str) -> str:
+        return _normalise_unit(v)
 
     @field_validator("pack_qty", "purchase_pack_qty")
     @classmethod
@@ -50,6 +50,7 @@ class SkuCreate(BaseModel):
 
 
 class SkuUpdate(BaseModel):
+    sku: str | None = None
     name: str | None = None
     description: str | None = None
     price: float | None = None
@@ -72,10 +73,10 @@ class SkuUpdate(BaseModel):
 
     @field_validator("base_unit", "sell_uom", "purchase_uom")
     @classmethod
-    def valid_unit(cls, v: str | None) -> str | None:
+    def normalise_unit(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        return _validate_unit(v)
+        return _normalise_unit(v)
 
     @field_validator("pack_qty", "purchase_pack_qty")
     @classmethod

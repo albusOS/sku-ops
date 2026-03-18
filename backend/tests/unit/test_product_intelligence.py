@@ -1,11 +1,10 @@
 """Product intelligence pipeline tests — pure logic, no database.
 
 Tests the batch LLM path (Phase 1 decomposition + Phase 2 matching),
-agent path integration, rule fallback, and helper functions.
+rule fallback, and helper functions.
 """
 
 import json
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -254,7 +253,7 @@ class TestValidateProduct:
         assert any("manual cleanup" in w for w in warnings)
 
 
-# ── Batch LLM pipeline (use_agent=False) ─────────────────────────────────────
+# ── Batch LLM pipeline ───────────────────────────────────────────────────────
 
 
 class TestBatchPipeline:
@@ -314,7 +313,6 @@ class TestBatchPipeline:
             items,
             generate_text=mock_llm_response,
             dept_codes=["PLU", "HDW", "ELE", "PNT"],
-            use_agent=False,
         )
         assert len(results) == 2
 
@@ -340,7 +338,7 @@ class TestBatchPipeline:
             {"name": "1/2 in PEX Pipe 100ft"},
             {"name": "Interior Latex Paint 5 Gal"},
         ]
-        results = await analyze_products(items, generate_text=None, use_agent=False)
+        results = await analyze_products(items, generate_text=None)
         assert len(results) == 2
 
         pipe = results[0]
@@ -356,7 +354,7 @@ class TestBatchPipeline:
             raise RuntimeError("LLM unavailable")
 
         items = [{"name": "Widget"}]
-        results = await analyze_products(items, generate_text=bad_llm, use_agent=False)
+        results = await analyze_products(items, generate_text=bad_llm)
         assert len(results) == 1
         assert results[0].product.confidence == 0.3
 
@@ -398,7 +396,6 @@ class TestBatchPipeline:
             generate_text=single_item_llm,
             vendor_id="vendor-1",
             find_by_vendor_sku=find_by_vendor_sku,
-            use_agent=False,
         )
         assert results[0].matched_sku_id == "sku-123"
         assert results[0].matched_vendor_item_id == "vi-456"
@@ -428,144 +425,10 @@ class TestBatchPipeline:
             items,
             generate_text=single_item_llm,
             search_families=search_families,
-            use_agent=False,
         )
         assert len(results[0].family_candidates) == 2
         assert results[0].family_candidates[0].family_name == "Faucet Supply Lines"
         assert results[0].family_candidates[0].similarity == 0.85
-
-
-# ── Agent path (mocked) ─────────────────────────────────────────────────────
-
-
-class TestAgentPath:
-    @pytest.mark.asyncio
-    async def test_agent_path_when_callable_provided(self):
-        """When run_agent callable is provided and succeeds, results come from agent."""
-        agent_result = [
-            _agent_dict_to_analysis(
-                {
-                    "clean_name": "Braided Polymer Faucet Supply Line",
-                    "brand": "BrassCraft",
-                    "base_unit": "each",
-                    "sell_uom": "each",
-                    "pack_qty": 1,
-                    "suggested_department": "PLU",
-                    "confidence": 0.95,
-                    "matched_family_id": "fam-1",
-                    "matched_family_name": "Faucet Supply Lines",
-                },
-                {"name": "BrassCraft supply line"},
-            )
-        ]
-
-        mock_run = AsyncMock(return_value=agent_result)
-
-        items = [{"name": "BrassCraft supply line"}]
-        results = await analyze_products(items, run_agent=mock_run, use_agent=True)
-
-        assert len(results) == 1
-        assert results[0].product.clean_name == "Braided Polymer Faucet Supply Line"
-        assert results[0].product.brand == "BrassCraft"
-        assert results[0].family_candidates[0].family_id == "fam-1"
-        mock_run.assert_called_once_with(items)
-
-    @pytest.mark.asyncio
-    async def test_agent_fallback_to_batch_when_returns_none(self):
-        """When run_agent returns None, falls through to batch LLM path."""
-
-        def fallback_llm(prompt, system=None):
-            return json.dumps(
-                [
-                    {
-                        "clean_name": "Widget via Batch",
-                        "base_unit": "each",
-                        "suggested_department": "HDW",
-                        "confidence": 0.85,
-                    }
-                ]
-            )
-
-        mock_run = AsyncMock(return_value=None)
-
-        items = [{"name": "Widget"}]
-        results = await analyze_products(
-            items, generate_text=fallback_llm, run_agent=mock_run, use_agent=True
-        )
-
-        assert len(results) == 1
-        assert results[0].product.clean_name == "Widget via Batch"
-
-    @pytest.mark.asyncio
-    async def test_agent_fallback_to_batch_on_exception(self):
-        """When run_agent raises, falls through to batch LLM path."""
-
-        def fallback_llm(prompt, system=None):
-            return json.dumps(
-                [
-                    {
-                        "clean_name": "Batch Fallback Widget",
-                        "base_unit": "each",
-                        "suggested_department": "HDW",
-                        "confidence": 0.88,
-                    }
-                ]
-            )
-
-        mock_run = AsyncMock(side_effect=RuntimeError("agent crashed"))
-
-        items = [{"name": "Widget"}]
-        results = await analyze_products(
-            items, generate_text=fallback_llm, run_agent=mock_run, use_agent=True
-        )
-        assert results[0].product.clean_name == "Batch Fallback Widget"
-
-    @pytest.mark.asyncio
-    async def test_agent_skipped_when_use_agent_false(self):
-        """use_agent=False skips agent entirely even if run_agent provided."""
-
-        def batch_llm(prompt, system=None):
-            return json.dumps(
-                [
-                    {
-                        "clean_name": "Batch Only Widget",
-                        "base_unit": "each",
-                        "suggested_department": "HDW",
-                        "confidence": 0.9,
-                    }
-                ]
-            )
-
-        mock_run = AsyncMock(return_value="should not be called")
-
-        items = [{"name": "Widget"}]
-        results = await analyze_products(
-            items, generate_text=batch_llm, run_agent=mock_run, use_agent=False
-        )
-        assert results[0].product.clean_name == "Batch Only Widget"
-        mock_run.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_no_agent_when_run_agent_is_none(self):
-        """When run_agent is None, batch path runs directly."""
-
-        def batch_llm(prompt, system=None):
-            return json.dumps(
-                [
-                    {
-                        "clean_name": "No Agent Widget",
-                        "base_unit": "each",
-                        "suggested_department": "HDW",
-                        "confidence": 0.88,
-                    }
-                ]
-            )
-
-        items = [{"name": "Widget"}]
-        results = await analyze_products(
-            items, generate_text=batch_llm, run_agent=None, use_agent=True
-        )
-        assert results[0].product.clean_name == "No Agent Widget"
 
 
 # ── Real-world receipt examples ──────────────────────────────────────────────
@@ -642,7 +505,7 @@ class TestRealWorldExamples:
             },
             {"name": "HDX 16 in. x 16 in. Multi-Purpose Microfiber Towel (24-Pack)"},
         ]
-        results = await analyze_products(items, generate_text=home_depot_llm, use_agent=False)
+        results = await analyze_products(items, generate_text=home_depot_llm)
 
         assert results[0].product.base_unit == "each"
         assert results[0].product.pack_qty == 1
@@ -681,7 +544,7 @@ class TestRealWorldExamples:
                 "name": "Kidde Code One Hardwired Interconnectable Smoke and Carbon Monoxide Detector, AA Battery Backup",
             }
         ]
-        results = await analyze_products(items, generate_text=llm, use_agent=False)
+        results = await analyze_products(items, generate_text=llm)
         assert results[0].product.base_unit == "each"
         assert results[0].product.suggested_department == "ELE"
         assert results[0].product.brand == "Kidde"

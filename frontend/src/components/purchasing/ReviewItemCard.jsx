@@ -15,16 +15,27 @@ import {
 } from "lucide-react";
 import { ProductMatchPicker } from "@/components/ProductMatchPicker";
 import { ProductFields } from "@/components/ProductFields";
+
 const HIDDEN_FOR_NEW = new Set(["description", "vendor_id", "min_stock", "quantity"]);
 
-const RECOMMENDATION_BADGES = {
-  link_existing: { label: "Exact Match", className: "bg-blue-500/15 text-blue-600", icon: Link },
+const spring = { type: "spring", stiffness: 400, damping: 40 };
+
+const REC_STYLES = {
+  link_existing: {
+    label: "Exact Match",
+    cls: "bg-info/12 text-info border border-info/25",
+    Icon: Link,
+  },
   add_variant: {
     label: "Add to Family",
-    className: "bg-purple-500/15 text-purple-600",
-    icon: GitBranch,
+    cls: "bg-purple-500/12 text-purple-500 border border-purple-500/25",
+    Icon: GitBranch,
   },
-  create_new: { label: "New Product", className: "bg-amber-500/15 text-amber-600", icon: Sparkles },
+  create_new: {
+    label: "New Product",
+    cls: "bg-warning/12 text-warning border border-warning/25",
+    Icon: Sparkles,
+  },
 };
 
 function ConfidenceDot({ confidence }) {
@@ -33,17 +44,12 @@ function ConfidenceDot({ confidence }) {
     confidence >= 0.8 ? "bg-success" : confidence >= 0.5 ? "bg-amber-500" : "bg-destructive";
   return (
     <span
-      className={`w-2 h-2 rounded-full shrink-0 ${color}`}
+      className={`w-1.5 h-1.5 rounded-full shrink-0 ${color}`}
       title={`Confidence: ${(confidence * 100).toFixed(0)}%`}
     />
   );
 }
 
-/**
- * Single item card used in ReviewFlow.
- * Collapsed: one-line summary showing name + match status + qty + cost.
- * Expanded: full match picker + editable fields + agent reasoning.
- */
 export function ReviewItemCard({
   item,
   matchState = {},
@@ -61,8 +67,7 @@ export function ReviewItemCard({
   const matched = matchState.matched || item.matched_product || null;
   const isNew = !matched;
   const rec = item._recommendation;
-  const badge = RECOMMENDATION_BADGES[rec];
-  const BadgeIcon = badge?.icon;
+  const recStyle = REC_STYLES[rec];
   const familyCandidates = item._family_candidates || [];
   const warnings = item._warnings || [];
   const reason = item._recommendation_reason;
@@ -76,73 +81,79 @@ export function ReviewItemCard({
     onAskAssistant(context);
   };
 
+  const statusIcon = matched ? (
+    <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
+  ) : rec === "add_variant" ? (
+    <GitBranch className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+  ) : (
+    <PackagePlus className="w-3.5 h-3.5 text-warning shrink-0" />
+  );
+
   return (
-    <div
-      className={`rounded-xl border transition-all ${
+    <motion.div
+      layout
+      transition={spring}
+      className={`rounded-lg border transition-colors ${
         expanded
           ? isNew
             ? rec === "add_variant"
-              ? "border-purple-500/30 bg-purple-500/5 shadow-sm"
-              : "border-warning/30 bg-warning/5 shadow-sm"
-            : "border-success/30 bg-success/5 shadow-sm"
-          : "border-border/60 bg-card hover:border-border hover:shadow-sm"
+              ? "border-purple-500/25 bg-purple-500/[0.03]"
+              : "border-warning/25 bg-warning/[0.03]"
+            : "border-success/25 bg-success/[0.03]"
+          : "border-border/50 bg-card hover:border-border"
       }`}
     >
-      {/* Collapsed header — always visible */}
+      {/* Collapsed row */}
       <button
         type="button"
         onClick={onToggleExpand}
-        className="w-full flex items-center gap-3 p-3.5 text-left"
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
       >
         <ChevronRight
-          className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${
+          className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${
             expanded ? "rotate-90" : ""
           }`}
         />
 
-        {matched ? (
-          <CheckCircle className="w-4 h-4 text-success shrink-0" />
-        ) : rec === "add_variant" ? (
-          <GitBranch className="w-4 h-4 text-purple-500 shrink-0" />
-        ) : (
-          <PackagePlus className="w-4 h-4 text-warning shrink-0" />
-        )}
+        {statusIcon}
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
+          <p className="text-sm font-medium text-foreground truncate leading-tight">
             {item.name || "Unnamed item"}
           </p>
           {matched && !expanded && (
-            <p className="text-[10px] text-success mt-0.5 font-mono">{matched.sku}</p>
+            <p className="text-[10px] text-success font-mono leading-tight mt-0.5">{matched.sku}</p>
           )}
           {!matched && item.brand && !expanded && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">{item.brand}</p>
+            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{item.brand}</p>
           )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <ConfidenceDot confidence={item._confidence} />
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="tabular-nums">&times;{item.delivered_qty ?? item.quantity ?? 1}</span>
-            {item.cost != null && item.cost !== "" && (
-              <span className="tabular-nums">${Number(item.cost).toFixed(2)}</span>
-            )}
-          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            &times;{item.delivered_qty ?? item.quantity ?? 1}
+          </span>
+          {item.cost != null && item.cost !== "" && (
+            <span className="text-xs text-muted-foreground tabular-nums font-mono">
+              ${Number(item.cost).toFixed(2)}
+            </span>
+          )}
         </div>
 
-        {badge ? (
+        {recStyle ? (
           <span
-            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold shrink-0 flex items-center gap-1 ${badge.className}`}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 flex items-center gap-1 ${recStyle.cls}`}
           >
-            {BadgeIcon && <BadgeIcon className="w-3 h-3" />}
-            {badge.label}
+            <recStyle.Icon className="w-2.5 h-2.5" />
+            {recStyle.label}
           </span>
         ) : matched ? (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-success/15 text-success shrink-0">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-success/12 text-success border border-success/25 shrink-0">
             Found
           </span>
         ) : (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-warning/15 text-warning shrink-0">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-warning/12 text-warning border border-warning/25 shrink-0">
             New
           </span>
         )}
@@ -155,13 +166,13 @@ export function ReviewItemCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 40 }}
+            transition={spring}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border/30">
-              {/* Agent reasoning */}
+            <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/30">
+              {/* AI reasoning */}
               {reason && (
-                <div className="rounded-lg bg-muted/50 border border-border/40 px-3 py-2 text-xs text-muted-foreground">
+                <div className="rounded-lg bg-muted/40 border border-border/30 px-3 py-2 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">AI reasoning:</span> {reason}
                 </div>
               )}
@@ -178,7 +189,7 @@ export function ReviewItemCard({
                 </div>
               )}
 
-              {/* Family candidates for add_variant */}
+              {/* Family candidates */}
               {rec === "add_variant" && familyCandidates.length > 0 && !matched && (
                 <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-3 py-2 space-y-1.5">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600">
@@ -205,14 +216,14 @@ export function ReviewItemCard({
                 onClear={onClearMatch}
               />
 
-              {/* Matched item: qty + cost + stock preview */}
+              {/* Fields */}
               {matched ? (
                 <MatchedFields item={item} matched={matched} onChange={onFieldChange} mode={mode} />
               ) : (
                 <NewItemFields item={item} onChange={onFieldChange} departments={departments} />
               )}
 
-              {/* Actions row */}
+              {/* Actions */}
               <div className="flex items-center justify-between pt-1">
                 {onAskAssistant ? (
                   <button
@@ -232,14 +243,14 @@ export function ReviewItemCard({
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  Remove item
+                  Remove
                 </button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
@@ -251,31 +262,29 @@ function MatchedFields({ item, matched, onChange, mode }) {
   return (
     <div className="space-y-3">
       {mode === "receive" && (
-        <div className="grid grid-cols-3 gap-3 text-sm">
-          <div className="bg-card rounded-lg border border-border px-3 py-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase">In stock now</p>
-            <p className="font-mono font-semibold text-foreground">{currentQty}</p>
+        <div className="flex items-center gap-3 text-sm">
+          <div className="flex-1 bg-card rounded-lg border border-border px-3 py-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Current</p>
+            <p className="font-mono font-semibold tabular-nums">{currentQty}</p>
           </div>
-          <div className="flex items-center justify-center">
-            <ArrowRight className="w-4 h-4 text-muted-foreground/50" />
-          </div>
-          <div className="bg-card rounded-lg border border-success/30 px-3 py-2">
-            <p className="text-[10px] font-medium text-success uppercase">After receiving</p>
-            <p className="font-mono font-semibold text-success">{newQty}</p>
+          <ArrowRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+          <div className="flex-1 bg-card rounded-lg border border-success/30 px-3 py-2">
+            <p className="text-[10px] font-medium text-success uppercase">After</p>
+            <p className="font-mono font-semibold text-success tabular-nums">{newQty}</p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-muted-foreground text-xs">Quantity received</Label>
+          <Label className="text-muted-foreground text-xs">Qty received</Label>
           <Input
             type="number"
             min="0"
             step="any"
             value={item.delivered_qty ?? item.quantity ?? 1}
             onChange={(e) => onChange("delivered_qty", e.target.value)}
-            className="input-field h-9 text-sm mt-1"
+            className="input-field h-8 text-sm mt-1"
           />
         </div>
         <div>
@@ -285,13 +294,13 @@ function MatchedFields({ item, matched, onChange, mode }) {
             step="0.01"
             value={item.cost ?? ""}
             onChange={(e) => onChange("cost", e.target.value ? parseFloat(e.target.value) : null)}
-            className="input-field h-9 text-sm mt-1"
+            className="input-field h-8 text-sm mt-1"
           />
         </div>
       </div>
 
       {item.original_sku && (
-        <p className="text-xs text-muted-foreground font-mono">
+        <p className="text-[10px] text-muted-foreground font-mono">
           Supplier code: {item.original_sku}
         </p>
       )}

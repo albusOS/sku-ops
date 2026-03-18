@@ -1,9 +1,17 @@
 import { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Upload, FileImage, FileText, XCircle, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { Upload, FileImage, FileText, XCircle, Sparkles, ArrowLeft } from "lucide-react";
 import api, { getErrorMessage } from "@/lib/api-client";
 import { ReviewFlow } from "./ReviewFlow";
+
+const spring = { type: "spring", stiffness: 300, damping: 34 };
+const fadeUp = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: spring },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.15 } },
+};
 
 const TRACKED_FIELDS = ["suggested_department", "base_unit", "sell_uom", "pack_qty", "name"];
 
@@ -36,18 +44,12 @@ function detectCorrections(originalItems, finalPayload) {
   return corrections;
 }
 
-/**
- * Import flow: upload document → AI extract → review → save as PO.
- * Lives in the right column of the purchasing page.
- *
- * @param {function} onComplete  Called after PO is created successfully
- * @param {function} onCancel    Go back / deselect
- */
 export function ImportFlow({ onComplete, onCancel }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   const [extractedData, setExtractedData] = useState(null);
   const [editedProducts, setEditedProducts] = useState([]);
@@ -85,6 +87,7 @@ export function ImportFlow({ onComplete, onCancel }) {
   const handleDrop = useCallback(
     (e) => {
       e.preventDefault();
+      setDragActive(false);
       processFile(e.dataTransfer.files?.[0]);
     },
     [processFile],
@@ -187,6 +190,7 @@ export function ImportFlow({ onComplete, onCancel }) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-3">
           <button
@@ -201,111 +205,141 @@ export function ImportFlow({ onComplete, onCancel }) {
       </div>
 
       <div className="flex-1 overflow-auto p-5 space-y-5">
-        {!file ? (
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            className="border border-dashed border-border/60 rounded-xl p-12 text-center hover:border-accent/40 hover:bg-accent/5 transition-all cursor-pointer group"
-            onClick={() => document.getElementById("import-file-input").click()}
-          >
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent-gradient-from/20 to-accent-gradient-to/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform border border-accent/20">
-              <Upload className="w-7 h-7 text-accent" />
-            </div>
-            <p className="text-muted-foreground font-medium">
-              Upload a vendor bill, receipt, or packing slip
-            </p>
-            <p className="text-muted-foreground text-sm mt-2">
-              Drop a file here, or tap to choose one
-            </p>
-            <p className="text-muted-foreground/60 text-xs mt-1">
-              Supports JPG, PNG, WEBP, and PDF
-            </p>
-            <input
-              id="import-file-input"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="relative rounded-xl overflow-hidden border border-border/60 shadow-sm">
-              {preview ? (
-                <img
-                  src={preview}
-                  alt="Document preview"
-                  className="w-full max-h-[300px] object-contain bg-muted/30"
+        <AnimatePresence mode="wait">
+          {!file ? (
+            <motion.div key="upload" {...fadeUp}>
+              {/* Drop zone */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragLeave={() => setDragActive(false)}
+                onClick={() => document.getElementById("import-file-input").click()}
+                className={`border border-dashed rounded-xl p-12 text-center transition-all cursor-pointer group ${
+                  dragActive
+                    ? "border-accent bg-accent/8 scale-[1.01]"
+                    : "border-border/60 hover:border-accent/40 hover:bg-accent/5"
+                }`}
+              >
+                <motion.div
+                  animate={dragActive ? { scale: 1.08 } : { scale: 1 }}
+                  transition={spring}
+                  className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent-gradient-from/20 to-accent-gradient-to/20 flex items-center justify-center mx-auto mb-4 border border-accent/20"
+                >
+                  <Upload className="w-7 h-7 text-accent" />
+                </motion.div>
+                <p className="text-muted-foreground font-medium">
+                  Upload a vendor bill, receipt, or packing slip
+                </p>
+                <p className="text-muted-foreground text-sm mt-2">
+                  Drop a file here, or tap to choose one
+                </p>
+                <p className="text-muted-foreground/60 text-xs mt-1">
+                  Supports JPG, PNG, WEBP, and PDF
+                </p>
+                <input
+                  id="import-file-input"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  className="hidden"
                 />
-              ) : (
-                <div className="w-full h-36 bg-muted/30 flex flex-col items-center justify-center gap-2">
-                  <FileText className="w-10 h-10 text-muted-foreground" />
-                  <span className="text-muted-foreground font-medium text-sm">{file.name}</span>
-                  <span className="text-muted-foreground text-xs">PDF document</span>
+              </div>
+
+              {/* Steps */}
+              <div className="space-y-4 pt-6">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                  How it works
+                </p>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  {[
+                    "Upload a vendor bill, receipt, or packing slip from any supplier",
+                    "We'll read the document and pull out items, quantities, and prices",
+                    "Review the details, make any corrections, and save",
+                  ].map((text, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="w-6 h-6 bg-accent/10 text-accent rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-accent/20">
+                        {i + 1}
+                      </span>
+                      <p>{text}</p>
+                    </div>
+                  ))}
                 </div>
-              )}
-              <button
-                onClick={clearAll}
-                className="absolute top-2 right-2 p-1.5 bg-card/90 backdrop-blur-sm text-muted-foreground rounded-lg hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-              <span className="truncate">{file.name}</span>
-            </div>
-
-            <div className="space-y-2">
-              <Button
-                onClick={() => extractReceipt(true)}
-                disabled={extracting}
-                className="btn-primary h-11 w-full"
-              >
-                {extracting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            </motion.div>
+          ) : extracting ? (
+            <motion.div
+              key="extracting"
+              {...fadeUp}
+              className="flex flex-col items-center justify-center py-20 text-center"
+            >
+              <div className="relative">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent-gradient-from/20 to-accent-gradient-to/20 flex items-center justify-center border border-accent/20"
+                >
+                  <Sparkles className="w-7 h-7 text-accent" />
+                </motion.div>
+              </div>
+              <p className="text-sm font-medium mt-5">Reading your document</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Extracting items, quantities, and prices…
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div key="preview" {...fadeUp} className="space-y-4">
+              {/* File preview */}
+              <div className="relative rounded-xl overflow-hidden border border-border/60 shadow-sm">
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt="Document preview"
+                    className="w-full max-h-[280px] object-contain bg-muted/30"
+                  />
                 ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Read Document
-                  </>
+                  <div className="w-full h-32 bg-muted/30 flex flex-col items-center justify-center gap-2">
+                    <FileText className="w-10 h-10 text-muted-foreground" />
+                    <span className="text-muted-foreground font-medium text-sm">{file.name}</span>
+                    <span className="text-muted-foreground text-xs">PDF document</span>
+                  </div>
                 )}
-              </Button>
-              <button
-                type="button"
-                onClick={() => extractReceipt(false)}
-                disabled={extracting}
-                className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1 disabled:opacity-50"
-              >
-                {extracting ? "Reading…" : "Use basic text extraction instead"}
-              </button>
-            </div>
-          </div>
-        )}
+                <button
+                  onClick={clearAll}
+                  className="absolute top-2 right-2 p-1.5 bg-card/90 backdrop-blur-sm text-muted-foreground rounded-lg hover:bg-destructive/10 hover:text-destructive border border-border shadow-sm transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
 
-        {/* How it works */}
-        {!file && (
-          <div className="space-y-4 pt-2">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-              How it works
-            </p>
-            <div className="space-y-3 text-sm text-muted-foreground">
-              {[
-                "Upload a vendor bill, receipt, or packing slip from any supplier",
-                "We'll read the document and pull out items, quantities, and prices",
-                "Review the details, make any corrections, and save",
-              ].map((text, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <span className="w-6 h-6 bg-accent/10 text-accent rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-accent/20">
-                    {i + 1}
-                  </span>
-                  <p>{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {preview ? <FileImage className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                <span className="truncate">{file.name}</span>
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  onClick={() => extractReceipt(true)}
+                  disabled={extracting}
+                  className="btn-primary h-11 w-full"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Read Document
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => extractReceipt(false)}
+                  disabled={extracting}
+                  className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1 disabled:opacity-50"
+                >
+                  Use basic text extraction instead
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

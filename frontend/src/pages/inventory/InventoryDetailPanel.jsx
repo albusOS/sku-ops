@@ -3,6 +3,14 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
   X,
   SlidersHorizontal,
   History,
@@ -12,9 +20,13 @@ import {
   Minus,
   Pencil,
   Check,
+  ChevronRight,
+  Settings2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useStockHistory, useUpdateProduct } from "@/hooks/useProducts";
+import { useDepartments } from "@/hooks/useDepartments";
+import { UnitCombobox } from "@/components/UnitCombobox";
 import { TX_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-client";
@@ -174,17 +186,57 @@ function StockGauge({ quantity, minStock }) {
   );
 }
 
+function ReadField({ label, value, mono }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-sm text-foreground mt-0.5 ${mono ? "font-mono tabular-nums" : ""}`}>
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
+
 const SPRING = { type: "spring", stiffness: 300, damping: 36 };
 
 export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewHistory }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { data: historyData, isLoading: historyLoading } = useStockHistory(
     open ? product?.id : null,
   );
+  const { data: departments = [] } = useDepartments();
+  const updateMutation = useUpdateProduct();
   const recentHistory = (historyData?.history || []).slice(0, 10);
+
+  useEffect(() => {
+    if (open && product) setDetailsOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on panel open/product change, not every re-render
+  }, [open, product?.id]);
 
   if (!open || !product) return null;
 
   const baseUnit = product.base_unit || "each";
+  const sellUom = product.sell_uom || baseUnit;
+
+  const handleCategoryChange = (categoryId) => {
+    updateMutation.mutate(
+      { id: product.id, data: { category_id: categoryId } },
+      {
+        onSuccess: () => toast.success("Category updated"),
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    );
+  };
+
+  const handleUnitChange = (field, value) => {
+    updateMutation.mutate(
+      { id: product.id, data: { [field]: value } },
+      {
+        onSuccess: () => toast.success("Unit updated"),
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    );
+  };
 
   return (
     <motion.div
@@ -196,7 +248,7 @@ export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewH
       className="h-full shrink-0 overflow-hidden"
     >
       <div className="flex flex-col h-full bg-card border-l border-border/60 overflow-hidden shadow-xl">
-        {/* Header */}
+        {/* Header — stock gauge + actions */}
         <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -241,40 +293,91 @@ export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewH
           </div>
         </div>
 
-        {/* Stock details — editable fields */}
-        <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <ReadField label="Base Unit" value={baseUnit} />
-            {product.sell_uom && product.sell_uom !== baseUnit && (
-              <ReadField
-                label="Sell Qty"
-                value={`${product.sell_quantity ?? "—"} ${product.sell_uom}`}
-              />
-            )}
-            <EditableValue
-              label="Price"
-              value={product.price || 0}
-              field="price"
-              productId={product.id}
-              prefix="$"
-            />
-            <EditableValue
-              label="Cost"
-              value={product.cost || 0}
-              field="cost"
-              productId={product.id}
-              prefix="$"
-            />
-            <EditableValue
-              label="Reorder At"
-              value={product.min_stock ?? 5}
-              field="min_stock"
-              productId={product.id}
-              suffix={baseUnit}
-            />
-          </div>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-auto px-5 py-4 space-y-1">
+          {/* Product Details — collapsible, editable */}
+          <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center gap-2 w-full py-2 text-left group">
+                <ChevronRight
+                  className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${detailsOpen ? "rotate-90" : ""}`}
+                />
+                <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground flex-1">
+                  Product Details
+                </span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="pb-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Category</p>
+                    <Select
+                      value={product.category_id}
+                      onValueChange={handleCategoryChange}
+                      disabled={updateMutation.isPending}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            <span className="font-mono text-xs">{dept.code}</span>
+                            <span className="text-muted-foreground mx-1">—</span>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Sell Unit</p>
+                    <UnitCombobox
+                      value={sellUom}
+                      onValueChange={(v) => handleUnitChange("sell_uom", v)}
+                      disabled={updateMutation.isPending}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Base Unit</p>
+                    <UnitCombobox
+                      value={baseUnit}
+                      onValueChange={(v) => handleUnitChange("base_unit", v)}
+                      disabled={updateMutation.isPending}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <ReadField label="Scan Code" value={product.barcode || product.sku} mono />
+                  <EditableValue
+                    label="Price"
+                    value={product.price || 0}
+                    field="price"
+                    productId={product.id}
+                    prefix="$"
+                  />
+                  <EditableValue
+                    label="Cost"
+                    value={product.cost || 0}
+                    field="cost"
+                    productId={product.id}
+                    prefix="$"
+                  />
+                  <EditableValue
+                    label="Reorder At"
+                    value={product.min_stock ?? 5}
+                    field="min_stock"
+                    productId={product.id}
+                    suffix={baseUnit}
+                  />
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
-          {/* Recent movements */}
+          {/* Recent movements — always visible */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-3">
               Recent Movements
@@ -318,16 +421,5 @@ export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewH
         </div>
       </div>
     </motion.div>
-  );
-}
-
-function ReadField({ label, value, mono }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-sm text-foreground mt-0.5 ${mono ? "font-mono tabular-nums" : ""}`}>
-        {value || "—"}
-      </p>
-    </div>
   );
 }

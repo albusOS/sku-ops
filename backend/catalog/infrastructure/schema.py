@@ -2,6 +2,41 @@
 
 # Additive migrations — applied via ALTER TABLE IF NOT EXISTS at startup.
 # Safe to run repeatedly on an existing database.
+_UOM_SEED: list[str] = [
+    f"""INSERT INTO units_of_measure (id, code, name, family, created_at)
+        VALUES ('{uom_id}', '{code}', '{name}', '{family}', '2024-01-01T00:00:00+00:00')
+        ON CONFLICT DO NOTHING"""
+    for uom_id, code, name, family in [
+        ("uom-each", "each", "Each", "discrete"),
+        ("uom-case", "case", "Case", "discrete"),
+        ("uom-box", "box", "Box", "discrete"),
+        ("uom-pack", "pack", "Pack", "discrete"),
+        ("uom-bag", "bag", "Bag", "discrete"),
+        ("uom-roll", "roll", "Roll", "discrete"),
+        ("uom-kit", "kit", "Kit", "discrete"),
+        ("uom-set", "set", "Set", "discrete"),
+        ("uom-pair", "pair", "Pair", "discrete"),
+        ("uom-bottle", "bottle", "Bottle", "discrete"),
+        ("uom-can", "can", "Can", "discrete"),
+        ("uom-tube", "tube", "Tube", "discrete"),
+        ("uom-sheet", "sheet", "Sheet", "discrete"),
+        ("uom-gallon", "gallon", "Gallon", "volume"),
+        ("uom-quart", "quart", "Quart", "volume"),
+        ("uom-pint", "pint", "Pint", "volume"),
+        ("uom-liter", "liter", "Liter", "volume"),
+        ("uom-pound", "pound", "Pound", "weight"),
+        ("uom-ounce", "ounce", "Ounce", "weight"),
+        ("uom-foot", "foot", "Foot", "length"),
+        ("uom-inch", "inch", "Inch", "length"),
+        ("uom-meter", "meter", "Meter", "length"),
+        ("uom-yard", "yard", "Yard", "length"),
+        ("uom-sqft", "sqft", "Square Foot", "area"),
+        ("uom-bundle", "bundle", "Bundle", "discrete"),
+        ("uom-pallet", "pallet", "Pallet", "discrete"),
+        ("uom-slab", "slab", "Slab", "discrete"),
+    ]
+]
+
 MIGRATIONS: list[str] = [
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS variant_label TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE skus ADD COLUMN IF NOT EXISTS spec TEXT NOT NULL DEFAULT ''",
@@ -10,6 +45,7 @@ MIGRATIONS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_skus_family_attrs ON skus(product_family_id) WHERE deleted_at IS NULL",
     # Rename: skus.product_id -> product_family_id (existing dev DBs)
     "ALTER TABLE skus RENAME COLUMN product_id TO product_family_id",
+    *_UOM_SEED,
 ]
 
 TABLES: list[str] = [
@@ -19,6 +55,16 @@ TABLES: list[str] = [
         code TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
+        organization_id TEXT,
+        created_at TEXT NOT NULL,
+        deleted_at TEXT,
+        UNIQUE(organization_id, code)
+    )""",
+    """CREATE TABLE IF NOT EXISTS units_of_measure (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        family TEXT NOT NULL DEFAULT 'discrete',
         organization_id TEXT,
         created_at TEXT NOT NULL,
         deleted_at TEXT,
@@ -98,6 +144,7 @@ TABLES: list[str] = [
 
 INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_uom_org ON units_of_measure(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_vendors_org ON vendors(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id)",

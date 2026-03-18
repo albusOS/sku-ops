@@ -98,6 +98,13 @@ const api = {
     delete: (id) => axios.delete(`${API}/catalog/departments/${id}`),
   },
 
+  // ── Units of measure ─────────────────────────────────────────────────
+  units: {
+    list: () => axios.get(`${API}/catalog/units`).then((r) => r.data),
+    create: (data) => axios.post(`${API}/catalog/units`, data).then((r) => r.data),
+    delete: (id) => axios.delete(`${API}/catalog/units/${id}`),
+  },
+
   // ── Vendors ───────────────────────────────────────────────────────────
   vendors: {
     list: () => axios.get(`${API}/catalog/vendors`).then((r) => r.data),

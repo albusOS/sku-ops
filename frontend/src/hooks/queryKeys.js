@@ -43,6 +43,10 @@ export const keys = {
     list: () => ["departments", "list"],
     skuOverview: () => ["departments", "skuOverview"],
   },
+  units: {
+    all: ["units"],
+    list: () => ["units", "list"],
+  },
   billingEntities: {
     all: ["billingEntities"],
     list: (params) => ["billingEntities", "list", params],

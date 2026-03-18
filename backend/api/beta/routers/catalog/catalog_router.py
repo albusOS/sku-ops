@@ -1,4 +1,4 @@
-"""Catalog context router - departments, product_families, products, vendor_items, sku, vendors."""
+"""Catalog context router - departments, product_families, products, vendor_items, sku, vendors, units."""
 
 from fastapi import APIRouter
 
@@ -7,6 +7,7 @@ from api.beta.routers.catalog.sub_routers import (
     product_families_router,
     products_router,
     sku_router,
+    units_router,
     vendor_items_router,
     vendors_router,
 )
@@ -19,6 +20,7 @@ SUB_ROUTERS = (
     products_router,
     vendor_items_router,
     sku_router,
+    units_router,
     vendors_router,
 )
 

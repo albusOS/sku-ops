@@ -22,7 +22,7 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useViewController } from "@/hooks/useViewController";
 import { getErrorMessage } from "@/lib/api-client";
 import { toast } from "sonner";
-import { ProductFormDialog } from "@/pages/inventory/ProductFormDialog";
+import { ProductFormDialog } from "./ProductFormDialog";
 import { CatalogDetailPanel } from "./CatalogDetailPanel";
 
 function FamilyGroupRows({ group, columns, expanded, onToggle, onRowClick, onAddVariant }) {
@@ -193,7 +193,10 @@ export default function ProductsPage() {
     [departments],
   );
 
-  const view = useViewController({ columns });
+  const view = useViewController({
+    columns,
+    initialHiddenColumns: ["base_unit", "cost"],
+  });
   const processedProducts = view.apply(allProducts);
 
   const productFamilyGroups = useMemo(() => {

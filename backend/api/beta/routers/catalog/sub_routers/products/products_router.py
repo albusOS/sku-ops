@@ -20,7 +20,7 @@ from catalog.application.sku_lifecycle import (
 from catalog.application.sku_lifecycle import (
     update_sku as lifecycle_update,
 )
-from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
+from catalog.domain.errors import DuplicateBarcodeError, DuplicateSkuError, InvalidBarcodeError
 from catalog.domain.sku import SkuCreate, SkuUpdate
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
@@ -188,6 +188,8 @@ async def update_product(sku_id: str, data: SkuUpdate, current_user: AdminDep):
         result = await lifecycle_update(sku_id, data, current_sku=sku)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except DuplicateSkuError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except DuplicateBarcodeError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidBarcodeError as e:

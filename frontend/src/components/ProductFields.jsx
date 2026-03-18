@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
-import { UOM_OPTIONS } from "@/lib/constants";
+import { UnitCombobox } from "@/components/UnitCombobox";
 
 function FieldTip({ children }) {
   return (
@@ -201,22 +201,14 @@ export function ProductFields({
                 </FieldTip>
               )}
             </Label>
-            <Select
-              value={field("base_unit") || "each"}
-              onValueChange={(v) => set("base_unit", v)}
-              disabled={isReadOnly(ro, "base_unit")}
-            >
-              <SelectTrigger className={inputCls}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {UOM_OPTIONS.map((u) => (
-                  <SelectItem key={u} value={u}>
-                    {u}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className={compact ? "mt-0" : "mt-2"}>
+              <UnitCombobox
+                value={field("base_unit") || "each"}
+                onValueChange={(v) => set("base_unit", v)}
+                disabled={isReadOnly(ro, "base_unit")}
+                className={compact ? "h-9 text-sm" : "h-11"}
+              />
+            </div>
             {!compact && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 How you count this item in inventory
@@ -232,22 +224,14 @@ export function ProductFields({
                   <FieldTip>The unit shown to customers and used when issuing materials.</FieldTip>
                 )}
               </Label>
-              <Select
-                value={field("sell_uom") || "each"}
-                onValueChange={(v) => set("sell_uom", v)}
-                disabled={isReadOnly(ro, "sell_uom")}
-              >
-                <SelectTrigger className={inputCls}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {UOM_OPTIONS.map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className={compact ? "mt-0" : "mt-2"}>
+                <UnitCombobox
+                  value={field("sell_uom") || "each"}
+                  onValueChange={(v) => set("sell_uom", v)}
+                  disabled={isReadOnly(ro, "sell_uom")}
+                  className={compact ? "h-9 text-sm" : "h-11"}
+                />
+              </div>
               {!compact && (
                 <p className="text-xs text-muted-foreground mt-0.5">How customers buy it</p>
               )}
@@ -299,22 +283,14 @@ export function ProductFields({
                 </FieldTip>
               )}
             </Label>
-            <Select
-              value={field("purchase_uom") || "each"}
-              onValueChange={(v) => set("purchase_uom", v)}
-              disabled={isReadOnly(ro, "purchase_uom")}
-            >
-              <SelectTrigger className={inputCls}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {UOM_OPTIONS.map((u) => (
-                  <SelectItem key={u} value={u}>
-                    {u}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className={compact ? "mt-0" : "mt-2"}>
+              <UnitCombobox
+                value={field("purchase_uom") || "each"}
+                onValueChange={(v) => set("purchase_uom", v)}
+                disabled={isReadOnly(ro, "purchase_uom")}
+                className={compact ? "h-9 text-sm" : "h-11"}
+              />
+            </div>
             {!compact && (
               <p className="text-xs text-muted-foreground mt-0.5">How your vendor ships it</p>
             )}

@@ -7,12 +7,14 @@ Thin delegation layer that decouples consumers from infrastructure details.
 from catalog.domain.department import Department
 from catalog.domain.product_family import ProductFamily
 from catalog.domain.sku import Sku, SkuUpdate
+from catalog.domain.unit_of_measure import UnitOfMeasure
 from catalog.domain.vendor import Vendor
 from catalog.domain.vendor_item import VendorItem
 from catalog.infrastructure.department_repo import department_repo as _dept_repo
 from catalog.infrastructure.product_family_repo import product_family_repo as _prod_repo
 from catalog.infrastructure.sku_counter_repo import sku_counter_repo as _counter_repo
 from catalog.infrastructure.sku_repo import sku_repo as _sku_repo
+from catalog.infrastructure.uom_repo import uom_repo as _uom_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo as _vi_repo
 from catalog.infrastructure.vendor_repo import vendor_repo as _vendor_repo
 from shared.infrastructure.database import get_connection, get_org_id, transaction
@@ -242,6 +244,31 @@ async def delete_department(dept_id: str) -> int:
 
 async def count_skus_by_department(dept_id: str) -> int:
     return await _dept_repo.count_skus_by_department(dept_id)
+
+
+# ── Unit of measure queries ──────────────────────────────────────────────
+
+
+async def list_units_of_measure() -> list[UnitOfMeasure]:
+    return await _uom_repo.list_all()
+
+
+async def get_unit_by_code(code: str) -> UnitOfMeasure | None:
+    return await _uom_repo.get_by_code(code)
+
+
+async def get_unit_by_id(uom_id: str) -> UnitOfMeasure | None:
+    return await _uom_repo.get_by_id(uom_id)
+
+
+async def insert_unit(uom: UnitOfMeasure) -> None:
+    async with transaction():
+        return await _uom_repo.insert(uom)
+
+
+async def delete_unit(uom_id: str) -> int:
+    async with transaction():
+        return await _uom_repo.delete(uom_id)
 
 
 # ── Vendor queries ───────────────────────────────────────────────────────────

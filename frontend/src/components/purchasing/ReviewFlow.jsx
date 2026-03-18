@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,20 +26,16 @@ import { useChatPanel } from "@/context/ChatContext";
 import { ReviewItemCard } from "./ReviewItemCard";
 import api from "@/lib/api-client";
 
-/**
- * Unified review flow for both document import and PO receiving.
- *
- * @param {array}    items           Extracted or PO items to review
- * @param {string}   mode            "import" | "receive"
- * @param {string}   vendorName      Vendor name (import mode)
- * @param {function} onVendorChange  (name: string) => void (import mode)
- * @param {boolean}  createVendor    Create vendor if missing flag
- * @param {function} onCreateVendorChange (bool) => void
- * @param {function} onConfirm       (payload) => void — submit action
- * @param {function} onBack          () => void — go back to previous step
- * @param {boolean}  submitting      Whether the submit is in progress
- * @param {string}   confirmLabel    Label for the confirm button
- */
+const spring = { type: "spring", stiffness: 300, damping: 34 };
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
+};
+const fadeUp = {
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0, transition: spring },
+};
+
 export function ReviewFlow({
   items: rawItems,
   mode = "import",
@@ -129,10 +126,7 @@ export function ReviewFlow({
   }, [rawItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateItem = useCallback((rid, field, value) => {
-    setItems((prev) => {
-      const next = prev.map((it) => (it._rid === rid ? { ...it, [field]: value } : it));
-      return next;
-    });
+    setItems((prev) => prev.map((it) => (it._rid === rid ? { ...it, [field]: value } : it)));
   }, []);
 
   const removeItem = useCallback((rid) => {
@@ -264,7 +258,7 @@ export function ReviewFlow({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-3">
           {onBack && (
             <button
               type="button"
@@ -279,24 +273,27 @@ export function ReviewFlow({
           </h2>
         </div>
 
-        {/* Summary strip */}
-        <div className="grid grid-cols-3 gap-2">
-          <SummaryChip
-            icon={<CheckCircle className="w-3.5 h-3.5 text-success" />}
-            label="Recognized"
-            value={matchedCount}
-            color="success"
-          />
-          <SummaryChip
-            icon={<PackagePlus className="w-3.5 h-3.5 text-warning" />}
-            label="New items"
-            value={newCount}
-            color="warning"
-          />
-          <SummaryChip
-            label="Total cost"
-            value={totalCost > 0 ? `$${totalCost.toFixed(2)}` : "—"}
-          />
+        {/* Summary — inline pills */}
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1.5 text-success">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span className="font-semibold tabular-nums">{matchedCount}</span>
+            <span className="text-muted-foreground">matched</span>
+          </span>
+          <span className="w-px h-3.5 bg-border" />
+          <span className="flex items-center gap-1.5 text-warning">
+            <PackagePlus className="w-3.5 h-3.5" />
+            <span className="font-semibold tabular-nums">{newCount}</span>
+            <span className="text-muted-foreground">new</span>
+          </span>
+          {totalCost > 0 && (
+            <>
+              <span className="w-px h-3.5 bg-border" />
+              <span className="font-mono text-foreground font-semibold tabular-nums">
+                ${totalCost.toFixed(2)}
+              </span>
+            </>
+          )}
         </div>
 
         {hasUnresolvedSuggestions && (
@@ -314,10 +311,15 @@ export function ReviewFlow({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
+      <motion.div
+        className="flex-1 overflow-auto px-5 py-4 space-y-5"
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+      >
         {/* Import-specific: vendor & category */}
         {mode === "import" && (
-          <div className="space-y-3">
+          <motion.div variants={fadeUp} className="space-y-3">
             <div>
               <Label className="text-muted-foreground font-medium text-sm">Supplier name</Label>
               <Input
@@ -364,56 +366,56 @@ export function ReviewFlow({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* Needs attention section */}
+        {/* Needs attention */}
         {needsAttention.length > 0 && (
-          <div className="space-y-2">
+          <motion.section variants={fadeUp} className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning flex items-center gap-1.5">
               <AlertTriangle className="w-3 h-3" />
               Needs your attention ({needsAttention.length})
             </p>
-            {needsAttention.map(renderItemCard)}
-          </div>
+            <AnimatePresence initial={false}>{needsAttention.map(renderItemCard)}</AnimatePresence>
+          </motion.section>
         )}
 
-        {/* Family matches section */}
+        {/* Family matches */}
         {familyMatches.length > 0 && (
-          <div className="space-y-2">
+          <motion.section variants={fadeUp} className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-purple-500 flex items-center gap-1.5">
               <GitBranch className="w-3 h-3" />
               Family matches ({familyMatches.length})
             </p>
-            {familyMatches.map(renderItemCard)}
-          </div>
+            <AnimatePresence initial={false}>{familyMatches.map(renderItemCard)}</AnimatePresence>
+          </motion.section>
         )}
 
-        {/* Ready section */}
+        {/* Ready */}
         {ready.length > 0 && (
-          <div className="space-y-2">
+          <motion.section variants={fadeUp} className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-success flex items-center gap-1.5">
               <CheckCircle className="w-3 h-3" />
               Good to go ({ready.length})
             </p>
-            {ready.map(renderItemCard)}
-          </div>
+            <AnimatePresence initial={false}>{ready.map(renderItemCard)}</AnimatePresence>
+          </motion.section>
         )}
 
         {resolvedItems.length === 0 && (
           <div className="text-center py-12 text-muted-foreground text-sm">No items to review</div>
         )}
-      </div>
+      </motion.div>
 
       {/* Sticky footer */}
-      <div className="px-5 py-4 border-t border-border bg-muted/50 shrink-0 space-y-3">
+      <div className="px-5 py-4 border-t border-border bg-card shrink-0 space-y-3">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
             {resolvedItems.length} item{resolvedItems.length !== 1 ? "s" : ""}
             {matchedCount > 0 && newCount > 0 && ` (${matchedCount} existing, ${newCount} new)`}
           </span>
           {totalCost > 0 && (
-            <span className="font-mono text-foreground">${totalCost.toFixed(2)}</span>
+            <span className="font-mono text-foreground font-semibold">${totalCost.toFixed(2)}</span>
           )}
         </div>
         <Button
@@ -438,18 +440,6 @@ export function ReviewFlow({
           )}
         </Button>
       </div>
-    </div>
-  );
-}
-
-function SummaryChip({ icon, label, value, color }) {
-  return (
-    <div className="rounded-lg px-3 py-2 text-center bg-muted/50 border border-border/40">
-      <div className="flex items-center justify-center gap-1.5 mb-0.5">
-        {icon}
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      </div>
-      <p className={`font-mono font-semibold text-sm ${color ? `text-${color}` : ""}`}>{value}</p>
     </div>
   );
 }
