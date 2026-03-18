@@ -25,7 +25,6 @@ from purchasing.ports.po_repo_port import PORepoPort
 from shared.infrastructure.db import get_org_id, transaction
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.types import CurrentUser
-from shared.kernel.units import ALLOWED_BASE_UNITS
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +44,6 @@ class PurchasingDeps:
     create_product_with_sku: Callable[..., Awaitable[Any]]
     add_vendor_item: Callable[..., Awaitable[Any]]
     process_receiving_stock_changes: Callable[..., Awaitable[None]]
-    classify_uom_batch: Callable[..., Awaitable[list]]
-    infer_uom: Callable[[str], tuple[str, str, int]]
-    suggest_department: Callable[..., Any]
-    enrich_for_import: Callable[..., Awaitable[list]]
 
 
 def _resolve_vendor_dict(vendor_name: str, vendor_id: str) -> dict:
@@ -87,8 +82,9 @@ async def create_purchase_order(
 ) -> CreatePOResult:
     """Save reviewed receipt items as a pending purchase order.
 
-    Runs enrichment (UOM inference, dept suggestion, LLM) but does NOT update
-    inventory — that happens on receive.
+    Items arrive already enriched by the product intelligence pipeline
+    (parse_service). This function persists them as PO line items.
+    Inventory is NOT updated here — that happens on receive.
     """
     vendor_name = (vendor_name or "").strip()
     if not vendor_name:
@@ -110,63 +106,22 @@ async def create_purchase_order(
         vendor_name = vendor.name
         vendor_created = False
 
-    departments = await deps.list_departments()
-    dept_by_id = {d.id: d for d in departments}
-    dept_by_code = {d.code.upper(): d for d in departments}
-    dept_codes = list(dept_by_code.keys())
-
     override_dept_code = None
-    if category_id and category_id in dept_by_id:
-        override_dept_code = dept_by_id[category_id].code.upper()
+    if category_id:
+        departments = await deps.list_departments()
+        dept_by_id = {d.id: d for d in departments}
+        if category_id in dept_by_id:
+            override_dept_code = dept_by_id[category_id].code.upper()
 
     selected = [p for p in products if p.selected]
-
     selected_dicts = [p.model_dump() for p in selected]
 
-    ai_parsed_items = [d for d in selected_dicts if d.get("ai_parsed")]
-    ocr_items = [d for d in selected_dicts if not d.get("ai_parsed")]
-
-    if ocr_items:
-        ocr_items = await deps.enrich_for_import(ocr_items, [], dept_codes)
-    for item in selected_dicts:
-        item.pop("enrichment_warning", None)
-
-    selected_dicts = ai_parsed_items + ocr_items
-
+    # Product intelligence (UOM, department, catalog matching) runs at document parse
+    # time in parse_service. Items arrive here already enriched. We only apply the
+    # department override from category_id if set.
     for item in selected_dicts:
         if override_dept_code:
             item["suggested_department"] = override_dept_code
-        else:
-            suggested = (item.get("suggested_department") or "HDW").upper()
-            if not suggested or suggested == "HDW" or suggested not in dept_by_code:
-                rule_dept = deps.suggest_department(item.get("name", "") or "", dept_by_code)
-                if rule_dept:
-                    item["suggested_department"] = rule_dept
-
-    for item in selected_dicts:
-        bu = (item.get("base_unit") or "each").lower()
-        su = (item.get("sell_uom") or "each").lower()
-        if bu == "each" and su == "each":
-            inferred_bu, inferred_su, inferred_pq = deps.infer_uom(item.get("name", "") or "")
-            if inferred_bu != "each":
-                item["base_unit"] = inferred_bu
-                item["sell_uom"] = inferred_su
-                item["pack_qty"] = inferred_pq
-
-    needs_uom = [
-        d
-        for d in selected_dicts
-        if (
-            (d.get("base_unit") or "").lower() not in ALLOWED_BASE_UNITS
-            or (d.get("sell_uom") or "").lower() not in ALLOWED_BASE_UNITS
-            or (
-                (d.get("base_unit") or "each").lower() == "each"
-                and (d.get("sell_uom") or "each").lower() == "each"
-            )
-        )
-    ]
-    if needs_uom:
-        await deps.classify_uom_batch(needs_uom)
 
     po = PurchaseOrder(
         vendor_id=vendor_id,

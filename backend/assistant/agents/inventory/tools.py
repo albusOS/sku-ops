@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
 from assistant.agents.tools.search import get_index
+from assistant.agents.tools.serialization import dumps as _dumps
 from catalog.application.queries import (
     count_all_skus as catalog_count_all,
 )
@@ -31,16 +32,22 @@ from catalog.application.queries import (
 from catalog.application.queries import (
     list_vendors as catalog_list_vendors,
 )
-from inventory.application.queries import withdrawal_velocity
+from inventory.application.queries import (
+    demand_normalized_velocity,
+    seasonal_pattern,
+    sku_demand_profile,
+    withdrawal_velocity,
+)
 from operations.application.queries import list_withdrawals
 from shared.infrastructure.config import OPENAI_API_KEY
 
 logger = logging.getLogger(__name__)
 
 
-async def _search_skus(args: dict) -> str:
-    query = (args.get("query") or "").strip()
-    limit = min(int(args.get("limit") or 20), 50)
+async def _search_skus(query: str = "", limit: int = 20) -> str:
+    """Search SKUs by name, SKU code, or barcode."""
+    query = query.strip()
+    limit = min(limit, 50)
     items = await catalog_list_skus(search=query, limit=limit)
     out = [
         {
@@ -56,9 +63,10 @@ async def _search_skus(args: dict) -> str:
     return json.dumps({"count": len(out), "skus": out})
 
 
-async def _search_semantic(args: dict) -> str:
-    query = (args.get("query") or "").strip()
-    limit = min(int(args.get("limit") or 10), 30)
+async def _search_semantic(query: str = "", limit: int = 10) -> str:
+    """Semantic/concept search for SKUs. Use when exact search fails or query is descriptive."""
+    query = query.strip()
+    limit = min(limit, 30)
     index = await get_index()
     if OPENAI_API_KEY and index._embeddings is not None:
         results = await index.search_semantic(query, limit=limit, api_key=OPENAI_API_KEY)
@@ -80,8 +88,9 @@ async def _search_semantic(args: dict) -> str:
     return json.dumps({"count": len(out), "skus": out, "method": method})
 
 
-async def _get_sku_details(args: dict) -> str:
-    sku = (args.get("sku") or "").strip().upper()
+async def _get_sku_details(sku: str = "") -> str:
+    """Get full details for one SKU: price, cost, vendor, UOM, barcode, reorder point."""
+    sku = sku.strip().upper()
     p = await catalog_find_by_sku(sku)
     if not p:
         return json.dumps({"error": f"SKU '{sku}' not found"})
@@ -106,6 +115,7 @@ async def _get_sku_details(args: dict) -> str:
 
 
 async def _get_inventory_stats() -> str:
+    """Catalogue summary: total_skus, total_cost_value, low_stock_count, out_of_stock_count."""
     total_skus = await catalog_count_all()
     low_count = await catalog_count_low_stock()
     skus = await catalog_list_skus()
@@ -122,8 +132,9 @@ async def _get_inventory_stats() -> str:
     )
 
 
-async def _list_low_stock(args: dict) -> str:
-    limit = min(int(args.get("limit") or 20), 50)
+async def _list_low_stock(limit: int = 20) -> str:
+    """List SKUs at or below their reorder point."""
+    limit = min(limit, 50)
     items = await catalog_list_low_stock(limit=limit)
     out = [
         {
@@ -140,6 +151,7 @@ async def _list_low_stock(args: dict) -> str:
 
 
 async def _list_departments() -> str:
+    """List all departments with SKU counts."""
     depts = await catalog_list_departments()
     out = []
     for d in depts:
@@ -155,14 +167,16 @@ async def _list_departments() -> str:
 
 
 async def _list_vendors() -> str:
+    """List all vendors."""
     vendors = await catalog_list_vendors()
     out = [{"id": v.id, "name": v.name} for v in vendors]
     return json.dumps({"vendors": out})
 
 
-async def _get_usage_velocity(args: dict) -> str:
-    sku = (args.get("sku") or "").strip().upper()
-    days = min(int(args.get("days") or 30), 365)
+async def _get_usage_velocity(sku: str = "", days: int = 30) -> str:
+    """Usage velocity for a single SKU over the last N days."""
+    sku = sku.strip().upper()
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     p = await catalog_find_by_sku(sku)
     if not p:
@@ -188,18 +202,18 @@ async def _get_usage_velocity(args: dict) -> str:
     )
 
 
-async def _get_reorder_suggestions(args: dict) -> str:
-    limit = min(int(args.get("limit") or 20), 50)
-    since = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+async def _get_reorder_suggestions(limit: int = 20) -> str:
+    """Low-stock SKUs with urgency scoring based on normalized velocity."""
+    limit = min(limit, 50)
     low_stock = await catalog_list_low_stock(limit=100)
     if not low_stock:
         return json.dumps({"count": 0, "suggestions": []})
     sku_ids = [p.id for p in low_stock]
-    velocity_map = await withdrawal_velocity(sku_ids, since)
+    vel_map = await demand_normalized_velocity(sku_ids, 30)
     suggestions = []
     for p in low_stock:
-        total_used = float(velocity_map.get(p.id, 0))
-        avg_daily = total_used / 30
+        vel = vel_map.get(p.id)
+        avg_daily = vel["normalized_daily"] if vel else 0
         qty = p.quantity
         days_until_zero = round(qty / avg_daily, 1) if avg_daily > 0 else None
         urgency = (
@@ -221,6 +235,7 @@ async def _get_reorder_suggestions(args: dict) -> str:
                 "avg_daily_use": round(avg_daily, 2),
                 "days_until_stockout": days_until_zero,
                 "urgency": urgency,
+                "outlier_days_excluded": vel["outlier_days"] if vel else 0,
             }
         )
     suggestions.sort(
@@ -233,12 +248,13 @@ async def _get_reorder_suggestions(args: dict) -> str:
         {
             "count": len(suggestions),
             "suggestions": suggestions[:limit],
-            "_note": "urgency='no_velocity_data' means the SKU has no withdrawal history in the last 30 days — it is still below reorder point and may need restocking.",
+            "_note": "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys.",
         }
     )
 
 
 async def _get_department_health() -> str:
+    """Per-department healthy/low/out-of-stock SKU counts."""
     depts = await catalog_list_departments()
     all_skus = await catalog_list_skus()
     by_dept: dict[str, list] = defaultdict(list)
@@ -265,12 +281,12 @@ async def _get_department_health() -> str:
     return json.dumps({"departments": rows})
 
 
-async def _get_top_skus(args: dict) -> str:
-    days = min(int(args.get("days") or 30), 365)
-    by = args.get("by", "revenue").lower()
+async def _get_top_skus(days: int = 30, by: str = "revenue", limit: int = 10) -> str:
+    """Top SKUs by volume or revenue over a period."""
+    days = min(days, 365)
     if by not in ("volume", "revenue"):
         by = "revenue"
-    limit = min(int(args.get("limit") or 10), 50)
+    limit = min(limit, 50)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
     sku_map: dict[str, dict] = {}
@@ -296,9 +312,10 @@ async def _get_top_skus(args: dict) -> str:
     return json.dumps({"period_days": days, "ranked_by": by, "count": len(ranked), "skus": ranked})
 
 
-async def _get_department_activity(args: dict) -> str:
-    dept_code = (args.get("dept_code") or "").strip().upper()
-    days = min(int(args.get("days") or 30), 365)
+async def _get_department_activity(dept_code: str = "", days: int = 30) -> str:
+    """Withdrawal activity summary for a department."""
+    dept_code = dept_code.strip().upper()
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     dept = await catalog_get_dept_by_code(dept_code)
     if not dept:
@@ -321,9 +338,9 @@ async def _get_department_activity(args: dict) -> str:
     )
 
 
-async def _forecast_stockout(args: dict) -> str:
-    limit = min(int(args.get("limit") or 15), 50)
-    since = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+async def _forecast_stockout(limit: int = 15) -> str:
+    """SKUs predicted to run out soonest based on normalized velocity."""
+    limit = min(limit, 50)
     skus = await catalog_list_skus()
     in_stock = [s for s in skus if s.quantity > 0]
     in_stock.sort(key=lambda s: s.quantity)
@@ -331,11 +348,13 @@ async def _forecast_stockout(args: dict) -> str:
     if not in_stock:
         return json.dumps({"count": 0, "forecast": []})
     sku_ids = [p.id for p in in_stock]
-    velocity_map = await withdrawal_velocity(sku_ids, since)
+    vel_map = await demand_normalized_velocity(sku_ids, 30)
     forecast = []
     for p in in_stock:
-        total_used = float(velocity_map.get(p.id, 0))
-        avg_daily = total_used / 30
+        vel = vel_map.get(p.id)
+        if not vel:
+            continue
+        avg_daily = vel["normalized_daily"]
         if avg_daily <= 0:
             continue
         days_until_zero = round(p.quantity / avg_daily, 1)
@@ -345,6 +364,7 @@ async def _forecast_stockout(args: dict) -> str:
                 "name": p.name,
                 "department": p.category_name,
                 "quantity": p.quantity,
+                "sell_uom": p.sell_uom,
                 "min_stock": p.min_stock,
                 "avg_daily_use": round(avg_daily, 2),
                 "days_until_stockout": days_until_zero,
@@ -353,15 +373,23 @@ async def _forecast_stockout(args: dict) -> str:
                 else "high"
                 if days_until_zero <= 7
                 else "medium",
+                "outlier_days_excluded": vel["outlier_days"],
             }
         )
     forecast.sort(key=lambda x: x["days_until_stockout"])
-    return json.dumps({"count": len(forecast), "forecast": forecast[:limit]})
+    return json.dumps(
+        {
+            "count": len(forecast),
+            "forecast": forecast[:limit],
+            "_note": "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys.",
+        }
+    )
 
 
-async def _get_slow_movers(args: dict) -> str:
-    limit = min(int(args.get("limit") or 20), 100)
-    days = min(int(args.get("days") or 30), 365)
+async def _get_slow_movers(limit: int = 20, days: int = 30) -> str:
+    """In-stock SKUs with lowest withdrawal volume."""
+    limit = min(limit, 100)
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     skus = await catalog_list_skus()
     in_stock = [s for s in skus if s.quantity > 0]
@@ -388,49 +416,163 @@ async def _get_slow_movers(args: dict) -> str:
     return json.dumps({"period_days": days, "count": len(out), "slow_movers": out})
 
 
-async def _search_vendors_semantic(args: dict) -> str:
-    query = (args.get("query") or "").strip()
-    limit = min(int(args.get("limit") or 10), 30)
+async def _search_vendors_semantic(query: str = "", limit: int = 10) -> str:
+    """Semantic search over vendors."""
+    query = query.strip()
+    limit = min(limit, 30)
     index = await get_index()
     results = await index.search_entity(query, "vendor", limit=limit)
     out = [{"id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
     return json.dumps({"count": len(out), "vendors": out})
 
 
-async def _search_pos_semantic(args: dict) -> str:
-    query = (args.get("query") or "").strip()
-    limit = min(int(args.get("limit") or 10), 30)
+async def _search_pos_semantic(query: str = "", limit: int = 10) -> str:
+    """Semantic search over purchase orders."""
+    query = query.strip()
+    limit = min(limit, 30)
     index = await get_index()
     results = await index.search_entity(query, "purchase_order", limit=limit)
     out = [{"id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
     return json.dumps({"count": len(out), "purchase_orders": out})
 
 
-async def _search_jobs_semantic(args: dict) -> str:
-    query = (args.get("query") or "").strip()
-    limit = min(int(args.get("limit") or 10), 30)
+async def _search_jobs_semantic(query: str = "", limit: int = 10) -> str:
+    """Semantic search over jobs."""
+    query = query.strip()
+    limit = min(limit, 30)
     index = await get_index()
     results = await index.search_entity(query, "job", limit=limit)
     out = [{"job_id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
     return json.dumps({"count": len(out), "jobs": out})
 
 
+async def _get_demand_profile(sku: str = "", days: int = 60) -> str:
+    """Deep demand profile for one SKU — outlier flags, baseline vs. spikes, project buys."""
+    sku_code = sku.strip().upper()
+    days = min(days, 365)
+    p = await catalog_find_by_sku(sku_code)
+    if not p:
+        return json.dumps({"error": f"SKU '{sku_code}' not found"})
+    profile = await sku_demand_profile(p.id, days)
+    profile["sku"] = sku_code
+    profile["name"] = p.name
+    profile["sell_uom"] = p.sell_uom or "each"
+    profile["current_quantity"] = p.quantity
+    return json.dumps(profile)
+
+
+async def _get_seasonal_pattern(sku: str = "", months: int = 12) -> str:
+    """Monthly withdrawal totals for seasonality analysis."""
+    sku_code = sku.strip().upper()
+    months = min(months, 24)
+    p = await catalog_find_by_sku(sku_code)
+    if not p:
+        return json.dumps({"error": f"SKU '{sku_code}' not found"})
+    rows = await seasonal_pattern(p.id, months)
+    return _dumps(
+        {
+            "sku": sku_code,
+            "name": p.name,
+            "sell_uom": p.sell_uom or "each",
+            "months_requested": months,
+            "months_with_data": len(rows),
+            "monthly": rows,
+        }
+    )
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
-_reg("search_skus", "inventory", _search_skus, lookup_key="search_skus")
-_reg("search_semantic", "inventory", _search_semantic)
-_reg("get_sku_details", "inventory", _get_sku_details, lookup_key="sku_details")
-_reg("get_inventory_stats", "inventory", _get_inventory_stats, takes_args=False, lookup_key="stats")
-_reg("list_low_stock", "inventory", _list_low_stock, lookup_key="low_stock")
-_reg("list_departments", "inventory", _list_departments, takes_args=False, lookup_key="departments")
-_reg("list_vendors", "inventory", _list_vendors, takes_args=False, lookup_key="vendors")
-_reg("get_usage_velocity", "inventory", _get_usage_velocity)
-_reg("get_reorder_suggestions", "inventory", _get_reorder_suggestions)
-_reg("get_department_health", "inventory", _get_department_health, takes_args=False)
-_reg("get_slow_movers", "inventory", _get_slow_movers)
-_reg("get_top_skus", "inventory", _get_top_skus)
-_reg("get_department_activity", "inventory", _get_department_activity)
-_reg("forecast_stockout", "inventory", _forecast_stockout)
-_reg("search_vendors_semantic", "inventory", _search_vendors_semantic)
-_reg("search_pos_semantic", "inventory", _search_pos_semantic)
-_reg("search_jobs_semantic", "inventory", _search_jobs_semantic)
+_reg(
+    "search_skus", "inventory", _search_skus, use_cases=["find SKU", "lookup SKU", "barcode search"]
+)
+_reg(
+    "search_semantic",
+    "inventory",
+    _search_semantic,
+    use_cases=["concept search", "find by description", "fuzzy SKU search"],
+)
+_reg(
+    "get_sku_details",
+    "inventory",
+    _get_sku_details,
+    use_cases=["SKU details", "single SKU", "SKU info"],
+)
+_reg(
+    "get_inventory_stats",
+    "inventory",
+    _get_inventory_stats,
+    use_cases=["inventory summary", "catalogue stats", "stock counts"],
+)
+_reg(
+    "list_low_stock",
+    "inventory",
+    _list_low_stock,
+    use_cases=["low stock", "reorder point", "needs reorder"],
+)
+_reg("list_departments", "inventory", _list_departments, use_cases=["departments", "categories"])
+_reg("list_vendors", "inventory", _list_vendors, use_cases=["vendors", "suppliers"])
+_reg(
+    "get_usage_velocity",
+    "inventory",
+    _get_usage_velocity,
+    use_cases=["usage rate", "velocity", "daily use"],
+)
+_reg(
+    "get_reorder_suggestions",
+    "inventory",
+    _get_reorder_suggestions,
+    use_cases=["reorder suggestions", "what to buy"],
+)
+_reg(
+    "get_department_health",
+    "inventory",
+    _get_department_health,
+    use_cases=["department health", "stock health by dept"],
+)
+_reg("get_slow_movers", "inventory", _get_slow_movers, use_cases=["slow movers", "dead stock"])
+_reg(
+    "get_top_skus",
+    "inventory",
+    _get_top_skus,
+    use_cases=["top sellers", "best sellers", "highest revenue SKUs"],
+)
+_reg(
+    "get_department_activity",
+    "inventory",
+    _get_department_activity,
+    use_cases=["department activity", "dept withdrawals"],
+)
+_reg(
+    "forecast_stockout",
+    "inventory",
+    _forecast_stockout,
+    use_cases=["stockout forecast", "running out", "at risk"],
+)
+_reg(
+    "search_vendors_semantic",
+    "inventory",
+    _search_vendors_semantic,
+    use_cases=["find vendor", "vendor search"],
+)
+_reg(
+    "search_pos_semantic",
+    "inventory",
+    _search_pos_semantic,
+    use_cases=["find PO", "purchase order search"],
+)
+_reg(
+    "search_jobs_semantic", "inventory", _search_jobs_semantic, use_cases=["find job", "job search"]
+)
+_reg(
+    "get_demand_profile",
+    "inventory",
+    _get_demand_profile,
+    use_cases=["demand profile", "usage pattern"],
+)
+_reg(
+    "get_seasonal_pattern",
+    "inventory",
+    _get_seasonal_pattern,
+    use_cases=["seasonality", "monthly pattern"],
+)

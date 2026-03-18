@@ -17,10 +17,13 @@ import {
   ArrowLeft,
   ClipboardList,
   PackagePlus,
+  GitBranch,
 } from "lucide-react";
 import { useProductMatch } from "@/hooks/useProductMatch";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useChatPanel } from "@/context/ChatContext";
 import { ReviewItemCard } from "./ReviewItemCard";
+import api from "@/lib/api-client";
 
 /**
  * Unified review flow for both document import and PO receiving.
@@ -31,7 +34,6 @@ import { ReviewItemCard } from "./ReviewItemCard";
  * @param {function} onVendorChange  (name: string) => void (import mode)
  * @param {boolean}  createVendor    Create vendor if missing flag
  * @param {function} onCreateVendorChange (bool) => void
- * @param {function} onItemsChange   (items: array) => void — propagate edits up
  * @param {function} onConfirm       (payload) => void — submit action
  * @param {function} onBack          () => void — go back to previous step
  * @param {boolean}  submitting      Whether the submit is in progress
@@ -44,13 +46,13 @@ export function ReviewFlow({
   onVendorChange,
   createVendor = true,
   onCreateVendorChange,
-  onItemsChange: _onItemsChange,
   onConfirm,
   onBack,
   submitting = false,
   confirmLabel = "Confirm",
 }) {
   const { data: departments = [] } = useDepartments();
+  const { sendPrompt } = useChatPanel();
   const [selectedDept, setSelectedDept] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [items, setItems] = useState([]);
@@ -78,10 +80,13 @@ export function ReviewFlow({
     setItems(seeded);
 
     const preMatched = [];
+    const agentMatched = [];
     const needMatch = [];
     for (const item of seeded) {
       if (item.sku_id && item.matched_sku) {
         preMatched.push(item);
+      } else if (item.sku_id && !item.matched_sku) {
+        agentMatched.push(item);
       } else {
         needMatch.push({ ...item, id: item._rid });
       }
@@ -97,7 +102,30 @@ export function ReviewFlow({
       });
     }
 
-    if (needMatch.length > 0) autoMatch(needMatch);
+    if (agentMatched.length > 0) {
+      Promise.all(
+        agentMatched.map(async (item) => {
+          try {
+            const sku = await api.products.get(item.sku_id);
+            if (sku) {
+              confirmMatch(item._rid, {
+                id: sku.id,
+                sku: sku.sku,
+                name: sku.name,
+                quantity: sku.quantity ?? 0,
+                cost: sku.cost ?? item.cost,
+              });
+            }
+          } catch {
+            needMatch.push({ ...item, id: item._rid });
+          }
+        }),
+      ).then(() => {
+        if (needMatch.length > 0) autoMatch(needMatch);
+      });
+    } else if (needMatch.length > 0) {
+      autoMatch(needMatch);
+    }
   }, [rawItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateItem = useCallback((rid, field, value) => {
@@ -147,8 +175,19 @@ export function ReviewFlow({
     return sum + qty * cost;
   }, 0);
 
-  const needsAttention = resolvedItems.filter((i) => !i._resolved_match);
-  const ready = resolvedItems.filter((i) => i._resolved_match);
+  const exactMatches = resolvedItems.filter(
+    (i) => i._resolved_match && i._recommendation === "link_existing",
+  );
+  const familyMatches = resolvedItems.filter(
+    (i) => i._recommendation === "add_variant" && !i._resolved_match,
+  );
+  const readyOther = resolvedItems.filter(
+    (i) => i._resolved_match && i._recommendation !== "link_existing",
+  );
+  const needsAttention = resolvedItems.filter(
+    (i) => !i._resolved_match && i._recommendation !== "add_variant",
+  );
+  const ready = [...exactMatches, ...readyOther];
 
   const handleAcceptAll = () => {
     for (const item of resolvedItems) {
@@ -181,7 +220,7 @@ export function ReviewFlow({
         entry.suggested_department = it.suggested_department || undefined;
         entry.barcode = it.barcode || undefined;
         entry.min_stock = it.min_stock != null ? parseInt(it.min_stock) : 5;
-        entry._ai_parsed = it._ai_parsed || false;
+        entry.ai_parsed = it._ai_parsed || it.ai_parsed || false;
       }
 
       if (mode === "import") {
@@ -202,6 +241,24 @@ export function ReviewFlow({
     const m = matches[item._rid];
     return m?.options?.length > 0 && !m.matched && !item.matched_product;
   });
+
+  const renderItemCard = (item) => (
+    <ReviewItemCard
+      key={item._rid}
+      item={item}
+      matchState={matches[item._rid] || {}}
+      expanded={expandedId === item._rid}
+      onToggleExpand={() => setExpandedId((prev) => (prev === item._rid ? null : item._rid))}
+      onFieldChange={(field, value) => updateItem(item._rid, field, value)}
+      onConfirmMatch={(product) => handleConfirmMatch(item._rid, product)}
+      onClearMatch={() => handleClearMatch(item._rid)}
+      onSearchMatch={(q) => searchMatch(item._rid, q)}
+      onRemove={() => removeItem(item._rid)}
+      onAskAssistant={sendPrompt}
+      departments={departments}
+      mode={mode}
+    />
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -317,24 +374,18 @@ export function ReviewFlow({
               <AlertTriangle className="w-3 h-3" />
               Needs your attention ({needsAttention.length})
             </p>
-            {needsAttention.map((item) => (
-              <ReviewItemCard
-                key={item._rid}
-                item={item}
-                matchState={matches[item._rid] || {}}
-                expanded={expandedId === item._rid}
-                onToggleExpand={() =>
-                  setExpandedId((prev) => (prev === item._rid ? null : item._rid))
-                }
-                onFieldChange={(field, value) => updateItem(item._rid, field, value)}
-                onConfirmMatch={(product) => handleConfirmMatch(item._rid, product)}
-                onClearMatch={() => handleClearMatch(item._rid)}
-                onSearchMatch={(q) => searchMatch(item._rid, q)}
-                onRemove={() => removeItem(item._rid)}
-                departments={departments}
-                mode={mode}
-              />
-            ))}
+            {needsAttention.map(renderItemCard)}
+          </div>
+        )}
+
+        {/* Family matches section */}
+        {familyMatches.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-purple-500 flex items-center gap-1.5">
+              <GitBranch className="w-3 h-3" />
+              Family matches ({familyMatches.length})
+            </p>
+            {familyMatches.map(renderItemCard)}
           </div>
         )}
 
@@ -345,24 +396,7 @@ export function ReviewFlow({
               <CheckCircle className="w-3 h-3" />
               Good to go ({ready.length})
             </p>
-            {ready.map((item) => (
-              <ReviewItemCard
-                key={item._rid}
-                item={item}
-                matchState={matches[item._rid] || {}}
-                expanded={expandedId === item._rid}
-                onToggleExpand={() =>
-                  setExpandedId((prev) => (prev === item._rid ? null : item._rid))
-                }
-                onFieldChange={(field, value) => updateItem(item._rid, field, value)}
-                onConfirmMatch={(product) => handleConfirmMatch(item._rid, product)}
-                onClearMatch={() => handleClearMatch(item._rid)}
-                onSearchMatch={(q) => searchMatch(item._rid, q)}
-                onRemove={() => removeItem(item._rid)}
-                departments={departments}
-                mode={mode}
-              />
-            ))}
+            {ready.map(renderItemCard)}
           </div>
         )}
 

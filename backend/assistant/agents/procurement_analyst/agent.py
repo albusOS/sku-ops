@@ -1,4 +1,4 @@
-"""Procurement analyst sub-agent — multi-step reorder optimization and vendor selection.
+"""Procurement analyst sub-agent — vendor reliability, smart reorder, lead times.
 
 Agent construction is deferred to first use so that missing API keys
 don't crash the import chain at startup. The module can be imported
@@ -16,15 +16,15 @@ from assistant.agents.core.model_registry import calc_cost, get_model, get_model
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.inventory.tools import (
     _forecast_stockout,
-    _get_reorder_suggestions,
 )
 from assistant.agents.purchasing.tools import (
     _get_purchase_history,
     _get_reorder_with_vendor_context,
     _get_sku_vendor_options,
+    _get_smart_reorder_points,
     _get_vendor_catalog,
+    _get_vendor_lead_times,
     _get_vendor_performance,
-    _list_all_vendors,
 )
 from shared.infrastructure.prompt_loader import load_prompt
 
@@ -36,11 +36,6 @@ _agent: Agent[AgentDeps, str] | None = None
 
 
 def _get_agent() -> Agent[AgentDeps, str]:
-    """Lazily construct the pydantic-ai Agent on first use.
-
-    This avoids the eager AnthropicProvider() call at import time
-    which crashes when ANTHROPIC_API_KEY is not set.
-    """
     global _agent
     if _agent is not None:
         return _agent
@@ -54,17 +49,26 @@ def _get_agent() -> Agent[AgentDeps, str]:
     @_agent.tool
     async def get_reorder_with_vendor_context(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
         """Low-stock SKUs with vendor options for procurement planning."""
-        return budget_tool_result(await _get_reorder_with_vendor_context({"limit": limit}))
+        return budget_tool_result(await _get_reorder_with_vendor_context(limit=limit))
+
+    @_agent.tool
+    async def get_smart_reorder_points(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
+        """Velocity-based reorder points vs. static min_stock — shows miscalibrations."""
+        return budget_tool_result(await _get_smart_reorder_points(limit=limit))
+
+    @_agent.tool
+    async def get_vendor_lead_times(
+        ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 180
+    ) -> str:
+        """Actual vendor lead times from PO data with drift detection."""
+        return budget_tool_result(
+            await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days)
+        )
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """SKUs predicted to run out soonest based on withdrawal velocity."""
-        return budget_tool_result(await _forecast_stockout({"limit": limit}))
-
-    @_agent.tool
-    async def get_reorder_suggestions(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Priority reorder list ranked by urgency (days until stockout)."""
-        return budget_tool_result(await _get_reorder_suggestions({"limit": limit}))
+        """SKUs predicted to run out soonest (normalized velocity)."""
+        return budget_tool_result(await _forecast_stockout(limit=limit))
 
     @_agent.tool
     async def get_vendor_performance(
@@ -72,7 +76,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     ) -> str:
         """Vendor reliability: PO count, spend, avg lead time, fill rate."""
         return budget_tool_result(
-            await _get_vendor_performance({"vendor_id": vendor_id, "name": name, "days": days})
+            await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days)
         )
 
     @_agent.tool
@@ -80,12 +84,12 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = ""
     ) -> str:
         """SKUs supplied by a vendor with cost, lead time, MOQ."""
-        return budget_tool_result(await _get_vendor_catalog({"vendor_id": vendor_id, "name": name}))
+        return budget_tool_result(await _get_vendor_catalog(vendor_id=vendor_id, name=name))
 
     @_agent.tool
     async def get_sku_vendor_options(ctx: RunContext[AgentDeps], sku_id: str) -> str:
         """All vendors for a SKU with comparative pricing and lead times."""
-        return budget_tool_result(await _get_sku_vendor_options({"sku_id": sku_id}))
+        return budget_tool_result(await _get_sku_vendor_options(sku_id=sku_id))
 
     @_agent.tool
     async def get_purchase_history(
@@ -97,20 +101,8 @@ def _get_agent() -> Agent[AgentDeps, str]:
     ) -> str:
         """Recent POs for a vendor."""
         return budget_tool_result(
-            await _get_purchase_history(
-                {
-                    "vendor_id": vendor_id,
-                    "name": name,
-                    "days": days,
-                    "limit": limit,
-                }
-            )
+            await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit)
         )
-
-    @_agent.tool
-    async def list_all_vendors(ctx: RunContext[AgentDeps]) -> str:
-        """All vendors with ID and contact info."""
-        return budget_tool_result(await _list_all_vendors())
 
     return _agent
 

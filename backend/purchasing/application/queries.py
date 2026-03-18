@@ -82,6 +82,10 @@ async def list_pos(status: str | None = None) -> list[PORow]:
     return await _po_repo.list_pos(status=status)
 
 
+async def list_pos_with_counts(status: str | None = None) -> list[PORow]:
+    return await _po_repo.list_pos_with_counts(status=status)
+
+
 async def get_po(po_id: str) -> PORow | None:
     return await _po_repo.get_po(po_id)
 
@@ -159,9 +163,9 @@ async def vendor_performance(
     summary = dict(await cursor.fetchone())
 
     cursor = await conn.execute(
-        """SELECT ROUND(AVG(
-                    JULIANDAY(po.received_at) - JULIANDAY(po.created_at)
-                  ), 1) AS avg_lead_time_days,
+        """SELECT ROUND(CAST(AVG(
+                    EXTRACT(EPOCH FROM (po.received_at::timestamp - po.created_at::timestamp)) / 86400.0
+                  ) AS NUMERIC), 1) AS avg_lead_time_days,
                   ROUND(
                     SUM(poi.delivered_qty) * 1.0
                     / NULLIF(SUM(poi.ordered_qty), 0), 2

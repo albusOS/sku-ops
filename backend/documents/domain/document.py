@@ -2,37 +2,7 @@
 
 from enum import StrEnum
 
-from pydantic import BaseModel
-
 from shared.kernel.entity import AuditedEntity
-
-
-class DocumentLineItem(BaseModel):
-    """Line item from a parsed document — local to the documents context."""
-
-    name: str
-    original_sku: str | None = None
-    quantity: float = 1
-    ordered_qty: float | None = None
-    delivered_qty: float | None = None
-    price: float = 0.0
-    cost: float | None = None
-    base_unit: str = "each"
-    sell_uom: str = "each"
-    pack_qty: int = 1
-    suggested_department: str | None = None
-    sku_id: str | None = None
-    selected: bool = True
-    ai_parsed: bool = False
-
-
-class DocumentImportRequest(BaseModel):
-    """Request to import a parsed document into a purchase order."""
-
-    vendor_name: str
-    create_vendor_if_missing: bool = True
-    category_id: str | None = None
-    products: list[DocumentLineItem]
 
 
 class DocumentType(StrEnum):

@@ -7,7 +7,6 @@ import { ROLES } from "@/lib/constants";
 import {
   LayoutDashboard,
   ShoppingCart,
-  Package,
   Users,
   Layers,
   Truck,
@@ -24,6 +23,8 @@ import {
   PanelLeftOpen,
   ScanBarcode,
   Search,
+  Tags,
+  Warehouse,
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
 import { CommandPalette } from "./CommandPalette";
@@ -180,15 +181,16 @@ const Layout = ({ children }) => {
       { path: "/jobs", icon: ClipboardList, label: "Jobs" },
     ];
 
-    const purchasingItems = [
-      { path: "/purchasing", icon: Truck, label: "Purchasing" },
+    const catalogItems = [
+      { path: "/products", icon: Tags, label: "Products" },
+      { path: "/departments", icon: Layers, label: "Categories" },
       { path: "/vendors", icon: Users, label: "Vendors" },
     ];
 
     const inventoryItems = [
-      { path: "/inventory", icon: Package, label: "Products" },
-      { path: "/departments", icon: Layers, label: "Categories" },
+      { path: "/inventory", icon: Warehouse, label: "Stock Levels" },
       { path: "/cycle-counts", icon: ClipboardCheck, label: "Stock Counts" },
+      { path: "/purchasing", icon: Truck, label: "Purchasing" },
     ];
 
     const financeItems = [{ path: "/xero-health", icon: ShieldCheck, label: "Xero Status" }];
@@ -201,7 +203,7 @@ const Layout = ({ children }) => {
         ],
       },
       { section: "Operations", items: operationsItems },
-      { section: "Purchasing", items: purchasingItems },
+      { section: "Catalog", items: catalogItems },
       { section: "Inventory", items: inventoryItems },
       { section: "Finance", items: financeItems },
     ];

@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Layout from "./components/Layout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const ProductsPage = lazy(() => import("./pages/catalog"));
 const Inventory = lazy(() => import("./pages/inventory"));
 const CycleCountsPage = lazy(() => import("./pages/inventory/CycleCountsPage"));
 const CycleCountDetailPage = lazy(() => import("./pages/inventory/CycleCountDetailPage"));
@@ -127,6 +128,14 @@ function App() {
                                 <Route
                                   path="/pending-requests"
                                   element={<Navigate to="/pos" replace />}
+                                />
+                                <Route
+                                  path="/products"
+                                  element={
+                                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                      <ProductsPage />
+                                    </ProtectedRoute>
+                                  }
                                 />
                                 <Route
                                   path="/inventory"

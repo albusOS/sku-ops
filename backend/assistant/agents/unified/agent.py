@@ -1,11 +1,10 @@
-"""Unified orchestrator agent — all domain tools + sub-agent delegation.
+"""Unified orchestrator agent — lookup tools + sub-agent delegation.
 
-Single entry point for all chat messages. The LLM decides which tools to call,
-including delegating complex analytical tasks to specialist sub-agents.
+Single entry point for all chat messages. The LLM handles lookups directly and
+delegates analytical tasks to specialist sub-agents.
 
 Agent construction is deferred to first use so that missing API keys
-don't crash the import chain at startup. The module can be imported
-safely regardless of environment configuration.
+don't crash the import chain at startup.
 """
 
 import logging
@@ -20,70 +19,32 @@ from assistant.agents.core.runner import run_specialist
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.core.tool_results import (
     ToolResult,
-    blocks_from_department_health,
     blocks_from_inventory_stats,
     blocks_from_list_data,
     blocks_from_pl_summary,
-    blocks_from_top_skus,
-    blocks_from_trend_series,
-)
-from assistant.agents.finance.analytics_tools import (
-    _get_ar_aging,
-    _get_contractor_spend,
-    _get_department_profitability,
-    _get_entity_summary,
-    _get_job_profitability,
-    _get_purchase_spend,
-    _get_sku_margins,
-    _get_trend_series,
 )
 from assistant.agents.finance.tools import (
     _get_invoice_summary,
-    _get_outstanding_balances,
     _get_pl_summary,
-    _get_revenue_summary,
-)
-from assistant.agents.finance.tools import (
-    _get_top_skus as _get_finance_top_skus,
 )
 from assistant.agents.health_analyst import agent as _health_agent_mod
 from assistant.agents.inventory.tools import (
-    _forecast_stockout,
-    _get_department_activity,
-    _get_department_health,
     _get_inventory_stats,
-    _get_reorder_suggestions,
     _get_sku_details,
-    _get_slow_movers,
-    _get_top_skus,
-    _get_usage_velocity,
     _list_departments,
     _list_low_stock,
     _list_vendors,
-    _search_jobs_semantic,
-    _search_pos_semantic,
     _search_semantic,
     _search_skus,
-    _search_vendors_semantic,
 )
 from assistant.agents.ops.tools import (
     _get_contractor_history,
-    _get_daily_withdrawal_activity,
     _get_job_materials,
     _get_payment_status_breakdown,
     _list_pending_material_requests,
     _list_recent_withdrawals,
 )
 from assistant.agents.procurement_analyst import agent as _procurement_agent_mod
-from assistant.agents.purchasing.tools import (
-    _get_po_summary,
-    _get_purchase_history,
-    _get_reorder_with_vendor_context,
-    _get_sku_vendor_options,
-    _get_vendor_catalog,
-    _get_vendor_performance,
-    _list_all_vendors,
-)
 from assistant.agents.trend_analyst import agent as _trend_agent_mod
 from assistant.application.workflows.registry import run_workflow
 from assistant.application.workflows.types import WorkflowDeps
@@ -98,11 +59,6 @@ _agent: Agent[AgentDeps, str] | None = None
 
 
 def _get_agent() -> Agent[AgentDeps, str]:
-    """Lazily construct the pydantic-ai Agent on first use.
-
-    This avoids the eager AnthropicProvider() call at import time
-    which crashes when ANTHROPIC_API_KEY is not set.
-    """
     global _agent
     if _agent is not None:
         return _agent
@@ -113,22 +69,22 @@ def _get_agent() -> Agent[AgentDeps, str]:
         model_settings={"temperature": 0},
     )
 
-    # ── Inventory tools ───────────────────────────────────────────────────────────
+    # ── Lookup tools ─────────────────────────────────────────────────────────────
 
     @_agent.tool
     async def search_skus(ctx: RunContext[AgentDeps], query: str, limit: int = 20) -> str:
         """Search SKUs by name, SKU code, or barcode."""
-        return budget_tool_result(await _search_skus({"query": query, "limit": limit}))
+        return budget_tool_result(await _search_skus(query=query, limit=limit))
 
     @_agent.tool
     async def search_semantic(ctx: RunContext[AgentDeps], query: str, limit: int = 10) -> str:
         """Semantic/concept search for SKUs. Use when exact search fails or query is descriptive."""
-        return budget_tool_result(await _search_semantic({"query": query, "limit": limit}))
+        return budget_tool_result(await _search_semantic(query=query, limit=limit))
 
     @_agent.tool
     async def get_sku_details(ctx: RunContext[AgentDeps], sku: str) -> str:
         """Get full details for one SKU: price, cost, vendor, UOM, barcode, reorder point."""
-        return budget_tool_result(await _get_sku_details({"sku": sku}))
+        return budget_tool_result(await _get_sku_details(sku=sku))
 
     @_agent.tool
     async def get_inventory_stats(ctx: RunContext[AgentDeps]) -> str:
@@ -145,7 +101,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     @_agent.tool
     async def list_low_stock(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
         """List SKUs at or below their reorder point."""
-        raw = await _list_low_stock({"limit": limit})
+        raw = await _list_low_stock(limit=limit)
         result = ToolResult(
             text=budget_tool_result(raw),
             blocks=blocks_from_list_data(
@@ -165,148 +121,49 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def list_vendors(ctx: RunContext[AgentDeps]) -> str:
-        """List all vendors with SKU counts."""
+        """List all vendors."""
         return budget_tool_result(await _list_vendors())
 
-    @_agent.tool
-    async def get_usage_velocity(ctx: RunContext[AgentDeps], sku: str, days: int = 30) -> str:
-        """How fast a SKU moves: total and average daily withdrawals over the last N days."""
-        return budget_tool_result(await _get_usage_velocity({"sku": sku, "days": days}))
-
-    @_agent.tool
-    async def get_reorder_suggestions(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Priority reorder list: low-stock SKUs ranked by urgency."""
-        raw = await _get_reorder_suggestions({"limit": limit})
-        result = ToolResult(
-            text=budget_tool_result(raw),
-            blocks=blocks_from_list_data(
-                raw,
-                "Reorder suggestions",
-                [
-                    "sku",
-                    "name",
-                    "quantity",
-                    "sell_uom",
-                    "min_stock",
-                    "avg_daily_use",
-                    "days_until_stockout",
-                    "urgency",
-                ],
-            ),
-        )
-        if result.blocks:
-            ctx.deps.blocks.extend(result.blocks)
-        return result.text
-
-    @_agent.tool
-    async def get_department_health(ctx: RunContext[AgentDeps]) -> str:
-        """Per-department breakdown showing healthy, low-stock, and out-of-stock SKU counts."""
-        raw = await _get_department_health()
-        blocks = blocks_from_department_health(raw)
-        if blocks:
-            ctx.deps.blocks.extend(blocks)
-        return budget_tool_result(raw)
-
-    @_agent.tool
-    async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int = 30) -> str:
-        """SKUs with stock on hand but very low or zero withdrawal activity."""
-        return budget_tool_result(await _get_slow_movers({"limit": limit, "days": days}))
-
-    @_agent.tool
-    async def get_top_skus(
-        ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10
-    ) -> str:
-        """Top SKUs ranked by units withdrawn or revenue generated. by: 'volume' or 'revenue'."""
-        raw = await _get_top_skus({"days": days, "by": by, "limit": limit})
-        blocks = blocks_from_top_skus(raw)
-        if blocks:
-            ctx.deps.blocks.extend(blocks)
-        return budget_tool_result(raw)
-
-    @_agent.tool
-    async def get_department_activity(
-        ctx: RunContext[AgentDeps], dept_code: str, days: int = 30
-    ) -> str:
-        """Stock movement summary for a department over the last N days."""
-        return budget_tool_result(
-            await _get_department_activity({"dept_code": dept_code, "days": days}),
-        )
-
-    @_agent.tool
-    async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
-        """SKUs predicted to run out soonest based on recent withdrawal velocity."""
-        return budget_tool_result(await _forecast_stockout({"limit": limit}))
-
-    # ── Operations tools ──────────────────────────────────────────────────────────
-
-    @_agent.tool
-    async def get_contractor_history(ctx: RunContext[AgentDeps], name: str, limit: int = 20) -> str:
-        """Withdrawal history for a contractor (by name). Shows jobs, materials pulled, amounts."""
-        return budget_tool_result(await _get_contractor_history({"name": name, "limit": limit}))
-
-    @_agent.tool
-    async def get_job_materials(ctx: RunContext[AgentDeps], job_id: str) -> str:
-        """All materials pulled for a specific job ID."""
-        return budget_tool_result(await _get_job_materials({"job_id": job_id}))
+    # ── Operations tools (quick answers) ─────────────────────────────────────────
 
     @_agent.tool
     async def list_recent_withdrawals(
         ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20
     ) -> str:
         """Recent material withdrawals across all jobs."""
-        return budget_tool_result(await _list_recent_withdrawals({"days": days, "limit": limit}))
+        return budget_tool_result(await _list_recent_withdrawals(days=days, limit=limit))
 
     @_agent.tool
     async def list_pending_material_requests(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
         """Material requests from contractors awaiting approval."""
-        return budget_tool_result(await _list_pending_material_requests({"limit": limit}))
+        return budget_tool_result(await _list_pending_material_requests(limit=limit))
 
     @_agent.tool
-    async def get_daily_withdrawal_activity(
-        ctx: RunContext[AgentDeps], days: int = 30, sku_id: str = ""
-    ) -> str:
-        """Daily withdrawal volume over the last N days. Optionally filter by sku_id."""
-        return budget_tool_result(
-            await _get_daily_withdrawal_activity({"days": days, "sku_id": sku_id})
-        )
+    async def get_contractor_history(ctx: RunContext[AgentDeps], name: str, limit: int = 20) -> str:
+        """Withdrawal history for a contractor (by name)."""
+        return budget_tool_result(await _get_contractor_history(name=name, limit=limit))
+
+    @_agent.tool
+    async def get_job_materials(ctx: RunContext[AgentDeps], job_id: str) -> str:
+        """All materials pulled for a specific job ID."""
+        return budget_tool_result(await _get_job_materials(job_id=job_id))
+
+    # ── Quick finance lookups ────────────────────────────────────────────────────
 
     @_agent.tool
     async def get_payment_status_breakdown(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Withdrawal totals grouped by payment status (paid/invoiced/unpaid) for the period."""
-        return budget_tool_result(await _get_payment_status_breakdown({"days": days}))
-
-    # ── Finance tools ─────────────────────────────────────────────────────────────
+        """Withdrawal totals by payment status (paid/invoiced/unpaid)."""
+        return budget_tool_result(await _get_payment_status_breakdown(days=days))
 
     @_agent.tool
     async def get_invoice_summary(ctx: RunContext[AgentDeps]) -> str:
-        """Invoice counts and totals grouped by status (draft, sent, paid)."""
+        """Invoice counts and totals by status (draft/sent/paid)."""
         return budget_tool_result(await _get_invoice_summary())
 
     @_agent.tool
-    async def get_outstanding_balances(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Unpaid withdrawal balances grouped by billing entity/contractor."""
-        raw = await _get_outstanding_balances({"limit": limit})
-        result = ToolResult(
-            text=budget_tool_result(raw),
-            blocks=blocks_from_list_data(
-                raw,
-                "Outstanding balances",
-                ["entity", "balance", "withdrawal_count", "oldest_unpaid"],
-            ),
-        )
-        if result.blocks:
-            ctx.deps.blocks.extend(result.blocks)
-        return result.text
-
-    @_agent.tool
-    async def get_revenue_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Revenue summary for the last N days: total revenue, tax collected, transaction count."""
-        return budget_tool_result(await _get_revenue_summary({"days": days}))
-
-    @_agent.tool
     async def get_pl_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Profit & loss for the last N days: revenue, COGS, gross profit and margin."""
-        raw = await _get_pl_summary({"days": days})
+        """Quick P&L: revenue, COGS, gross profit and margin."""
+        raw = await _get_pl_summary(days=days)
         result = ToolResult(
             text=budget_tool_result(raw),
             blocks=blocks_from_pl_summary(raw),
@@ -315,148 +172,11 @@ def _get_agent() -> Agent[AgentDeps, str]:
             ctx.deps.blocks.extend(result.blocks)
         return result.text
 
-    @_agent.tool
-    async def get_finance_top_skus(
-        ctx: RunContext[AgentDeps], days: int = 7, limit: int = 10
-    ) -> str:
-        """Top SKUs ranked by revenue over the last N days."""
-        return budget_tool_result(await _get_finance_top_skus({"days": days, "limit": limit}))
-
-    # ── Finance analytics tools ──────────────────────────────────────────────────
-
-    @_agent.tool
-    async def get_trend_series(
-        ctx: RunContext[AgentDeps], days: int = 30, group_by: str = "day"
-    ) -> str:
-        """Revenue/cost/profit time series. group_by: 'day', 'week', or 'month'."""
-        raw = await _get_trend_series({"days": days, "group_by": group_by})
-        blocks = blocks_from_trend_series(raw)
-        if blocks:
-            ctx.deps.blocks.extend(blocks)
-        return budget_tool_result(raw)
-
-    @_agent.tool
-    async def get_ar_aging(ctx: RunContext[AgentDeps], days: int = 365) -> str:
-        """Accounts receivable aging buckets by billing entity (current, 1-30, 31-60, 61-90, 90+)."""
-        return budget_tool_result(await _get_ar_aging({"days": days}))
-
-    @_agent.tool
-    async def get_sku_margins(ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20) -> str:
-        """Per-SKU revenue, COGS, profit, and margin percentage."""
-        return budget_tool_result(await _get_sku_margins({"days": days, "limit": limit}))
-
-    @_agent.tool
-    async def get_department_profitability(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Revenue, COGS, shrinkage, profit, and margin by department."""
-        return budget_tool_result(await _get_department_profitability({"days": days}))
-
-    @_agent.tool
-    async def get_job_profitability(
-        ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20
-    ) -> str:
-        """Per-job P&L: revenue, cost, profit, margin, withdrawal count."""
-        return budget_tool_result(await _get_job_profitability({"days": days, "limit": limit}))
-
-    @_agent.tool
-    async def get_entity_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Per billing entity: AR balance, revenue, cost, profit, transaction count."""
-        return budget_tool_result(await _get_entity_summary({"days": days}))
-
-    @_agent.tool
-    async def get_contractor_spend(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Revenue and AR balance by contractor over the period."""
-        return budget_tool_result(await _get_contractor_spend({"days": days}))
-
-    @_agent.tool
-    async def get_purchase_spend(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Total inventory additions from PO receipts in the period."""
-        return budget_tool_result(await _get_purchase_spend({"days": days}))
-
-    # ── Purchasing tools ─────────────────────────────────────────────────────────
-
-    @_agent.tool
-    async def get_vendor_catalog(
-        ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = ""
-    ) -> str:
-        """SKUs supplied by a vendor with cost, lead time, MOQ, preferred status. Pass vendor_id or name."""
-        return budget_tool_result(await _get_vendor_catalog({"vendor_id": vendor_id, "name": name}))
-
-    @_agent.tool
-    async def get_vendor_performance(
-        ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 90
-    ) -> str:
-        """Vendor reliability: PO count, total spend, avg lead time, fill rate. Pass vendor_id or name."""
-        return budget_tool_result(
-            await _get_vendor_performance({"vendor_id": vendor_id, "name": name, "days": days})
-        )
-
-    @_agent.tool
-    async def get_sku_vendor_options(ctx: RunContext[AgentDeps], sku_id: str) -> str:
-        """All vendors that supply a specific SKU with cost, lead time, MOQ, preferred, last PO date. Pass the SKU code (e.g. 'PLU-001') or internal ID."""
-        return budget_tool_result(await _get_sku_vendor_options({"sku_id": sku_id}))
-
-    @_agent.tool
-    async def get_purchase_history(
-        ctx: RunContext[AgentDeps],
-        vendor_id: str = "",
-        name: str = "",
-        days: int = 90,
-        limit: int = 20,
-    ) -> str:
-        """Recent purchase orders for a vendor with items, costs, status. Pass vendor_id or name."""
-        return budget_tool_result(
-            await _get_purchase_history(
-                {
-                    "vendor_id": vendor_id,
-                    "name": name,
-                    "days": days,
-                    "limit": limit,
-                }
-            )
-        )
-
-    @_agent.tool
-    async def get_po_summary(ctx: RunContext[AgentDeps]) -> str:
-        """Purchase order counts and totals grouped by status (ordered/partial/received)."""
-        return budget_tool_result(await _get_po_summary())
-
-    @_agent.tool
-    async def get_reorder_with_vendor_context(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
-        """Low-stock SKUs with vendor options (cost, lead time, preferred vendor) for procurement planning."""
-        return budget_tool_result(await _get_reorder_with_vendor_context({"limit": limit}))
-
-    @_agent.tool
-    async def list_all_vendors_detail(ctx: RunContext[AgentDeps]) -> str:
-        """All vendors with ID, name, contact, email, phone."""
-        return budget_tool_result(await _list_all_vendors())
-
-    # ── Semantic search tools (multi-entity) ──────────────────────────────────────
-
-    @_agent.tool
-    async def search_vendors_semantic(
-        ctx: RunContext[AgentDeps], query: str, limit: int = 10
-    ) -> str:
-        """Find vendors by concept/description. Use when looking for 'that plumbing supplier' or similar."""
-        return budget_tool_result(await _search_vendors_semantic({"query": query, "limit": limit}))
-
-    @_agent.tool
-    async def search_purchase_orders_semantic(
-        ctx: RunContext[AgentDeps], query: str, limit: int = 10
-    ) -> str:
-        """Find purchase orders by concept. Use when looking for 'that PO from last quarter with issues'."""
-        return budget_tool_result(await _search_pos_semantic({"query": query, "limit": limit}))
-
-    @_agent.tool
-    async def search_jobs_semantic(ctx: RunContext[AgentDeps], query: str, limit: int = 10) -> str:
-        """Find jobs by concept. Use when looking for 'that big job on Main Street'."""
-        return budget_tool_result(await _search_jobs_semantic({"query": query, "limit": limit}))
-
-    # ── Workflow tools (parallel DAG execution) ──────────────────────────────────────
+    # ── Workflow tools ───────────────────────────────────────────────────────────
 
     @_agent.tool
     async def run_weekly_sales_report(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Generate a full weekly sales report: revenue, P&L, top SKUs, outstanding balances.
-        Use for 'weekly report', 'sales report', 'finance overview'."""
+        """Full sales/finance report: revenue, P&L, top SKUs, outstanding balances."""
         trace_id = ctx.deps.trace_id or None
         deps = WorkflowDeps(
             org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id
@@ -466,8 +186,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def run_inventory_overview(ctx: RunContext[AgentDeps]) -> str:
-        """Generate a full inventory overview: stats, department health, low stock, slow movers.
-        Use for 'inventory overview', 'what needs attention', 'stock health'."""
+        """Full inventory overview: stats, department health, low stock, slow movers."""
         trace_id = ctx.deps.trace_id or None
         deps = WorkflowDeps(
             org_id=get_org_id(), user_id=ctx.deps.user_id, days=30, trace_id=trace_id
@@ -484,9 +203,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
         entity_id: str,
     ) -> str:
         """Follow relationships from any entity (sku, vendor, job, invoice, po).
-        Returns connected entities: suppliers, purchase orders, withdrawals, invoices, etc.
-        Use to understand what's connected to an entity before diving into analysis.
-        entity_type: 'sku', 'vendor', 'job', 'invoice', 'po'."""
+        Returns connected entities. entity_type: 'sku', 'vendor', 'job', 'invoice', 'po'."""
         from assistant.application.entity_graph import neighbors as _graph_neighbors
 
         result = await _graph_neighbors(entity_type, entity_id)
@@ -494,29 +211,29 @@ def _get_agent() -> Agent[AgentDeps, str]:
             return f"No graph data found for {entity_type}:{entity_id}"
         return result.format_for_agent()
 
-    # ── Sub-agent delegation tools ────────────────────────────────────────────────
+    # ── Sub-agent delegation ─────────────────────────────────────────────────────
 
     @_agent.tool
     async def analyze_procurement(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to the procurement analyst for reorder optimization, vendor selection, cost comparison, and order grouping. Pass a clear question about what to order, which vendors to use, or how to optimize purchasing."""
+        """Delegate to procurement analyst for reorder optimization, vendor selection, lead times, and ordering decisions."""
         result = await _procurement_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
         return result.response
 
     @_agent.tool
     async def analyze_trends(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to the trend analyst for time series analysis, anomaly detection, and period-over-period comparison. Pass a question about trends, growth, changes, or what's different compared to a prior period."""
+        """Delegate to trend analyst for demand patterns, anomaly detection, seasonality, and period comparison."""
         result = await _trend_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
         return result.response
 
     @_agent.tool
     async def assess_business_health(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to the business health analyst for a holistic assessment across inventory, finance, and operations. Pass a question about overall business health, what needs attention, or a comprehensive review."""
+        """Delegate to health analyst for cross-domain triage: inventory risk, cash flow, carrying cost, vendor drift."""
         result = await _health_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
         return result.response
 
     @_agent.tool
     async def run_deep_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to the data analyst for ad hoc SQL queries, cross-table analysis, custom aggregations, and deep data exploration. Use when pre-built tools can't answer the question or when the user asks to 'dig deeper', 'analyze', 'compare across', 'find patterns', or 'run a query'."""
+        """Delegate to data analyst for ad hoc SQL queries and custom data exploration."""
         result = await _analyst_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
         return result.response
 

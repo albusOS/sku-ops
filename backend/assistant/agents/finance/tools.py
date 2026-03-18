@@ -5,6 +5,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
+from assistant.agents.tools.serialization import dumps as _dumps
 from finance.application.invoice_service import list_invoices
 from operations.application.queries import list_withdrawals
 from shared.infrastructure.db import get_org_id
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_invoice_summary() -> str:
+    """Invoice counts and totals by status (draft/sent/paid)."""
     invoices = await list_invoices(limit=10000, organization_id=get_org_id())
     summary: dict[str, dict] = {}
     for inv in invoices:
@@ -29,8 +31,9 @@ async def _get_invoice_summary() -> str:
     )
 
 
-async def _get_outstanding_balances(args: dict) -> str:
-    limit = min(int(args.get("limit") or 20), 100)
+async def _get_outstanding_balances(limit: int = 20) -> str:
+    """Unpaid balances by billing entity."""
+    limit = min(limit, 100)
     withdrawals = await list_withdrawals(payment_status="unpaid", limit=10000)
     entity_map: dict[str, dict] = {}
     for w in withdrawals:
@@ -43,7 +46,6 @@ async def _get_outstanding_balances(args: dict) -> str:
                 "oldest": created,
             }
         else:
-            # Track the earliest (lexicographically smallest ISO date) across all withdrawals
             if created and (
                 not entity_map[entity]["oldest"] or created < entity_map[entity]["oldest"]
             ):
@@ -70,8 +72,9 @@ async def _get_outstanding_balances(args: dict) -> str:
     )
 
 
-async def _get_revenue_summary(args: dict) -> str:
-    days = min(int(args.get("days") or 30), 365)
+async def _get_revenue_summary(days: int = 30) -> str:
+    """Revenue breakdown by payment status over a period."""
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
     total_revenue = sum(w.total for w in withdrawals)
@@ -93,15 +96,16 @@ async def _get_revenue_summary(args: dict) -> str:
     )
 
 
-async def _get_pl_summary(args: dict) -> str:
-    days = min(int(args.get("days") or 30), 365)
+async def _get_pl_summary(days: int = 30) -> str:
+    """Profit & loss: revenue, COGS, gross profit and margin."""
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
     total_revenue = sum(w.total for w in withdrawals)
     total_cost = sum(w.cost_total for w in withdrawals)
     gross_profit = total_revenue - total_cost
     margin_pct = round((gross_profit / total_revenue * 100), 1) if total_revenue > 0 else 0
-    return json.dumps(
+    return _dumps(
         {
             "period_days": days,
             "transaction_count": len(withdrawals),
@@ -113,37 +117,16 @@ async def _get_pl_summary(args: dict) -> str:
     )
 
 
-async def _get_top_skus(args: dict) -> str:
-    days = min(int(args.get("days") or 7), 365)
-    limit = min(int(args.get("limit") or 10), 50)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    withdrawals = await list_withdrawals(start_date=since, limit=10000)
-    sku_map: dict[str, dict] = {}
-    for w in withdrawals:
-        for item in w.items:
-            sku = item.sku or item.name or "unknown"
-            name = item.name or sku
-            qty = item.quantity
-            revenue = item.subtotal
-            if sku not in sku_map:
-                sku_map[sku] = {
-                    "sku": sku,
-                    "name": name,
-                    "total_units": 0,
-                    "total_revenue": 0.0,
-                }
-            sku_map[sku]["total_units"] += qty
-            sku_map[sku]["total_revenue"] += revenue
-    ranked = sorted(sku_map.values(), key=lambda x: x["total_revenue"], reverse=True)[:limit]
-    for r in ranked:
-        r["total_revenue"] = round(r["total_revenue"], 2)
-    return json.dumps({"period_days": days, "count": len(ranked), "skus": ranked})
-
-
 # ── Registry ──────────────────────────────────────────────────────────────────
 
-_reg("get_invoice_summary", "finance", _get_invoice_summary, takes_args=False)
-_reg("get_outstanding_balances", "finance", _get_outstanding_balances, lookup_key="outstanding")
-_reg("get_revenue_summary", "finance", _get_revenue_summary)
-_reg("get_pl_summary", "finance", _get_pl_summary)
-_reg("get_top_skus_fin", "finance", _get_top_skus)
+_reg(
+    "get_invoice_summary", "finance", _get_invoice_summary, use_cases=["invoices", "invoice status"]
+)
+_reg(
+    "get_outstanding_balances",
+    "finance",
+    _get_outstanding_balances,
+    use_cases=["outstanding", "unpaid balances"],
+)
+_reg("get_revenue_summary", "finance", _get_revenue_summary, use_cases=["revenue", "sales summary"])
+_reg("get_pl_summary", "finance", _get_pl_summary, use_cases=["P&L", "profit loss", "margin"])

@@ -1,10 +1,10 @@
 """Ops agent helper functions — facade-backed queries for operations data."""
 
-import json
 import logging
 from datetime import UTC, datetime, timedelta
 
 from assistant.agents.tools.registry import register as _reg
+from assistant.agents.tools.serialization import dumps as _dumps
 from inventory.application.queries import daily_withdrawal_activity
 from operations.application.queries import (
     list_pending_material_requests,
@@ -15,32 +15,10 @@ from operations.application.queries import (
 logger = logging.getLogger(__name__)
 
 
-def _to_float(v):
-    """Coerce Decimal (and other numeric types) to float for JSON serialization."""
-    from decimal import Decimal
-
-    if isinstance(v, Decimal):
-        return float(v)
-    return v
-
-
-def _normalise(obj):
-    """Recursively convert Decimal values in dicts/lists to float."""
-    if isinstance(obj, dict):
-        return {k: _normalise(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_normalise(v) for v in obj]
-    return _to_float(obj)
-
-
-def _dumps(obj) -> str:
-    """json.dumps with Decimal → float conversion so numeric values stay numeric in JSON."""
-    return json.dumps(_normalise(obj))
-
-
-async def _get_contractor_history(args: dict) -> str:
-    name = (args.get("name") or "").strip()
-    limit = min(int(args.get("limit") or 20), 100)
+async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
+    """Withdrawal history for a contractor (by name)."""
+    name = name.strip()
+    limit = min(limit, 100)
     all_withdrawals = await list_withdrawals(limit=500)
     name_lower = name.lower()
     matched = [
@@ -76,8 +54,9 @@ async def _get_contractor_history(args: dict) -> str:
     )
 
 
-async def _get_job_materials(args: dict) -> str:
-    job_id = (args.get("job_id") or "").strip()
+async def _get_job_materials(job_id: str = "") -> str:
+    """All materials pulled for a specific job ID."""
+    job_id = job_id.strip()
     all_withdrawals = await list_withdrawals(limit=1000)
     job_withdrawals = [w for w in all_withdrawals if (w.job_id or "").lower() == job_id.lower()]
     if not job_withdrawals:
@@ -114,9 +93,10 @@ async def _get_job_materials(args: dict) -> str:
     )
 
 
-async def _list_recent_withdrawals(args: dict) -> str:
-    days = min(int(args.get("days") or 7), 365)
-    limit = min(int(args.get("limit") or 20), 100)
+async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
+    """Recent material withdrawals across all jobs."""
+    days = min(days, 365)
+    limit = min(limit, 100)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     withdrawals = await list_withdrawals(start_date=since, limit=limit)
     out = [
@@ -142,8 +122,9 @@ async def _list_recent_withdrawals(args: dict) -> str:
     )
 
 
-async def _list_pending_material_requests(args: dict) -> str:
-    limit = min(int(args.get("limit") or 20), 100)
+async def _list_pending_material_requests(limit: int = 20) -> str:
+    """Material requests from contractors awaiting approval."""
+    limit = min(limit, 100)
     rows = await list_pending_material_requests(limit=limit)
     out = []
     for r in rows:
@@ -161,11 +142,12 @@ async def _list_pending_material_requests(args: dict) -> str:
     return _dumps({"count": len(out), "pending_requests": out})
 
 
-async def _get_daily_withdrawal_activity(args: dict) -> str:
-    days = min(int(args.get("days") or 30), 365)
+async def _get_daily_withdrawal_activity(days: int = 30, sku_id: str = "") -> str:
+    """Daily withdrawal volume over the last N days."""
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    sku_id = (args.get("sku_id") or "").strip() or None
-    activity = await daily_withdrawal_activity(since, sku_id=sku_id)
+    sku_id_val = sku_id.strip() or None
+    activity = await daily_withdrawal_activity(since, sku_id=sku_id_val)
     return _dumps(
         {
             "period_days": days,
@@ -175,8 +157,9 @@ async def _get_daily_withdrawal_activity(args: dict) -> str:
     )
 
 
-async def _get_payment_status_breakdown(args: dict) -> str:
-    days = min(int(args.get("days") or 30), 365)
+async def _get_payment_status_breakdown(days: int = 30) -> str:
+    """Withdrawal totals by payment status (paid/invoiced/unpaid)."""
+    days = min(days, 365)
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     end = datetime.now(UTC).isoformat()
     breakdown = await payment_status_breakdown(since, end)
@@ -192,14 +175,34 @@ async def _get_payment_status_breakdown(args: dict) -> str:
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 
-_reg("get_contractor_history", "ops", _get_contractor_history, lookup_key="contractor_history")
-_reg("get_job_materials", "ops", _get_job_materials, lookup_key="job_materials")
-_reg("list_recent_withdrawals", "ops", _list_recent_withdrawals)
+_reg(
+    "get_contractor_history",
+    "ops",
+    _get_contractor_history,
+    use_cases=["contractor", "withdrawal history"],
+)
+_reg("get_job_materials", "ops", _get_job_materials, use_cases=["job materials", "job details"])
+_reg(
+    "list_recent_withdrawals",
+    "ops",
+    _list_recent_withdrawals,
+    use_cases=["withdrawals", "recent activity"],
+)
 _reg(
     "list_pending_material_requests",
     "ops",
     _list_pending_material_requests,
-    lookup_key="pending_requests",
+    use_cases=["pending requests", "material requests"],
 )
-_reg("get_daily_withdrawal_activity", "ops", _get_daily_withdrawal_activity)
-_reg("get_payment_status_breakdown", "ops", _get_payment_status_breakdown)
+_reg(
+    "get_daily_withdrawal_activity",
+    "ops",
+    _get_daily_withdrawal_activity,
+    use_cases=["daily activity", "withdrawal chart"],
+)
+_reg(
+    "get_payment_status_breakdown",
+    "ops",
+    _get_payment_status_breakdown,
+    use_cases=["payment status", "paid unpaid"],
+)

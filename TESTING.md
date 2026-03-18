@@ -68,22 +68,13 @@ from shared.kernel.types import CurrentUser
 
 This works because `pythonpath = ["backend"]` in the root `pyproject.toml` pytest config adds `backend/` to `sys.path`. Combined with `--import-mode=importlib`, all backend modules resolve without `sys.path` hacks.
 
-## Shared db fixture
+## Shared test infrastructure
 
-A single `db` fixture lives in `backend/tests/conftest.py` and is available to all backend tests via pytest's conftest hierarchy:
+All backend tests run against a real Postgres database (`sku_ops_test`). The test database is created automatically by `./bin/dev db` (docker-compose.dev.yml binds host port 5433 to container port 5432).
 
-```python
-@pytest_asyncio.fixture
-async def db():
-    """Initialize in-memory SQLite, seed minimal data, teardown."""
-    ...
-```
+A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables and seeds minimal data: an organization (`supply-yard`), a department (`dept-1`), an admin user (`user-1`), and a contractor user (`contractor-1`).
 
-It initializes an in-memory SQLite database, seeds a department (`dept-1`), an admin user (`user-1`), and a contractor user (`contractor-1`), then tears down on completion.
-
-The `_db` fixture is an alias for `db` (many test files reference this name).
-
-**To extend the fixture:** edit `backend/tests/conftest.py`. All backend tests inherit from it. Do not create duplicate `db` fixtures in sub-conftest files.
+**To extend seed data:** edit `_truncate_and_seed()` in `backend/tests/conftest.py`. All backend tests inherit from it. Do not create duplicate seed fixtures in sub-conftest files.
 
 ## Test structure
 
@@ -91,7 +82,7 @@ Each deployable owns its tests. E2e tests live at the workspace root.
 
 ```
 backend/tests/                         # backend tests
-├── conftest.py                        # env vars + shared db fixture
+├── conftest.py                        # env vars + session-scoped TestClient + truncate/seed
 ├── helpers/                           # shared test utilities
 │   ├── auth.py                        # JWT token/header factories
 │   ├── factories.py                   # domain object factories
@@ -104,9 +95,16 @@ backend/tests/                         # backend tests
 │   ├── test_cycle_count.py
 │   ├── test_product_lifecycle.py
 │   └── ...
-└── api/                               # HTTP tests via TestClient
-    ├── conftest.py                    # client + auth_headers fixtures
-    ├── test_smoke.py
+├── api/                               # HTTP tests via TestClient
+│   ├── conftest.py                    # client + auth_headers fixtures
+│   ├── test_smoke.py
+│   └── ...
+└── e2e/                               # backend e2e pipelines (Postgres, no browser)
+    ├── conftest.py                    # pipeline-specific fixtures
+    ├── helpers.py                     # shared e2e utilities
+    ├── test_withdrawal_pipeline.py
+    ├── test_payment_pipeline.py
+    ├── test_po_receiving_pipeline.py
     └── ...
 
 frontend/src/                          # frontend co-located unit tests
@@ -115,11 +113,14 @@ frontend/src/                          # frontend co-located unit tests
 ├── lib/__tests__/api-client.test.js
 └── test/setup.js
 
-e2e/                                   # cross-stack e2e (Playwright)
+e2e/                                   # cross-stack browser e2e (Playwright)
 ├── playwright.config.ts
 ├── package.json
 └── specs/
-    └── health.spec.ts
+    ├── health.spec.ts
+    ├── 01-withdrawal-financials.spec.ts
+    ├── 02-invoice-payment-cycle.spec.ts
+    └── ...
 ```
 
 ## Adding a new test

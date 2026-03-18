@@ -76,15 +76,6 @@ export function useReportProductPerformance(params) {
   });
 }
 
-export function useReportJobPl(params) {
-  return useQuery({
-    queryKey: keys.reports.jobPl(params),
-    queryFn: () => api.reports.jobPl(params),
-    enabled: !!params,
-    ...reportOpts,
-  });
-}
-
 export function useReportReorderUrgency(params) {
   return useQuery({
     queryKey: keys.reports.reorderUrgency(params),

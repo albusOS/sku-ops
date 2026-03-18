@@ -1,4 +1,4 @@
-"""Trend analyst sub-agent — time series analysis, anomaly detection, period comparison.
+"""Trend analyst sub-agent — demand patterns, outlier detection, seasonality.
 
 Agent construction is deferred to first use so that missing API keys
 don't crash the import chain at startup. The module can be imported
@@ -16,12 +16,11 @@ from assistant.agents.core.model_registry import calc_cost, get_model, get_model
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.finance.analytics_tools import (
     _get_department_profitability,
-    _get_sku_margins,
     _get_trend_series,
 )
 from assistant.agents.inventory.tools import (
-    _forecast_stockout,
-    _get_slow_movers,
+    _get_demand_profile,
+    _get_seasonal_pattern,
     _get_top_skus,
 )
 from assistant.agents.ops.tools import (
@@ -37,11 +36,6 @@ _agent: Agent[AgentDeps, str] | None = None
 
 
 def _get_agent() -> Agent[AgentDeps, str]:
-    """Lazily construct the pydantic-ai Agent on first use.
-
-    This avoids the eager AnthropicProvider() call at import time
-    which crashes when ANTHROPIC_API_KEY is not set.
-    """
     global _agent
     if _agent is not None:
         return _agent
@@ -57,43 +51,38 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], days: int = 30, group_by: str = "day"
     ) -> str:
         """Revenue/cost/profit time series. group_by: 'day', 'week', or 'month'."""
-        return budget_tool_result(await _get_trend_series({"days": days, "group_by": group_by}))
+        return budget_tool_result(await _get_trend_series(days=days, group_by=group_by))
 
     @_agent.tool
     async def get_daily_withdrawal_activity(
         ctx: RunContext[AgentDeps], days: int = 30, sku_id: str = ""
     ) -> str:
         """Daily withdrawal volume over the last N days."""
-        return budget_tool_result(
-            await _get_daily_withdrawal_activity({"days": days, "sku_id": sku_id})
-        )
+        return budget_tool_result(await _get_daily_withdrawal_activity(days=days, sku_id=sku_id))
 
     @_agent.tool
-    async def get_sku_margins(ctx: RunContext[AgentDeps], days: int = 30, limit: int = 20) -> str:
-        """Per-SKU revenue, COGS, profit, and margin percentage."""
-        return budget_tool_result(await _get_sku_margins({"days": days, "limit": limit}))
+    async def get_demand_profile(ctx: RunContext[AgentDeps], sku: str = "", days: int = 60) -> str:
+        """Deep demand profile for a SKU — outlier flags, baseline vs. spikes, project buys."""
+        return budget_tool_result(await _get_demand_profile(sku=sku, days=days))
 
     @_agent.tool
-    async def get_department_profitability(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Revenue, COGS, shrinkage, profit, and margin by department."""
-        return budget_tool_result(await _get_department_profitability({"days": days}))
-
-    @_agent.tool
-    async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 15) -> str:
-        """SKUs predicted to run out soonest."""
-        return budget_tool_result(await _forecast_stockout({"limit": limit}))
-
-    @_agent.tool
-    async def get_slow_movers(ctx: RunContext[AgentDeps], limit: int = 20, days: int = 30) -> str:
-        """SKUs with stock but very low withdrawal activity."""
-        return budget_tool_result(await _get_slow_movers({"limit": limit, "days": days}))
+    async def get_seasonal_pattern(
+        ctx: RunContext[AgentDeps], sku: str = "", months: int = 12
+    ) -> str:
+        """Monthly withdrawal totals for seasonality analysis."""
+        return budget_tool_result(await _get_seasonal_pattern(sku=sku, months=months))
 
     @_agent.tool
     async def get_top_skus(
         ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10
     ) -> str:
         """Top SKUs by volume or revenue."""
-        return budget_tool_result(await _get_top_skus({"days": days, "by": by, "limit": limit}))
+        return budget_tool_result(await _get_top_skus(days=days, by=by, limit=limit))
+
+    @_agent.tool
+    async def get_department_profitability(ctx: RunContext[AgentDeps], days: int = 30) -> str:
+        """Revenue, COGS, shrinkage, profit, and margin by department."""
+        return budget_tool_result(await _get_department_profitability(days=days))
 
     return _agent
 

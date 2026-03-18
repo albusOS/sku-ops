@@ -49,6 +49,7 @@ _DEFAULTS: dict[str, str] = {
     "agent:trend": _agent_model_id(),
     "agent:health": _agent_model_id(),
     "agent:procurement": _agent_model_id(),
+    "agent:product_analyst": _agent_model_id(),
     # Legacy task keys (kept for compatibility)
     "agent:inventory": _agent_model_id(),
     "agent:ops": _agent_model_id(),

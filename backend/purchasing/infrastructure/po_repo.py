@@ -93,6 +93,31 @@ class PgPORepo(PORepoPort):
         rows = await cursor.fetchall()
         return [PORow.model_validate(dict(r)) for r in rows]
 
+    async def list_pos_with_counts(self, status: str | None = None) -> list[PORow]:
+        """List POs with item status counts in a single query (no N+1)."""
+        conn = get_connection()
+        org_id = get_org_id()
+        where = "WHERE po.organization_id = $1"
+        params: tuple = (org_id,)
+        if status:
+            where += " AND po.status = $2"
+            params = (org_id, status)
+        cursor = await conn.execute(
+            f"""SELECT po.*,
+                       COUNT(poi.id) AS item_count,
+                       COUNT(*) FILTER (WHERE poi.status = 'ordered') AS ordered_count,
+                       COUNT(*) FILTER (WHERE poi.status = 'pending') AS pending_count,
+                       COUNT(*) FILTER (WHERE poi.status = 'arrived') AS arrived_count
+                FROM purchase_orders po
+                LEFT JOIN purchase_order_items poi ON poi.po_id = po.id
+                {where}
+                GROUP BY po.id
+                ORDER BY po.created_at DESC""",
+            params,
+        )
+        rows = await cursor.fetchall()
+        return [PORow.model_validate(dict(r)) for r in rows]
+
     async def get_po(self, po_id: str) -> PORow | None:
         conn = get_connection()
         org_id = get_org_id()

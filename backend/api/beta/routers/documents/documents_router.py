@@ -1,18 +1,48 @@
-"""Document parse/import routes."""
+"""Document parse routes."""
 
 import logging
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from documents.application.import_service import import_document_wired
 from documents.application.parse_service import parse_document_with_ai
 from documents.application.queries import get_document_by_id
 from documents.application.queries import list_documents as query_list_documents
-from documents.domain.document import DocumentImportRequest
 from shared.api.deps import AdminDep
 
 logger = logging.getLogger(__name__)
+
+
+def _build_run_agent(vendor_id=None, vendor_name=None):
+    """Build an agent callable with vendor context captured in closure.
+
+    Returns None if the LLM provider isn't ready, so analyze_products
+    skips the agent path cleanly.
+    """
+    try:
+        from assistant.infrastructure.llm import get_provider
+
+        provider = get_provider()
+        if not provider.available or provider.provider_name == "stub":
+            return None
+    except (RuntimeError, ImportError):
+        return None
+
+    async def _run(items):
+        from assistant.agents.product_analyst.agent import run as agent_run
+        from catalog.application.product_intelligence import _run_agent_from_dicts
+
+        analyses_dicts, _usage = await agent_run(
+            items,
+            vendor_id=vendor_id,
+            vendor_name=vendor_name,
+        )
+        if not analyses_dicts:
+            return None
+        return await _run_agent_from_dicts(items, analyses_dicts)
+
+    return _run
+
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -35,7 +65,13 @@ async def parse_document(
         )
 
     try:
-        return await parse_document_with_ai(contents, content_type, filename, current_user)
+        return await parse_document_with_ai(
+            contents,
+            content_type,
+            filename,
+            current_user,
+            build_run_agent=_build_run_agent,
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:
@@ -73,21 +109,3 @@ async def get_document(doc_id: str, current_user: AdminDep):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
-
-
-@router.post("/import")
-async def import_document(
-    data: DocumentImportRequest,
-    current_user: AdminDep,
-):
-    """Import parsed products; create or match vendor."""
-    try:
-        return await import_document_wired(
-            vendor_name=data.vendor_name,
-            products=data.products,
-            category_id=data.category_id,
-            create_vendor_if_missing=data.create_vendor_if_missing,
-            current_user=current_user,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e

@@ -102,13 +102,6 @@ def _stub_deps():
         update_sku,
     )
     from catalog.application.vendor_item_lifecycle import add_vendor_item
-    from documents.application.import_parser import infer_uom, suggest_department
-
-    async def _noop_enrich(items, *a, **kw):
-        return items
-
-    async def _noop_classify(items):
-        return items
 
     async def _noop_create(**kw):
         return await create_product_with_sku(**kw, on_stock_import=process_receiving_stock_changes)
@@ -125,10 +118,6 @@ def _stub_deps():
         create_product_with_sku=_noop_create,
         add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
-        classify_uom_batch=_noop_classify,
-        infer_uom=infer_uom,
-        suggest_department=suggest_department,
-        enrich_for_import=_noop_enrich,
     )
 
 

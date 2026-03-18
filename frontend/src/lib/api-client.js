@@ -263,6 +263,12 @@ const api = {
     deleteSession: (id) => axios.delete(`${API}/assistant/chat/sessions/${id}`),
   },
 
+  // ── Memory ──────────────────────────────────────────────────────────
+  memory: {
+    saveCorrections: (data) =>
+      axios.post(`${API}/assistant/memory/corrections`, data).then((r) => r.data),
+  },
+
   // ── Auth / Seed ─────────────────────────────────────────────────────
   auth: {
     me: () => axios.get(`${API}/shared/auth/me`).then((r) => r.data),

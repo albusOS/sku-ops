@@ -5,6 +5,37 @@ import { Upload, FileImage, FileText, XCircle, Loader2, Sparkles, ArrowLeft } fr
 import api, { getErrorMessage } from "@/lib/api-client";
 import { ReviewFlow } from "./ReviewFlow";
 
+const TRACKED_FIELDS = ["suggested_department", "base_unit", "sell_uom", "pack_qty", "name"];
+
+function detectCorrections(originalItems, finalPayload) {
+  const corrections = [];
+  for (const final of finalPayload) {
+    const original = originalItems.find((o) => o.id === final.id);
+    if (!original) continue;
+    for (const field of TRACKED_FIELDS) {
+      const orig = String(original[field] ?? "");
+      const curr = String(final[field] ?? "");
+      if (orig && curr && orig !== curr) {
+        corrections.push({
+          item_name: original.name || final.name || "",
+          field,
+          original_value: orig,
+          corrected_value: curr,
+        });
+      }
+    }
+    if (original.sku_id && !final.sku_id) {
+      corrections.push({
+        item_name: original.name || "",
+        field: "sku_match",
+        original_value: original.sku_id,
+        corrected_value: null,
+      });
+    }
+  }
+  return corrections;
+}
+
 /**
  * Import flow: upload document → AI extract → review → save as PO.
  * Lives in the right column of the purchasing page.
@@ -37,32 +68,27 @@ export function ImportFlow({ onComplete, onCancel }) {
     return t.startsWith("image/") || t === "application/pdf" || n.endsWith(".pdf");
   };
 
-  const handleFileChange = (e) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-    if (!isImageOrPdf(selected)) {
+  const processFile = useCallback((f) => {
+    if (!f) return;
+    if (!isImageOrPdf(f)) {
       toast.error("Please select an image (JPG, PNG, WEBP) or PDF");
       return;
     }
-    setFile(selected);
-    setPreviewSafe(selected.type?.startsWith("image/") ? URL.createObjectURL(selected) : null);
-    setExtractedData(null);
-    setEditedProducts([]);
-  };
-
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    const dropped = e.dataTransfer.files?.[0];
-    if (!dropped) return;
-    if (!isImageOrPdf(dropped)) {
-      toast.error("Please select an image (JPG, PNG, WEBP) or PDF");
-      return;
-    }
-    setFile(dropped);
-    setPreviewSafe(dropped.type?.startsWith("image/") ? URL.createObjectURL(dropped) : null);
+    setFile(f);
+    setPreviewSafe(f.type?.startsWith("image/") ? URL.createObjectURL(f) : null);
     setExtractedData(null);
     setEditedProducts([]);
   }, []);
+
+  const handleFileChange = (e) => processFile(e.target.files?.[0]);
+
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      processFile(e.dataTransfer.files?.[0]);
+    },
+    [processFile],
+  );
 
   const extractReceipt = async (useAi = false) => {
     if (!file) {
@@ -117,6 +143,12 @@ export function ImportFlow({ onComplete, onCancel }) {
         total: extractedData?.total || null,
         products: payload,
       });
+
+      const corrections = detectCorrections(editedProducts, payload);
+      if (corrections.length > 0) {
+        api.memory.saveCorrections({ corrections, vendor_name: vName }).catch(() => {});
+      }
+
       toast.success(`Purchase order saved with ${payload.length} item(s)`);
       onComplete?.();
     } catch (error) {

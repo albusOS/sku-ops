@@ -25,7 +25,7 @@ def _specs(days: int) -> list[FetchSpec]:
     return [
         FetchSpec("get_revenue_summary", {"days": days}, "revenue_summary"),
         FetchSpec("get_pl_summary", {"days": days}, "pl_summary"),
-        FetchSpec("get_top_skus_fin", {"days": days, "limit": 10}, "top_skus_raw"),
+        FetchSpec("get_top_skus", {"days": days, "limit": 10}, "top_skus_raw"),
         FetchSpec("get_outstanding_balances", {"limit": 20}, "outstanding_balances_raw"),
     ]
 

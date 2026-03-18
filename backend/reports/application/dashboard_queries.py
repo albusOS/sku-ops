@@ -16,7 +16,7 @@ from catalog.application.queries import (
 )
 from finance.application import ledger_queries as ledger_repo
 from operations.application.contractor_service import count_contractors
-from operations.application.queries import list_withdrawals
+from operations.application.queries import list_pending_material_requests, list_withdrawals
 from purchasing.application.queries import po_summary_by_status
 from shared.kernel.types import round_money
 
@@ -67,8 +67,11 @@ class AdminDashboard:
     inventory_cost: float
     inventory_retail: float
     inventory_units: float
+    avg_days_in_inventory: float
     dept_margins: list[DeptMarginRow]
     po_summary: dict[str, PoStatusSummary]
+    recent_withdrawals: list[dict]
+    pending_requests: list[dict]
 
 
 @dataclass(frozen=True)
@@ -150,6 +153,7 @@ async def admin_dashboard(
         total_contractors,
         low_stock_items,
         by_department,
+        pending_requests,
     ) = await asyncio.gather(
         list_withdrawals(start_date=sd, end_date=ed, limit=10000),
         list_withdrawals(payment_status="unpaid", start_date=sd, end_date=ed, limit=10000),
@@ -161,6 +165,7 @@ async def admin_dashboard(
         count_contractors(),
         list_low_stock(10),
         ledger_repo.summary_by_department(start_date=sd, end_date=ed),
+        list_pending_material_requests(limit=10),
     )
 
     range_revenue = sum(w.total for w in range_withdrawals)
@@ -202,6 +207,9 @@ async def admin_dashboard(
     gross_profit = round_money(range_revenue - range_cogs)
     margin_pct = round(gross_profit / range_revenue * 100, 1) if range_revenue > 0 else 0
 
+    period_days = (chart_end - chart_start).days + 1
+    avg_dii = round(inventory_cost / range_cogs * period_days, 1) if range_cogs > 0 else 0
+
     return AdminDashboard(
         range_revenue=round_money(range_revenue),
         range_cogs=round_money(range_cogs),
@@ -219,8 +227,11 @@ async def admin_dashboard(
         inventory_cost=inventory_cost,
         inventory_retail=inventory_retail,
         inventory_units=inventory_units,
+        avg_days_in_inventory=avg_dii,
         dept_margins=dept_margins,
         po_summary=po_summary,
+        recent_withdrawals=[w.model_dump() for w in range_withdrawals[:5]],
+        pending_requests=[r.model_dump() for r in pending_requests],
     )
 
 

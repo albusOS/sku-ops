@@ -13,6 +13,10 @@ import {
   ScanBarcode,
   History,
   Send,
+  DollarSign,
+  TrendingUp,
+  Activity,
+  ClipboardList,
 } from "lucide-react";
 import { format } from "date-fns";
 import { valueFormatter } from "@/lib/chartConfig";
@@ -339,30 +343,203 @@ const Dashboard = () => {
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-foreground">Quick actions</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <ActionTile
-            to="/pos"
-            icon={ShoppingCart}
-            title="Point of Sale"
-            description="Process requests, issue materials, and track invoices."
-          />
-          <ActionTile
-            to="/purchasing"
-            icon={Truck}
-            title="Purchasing"
-            description="Import documents, track deliveries, and receive inventory."
-          />
+      <div className="flex flex-col sm:flex-row sm:items-start gap-6 mb-8">
+        <div className="shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-foreground">Quick actions</h2>
+          </div>
+          <div className="flex gap-3">
+            <ActionTile
+              to="/pos"
+              icon={ShoppingCart}
+              title="Point of Sale"
+              description="Process requests, issue materials, and track invoices."
+            />
+            <ActionTile
+              to="/purchasing"
+              icon={Truck}
+              title="Purchasing"
+              description="Import documents, track deliveries, and receive inventory."
+            />
+          </div>
         </div>
       </div>
 
-      <Panel className="mb-8">
-        <SectionHead title="Live Pipeline" />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <StatCard
+          label="Revenue"
+          value={valueFormatter(stats?.range_revenue || 0)}
+          icon={DollarSign}
+          accent="emerald"
+          href="/reports"
+        />
+        <StatCard
+          label="Gross Profit"
+          value={valueFormatter(stats?.range_gross_profit || 0)}
+          note={stats?.range_margin_pct ? `${stats.range_margin_pct}% margin` : undefined}
+          icon={TrendingUp}
+          accent="blue"
+          href="/reports"
+        />
+        <StatCard
+          label="Transactions"
+          value={stats?.range_transactions || 0}
+          icon={ShoppingCart}
+          accent="violet"
+          href="/pos"
+        />
+        <StatCard
+          label="Receivables"
+          value={valueFormatter(stats?.unpaid_total || 0)}
+          note="uninvoiced"
+          icon={FileText}
+          accent="amber"
+          href="/pos"
+        />
+        <StatCard
+          label="Days in Inventory"
+          value={stats?.avg_days_in_inventory || 0}
+          note="avg turnover"
+          icon={Package}
+          accent="orange"
+          href="/inventory"
+        />
+      </div>
+
+      <div className="mb-8">
         <WorkflowGraph stats={stats} />
-      </Panel>
+      </div>
+
+      {stats?.pending_requests?.length > 0 && (
+        <Panel severity="warn" className="mb-8">
+          <SectionHead
+            title="Requests to fulfill"
+            icon={ClipboardList}
+            action={
+              <Link
+                to="/pos"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Process in POS →
+              </Link>
+            }
+          />
+          <div className="space-y-2">
+            {stats.pending_requests.map((r, i) => {
+              const itemCount = r.items?.length || 0;
+              const totalQty = r.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+              return (
+                <Link
+                  key={r.id || i}
+                  to="/pos"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-warning/20 bg-warning/[0.03] hover:bg-warning/[0.07] hover:border-warning/40 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-warning/10 text-warning">
+                    <ClipboardList className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {r.contractor_name || "Unknown contractor"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {r.created_at ? format(new Date(r.created_at), "MMM d, h:mm a") : ""}
+                      {` · ${itemCount} item${itemCount !== 1 ? "s" : ""}`}
+                      {totalQty > 0 ? ` · ${totalQty} units` : ""}
+                      {r.job_id ? ` · Job: ${r.job_id}` : ""}
+                    </p>
+                  </div>
+                  {r.items?.length > 0 && (
+                    <div className="hidden sm:flex flex-wrap gap-1 max-w-[200px] justify-end">
+                      {r.items.slice(0, 3).map((item, j) => (
+                        <span
+                          key={j}
+                          className="inline-flex items-center text-[10px] text-muted-foreground bg-muted rounded-md px-2 py-0.5 border border-border/50"
+                        >
+                          {item.quantity}× {(item.name || "Item").slice(0, 16)}
+                        </span>
+                      ))}
+                      {r.items.length > 3 && (
+                        <span className="text-[10px] text-muted-foreground/60">
+                          +{r.items.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
+
+      {stats?.recent_withdrawals?.length > 0 && (
+        <Panel className="mb-8">
+          <SectionHead
+            title="Recent Activity"
+            icon={Activity}
+            action={
+              <Link
+                to="/pos"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View all →
+              </Link>
+            }
+          />
+          <div className="space-y-2">
+            {stats.recent_withdrawals.map((w, i) => (
+              <Link
+                key={w.id || i}
+                to="/pos"
+                className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-muted/40 hover:bg-muted/70 hover:border-border transition-all"
+              >
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    w.payment_status === "paid"
+                      ? "bg-success/10 text-success"
+                      : w.invoice_id
+                        ? "bg-info/10 text-info"
+                        : "bg-warning/10 text-warning"
+                  }`}
+                >
+                  {w.payment_status === "paid" ? (
+                    <DollarSign className="w-4 h-4" />
+                  ) : w.invoice_id ? (
+                    <FileText className="w-4 h-4" />
+                  ) : (
+                    <Clock className="w-4 h-4" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {w.contractor_name || "Walk-in"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {w.created_at ? format(new Date(w.created_at), "MMM d, h:mm a") : ""}
+                    {w.items?.length
+                      ? ` · ${w.items.length} item${w.items.length !== 1 ? "s" : ""}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold text-foreground tabular-nums">
+                    {valueFormatter(w.total ?? 0)}
+                  </p>
+                  <StatusBadge
+                    status={
+                      w.payment_status === "paid"
+                        ? "paid"
+                        : w.invoice_id
+                          ? "invoiced"
+                          : "uninvoiced"
+                    }
+                  />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {hasPOs && (

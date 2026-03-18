@@ -326,3 +326,65 @@ async def returns_total(
     cursor = await conn.execute(query, params)
     row = await cursor.fetchone()
     return float(row[0]) if row and row[0] else 0.0
+
+
+async def inventory_carrying_cost(
+    holding_rate_pct: float = 25.0,
+) -> list[dict]:
+    """Estimated carrying cost per SKU with stock > 0.
+
+    Uses last receiving event from stock_transactions to estimate how long
+    inventory has been held. Groups by department. Annual holding rate defaults
+    to 25% (industry standard for building materials — capital, storage,
+    insurance, obsolescence).
+    """
+    conn = get_connection()
+    org_id = get_org_id()
+
+    cursor = await conn.execute(
+        """WITH last_receipt AS (
+               SELECT sku_id,
+                      MAX(created_at::timestamp) AS last_received_at
+               FROM stock_transactions
+               WHERE transaction_type IN ('receiving', 'RECEIVING', 'import', 'IMPORT')
+                 AND (organization_id = $1 OR organization_id IS NULL)
+               GROUP BY sku_id
+           )
+           SELECT s.id AS sku_id, s.sku, s.name, s.quantity, s.cost,
+                  s.category_name AS department, s.sell_uom,
+                  COALESCE(
+                      EXTRACT(EPOCH FROM (NOW() - lr.last_received_at)) / 86400.0,
+                      EXTRACT(EPOCH FROM (NOW() - s.created_at::timestamp)) / 86400.0
+                  ) AS days_held
+           FROM skus s
+           LEFT JOIN last_receipt lr ON lr.sku_id = s.id
+           WHERE s.quantity > 0
+             AND s.cost > 0
+             AND (s.organization_id = $1 OR s.organization_id IS NULL)
+             AND s.deleted_at IS NULL
+           ORDER BY s.quantity * s.cost DESC""",
+        (org_id,),
+    )
+    rows = await cursor.fetchall()
+    daily_rate = holding_rate_pct / 100.0 / 365.0
+    results = []
+    for r in rows:
+        row = dict(r)
+        inv_value = float(row["quantity"]) * float(row["cost"])
+        days = float(row["days_held"])
+        carrying = round(inv_value * daily_rate * days, 2)
+        results.append(
+            {
+                "sku_id": row["sku_id"],
+                "sku": row["sku"],
+                "name": row["name"],
+                "quantity": float(row["quantity"]),
+                "cost": float(row["cost"]),
+                "inventory_value": round(inv_value, 2),
+                "days_held": round(days, 0),
+                "carrying_cost": carrying,
+                "department": row["department"],
+                "sell_uom": row["sell_uom"],
+            }
+        )
+    return results
