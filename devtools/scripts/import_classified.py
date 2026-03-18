@@ -46,20 +46,24 @@ def build_family_groups(products: list[dict]) -> dict[str, list[dict]]:
 
 
 async def nuke_catalog() -> None:
-    """Delete all catalog data (soft-delete) to start fresh."""
-    from shared.infrastructure.db import get_db
+    """Hard-delete all catalog data to start fresh."""
+    from shared.infrastructure.db import get_connection
 
-    db = await get_db()
-    now = datetime.now(UTC).isoformat()
-    tables = ["vendor_items", "stock_transactions", "skus", "products"]
+    db = get_connection()
+    # Order matters for FK constraints
+    tables = [
+        "vendor_items",
+        "stock_transactions",
+        "skus",
+        "products",
+        "sku_counters",
+    ]
     for table in tables:
-        await db.execute(f"UPDATE {table} SET deleted_at = ? WHERE deleted_at IS NULL", [now])
-    # Reset counters
-    await db.execute("DELETE FROM sku_counters")
+        await db.execute(f"DELETE FROM {table}")
     # Reset department sku_count
     await db.execute("UPDATE departments SET sku_count = 0")
     await db.commit()
-    print("Nuked existing catalog data (soft-deleted all rows, reset counters)")
+    print("Nuked existing catalog data (hard-deleted all rows, reset counters)")
 
 
 async def import_vendors() -> dict[str, str]:
@@ -77,7 +81,7 @@ async def import_classified(classified_path: Path, dry_run: bool = False) -> Non
     from catalog.infrastructure.department_repo import department_repo
     from catalog.infrastructure.vendor_item_repo import vendor_item_repo
     from catalog.infrastructure.vendor_repo import vendor_repo
-    from inventory.application.inventory_service import record_stock_import
+    from inventory.application.inventory_service import process_import_stock_changes
     from shared.infrastructure.logging_config import org_id_var
 
     data = json.loads(classified_path.read_text())
@@ -116,6 +120,8 @@ async def import_classified(classified_path: Path, dry_run: bool = False) -> Non
         dept_name, family_name = key.split("|", 1)
         dept = dept_by_name.get(dept_name)
         if not dept:
+            dept = dept_by_name.get("Miscellaneous")
+        if not dept:
             errors.append(f"Unknown department: {dept_name}")
             continue
 
@@ -135,32 +141,56 @@ async def import_classified(classified_path: Path, dry_run: bool = False) -> Non
         # Create each SKU under this family
         for item in members:
             barcode = item.get("barcode")
-            # Validate barcode length
-            if barcode and barcode.isdigit() and len(barcode) not in (12, 13):
-                barcode = None
+            # Skip barcodes that will fail check-digit validation
+            if barcode and barcode.isdigit():
+                if len(barcode) not in (12, 13):
+                    barcode = None
+                else:
+                    # Validate check digit — skip if invalid
+                    digits = [int(d) for d in barcode]
+                    if len(digits) == 12:
+                        check = (
+                            10
+                            - sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits[:11])) % 10
+                        ) % 10
+                        if check != digits[11]:
+                            barcode = None
+                    elif len(digits) == 13:
+                        check = (
+                            10
+                            - sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits[:12])) % 10
+                        ) % 10
+                        if check != digits[12]:
+                            barcode = None
 
             description = _strip_html(item.get("description"))
             qty = item.get("quantity", 0)
-
-            base_unit = item.get("base_unit", "each")
+            item_base_unit = item.get("base_unit", "each")
 
             async def on_stock_import(
-                sku_id: str, sku_code: str, name: str, quantity: float, _unit: str = base_unit
+                sku_id: str,
+                sku: str,
+                product_name: str,
+                quantity: float,
+                user_id: str,
+                user_name: str,
+                _unit: str = item_base_unit,
             ):
-                await record_stock_import(
+                await process_import_stock_changes(
                     sku_id=sku_id,
-                    sku=sku_code,
-                    product_name=name,
+                    sku=sku,
+                    product_name=product_name,
                     quantity=quantity,
+                    user_id=user_id,
+                    user_name=user_name,
                     unit=_unit,
-                    user_id="import",
-                    user_name="Hike Import",
                 )
 
             try:
                 sku = await create_sku(
                     product_family_id=family.id,
                     category_id=dept.id,
+                    category_name=dept.name,
                     name=item["name"],
                     description=description,
                     price=item.get("price", 0),
@@ -187,13 +217,19 @@ async def import_classified(classified_path: Path, dry_run: bool = False) -> Non
                 vendor_id = vendor_map.get(supplier) if supplier else None
 
                 if vendor_id and vendor_sku:
+                    from shared.kernel.units import ALLOWED_BASE_UNITS
+
+                    vi_uom = item.get("base_unit", "each")
+                    if vi_uom not in ALLOWED_BASE_UNITS:
+                        vi_uom = "each"
+
                     vi = VendorItem(
                         vendor_id=vendor_id,
                         vendor_name=supplier,
                         sku_id=sku.id,
                         vendor_sku=vendor_sku,
                         cost=item.get("cost", 0),
-                        purchase_uom=item.get("base_unit", "each"),
+                        purchase_uom=vi_uom,
                         purchase_pack_qty=item.get("pack_qty", 1),
                         is_preferred=True,
                         organization_id=org_id_var.get(),

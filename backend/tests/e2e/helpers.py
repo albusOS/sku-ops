@@ -10,13 +10,14 @@ def _unique_suffix() -> str:
 def create_product(client, headers, *, dept_id: str, **overrides) -> dict:
     """Create a product via the API. Returns the JSON body.
 
-    Appends a random suffix to the name so SKU slugs and barcodes
-    never collide across tests in the session-scoped e2e suite.
+    Prepends a random hex prefix to the name so the 6-char SKU slug is
+    always unique — prevents collisions across tests in the session-scoped
+    e2e suite and across repeated runs against the same database.
     """
     suffix = _unique_suffix()
     base_name = overrides.pop("name", "E2E Test Widget")
     data = {
-        "name": f"{base_name} {suffix}",
+        "name": f"{suffix} {base_name}",
         "barcode": f"E2E-{suffix}",
         "price": 10.00,
         "cost": 5.00,
