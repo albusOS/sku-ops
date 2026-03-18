@@ -80,15 +80,13 @@ def _seed_dept(client: TestClient, headers: dict) -> str:
 
 
 @pytest.fixture(scope="session")
-def app_client():
-    """TestClient that runs the full lifespan (DB init, event handlers, etc.).
+def app_client(_app_client):
+    """Alias for the root session-scoped TestClient.
 
-    Session-scoped: the app boots once for the entire E2E test suite.
+    E2E tests use app_client; we reuse the single shared instance to avoid
+    spinning up a second lifespan that would fight over the DB pool singleton.
     """
-    from server import app
-
-    with TestClient(app, raise_server_exceptions=False) as client:
-        yield client
+    return _app_client
 
 
 @pytest.fixture(scope="session")
