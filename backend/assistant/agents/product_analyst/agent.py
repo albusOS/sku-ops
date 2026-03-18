@@ -16,6 +16,7 @@ from typing import Any
 
 from pydantic_ai import Agent, RunContext
 
+from assistant.agents.core.config import load_agent_config
 from assistant.agents.core.contracts import UsageInfo
 from assistant.agents.core.model_registry import calc_cost, get_model, get_model_name
 from assistant.agents.core.tokens import budget_tool_result
@@ -65,11 +66,15 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
     if _agent is not None:
         return _agent
 
+    cfg = load_agent_config("product_analyst")
     _agent = Agent(
         get_model("agent:product_analyst"),
         deps_type=ProductAnalystDeps,
         system_prompt=_get_system_prompt(),
-        model_settings={"temperature": 0},
+        model_settings={
+            "temperature": cfg.temperature,
+            "max_tokens": cfg.max_output_tokens,
+        },
     )
 
     @_agent.tool

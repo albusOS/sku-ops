@@ -271,6 +271,12 @@ async def delete_unit(uom_id: str) -> int:
         return await _uom_repo.delete(uom_id)
 
 
+async def get_known_unit_codes() -> frozenset[str]:
+    """Return all active unit codes visible to the current org (global + org-specific)."""
+    units = await _uom_repo.list_all()
+    return frozenset(u.code for u in units)
+
+
 # ── Vendor queries ───────────────────────────────────────────────────────────
 
 

@@ -1985,6 +1985,9 @@ openai = [
     { name = "openai" },
     { name = "tiktoken" },
 ]
+openrouter = [
+    { name = "openai" },
+]
 retries = [
     { name = "tenacity" },
 ]
@@ -2598,7 +2601,7 @@ dependencies = [
     { name = "pyasn1" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
-    { name = "pydantic-ai-slim", extra = ["anthropic"] },
+    { name = "pydantic-ai-slim", extra = ["anthropic", "openrouter"] },
     { name = "pyjwt" },
     { name = "pypdf" },
     { name = "pytesseract" },
@@ -2642,7 +2645,7 @@ requires-dist = [
     { name = "pyasn1", specifier = ">=0.6.3" },
     { name = "pydantic", specifier = ">=2.6.4" },
     { name = "pydantic-ai", specifier = ">=1.0.0" },
-    { name = "pydantic-ai-slim", extras = ["anthropic"], specifier = ">=1.0.0" },
+    { name = "pydantic-ai-slim", extras = ["anthropic", "openrouter"], specifier = ">=1.0.0" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pypdf", specifier = ">=4.0.0" },
     { name = "pytesseract", specifier = ">=0.3.10" },

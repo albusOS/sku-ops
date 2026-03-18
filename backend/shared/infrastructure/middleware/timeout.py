@@ -30,7 +30,7 @@ REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "30"))
 AI_REQUEST_TIMEOUT = int(os.environ.get("AI_REQUEST_TIMEOUT", "120"))
 
 # Paths that get the longer AI timeout
-_AI_PREFIXES = ("/api/chat",)
+_AI_PREFIXES = ("/api/chat", "/api/beta/assistant/chat")
 
 # Paths excluded from timeout enforcement (long-lived connections)
 _EXCLUDED_PREFIXES = ("/api/ws", "/metrics")

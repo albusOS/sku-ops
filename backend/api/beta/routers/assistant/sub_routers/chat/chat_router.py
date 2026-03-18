@@ -1,6 +1,6 @@
 """Chat assistant route - HTTP fallback for when WebSocket is unavailable.
 
-The primary chat path is the WebSocket endpoint at /api/ws/chat which provides
+The primary chat path is the WebSocket endpoint at /api/beta/assistant/ws/chat which provides
 real-time token streaming. This POST endpoint is the fallback for environments
 where WebSocket connections are unreliable (e.g. some corporate proxies).
 

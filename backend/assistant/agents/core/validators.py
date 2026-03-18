@@ -22,11 +22,11 @@ Deterministic checks remain for things the LLM cannot self-verify:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
 import re
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 _NUMBER_RE = re.compile(r"\b\d[\d,]*\.?\d*\b|\B\.\d+\b")
 
 # ── Intent cache (avoids duplicate LLM calls for same message in same process) ─
-_intent_cache: dict[str, IntentClassification] = {}
+# OrderedDict so we evict the oldest entry (LRU-style) instead of clearing all.
+_intent_cache: OrderedDict[str, IntentClassification] = OrderedDict()
 _CACHE_MAX = 512
 
 
@@ -118,19 +119,14 @@ async def classify_intent(user_message: str) -> IntentClassification:
 
     try:
         from assistant.agents.core.model_registry import get_model_name
-        from assistant.infrastructure.llm import get_provider
+        from assistant.application.llm import generate_text
+        from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
 
-        provider = get_provider()
-        if not provider.available or provider.provider_name == "stub":
+        if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
             return _FALLBACK_INTENT
 
         model_id = get_model_name("infra:classifier")
-        raw = await asyncio.to_thread(
-            provider.generate_text,
-            user_message,
-            _CLASSIFIER_SYSTEM,
-            model_id,
-        )
+        raw = await generate_text(user_message, _CLASSIFIER_SYSTEM, model_id)
         if not raw:
             return _FALLBACK_INTENT
 
@@ -149,7 +145,7 @@ async def classify_intent(user_message: str) -> IntentClassification:
         )
 
         if len(_intent_cache) >= _CACHE_MAX:
-            _intent_cache.clear()
+            _intent_cache.popitem(last=False)
         _intent_cache[cache_key] = result
         return result
 

@@ -12,6 +12,8 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
+from assistant.agents.analyst import agent as _analyst_agent_mod
+from assistant.agents.core.config import load_agent_config
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import get_model
@@ -62,11 +64,15 @@ def _get_agent() -> Agent[AgentDeps, str]:
     global _agent
     if _agent is not None:
         return _agent
+    cfg = load_agent_config("unified")
     _agent = Agent(
         get_model("agent:unified"),
         deps_type=AgentDeps,
         system_prompt=SYSTEM_PROMPT,
-        model_settings={"temperature": 0},
+        model_settings={
+            "temperature": cfg.temperature,
+            "max_tokens": cfg.max_output_tokens,
+        },
     )
 
     # ── Lookup tools ─────────────────────────────────────────────────────────────
@@ -259,6 +265,21 @@ def _get_agent() -> Agent[AgentDeps, str]:
         except Exception:
             logger.exception("assess_business_health delegation failed")
             return "Health analysis hit an error. Please try again."
+
+    @_agent.tool
+    async def run_ad_hoc_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
+        """Delegate to the SQL analyst for ad hoc data questions: custom queries, period comparisons, cross-table joins, anything the pre-built tools can't answer."""
+        try:
+            result = await asyncio.wait_for(
+                _analyst_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
+                timeout=delegation_timeout,
+            )
+            return result.response
+        except TimeoutError:
+            return "Ad hoc analysis timed out. Try a more focused question."
+        except Exception:
+            logger.exception("run_ad_hoc_analysis delegation failed")
+            return "Ad hoc analysis hit an error. Please try again."
 
     return _agent
 

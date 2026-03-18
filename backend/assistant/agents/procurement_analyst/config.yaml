@@ -1,0 +1,25 @@
+id: procurement_analyst
+description: "Vendor reliability, smart reorder, lead times"
+prompt_file: prompt.md
+
+temperature: 0.0
+max_output_tokens: 4000
+
+retry:
+  max_retries: 3
+  timeout_seconds: 45
+  backoff_base: 1.0
+
+domains:
+  - purchasing
+  - inventory
+
+tools:
+  - get_reorder_with_vendor_context
+  - get_smart_reorder_points
+  - get_vendor_lead_times
+  - forecast_stockout
+  - get_vendor_performance
+  - get_vendor_catalog
+  - get_sku_vendor_options
+  - get_purchase_history

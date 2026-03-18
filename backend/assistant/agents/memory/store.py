@@ -87,8 +87,15 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
     logger.info("Memory: saved %d artifacts for user=%s", len(rows), user_id)
 
     # Embed + persist vectors in background (non-blocking). Keep reference to prevent GC.
+    def _on_embed_done(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc:
+            logger.warning("Background embed task failed: %s", exc, exc_info=exc)
+
     _embed_task = asyncio.create_task(_embed_artifacts(org_id, artifact_ids, artifact_contents))
-    _embed_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+    _embed_task.add_done_callback(_on_embed_done)
 
 
 async def _embed_artifacts(org_id: str, artifact_ids: list[str], contents: list[str]) -> None:

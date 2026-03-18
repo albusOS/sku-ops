@@ -25,6 +25,8 @@ class AgentConfig:
 
     id: str
     description: str = ""
+    model: str | None = None
+    prompt_file: str = "prompt.md"
     domains: list[str] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     max_output_tokens: int = 4000

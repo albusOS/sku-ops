@@ -1,150 +1,107 @@
-# Routing eval dataset — tests 4-path dispatch
-# expected_path: "trivial" | "lookup" | "report" | "inventory" | "ops" | "finance"
+# Routing eval dataset — tests that the unified agent uses the correct tools
+# Tool names match the unified agent's registered tool functions.
 
-# ── Trivial path ──────────────────────────────────────────────────────────────
+# ── Trivial / conversational (no tools expected) ──────────────────────────────
 
 - id: route-001
   input: "hi"
-  expected_path: trivial
+  assertions:
+    - max_output_tokens: 200
 
 - id: route-002
   input: "hello, how are you?"
-  expected_path: trivial
+  assertions:
+    - max_output_tokens: 200
 
 - id: route-003
-  input: "help"
-  expected_path: trivial
+  input: "what can you help me with?"
+  assertions:
+    - max_output_tokens: 500
 
-- id: route-004
-  input: "thanks"
-  expected_path: trivial
-
-- id: route-005
-  input: "goodbye"
-  expected_path: trivial
-
-# ── Lookup path (zero-LLM, single tool + template) ───────────────────────────
+# ── Lookup — inventory ────────────────────────────────────────────────────────
 
 - id: route-010
-  input: "do we have PVC pipes?"
-  expected_path: lookup
+  input: "do we have PVC pipes in stock?"
+  assertions:
+    - tool_called: search_skus
+    - max_output_tokens: 600
 
 - id: route-011
-  input: "search for copper fittings"
-  expected_path: lookup
+  input: "low stock items"
+  assertions:
+    - tool_called: list_low_stock
+    - max_output_tokens: 1000
 
 - id: route-012
-  input: "low stock items"
-  expected_path: lookup
+  input: "how many products do we have?"
+  assertions:
+    - tool_called: get_inventory_stats
+    - max_output_tokens: 400
 
 - id: route-013
-  input: "how many products do we have?"
-  expected_path: lookup
+  input: "list our departments"
+  assertions:
+    - tool_called: list_departments
+    - max_output_tokens: 600
 
 - id: route-014
-  input: "list departments"
-  expected_path: lookup
+  input: "who are our vendors?"
+  assertions:
+    - tool_called: list_vendors
+    - max_output_tokens: 600
+
+# ── Lookup — operations ───────────────────────────────────────────────────────
 
 - id: route-015
-  input: "who are our vendors"
-  expected_path: lookup
+  input: "show me recent withdrawals this week"
+  assertions:
+    - tool_called: list_recent_withdrawals
+    - max_output_tokens: 1000
 
 - id: route-016
   input: "pending material requests"
-  expected_path: lookup
+  assertions:
+    - tool_called: list_pending_material_requests
+    - max_output_tokens: 1000
+
+# ── Lookup — finance ──────────────────────────────────────────────────────────
 
 - id: route-017
-  input: "who owes us money"
-  expected_path: lookup
+  input: "invoice summary"
+  assertions:
+    - tool_called: get_invoice_summary
+    - max_output_tokens: 600
 
-# ── Report path (DAG + synthesis) ─────────────────────────────────────────────
+- id: route-018
+  input: "what's our revenue this month?"
+  assertions:
+    - tool_called: get_pl_summary
+    - max_output_tokens: 600
+
+# ── Report — workflow tools ───────────────────────────────────────────────────
 
 - id: route-020
   input: "give me a full inventory overview"
-  expected_path: report
+  assertions:
+    - tool_called: run_inventory_overview
+    - max_output_tokens: 3000
 
 - id: route-021
   input: "weekly sales report"
-  expected_path: report
+  assertions:
+    - tool_called: run_weekly_sales_report
+    - max_output_tokens: 3000
 
-- id: route-022
-  input: "how's the business doing?"
-  expected_path: report
-
-- id: route-023
-  input: "what's going to run out? stockout forecast"
-  expected_path: report
-
-- id: route-024
-  input: "what needs my attention today?"
-  expected_path: report
-
-- id: route-025
-  input: "finance overview"
-  expected_path: report
-
-- id: route-026
-  input: "what should we reorder?"
-  expected_path: report
-
-- id: route-027
-  input: "give me a dashboard summary"
-  expected_path: report
-
-# ── Reasoning path (specialist agents) ────────────────────────────────────────
+# ── Sub-agent delegation ──────────────────────────────────────────────────────
 
 - id: route-030
-  input: "what products need reordering and why?"
-  expected_path: report
+  input: "what products need reordering and why? analyze our procurement situation"
+  assertions:
+    - tool_called: analyze_procurement
+    - max_output_tokens: 3000
 
 - id: route-031
-  input: "department health breakdown"
-  expected_path: inventory
-
-- id: route-032
-  input: "slow movers in inventory"
-  expected_path: inventory
-
-- id: route-033
-  input: "barcode lookup 123456"
-  expected_path: inventory
-
-- id: route-034
-  input: "top selling products this month"
-  expected_path: inventory
-
-- id: route-035
-  input: "stockout forecast for next week"
-  expected_path: report
-
-- id: route-036
-  input: "what has john smith taken this month?"
-  expected_path: ops
-
-- id: route-037
-  input: "recent withdrawals this week"
-  expected_path: ops
-
-- id: route-038
-  input: "materials for job JOB-445"
-  expected_path: ops
-
-- id: route-039
-  input: "what's our revenue this week?"
-  expected_path: finance
-
-- id: route-040
-  input: "profit and loss report for last month"
-  expected_path: report
-
-- id: route-041
-  input: "invoice summary"
-  expected_path: finance
-
-- id: route-042
-  input: "who has the highest outstanding balance?"
-  expected_path: finance
-
-- id: route-043
-  input: "compare our margins this month vs last month"
-  expected_path: finance
+  input: "analyze our usage trends for the past month"
+  assertions:
+    - tool_called: analyze_trends
+    - max_output_tokens: 3000

@@ -142,6 +142,18 @@ class PostgresBackend:
                 raise RuntimeError(msg)
             logger.warning(msg)
 
+        # asyncpg >=0.31 defaults to sslmode=prefer, which tries SSL first.
+        # Local Docker / localhost Postgres doesn't support SSL, so append
+        # sslmode=disable to the URL for local hosts.  Remote (Supabase)
+        # connections keep the default (prefer → require on cloud).
+        from urllib.parse import urlparse
+
+        _host = (urlparse(url).hostname or "").lower()
+        _local_hosts = {"localhost", "127.0.0.1", "::1", "db"}
+        if _host in _local_hosts and "sslmode=" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}sslmode=disable"
+
         self._pool = await asyncpg.create_pool(
             url,
             min_size=min_size,

@@ -3,13 +3,7 @@ import { X, Send, Plus, Sparkles, Square, Wifi, WifiOff, Bot, RefreshCw } from "
 import api from "@/lib/api-client";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { useChatPanel } from "@/context/ChatContext";
-import {
-  STORAGE_KEY,
-  CHAT_MODES,
-  AGENT_SUGGESTIONS,
-  AGENT_PLACEHOLDER,
-  agentTypeForMode,
-} from "./chat/chatConfig";
+import { STORAGE_KEY, AGENT_SUGGESTIONS, AGENT_PLACEHOLDER } from "./chat/chatConfig";
 import { AgentActivity } from "./chat/AgentActivity";
 import { AgentBubble, StreamingBubble } from "./chat/MessageBubbles";
 
@@ -30,14 +24,6 @@ export default function ChatAssistant() {
       return null;
     }
   });
-  const [chatMode, setChatMode] = useState(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null")?.chatMode ?? "general";
-    } catch {
-      return "general";
-    }
-  });
-  const agentType = agentTypeForMode(chatMode);
   const [input, setInput] = useState("");
   const [aiAvailable, setAiAvailable] = useState(null);
   const [setupUrl, setSetupUrl] = useState(null);
@@ -91,15 +77,6 @@ export default function ChatAssistant() {
     if (sid) api.chat.deleteSession(sid).catch(() => {});
   };
 
-  const switchMode = useCallback(
-    (newMode) => {
-      if (newMode === chatMode) return;
-      if (streaming) wsCancel();
-      setChatMode(newMode);
-    },
-    [chatMode, streaming, wsCancel],
-  );
-
   const startNewChat = () => {
     if (streaming) wsCancel();
     clearSession(sessionId);
@@ -114,14 +91,11 @@ export default function ChatAssistant() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ messages, sessionId, chatMode, activeJobId }),
-      );
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId, activeJobId }));
     } catch {
       /* sessionStorage may be full or disabled */
     }
-  }, [messages, sessionId, chatMode, activeJobId]);
+  }, [messages, sessionId, activeJobId]);
 
   useEffect(() => {
     if (open && aiAvailable === null) {
@@ -146,13 +120,13 @@ export default function ChatAssistant() {
       const sid = sessionIdRef.current;
 
       if (connected) {
-        wsSend(text, sid, agentType);
+        wsSend(text, sid, "auto");
       } else {
         try {
           const data = await api.chat.send({
             message: text,
             session_id: sid,
-            agent_type: agentType,
+            agent_type: "auto",
           });
           handleDone(data);
         } catch (err) {
@@ -160,7 +134,7 @@ export default function ChatAssistant() {
         }
       }
     },
-    [input, streaming, connected, wsSend, agentType, handleDone, handleError],
+    [input, streaming, connected, wsSend, handleDone, handleError],
   );
 
   useEffect(() => {
@@ -186,8 +160,6 @@ export default function ChatAssistant() {
       sendMessage(input);
     }
   };
-
-  const suggestions = AGENT_SUGGESTIONS[chatMode] || AGENT_SUGGESTIONS.general;
 
   return (
     <>
@@ -267,25 +239,7 @@ export default function ChatAssistant() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1 border-b border-border/60 bg-muted/30 px-4 py-2 shrink-0 overflow-x-auto">
-              {CHAT_MODES.map((mode) => (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => switchMode(mode.id)}
-                  disabled={streaming}
-                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                    chatMode === mode.id
-                      ? "bg-accent text-accent-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-
-            {streaming && <AgentActivity tools={activeTools} agentType={agentType} />}
+            {streaming && <AgentActivity tools={activeTools} agentType="unified" />}
 
             <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
               <div className="mx-auto flex h-full w-full max-w-4xl flex-col space-y-5">
@@ -330,11 +284,9 @@ export default function ChatAssistant() {
                       <p className="text-2xl font-semibold text-foreground mb-2">
                         What can I help with?
                       </p>
-                      <p className="text-sm text-muted-foreground mb-8">
-                        {AGENT_PLACEHOLDER[chatMode]}
-                      </p>
+                      <p className="text-sm text-muted-foreground mb-8">{AGENT_PLACEHOLDER}</p>
                       <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
-                        {suggestions.map((s) => (
+                        {AGENT_SUGGESTIONS.map((s) => (
                           <button
                             key={s.label}
                             onClick={() => sendMessage(s.prompt)}
@@ -396,9 +348,7 @@ export default function ChatAssistant() {
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder={
-                        aiAvailable === false
-                          ? "Configure API key to enable"
-                          : AGENT_PLACEHOLDER[chatMode]
+                        aiAvailable === false ? "Configure API key to enable" : AGENT_PLACEHOLDER
                       }
                       rows={1}
                       className="min-h-[52px] max-h-[180px] flex-1 resize-none bg-transparent px-2 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50"

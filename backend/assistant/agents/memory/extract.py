@@ -3,16 +3,14 @@
 Called fire-and-forget via asyncio.create_task(). Never raises — failures are
 logged as warnings and silently discarded so they never affect the user.
 
-Uses the active LLM provider (OpenRouter or Anthropic) when available.
+Uses generate_text (PydanticAI-backed) when LLM is available.
 """
 
-import asyncio
 import json
 import logging
 
 from assistant.agents.core.model_registry import get_model_name
 from assistant.agents.memory.store import save
-from assistant.infrastructure.llm import get_provider
 from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
@@ -32,11 +30,14 @@ async def extract_and_save(
     if not history or len(history) < 4:
         return
     try:
-        try:
-            provider = get_provider()
-        except RuntimeError:
-            return
-        if not provider.available or provider.provider_name == "stub":
+        from assistant.application.llm import generate_text
+        from shared.infrastructure.config import (
+            ANTHROPIC_AVAILABLE,
+            OPENROUTER_AVAILABLE,
+            is_test,
+        )
+
+        if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
             return
 
         turns = []
@@ -50,11 +51,10 @@ async def extract_and_save(
 
         prompt = "\n\n".join(turns)
         model_id = get_model_name("infra:synthesis")
-        raw = await asyncio.to_thread(provider.generate_text, prompt, _EXTRACT_SYSTEM, model_id)
+        raw = await generate_text(prompt, _EXTRACT_SYSTEM, model_id)
         if not raw or not raw.strip():
             return
 
-        # Strip optional code fence (```json ... ``` or ``` ... ```)
         stripped = raw.strip()
         if stripped.startswith("```"):
             stripped = stripped.removeprefix("```json").removeprefix("```")

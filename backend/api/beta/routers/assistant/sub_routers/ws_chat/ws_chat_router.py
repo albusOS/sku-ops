@@ -385,6 +385,21 @@ async def _run_generation(
                 },
             }
             await job_manager.complete_job(job_id, partial_done)
+        else:
+            logger.warning(
+                "Generation ended with no output: job=%s session=%s agent=%s",
+                job_id,
+                session_id,
+                agent_label,
+            )
+            await job_manager.fail_job(
+                job_id,
+                {
+                    "type": "chat.error",
+                    "error_type": "empty_response",
+                    "detail": "No response generated. Please try again.",
+                },
+            )
 
     except asyncio.CancelledError:
         logger.debug("Generation task cancelled: job=%s session=%s", job_id, session_id)
@@ -403,9 +418,12 @@ async def _run_generation(
             agent_label,
         )
         chat_message(agent_label, error_type)
-        await job_manager.fail_job(
-            job_id, {"type": "chat.error", "error_type": error_type, "detail": detail}
-        )
+        try:
+            await job_manager.fail_job(
+                job_id, {"type": "chat.error", "error_type": error_type, "detail": detail}
+            )
+        except Exception:
+            logger.exception("fail_job itself failed for job=%s", job_id)
 
 
 async def _save_turn(
@@ -469,6 +487,14 @@ async def ws_chat_endpoint(websocket: WebSocket):
             pass
         except Exception:
             logger.warning("Relay task error for job %s", job_id, exc_info=True)
+            await _send(
+                ws,
+                {
+                    "type": "chat.error",
+                    "error_type": "relay_error",
+                    "detail": "Lost connection to generation stream. Try refreshing.",
+                },
+            )
 
     async def _heartbeat():
         while True:
@@ -719,9 +745,12 @@ async def _prepare_and_generate(
     except Exception as exc:
         error_type, detail = _classify_chat_error(exc)
         logger.exception("Pre-processing failed for job %s", job_id)
-        await job_manager.fail_job(
-            job_id, {"type": "chat.error", "error_type": error_type, "detail": detail}
-        )
+        try:
+            await job_manager.fail_job(
+                job_id, {"type": "chat.error", "error_type": error_type, "detail": detail}
+            )
+        except Exception:
+            logger.exception("fail_job itself failed for job=%s", job_id)
 
 
 # ---------------------------------------------------------------------------

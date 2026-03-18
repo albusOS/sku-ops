@@ -60,7 +60,7 @@ async def run_synthesis(
     """
     prompt = build_prompt(data)
     synthesis_model = get_model_name("infra:synthesis")
-    synthesized = await asyncio.to_thread(generate_text, prompt, system_prompt, synthesis_model)
+    synthesized = await generate_text(prompt, system_prompt, synthesis_model)
     if synthesized and synthesized.strip():
         return synthesized.strip()
     return fallback_fn(data)

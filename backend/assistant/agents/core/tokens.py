@@ -4,7 +4,6 @@ Uses cl100k_base encoding as an approximation for both Anthropic and
 OpenRouter models.  Not exact, but close enough for budget decisions.
 """
 
-import asyncio
 import json
 import logging
 
@@ -247,17 +246,15 @@ async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> 
     Returns None if LLM is unavailable. Never raises.
     """
     try:
-        from assistant.infrastructure.llm import get_provider
-
-        provider = get_provider()
-        if not provider.available or provider.provider_name == "stub":
-            return None
-
         from assistant.agents.core.model_registry import get_model_name
+        from assistant.application.llm import generate_text
+        from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
+
+        if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
+            return None
 
         model_id = get_model_name("infra:synthesis")
 
-        # Build a compact representation of the turns
         lines = []
         for t in turns:
             role = (t.get("role") or "user").upper()
@@ -268,8 +265,7 @@ async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> 
             return None
 
         text = "\n".join(lines)
-        result = await asyncio.to_thread(
-            provider.generate_text,
+        result = await generate_text(
             text,
             "Summarize this conversation concisely. Preserve: entity names, "
             "numbers, decisions made, questions still open, and any user "

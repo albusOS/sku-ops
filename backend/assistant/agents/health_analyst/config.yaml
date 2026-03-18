@@ -1,0 +1,32 @@
+id: health_analyst
+description: "Cross-domain triage and risk scoring"
+prompt_file: prompt.md
+
+temperature: 0.0
+max_output_tokens: 4000
+
+retry:
+  max_retries: 3
+  timeout_seconds: 45
+  backoff_base: 1.0
+
+domains:
+  - inventory
+  - finance
+  - purchasing
+  - operations
+
+tools:
+  - get_inventory_stats
+  - get_department_health
+  - list_low_stock
+  - forecast_stockout
+  - get_slow_movers
+  - get_carrying_cost
+  - get_vendor_lead_times
+  - get_pl_summary
+  - get_outstanding_balances
+  - get_ar_aging
+  - get_sku_margins
+  - get_department_profitability
+  - get_payment_status_breakdown

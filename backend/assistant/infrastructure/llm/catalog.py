@@ -92,7 +92,26 @@ def tier_max_output_tokens(tier_name: str) -> int:
 
 
 def _strip_prefix(model_id: str) -> str:
-    """'anthropic:claude-sonnet-4-6' or 'anthropic/claude-...' -> normalized."""
-    if model_id.startswith(("anthropic:", "openai:")):
-        return model_id.split(":", 1)[1]
+    """Normalise a PydanticAI model string to the catalog's bare model ID.
+
+    PydanticAI uses colon-separated provider prefixes (anthropic:claude-sonnet-4-6).
+    The catalog uses slash-separated provider/model keys (anthropic/claude-sonnet-4-6).
+    This function converts between the two so cost lookups work regardless of which
+    format the caller provides.
+
+    Examples:
+        "anthropic:claude-sonnet-4-6"  → "anthropic/claude-sonnet-4-6"
+        "openrouter:anthropic/claude-sonnet-4-6" → "anthropic/claude-sonnet-4-6"
+        "anthropic/claude-sonnet-4-6"  → "anthropic/claude-sonnet-4-6" (unchanged)
+    """
+    pydantic_ai_providers = ("anthropic", "openai", "openrouter", "google", "mistral")
+    for provider in pydantic_ai_providers:
+        prefix = f"{provider}:"
+        if model_id.startswith(prefix):
+            bare = model_id[len(prefix) :]
+            # openrouter wraps the real provider/model — return as-is
+            if provider == "openrouter":
+                return bare
+            # For direct providers, reconstruct the catalog-style provider/model key
+            return f"{provider}/{bare}"
     return model_id
