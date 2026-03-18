@@ -200,6 +200,36 @@ def _get_agent() -> Agent[AgentDeps, str]:
         result = await run_workflow("inventory_overview", deps)
         return result.synthesized_markdown
 
+    @_agent.tool
+    async def run_procurement_overview(ctx: RunContext[AgentDeps]) -> str:
+        """Full procurement overview: what to order now, urgency, vendor grouping, and PO pipeline."""
+        trace_id = ctx.deps.trace_id or None
+        deps = WorkflowDeps(
+            org_id=get_org_id(), user_id=ctx.deps.user_id, days=30, trace_id=trace_id
+        )
+        result = await run_workflow("procurement_overview", deps)
+        return result.synthesized_markdown
+
+    @_agent.tool
+    async def run_trend_overview(ctx: RunContext[AgentDeps], days: int = 30) -> str:
+        """Full trend overview: broad demand shifts, top SKUs, department movement, and activity patterns."""
+        trace_id = ctx.deps.trace_id or None
+        deps = WorkflowDeps(
+            org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id
+        )
+        result = await run_workflow("trend_overview", deps)
+        return result.synthesized_markdown
+
+    @_agent.tool
+    async def run_health_overview(ctx: RunContext[AgentDeps], days: int = 30) -> str:
+        """Full health overview: urgent risks, cash/inventory drag, pending requests, and prioritized actions."""
+        trace_id = ctx.deps.trace_id or None
+        deps = WorkflowDeps(
+            org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id
+        )
+        result = await run_workflow("health_overview", deps)
+        return result.synthesized_markdown
+
     # ── Entity graph traversal ───────────────────────────────────────────────────
 
     @_agent.tool
@@ -293,7 +323,7 @@ async def run(
     deps: AgentDeps,
     session_id: str = "",
 ) -> dict:
-    return await run_specialist(
+    result = await run_specialist(
         _get_agent(),
         user_message,
         msg_history=build_message_history(history),
@@ -303,3 +333,7 @@ async def run(
         session_id=session_id,
         history=history,
     )
+    from assistant.application.workflows.registry import response_agent_label
+
+    result["agent"] = response_agent_label(result.get("agent", "unified"), result.get("tool_calls"))
+    return result

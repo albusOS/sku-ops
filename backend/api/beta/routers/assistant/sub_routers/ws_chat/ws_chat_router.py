@@ -60,6 +60,7 @@ from assistant.application import job_manager, session_store
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
 from assistant.application.job_manager import GENERATION_TIMEOUT
+from assistant.application.workflows.registry import response_agent_label
 from assistant.infrastructure.agent_run_repo import log_agent_run
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
@@ -328,10 +329,11 @@ async def _run_generation(
 
                     asyncio.create_task(_log_run())  # noqa: RUF006
 
+                    ui_agent_label = response_agent_label(agent_label, tool_calls_final)
                     done_event = {
                         "type": "chat.done",
                         "response": full_text,
-                        "agent": agent_label,
+                        "agent": ui_agent_label,
                         "tool_calls": tool_calls_final,
                         "thinking": [],
                         "blocks": deps.blocks or [],
@@ -359,7 +361,7 @@ async def _run_generation(
             cancel_done = {
                 "type": "chat.done",
                 "response": response,
-                "agent": agent_label,
+                "agent": response_agent_label(agent_label, tool_calls_seen),
                 "tool_calls": tool_calls_seen,
                 "thinking": [],
                 "session_id": session_id,
@@ -375,7 +377,7 @@ async def _run_generation(
             partial_done = {
                 "type": "chat.done",
                 "response": full_text,
-                "agent": agent_label,
+                "agent": response_agent_label(agent_label, tool_calls_seen),
                 "tool_calls": tool_calls_seen,
                 "thinking": [],
                 "session_id": session_id,
@@ -690,22 +692,32 @@ async def _prepare_and_generate(
     try:
         history = await session_store.get_or_create(session_id)
 
-        query_embedding = await _get_query_embedding(user_message)
-        is_first_turn = not history
-
-        compress_task = asyncio.create_task(compress_history_async(history))
-        context_task = asyncio.create_task(
-            assemble_context(
-                query=user_message,
-                user_id=user_id,
-                include_memory=is_first_turn,
-                query_embedding=query_embedding,
-            )
-        )
-
         requested_agent = (msg.get("agent_type") or "").strip().lower()
         specialist_agents = frozenset({"procurement", "trend", "health"})
         route = requested_agent if requested_agent in specialist_agents else "unified"
+        is_first_turn = not history
+
+        compress_task = asyncio.create_task(compress_history_async(history))
+        if route in specialist_agents:
+            context_task = asyncio.create_task(
+                assemble_context(
+                    query=user_message,
+                    user_id=user_id,
+                    include_graph=False,
+                    include_memory=False,
+                    max_entity_hits=0,
+                )
+            )
+        else:
+            query_embedding = await _get_query_embedding(user_message)
+            context_task = asyncio.create_task(
+                assemble_context(
+                    query=user_message,
+                    user_id=user_id,
+                    include_memory=is_first_turn,
+                    query_embedding=query_embedding,
+                )
+            )
 
         compressed = await compress_task
         history = compressed if compressed is not None else history

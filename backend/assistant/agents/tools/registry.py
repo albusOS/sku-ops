@@ -22,6 +22,8 @@ class ToolEntry:
     name: str
     domain: str
     fn: ToolFn
+    description: str = ""
+    arg_names: list[str] = field(default_factory=list)
     use_cases: list[str] = field(default_factory=list)
 
 
@@ -37,7 +39,17 @@ def register(
     **_kwargs: object,
 ) -> None:
     """Register a tool. Called at import time by each agent package."""
-    entry = ToolEntry(name=name, domain=domain, fn=fn, use_cases=use_cases or [])
+    sig = inspect.signature(fn)
+    doc = inspect.getdoc(fn) or ""
+    description = doc.strip().splitlines()[0] if doc.strip() else ""
+    entry = ToolEntry(
+        name=name,
+        domain=domain,
+        fn=fn,
+        description=description,
+        arg_names=list(sig.parameters.keys()),
+        use_cases=use_cases or [],
+    )
     _TOOLS[name] = entry
 
 

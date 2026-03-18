@@ -67,23 +67,38 @@ async def chat(
 
     ctx = ctx or {}
     user_id = ctx.get("user_id", "")
+    specialist_agents = frozenset({"procurement", "trend", "health"})
+    route = agent_type if agent_type in specialist_agents else "unified"
     deps = AgentDeps(
         user_id=user_id,
         user_name=ctx.get("user_name", ""),
     )
 
-    query_embedding = await _get_query_embedding(user_message)
-
     # Run independent pre-processing concurrently
     compress_task = asyncio.create_task(compress_history_async(history))
-    context_task = asyncio.create_task(
-        assemble_context(
-            query=user_message,
-            user_id=user_id,
-            session_state=session_state,
-            query_embedding=query_embedding,
+    if route in specialist_agents:
+        # Specialists already have focused tools; skip semantic recall/graph enrichment
+        # to keep delegated runs responsive.
+        context_task = asyncio.create_task(
+            assemble_context(
+                query=user_message,
+                user_id=user_id,
+                session_state=session_state,
+                include_graph=False,
+                include_memory=False,
+                max_entity_hits=0,
+            )
         )
-    )
+    else:
+        query_embedding = await _get_query_embedding(user_message)
+        context_task = asyncio.create_task(
+            assemble_context(
+                query=user_message,
+                user_id=user_id,
+                session_state=session_state,
+                query_embedding=query_embedding,
+            )
+        )
 
     history = await compress_task or history
     assembled = await context_task
@@ -95,10 +110,6 @@ async def chat(
     context_block = assembled.format_for_agent()
     if context_block:
         history = [{"role": "system", "content": context_block}] + (history or [])
-
-    # Route is determined by the user's explicit mode selection from the frontend.
-    specialist_agents = frozenset({"procurement", "trend", "health"})
-    route = agent_type if agent_type in specialist_agents else "unified"
 
     logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
 

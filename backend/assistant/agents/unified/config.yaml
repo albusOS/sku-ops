@@ -45,3 +45,6 @@ tools:
   # Workflow runners
   - run_weekly_sales_report
   - run_inventory_overview
+  - run_procurement_overview
+  - run_trend_overview
+  - run_health_overview

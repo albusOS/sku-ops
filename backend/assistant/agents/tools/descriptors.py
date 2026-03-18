@@ -25,10 +25,9 @@ def get_unified_tool_descriptors() -> dict[str, ToolDescriptor]:
     init_tools()
     descriptors: dict[str, ToolDescriptor] = {}
     for name, entry in all_tools().items():
-        doc = (entry.fn.__doc__ or "").strip().split("\n")[0]
         descriptors[name] = ToolDescriptor(
             name=name,
-            description=doc,
+            description=entry.description,
             use_cases=entry.use_cases,
         )
     return descriptors

@@ -6,7 +6,12 @@ Other bounded contexts import from here, never from purchasing.infrastructure di
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
 
-from catalog.application.queries import get_sku_by_id as _get_product
+from catalog.application.queries import (
+    get_sku_by_id as _get_product,
+)
+from catalog.application.queries import (
+    get_vendor_items_for_skus as _get_vendor_items_for_skus,
+)
 from purchasing.domain.purchase_order import POItemRow, PORow, VendorPerformance
 from purchasing.infrastructure.po_repo import po_repo as _po_repo
 from shared.infrastructure.database import get_connection, get_org_id
@@ -242,18 +247,22 @@ async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
         ReorderRow(**dict(r), vendor_options=[], deficit=0.0) for r in await cursor.fetchall()
     ]
 
+    vendor_items_by_sku = await _get_vendor_items_for_skus([item["sku_id"] for item in low_stock])
     for item in low_stock:
-        vi_cursor = await conn.execute(
-            """SELECT vi.vendor_id, vi.vendor_name, vi.cost, vi.lead_time_days,
-                      vi.moq, vi.is_preferred, vi.purchase_uom, vi.purchase_pack_qty
-               FROM vendor_items vi
-               WHERE vi.sku_id = $1
-                 AND (vi.organization_id = $2 OR vi.organization_id IS NULL)
-                 AND vi.deleted_at IS NULL
-               ORDER BY vi.is_preferred DESC, vi.cost ASC""",
-            (item["sku_id"], org_id),
-        )
-        item["vendor_options"] = [dict(r) for r in await vi_cursor.fetchall()]
+        vendor_items = vendor_items_by_sku.get(item["sku_id"], [])
+        item["vendor_options"] = [
+            {
+                "vendor_id": vi.vendor_id,
+                "vendor_name": vi.vendor_name,
+                "cost": vi.cost,
+                "lead_time_days": vi.lead_time_days,
+                "moq": vi.moq,
+                "is_preferred": vi.is_preferred,
+                "purchase_uom": vi.purchase_uom,
+                "purchase_pack_qty": vi.purchase_pack_qty,
+            }
+            for vi in vendor_items
+        ]
         item["deficit"] = round(item["min_stock"] - item["quantity"], 2)
 
     return low_stock

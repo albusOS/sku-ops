@@ -7,6 +7,14 @@ import { STORAGE_KEY, AGENT_SUGGESTIONS, AGENT_PLACEHOLDER } from "./chat/chatCo
 import { AgentActivity } from "./chat/AgentActivity";
 import { AgentBubble, StreamingBubble } from "./chat/MessageBubbles";
 
+const REPORT_TOOLS = new Set([
+  "run_weekly_sales_report",
+  "run_inventory_overview",
+  "run_procurement_overview",
+  "run_trend_overview",
+  "run_health_overview",
+]);
+
 export default function ChatAssistant() {
   const { open, setOpen, pendingPromptRef } = useChatPanel();
 
@@ -161,6 +169,8 @@ export default function ChatAssistant() {
     }
   };
 
+  const activeAgentType = activeTools.some((tool) => REPORT_TOOLS.has(tool)) ? "dag" : "unified";
+
   return (
     <>
       {/* FAB trigger */}
@@ -239,7 +249,7 @@ export default function ChatAssistant() {
               </div>
             </div>
 
-            {streaming && <AgentActivity tools={activeTools} agentType="unified" />}
+            {streaming && <AgentActivity tools={activeTools} agentType={activeAgentType} />}
 
             <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
               <div className="mx-auto flex h-full w-full max-w-4xl flex-col space-y-5">

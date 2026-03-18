@@ -148,6 +148,14 @@ async def get_vendor_items_for_sku(sku_id: str) -> list[VendorItem]:
     return await _vi_repo.list_by_sku(sku_id)
 
 
+async def get_vendor_items_for_skus(sku_ids: list[str]) -> dict[str, list[VendorItem]]:
+    items = await _vi_repo.list_by_skus(sku_ids)
+    grouped: dict[str, list[VendorItem]] = {}
+    for item in items:
+        grouped.setdefault(item.sku_id, []).append(item)
+    return grouped
+
+
 async def find_vendor_item_by_vendor_and_sku_code(
     vendor_id: str, vendor_sku: str
 ) -> VendorItem | None:

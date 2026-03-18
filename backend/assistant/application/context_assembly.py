@@ -107,16 +107,17 @@ async def assemble_context(
 
     tasks = {}
 
-    tasks["vector"] = asyncio.create_task(
-        _vector_search(query, max_entity_hits, query_embedding=query_embedding)
-    )
+    if max_entity_hits > 0:
+        tasks["vector"] = asyncio.create_task(
+            _vector_search(query, max_entity_hits, query_embedding=query_embedding)
+        )
 
     if include_memory:
         tasks["memory"] = asyncio.create_task(
             _recall_memory(user_id, query, max_memory_items, query_embedding=query_embedding)
         )
 
-    entity_hits = await tasks["vector"]
+    entity_hits = await tasks["vector"] if "vector" in tasks else []
     ctx.entity_hits = entity_hits
 
     if include_graph and (entity_hits or ctx.active_entities):

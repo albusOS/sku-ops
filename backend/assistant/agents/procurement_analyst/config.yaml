@@ -1,5 +1,5 @@
 id: procurement_analyst
-description: "Vendor reliability, smart reorder, lead times"
+description: "Procurement decision agent for buy-plan, vendor, SKU sourcing, and PO-history questions"
 prompt_file: prompt.md
 
 temperature: 0.0
@@ -15,6 +15,7 @@ domains:
   - inventory
 
 tools:
+  - get_procurement_snapshot
   - get_reorder_with_vendor_context
   - get_smart_reorder_points
   - get_vendor_lead_times

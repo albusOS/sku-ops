@@ -70,6 +70,24 @@ async def list_by_sku(sku_id: str) -> list[VendorItem]:
     return [vi for r in rows if (vi := _row_to_model(r)) is not None]
 
 
+async def list_by_skus(sku_ids: list[str]) -> list[VendorItem]:
+    """Return vendor items for multiple SKUs in a single query."""
+    if not sku_ids:
+        return []
+    conn = get_connection()
+    org_id = get_org_id()
+    cursor = await conn.execute(
+        """SELECT * FROM vendor_items
+           WHERE sku_id = ANY($1::text[])
+             AND (organization_id = $2 OR organization_id IS NULL)
+             AND deleted_at IS NULL
+           ORDER BY sku_id, is_preferred DESC, cost ASC NULLS LAST, vendor_name""",
+        (sku_ids, org_id),
+    )
+    rows = await cursor.fetchall()
+    return [vi for r in rows if (vi := _row_to_model(r)) is not None]
+
+
 async def list_by_vendor(vendor_id: str) -> list[VendorItem]:
     conn = get_connection()
     org_id = get_org_id()
@@ -185,6 +203,7 @@ class VendorItemRepo:
     insert = staticmethod(insert)
     get_by_id = staticmethod(get_by_id)
     list_by_sku = staticmethod(list_by_sku)
+    list_by_skus = staticmethod(list_by_skus)
     list_by_vendor = staticmethod(list_by_vendor)
     find_by_vendor_and_vendor_sku = staticmethod(find_by_vendor_and_vendor_sku)
     find_by_sku_and_vendor = staticmethod(find_by_sku_and_vendor)
