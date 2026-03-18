@@ -154,7 +154,7 @@ async def vendor_performance(
 
     cursor = await conn.execute(
         """SELECT COUNT(*) AS po_count,
-                  ROUND(COALESCE(SUM(total), 0), 2) AS total_spend,
+                  ROUND(COALESCE(SUM(total), 0)::NUMERIC, 2) AS total_spend,
                   SUM(CASE WHEN status = 'received' THEN 1 ELSE 0 END) AS received_count
            FROM purchase_orders
            WHERE vendor_id = $1 AND organization_id = $2 AND created_at >= $3""",
@@ -166,10 +166,10 @@ async def vendor_performance(
         """SELECT ROUND(CAST(AVG(
                     EXTRACT(EPOCH FROM (po.received_at::timestamp - po.created_at::timestamp)) / 86400.0
                   ) AS NUMERIC), 1) AS avg_lead_time_days,
-                  ROUND(
+                  ROUND((
                     SUM(poi.delivered_qty) * 1.0
-                    / NULLIF(SUM(poi.ordered_qty), 0), 2
-                  ) AS fill_rate
+                    / NULLIF(SUM(poi.ordered_qty), 0)
+                  )::NUMERIC, 2) AS fill_rate
            FROM purchase_orders po
            JOIN purchase_order_items poi ON poi.po_id = po.id
            WHERE po.vendor_id = $1 AND po.organization_id = $2

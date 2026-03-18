@@ -159,6 +159,11 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    from api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router import (
+        shutdown_generation_tasks,
+    )
+
+    await shutdown_generation_tasks()
     warmup_task.cancel()
     with suppress(asyncio.CancelledError):
         await warmup_task

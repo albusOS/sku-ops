@@ -18,18 +18,24 @@ function buildWsUrl(token) {
 }
 
 /**
- * WebSocket hook for AI chat streaming.
+ * WebSocket hook for AI chat streaming with async job model.
+ *
+ * The backend runs agent generation as a standalone background task.
+ * The WS connection is a thin relay — if it drops and reconnects, we
+ * send `chat.resume` with the active job_id to reattach to the running
+ * generation without losing progress.
  *
  * Returns:
- *   send(msg)     — send a chat message
- *   cancel()      — abort current generation
- *   connected     — whether the socket is open
- *   streaming     — whether a response is actively being generated
- *   streamText    — accumulated text during streaming
- *   activeTools   — tool names called during current generation
- *   lastResult    — the final chat.done payload
- *   lastError     — last error message from the server
- *   clearResult() — reset lastResult/lastError
+ *   send(msg)      — send a chat message
+ *   cancel()       — abort current generation
+ *   connected      — whether the socket is open
+ *   streaming      — whether a response is actively being generated
+ *   streamText     — accumulated text during streaming
+ *   activeTools    — tool names called during current generation
+ *   activeJobId    — ID of the currently running job (null when idle)
+ *   lastResult     — the final chat.done payload
+ *   lastError      — last error message from the server
+ *   clearResult()  — reset lastResult/lastError
  */
 export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled = true } = {}) {
   const { token } = useAuth();
@@ -39,17 +45,23 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
   const heartbeatTimerRef = useRef(null);
   const callbacksRef = useRef({ onDelta, onToolStart, onDone, onError });
   const scheduleReconnectRef = useRef(null);
+  const activeJobIdRef = useRef(null);
 
   const [connected, setConnected] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [activeTools, setActiveTools] = useState([]);
+  const [activeJobId, setActiveJobId] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [lastError, setLastError] = useState(null);
 
   useEffect(() => {
     callbacksRef.current = { onDelta, onToolStart, onDone, onError };
   });
+
+  useEffect(() => {
+    activeJobIdRef.current = activeJobId;
+  }, [activeJobId]);
 
   const resetHeartbeat = useCallback(() => {
     clearTimeout(heartbeatTimerRef.current);
@@ -72,6 +84,15 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
       retriesRef.current = 0;
       setConnected(true);
       resetHeartbeat();
+
+      const pendingJobId = activeJobIdRef.current;
+      if (pendingJobId) {
+        try {
+          ws.send(JSON.stringify({ type: "chat.resume", job_id: pendingJobId }));
+        } catch {
+          /* WS may not be ready */
+        }
+      }
     };
 
     ws.onmessage = (e) => {
@@ -94,10 +115,17 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
         return;
       }
 
-      if (type === "chat.status") {
+      if (type === "chat.job_started") {
+        setActiveJobId(msg.job_id);
         setStreaming(true);
         setStreamText("");
         setActiveTools([]);
+        setLastError(null);
+        return;
+      }
+
+      if (type === "chat.status") {
+        setStreaming(true);
         setLastError(null);
         return;
       }
@@ -114,10 +142,16 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
         return;
       }
 
+      if (type === "chat.block") {
+        callbacksRef.current.onDone?.({ ...msg, _isBlock: true });
+        return;
+      }
+
       if (type === "chat.done") {
         setStreaming(false);
         setStreamText("");
         setActiveTools([]);
+        setActiveJobId(null);
         setLastResult(msg);
         callbacksRef.current.onDone?.(msg);
         return;
@@ -127,6 +161,7 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
         setStreaming(false);
         setStreamText("");
         setActiveTools([]);
+        setActiveJobId(null);
         setLastError(msg.detail || "Unknown error");
         callbacksRef.current.onError?.(msg.detail || "Unknown error");
         return;
@@ -207,6 +242,7 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
     setStreaming(false);
     setStreamText("");
     setActiveTools([]);
+    setActiveJobId(null);
   }, []);
 
   const clearResult = useCallback(() => {
@@ -221,6 +257,7 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
     streaming,
     streamText,
     activeTools,
+    activeJobId,
     lastResult,
     lastError,
     clearResult,

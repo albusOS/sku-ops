@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Send, Plus, Sparkles, Square, Wifi, WifiOff, Bot } from "lucide-react";
+import { X, Send, Plus, Sparkles, Square, Wifi, WifiOff, Bot, RefreshCw } from "lucide-react";
 import api from "@/lib/api-client";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { useChatPanel } from "@/context/ChatContext";
@@ -78,11 +78,14 @@ export default function ChatAssistant() {
     streaming,
     streamText,
     activeTools,
+    activeJobId,
   } = useChatSocket({
     onDone: handleDone,
     onError: handleError,
     enabled: open,
   });
+
+  const isReconnecting = !connected && !!activeJobId;
 
   const clearSession = (sid) => {
     if (sid) api.chat.deleteSession(sid).catch(() => {});
@@ -111,11 +114,14 @@ export default function ChatAssistant() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId, chatMode }));
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ messages, sessionId, chatMode, activeJobId }),
+      );
     } catch {
       /* sessionStorage may be full or disabled */
     }
-  }, [messages, sessionId, chatMode]);
+  }, [messages, sessionId, chatMode, activeJobId]);
 
   useEffect(() => {
     if (open && aiAvailable === null) {
@@ -225,12 +231,14 @@ export default function ChatAssistant() {
                     </h2>
                     <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
-                        {connected ? (
+                        {isReconnecting ? (
+                          <RefreshCw className="w-3 h-3 text-warning animate-spin" />
+                        ) : connected ? (
                           <Wifi className="w-3 h-3 text-success" />
                         ) : (
                           <WifiOff className="w-3 h-3 text-muted-foreground" />
                         )}
-                        {connected ? "Connected" : "Offline"}
+                        {isReconnecting ? "Reconnecting..." : connected ? "Connected" : "Offline"}
                       </span>
                       {sessionCost > 0 && <span>Session ${sessionCost.toFixed(4)}</span>}
                     </div>

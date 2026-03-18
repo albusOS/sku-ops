@@ -3,6 +3,9 @@
 The primary chat path is the WebSocket endpoint at /api/ws/chat which provides
 real-time token streaming. This POST endpoint is the fallback for environments
 where WebSocket connections are unreliable (e.g. some corporate proxies).
+
+Timeout matches the standalone generation ceiling from the job model so
+complex queries don't fail differently between the two paths.
 """
 
 import asyncio
@@ -14,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 from assistant.api.schemas import ChatRequest
 from assistant.application import session_store
 from assistant.application.assistant import chat, recall_memory, schedule_memory_extraction
+from assistant.application.job_manager import GENERATION_TIMEOUT
 from shared.api.deps import AdminDep
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
@@ -102,7 +106,7 @@ async def chat_assistant(
                 agent_type=data.agent_type,
                 session_id=session_id,
             ),
-            timeout=120,
+            timeout=GENERATION_TIMEOUT,
         )
     except TimeoutError as e:
         raise HTTPException(

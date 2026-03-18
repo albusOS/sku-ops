@@ -3,7 +3,7 @@
 Tests cover:
   - Authentication (valid/invalid/expired tokens, role-based access)
   - Protocol correctness (ping/pong, chat flow, cancel)
-  - Streaming event sequence (status → deltas/tool_start → done)
+  - Streaming event sequence (job_started → status → deltas/tool_start → done)
   - Error handling (empty message, duplicate generation, AI not configured)
   - Session management (session_id assignment, cost cap)
   - Connection lifecycle (heartbeat, graceful close)
@@ -189,7 +189,6 @@ class TestWSChatStreaming:
                     }
                 )
             )
-            # Receive heartbeat pings and the error
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
             error = _find_msg(messages, "chat.error")
             assert error is not None
@@ -240,7 +239,7 @@ class TestWSChatStreaming:
         True,
     )
     def test_streaming_event_sequence(self, mock_get_agent, client):
-        """Verify the full event sequence: status → deltas → done."""
+        """Verify the full event sequence: job_started → status → deltas → done."""
         mock_stream = _make_mock_stream(
             text_chunks=["Hello ", "world!", " How can I help?"],
             tool_names=["search_products"],
@@ -260,7 +259,11 @@ class TestWSChatStreaming:
                 )
             )
 
-            messages = _collect_messages(ws, until_type="chat.done", max_msgs=20)
+            messages = _collect_messages(ws, until_type="chat.done", max_msgs=25)
+
+            job_started = _find_msg(messages, "chat.job_started")
+            assert job_started is not None
+            assert "job_id" in job_started
 
             status = _find_msg(messages, "chat.status")
             assert status is not None
@@ -304,7 +307,7 @@ class TestWSChatStreaming:
                     }
                 )
             )
-            messages = _collect_messages(ws, until_type="chat.done", max_msgs=10)
+            messages = _collect_messages(ws, until_type="chat.done", max_msgs=15)
             done = _find_msg(messages, "chat.done")
             assert done is not None
             assert done["session_id"]
@@ -333,7 +336,7 @@ class TestWSChatStreaming:
                     }
                 )
             )
-            messages = _collect_messages(ws, until_type="chat.done", max_msgs=10)
+            messages = _collect_messages(ws, until_type="chat.done", max_msgs=15)
             done = _find_msg(messages, "chat.done")
             assert done["session_id"] == "my-session-123"
 
@@ -351,7 +354,7 @@ class TestWSChatStreaming:
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "Show P&L"}))
-            messages = _collect_messages(ws, until_type="chat.done", max_msgs=10)
+            messages = _collect_messages(ws, until_type="chat.done", max_msgs=15)
             done = _find_msg(messages, "chat.done")
             usage = done["usage"]
             assert "cost_usd" in usage
@@ -384,7 +387,7 @@ class TestWSChatErrors:
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "Hello"}))
-            messages = _collect_messages(ws, until_type="chat.error", max_msgs=10)
+            messages = _collect_messages(ws, until_type="chat.error", max_msgs=15)
             error = _find_msg(messages, "chat.error")
             assert error is not None
             assert "wrong" in error["detail"].lower()
@@ -414,11 +417,9 @@ class TestWSChatErrors:
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
             ws.send_text(json.dumps({"type": "chat", "message": "First message"}))
-            # Wait for status to confirm generation started
-            messages = _collect_messages(ws, until_type="chat.status", max_msgs=5)
-            assert _find_msg(messages, "chat.status") is not None
+            messages = _collect_messages(ws, until_type="chat.job_started", max_msgs=5)
+            assert _find_msg(messages, "chat.job_started") is not None
 
-            # Send second message while still generating
             ws.send_text(json.dumps({"type": "chat", "message": "Second message"}))
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
             error = _find_msg(messages, "chat.error")

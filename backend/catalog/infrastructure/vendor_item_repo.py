@@ -176,7 +176,7 @@ async def clear_preferred_for_sku(sku_id: str) -> None:
     conn = get_connection()
     org_id = get_org_id()
     await conn.execute(
-        "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "UPDATE vendor_items SET is_preferred = 0 WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
         (sku_id, org_id),
     )
 
