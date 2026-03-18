@@ -89,6 +89,7 @@ class SkuUpdate(BaseModel):
 class Sku(AuditedEntity):
     sku: str
     product_family_id: str = ""
+    product_family_name: str = ""
     name: str
     description: str = ""
     price: float

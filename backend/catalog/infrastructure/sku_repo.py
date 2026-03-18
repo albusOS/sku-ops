@@ -35,25 +35,29 @@ async def list_skus(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    base = f"SELECT * FROM skus WHERE (organization_id = ${n} OR organization_id IS NULL) AND deleted_at IS NULL"
+    base = (
+        f"SELECT s.*, p.name AS product_family_name FROM skus s"
+        f" LEFT JOIN products p ON p.id = s.product_family_id"
+        f" WHERE (s.organization_id = ${n} OR s.organization_id IS NULL) AND s.deleted_at IS NULL"
+    )
     params: list = [org_id]
     n += 1
     if category_id:
-        base += f" AND category_id = ${n}"
+        base += f" AND s.category_id = ${n}"
         params.append(category_id)
         n += 1
     if product_family_id:
-        base += f" AND product_family_id = ${n}"
+        base += f" AND s.product_family_id = ${n}"
         params.append(product_family_id)
         n += 1
     if search:
-        base += f" AND (name LIKE ${n} OR sku LIKE ${n + 1} OR barcode LIKE ${n + 2})"
+        base += f" AND (s.name LIKE ${n} OR s.sku LIKE ${n + 1} OR s.barcode LIKE ${n + 2})"
         term = f"%{search}%"
         params.extend([term, term, term])
         n += 3
     if low_stock:
-        base += " AND quantity <= min_stock"
-    base += " ORDER BY name"
+        base += " AND s.quantity <= s.min_stock"
+    base += " ORDER BY s.name"
     if limit is not None:
         base += f" LIMIT ${n} OFFSET ${n + 1}"
         params.extend([limit, offset])

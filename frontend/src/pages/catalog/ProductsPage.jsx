@@ -274,7 +274,7 @@ export default function ProductsPage() {
       const avgPrice = skus.reduce((s, sk) => s + (sk.price || 0), 0) / skus.length;
       return {
         familyId,
-        name: first.name,
+        name: first.product_family_name || first.name,
         category: first.category_name,
         skus,
         avgPrice,
