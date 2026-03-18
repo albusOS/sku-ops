@@ -7,11 +7,11 @@ Agent construction is deferred to first use so that missing API keys
 don't crash the import chain at startup.
 """
 
+import asyncio
 import logging
 
 from pydantic_ai import Agent, RunContext
 
-from assistant.agents.analyst import agent as _analyst_agent_mod
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import get_model
@@ -213,29 +213,52 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     # ── Sub-agent delegation ─────────────────────────────────────────────────────
 
+    delegation_timeout = 50  # seconds — must be under the outer stream timeout
+
     @_agent.tool
     async def analyze_procurement(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to procurement analyst for reorder optimization, vendor selection, lead times, and ordering decisions."""
-        result = await _procurement_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
-        return result.response
+        try:
+            result = await asyncio.wait_for(
+                _procurement_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
+                timeout=delegation_timeout,
+            )
+            return result.response
+        except TimeoutError:
+            return "Procurement analysis timed out. Try a more specific question."
+        except Exception:
+            logger.exception("analyze_procurement delegation failed")
+            return "Procurement analysis hit an error. Please try again."
 
     @_agent.tool
     async def analyze_trends(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to trend analyst for demand patterns, anomaly detection, seasonality, and period comparison."""
-        result = await _trend_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
-        return result.response
+        try:
+            result = await asyncio.wait_for(
+                _trend_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
+                timeout=delegation_timeout,
+            )
+            return result.response
+        except TimeoutError:
+            return "Trend analysis timed out. Try a more specific question."
+        except Exception:
+            logger.exception("analyze_trends delegation failed")
+            return "Trend analysis hit an error. Please try again."
 
     @_agent.tool
     async def assess_business_health(ctx: RunContext[AgentDeps], question: str) -> str:
         """Delegate to health analyst for cross-domain triage: inventory risk, cash flow, carrying cost, vendor drift."""
-        result = await _health_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
-        return result.response
-
-    @_agent.tool
-    async def run_deep_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to data analyst for ad hoc SQL queries and custom data exploration."""
-        result = await _analyst_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage)
-        return result.response
+        try:
+            result = await asyncio.wait_for(
+                _health_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
+                timeout=delegation_timeout,
+            )
+            return result.response
+        except TimeoutError:
+            return "Health analysis timed out. Try a more specific question."
+        except Exception:
+            logger.exception("assess_business_health delegation failed")
+            return "Health analysis hit an error. Please try again."
 
     return _agent
 

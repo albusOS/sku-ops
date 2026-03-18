@@ -1,4 +1,4 @@
-const STORAGE_KEY = "sku-ops:chat:v5";
+const STORAGE_KEY = "sku-ops:chat:v6";
 
 const AGENT_META = {
   inventory: {
@@ -41,10 +41,6 @@ const AGENT_META = {
     label: "Health",
     cls: "bg-success/10 text-success border border-success/30",
   },
-  analyst: {
-    label: "Analysis",
-    cls: "bg-category-1/10 text-category-1 border border-category-1/30",
-  },
 };
 
 const CHAT_MODES = [
@@ -52,7 +48,6 @@ const CHAT_MODES = [
   { id: "procurement", label: "Procurement" },
   { id: "trend", label: "Trends" },
   { id: "health", label: "Health Check" },
-  { id: "analyst", label: "Deep Analysis" },
 ];
 
 function agentTypeForMode(mode) {
@@ -140,24 +135,6 @@ const AGENT_SUGGESTIONS = {
       prompt: "Complete store assessment with actionable recommendations",
     },
   ],
-  analyst: [
-    {
-      label: "Margin analysis",
-      prompt: "Compare product margins across different job types and departments",
-    },
-    {
-      label: "Spending patterns",
-      prompt: "What patterns exist in contractor spending across departments?",
-    },
-    {
-      label: "Payment correlations",
-      prompt: "Analyze the correlation between order size and payment delays",
-    },
-    {
-      label: "Custom query",
-      prompt: "Dig into vendor pricing trends and find cost optimization opportunities",
-    },
-  ],
 };
 
 const AGENT_PLACEHOLDER = {
@@ -165,7 +142,6 @@ const AGENT_PLACEHOLDER = {
   procurement: "Ask about vendors, reorder plans, purchasing…",
   trend: "Ask about trends, growth, period comparisons…",
   health: "Ask for a business health assessment…",
-  analyst: "Ask for deep analysis or custom data queries…",
 };
 
 export {

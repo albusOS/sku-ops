@@ -40,7 +40,6 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 
-from assistant.agents.analyst.agent import _get_agent as _get_analyst_agent
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import (
     build_message_history,
@@ -331,7 +330,7 @@ async def _handle_chat(
     # Route is determined by the user's explicit mode selection from the frontend.
     # No embedding-based routing — the frontend sends the agent_type directly.
     requested_agent = (msg.get("agent_type") or "").strip().lower()
-    specialist_agents = frozenset({"procurement", "trend", "health", "analyst"})
+    specialist_agents = frozenset({"procurement", "trend", "health"})
     route = requested_agent if requested_agent in specialist_agents else "unified"
 
     compressed = await compress_task
@@ -357,7 +356,6 @@ async def _handle_chat(
         "procurement": _get_procurement_agent,
         "trend": _get_trend_agent,
         "health": _get_health_agent,
-        "analyst": _get_analyst_agent,
     }
 
     if route in specialist_agents:
@@ -397,7 +395,7 @@ async def _handle_chat(
     )
 
 
-_STREAM_TIMEOUT_SECONDS = 90  # hard ceiling on LLM stream; prevents hung-provider WebSocket leaks
+_STREAM_TIMEOUT_SECONDS = 120  # hard ceiling on LLM stream; prevents hung-provider WebSocket leaks
 
 
 async def _stream_agent(

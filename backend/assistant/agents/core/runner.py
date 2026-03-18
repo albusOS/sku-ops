@@ -23,7 +23,7 @@ from shared.infrastructure.metrics import llm_usage, tool_call
 
 logger = logging.getLogger(__name__)
 
-AGENT_TIMEOUT_SECONDS = 45
+AGENT_TIMEOUT_SECONDS = 60
 _MAX_RETRIES = 5
 _BASE_DELAY = 1.0  # seconds
 _MAX_DELAY = 30.0  # seconds

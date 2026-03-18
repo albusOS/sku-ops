@@ -12,7 +12,6 @@ class ChatRequest(BaseModel):
         "procurement",
         "trend",
         "health",
-        "analyst",
         "inventory",
         "ops",
         "finance",

@@ -1,7 +1,7 @@
 """Chat assistant entrypoint.
 
 Routing is determined by the user's explicit mode selection in the frontend.
-Specialist agents (procurement, trend, health, analyst) are invoked directly
+Specialist agents (procurement, trend, health) are invoked directly
 when the user picks that mode; otherwise the unified agent handles the request.
 
 Context assembly pipeline enriches each request with entity graph data,
@@ -11,7 +11,6 @@ semantic memory, and session state before agent dispatch.
 import asyncio
 import logging
 
-import assistant.agents.analyst.agent as _analyst_agent_mod
 import assistant.agents.health_analyst.agent as _health_agent_mod
 import assistant.agents.procurement_analyst.agent as _procurement_agent_mod
 import assistant.agents.trend_analyst.agent as _trend_agent_mod
@@ -98,7 +97,7 @@ async def chat(
         history = [{"role": "system", "content": context_block}] + (history or [])
 
     # Route is determined by the user's explicit mode selection from the frontend.
-    specialist_agents = frozenset({"procurement", "trend", "health", "analyst"})
+    specialist_agents = frozenset({"procurement", "trend", "health"})
     route = agent_type if agent_type in specialist_agents else "unified"
 
     logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
@@ -109,7 +108,6 @@ async def chat(
             "procurement": _procurement_agent_mod,
             "trend": _trend_agent_mod,
             "health": _health_agent_mod,
-            "analyst": _analyst_agent_mod,
         }[route]
         try:
             spec_result = await agent_mod.run(enriched, deps=deps)

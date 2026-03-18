@@ -18,7 +18,7 @@ from assistant.application.session_state import SessionState
 logger = logging.getLogger(__name__)
 
 _SESSIONS: dict = {}
-_SESSION_TTL = 1800  # 30 min
+_SESSION_TTL = 7200  # 2 hours
 _MAX_TURNS = 20  # keep last N user+assistant pairs (= 2N messages)
 
 _KEY_PREFIX = "sku_ops:session:"
