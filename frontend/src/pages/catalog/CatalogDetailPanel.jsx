@@ -2,13 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CategoryCombobox } from "@/components/CategoryCombobox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   X,
@@ -32,7 +26,6 @@ import {
   useProductFamily,
   useUpdateProduct,
 } from "@/hooks/useProducts";
-import { useDepartments } from "@/hooks/useDepartments";
 import { UnitCombobox } from "@/components/UnitCombobox";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-client";
@@ -189,7 +182,6 @@ export function CatalogDetailPanel({
   );
   const removeVendorItem = useRemoveVendorItem();
   const setPreferred = useSetPreferredVendor();
-  const { data: departments = [] } = useDepartments();
   const updateMutation = useUpdateProduct();
 
   const familyId = product?.product_family_id;
@@ -346,24 +338,12 @@ export function CatalogDetailPanel({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Category</p>
-                        <Select
+                        <CategoryCombobox
                           value={product.category_id}
                           onValueChange={handleCategoryChange}
                           disabled={updateMutation.isPending}
-                        >
-                          <SelectTrigger className="h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {departments.map((dept) => (
-                              <SelectItem key={dept.id} value={dept.id}>
-                                <span className="font-mono text-xs">{dept.code}</span>
-                                <span className="text-muted-foreground mx-1">—</span>
-                                {dept.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          className="h-8 text-sm"
+                        />
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Sell Unit</p>

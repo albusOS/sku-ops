@@ -3,8 +3,18 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
+from assistant.agents.tools.models import (
+    ArAgingResult,
+    CarryingCostResult,
+    ContractorSpendResult,
+    DeptProfitabilityResult,
+    EntitySummaryResult,
+    JobProfitabilityResult,
+    PurchaseSpendResult,
+    SkuMarginsResult,
+    TrendSeriesResult,
+)
 from assistant.agents.tools.registry import register as _reg
-from assistant.agents.tools.serialization import dumps as _dumps
 from finance.application.ledger_analytics import (
     ar_aging,
     inventory_carrying_cost,
@@ -35,14 +45,12 @@ async def _get_trend_series(days: int = 30, group_by: str = "day") -> str:
         group_by = "week" if days > 60 else "day"
     start, end = _date_range(days)
     series = await trend_series(start, end, group_by)
-    return _dumps(
-        {
-            "period_days": days,
-            "group_by": group_by,
-            "data_points": len(series),
-            "series": series,
-        }
-    )
+    return TrendSeriesResult(
+        period_days=days,
+        group_by=group_by,
+        data_points=len(series),
+        series=series,
+    ).serialize()
 
 
 async def _get_ar_aging(days: int = 365) -> str:
@@ -50,14 +58,12 @@ async def _get_ar_aging(days: int = 365) -> str:
     days = min(days, 730)
     start, end = _date_range(days)
     buckets = await ar_aging(start, end)
-    total_ar = round(sum(b.get("total_ar", 0) for b in buckets), 2)
-    return _dumps(
-        {
-            "total_ar": total_ar,
-            "entity_count": len(buckets),
-            "buckets": buckets,
-        }
-    )
+    total_ar = round(sum(float(b.get("total_ar", 0)) for b in buckets), 2)
+    return ArAgingResult(
+        total_ar=total_ar,
+        entity_count=len(buckets),
+        buckets=buckets,
+    ).serialize()
 
 
 async def _get_sku_margins(days: int = 30, limit: int = 20) -> str:
@@ -66,13 +72,11 @@ async def _get_sku_margins(days: int = 30, limit: int = 20) -> str:
     limit = min(limit, 50)
     start, end = _date_range(days)
     margins = await product_margins(start, end, limit)
-    return _dumps(
-        {
-            "period_days": days,
-            "count": len(margins),
-            "skus": margins,
-        }
-    )
+    return SkuMarginsResult(
+        period_days=days,
+        count=len(margins),
+        skus=margins,
+    ).serialize()
 
 
 async def _get_department_profitability(days: int = 30) -> str:
@@ -80,13 +84,11 @@ async def _get_department_profitability(days: int = 30) -> str:
     days = min(days, 365)
     start, end = _date_range(days)
     depts = await summary_by_department(start, end)
-    return _dumps(
-        {
-            "period_days": days,
-            "department_count": len(depts),
-            "departments": depts,
-        }
-    )
+    return DeptProfitabilityResult(
+        period_days=days,
+        department_count=len(depts),
+        departments=depts,
+    ).serialize()
 
 
 async def _get_job_profitability(days: int = 30, limit: int = 20) -> str:
@@ -95,15 +97,13 @@ async def _get_job_profitability(days: int = 30, limit: int = 20) -> str:
     limit = min(limit, 50)
     start, end = _date_range(days)
     result = await summary_by_job(start, end, limit=limit)
-    return _dumps(
-        {
-            "period_days": days,
-            "total_jobs": result.get("total", 0),
-            "all_revenue": result.get("all_revenue", 0),
-            "all_cost": result.get("all_cost", 0),
-            "jobs": result.get("rows", []),
-        }
-    )
+    return JobProfitabilityResult(
+        period_days=days,
+        total_jobs=result.get("total", 0),
+        all_revenue=float(result.get("all_revenue", 0)),
+        all_cost=float(result.get("all_cost", 0)),
+        jobs=result.get("rows", []),
+    ).serialize()
 
 
 async def _get_entity_summary(days: int = 30) -> str:
@@ -111,13 +111,11 @@ async def _get_entity_summary(days: int = 30) -> str:
     days = min(days, 365)
     start, end = _date_range(days)
     entities = await summary_by_billing_entity(start, end)
-    return _dumps(
-        {
-            "period_days": days,
-            "entity_count": len(entities),
-            "entities": entities,
-        }
-    )
+    return EntitySummaryResult(
+        period_days=days,
+        entity_count=len(entities),
+        entities=entities,
+    ).serialize()
 
 
 async def _get_contractor_spend(days: int = 30) -> str:
@@ -125,13 +123,11 @@ async def _get_contractor_spend(days: int = 30) -> str:
     days = min(days, 365)
     start, end = _date_range(days)
     contractors = await summary_by_contractor(start, end)
-    return _dumps(
-        {
-            "period_days": days,
-            "contractor_count": len(contractors),
-            "contractors": contractors,
-        }
-    )
+    return ContractorSpendResult(
+        period_days=days,
+        contractor_count=len(contractors),
+        contractors=contractors,
+    ).serialize()
 
 
 async def _get_purchase_spend(days: int = 30) -> str:
@@ -139,33 +135,29 @@ async def _get_purchase_spend(days: int = 30) -> str:
     days = min(days, 365)
     start, end = _date_range(days)
     total = await purchase_spend(start, end)
-    return _dumps(
-        {
-            "period_days": days,
-            "total_purchase_spend": total,
-        }
-    )
+    return PurchaseSpendResult(
+        period_days=days,
+        total_purchase_spend=float(total),
+    ).serialize()
 
 
 async def _get_carrying_cost(holding_rate_pct: float = 25.0) -> str:
     """Estimated holding cost of current inventory, grouped by department."""
     rate = float(holding_rate_pct)
     items = await inventory_carrying_cost(rate)
-    total = round(sum(i["carrying_cost"] for i in items), 2)
+    total = round(sum(float(i["carrying_cost"]) for i in items), 2)
     by_dept: dict[str, float] = {}
     for i in items:
         dept = i["department"] or "Unknown"
-        by_dept[dept] = round(by_dept.get(dept, 0) + i["carrying_cost"], 2)
-    return _dumps(
-        {
-            "holding_rate_pct": rate,
-            "total_carrying_cost": total,
-            "sku_count": len(items),
-            "by_department": by_dept,
-            "top_items": items[:20],
-            "_note": f"Carrying cost = inventory_value * {rate}% annual rate * days_held / 365",
-        }
-    )
+        by_dept[dept] = round(by_dept.get(dept, 0) + float(i["carrying_cost"]), 2)
+    return CarryingCostResult(
+        holding_rate_pct=rate,
+        total_carrying_cost=total,
+        sku_count=len(items),
+        by_department=by_dept,
+        top_items=items[:20],
+        _note=f"Carrying cost = inventory_value * {rate}% annual rate * days_held / 365",
+    ).serialize()
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────

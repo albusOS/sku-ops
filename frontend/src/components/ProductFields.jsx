@@ -1,15 +1,9 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { UnitCombobox } from "@/components/UnitCombobox";
+import { CategoryCombobox } from "@/components/CategoryCombobox";
 
 function FieldTip({ children }) {
   return (
@@ -32,7 +26,6 @@ const isReadOnly = (set, name) => set?.has(name);
  *
  * @param {object}   fields          Current field values (name, description, price, cost, quantity, min_stock, category_id, barcode, base_unit, sell_uom, pack_qty)
  * @param {function} onChange        (fieldName, value) => void
- * @param {array}    departments     Category list
  * @param {Set}      hiddenFields    Field names to hide entirely
  * @param {Set}      readOnlyFields  Field names to render read-only
  * @param {boolean}  compact         Tighter layout for inline use (receive review, receipt import)
@@ -41,7 +34,7 @@ const isReadOnly = (set, name) => set?.has(name);
 export function ProductFields({
   fields,
   onChange,
-  departments = [],
+  departments: _departments,
   hiddenFields,
   readOnlyFields,
   compact = false,
@@ -92,24 +85,14 @@ export function ProductFields({
       {!isHidden(h, "category_id") && (
         <div>
           <Label className={labelCls}>Category {!compact && "*"}</Label>
-          <Select
-            value={field("category_id")}
-            onValueChange={(v) => set("category_id", v)}
-            disabled={isReadOnly(ro, "category_id")}
-          >
-            <SelectTrigger className={inputCls} data-testid="pf-department">
-              <SelectValue placeholder="Select category" />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.map((dept) => (
-                <SelectItem key={dept.id} value={dept.id}>
-                  <span className="font-mono font-medium">{dept.code}</span>
-                  <span className="text-muted-foreground mx-1.5">—</span>
-                  {dept.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className={compact ? "mt-0" : "mt-2"} data-testid="pf-department">
+            <CategoryCombobox
+              value={field("category_id")}
+              onValueChange={(v) => set("category_id", v)}
+              disabled={isReadOnly(ro, "category_id")}
+              className={compact ? "h-9 text-sm" : "h-11"}
+            />
+          </div>
         </div>
       )}
 

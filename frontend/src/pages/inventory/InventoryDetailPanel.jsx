@@ -2,13 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CategoryCombobox } from "@/components/CategoryCombobox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   X,
@@ -25,7 +19,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useStockHistory, useUpdateProduct } from "@/hooks/useProducts";
-import { useDepartments } from "@/hooks/useDepartments";
 import { UnitCombobox } from "@/components/UnitCombobox";
 import { TX_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
@@ -204,7 +197,6 @@ export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewH
   const { data: historyData, isLoading: historyLoading } = useStockHistory(
     open ? product?.id : null,
   );
-  const { data: departments = [] } = useDepartments();
   const updateMutation = useUpdateProduct();
   const recentHistory = (historyData?.history || []).slice(0, 10);
 
@@ -313,24 +305,12 @@ export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewH
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Category</p>
-                    <Select
+                    <CategoryCombobox
                       value={product.category_id}
                       onValueChange={handleCategoryChange}
                       disabled={updateMutation.isPending}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            <span className="font-mono text-xs">{dept.code}</span>
-                            <span className="text-muted-foreground mx-1">—</span>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      className="h-8 text-sm"
+                    />
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Sell Unit</p>

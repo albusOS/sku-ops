@@ -19,6 +19,12 @@ from pydantic_ai import Agent, RunContext
 from assistant.agents.core.contracts import UsageInfo
 from assistant.agents.core.model_registry import calc_cost, get_model, get_model_name
 from assistant.agents.core.tokens import budget_tool_result
+from assistant.agents.tools.models import (
+    CatalogSearchResult,
+    DepartmentCodesResult,
+    FamilySkusResult,
+    VendorItemMatch,
+)
 from catalog.application.queries import (
     find_vendor_item_by_vendor_and_sku_code,
     list_departments,
@@ -77,11 +83,12 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         Use this to check if a product already exists before classifying.
         Returns matching SKUs and families with their details.
         """
-        results: dict[str, Any] = {"skus": [], "families": []}
+        sku_items: list[dict[str, Any]] = []
+        family_items: list[dict[str, Any]] = []
 
         try:
             skus = await list_skus(search=query, limit=5)
-            results["skus"] = [
+            sku_items = [
                 {
                     "id": s.id,
                     "sku": s.sku,
@@ -92,7 +99,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
                     "sell_uom": s.sell_uom,
                     "pack_qty": s.pack_qty,
                     "variant_label": s.variant_label,
-                    "cost": s.cost,
+                    "cost": float(s.cost) if s.cost else None,
                 }
                 for s in skus
             ]
@@ -101,7 +108,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
 
         try:
             families = await list_product_families(search=query, limit=5)
-            results["families"] = [
+            family_items = [
                 {
                     "id": f.id,
                     "name": f.name,
@@ -113,7 +120,9 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         except Exception as e:
             logger.warning("Catalog family search failed: %s", e)
 
-        return budget_tool_result(json.dumps(results))
+        return budget_tool_result(
+            CatalogSearchResult(skus=sku_items, families=family_items).serialize()
+        )
 
     @_agent.tool
     async def get_family_skus(
@@ -140,10 +149,10 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
                 }
                 for s in skus
             ]
-            return budget_tool_result(json.dumps({"skus": items}))
+            return budget_tool_result(FamilySkusResult(skus=items).serialize())
         except Exception as e:
             logger.warning("Family SKU lookup failed: %s", e)
-            return json.dumps({"skus": [], "error": str(e)})
+            return FamilySkusResult(skus=[]).serialize()
 
     @_agent.tool
     async def lookup_vendor_item(
@@ -157,37 +166,35 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         """
         vendor_id = ctx.deps.vendor_id
         if not vendor_id:
-            return json.dumps({"match": None, "reason": "no vendor_id provided"})
+            return VendorItemMatch(match=None, reason="no vendor_id provided").serialize()
         try:
             vi = await find_vendor_item_by_vendor_and_sku_code(vendor_id, vendor_sku)
             if vi:
-                return json.dumps(
-                    {
-                        "match": {
-                            "vendor_item_id": vi.id,
-                            "sku_id": vi.sku_id,
-                            "vendor_sku": vi.vendor_sku,
-                            "cost": vi.cost,
-                            "purchase_uom": vi.purchase_uom,
-                        }
+                return VendorItemMatch(
+                    match={
+                        "vendor_item_id": vi.id,
+                        "sku_id": vi.sku_id,
+                        "vendor_sku": vi.vendor_sku,
+                        "cost": float(vi.cost) if vi.cost else None,
+                        "purchase_uom": vi.purchase_uom,
                     }
-                )
-            return json.dumps({"match": None})
+                ).serialize()
+            return VendorItemMatch(match=None).serialize()
         except Exception as e:
             logger.warning("Vendor item lookup failed: %s", e)
-            return json.dumps({"match": None, "error": str(e)})
+            return VendorItemMatch(match=None, error=str(e)).serialize()
 
     @_agent.tool
     async def get_departments(ctx: RunContext[ProductAnalystDeps]) -> str:
         """Get all valid department codes for classification."""
         try:
             depts = await list_departments()
-            return json.dumps(
-                {"departments": [{"code": d.code, "name": d.name, "id": d.id} for d in depts]}
-            )
+            return DepartmentCodesResult(
+                departments=[{"code": d.code, "name": d.name, "id": d.id} for d in depts]
+            ).serialize()
         except Exception as e:
             logger.warning("Department lookup failed: %s", e)
-            return json.dumps({"departments": [], "error": str(e)})
+            return DepartmentCodesResult(departments=[], error=str(e)).serialize()
 
     @_agent.tool
     async def submit_analysis(
