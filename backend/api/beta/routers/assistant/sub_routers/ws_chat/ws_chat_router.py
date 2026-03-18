@@ -1,16 +1,18 @@
 """WebSocket endpoint for streaming AI chat responses.
 
-Clients send JSON messages over WebSocket, and receive streamed events
-as the LLM generates text and calls tools. This replaces the blocking
-POST /chat flow with real-time token streaming.
+Async job model: the WS handler submits chat requests as background jobs.
+Generation runs independently of the WS connection — if the WS drops and
+reconnects, the client sends ``chat.resume`` to reattach to the running job.
 
 Protocol (client -> server):
     { "type": "chat", "message": "...", "session_id": "...", "agent_type": "auto" }
-    { "type": "cancel" }      - abort the current generation
-    { "type": "pong" }        - heartbeat response
+    { "type": "cancel" }                    - abort the current generation
+    { "type": "chat.resume", "job_id": "..." } - reattach to a running job
+    { "type": "pong" }                      - heartbeat response
 
 Protocol (server -> client):
     { "type": "ping" }
+    { "type": "chat.job_started", "job_id": "..." }
     { "type": "chat.status",     "status": "thinking" }
     { "type": "chat.tool_start", "tool": "search_products" }
     { "type": "chat.delta",      "content": "partial text..." }
@@ -54,9 +56,10 @@ from assistant.agents.health_analyst.agent import _get_agent as _get_health_agen
 from assistant.agents.procurement_analyst.agent import _get_agent as _get_procurement_agent
 from assistant.agents.trend_analyst.agent import _get_agent as _get_trend_agent
 from assistant.agents.unified.agent import _get_agent
-from assistant.application import session_store
+from assistant.application import job_manager, session_store
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
+from assistant.application.job_manager import GENERATION_TIMEOUT
 from assistant.infrastructure.agent_run_repo import log_agent_run
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
@@ -79,16 +82,17 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
 
+# Background generation tasks — tracked for clean shutdown
+_running_tasks: set[asyncio.Task] = set()
+
 
 def _enrich_specialist_message(user_message: str, context_block: str) -> str:
-    """Prepend assembled context to the user message for specialist agents."""
     if not context_block:
         return user_message
     return f"<context>\n{context_block}\n</context>\n\n{user_message}"
 
 
 async def _get_query_embedding(query: str):
-    """Compute a single embedding for reuse across context assembly, memory, and routing."""
     if not query or not query.strip():
         return None
     try:
@@ -100,11 +104,6 @@ async def _get_query_embedding(query: str):
 
 
 def _classify_chat_error(exc: Exception) -> tuple[str, str]:
-    """Classify an exception into (error_type, user_facing_detail).
-
-    Returns typed errors so the frontend can show actionable messages
-    or auto-retry on transient failures.
-    """
     s = str(exc).lower()
     t = type(exc).__name__.lower()
 
@@ -137,7 +136,6 @@ def _authenticate(token: str) -> dict | None:
 
 
 async def _send(ws: WebSocket, msg: dict) -> bool:
-    """Send JSON to client. Returns False if connection is dead."""
     try:
         await ws.send_text(json.dumps(msg))
         return True
@@ -145,262 +143,14 @@ async def _send(ws: WebSocket, msg: dict) -> bool:
         return False
 
 
-@router.websocket("/ws/chat")
-async def ws_chat_endpoint(websocket: WebSocket):
-    token = websocket.query_params.get("token", "")
-    payload = _authenticate(token)
-    if not payload:
-        await websocket.close(code=4001, reason="Invalid or expired token")
-        return
-
-    try:
-        claims = resolve_claims(payload)
-    except ValueError:
-        await websocket.close(code=4001, reason="Invalid token: missing required claims")
-        return
-    if is_deployed and claims.organization_id is None:
-        await websocket.close(code=4001, reason="Invalid token: missing organization_id claim")
-        return
-    org_id = claims.organization_id or ""
-    user_id = claims.user_id
-    user_name = claims.name
-    role = claims.role
-
-    org_id_var.set(org_id)
-    user_id_var.set(user_id)
-
-    if role not in _ALLOWED_ROLES:
-        await websocket.close(code=4003, reason="Insufficient permissions")
-        return
-
-    await websocket.accept()
-    chat_session_opened()
-    logger.info("Chat WS connected: user=%s org=%s", user_id, org_id)
-
-    cancel_event: asyncio.Event | None = None
-    generation_task: asyncio.Task | None = None
-
-    async def _heartbeat():
-        while True:
-            await asyncio.sleep(HEARTBEAT_INTERVAL)
-            if not await _send(ws, {"type": "ping"}):
-                return
-
-    async def _receiver():
-        """Listen for client messages - chat requests and cancellations."""
-        nonlocal cancel_event, generation_task
-        try:
-            while True:
-                raw = await websocket.receive_text()
-                try:
-                    msg = json.loads(raw)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-
-                msg_type = msg.get("type")
-
-                if msg_type == "pong":
-                    continue
-
-                if msg_type == "cancel":
-                    logger.debug("Chat WS cancel from user=%s", user_id)
-                    if cancel_event:
-                        cancel_event.set()
-                    if generation_task and not generation_task.done():
-                        generation_task.cancel()
-                    continue
-
-                if msg_type == "chat":
-                    if generation_task and not generation_task.done():
-                        await _send(
-                            ws,
-                            {
-                                "type": "chat.error",
-                                "detail": "Already generating a response. Send 'cancel' first.",
-                            },
-                        )
-                        continue
-
-                    cancel_event = asyncio.Event()
-                    generation_task = asyncio.create_task(
-                        _handle_chat(
-                            websocket,
-                            msg,
-                            user_id,
-                            user_name,
-                            cancel_event,
-                        )
-                    )
-
-        except WebSocketDisconnect:
-            logger.debug("Chat WS disconnected: user=%s", user_id)
-        except (RuntimeError, OSError, ValueError) as e:
-            logger.warning("Chat WS receiver error for user=%s: %s", user_id, e)
-        finally:
-            if generation_task and not generation_task.done():
-                generation_task.cancel()
-                try:
-                    await generation_task
-                except asyncio.CancelledError:
-                    pass
-                except Exception:
-                    logger.warning("Chat generation task raised on cancel", exc_info=True)
-
-    ws = websocket
-    tasks = [
-        asyncio.create_task(_heartbeat()),
-        asyncio.create_task(_receiver()),
-    ]
-    try:
-        _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for t in pending:
-            t.cancel()
-        # Await cancelled tasks so their finally-blocks run and no "task destroyed
-        # while pending" warnings are emitted. Shield the gather so an external
-        # CancelledError (e.g. from the test client or a server shutdown) doesn't
-        # prevent cleanup from completing.
-        if pending:
-            await asyncio.shield(asyncio.gather(*pending, return_exceptions=True))
-    except (RuntimeError, OSError, asyncio.CancelledError):
-        for t in tasks:
-            t.cancel()
-        with contextlib.suppress(Exception):
-            await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
-    finally:
-        chat_session_closed()
-        logger.info("Chat WS closed: user=%s org=%s", user_id, org_id)
+# ---------------------------------------------------------------------------
+# Background generation — runs independently of the WebSocket connection
+# ---------------------------------------------------------------------------
 
 
-async def _handle_chat(
-    ws: WebSocket,
-    msg: dict,
-    user_id: str,
-    user_name: str,
-    cancel_event: asyncio.Event,
-) -> None:
-    """Process a single chat message with streaming."""
-    user_message = (msg.get("message") or "").strip()
-    session_id = msg.get("session_id") or str(uuid.uuid4())
-
-    if not user_message:
-        await _send(ws, {"type": "chat.error", "detail": "Empty message"})
-        return
-
-    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
-        await _send(ws, {"type": "chat.error", "detail": "AI not configured."})
-        return
-
-    if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
-        await _send(
-            ws,
-            {
-                "type": "chat.done",
-                "response": f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat.",
-                "tool_calls": [],
-                "thinking": [],
-                "agent": None,
-                "session_id": session_id,
-                "usage": {
-                    "cost_usd": 0,
-                    "capped": True,
-                    "session_cost_usd": await session_store.get_cost(session_id),
-                },
-            },
-        )
-        return
-
-    history = await session_store.get_or_create(session_id)
-
-    # Compute a single embedding for the query — reused by context, memory, and routing
-    query_embedding = await _get_query_embedding(user_message)
-
-    is_first_turn = not history
-
-    # Run independent pre-processing concurrently
-    compress_task = asyncio.create_task(compress_history_async(history))
-    context_task = asyncio.create_task(
-        assemble_context(
-            query=user_message,
-            user_id=user_id,
-            include_memory=is_first_turn,
-            query_embedding=query_embedding,
-        )
-    )
-
-    # Route is determined by the user's explicit mode selection from the frontend.
-    # No embedding-based routing — the frontend sends the agent_type directly.
-    requested_agent = (msg.get("agent_type") or "").strip().lower()
-    specialist_agents = frozenset({"procurement", "trend", "health"})
-    route = requested_agent if requested_agent in specialist_agents else "unified"
-
-    compressed = await compress_task
-    # Treat an empty list from compression as a successful result (falsy check would
-    # incorrectly fall back to the uncompressed history when compression returns []).
-    history = compressed if compressed is not None else history
-
-    assembled = await context_task
-
-    context_block = assembled.format_for_agent()
-
-    # Only store clean conversation turns (no system context messages) in history.
-    # System context is delivered to every agent via message enrichment, not history.
-    clean_history = [h for h in (history or []) if h.get("role") != "system"]
-    deps = AgentDeps(user_id=user_id, user_name=user_name, history=clean_history)
-    # All agents receive clean history — system context block is prepended to the
-    # user message instead so it never appears as a ModelResponse in the message list.
-    msg_history = build_message_history(clean_history)
-
-    logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
-
-    _specialist_agent_map = {
-        "procurement": _get_procurement_agent,
-        "trend": _get_trend_agent,
-        "health": _get_health_agent,
-    }
-
-    if route in specialist_agents:
-        enriched = _enrich_specialist_message(user_message, context_block)
-        await _stream_agent(
-            ws=ws,
-            agent=_specialist_agent_map[route](),
-            user_message=enriched,
-            original_message=user_message,
-            msg_history=msg_history,
-            deps=deps,
-            cancel_event=cancel_event,
-            agent_label=route,
-            session_id=session_id,
-            history=clean_history,
-            user_id=user_id,
-        )
-        return
-
-    await _send(ws, {"type": "chat.status", "status": "thinking"})
-
-    # For the unified agent, prepend the context block to the user message so it
-    # reaches the model without polluting the persistent history as a system turn.
-    unified_message = _enrich_specialist_message(user_message, context_block)
-    await _stream_agent(
-        ws=ws,
-        agent=_get_agent(),
-        user_message=unified_message,
-        original_message=user_message,
-        msg_history=msg_history,
-        deps=deps,
-        cancel_event=cancel_event,
-        agent_label="unified",
-        session_id=session_id,
-        history=clean_history,
-        user_id=user_id,
-    )
-
-
-_STREAM_TIMEOUT_SECONDS = 120  # hard ceiling on LLM stream; prevents hung-provider WebSocket leaks
-
-
-async def _stream_agent(
+async def _run_generation(
     *,
-    ws: WebSocket,
+    job_id: str,
     agent,
     user_message: str,
     original_message: str,
@@ -412,47 +162,58 @@ async def _stream_agent(
     history: list[dict] | None,
     user_id: str,
 ) -> None:
-    """Stream any PydanticAI agent to the WebSocket client.
+    """Execute agent generation and publish events via job_manager.
 
-    Shared by both the unified agent and all specialist agents so every mode
-    gets live token deltas, tool_start events, and cancel support.
+    Runs as a standalone background task — not tied to any WS connection.
+    All streaming events are published through the job manager so any
+    connected (or reconnecting) client can receive them.
     """
-    await _send(ws, {"type": "chat.status", "status": "thinking"})
+    await job_manager.publish_event(job_id, {"type": "chat.status", "status": "thinking"})
 
     full_text = ""
     tool_calls_seen: list[dict] = []
 
     logger.info(
-        "Chat stream started: user=%s session=%s agent=%s", user_id, session_id, agent_label
+        "Generation started: job=%s user=%s session=%s agent=%s",
+        job_id,
+        user_id,
+        session_id,
+        agent_label,
     )
 
     try:
-        async with asyncio.timeout(_STREAM_TIMEOUT_SECONDS):
+        async with asyncio.timeout(GENERATION_TIMEOUT):
             async for event in agent.run_stream_events(
                 user_message,
                 message_history=msg_history,
                 deps=deps,
             ):
                 if cancel_event.is_set():
-                    logger.info("Chat stream cancelled: user=%s session=%s", user_id, session_id)
+                    logger.info("Generation cancelled: job=%s session=%s", job_id, session_id)
                     break
 
                 if isinstance(event, PartStartEvent):
                     if isinstance(event.part, ToolCallPart):
                         tool_name = event.part.tool_name
                         tool_calls_seen.append({"tool": tool_name})
-                        await _send(ws, {"type": "chat.tool_start", "tool": tool_name})
+                        await job_manager.publish_event(
+                            job_id, {"type": "chat.tool_start", "tool": tool_name}
+                        )
                     elif isinstance(event.part, TextPart):
                         if event.part.content:
                             full_text += event.part.content
-                            await _send(ws, {"type": "chat.delta", "content": event.part.content})
+                            await job_manager.publish_event(
+                                job_id, {"type": "chat.delta", "content": event.part.content}
+                            )
 
                 elif isinstance(event, PartDeltaEvent):
                     if isinstance(event.delta, TextPartDelta):
                         chunk = event.delta.content_delta
                         if chunk:
                             full_text += chunk
-                            await _send(ws, {"type": "chat.delta", "content": chunk})
+                            await job_manager.publish_event(
+                                job_id, {"type": "chat.delta", "content": chunk}
+                            )
 
                 elif isinstance(event, FinalResultEvent):
                     pass
@@ -485,9 +246,6 @@ async def _stream_agent(
                     )
 
                     turn_cost = cost
-                    # Use PydanticAI-extracted history (clean user/assistant pairs only).
-                    # Fall back to manually appending to clean_history — never to the
-                    # raw history which may contain system context entries.
                     if text_history:
                         new_history = text_history
                     else:
@@ -523,8 +281,8 @@ async def _stream_agent(
                         )
 
                     logger.info(
-                        "Chat stream done: user=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
-                        user_id,
+                        "Generation done: job=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
+                        job_id,
                         session_id,
                         agent_label,
                         cost,
@@ -570,111 +328,413 @@ async def _stream_agent(
 
                     asyncio.create_task(_log_run())  # noqa: RUF006
 
-                    await _send(
-                        ws,
-                        {
-                            "type": "chat.done",
-                            "response": full_text,
-                            "agent": agent_label,
-                            "tool_calls": tool_calls_final,
-                            "thinking": [],
-                            "blocks": deps.blocks or [],
-                            "session_id": session_id,
-                            "usage": {
-                                "cost_usd": cost,
-                                "input_tokens": usage.input_tokens,
-                                "output_tokens": usage.output_tokens,
-                                "model": model_name,
-                                "session_cost_usd": await session_store.get_cost(session_id),
-                            },
-                            "validation": {
-                                "passed": validation.passed,
-                                "failures": validation.failures,
-                                "scores": validation.scores,
-                            },
+                    done_event = {
+                        "type": "chat.done",
+                        "response": full_text,
+                        "agent": agent_label,
+                        "tool_calls": tool_calls_final,
+                        "thinking": [],
+                        "blocks": deps.blocks or [],
+                        "session_id": session_id,
+                        "usage": {
+                            "cost_usd": cost,
+                            "input_tokens": usage.input_tokens,
+                            "output_tokens": usage.output_tokens,
+                            "model": model_name,
+                            "session_cost_usd": await session_store.get_cost(session_id),
                         },
-                    )
+                        "validation": {
+                            "passed": validation.passed,
+                            "failures": validation.failures,
+                            "scores": validation.scores,
+                        },
+                    }
+                    await job_manager.complete_job(job_id, done_event)
                     return
 
+        # Stream ended without AgentRunResultEvent (cancel or partial)
         if cancel_event.is_set():
             response = full_text or "Generation cancelled."
             await _save_turn(session_id, history, original_message, response)
-            await _send(
-                ws,
-                {
-                    "type": "chat.done",
-                    "response": response,
-                    "agent": agent_label,
-                    "tool_calls": tool_calls_seen,
-                    "thinking": [],
-                    "session_id": session_id,
-                    "usage": {
-                        "cost_usd": 0,
-                        "session_cost_usd": await session_store.get_cost(session_id),
-                    },
-                    "cancelled": True,
+            cancel_done = {
+                "type": "chat.done",
+                "response": response,
+                "agent": agent_label,
+                "tool_calls": tool_calls_seen,
+                "thinking": [],
+                "session_id": session_id,
+                "usage": {
+                    "cost_usd": 0,
+                    "session_cost_usd": await session_store.get_cost(session_id),
                 },
-            )
+                "cancelled": True,
+            }
+            await job_manager.complete_job(job_id, cancel_done)
         elif full_text:
             await _save_turn(session_id, history, original_message, full_text)
-            await _send(
-                ws,
-                {
-                    "type": "chat.done",
-                    "response": full_text,
-                    "agent": agent_label,
-                    "tool_calls": tool_calls_seen,
-                    "thinking": [],
-                    "session_id": session_id,
-                    "usage": {
-                        "cost_usd": 0,
-                        "session_cost_usd": await session_store.get_cost(session_id),
-                    },
+            partial_done = {
+                "type": "chat.done",
+                "response": full_text,
+                "agent": agent_label,
+                "tool_calls": tool_calls_seen,
+                "thinking": [],
+                "session_id": session_id,
+                "usage": {
+                    "cost_usd": 0,
+                    "session_cost_usd": await session_store.get_cost(session_id),
                 },
-            )
+            }
+            await job_manager.complete_job(job_id, partial_done)
 
     except asyncio.CancelledError:
-        logger.debug("Chat generation task cancelled: session=%s", session_id)
+        logger.debug("Generation task cancelled: job=%s session=%s", job_id, session_id)
         chat_message(agent_label, "cancelled")
         if full_text:
             await _save_turn(session_id, history, original_message, full_text)
-            await _send(
-                ws,
-                {
-                    "type": "chat.done",
-                    "response": full_text,
-                    "agent": agent_label,
-                    "tool_calls": tool_calls_seen,
-                    "thinking": [],
-                    "session_id": session_id,
-                    "usage": {
-                        "cost_usd": 0,
-                        "session_cost_usd": await session_store.get_cost(session_id),
-                    },
-                    "cancelled": True,
-                },
-            )
+        await job_manager.cancel_job(job_id)
     except Exception as exc:
         error_type, detail = _classify_chat_error(exc)
         logger.exception(
-            "Chat stream %s for user=%s session=%s agent=%s",
+            "Generation %s for job=%s user=%s session=%s agent=%s",
             error_type,
+            job_id,
             user_id,
             session_id,
             agent_label,
         )
         chat_message(agent_label, error_type)
-        await _send(
-            ws,
-            {"type": "chat.error", "error_type": error_type, "detail": detail},
+        await job_manager.fail_job(
+            job_id, {"type": "chat.error", "error_type": error_type, "detail": detail}
         )
 
 
 async def _save_turn(
     session_id: str, history: list[dict] | None, user_msg: str, assistant_msg: str
 ) -> None:
-    """Persist a user+assistant turn to the session store."""
     new_history = list(history or [])
     new_history.append({"role": "user", "content": user_msg})
     new_history.append({"role": "assistant", "content": assistant_msg})
     await session_store.update(session_id, new_history, cost_usd=0)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoint — thin relay
+# ---------------------------------------------------------------------------
+
+
+@router.websocket("/ws/chat")
+async def ws_chat_endpoint(websocket: WebSocket):
+    token = websocket.query_params.get("token", "")
+    payload = _authenticate(token)
+    if not payload:
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    try:
+        claims = resolve_claims(payload)
+    except ValueError:
+        await websocket.close(code=4001, reason="Invalid token: missing required claims")
+        return
+    if is_deployed and claims.organization_id is None:
+        await websocket.close(code=4001, reason="Invalid token: missing organization_id claim")
+        return
+    org_id = claims.organization_id or ""
+    user_id = claims.user_id
+    user_name = claims.name
+    role = claims.role
+
+    org_id_var.set(org_id)
+    user_id_var.set(user_id)
+
+    if role not in _ALLOWED_ROLES:
+        await websocket.close(code=4003, reason="Insufficient permissions")
+        return
+
+    await websocket.accept()
+    chat_session_opened()
+    logger.info("Chat WS connected: user=%s org=%s", user_id, org_id)
+
+    active_job_id: str | None = None
+    cancel_event: asyncio.Event | None = None
+    relay_task: asyncio.Task | None = None
+    ws = websocket
+
+    async def _relay_events(job_id: str) -> None:
+        """Subscribe to a job's event stream and forward to the WS client."""
+        try:
+            async for event in job_manager.subscribe_job(job_id):
+                if not await _send(ws, event):
+                    return
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.warning("Relay task error for job %s", job_id, exc_info=True)
+
+    async def _heartbeat():
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
+            if not await _send(ws, {"type": "ping"}):
+                return
+
+    async def _receiver():
+        nonlocal active_job_id, cancel_event, relay_task
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                try:
+                    msg = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                msg_type = msg.get("type")
+
+                if msg_type == "pong":
+                    continue
+
+                if msg_type == "cancel":
+                    logger.debug("Chat WS cancel from user=%s", user_id)
+                    if cancel_event:
+                        cancel_event.set()
+                    if active_job_id:
+                        await job_manager.cancel_job(active_job_id)
+                    if relay_task and not relay_task.done():
+                        relay_task.cancel()
+                    active_job_id = None
+                    cancel_event = None
+                    continue
+
+                if msg_type == "chat.resume":
+                    resume_job_id = msg.get("job_id", "")
+                    if not resume_job_id:
+                        continue
+                    logger.info("Chat WS resume: user=%s job=%s", user_id, resume_job_id)
+
+                    if relay_task and not relay_task.done():
+                        relay_task.cancel()
+
+                    status = await job_manager.get_job_status(resume_job_id)
+                    if not status:
+                        await _send(
+                            ws,
+                            {
+                                "type": "chat.error",
+                                "detail": "Job not found or expired.",
+                            },
+                        )
+                        continue
+
+                    if status["status"] in ("completed", "failed", "cancelled"):
+                        events = await job_manager.get_job_events(resume_job_id)
+                        for ev in events:
+                            if not await _send(ws, ev):
+                                return
+                        active_job_id = None
+                    else:
+                        active_job_id = resume_job_id
+                        buffered = await job_manager.get_job_events(resume_job_id)
+                        for ev in buffered:
+                            if not await _send(ws, ev):
+                                return
+                        relay_task = asyncio.create_task(_relay_events(resume_job_id))
+                    continue
+
+                if msg_type == "chat":
+                    if active_job_id:
+                        await _send(
+                            ws,
+                            {
+                                "type": "chat.error",
+                                "detail": "Already generating a response. Send 'cancel' first.",
+                            },
+                        )
+                        continue
+
+                    cancel_event = asyncio.Event()
+                    result = await _submit_chat(ws, msg, user_id, user_name, cancel_event)
+                    if result:
+                        active_job_id = result
+                        await _send(ws, {"type": "chat.job_started", "job_id": result})
+                        relay_task = asyncio.create_task(_relay_events(result))
+                    else:
+                        cancel_event = None
+
+        except WebSocketDisconnect:
+            logger.debug("Chat WS disconnected: user=%s", user_id)
+        except (RuntimeError, OSError, ValueError) as e:
+            logger.warning("Chat WS receiver error for user=%s: %s", user_id, e)
+        finally:
+            if relay_task and not relay_task.done():
+                relay_task.cancel()
+                with contextlib.suppress(Exception):
+                    await relay_task
+
+    tasks = [
+        asyncio.create_task(_heartbeat()),
+        asyncio.create_task(_receiver()),
+    ]
+    try:
+        _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.shield(asyncio.gather(*pending, return_exceptions=True))
+    except (RuntimeError, OSError, asyncio.CancelledError):
+        for t in tasks:
+            t.cancel()
+        with contextlib.suppress(Exception):
+            await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
+    finally:
+        chat_session_closed()
+        logger.info("Chat WS closed: user=%s org=%s", user_id, org_id)
+
+
+# ---------------------------------------------------------------------------
+# Chat submission — validates, prepares context, spawns background task
+# ---------------------------------------------------------------------------
+
+
+async def _submit_chat(
+    ws: WebSocket,
+    msg: dict,
+    user_id: str,
+    user_name: str,
+    cancel_event: asyncio.Event,
+) -> str | None:
+    """Validate and submit a chat message. Returns job_id or None on validation failure."""
+    user_message = (msg.get("message") or "").strip()
+    session_id = msg.get("session_id") or str(uuid.uuid4())
+
+    if not user_message:
+        await _send(ws, {"type": "chat.error", "detail": "Empty message"})
+        return None
+
+    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
+        await _send(ws, {"type": "chat.error", "detail": "AI not configured."})
+        return None
+
+    if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
+        await _send(
+            ws,
+            {
+                "type": "chat.done",
+                "response": f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat.",
+                "tool_calls": [],
+                "thinking": [],
+                "agent": None,
+                "session_id": session_id,
+                "usage": {
+                    "cost_usd": 0,
+                    "capped": True,
+                    "session_cost_usd": await session_store.get_cost(session_id),
+                },
+            },
+        )
+        return None
+
+    job_id = await job_manager.create_job(session_id=session_id, user_id=user_id)
+
+    task = asyncio.create_task(
+        _prepare_and_generate(
+            job_id=job_id,
+            msg=msg,
+            user_id=user_id,
+            user_name=user_name,
+            cancel_event=cancel_event,
+            session_id=session_id,
+            user_message=user_message,
+        )
+    )
+    _running_tasks.add(task)
+    task.add_done_callback(_running_tasks.discard)
+
+    return job_id
+
+
+async def _prepare_and_generate(
+    *,
+    job_id: str,
+    msg: dict,
+    user_id: str,
+    user_name: str,
+    cancel_event: asyncio.Event,
+    session_id: str,
+    user_message: str,
+) -> None:
+    """Pre-process (context assembly, history compression) then run generation."""
+    try:
+        history = await session_store.get_or_create(session_id)
+
+        query_embedding = await _get_query_embedding(user_message)
+        is_first_turn = not history
+
+        compress_task = asyncio.create_task(compress_history_async(history))
+        context_task = asyncio.create_task(
+            assemble_context(
+                query=user_message,
+                user_id=user_id,
+                include_memory=is_first_turn,
+                query_embedding=query_embedding,
+            )
+        )
+
+        requested_agent = (msg.get("agent_type") or "").strip().lower()
+        specialist_agents = frozenset({"procurement", "trend", "health"})
+        route = requested_agent if requested_agent in specialist_agents else "unified"
+
+        compressed = await compress_task
+        history = compressed if compressed is not None else history
+
+        assembled = await context_task
+        context_block = assembled.format_for_agent()
+
+        clean_history = [h for h in (history or []) if h.get("role") != "system"]
+        deps = AgentDeps(user_id=user_id, user_name=user_name, history=clean_history)
+        msg_history = build_message_history(clean_history)
+
+        logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
+
+        _specialist_agent_map = {
+            "procurement": _get_procurement_agent,
+            "trend": _get_trend_agent,
+            "health": _get_health_agent,
+        }
+
+        enriched = _enrich_specialist_message(user_message, context_block)
+
+        agent = _specialist_agent_map[route]() if route in specialist_agents else _get_agent()
+
+        await _run_generation(
+            job_id=job_id,
+            agent=agent,
+            user_message=enriched,
+            original_message=user_message,
+            msg_history=msg_history,
+            deps=deps,
+            cancel_event=cancel_event,
+            agent_label=route,
+            session_id=session_id,
+            history=clean_history,
+            user_id=user_id,
+        )
+    except Exception as exc:
+        error_type, detail = _classify_chat_error(exc)
+        logger.exception("Pre-processing failed for job %s", job_id)
+        await job_manager.fail_job(
+            job_id, {"type": "chat.error", "error_type": error_type, "detail": detail}
+        )
+
+
+# ---------------------------------------------------------------------------
+# Shutdown hook — cancel all running generation tasks
+# ---------------------------------------------------------------------------
+
+
+async def shutdown_generation_tasks() -> None:
+    """Cancel all running generation tasks. Called from lifespan shutdown."""
+    if not _running_tasks:
+        return
+    logger.info("Shutting down %d generation task(s)", len(_running_tasks))
+    for task in list(_running_tasks):
+        task.cancel()
+    await asyncio.gather(*_running_tasks, return_exceptions=True)
+    _running_tasks.clear()
