@@ -65,7 +65,7 @@ def _invoice(xero_invoice_id=None) -> InvoiceWithDetails:
                 unit_price=10.0,
                 amount=100.0,
                 cost=6.0,
-                product_id="prod-1",
+                sku_id="prod-1",
                 job_id="JOB-42",
             )
         ],
@@ -621,7 +621,7 @@ class TestRepostCogsJournal:
                         unit_price=10.0,
                         amount=50.0,
                         cost=0.0,
-                        product_id="p1",
+                        sku_id="p1",
                     )
                 ],
             }

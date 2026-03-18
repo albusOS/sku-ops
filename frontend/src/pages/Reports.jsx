@@ -117,7 +117,7 @@ const Reports = () => {
   const topProducts = useMemo(
     () =>
       (marginsReport?.products || []).slice(0, 10).map((p) => ({
-        name: p.name || p.product_id,
+        name: p.name || p.sku_id,
         revenue: p.revenue ?? 0,
         margin_pct: p.margin_pct ?? 0,
       })),
@@ -155,7 +155,7 @@ const Reports = () => {
 
   const handleProductClick = (product) => {
     setSelectedProduct({
-      id: product.product_id || product.id,
+      id: product.sku_id || product.id,
       name: product.name,
       sku: product.sku,
     });

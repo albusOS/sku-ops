@@ -104,11 +104,11 @@ async def cmd_db_status(conn: asyncpg.Connection, _args: argparse.Namespace):
 
 INTEGRITY_CHECKS = [
     {
-        "name": "Orphan SKUs (no product)",
+        "name": "Orphan SKUs (no product family)",
         "sql": """
             SELECT count(*) FROM skus s
-            LEFT JOIN products p ON p.id = s.product_id
-            WHERE s.product_id IS NOT NULL AND p.id IS NULL
+            LEFT JOIN products p ON p.id = s.product_family_id
+            WHERE s.product_family_id IS NOT NULL AND p.id IS NULL
             {org_filter_s}
         """,
         "expect": 0,

@@ -62,7 +62,7 @@ async def open_cycle_count(
         for p in products:
             item = CycleCountItem(
                 cycle_count_id=count.id,
-                product_id=p.id,
+                sku_id=p.id,
                 sku=p.sku,
                 product_name=p.name,
                 snapshot_qty=float(p.quantity),
@@ -154,7 +154,7 @@ async def commit_cycle_count(
 
     committed_at = datetime.now(UTC).isoformat()
 
-    adjusted_product_ids: list[str] = []
+    adjusted_sku_ids: list[str] = []
     async with transaction():
         # Flip status first — if another request already committed, abort before
         # touching stock. Stock adjustments only proceed if this transaction wins
@@ -168,20 +168,20 @@ async def commit_cycle_count(
             raise ValueError("Cycle count is already committed.")
         for item in items_to_adjust:
             await process_adjustment_stock_changes(
-                product_id=item.product_id,
+                sku_id=item.sku_id,
                 quantity_delta=float(item.variance),  # type: ignore[arg-type]
                 reason="count",
                 user_id=committed_by_id,
                 user_name=committed_by_name,
                 emit_event=False,
             )
-            adjusted_product_ids.append(item.product_id)
+            adjusted_sku_ids.append(item.sku_id)
 
-    if adjusted_product_ids:
+    if adjusted_sku_ids:
         await dispatch(
             InventoryChanged(
                 org_id=get_org_id(),
-                product_ids=tuple(adjusted_product_ids),
+                sku_ids=tuple(adjusted_sku_ids),
                 change_type="cycle_count",
             )
         )

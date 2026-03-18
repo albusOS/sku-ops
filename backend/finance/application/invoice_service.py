@@ -115,7 +115,7 @@ def _build_line_items_from_withdrawal(w, inv_id: str) -> list[dict]:
                 "quantity": line.quantity,
                 "unit_price": line.unit_price,
                 "cost": line.cost,
-                "product_id": line.product_id,
+                "sku_id": line.sku_id,
                 "job_id": line.job_id,
                 "unit": item.unit or "each",
                 "sell_cost": float(item.sell_cost or item.cost),
@@ -309,7 +309,7 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:
         return None
-    if inv.status != InvoiceStatus.DRAFT:
+    if not inv.can_transition_to(InvoiceStatus.APPROVED):
         raise ValueError(f"Cannot approve invoice in '{inv.status}' status")
 
     now = datetime.now(UTC).isoformat()

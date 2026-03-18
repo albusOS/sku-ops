@@ -33,7 +33,7 @@ class TestCycleCountPipeline:
         detail = resp.json()
         items = detail["items"]
 
-        target_item = next((i for i in items if i["product_id"] == product["id"]), None)
+        target_item = next((i for i in items if i["sku_id"] == product["id"]), None)
         assert target_item is not None, "Product should appear in cycle count"
         assert target_item["snapshot_qty"] == 50
 
@@ -66,7 +66,7 @@ class TestCycleCountPipeline:
         detail = client.get(
             f"/api/beta/inventory/cycle-counts/{count['id']}", headers=headers
         ).json()
-        target = next(i for i in detail["items"] if i["product_id"] == product["id"])
+        target = next(i for i in detail["items"] if i["sku_id"] == product["id"])
 
         update_cycle_count_item(client, headers, count["id"], target["id"], counted_qty=25)
         commit_cycle_count(client, headers, count["id"])
@@ -116,7 +116,7 @@ class TestCycleCountPipeline:
         detail = client.get(
             f"/api/beta/inventory/cycle-counts/{count['id']}", headers=headers
         ).json()
-        target = next(i for i in detail["items"] if i["product_id"] == product["id"])
+        target = next(i for i in detail["items"] if i["sku_id"] == product["id"])
 
         update_cycle_count_item(client, headers, count["id"], target["id"], counted_qty=28)
         commit_cycle_count(client, headers, count["id"])

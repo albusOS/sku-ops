@@ -46,7 +46,7 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
             id=wid,
             items=[
                 WithdrawalItem(
-                    product_id="p1",
+                    sku_id="p1",
                     sku="SKU-1",
                     name="Lumber",
                     quantity=2,
@@ -286,8 +286,8 @@ class TestSyncStatusGating:
 
 class TestAdjustmentIdempotencyFix:
     """
-    Before the fix, adjustment_ref_id=product_id meant the second adjustment
-    on any product silently skipped financial recording (entries_exist returned True).
+    Before the fix, adjustment_ref_id=sku_id meant the second adjustment
+    on any SKU silently skipped financial recording (entries_exist returned True).
     After the fix, each adjustment generates a unique ID, so both are recorded.
     """
 
@@ -312,14 +312,14 @@ class TestAdjustmentIdempotencyFix:
             )
 
             await process_adjustment_stock_changes(
-                product_id=product.id,
+                sku_id=product.id,
                 quantity_delta=+5.0,
                 reason="found",
                 user_id="user-1",
                 user_name="Test",
             )
             await process_adjustment_stock_changes(
-                product_id=product.id,
+                sku_id=product.id,
                 quantity_delta=-3.0,
                 reason="damage",
                 user_id="user-1",
@@ -329,7 +329,7 @@ class TestAdjustmentIdempotencyFix:
             conn = get_connection()
             cursor = await conn.execute(
                 """SELECT COUNT(*) FROM financial_ledger
-                   WHERE reference_type = 'adjustment' AND product_id = $1""",
+                   WHERE reference_type = 'adjustment' AND sku_id = $1""",
                 (product.id,),
             )
             row = await cursor.fetchone()
@@ -339,7 +339,7 @@ class TestAdjustmentIdempotencyFix:
             assert count == 4, (
                 f"Expected 4 ledger entries for 2 adjustments, got {count}. "
                 "The adjustment idempotency bug is likely re-introduced — "
-                "adjustment_ref_id must be a unique ID per adjustment, not product_id."
+                "adjustment_ref_id must be a unique ID per adjustment, not sku_id."
             )
 
         call(_body)
@@ -368,7 +368,7 @@ class TestAdjustmentIdempotencyFix:
 
             for i in range(3):
                 await process_adjustment_stock_changes(
-                    product_id=product.id,
+                    sku_id=product.id,
                     quantity_delta=float(i + 1),
                     reason="found",
                     user_id="user-1",
@@ -378,7 +378,7 @@ class TestAdjustmentIdempotencyFix:
             conn = get_connection()
             cursor = await conn.execute(
                 """SELECT DISTINCT reference_id FROM financial_ledger
-                   WHERE reference_type = 'adjustment' AND product_id = $1""",
+                   WHERE reference_type = 'adjustment' AND sku_id = $1""",
                 (product.id,),
             )
             rows = await cursor.fetchall()
@@ -556,7 +556,7 @@ class TestCreditNoteSync:
             )
             await conn.execute(
                 """INSERT INTO credit_note_line_items
-                   (id, credit_note_id, description, quantity, unit_price, amount, cost, product_id)
+                   (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)
                    VALUES ($1, $2, 'Returned lumber', 3, 10.0, 30.0, 6.0, NULL)""",
                 (str(uuid4()), cn_id),
             )
@@ -854,7 +854,7 @@ class TestCogsRepost:
                     "unit_price": 12.0,
                     "amount": 60.0,
                     "cost": 7.0,
-                    "product_id": "p1",
+                    "sku_id": "p1",
                     "job_id": "JOB-1",
                 }
             ]
@@ -882,7 +882,7 @@ class TestCogsRepost:
                     "unit_price": 5.0,
                     "amount": 5.0,
                     "cost": 3.0,
-                    "product_id": "p1",
+                    "sku_id": "p1",
                     "job_id": None,
                 }
             ]
@@ -951,7 +951,7 @@ class TestCogsRepost:
                             "unit_price": 15.0,
                             "amount": 45.0,
                             "cost": 9.0,
-                            "product_id": "p1",
+                            "sku_id": "p1",
                             "job_id": "JOB-1",
                         }
                     ],
@@ -1035,7 +1035,7 @@ class TestCogsRepost:
                             "unit_price": 5.0,
                             "amount": 5.0,
                             "cost": 3.0,
-                            "product_id": "p1",
+                            "sku_id": "p1",
                             "job_id": None,
                         }
                     ],

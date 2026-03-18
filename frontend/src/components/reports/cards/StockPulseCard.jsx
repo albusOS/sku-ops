@@ -79,10 +79,11 @@ export function StockPulseCard() {
   }, []);
 
   const { data: heatmapTrends } = useReportTrends(trailing365);
-  const { data: productsList } = useProducts();
+  const { data: rawProducts } = useProducts();
+  const productsList = Array.isArray(rawProducts) ? rawProducts : rawProducts?.items || [];
 
   const activityParams = useMemo(
-    () => ({ product_id: heatmapProductId || undefined }),
+    () => ({ sku_id: heatmapProductId || undefined }),
     [heatmapProductId],
   );
   const { data: productActivityData } = useReportProductActivity(activityParams);

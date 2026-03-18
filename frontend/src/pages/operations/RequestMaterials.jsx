@@ -98,8 +98,8 @@ const RequestMaterials = () => {
   const handleSubmitRequest = async () => {
     try {
       await createRequest.mutateAsync({
-        items: cart.map(({ product_id, sku, name, quantity, unit_price, unit }) => ({
-          product_id,
+        items: cart.map(({ sku_id, sku, name, quantity, unit_price, unit }) => ({
+          sku_id,
           sku,
           name,
           quantity,
@@ -124,7 +124,7 @@ const RequestMaterials = () => {
   };
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const cartInProduct = (productId) => cart.find((i) => i.product_id === productId);
+  const cartInProduct = (productId) => cart.find((i) => i.sku_id === productId);
 
   if (productsLoading && deptsLoading) return <PageSkeleton />;
   if (productsError) return <QueryError error={productsErr} onRetry={refetchProducts} />;
@@ -250,7 +250,7 @@ const RequestMaterials = () => {
                           </div>
                         )}
                         <span className="absolute bottom-2 right-2 text-[10px] text-muted-foreground/70 bg-card/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/50 tabular-nums">
-                          {available} avail
+                          {available} {product.sell_uom || "ea"} avail
                         </span>
                       </div>
                       <div className="p-3">
@@ -370,7 +370,7 @@ const RequestMaterials = () => {
             <div className="space-y-2">
               {cart.map((item) => (
                 <div
-                  key={item.product_id}
+                  key={item.sku_id}
                   className="bg-muted/60 border border-border/60 rounded-xl p-3 transition-colors hover:bg-muted/80"
                 >
                   <div className="flex justify-between items-start gap-2 mb-2">
@@ -379,7 +379,7 @@ const RequestMaterials = () => {
                       <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
                     </div>
                     <button
-                      onClick={() => removeItem(item.product_id)}
+                      onClick={() => removeItem(item.sku_id)}
                       className="text-muted-foreground/50 hover:text-destructive p-1 rounded-md transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -388,8 +388,9 @@ const RequestMaterials = () => {
                   <div className="flex items-center justify-between">
                     <QuantityControl
                       value={item.quantity}
-                      onChange={(v) => updateQuantity(item.product_id, v)}
+                      onChange={(v) => updateQuantity(item.sku_id, v)}
                       max={item.max_quantity}
+                      unit={item.unit || item.sell_uom || "ea"}
                     />
                     <span className="font-semibold text-sm text-foreground tabular-nums">
                       ${(item.quantity * item.unit_price).toFixed(2)}

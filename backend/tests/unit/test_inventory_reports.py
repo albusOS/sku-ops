@@ -13,7 +13,7 @@ async def test_product_performance_report_handles_mixed_numeric_types(monkeypatc
     async def _product_margins(*, start_date=None, end_date=None, limit=200):
         return [
             {
-                "product_id": "sku-1",
+                "sku_id": "sku-1",
                 "revenue": Decimal("120.00"),
                 "cost": Decimal("45.50"),
                 "profit": Decimal("74.50"),
@@ -30,6 +30,7 @@ async def test_product_performance_report_handles_mixed_numeric_types(monkeypatc
                 category_name="Hardware",
                 quantity=3.5,
                 cost=4.25,
+                base_unit="each",
             )
         ]
 

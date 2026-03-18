@@ -11,10 +11,8 @@
 ### 1. Start the Live App
 
 ```bash
-cd /Users/nooz/products/sku-ops
-npm install
-cp backend/.env.example backend/.env   # edit if needed
-npm run dev
+./bin/dev db     # start dev Postgres (first time)
+npm run dev      # starts backend + frontend
 ```
 
 - **Backend:** http://localhost:8000  
@@ -23,8 +21,8 @@ npm run dev
 ### 2. Provision Data
 
 ```bash
-./bin/dev provision --dev              # org + 58 departments + dev users
-./bin/dev import --vendors --products  # 7 vendors + 1,294 products from Hike POS
+./bin/dev provision --dev              # org + departments + dev users
+./bin/dev import --vendors --products  # vendors + products from Hike POS
 ```
 
 ### 3. Log In
@@ -438,57 +436,19 @@ npm run dev
 
 ---
 
-## Known Gaps (from User Story)
+## Known Limitations
 
-| # | Gap | Manual Check |
-|---|-----|--------------|
-| 1 | Two-role model (admin, contractor) | Single-org seed provides admin + contractor |
-| 2 | withdrawal_getter wiring | Invoice creation from withdrawal works |
-| 3 | Contractor POS | Role-based UX: contractor can/cannot access POS |
-| 4 | Document parse → PO → receive | Trace full flow, watch for silent failures |
-| 5 | Invoice auto-creation | Every withdrawal = 1 draft? Consolidation UX |
-| 6 | Material request process | Job ID/address pre-filled from contractor input? (Admin re-enters if not provided) |
-
----
-
-## Execution Log Template
-
-Use this to record your manual run:
-
-```markdown
-## Walkthrough Date: YYYY-MM-DD
-## Tester: [name]
-## Setup: provision --dev + import
-
-| Scene | Pass/Fail | Notes |
-|-------|-----------|-------|
-| 1 Login | | |
-| 2 Dashboard | | |
-| 3 Receipt Import | | |
-| 4 Delivery/Receive | | |
-| 5 Inventory | | |
-| 6 Contractor Login | | |
-| 7a Request Materials | | |
-| 7b Process Request | | |
-| 8 POS | | |
-| 9 Contractor POS | | |
-| 10 Financials | | |
-| 11 Invoicing | | |
-| 12 Xero | | |
-| 13 Reports | | |
-| 14 AI Assistant | | |
-| 15 Product Performance | | |
-| 16 Stock Adjustment | | |
-```
+| # | Area | Note |
+|---|------|------|
+| 1 | Contractor POS | POS is admin-only; contractor self-checkout is not exposed |
+| 2 | Document parse → PO → receive | Trace full flow, watch for silent extraction failures |
+| 3 | Material request processing | Verify job ID/address pre-fills from contractor input |
 
 ---
 
 ## Provisioning Commands
 
 ```bash
-# Provision org + departments + dev users
-./bin/dev provision --dev
-
-# Import real data from Hike POS exports
-./bin/dev import --vendors --products
+./bin/dev provision --dev              # org + departments + dev users
+./bin/dev import --vendors --products  # real Hike POS data
 ```

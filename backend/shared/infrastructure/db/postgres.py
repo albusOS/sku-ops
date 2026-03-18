@@ -56,7 +56,8 @@ class PgPoolProxy:
 
     async def execute(self, sql: str, params: tuple | list = ()) -> PgCursor:
         async with self._pool.acquire(timeout=self._acquire_timeout) as conn:
-            if sql.lstrip().upper().startswith("SELECT") or "RETURNING" in sql.upper():
+            head = sql.lstrip().upper()
+            if head.startswith(("SELECT", "WITH")) or "RETURNING" in head:
                 rows = await conn.fetch(sql, *params)
                 return PgCursor(rows)
             status = await conn.execute(sql, *params)

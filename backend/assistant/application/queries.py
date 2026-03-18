@@ -8,6 +8,7 @@ from assistant.infrastructure.agent_run_repo import (
     get_cost_breakdown,
     get_session_trace,
     get_stats,
+    get_validation_summary,
     list_runs,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "get_cost_breakdown",
     "get_session_trace",
     "get_stats",
+    "get_validation_summary",
     "list_runs",
 ]

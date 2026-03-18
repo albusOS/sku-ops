@@ -17,7 +17,7 @@ def test_by_barcode_found_returns_product(db, client, auth_headers):
         headers=auth_headers,
     )
     assert create_resp.status_code == 200, create_resp.text
-    product_id = create_resp.json()["id"]
+    sku_id = create_resp.json()["id"]
 
     resp = client.get(
         "/api/beta/catalog/skus/by-barcode?barcode=042100005264",
@@ -25,7 +25,7 @@ def test_by_barcode_found_returns_product(db, client, auth_headers):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["id"] == product_id
+    assert data["id"] == sku_id
     assert data["barcode"] == "042100005264"
 
 

@@ -36,18 +36,18 @@ class LineItem(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    product_id: str = Field(default="", validation_alias=AliasChoices("product_id", "id"))
+    sku_id: str = Field(default="", validation_alias=AliasChoices("sku_id", "product_id", "id"))
     sku: str = Field(default="")
     name: str
 
     @model_validator(mode="before")
     @classmethod
-    def ensure_product_id_sku(cls, data: object) -> object:
-        """Coerce missing or null product_id/sku to empty string for client resilience."""
+    def ensure_sku_id_sku(cls, data: object) -> object:
+        """Coerce missing or null sku_id/sku to empty string for client resilience."""
         if isinstance(data, dict):
             data = dict(data)
-            pid = data.get("product_id") or data.get("id")
-            data["product_id"] = "" if pid is None else str(pid)
+            pid = data.get("sku_id") or data.get("product_id") or data.get("id")
+            data["sku_id"] = "" if pid is None else str(pid)
             sku = data.get("sku")
             data["sku"] = "" if sku is None else str(sku)
         return data
@@ -83,12 +83,6 @@ class Address(BaseModel):
     state: str = ""
     postal_code: str = ""
     country: str = "US"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def display(self) -> str:
-        parts = [p for p in [self.line1, self.line2, self.city, self.state, self.postal_code] if p]
-        return ", ".join(parts)
 
 
 class CurrentUser(BaseModel):

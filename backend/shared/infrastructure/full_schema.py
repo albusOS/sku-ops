@@ -10,6 +10,9 @@ from assistant.infrastructure.schema import (
     INDEXES as _assistant_indexes,
 )
 from assistant.infrastructure.schema import (
+    MIGRATIONS as _assistant_migrations,
+)
+from assistant.infrastructure.schema import (
     TABLES as _assistant_tables,
 )
 from catalog.infrastructure.schema import (
@@ -31,10 +34,16 @@ from finance.infrastructure.schema import (
     INDEXES as _finance_indexes,
 )
 from finance.infrastructure.schema import (
+    MIGRATIONS as _finance_migrations,
+)
+from finance.infrastructure.schema import (
     TABLES as _finance_tables,
 )
 from inventory.infrastructure.schema import (
     INDEXES as _inventory_indexes,
+)
+from inventory.infrastructure.schema import (
+    MIGRATIONS as _inventory_migrations,
 )
 from inventory.infrastructure.schema import (
     TABLES as _inventory_tables,
@@ -49,10 +58,16 @@ from operations.infrastructure.schema import (
     INDEXES as _operations_indexes,
 )
 from operations.infrastructure.schema import (
+    MIGRATIONS as _operations_migrations,
+)
+from operations.infrastructure.schema import (
     TABLES as _operations_tables,
 )
 from purchasing.infrastructure.schema import (
     INDEXES as _purchasing_indexes,
+)
+from purchasing.infrastructure.schema import (
+    MIGRATIONS as _purchasing_migrations,
 )
 from purchasing.infrastructure.schema import (
     TABLES as _purchasing_tables,
@@ -110,8 +125,15 @@ ALL_INDEXES: list[str] = _ALL_INDEXES
 ALL_VIEWS: list[str] = _shared_views
 
 # Additive ALTER TABLE migrations — applied after tables and indexes.
-# Each entry is idempotent (uses IF NOT EXISTS).
-ALL_MIGRATIONS: list[str] = _catalog_migrations
+# Each entry is idempotent (uses IF NOT EXISTS) or gracefully skipped on failure.
+ALL_MIGRATIONS: list[str] = (
+    _catalog_migrations
+    + _inventory_migrations
+    + _operations_migrations
+    + _finance_migrations
+    + _purchasing_migrations
+    + _assistant_migrations
+)
 
 # Per-context table DDL — used by the analyst agent's schema introspection.
 # Exported here (composition root) so the assistant context doesn't need

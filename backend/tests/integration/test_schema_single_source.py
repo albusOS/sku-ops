@@ -215,7 +215,7 @@ async def test_cycle_count_items_has_required_columns():
     required = {
         "id",
         "cycle_count_id",
-        "product_id",
+        "sku_id",
         "sku",
         "product_name",
         "snapshot_qty",

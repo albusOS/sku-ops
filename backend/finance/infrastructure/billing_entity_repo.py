@@ -137,7 +137,7 @@ async def search(query: str, limit: int = 20) -> list:
     sel_q += _COLUMNS
     sel_q += (
         " FROM billing_entities"
-        " WHERE organization_id = $1 AND is_active = 1"
+        " WHERE organization_id = $1 AND is_active = TRUE"
         " AND (LOWER(name) LIKE $2 OR LOWER(contact_name) LIKE $3)"
         " ORDER BY name LIMIT $4"
     )

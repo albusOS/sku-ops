@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from finance.domain.enums import InvoiceStatus, XeroSyncStatus
 from shared.kernel.entity import AuditedEntity
-from shared.kernel.types import LineItem, round_money
+from shared.kernel.types import LineItem
 
 PAYMENT_TERMS_DAYS: dict[str, int] = {
     "due_on_receipt": 0,
@@ -46,18 +46,8 @@ class InvoiceLineItem(BaseModel):
     cost: float = 0.0
     sell_cost: float = 0.0
     unit: str | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     job_id: str | None = None
-
-    @property
-    def margin(self) -> float:
-        return round_money(self.amount - (self.cost * self.quantity))
-
-    @property
-    def margin_pct(self) -> float | None:
-        if self.amount <= 0:
-            return None
-        return round(self.margin / self.amount * 100, 2)
 
     @classmethod
     def from_line_item(
@@ -74,7 +64,7 @@ class InvoiceLineItem(BaseModel):
             unit_price=item.unit_price,
             amount=item.subtotal,
             cost=item.cost,
-            product_id=item.product_id,
+            sku_id=item.sku_id,
             job_id=job_id,
         )
 
@@ -145,10 +135,6 @@ class Invoice(AuditedEntity):
 
     def can_transition_to(self, target: InvoiceStatus) -> bool:
         return target in self.ALLOWED_TRANSITIONS.get(self.status, set())
-
-    @property
-    def balance_due(self) -> float:
-        return round_money(self.total - self.amount_credited)
 
 
 class InvoiceWithDetails(Invoice):

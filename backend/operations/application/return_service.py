@@ -44,15 +44,13 @@ async def create_return(
 
     w_item_map: dict[str, object] = {}
     for wi in withdrawal.items:
-        if wi.product_id not in w_item_map:
-            w_item_map[wi.product_id] = wi
+        if wi.sku_id not in w_item_map:
+            w_item_map[wi.sku_id] = wi
         else:
-            prev = w_item_map[wi.product_id]
-            w_item_map[wi.product_id] = wi.model_copy(
-                update={"quantity": prev.quantity + wi.quantity}
-            )
+            prev = w_item_map[wi.sku_id]
+            w_item_map[wi.sku_id] = wi.model_copy(update={"quantity": prev.quantity + wi.quantity})
 
-    w_dept_map = {wi.product_id: getattr(wi, "category_name", None) for wi in withdrawal.items}
+    w_dept_map = {wi.sku_id: getattr(wi, "category_name", None) for wi in withdrawal.items}
 
     ret = MaterialReturn(
         withdrawal_id=data.withdrawal_id,
@@ -69,7 +67,7 @@ async def create_return(
     )
 
     enriched_items: list[ReturnItem] = []
-    product_ids: tuple[str, ...] = ()
+    sku_ids: tuple[str, ...] = ()
     ledger_items: tuple[LedgerItem, ...] = ()
 
     async with transaction():
@@ -85,19 +83,15 @@ async def create_return(
         already_returned: dict[str, float] = {}
         for er in existing_returns:
             for ri in er.items:
-                already_returned[ri.product_id] = (
-                    already_returned.get(ri.product_id, 0) + ri.quantity
-                )
+                already_returned[ri.sku_id] = already_returned.get(ri.sku_id, 0) + ri.quantity
 
         enriched_items = []
         for item in data.items:
-            original = w_item_map.get(item.product_id)
+            original = w_item_map.get(item.sku_id)
             if not original:
-                raise DomainError(
-                    f"Product {item.product_id} ({item.sku}) not on original withdrawal"
-                )
+                raise DomainError(f"Product {item.sku_id} ({item.sku}) not on original withdrawal")
 
-            max_returnable = original.quantity - already_returned.get(item.product_id, 0)
+            max_returnable = original.quantity - already_returned.get(item.sku_id, 0)
             if item.quantity > max_returnable:
                 raise DomainError(
                     f"Cannot return {item.quantity} of {item.name} — "
@@ -117,22 +111,22 @@ async def create_return(
         ret.items = enriched_items
         ret.compute_totals(tax_rate=tax_rate)
 
-        product_ids = tuple(item.product_id for item in enriched_items)
+        sku_ids = tuple(item.sku_id for item in enriched_items)
         ledger_items = tuple(
             LedgerItem(
-                product_id=item.product_id,
+                sku_id=item.sku_id,
                 quantity=item.quantity,
                 unit=item.unit or "each",
                 unit_price=item.unit_price,
                 cost=item.cost,
-                category_name=w_dept_map.get(item.product_id),
+                category_name=w_dept_map.get(item.sku_id),
             )
             for item in enriched_items
         )
 
         for item in enriched_items:
             await restock_as_return(
-                product_id=item.product_id,
+                sku_id=item.sku_id,
                 sku=item.sku,
                 product_name=item.name,
                 quantity=item.quantity,
@@ -164,7 +158,7 @@ async def create_return(
             tax=ret.tax,
             total=ret.total,
             performed_by_user_id=current_user.id,
-            product_ids=product_ids,
+            sku_ids=sku_ids,
             ledger_items=ledger_items,
             invoice_id=withdrawal.invoice_id,
         )
@@ -172,7 +166,7 @@ async def create_return(
     await dispatch(
         InventoryChanged(
             org_id=org_id,
-            product_ids=product_ids,
+            sku_ids=sku_ids,
             change_type="return",
         )
     )

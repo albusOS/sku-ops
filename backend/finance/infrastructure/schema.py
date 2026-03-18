@@ -1,5 +1,12 @@
 """Finance context schema — invoices, credit notes, and related join/counter tables."""
 
+# Rename: product_id -> sku_id (existing dev DBs)
+MIGRATIONS: list[str] = [
+    "ALTER TABLE invoice_line_items RENAME COLUMN product_id TO sku_id",
+    "ALTER TABLE credit_note_line_items RENAME COLUMN product_id TO sku_id",
+    "ALTER TABLE financial_ledger RENAME COLUMN product_id TO sku_id",
+]
+
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
@@ -44,7 +51,7 @@ TABLES: list[str] = [
         unit_price NUMERIC(18,4) NOT NULL,
         amount NUMERIC(18,2) NOT NULL,
         cost NUMERIC(18,4) NOT NULL DEFAULT 0,
-        product_id TEXT,
+        sku_id TEXT,
         job_id TEXT,
         unit TEXT NOT NULL DEFAULT 'each',
         sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
@@ -79,7 +86,7 @@ TABLES: list[str] = [
         unit_price NUMERIC(18,4) NOT NULL,
         amount NUMERIC(18,2) NOT NULL,
         cost NUMERIC(18,4) NOT NULL DEFAULT 0,
-        product_id TEXT,
+        sku_id TEXT,
         unit TEXT NOT NULL DEFAULT 'each',
         sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
     )""",
@@ -117,7 +124,7 @@ TABLES: list[str] = [
         billing_entity_id TEXT,
         contractor_id TEXT,
         vendor_name TEXT,
-        product_id TEXT,
+        sku_id TEXT,
         performed_by_user_id TEXT,
         reference_type TEXT NOT NULL,
         reference_id TEXT NOT NULL,

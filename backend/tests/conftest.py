@@ -95,6 +95,11 @@ async def _truncate_and_seed():
            billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
            organization_id = EXCLUDED.organization_id"""
     )
+    # Re-seed global units of measure (wiped by TRUNCATE)
+    from catalog.infrastructure.schema import _UOM_SEED
+
+    for stmt in _UOM_SEED:
+        await conn.execute(stmt)
     await conn.commit()
 
 

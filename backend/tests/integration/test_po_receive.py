@@ -54,7 +54,7 @@ async def _create_test_product(
 
 
 async def _create_po_with_item(
-    product_id=None,
+    sku_id=None,
     cost=None,
     unit_price=10.0,
     ordered_qty=50.0,
@@ -83,7 +83,7 @@ async def _create_po_with_item(
         pack_qty=1,
         suggested_department="HDW",
         status=status,
-        product_id=product_id,
+        sku_id=sku_id,
         organization_id="supply-yard",
     )
     await po_repo.insert_items([item])
@@ -102,13 +102,6 @@ def _stub_deps():
         update_sku,
     )
     from catalog.application.vendor_item_lifecycle import add_vendor_item
-    from documents.application.import_parser import infer_uom, suggest_department
-
-    async def _noop_enrich(items, *a, **kw):
-        return items
-
-    async def _noop_classify(items):
-        return items
 
     async def _noop_create(**kw):
         return await create_product_with_sku(**kw, on_stock_import=process_receiving_stock_changes)
@@ -125,10 +118,6 @@ def _stub_deps():
         create_product_with_sku=_noop_create,
         add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
-        classify_uom_batch=_noop_classify,
-        infer_uom=infer_uom,
-        suggest_department=suggest_department,
-        enrich_for_import=_noop_enrich,
     )
 
 
@@ -163,7 +152,7 @@ def test_receive_updates_stock(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=7.0, ordered_qty=50)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=7.0, ordered_qty=50)
 
         result = await receive_po_items(
             po_id=po.id,
@@ -186,7 +175,7 @@ def test_receive_weighted_average_cost(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0, cost=8.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=12.0, ordered_qty=50)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=12.0, ordered_qty=50)
 
         await receive_po_items(
             po_id=po.id,
@@ -208,7 +197,7 @@ def test_receive_cost_fallback_from_unit_price(call):
     async def _body():
         product = await _create_test_product(quantity=100.0, cost=8.0)
         po, item = await _create_po_with_item(
-            product_id=product.id,
+            sku_id=product.id,
             cost=None,
             unit_price=10.0,
             ordered_qty=50,
@@ -240,7 +229,7 @@ def test_receive_creates_stock_transaction(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=7.0, ordered_qty=25)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=7.0, ordered_qty=25)
 
         await receive_po_items(
             po_id=po.id,
@@ -263,7 +252,7 @@ def test_receive_creates_ledger_entries(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=6.0, ordered_qty=20)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=20)
 
         await receive_po_items(
             po_id=po.id,
@@ -293,7 +282,7 @@ def test_receive_po_status_becomes_received(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=5.0, ordered_qty=10)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=5.0, ordered_qty=10)
 
         result = await receive_po_items(
             po_id=po.id,
@@ -313,7 +302,7 @@ def test_receive_rejects_ordered_items(call):
     async def _body():
         product = await _create_test_product(quantity=100.0)
         po, item = await _create_po_with_item(
-            product_id=product.id,
+            sku_id=product.id,
             cost=5.0,
             ordered_qty=10,
             status=POItemStatus.ORDERED,
@@ -341,7 +330,7 @@ def test_receive_cost_override_affects_wac(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0, cost=8.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=6.0, ordered_qty=50)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=50)
 
         result = await receive_po_items(
             po_id=po.id,
@@ -363,7 +352,7 @@ def test_receive_creates_product_with_overridden_name(call):
 
     async def _body():
         po, item = await _create_po_with_item(
-            product_id=None,
+            sku_id=None,
             cost=5.0,
             ordered_qty=10,
             name="Generic Widget",
@@ -388,7 +377,7 @@ def test_receive_creates_product_with_overridden_name(call):
 
         conn = get_connection()
         cursor = await conn.execute(
-            "SELECT name FROM skus WHERE id = (SELECT product_id FROM purchase_order_items WHERE id = $1)",
+            "SELECT name FROM skus WHERE id = (SELECT sku_id FROM purchase_order_items WHERE id = $1)",
             (item.id,),
         )
         row = await cursor.fetchone()
@@ -398,21 +387,21 @@ def test_receive_creates_product_with_overridden_name(call):
     call(_body)
 
 
-def test_receive_product_id_override_matches_explicit(call):
-    """When the review modal sets product_id, it should be used instead of auto-match."""
+def test_receive_sku_id_override_matches_explicit(call):
+    """When the review modal sets sku_id, it should be used instead of auto-match."""
 
     async def _body():
-        product_a = await _create_test_product(name="Widget A", quantity=50.0, cost=10.0)
-        product_b = await _create_test_product(name="Widget B", quantity=30.0, cost=12.0)
+        product_a = await _create_test_product(name="Alpha Widget", quantity=50.0, cost=10.0)
+        product_b = await _create_test_product(name="Bravo Widget", quantity=30.0, cost=12.0)
         po, item = await _create_po_with_item(
-            product_id=product_a.id,
+            sku_id=product_a.id,
             cost=8.0,
             ordered_qty=20,
         )
 
         result = await receive_po_items(
             po_id=po.id,
-            item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=20, product_id=product_b.id)],
+            item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=20, sku_id=product_b.id)],
             deps=_stub_deps(),
             current_user=_user(),
         )
@@ -432,7 +421,7 @@ def test_receive_items_with_typed_input(call):
 
     async def _body():
         product = await _create_test_product(name="Typed Input Product", quantity=20.0, cost=5.0)
-        po, item = await _create_po_with_item(product_id=product.id, cost=6.0, ordered_qty=15)
+        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=15)
 
         update = ReceiveItemUpdate(
             id=item.id,

@@ -182,11 +182,11 @@ VIEWS: list[str] = [
     -- po_item → sku
     SELECT poi.po_id       AS source_id,
            'po'            AS source_type,
-           poi.product_id  AS target_id,
+           poi.sku_id  AS target_id,
            'sku'           AS target_type,
            'contains_sku'  AS relation,
            poi.organization_id AS org_id
-    FROM purchase_order_items poi WHERE poi.product_id IS NOT NULL
+    FROM purchase_order_items poi WHERE poi.sku_id IS NOT NULL
     UNION ALL
     -- withdrawal → job
     SELECT w.id            AS source_id,
@@ -256,13 +256,13 @@ VIEWS: list[str] = [
     -- withdrawal_item → sku
     SELECT wi.withdrawal_id AS source_id,
            'withdrawal'     AS source_type,
-           wi.product_id    AS target_id,
+           wi.sku_id        AS target_id,
            'sku'            AS target_type,
            'contains_sku'   AS relation,
            w.organization_id AS org_id
     FROM withdrawal_items wi
     JOIN withdrawals w ON w.id = wi.withdrawal_id
-    WHERE wi.product_id IS NOT NULL
+    WHERE wi.sku_id IS NOT NULL
     UNION ALL
     -- job → billing_entity
     SELECT j.id            AS source_id,

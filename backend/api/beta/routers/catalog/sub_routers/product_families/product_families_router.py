@@ -12,13 +12,14 @@ from catalog.application.queries import (
     count_product_families,
     get_department_by_id,
     get_product_family_by_id,
-    list_skus_by_product,
+    get_sku_by_id,
+    list_skus_by_product_family,
 )
 from catalog.application.queries import (
     list_product_families as query_list_product_families,
 )
-from catalog.application.sku_lifecycle import create_sku
-from catalog.domain.product import SkuCreate
+from catalog.application.sku_lifecycle import adopt_sku, create_sku
+from catalog.domain.sku import SkuCreate
 from inventory.application.inventory_service import process_import_stock_changes
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.middleware.audit import audit_log
@@ -57,7 +58,7 @@ async def list_product_families(
     result = [p.model_dump() for p in items]
     if include_skus:
         for product in result:
-            skus = await list_skus_by_product(product["id"])
+            skus = await list_skus_by_product_family(product["id"])
             product["skus"] = [s.model_dump() for s in skus]
     if limit is not None:
         total = await count_product_families(category_id=category_id, search=search)
@@ -70,7 +71,7 @@ async def get_product_family(product_id: str, current_user: CurrentUserDep):
     product = await get_product_family_by_id(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    skus = await list_skus_by_product(product_id)
+    skus = await list_skus_by_product_family(product_id)
     result = product.model_dump()
     result["skus"] = [s.model_dump() for s in skus]
     return result
@@ -126,12 +127,54 @@ async def delete_product_family(product_id: str, request: Request, current_user:
     return {"message": "Product deleted"}
 
 
+@router.patch("/{product_id}/adopt-sku/{sku_id}")
+async def adopt_sku_into_family(
+    product_id: str,
+    sku_id: str,
+    request: Request,
+    current_user: AdminDep,
+):
+    """Move an existing SKU under a different product family.
+
+    Used by admins to fix the 1:1 product-per-SKU antipattern:
+    select an orphan SKU and assign it to the correct product family.
+    The SKU's category is also updated to match the family's category.
+    """
+    product = await get_product_family_by_id(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product family not found")
+    sku = await get_sku_by_id(sku_id)
+    if not sku:
+        raise HTTPException(status_code=404, detail="SKU not found")
+    if sku.product_family_id == product_id:
+        return {"message": "SKU already belongs to this family", "sku_id": sku_id}
+    old_family_id = sku.product_family_id
+    try:
+        await adopt_sku(sku_id=sku_id, new_family_id=product_id)
+    except ResourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    await audit_log(
+        user_id=current_user.id,
+        action="sku.family_reassigned",
+        resource_type="sku",
+        resource_id=sku_id,
+        details={
+            "from_product_family_id": old_family_id,
+            "to_product_family_id": product_id,
+            "sku": sku.sku,
+        },
+        request=request,
+        org_id=current_user.organization_id,
+    )
+    return {"message": "SKU adopted into family", "sku_id": sku_id, "product_id": product_id}
+
+
 @router.get("/{product_id}/skus")
 async def list_product_skus(product_id: str, current_user: CurrentUserDep):
     product = await get_product_family_by_id(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    skus = await list_skus_by_product(product_id)
+    skus = await list_skus_by_product_family(product_id)
     return [s.model_dump() for s in skus]
 
 
@@ -144,7 +187,7 @@ async def create_product_sku(product_id: str, data: SkuCreate, current_user: Adm
     if not department:
         raise HTTPException(status_code=400, detail="Category not found")
     sku = await create_sku(
-        product_id=product_id,
+        product_family_id=product_id,
         category_id=data.category_id,
         category_name=department.name,
         name=data.name,
@@ -162,6 +205,7 @@ async def create_product_sku(product_id: str, data: SkuCreate, current_user: Adm
         variant_label=getattr(data, "variant_label", ""),
         spec=getattr(data, "spec", ""),
         grade=getattr(data, "grade", ""),
+        variant_attrs=getattr(data, "variant_attrs", None) or {},
         user_id=current_user.id,
         user_name=current_user.name,
         on_stock_import=process_import_stock_changes,

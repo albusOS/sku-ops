@@ -58,8 +58,7 @@ async def backfill_ledger(current_user: AdminDep):
     org_id = current_user.organization_id
     conn = get_connection()
 
-    await conn.execute("DELETE FROM financial_ledger WHERE organization_id = ?", (org_id,))
-    await conn.commit()
+    await conn.execute("DELETE FROM financial_ledger WHERE organization_id = $1", (org_id,))
 
     products = await list_products(organization_id=org_id)
     dept_map = {p["id"]: p.get("department_name") for p in products}
@@ -68,7 +67,7 @@ async def backfill_ledger(current_user: AdminDep):
     withdrawals = await list_withdrawals(limit=100000, organization_id=org_id)
     for w in withdrawals:
         items = [
-            {**i, "department_name": dept_map.get(i.get("product_id"))} for i in w.get("items", [])
+            {**i, "department_name": dept_map.get(i.get("sku_id"))} for i in w.get("items", [])
         ]
         await record_withdrawal(
             withdrawal_id=w["id"],
@@ -94,7 +93,7 @@ async def backfill_ledger(current_user: AdminDep):
     returns = await list_returns(limit=100000, organization_id=org_id)
     for r in returns:
         items = [
-            {**i, "department_name": dept_map.get(i.get("product_id"))} for i in r.get("items", [])
+            {**i, "department_name": dept_map.get(i.get("sku_id"))} for i in r.get("items", [])
         ]
         await record_return(
             return_id=r["id"],
@@ -110,10 +109,10 @@ async def backfill_ledger(current_user: AdminDep):
 
     cursor = await conn.execute(
         """SELECT po.id, po.vendor_name, po.received_by_id,
-                  poi.cost, poi.delivered_qty, poi.product_id, poi.suggested_department
+                  poi.cost, poi.delivered_qty, poi.sku_id, poi.suggested_department
            FROM purchase_orders po
            JOIN purchase_order_items poi ON po.id = poi.po_id
-           WHERE po.organization_id = ? AND poi.status = 'arrived'""",
+           WHERE po.organization_id = $1 AND poi.status = 'arrived'""",
         (org_id,),
     )
     po_rows = await cursor.fetchall()
@@ -136,28 +135,27 @@ async def backfill_ledger(current_user: AdminDep):
         )
 
     cursor = await conn.execute(
-        """SELECT product_id, quantity_delta, reason, user_id
+        """SELECT sku_id, quantity_delta, reason, user_id
            FROM stock_transactions
-           WHERE (organization_id = ? OR organization_id IS NULL)
+           WHERE (organization_id = $1 OR organization_id IS NULL)
              AND transaction_type = 'adjustment'""",
         (org_id,),
     )
     adj_rows = await cursor.fetchall()
     for row in adj_rows:
         r = dict(row)
-        pid = r["product_id"]
+        sid = r["sku_id"]
         await record_adjustment(
-            adjustment_ref_id=pid,
-            product_id=pid,
-            product_cost=cost_map.get(pid, 0),
+            adjustment_ref_id=sid,
+            sku_id=sid,
+            product_cost=cost_map.get(sid, 0),
             quantity_delta=r["quantity_delta"],
-            department=dept_map.get(pid),
-            organization_id=org_id,
+            department=dept_map.get(sid),
             performed_by_user_id=r.get("user_id"),
         )
 
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM financial_ledger WHERE organization_id = ?", (org_id,)
+        "SELECT COUNT(*) FROM financial_ledger WHERE organization_id = $1", (org_id,)
     )
     row = await cursor.fetchone()
     total_entries = row[0] if row else 0

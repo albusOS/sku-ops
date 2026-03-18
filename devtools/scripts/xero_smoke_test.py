@@ -130,7 +130,7 @@ class SmokeTestRunner:
                     "unit_price": 100.0,
                     "amount": 100.0,
                     "cost": 60.0,
-                    "product_id": None,
+                    "sku_id": None,
                     "job_id": None,
                 }
             ],

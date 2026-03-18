@@ -39,7 +39,7 @@ class WeeklySalesReportResult:
 
     revenue_summary: dict[str, Any]
     pl_summary: dict[str, Any]
-    top_products: list[dict[str, Any]]
+    top_skus: list[dict[str, Any]]
     outstanding_balances: list[dict[str, Any]]
     synthesized_markdown: str
 

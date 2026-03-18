@@ -104,7 +104,7 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
       quantity: parseFloat(i.quantity) || 0,
       unit_price: parseFloat(i.unit_price) || 0,
       amount: (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0),
-      product_id: i.product_id,
+      sku_id: i.sku_id,
     }));
 
     try {
@@ -344,7 +344,14 @@ export function InvoiceDetailModal({ invoiceId, open, onOpenChange, onSaved, onD
                             className="h-8 w-20 text-right"
                           />
                         ) : (
-                          item.quantity
+                          <>
+                            {item.quantity}
+                            {item.unit ? (
+                              <span className="ml-1 text-muted-foreground text-xs">
+                                {item.unit}
+                              </span>
+                            ) : null}
+                          </>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right">

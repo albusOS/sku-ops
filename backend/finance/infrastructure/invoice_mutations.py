@@ -59,7 +59,7 @@ async def replace_line_items(invoice_id: str, line_items: list[dict]) -> float:
         cost_val = float(item.get("cost", 0))
         await conn.execute(
             """INSERT INTO invoice_line_items
-               (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id, unit, sell_cost)
+               (id, invoice_id, description, quantity, unit_price, amount, cost, sku_id, job_id, unit, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
             (
                 item_id,
@@ -69,7 +69,7 @@ async def replace_line_items(invoice_id: str, line_items: list[dict]) -> float:
                 float(item.get("unit_price", 0)),
                 amt,
                 cost_val,
-                item.get("product_id"),
+                item.get("sku_id"),
                 item.get("job_id"),
                 item.get("unit") or "each",
                 float(item.get("sell_cost") or cost_val),
@@ -98,7 +98,7 @@ async def insert_line_items(invoice_id: str, line_items: list[dict]) -> float:
         cost_val = float(item.get("cost", 0))
         await conn.execute(
             """INSERT INTO invoice_line_items
-               (id, invoice_id, description, quantity, unit_price, amount, cost, product_id, job_id, unit, sell_cost)
+               (id, invoice_id, description, quantity, unit_price, amount, cost, sku_id, job_id, unit, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
             (
                 str(uuid4()),
@@ -108,7 +108,7 @@ async def insert_line_items(invoice_id: str, line_items: list[dict]) -> float:
                 float(price),
                 amt,
                 cost_val,
-                item.get("product_id"),
+                item.get("sku_id"),
                 item.get("job_id"),
                 item.get("unit") or "each",
                 float(item.get("sell_cost") or cost_val),

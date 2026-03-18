@@ -4,7 +4,6 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from assistant.application.llm_facade import get_generate_text
 from catalog.application.queries import (
     find_product_by_name_and_vendor,
     find_vendor_by_name,
@@ -17,18 +16,15 @@ from catalog.application.queries import (
 )
 from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
 from catalog.application.vendor_item_lifecycle import add_vendor_item
-from documents.application.enrichment_service import enrich_for_import
-from documents.application.import_parser import infer_uom, suggest_department
 from finance.application.po_sync_service import queue_po_for_sync
 from inventory.application.inventory_service import process_receiving_stock_changes
-from inventory.application.uom_classifier import classify_uom_batch as _classify_uom_batch
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
     create_purchase_order,
     mark_delivery_received,
     receive_po_items,
 )
-from purchasing.application.queries import get_po, get_po_items, list_pos
+from purchasing.application.queries import get_po, get_po_items, list_pos_with_counts
 from purchasing.domain.purchase_order import (
     CreatePORequest,
     MarkDeliveryRequest,
@@ -38,12 +34,6 @@ from shared.api.deps import AdminDep
 from shared.infrastructure.middleware.audit import audit_log
 
 logger = logging.getLogger(__name__)
-
-
-async def _wired_classify_uom_batch(products):
-    return await _classify_uom_batch(
-        products, generate_text=get_generate_text(), rule_infer=infer_uom
-    )
 
 
 def _build_deps() -> PurchasingDeps:
@@ -61,10 +51,6 @@ def _build_deps() -> PurchasingDeps:
         ),
         add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
-        classify_uom_batch=_wired_classify_uom_batch,
-        infer_uom=infer_uom,
-        suggest_department=suggest_department,
-        enrich_for_import=enrich_for_import,
     )
 
 
@@ -106,21 +92,7 @@ async def list_purchase_orders(
     status: str | None = None,
 ):
     """List purchase orders, optionally filtered by status (ordered/received)."""
-    pos = await list_pos(status=status)
-    result = []
-    for po in pos:
-        items = await get_po_items(po.id)
-        result.append(
-            po.model_copy(
-                update={
-                    "item_count": len(items),
-                    "ordered_count": sum(1 for i in items if i.status == "ordered"),
-                    "pending_count": sum(1 for i in items if i.status == "pending"),
-                    "arrived_count": sum(1 for i in items if i.status == "arrived"),
-                }
-            )
-        )
-    return result
+    return await list_pos_with_counts(status=status)
 
 
 @router.get("/{po_id}")

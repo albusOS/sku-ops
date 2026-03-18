@@ -92,13 +92,9 @@ export default function ChatAssistant() {
     (newMode) => {
       if (newMode === chatMode) return;
       if (streaming) wsCancel();
-      clearSession(sessionId);
-      setMessages([]);
-      setSessionId(null);
-      setSessionCost(0);
       setChatMode(newMode);
     },
-    [chatMode, streaming, wsCancel, sessionId],
+    [chatMode, streaming, wsCancel],
   );
 
   const startNewChat = () => {

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 class LedgerItem:
     """Line-item summary carried inside withdrawal/return events for ledger recording."""
 
-    product_id: str | None
+    sku_id: str | None
     quantity: float
     unit: str
     unit_price: float
@@ -27,7 +27,7 @@ class LedgerItem:
 class ReceivedItemSummary:
     """Line-item summary carried inside POItemsReceived for ledger recording."""
 
-    product_id: str | None
+    sku_id: str | None
     cost: float
     delivered_qty: float
     department: str | None = None

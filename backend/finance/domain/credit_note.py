@@ -14,7 +14,7 @@ class CreditNoteLineItem(BaseModel):
     unit_price: float = 0.0
     amount: float = 0.0
     cost: float = 0.0
-    product_id: str | None = None
+    sku_id: str | None = None
 
 
 class CreditNote(AuditedEntity):

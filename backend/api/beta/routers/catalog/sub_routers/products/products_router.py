@@ -20,8 +20,8 @@ from catalog.application.sku_lifecycle import (
 from catalog.application.sku_lifecycle import (
     update_sku as lifecycle_update,
 )
-from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
-from catalog.domain.product import SkuCreate, SkuUpdate
+from catalog.domain.errors import DuplicateBarcodeError, DuplicateSkuError, InvalidBarcodeError
+from catalog.domain.sku import SkuCreate, SkuUpdate
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
 from shared.api.deps import AdminDep, CurrentUserDep
@@ -121,9 +121,9 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUserDep):
     return result
 
 
-@router.get("/{product_id}", response_model=None)
-async def get_product(product_id: str, current_user: CurrentUserDep):
-    sku = await get_sku_by_id(product_id)
+@router.get("/{sku_id}", response_model=None)
+async def get_product(sku_id: str, current_user: CurrentUserDep):
+    sku = await get_sku_by_id(sku_id)
     if not sku:
         raise HTTPException(status_code=404, detail="Product not found")
     result = sku.model_dump()
@@ -166,6 +166,7 @@ async def create_product(data: SkuCreate, current_user: AdminDep):
             variant_label=getattr(data, "variant_label", ""),
             spec=getattr(data, "spec", ""),
             grade=getattr(data, "grade", ""),
+            variant_attrs=data.variant_attrs or {},
             user_id=current_user.id,
             user_name=current_user.name,
             on_stock_import=process_import_stock_changes,
@@ -177,16 +178,18 @@ async def create_product(data: SkuCreate, current_user: AdminDep):
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.put("/{product_id}")
-async def update_product(product_id: str, data: SkuUpdate, current_user: AdminDep):
-    sku = await get_sku_by_id(product_id)
+@router.put("/{sku_id}")
+async def update_product(sku_id: str, data: SkuUpdate, current_user: AdminDep):
+    sku = await get_sku_by_id(sku_id)
     if not sku:
         raise HTTPException(status_code=404, detail="Product not found")
 
     try:
-        result = await lifecycle_update(product_id, data, current_sku=sku)
+        result = await lifecycle_update(sku_id, data, current_sku=sku)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except DuplicateSkuError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except DuplicateBarcodeError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidBarcodeError as e:
@@ -194,21 +197,21 @@ async def update_product(product_id: str, data: SkuUpdate, current_user: AdminDe
     return _enrich_sell_fields(result.model_dump())
 
 
-@router.delete("/{product_id}")
-async def delete_product(product_id: str, request: Request, current_user: AdminDep):
-    sku = await get_sku_by_id(product_id)
+@router.delete("/{sku_id}")
+async def delete_product(sku_id: str, request: Request, current_user: AdminDep):
+    sku = await get_sku_by_id(sku_id)
     if not sku:
         raise HTTPException(status_code=404, detail="Product not found")
 
     try:
-        await lifecycle_delete(product_id)
+        await lifecycle_delete(sku_id)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     await audit_log(
         user_id=current_user.id,
         action="product.delete",
         resource_type="product",
-        resource_id=product_id,
+        resource_id=sku_id,
         details={"sku": sku.sku, "name": sku.name},
         request=request,
         org_id=current_user.organization_id,

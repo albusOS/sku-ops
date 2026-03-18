@@ -41,6 +41,8 @@ dependencies = [
     # ── Config / Serialization ──
     "PyYAML>=6.0",
     "tzdata>=2024.2",
+    # ── Security constraints ──
+    "pyasn1>=0.6.3",  # CVE-2026-30922 — transitive via google-genai→google-auth→rsa
     # ── Production hardening ──
     "python-json-logger>=2.0.7",
     "prometheus-client>=0.20.0",

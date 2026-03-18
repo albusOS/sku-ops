@@ -111,7 +111,7 @@ async def insert_credit_note(
         amt = round(qty * price, 2)
         await conn.execute(
             """INSERT INTO credit_note_line_items
-               (id, credit_note_id, description, quantity, unit_price, amount, cost, product_id)
+               (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
             (
                 str(uuid4()),
@@ -121,7 +121,7 @@ async def insert_credit_note(
                 price,
                 amt,
                 float(item.get("cost", 0)),
-                item.get("product_id"),
+                item.get("sku_id"),
             ),
         )
 

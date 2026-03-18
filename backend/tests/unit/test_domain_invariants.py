@@ -145,24 +145,24 @@ class TestUnitFamilyCompleteness:
 
 class TestLineItemArithmetic:
     def test_subtotal_with_fractional_quantity(self):
-        li = LineItem(product_id="p1", sku="S", name="Pipe", quantity=2.5, unit_price=4.0)
+        li = LineItem(sku_id="p1", sku="S", name="Pipe", quantity=2.5, unit_price=4.0)
         assert li.subtotal == 10.0
 
     def test_cost_total_with_fractional_quantity(self):
-        li = LineItem(product_id="p1", sku="S", name="Pipe", quantity=2.5, cost=3.0)
+        li = LineItem(sku_id="p1", sku="S", name="Pipe", quantity=2.5, cost=3.0)
         assert li.cost_total == 7.5
 
     def test_unit_defaults_to_each(self):
-        li = LineItem(product_id="p1", sku="S", name="X", quantity=1)
+        li = LineItem(sku_id="p1", sku="S", name="X", quantity=1)
         assert li.unit == "each"
 
     def test_unit_preserved(self):
-        li = LineItem(product_id="p1", sku="S", name="X", quantity=1, unit="foot")
+        li = LineItem(sku_id="p1", sku="S", name="X", quantity=1, unit="foot")
         assert li.unit == "foot"
 
     def test_price_alias(self):
         """LineItem accepts 'price' as alias for 'unit_price'."""
-        li = LineItem(product_id="p1", sku="S", name="X", quantity=1, price=5.0)
+        li = LineItem(sku_id="p1", sku="S", name="X", quantity=1, price=5.0)
         assert li.unit_price == 5.0
 
 
@@ -171,11 +171,11 @@ class TestLineItemArithmetic:
 
 class TestStockDecrementInvariants:
     def test_default_unit_is_each(self):
-        sd = StockDecrement(product_id="p1", sku="S", name="X", quantity=1)
+        sd = StockDecrement(sku_id="p1", sku="S", name="X", quantity=1)
         assert sd.unit == "each"
 
     def test_custom_unit_preserved(self):
-        sd = StockDecrement(product_id="p1", sku="S", name="X", quantity=5, unit="inch")
+        sd = StockDecrement(sku_id="p1", sku="S", name="X", quantity=5, unit="inch")
         assert sd.unit == "inch"
 
 
@@ -210,11 +210,9 @@ class TestWithdrawalInvariants:
 
     def test_compute_totals_with_fractional_items(self):
         items = [
+            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0),
             WithdrawalItem(
-                product_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0
-            ),
-            WithdrawalItem(
-                product_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0
+                sku_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0
             ),
         ]
         w = self._make_withdrawal(items)
@@ -226,9 +224,7 @@ class TestWithdrawalInvariants:
 
     def test_compute_totals_with_zero_tax(self):
         items = [
-            WithdrawalItem(
-                product_id="p1", sku="S1", name="A", quantity=5, unit_price=10.0, cost=4.0
-            ),
+            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=5, unit_price=10.0, cost=4.0),
         ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.0)
@@ -239,7 +235,7 @@ class TestWithdrawalInvariants:
     def test_compute_totals_single_item(self):
         items = [
             WithdrawalItem(
-                product_id="p1", sku="S1", name="A", quantity=1, unit_price=99.99, cost=50.0
+                sku_id="p1", sku="S1", name="A", quantity=1, unit_price=99.99, cost=50.0
             ),
         ]
         w = self._make_withdrawal(items)
@@ -253,10 +249,10 @@ class TestWithdrawalInvariants:
         """Invariant: total = subtotal + tax for any combination."""
         items = [
             WithdrawalItem(
-                product_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0
+                sku_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0
             ),
             WithdrawalItem(
-                product_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0
+                sku_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0
             ),
         ]
         w = self._make_withdrawal(items)
@@ -297,7 +293,7 @@ class TestContractorContext:
         from shared.kernel.types import CurrentUser
 
         data = MaterialWithdrawalCreate(
-            items=[WithdrawalItem(product_id="p1", sku="X", name="A", quantity=1, unit_price=10.0)],
+            items=[WithdrawalItem(sku_id="p1", sku="X", name="A", quantity=1, unit_price=10.0)],
             job_id="J1",
             service_address="123 Main",
         )

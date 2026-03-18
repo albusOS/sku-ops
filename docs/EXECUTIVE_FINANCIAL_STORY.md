@@ -142,31 +142,14 @@ Sarah runs these checks because the numbers need to be defensible.
 
 ---
 
-## How to Execute This Test
+## How to Validate
+
+Provision demo data and run through the scenes manually or via the backend e2e tests:
 
 ```bash
-# 1. Reset and seed demo data
-curl -X POST localhost:8000/api/seed/reset
-
-# 2. Login as admin
-TOKEN=$(curl -s -X POST localhost:8000/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"dev@supply-yard.local","password":"dev123"}' | jq -r '.access_token')
-
-# 3. Check financial summary
-curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/financials/summary | jq .
-
-# 4. Create a return (after making a withdrawal)
-curl -s -X POST localhost:8000/api/returns \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"withdrawal_id":"<id>","items":[...],"reason":"overorder"}' | jq .
-
-# 5. Check job P&L
-curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/reports/job-pl | jq .
-
-# 6. Check credit notes
-curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/credit-notes | jq .
+./bin/dev provision --dev
+./bin/dev import --vendors --products
+./bin/dev test:be backend/tests/e2e/
 ```
 
-Each numbered criterion above is a pass/fail check. 46 total criteria across 7 scenes. Target: 100% pass rate before demo.
+Each numbered criterion above is a pass/fail check. 46 total criteria across 7 scenes.

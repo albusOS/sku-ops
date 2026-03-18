@@ -32,7 +32,7 @@ def _create_product(
 
 def _item_from_product(product: dict[str, Any], quantity: int = 3) -> dict[str, Any]:
     return {
-        "product_id": product["id"],
+        "sku_id": product["id"],
         "sku": product["sku"],
         "name": product["name"],
         "quantity": quantity,

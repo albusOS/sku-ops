@@ -1,10 +1,13 @@
 """Repository for agent_runs — insert + query for monitoring."""
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.database import get_connection, get_org_id, transaction
+
+logger = logging.getLogger(__name__)
 
 
 async def log_agent_run(
@@ -26,42 +29,49 @@ async def log_agent_run(
     error_kind: str | None = None,
     parent_run_id: str | None = None,
     handoff_from: str | None = None,
+    validation_passed: bool | None = None,
+    validation_failures: list[str] | None = None,
+    validation_scores: dict | None = None,
 ) -> str:
     run_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
-    conn = get_connection()
     org_id = get_org_id()
-    await conn.execute(
-        """INSERT INTO agent_runs
-           (id, session_id, org_id, user_id, agent_name, model, mode,
-            user_message, response_text, tool_calls,
-            input_tokens, output_tokens, cost_usd, duration_ms,
-            attempts, error, error_kind, parent_run_id, handoff_from, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)""",
-        (
-            run_id,
-            session_id,
-            org_id,
-            user_id,
-            agent_name,
-            model,
-            mode,
-            (user_message or "")[:2000],
-            (response_text or "")[:4000],
-            json.dumps(tool_calls or []),
-            input_tokens,
-            output_tokens,
-            round(cost_usd, 6),
-            duration_ms,
-            attempts,
-            error,
-            error_kind,
-            parent_run_id,
-            handoff_from,
-            now,
-        ),
-    )
-    await conn.commit()
+    async with transaction():
+        conn = get_connection()
+        await conn.execute(
+            """INSERT INTO agent_runs
+               (id, session_id, org_id, user_id, agent_name, model, mode,
+                user_message, response_text, tool_calls,
+                input_tokens, output_tokens, cost_usd, duration_ms,
+                attempts, error, error_kind, parent_run_id, handoff_from, created_at,
+                validation_passed, validation_failures, validation_scores)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)""",
+            (
+                run_id,
+                session_id,
+                org_id,
+                user_id,
+                agent_name,
+                model,
+                mode,
+                (user_message or "")[:2000],
+                (response_text or "")[:4000],
+                json.dumps(tool_calls or []),
+                input_tokens,
+                output_tokens,
+                round(cost_usd, 6),
+                duration_ms,
+                attempts,
+                error,
+                error_kind,
+                parent_run_id,
+                handoff_from,
+                now,
+                validation_passed,
+                json.dumps(validation_failures or []),
+                json.dumps(validation_scores or {}),
+            ),
+        )
     return run_id
 
 
@@ -71,11 +81,12 @@ async def list_runs(
     session_id: str | None = None,
     minutes: int = 60,
     limit: int = 50,
+    validation_failed_only: bool = False,
 ) -> list[dict]:
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    clauses = [f"created_at >= NOW() - INTERVAL '{minutes} minutes'"]
+    clauses = [f"created_at::timestamptz >= NOW() - INTERVAL '{minutes} minutes'"]
     params: list = []
 
     clauses.append(f"org_id = ${n}")
@@ -90,18 +101,28 @@ async def list_runs(
         clauses.append(f"session_id = ${n}")
         params.append(session_id)
         n += 1
+    if validation_failed_only:
+        clauses.append("validation_passed = FALSE")
 
     params.append(limit)
     query = "SELECT * FROM agent_runs WHERE " + " AND ".join(clauses)
     query += f" ORDER BY created_at DESC LIMIT ${n}"
     cur = await conn.execute(query, params)
-    return [dict(r) for r in await cur.fetchall()]
+    rows = [dict(r) for r in await cur.fetchall()]
+    for r in rows:
+        if isinstance(r.get("tool_calls"), str):
+            r["tool_calls"] = json.loads(r["tool_calls"])
+        if isinstance(r.get("validation_failures"), str):
+            r["validation_failures"] = json.loads(r["validation_failures"])
+        if isinstance(r.get("validation_scores"), str):
+            r["validation_scores"] = json.loads(r["validation_scores"])
+    return rows
 
 
 async def get_stats(*, hours: int = 24) -> dict:
     conn = get_connection()
     org_id = get_org_id()
-    since_expr = f"org_id = $1 AND created_at >= NOW() - INTERVAL '{hours} hours'"
+    since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours'"
 
     cur = await conn.execute(
         "SELECT"
@@ -158,16 +179,58 @@ async def get_session_trace(session_id: str) -> list[dict]:
     )
     rows: list[dict] = [dict(r) for r in await cur.fetchall()]
     for r in rows:
-        if isinstance(r.get("tool_calls"), str):
-            r["tool_calls"] = json.loads(r["tool_calls"])
+        for key in ("tool_calls", "validation_failures", "validation_scores"):
+            if isinstance(r.get(key), str):
+                r[key] = json.loads(r[key])
     return rows
+
+
+async def get_validation_summary(*, hours: int = 24) -> dict:
+    """Validation pass/fail rates and most common failure types per agent."""
+    conn = get_connection()
+    org_id = get_org_id()
+    since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours' AND validation_passed IS NOT NULL"
+
+    cur = await conn.execute(
+        "SELECT agent_name,"
+        " COUNT(*) as runs,"
+        " SUM(CASE WHEN validation_passed THEN 1 ELSE 0 END) as passed,"
+        " SUM(CASE WHEN NOT validation_passed THEN 1 ELSE 0 END) as failed"
+        " FROM agent_runs WHERE " + since_expr + " GROUP BY agent_name ORDER BY failed DESC",
+        [org_id],
+    )
+    by_agent = [dict(r) for r in await cur.fetchall()]
+    for r in by_agent:
+        total = r["runs"] or 1
+        r["pass_rate"] = round(r["passed"] / total, 3)
+
+    cur = await conn.execute(
+        "SELECT validation_failures FROM agent_runs"
+        " WHERE " + since_expr + " AND validation_passed = FALSE",
+        [org_id],
+    )
+    failure_counts: dict[str, int] = {}
+    for (raw,) in await cur.fetchall():
+        try:
+            failures = json.loads(raw) if isinstance(raw, str) else (raw or [])
+            for f in failures:
+                key = f.split(":")[0]
+                failure_counts[key] = failure_counts.get(key, 0) + 1
+        except Exception as _e:
+            logger.debug("Could not parse validation_failures row: %s", _e)
+
+    return {
+        "period_hours": hours,
+        "by_agent": by_agent,
+        "failure_type_counts": dict(sorted(failure_counts.items(), key=lambda x: -x[1])),
+    }
 
 
 async def get_cost_breakdown(*, days: int = 7, group_by: str = "agent") -> list[dict]:
     conn = get_connection()
     org_id = get_org_id()
-    since_expr = f"org_id = $1 AND created_at >= NOW() - INTERVAL '{days} days'"
-    day_expr = "(created_at)::date"
+    since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{days} days'"
+    day_expr = "(created_at::timestamptz)::date"
 
     col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(group_by, "agent_name")
     query = "SELECT "

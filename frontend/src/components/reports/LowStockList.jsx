@@ -41,11 +41,11 @@ export const LowStockList = ({ items = [] }) => (
                   <span
                     className={`text-sm font-bold tabular-nums ${isCritical ? "text-destructive" : "text-warning"}`}
                   >
-                    {item.quantity}
+                    {item.quantity} {item.base_unit || "ea"}
                   </span>
                 )}
                 <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-                  / {item.min_stock}
+                  / {item.min_stock} {item.base_unit || "ea"}
                 </span>
               </div>
             </div>

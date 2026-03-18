@@ -90,8 +90,8 @@ class TestOrgIsolation:
 
         resp = client.get("/api/beta/catalog/skus", headers=org_b_headers)
         assert resp.status_code == 200
-        org_b_product_ids = [p["id"] for p in resp.json()]
-        assert product_a["id"] not in org_b_product_ids, (
+        org_b_sku_ids = [p["id"] for p in resp.json()]
+        assert product_a["id"] not in org_b_sku_ids, (
             "Org A's product should not be visible to Org B"
         )
 
@@ -109,8 +109,8 @@ class TestOrgIsolation:
 
         resp = client.get("/api/beta/catalog/skus", headers=headers_a)
         assert resp.status_code == 200
-        org_a_product_ids = [p["id"] for p in resp.json()]
-        assert product_b["id"] not in org_a_product_ids, (
+        org_a_sku_ids = [p["id"] for p in resp.json()]
+        assert product_b["id"] not in org_a_sku_ids, (
             "Org B's product should not be visible to Org A"
         )
 

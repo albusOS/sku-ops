@@ -54,12 +54,12 @@ async def insert(ret: MaterialReturn) -> None:
         cost = float(item.cost)
         await conn.execute(
             """INSERT INTO return_items
-               (id, return_id, product_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
+               (id, return_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
             (
                 str(uuid4()),
                 ret.id,
-                item.product_id or "",
+                item.sku_id or "",
                 item.sku or "",
                 item.name or "",
                 qty,

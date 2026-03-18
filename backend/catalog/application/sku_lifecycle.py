@@ -14,8 +14,8 @@ from datetime import UTC, datetime
 
 from catalog.application.product_family_lifecycle import create_product as create_product_parent
 from catalog.application.sku_service import generate_sku
-from catalog.domain.errors import DuplicateBarcodeError, InvalidBarcodeError
-from catalog.domain.product import Sku, SkuUpdate
+from catalog.domain.errors import DuplicateBarcodeError, DuplicateSkuError, InvalidBarcodeError
+from catalog.domain.sku import Sku, SkuUpdate
 from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.product_family_repo import product_family_repo
 from catalog.infrastructure.sku_repo import sku_repo
@@ -32,7 +32,7 @@ StockChangesFn = Callable[..., Awaitable[None]] | None
 
 
 async def create_sku(
-    product_id: str,
+    product_family_id: str,
     category_id: str,
     category_name: str,
     name: str,
@@ -50,6 +50,7 @@ async def create_sku(
     variant_label: str = "",
     spec: str = "",
     grade: str = "",
+    variant_attrs: dict | None = None,
     user_id: str | None = None,
     user_name: str = "",
     *,
@@ -65,7 +66,9 @@ async def create_sku(
     if not department:
         raise ResourceNotFoundError("Department", category_id)
 
-    sku_code = await generate_sku(department.code, name)
+    family = await product_family_repo.get_by_id(product_family_id) if product_family_id else None
+    family_name = family.name if family else name
+    sku_code = await generate_sku(department.code, product_family_id, family_name)
     barcode_val = (barcode or "").strip() or sku_code
 
     if barcode_val and barcode_val.isdigit():
@@ -81,7 +84,7 @@ async def create_sku(
 
     sku = Sku(
         sku=sku_code,
-        product_id=product_id,
+        product_family_id=product_family_id,
         name=name,
         description=description,
         price=price,
@@ -99,16 +102,17 @@ async def create_sku(
         variant_label=variant_label,
         spec=spec,
         grade=grade,
+        variant_attrs=variant_attrs or {},
         organization_id=org_id,
     )
 
     async with transaction():
         await sku_repo.insert(sku)
         await department_repo.increment_sku_count(category_id, 1)
-        await product_family_repo.increment_sku_count(product_id, 1)
+        await product_family_repo.increment_sku_count(product_family_id, 1)
         if quantity > 0 and user_id and on_stock_import:
             await on_stock_import(
-                product_id=sku.id,
+                sku_id=sku.id,
                 sku=sku.sku,
                 product_name=sku.name,
                 quantity=quantity,
@@ -116,7 +120,7 @@ async def create_sku(
                 user_name=user_name,
             )
 
-    await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku.id,), change_type="created"))
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku.id,), change_type="created"))
     logger.info(
         "sku.created",
         extra={
@@ -148,6 +152,7 @@ async def create_product_with_sku(
     variant_label: str = "",
     spec: str = "",
     grade: str = "",
+    variant_attrs: dict | None = None,
     user_id: str | None = None,
     user_name: str = "",
     *,
@@ -164,7 +169,7 @@ async def create_product_with_sku(
         description=description,
     )
     return await create_sku(
-        product_id=product.id,
+        product_family_id=product.id,
         category_id=category_id,
         category_name=category_name,
         name=name,
@@ -182,6 +187,7 @@ async def create_product_with_sku(
         variant_label=variant_label,
         spec=spec,
         grade=grade,
+        variant_attrs=variant_attrs,
         user_id=user_id,
         user_name=user_name,
         on_stock_import=on_stock_import,
@@ -199,6 +205,10 @@ async def update_sku(
         raise ResourceNotFoundError("Sku", sku_id)
 
     update_data = updates.model_dump(exclude_none=True)
+    # quantity is owned by the inventory ledger — never allow a direct overwrite
+    # via the catalog edit path. Stock changes must go through inventory adjustment,
+    # receiving, or withdrawal flows, which maintain the stock_transactions audit trail.
+    update_data.pop("quantity", None)
     update_data["updated_at"] = datetime.now(UTC).isoformat()
 
     if "barcode" in update_data:
@@ -217,6 +227,16 @@ async def update_sku(
             existing = await sku_repo.find_by_barcode(update_data["barcode"], exclude_sku_id=sku_id)
             if existing:
                 raise DuplicateBarcodeError(update_data["barcode"], existing.name)
+
+    if "sku" in update_data:
+        new_code = update_data["sku"].strip()
+        if new_code and new_code != sku.sku:
+            existing = await sku_repo.find_by_sku(new_code)
+            if existing:
+                raise DuplicateSkuError(new_code, existing.name)
+            update_data["sku"] = new_code
+        else:
+            update_data.pop("sku")
 
     if "category_id" in update_data:
         department = await department_repo.get_by_id(update_data["category_id"])
@@ -238,8 +258,55 @@ async def update_sku(
         raise ResourceNotFoundError("Sku", sku_id)
 
     org_id = get_org_id()
-    await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku_id,), change_type="updated"))
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated"))
     logger.info("sku.updated", extra={"org_id": org_id, "sku_id": sku_id})
+    return result
+
+
+async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
+    """Move a SKU from its current product family to a new one.
+
+    Atomically updates the SKU's product_family_id and adjusts sku_count
+    on both the old and new families.
+    """
+    sku = await sku_repo.get_by_id(sku_id)
+    if not sku:
+        raise ResourceNotFoundError("Sku", sku_id)
+
+    new_family = await product_family_repo.get_by_id(new_family_id)
+    if not new_family:
+        raise ResourceNotFoundError("ProductFamily", new_family_id)
+
+    old_family_id = sku.product_family_id
+
+    async with transaction():
+        result = await sku_repo.update(
+            sku_id,
+            {
+                "product_family_id": new_family_id,
+                "category_id": new_family.category_id,
+                "category_name": new_family.category_name,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        if old_family_id:
+            await product_family_repo.increment_sku_count(old_family_id, -1)
+        await product_family_repo.increment_sku_count(new_family_id, 1)
+        if old_family_id and sku.category_id != new_family.category_id:
+            await department_repo.increment_sku_count(sku.category_id, -1)
+            await department_repo.increment_sku_count(new_family.category_id, 1)
+
+    org_id = get_org_id()
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated"))
+    logger.info(
+        "sku.adopted",
+        extra={
+            "org_id": org_id,
+            "sku_id": sku_id,
+            "old_family_id": old_family_id,
+            "new_family_id": new_family_id,
+        },
+    )
     return result
 
 
@@ -253,9 +320,9 @@ async def delete_sku(sku_id: str) -> None:
         await vendor_item_repo.soft_delete_by_sku(sku_id)
         await sku_repo.delete(sku_id)
         await department_repo.increment_sku_count(sku.category_id, -1)
-        if sku.product_id:
-            await product_family_repo.increment_sku_count(sku.product_id, -1)
+        if sku.product_family_id:
+            await product_family_repo.increment_sku_count(sku.product_family_id, -1)
 
     org_id = get_org_id()
-    await dispatch(CatalogChanged(org_id=org_id, product_ids=(sku_id,), change_type="deleted"))
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="deleted"))
     logger.info("sku.deleted", extra={"org_id": org_id, "sku_id": sku_id})

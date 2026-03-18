@@ -45,7 +45,7 @@ export function ProductBubblePlot({ products = [], onBubbleClick, height = 420 }
             p.sku,
             p.units_sold || 0,
             p.current_stock || 0,
-            p.product_id,
+            p.sku_id,
           ],
           symbolSize: Math.max(8, Math.sqrt(p.revenue / maxRevenue) * 40),
         })),
@@ -151,7 +151,7 @@ export function ProductBubblePlot({ products = [], onBubbleClick, height = 420 }
     ? {
         click: (params) => {
           const productId = params.value?.[7];
-          const product = products.find((p) => p.product_id === productId);
+          const product = products.find((p) => p.sku_id === productId);
           if (product) onBubbleClick(product);
         },
       }

@@ -1,6 +1,8 @@
 """SKU repository — read queries and class wrapper."""
 
-from catalog.domain.product import Sku
+import json
+
+from catalog.domain.sku import Sku
 from shared.infrastructure.database import get_connection, get_org_id
 
 
@@ -14,6 +16,11 @@ def _row_to_sku(row) -> Sku | None:
         d["min_stock"] = int(d["min_stock"])
     if d.get("organization_id") is None:
         d.pop("organization_id", None)
+    if "variant_attrs" in d and isinstance(d["variant_attrs"], str):
+        try:
+            d["variant_attrs"] = json.loads(d["variant_attrs"])
+        except (ValueError, TypeError):
+            d["variant_attrs"] = {}
     return Sku.model_validate(d)
 
 
@@ -23,7 +30,7 @@ async def list_skus(
     low_stock: bool = False,
     limit: int | None = None,
     offset: int = 0,
-    product_id: str | None = None,
+    product_family_id: str | None = None,
 ) -> list[Sku]:
     conn = get_connection()
     org_id = get_org_id()
@@ -35,9 +42,9 @@ async def list_skus(
         base += f" AND category_id = ${n}"
         params.append(category_id)
         n += 1
-    if product_id:
-        base += f" AND product_id = ${n}"
-        params.append(product_id)
+    if product_family_id:
+        base += f" AND product_family_id = ${n}"
+        params.append(product_family_id)
         n += 1
     if search:
         base += f" AND (name LIKE ${n} OR sku LIKE ${n + 1} OR barcode LIKE ${n + 2})"
@@ -60,7 +67,7 @@ async def count_skus(
     category_id: str | None = None,
     search: str | None = None,
     low_stock: bool = False,
-    product_id: str | None = None,
+    product_family_id: str | None = None,
 ) -> int:
     conn = get_connection()
     org_id = get_org_id()
@@ -72,9 +79,9 @@ async def count_skus(
         query += f" AND category_id = ${n}"
         params.append(category_id)
         n += 1
-    if product_id:
-        query += f" AND product_id = ${n}"
-        params.append(product_id)
+    if product_family_id:
+        query += f" AND product_family_id = ${n}"
+        params.append(product_family_id)
         n += 1
     if search:
         query += f" AND (name LIKE ${n} OR sku LIKE ${n + 1} OR barcode LIKE ${n + 2})"
@@ -157,13 +164,13 @@ async def find_by_name_and_vendor(name: str, vendor_id: str) -> Sku | None:
     return _row_to_sku(row)
 
 
-async def find_by_product_id(product_id: str) -> list[Sku]:
-    """Return all SKUs belonging to a product parent."""
+async def find_by_product_family_id(product_family_id: str) -> list[Sku]:
+    """Return all SKUs belonging to a product family."""
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM skus WHERE product_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY name",
-        (product_id, org_id),
+        "SELECT * FROM skus WHERE product_family_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY name",
+        (product_family_id, org_id),
     )
     rows = await cursor.fetchall()
     return [s for r in rows if (s := _row_to_sku(r)) is not None]
@@ -221,7 +228,7 @@ class SkuRepo:
     find_by_sku = staticmethod(find_by_sku)
     find_by_barcode = staticmethod(find_by_barcode)
     find_by_name_and_vendor = staticmethod(find_by_name_and_vendor)
-    find_by_product_id = staticmethod(find_by_product_id)
+    find_by_product_family_id = staticmethod(find_by_product_family_id)
     insert = staticmethod(insert)
     update = staticmethod(update)
     delete = staticmethod(delete)

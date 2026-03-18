@@ -77,6 +77,13 @@ const api = {
     },
   },
 
+  // ── Product Families (convenience aliases for catalog.products) ─────
+  productFamilies: {
+    get: (id) => axios.get(`${API}/catalog/products/${id}`).then((r) => r.data),
+    createSku: (familyId, data) =>
+      axios.post(`${API}/catalog/products/${familyId}/skus`, data).then((r) => r.data),
+  },
+
   // ── SKU ───────────────────────────────────────────────────────────────
   sku: {
     preview: (params) => axios.get(`${API}/catalog/sku/preview`, { params }).then((r) => r.data),
@@ -89,6 +96,13 @@ const api = {
     create: (data) => axios.post(`${API}/catalog/departments`, data).then((r) => r.data),
     update: (id, data) => axios.put(`${API}/catalog/departments/${id}`, data).then((r) => r.data),
     delete: (id) => axios.delete(`${API}/catalog/departments/${id}`),
+  },
+
+  // ── Units of measure ─────────────────────────────────────────────────
+  units: {
+    list: () => axios.get(`${API}/catalog/units`).then((r) => r.data),
+    create: (data) => axios.post(`${API}/catalog/units`, data).then((r) => r.data),
+    delete: (id) => axios.delete(`${API}/catalog/units/${id}`),
   },
 
   // ── Vendors ───────────────────────────────────────────────────────────
@@ -254,6 +268,12 @@ const api = {
     status: () => axios.get(`${API}/assistant/chat/status`).then((r) => r.data),
     send: (data) => axios.post(`${API}/assistant/chat`, data).then((r) => r.data),
     deleteSession: (id) => axios.delete(`${API}/assistant/chat/sessions/${id}`),
+  },
+
+  // ── Memory ──────────────────────────────────────────────────────────
+  memory: {
+    saveCorrections: (data) =>
+      axios.post(`${API}/assistant/memory/corrections`, data).then((r) => r.data),
   },
 
   // ── Auth / Seed ─────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ async def _ws_inventory_changed(event: InventoryChanged) -> None:
     await event_hub.emit(
         ev.INVENTORY_UPDATED,
         org_id=event.org_id,
-        ids=list(event.product_ids),
+        ids=list(event.sku_ids),
     )
 
 
@@ -157,5 +157,5 @@ async def _ws_catalog_changed(event: CatalogChanged) -> None:
     await event_hub.emit(
         ev.CATALOG_UPDATED,
         org_id=event.org_id,
-        ids=list(event.product_ids),
+        ids=list(event.sku_ids),
     )

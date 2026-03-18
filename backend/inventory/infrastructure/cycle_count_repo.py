@@ -32,13 +32,13 @@ async def insert_item(item: CycleCountItem) -> None:
     d = item.model_dump()
     await conn.execute(
         """INSERT INTO cycle_count_items
-           (id, cycle_count_id, product_id, sku, product_name,
+           (id, cycle_count_id, sku_id, sku, product_name,
             snapshot_qty, counted_qty, variance, unit, notes, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
         (
             d["id"],
             d["cycle_count_id"],
-            d["product_id"],
+            d["sku_id"],
             d["sku"],
             d.get("product_name", ""),
             d["snapshot_qty"],

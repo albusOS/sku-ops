@@ -146,22 +146,10 @@ During a physical count, Admin finds discrepancy. Goes to product detail in `/in
 
 ---
 
-## Gaps and Risks
+## Known Limitations
 
-| # | Gap | Impact |
-|---|-----|--------|
-| 1 | Test failures: `withdrawal_getter not wired` | Invoice-creation-from-withdrawal flow untested |
-| 2 | Contractor POS page | Role-based UX (self vs for-contractor) may have edge cases |
-| 3 | Document parse → PO → receive | Multi-step flow; silent failures can make items vanish |
-| 4 | Invoice auto-creation | Every withdrawal = 1 draft invoice; admin must consolidate manually |
-| 5 | Material request process | Admin re-enters job_id/service_address even if contractor provided them |
-
----
-
-## Next Steps
-
-1. **Save this doc** ✓
-2. **Chip away at blockers** — fix seeding, test wiring, propagate request data
-3. **Prove reliability** — E2E tests, smoke tests for critical paths
-4. **Prove security** — RBAC audit, org scoping, rate limits
-5. **Delete debt** — remove unused features, consolidate scripts, prune docs
+| # | Area | Note |
+|---|------|------|
+| 1 | Contractor POS | POS is admin-only; contractor self-checkout is not exposed |
+| 2 | Document parse → PO → receive | Multi-step flow; monitor for silent failures in extraction |
+| 3 | Material request processing | Job ID/service address from contractor request should pre-fill admin form |

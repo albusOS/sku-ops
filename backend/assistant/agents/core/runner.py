@@ -14,7 +14,7 @@ from assistant.agents.core.messages import (
     extract_tool_calls_detailed,
 )
 from assistant.agents.core.model_registry import calc_cost, get_model_name
-from assistant.agents.core.validators import validate_response
+from assistant.agents.core.validators import classify_intent, validate_response
 from assistant.infrastructure.agent_run_repo import log_agent_run
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE
 from shared.infrastructure.logging_config import agent_name_var, operation_var, trace_id_var
@@ -23,21 +23,10 @@ from shared.infrastructure.metrics import llm_usage, tool_call
 
 logger = logging.getLogger(__name__)
 
-AGENT_TIMEOUT_SECONDS = 45
+AGENT_TIMEOUT_SECONDS = 60
 _MAX_RETRIES = 5
 _BASE_DELAY = 1.0  # seconds
 _MAX_DELAY = 30.0  # seconds
-
-
-# ── Config-driven model settings ──────────────────────────────────────────────
-
-
-def build_model_settings(_config: AgentConfig | None) -> dict | None:
-    """Build PydanticAI model_settings from an AgentConfig.
-
-    Returns None — no special settings needed in the simplified architecture.
-    """
-    return None
 
 
 def get_agent_timeout(config: AgentConfig | None) -> int:
@@ -150,17 +139,28 @@ async def run_agent(
     agent_name: str = "agent",
     agent_label: str = "",
     session_id: str = "",
+    config: "AgentConfig | None" = None,
 ):
     """Run a PydanticAI agent with retry/backoff, error classification, and run logging.
 
     Every invocation (success or failure) is logged to the agent_runs table
     via fire-and-forget background task.
+
+    *config* is optional — when provided, its RetryConfig fields override the
+    module-level defaults for max_retries and backoff_base.
     """
     trace_id = getattr(deps, "trace_id", "")
     if trace_id:
         trace_id_var.set(trace_id)
     agent_name_var.set(agent_name)
     operation_var.set("agent_run")
+
+    max_retries = (
+        config.retry.max_retries if (config and config.retry.max_retries) else _MAX_RETRIES
+    )
+    backoff_base = (
+        config.retry.backoff_base if (config and config.retry.backoff_base) else _BASE_DELAY
+    )
 
     active_settings = model_settings
     t0 = time.monotonic()
@@ -177,9 +177,17 @@ async def run_agent(
             timeout=timeout_seconds,
         )
 
+    async def _backoff_local(attempt: int, retry_after: float | None) -> None:
+        if retry_after is not None:
+            delay = min(retry_after, _MAX_DELAY)
+        else:
+            delay = min(backoff_base * (2**attempt), _MAX_DELAY)
+        jitter = random.uniform(-delay * 0.25, delay * 0.25)
+        await asyncio.sleep(max(0.1, delay + jitter))
+
     last_exc: Exception = RuntimeError(f"{agent_name}: no attempts made")
 
-    for attempt in range(_MAX_RETRIES):
+    for attempt in range(max_retries):
         attempts = attempt + 1
         try:
             result = await _run(active_settings)
@@ -232,23 +240,23 @@ async def run_agent(
             active_settings = None
             continue
 
-        if attempt < _MAX_RETRIES - 1:
+        if attempt < max_retries - 1:
             logger.warning(
                 "%s %s on attempt %s/%s, backing off: %s",
                 agent_name,
                 kind,
                 attempt + 1,
-                _MAX_RETRIES,
+                max_retries,
                 last_exc,
             )
-            await _backoff(attempt, retry_after)
+            await _backoff_local(attempt, retry_after)
         else:
             logger.warning(
                 "%s %s on final attempt %s/%s: %s",
                 agent_name,
                 kind,
-                _MAX_RETRIES,
-                _MAX_RETRIES,
+                max_retries,
+                max_retries,
                 last_exc,
             )
 
@@ -289,14 +297,20 @@ def _log_success(
     tool_calls = extract_tool_calls_detailed(result.all_messages())
     response_text = result.output if isinstance(result.output, str) else str(result.output)
 
-    # Prometheus metrics
+    tool_calls_simple = extract_tool_calls(result.all_messages())
+
+    # Prometheus metrics (sync — no blocking)
     record_agent_run(label, "success", duration_ms / 1000.0)
     llm_usage(model_name, usage.input_tokens, usage.output_tokens, cost, agent=label)
     for tc in tool_calls:
         tool_call(tc.get("tool", "unknown"), "success")
 
-    async def _write():
+    async def _classify_and_write():
         try:
+            intent = await classify_intent(user_message)
+            validation = validate_response(
+                user_message, response_text, tool_calls_simple, tool_calls, intent=intent
+            )
             await log_agent_run(
                 session_id=session_id,
                 user_id=user_id,
@@ -311,11 +325,14 @@ def _log_success(
                 cost_usd=cost,
                 duration_ms=duration_ms,
                 attempts=attempts,
+                validation_passed=validation.passed,
+                validation_failures=validation.failures,
+                validation_scores=validation.scores,
             )
         except Exception as e:
-            logger.warning("Failed to log agent run: %s", e)
+            logger.warning("Failed to classify/log agent run: %s", e)
 
-    _ = asyncio.create_task(_write())  # RUF006: hold reference
+    _ = asyncio.create_task(_classify_and_write())  # RUF006: hold reference
 
 
 def _log_failure(
@@ -398,6 +415,14 @@ async def run_specialist(
 
     timeout = get_agent_timeout(config)
 
+    _soft_error = {
+        "response": "I ran into an issue. Please try again in a moment.",
+        "tool_calls": [],
+        "history": history or [],
+        "thinking": [],
+        "agent": agent_label,
+    }
+
     try:
         result = await run_agent(
             agent,
@@ -410,45 +435,46 @@ async def run_specialist(
             agent_label=agent_label,
             session_id=session_id,
         )
-    except (TimeoutError, RuntimeError, OSError, ValueError):
+    except Exception:
         logger.exception("%s failed", agent_name)
-        return {
-            "response": "I ran into an issue. Please try again in a moment.",
-            "tool_calls": [],
-            "history": history or [],
-            "thinking": [],
-            "agent": agent_label,
+        return _soft_error
+
+    try:
+        response_text = result.output if isinstance(result.output, str) else str(result.output)
+        model_name = get_model_name(f"agent:{agent_label}")
+        usage = result.usage()
+        cost = calc_cost(model_name, usage)
+
+        tool_calls_final = extract_tool_calls(result.all_messages())
+        tool_calls_det = extract_tool_calls_detailed(result.all_messages())
+        text_history = extract_text_history(result.all_messages())
+
+        intent = await classify_intent(user_message)
+        validation = validate_response(
+            user_message, response_text, tool_calls_final, tool_calls_det, intent=intent
+        )
+        validation_dict = {
+            "passed": validation.passed,
+            "failures": validation.failures,
+            "scores": validation.scores,
         }
 
-    response_text = result.output if isinstance(result.output, str) else str(result.output)
-    model_name = get_model_name(f"agent:{agent_label}")
-    usage = result.usage()
-    cost = calc_cost(model_name, usage)
-
-    tool_calls_final = extract_tool_calls(result.all_messages())
-    tool_calls_det = extract_tool_calls_detailed(result.all_messages())
-    text_history = extract_text_history(result.all_messages())
-
-    validation = validate_response(user_message, response_text, tool_calls_final, tool_calls_det)
-    validation_dict = {
-        "passed": validation.passed,
-        "failures": validation.failures,
-        "scores": validation.scores,
-    }
-
-    agent_result = AgentResult(
-        agent=agent_label,
-        response=response_text,
-        tool_calls=tool_calls_final,
-        tool_calls_detailed=tool_calls_det,
-        history=text_history,
-        usage=UsageInfo(
-            cost_usd=cost,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            model=model_name,
-        ),
-        validation=validation_dict,
-    )
+        agent_result = AgentResult(
+            agent=agent_label,
+            response=response_text,
+            tool_calls=tool_calls_final,
+            tool_calls_detailed=tool_calls_det,
+            history=text_history,
+            usage=UsageInfo(
+                cost_usd=cost,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                model=model_name,
+            ),
+            validation=validation_dict,
+        )
+    except Exception:
+        logger.exception("%s result processing failed", agent_name)
+        return _soft_error
 
     return agent_result.to_dict()

@@ -8,7 +8,7 @@ Example: "Nitrile Gloves" is the product; "Blue Medium 100ct" and
 from shared.kernel.entity import AuditedEntity
 
 
-class Product(AuditedEntity):
+class ProductFamily(AuditedEntity):
     name: str
     description: str = ""
     category_id: str

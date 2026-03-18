@@ -96,8 +96,8 @@ def _sum_ledger_amount(
     return client.portal.call(_q)
 
 
-def _get_stock_qty(client: TestClient, product_id: str, headers: dict) -> float:
-    resp = client.get(f"/api/beta/catalog/skus/{product_id}", headers=headers)
+def _get_stock_qty(client: TestClient, sku_id: str, headers: dict) -> float:
+    resp = client.get(f"/api/beta/catalog/skus/{sku_id}", headers=headers)
     assert resp.status_code == 200
     return float(resp.json()["quantity"])
 
@@ -336,9 +336,7 @@ class TestStressScenarios:
         count_id: str = count["id"]
 
         detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
-        target = next(
-            (i for i in detail.get("items", []) if i["product_id"] == product["id"]), None
-        )
+        target = next((i for i in detail.get("items", []) if i["sku_id"] == product["id"]), None)
         assert target is not None, "Product must appear in the cycle count"
 
         update_cycle_count_item(client, headers, count_id, target["id"], counted_qty=counted_qty)
@@ -372,9 +370,7 @@ class TestStressScenarios:
         count_id: str = count["id"]
 
         detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
-        target = next(
-            (i for i in detail.get("items", []) if i["product_id"] == product["id"]), None
-        )
+        target = next((i for i in detail.get("items", []) if i["sku_id"] == product["id"]), None)
         assert target is not None
 
         update_cycle_count_item(client, headers, count_id, target["id"], counted_qty=70.0)
@@ -403,9 +399,7 @@ class TestStressScenarios:
         count_id: str = count["id"]
 
         detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
-        target = next(
-            (i for i in detail.get("items", []) if i["product_id"] == product["id"]), None
-        )
+        target = next((i for i in detail.get("items", []) if i["sku_id"] == product["id"]), None)
         assert target is not None
 
         update_cycle_count_item(client, headers, count_id, target["id"], counted_qty=80.0)
@@ -425,7 +419,7 @@ class TestStressScenarios:
             conn = get_connection()
             cursor = await conn.execute(
                 "SELECT COUNT(*) FROM financial_ledger "
-                "WHERE reference_type = 'adjustment' AND product_id = $1",
+                "WHERE reference_type = 'adjustment' AND sku_id = $1",
                 (product["id"],),
             )
             row = await cursor.fetchone()
@@ -641,7 +635,7 @@ class TestStressScenarios:
                 json={
                     "items": [
                         {
-                            "product_id": product["id"],
+                            "sku_id": product["id"],
                             "sku": product["sku"],
                             "name": product["name"],
                             "quantity": per_request,
@@ -684,7 +678,7 @@ def _attempt_return(
             "withdrawal_id": withdrawal_id,
             "items": [
                 {
-                    "product_id": product["id"],
+                    "sku_id": product["id"],
                     "sku": product["sku"],
                     "name": product["name"],
                     "quantity": qty,
@@ -1032,7 +1026,7 @@ class TestAdversarialBehavior:
                 json={
                     "items": [
                         {
-                            "product_id": product["id"],
+                            "sku_id": product["id"],
                             "sku": product["sku"],
                             "name": product["name"],
                             "quantity": per_wd,

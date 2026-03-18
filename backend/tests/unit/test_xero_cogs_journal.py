@@ -62,7 +62,7 @@ def _invoice_with_sell_cost() -> dict:
                 "sell_cost": 0.96,
                 "unit": "inch",
                 "sell_uom": "foot",
-                "product_id": "prod-1",
+                "sku_id": "prod-1",
             },
             {
                 "description": "Conduit",
@@ -73,7 +73,7 @@ def _invoice_with_sell_cost() -> dict:
                 "sell_cost": 4.0,
                 "unit": "each",
                 "sell_uom": "each",
-                "product_id": "prod-2",
+                "sku_id": "prod-2",
             },
         ],
     }
@@ -92,7 +92,7 @@ def _invoice_legacy_no_sell_cost() -> dict:
                 "unit_price": 10.0,
                 "amount": 100.0,
                 "cost": 6.0,
-                "product_id": "prod-3",
+                "sku_id": "prod-3",
             },
         ],
     }

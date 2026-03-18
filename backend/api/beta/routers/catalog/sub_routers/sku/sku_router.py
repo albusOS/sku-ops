@@ -13,11 +13,12 @@ router = APIRouter(prefix="/sku", tags=["sku"])
 async def get_sku_preview(
     _current_user: CurrentUserDep,
     category_id: str,
-    product_name: str | None = None,
+    product_family_id: str | None = None,
+    family_name: str | None = None,
 ):
-    """Preview the next SKU for a category (without consuming it)."""
+    """Preview the next SKU for a category and family (without consuming it)."""
     try:
-        return await preview_sku(category_id, product_name)
+        return await preview_sku(category_id, product_family_id, family_name)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -25,7 +26,7 @@ async def get_sku_preview(
 @router.get("/overview")
 async def get_sku_overview(
     _current_user: CurrentUserDep,
-    product_name: str | None = None,
+    family_name: str | None = None,
 ):
-    """SKU system overview: format, departments with next available SKU."""
-    return await sku_overview(product_name)
+    """SKU system overview: format, departments with example SKUs."""
+    return await sku_overview(family_name)

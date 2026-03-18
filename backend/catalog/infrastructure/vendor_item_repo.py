@@ -44,7 +44,6 @@ async def insert(item: VendorItem) -> None:
             d.get("updated_at", ""),
         ),
     )
-    await conn.commit()
 
 
 async def get_by_id(item_id: str) -> VendorItem | None:
@@ -115,19 +114,6 @@ async def find_by_sku_and_vendor(sku_id: str, vendor_id: str) -> VendorItem | No
     return _row_to_model(row)
 
 
-async def find_preferred_for_sku(sku_id: str) -> VendorItem | None:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT * FROM vendor_items
-           WHERE sku_id = $1 AND is_preferred = 1
-           AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL""",
-        (sku_id, org_id),
-    )
-    row = await cursor.fetchone()
-    return _row_to_model(row)
-
-
 async def update(item_id: str, updates: dict) -> VendorItem | None:
     conn = get_connection()
     org_id = get_org_id()
@@ -159,7 +145,6 @@ async def update(item_id: str, updates: dict) -> VendorItem | None:
     values.append(org_id)
     query = f"UPDATE vendor_items SET {', '.join(set_parts)} WHERE id = ${n} AND organization_id = ${n + 1}"
     await conn.execute(query, values)
-    await conn.commit()
     return await get_by_id(item_id)
 
 
@@ -171,7 +156,6 @@ async def soft_delete(item_id: str) -> int:
         "UPDATE vendor_items SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND (organization_id = $3 OR organization_id IS NULL)",
         (now, item_id, org_id),
     )
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -184,7 +168,6 @@ async def soft_delete_by_sku(sku_id: str) -> int:
         "UPDATE vendor_items SET deleted_at = $1 WHERE sku_id = $2 AND deleted_at IS NULL AND (organization_id = $3 OR organization_id IS NULL)",
         (now, sku_id, org_id),
     )
-    await conn.commit()
     return cursor.rowcount
 
 
@@ -193,10 +176,9 @@ async def clear_preferred_for_sku(sku_id: str) -> None:
     conn = get_connection()
     org_id = get_org_id()
     await conn.execute(
-        "UPDATE vendor_items SET is_preferred = 0 WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
         (sku_id, org_id),
     )
-    await conn.commit()
 
 
 class VendorItemRepo:
@@ -206,7 +188,6 @@ class VendorItemRepo:
     list_by_vendor = staticmethod(list_by_vendor)
     find_by_vendor_and_vendor_sku = staticmethod(find_by_vendor_and_vendor_sku)
     find_by_sku_and_vendor = staticmethod(find_by_sku_and_vendor)
-    find_preferred_for_sku = staticmethod(find_preferred_for_sku)
     update = staticmethod(update)
     soft_delete = staticmethod(soft_delete)
     soft_delete_by_sku = staticmethod(soft_delete_by_sku)

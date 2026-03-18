@@ -68,3 +68,22 @@ export function useSetPreferredVendor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.products.all }),
   });
 }
+
+export function useProductFamily(familyId) {
+  return useQuery({
+    queryKey: keys.productFamilies.detail(familyId),
+    queryFn: () => api.productFamilies.get(familyId),
+    enabled: !!familyId,
+  });
+}
+
+export function useCreateVariant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ familyId, data }) => api.productFamilies.createSku(familyId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.products.all });
+      qc.invalidateQueries({ queryKey: keys.productFamilies.all });
+    },
+  });
+}

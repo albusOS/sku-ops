@@ -1,5 +1,11 @@
 """Assistant context schema — agent runs, memory artifacts, and embeddings."""
 
+MIGRATIONS: list[str] = [
+    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_passed BOOLEAN",
+    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_failures TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_scores TEXT NOT NULL DEFAULT '{}'",
+]
+
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS memory_artifacts (
         id TEXT PRIMARY KEY,
@@ -36,7 +42,7 @@ TABLES: list[str] = [
         created_at TEXT NOT NULL
     )""",
     # Persistent embedding store — pgvector-backed semantic search across
-    # all entity types (products, vendors, POs, jobs, memory artifacts, tools).
+    # all entity types (SKUs, vendors, POs, jobs, memory artifacts, tools).
     # Replaces in-memory NumPy matrices with durable, ANN-indexed vectors.
     """CREATE TABLE IF NOT EXISTS embeddings (
         id TEXT PRIMARY KEY,

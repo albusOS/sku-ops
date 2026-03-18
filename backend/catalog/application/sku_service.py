@@ -1,4 +1,10 @@
-"""SKU generation — slug derivation and sequential counter management."""
+"""SKU generation — slug derivation and sequential counter management.
+
+SKU format: DEPT-FAMILYSLUG-NN
+  - DEPT: department code (e.g. HDW, PLM, ELC)
+  - FAMILYSLUG: derived from the product family name (up to 6 chars)
+  - NN: per-family counter, zero-padded to 2 digits (variants rarely exceed 99)
+"""
 
 import re
 
@@ -6,7 +12,7 @@ from catalog.application import queries as catalog_queries
 from catalog.infrastructure.sku_counter_repo import sku_counter_repo
 from shared.kernel.errors import ResourceNotFoundError
 
-SKU_FORMAT = "DEPT-SLUG-XXXXX"
+SKU_FORMAT = "DEPT-FAMILYSLUG-NN"
 _DEFAULT_SLUG = "ITM"
 
 
@@ -26,40 +32,62 @@ def slug_from_name(name: str, max_len: int = 6) -> str:
 
 async def generate_sku(
     department_code: str,
-    product_name: str | None = None,
+    product_family_id: str,
+    family_name: str | None = None,
 ) -> str:
-    """Generate SKU: DEPT-SLUG-000001. Slug derived from product name for readability."""
-    number = await sku_counter_repo.increment_and_get(department_code)
-    slug = slug_from_name(product_name or "", max_len=6) if product_name else _DEFAULT_SLUG
-    return f"{department_code}-{slug}-{str(number).zfill(6)}"
+    """Generate SKU: DEPT-FAMILYSLUG-NN with per-family counter.
+
+    Uses an 8-char slug from the family name. If the resulting SKU code
+    already exists (slug collision between different families), appends
+    a hash suffix to disambiguate.
+    """
+    from catalog.infrastructure.sku_repo import sku_repo
+
+    number = await sku_counter_repo.increment_and_get(product_family_id)
+    raw_slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
+    candidate = f"{department_code}-{raw_slug}-{str(number).zfill(2)}"
+
+    # Check for collision and disambiguate if needed
+    existing = await sku_repo.find_by_sku(candidate)
+    if existing is None:
+        return candidate
+
+    # Collision — use a shorter slug + hash from the family ID
+    suffix = product_family_id[:4].upper()
+    slug = slug_from_name(family_name or "", max_len=4) if family_name else _DEFAULT_SLUG
+    return f"{department_code}-{slug}{suffix}-{str(number).zfill(2)}"
 
 
-async def preview_sku(category_id: str, product_name: str | None = None) -> dict:
-    """Preview the next SKU for a department without consuming the counter."""
+async def preview_sku(
+    category_id: str,
+    product_family_id: str | None = None,
+    family_name: str | None = None,
+) -> dict:
+    """Preview the next SKU for a family without consuming the counter."""
     department = await catalog_queries.get_department_by_id(category_id)
     if not department:
         raise ResourceNotFoundError("Category", category_id)
     code = department.code
-    next_num = await catalog_queries.get_next_sku_number(code)
-    slug = slug_from_name(product_name or "", max_len=6) if product_name else _DEFAULT_SLUG
+    slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
+    if product_family_id:
+        next_num = await sku_counter_repo.get_next_number(product_family_id)
+    else:
+        next_num = 1
     return {
-        "next_sku": f"{code}-{slug}-{str(next_num).zfill(6)}",
+        "next_sku": f"{code}-{slug}-{str(next_num).zfill(2)}",
         "department_code": code,
         "format": SKU_FORMAT,
         "slug": slug,
     }
 
 
-async def sku_overview(product_name: str | None = None) -> dict:
-    """Return SKU format info and next available SKU for every department."""
+async def sku_overview(family_name: str | None = None) -> dict:
+    """Return SKU format info and example SKU for every department."""
     departments = await catalog_queries.list_departments()
-    counters = await catalog_queries.get_sku_counters()
-    slug = slug_from_name(product_name or "", max_len=6) if product_name else _DEFAULT_SLUG
-    depts_with_next = []
+    slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
+    depts = []
     for d in departments:
-        code = d.code
-        next_num = counters.get(code, 0) + 1
         dept_data = d.model_dump()
-        dept_data["next_sku"] = f"{code}-{slug}-{str(next_num).zfill(6)}"
-        depts_with_next.append(dept_data)
-    return {"format": SKU_FORMAT, "departments": depts_with_next}
+        dept_data["example_sku"] = f"{d.code}-{slug}-01"
+        depts.append(dept_data)
+    return {"format": SKU_FORMAT, "departments": depts}

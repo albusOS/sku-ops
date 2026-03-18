@@ -168,7 +168,7 @@ class TestConcurrencyExtended:
 
         detail_resp = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers)
         items = detail_resp.json().get("items", [])
-        target_item = next((i for i in items if i["product_id"] == product["id"]), None)
+        target_item = next((i for i in items if i["sku_id"] == product["id"]), None)
         assert target_item is not None, "Product should be in cycle count"
 
         update_cycle_count_item(client, headers, count_id, target_item["id"], counted_qty=90)

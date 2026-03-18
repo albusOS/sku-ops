@@ -5,17 +5,19 @@ Thin delegation layer that decouples consumers from infrastructure details.
 """
 
 from catalog.domain.department import Department
-from catalog.domain.product import Sku, SkuUpdate
-from catalog.domain.product_family import Product
+from catalog.domain.product_family import ProductFamily
+from catalog.domain.sku import Sku, SkuUpdate
+from catalog.domain.unit_of_measure import UnitOfMeasure
 from catalog.domain.vendor import Vendor
 from catalog.domain.vendor_item import VendorItem
 from catalog.infrastructure.department_repo import department_repo as _dept_repo
 from catalog.infrastructure.product_family_repo import product_family_repo as _prod_repo
 from catalog.infrastructure.sku_counter_repo import sku_counter_repo as _counter_repo
 from catalog.infrastructure.sku_repo import sku_repo as _sku_repo
+from catalog.infrastructure.uom_repo import uom_repo as _uom_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo as _vi_repo
 from catalog.infrastructure.vendor_repo import vendor_repo as _vendor_repo
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.database import get_connection, get_org_id, transaction
 
 # ── Product family (parent) queries ──────────────────────────────────────────
 
@@ -25,7 +27,7 @@ async def list_product_families(
     search: str | None = None,
     limit: int | None = None,
     offset: int = 0,
-) -> list[Product]:
+) -> list[ProductFamily]:
     return await _prod_repo.list_all(
         category_id=category_id,
         search=search,
@@ -41,7 +43,7 @@ async def count_product_families(
     return await _prod_repo.count(category_id=category_id, search=search)
 
 
-async def get_product_family_by_id(product_id: str) -> Product | None:
+async def get_product_family_by_id(product_id: str) -> ProductFamily | None:
     return await _prod_repo.get_by_id(product_id)
 
 
@@ -54,7 +56,7 @@ async def list_skus(
     low_stock: bool = False,
     limit: int | None = None,
     offset: int = 0,
-    product_id: str | None = None,
+    product_family_id: str | None = None,
 ) -> list[Sku]:
     return await _sku_repo.list_skus(
         category_id=category_id,
@@ -62,7 +64,7 @@ async def list_skus(
         low_stock=low_stock,
         limit=limit,
         offset=offset,
-        product_id=product_id,
+        product_family_id=product_family_id,
     )
 
 
@@ -70,13 +72,13 @@ async def count_skus(
     category_id: str | None = None,
     search: str | None = None,
     low_stock: bool = False,
-    product_id: str | None = None,
+    product_family_id: str | None = None,
 ) -> int:
     return await _sku_repo.count_skus(
         category_id=category_id,
         search=search,
         low_stock=low_stock,
-        product_id=product_id,
+        product_family_id=product_family_id,
     )
 
 
@@ -95,8 +97,8 @@ async def find_sku_by_barcode(
     return await _sku_repo.find_by_barcode(barcode, exclude_sku_id=exclude_sku_id)
 
 
-async def list_skus_by_product(product_id: str) -> list[Sku]:
-    return await _sku_repo.find_by_product_id(product_id)
+async def list_skus_by_product_family(product_family_id: str) -> list[Sku]:
+    return await _sku_repo.find_by_product_family_id(product_family_id)
 
 
 async def count_all_skus() -> int:
@@ -115,23 +117,28 @@ async def list_low_stock(limit: int = 10) -> list[Sku]:
 
 
 async def update_sku(sku_id: str, updates: SkuUpdate) -> Sku | None:
-    return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
+    async with transaction():
+        return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
 
 
 async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
-    return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
+    async with transaction():
+        return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
 
 
 async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> None:
-    return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
+    async with transaction():
+        return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
 
 
 async def add_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
-    return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
+    async with transaction():
+        return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
 
 
 async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: str) -> Sku | None:
-    return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
+    async with transaction():
+        return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
 
 
 # ── VendorItem queries ───────────────────────────────────────────────────────
@@ -180,7 +187,7 @@ async def sku_vendor_options(sku_id: str) -> list[dict]:
                FROM purchase_orders po
                JOIN purchase_order_items poi ON poi.po_id = po.id
                WHERE po.vendor_id = $1 AND po.organization_id = $2
-                 AND poi.product_id = $3""",
+                 AND poi.sku_id = $3""",
             (vi.vendor_id, org_id, sku_id),
         )
         row = await cursor.fetchone()
@@ -217,7 +224,8 @@ async def get_department_by_code(code: str) -> Department | None:
 
 
 async def insert_department(department: Department | dict) -> None:
-    return await _dept_repo.insert(department)
+    async with transaction():
+        return await _dept_repo.insert(department)
 
 
 async def update_department(
@@ -225,15 +233,42 @@ async def update_department(
     name: str,
     description: str,
 ) -> Department | None:
-    return await _dept_repo.update(dept_id, name, description)
+    async with transaction():
+        return await _dept_repo.update(dept_id, name, description)
 
 
 async def delete_department(dept_id: str) -> int:
-    return await _dept_repo.delete(dept_id)
+    async with transaction():
+        return await _dept_repo.delete(dept_id)
 
 
 async def count_skus_by_department(dept_id: str) -> int:
     return await _dept_repo.count_skus_by_department(dept_id)
+
+
+# ── Unit of measure queries ──────────────────────────────────────────────
+
+
+async def list_units_of_measure() -> list[UnitOfMeasure]:
+    return await _uom_repo.list_all()
+
+
+async def get_unit_by_code(code: str) -> UnitOfMeasure | None:
+    return await _uom_repo.get_by_code(code)
+
+
+async def get_unit_by_id(uom_id: str) -> UnitOfMeasure | None:
+    return await _uom_repo.get_by_id(uom_id)
+
+
+async def insert_unit(uom: UnitOfMeasure) -> None:
+    async with transaction():
+        return await _uom_repo.insert(uom)
+
+
+async def delete_unit(uom_id: str) -> int:
+    async with transaction():
+        return await _uom_repo.delete(uom_id)
 
 
 # ── Vendor queries ───────────────────────────────────────────────────────────
@@ -254,18 +289,21 @@ async def find_vendor_by_name(name: str) -> Vendor | None:
 async def insert_vendor(vendor: Vendor | dict) -> None:
     if isinstance(vendor, dict):
         vendor = Vendor.model_validate(vendor)
-    return await _vendor_repo.insert(vendor)
+    async with transaction():
+        return await _vendor_repo.insert(vendor)
 
 
 async def update_vendor(
     vendor_id: str,
     vendor_dict: dict,
 ) -> Vendor | None:
-    return await _vendor_repo.update(vendor_id, vendor_dict)
+    async with transaction():
+        return await _vendor_repo.update(vendor_id, vendor_dict)
 
 
 async def delete_vendor(vendor_id: str) -> int:
-    return await _vendor_repo.delete(vendor_id)
+    async with transaction():
+        return await _vendor_repo.delete(vendor_id)
 
 
 async def count_vendors() -> int:
@@ -279,5 +317,5 @@ async def get_sku_counters() -> dict:
     return await _counter_repo.get_all_counters()
 
 
-async def get_next_sku_number(department_code: str) -> int:
-    return await _counter_repo.get_next_number(department_code)
+async def get_next_sku_number(product_family_id: str) -> int:
+    return await _counter_repo.get_next_number(product_family_id)

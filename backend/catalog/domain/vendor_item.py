@@ -8,7 +8,6 @@ One SKU may have many VendorItems (multi-sourcing).
 from pydantic import field_validator
 
 from shared.kernel.entity import AuditedEntity
-from shared.kernel.units import ALLOWED_BASE_UNITS
 
 
 class VendorItem(AuditedEntity):
@@ -26,10 +25,10 @@ class VendorItem(AuditedEntity):
 
     @field_validator("purchase_uom")
     @classmethod
-    def valid_uom(cls, v: str) -> str:
+    def normalise_uom(cls, v: str) -> str:
         v = (v or "each").lower().strip()
-        if v not in ALLOWED_BASE_UNITS:
-            raise ValueError(f"Unit must be one of: {sorted(ALLOWED_BASE_UNITS)}")
+        if not v:
+            return "each"
         return v
 
     @field_validator("purchase_pack_qty")

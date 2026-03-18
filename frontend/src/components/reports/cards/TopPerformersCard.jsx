@@ -185,7 +185,7 @@ export function TopPerformersCard({ dateParams }) {
   const top20 = useMemo(
     () =>
       margins.slice(0, 20).map((p) => ({
-        name: p.name || p.product_id,
+        name: p.name || p.sku_id,
         revenue: p.revenue,
         margin_pct: p.margin_pct,
       })),
@@ -323,7 +323,7 @@ export function TopPerformersCard({ dateParams }) {
                       <tr key={i} className="border-b border-border/50">
                         <td className="py-2 text-xs text-muted-foreground tabular-nums">{i + 1}</td>
                         <td className="py-2 text-foreground truncate max-w-[200px]">
-                          {p.name || p.product_id}
+                          {p.name || p.sku_id}
                         </td>
                         <td className="py-2 text-right tabular-nums font-medium text-foreground">
                           {valueFormatter(p.revenue)}

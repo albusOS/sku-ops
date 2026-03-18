@@ -120,25 +120,11 @@ async def list_for_invoice(invoice_id: str) -> list[Payment]:
     return [_row_to_model(r) for r in await cursor.fetchall()]
 
 
-async def list_for_withdrawal(withdrawal_id: str) -> list[Payment]:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT p.* FROM payments p
-           JOIN payment_withdrawals pw ON pw.payment_id = p.id
-           WHERE pw.withdrawal_id = $1 AND p.organization_id = $2
-           ORDER BY p.payment_date DESC""",
-        (withdrawal_id, org_id),
-    )
-    return [_row_to_model(r) for r in await cursor.fetchall()]
-
-
 class PaymentRepo:
     insert = staticmethod(insert)
     get_by_id = staticmethod(get_by_id)
     list_payments = staticmethod(list_payments)
     list_for_invoice = staticmethod(list_for_invoice)
-    list_for_withdrawal = staticmethod(list_for_withdrawal)
 
 
 payment_repo = PaymentRepo()

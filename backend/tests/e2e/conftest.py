@@ -168,7 +168,7 @@ class WSEventCollector:
         ws = self._ws
 
         async def _timed_recv():
-            with anyio.move_on_after(timeout) as scope:
+            with anyio.move_on_after(timeout) as scope:  # type: ignore[misc]
                 return await ws._send_rx.receive()
             if scope.cancelled_caught:
                 return None

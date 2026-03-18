@@ -34,7 +34,7 @@ class CycleCountItem(Entity):
 
     organization_id: str = ""
     cycle_count_id: str
-    product_id: str
+    sku_id: str
     sku: str
     product_name: str = ""
     # Frozen at the moment the count was opened — never changes after that.

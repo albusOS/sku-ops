@@ -2,7 +2,7 @@
 
 Artifacts are typed facts extracted from completed conversations.
 They are recalled at the start of fresh sessions so agents have context
-about recurring contractors, products, and user preferences.
+about recurring contractors, SKUs, and user preferences.
 
 Recall uses hybrid scoring (semantic similarity + recency + type boost)
 when pgvector is available, falling back to date-ordered retrieval.

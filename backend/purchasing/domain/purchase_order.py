@@ -7,7 +7,6 @@ Status enums and transition rules live here — no free-form strings.
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import ClassVar
 
 from pydantic import BaseModel, field_validator
 
@@ -45,15 +44,6 @@ class PurchaseOrder(AuditedEntity):
     received_by_id: str | None = None
     received_by_name: str | None = None
 
-    ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
-        "ordered": {"partial", "received"},
-        "partial": {"received"},
-        "received": set(),
-    }
-
-    def can_transition_to(self, target: str) -> bool:
-        return target in self.ALLOWED_TRANSITIONS.get(self.status.value, set())
-
 
 class PurchaseOrderItem(Entity):
     po_id: str
@@ -70,16 +60,7 @@ class PurchaseOrderItem(Entity):
     purchase_pack_qty: int = 1
     suggested_department: str = "HDW"
     status: POItemStatus = POItemStatus.ORDERED
-    product_id: str | None = None
-
-    ALLOWED_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
-        "ordered": {"pending"},
-        "pending": {"arrived"},
-        "arrived": set(),
-    }
-
-    def can_transition_to(self, target: str) -> bool:
-        return target in self.ALLOWED_TRANSITIONS.get(self.status.value, set())
+    sku_id: str | None = None
 
 
 # ── Request DTOs ───────────────────────────────────────────────────────────────
@@ -101,7 +82,7 @@ class POItemCreate(BaseModel):
     purchase_uom: str = "each"
     purchase_pack_qty: int = 1
     suggested_department: str | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     selected: bool = True
     ai_parsed: bool = False
 
@@ -118,7 +99,7 @@ class CreatePORequest(BaseModel):
 class ReceiveItemUpdate(BaseModel):
     id: str
     delivered_qty: float | None = None
-    product_id: str | None = None
+    sku_id: str | None = None
     name: str | None = None
     cost: float | None = None
     unit_price: float | None = None
@@ -160,7 +141,7 @@ class POItemRow(BaseModel):
     purchase_pack_qty: int = 1
     suggested_department: str = "HDW"
     status: POItemStatus = POItemStatus.ORDERED
-    product_id: str | None = None
+    sku_id: str | None = None
     organization_id: str = ""
     # Enriched fields — populated by get_po_items when a matched SKU is found
     matched_sku: str | None = None

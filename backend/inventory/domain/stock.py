@@ -22,7 +22,7 @@ class StockTransactionType(StrEnum):
 class StockTransaction(Entity):
     """Immutable record of a single product quantity change."""
 
-    product_id: str
+    sku_id: str
     sku: str
     product_name: str = ""
     quantity_delta: float
@@ -33,5 +33,7 @@ class StockTransaction(Entity):
     reference_id: str | None = None
     reference_type: str | None = None
     reason: str | None = None
+    original_quantity: float | None = None
+    original_unit: str | None = None
     user_id: str
     user_name: str = ""

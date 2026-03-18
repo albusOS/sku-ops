@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,26 +18,24 @@ import {
   ArrowLeft,
   ClipboardList,
   PackagePlus,
+  GitBranch,
 } from "lucide-react";
 import { useProductMatch } from "@/hooks/useProductMatch";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useChatPanel } from "@/context/ChatContext";
 import { ReviewItemCard } from "./ReviewItemCard";
+import api from "@/lib/api-client";
 
-/**
- * Unified review flow for both document import and PO receiving.
- *
- * @param {array}    items           Extracted or PO items to review
- * @param {string}   mode            "import" | "receive"
- * @param {string}   vendorName      Vendor name (import mode)
- * @param {function} onVendorChange  (name: string) => void (import mode)
- * @param {boolean}  createVendor    Create vendor if missing flag
- * @param {function} onCreateVendorChange (bool) => void
- * @param {function} onItemsChange   (items: array) => void — propagate edits up
- * @param {function} onConfirm       (payload) => void — submit action
- * @param {function} onBack          () => void — go back to previous step
- * @param {boolean}  submitting      Whether the submit is in progress
- * @param {string}   confirmLabel    Label for the confirm button
- */
+const spring = { type: "spring", stiffness: 300, damping: 34 };
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
+};
+const fadeUp = {
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0, transition: spring },
+};
+
 export function ReviewFlow({
   items: rawItems,
   mode = "import",
@@ -44,13 +43,13 @@ export function ReviewFlow({
   onVendorChange,
   createVendor = true,
   onCreateVendorChange,
-  onItemsChange: _onItemsChange,
   onConfirm,
   onBack,
   submitting = false,
   confirmLabel = "Confirm",
 }) {
   const { data: departments = [] } = useDepartments();
+  const { sendPrompt } = useChatPanel();
   const [selectedDept, setSelectedDept] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [items, setItems] = useState([]);
@@ -78,10 +77,13 @@ export function ReviewFlow({
     setItems(seeded);
 
     const preMatched = [];
+    const agentMatched = [];
     const needMatch = [];
     for (const item of seeded) {
-      if (item.product_id && item.matched_sku) {
+      if (item.sku_id && item.matched_sku) {
         preMatched.push(item);
+      } else if (item.sku_id && !item.matched_sku) {
+        agentMatched.push(item);
       } else {
         needMatch.push({ ...item, id: item._rid });
       }
@@ -89,7 +91,7 @@ export function ReviewFlow({
 
     for (const item of preMatched) {
       confirmMatch(item._rid, {
-        id: item.product_id,
+        id: item.sku_id,
         sku: item.matched_sku,
         name: item.matched_name || item.name,
         quantity: item.matched_quantity ?? 0,
@@ -97,14 +99,34 @@ export function ReviewFlow({
       });
     }
 
-    if (needMatch.length > 0) autoMatch(needMatch);
+    if (agentMatched.length > 0) {
+      Promise.all(
+        agentMatched.map(async (item) => {
+          try {
+            const sku = await api.products.get(item.sku_id);
+            if (sku) {
+              confirmMatch(item._rid, {
+                id: sku.id,
+                sku: sku.sku,
+                name: sku.name,
+                quantity: sku.quantity ?? 0,
+                cost: sku.cost ?? item.cost,
+              });
+            }
+          } catch {
+            needMatch.push({ ...item, id: item._rid });
+          }
+        }),
+      ).then(() => {
+        if (needMatch.length > 0) autoMatch(needMatch);
+      });
+    } else if (needMatch.length > 0) {
+      autoMatch(needMatch);
+    }
   }, [rawItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateItem = useCallback((rid, field, value) => {
-    setItems((prev) => {
-      const next = prev.map((it) => (it._rid === rid ? { ...it, [field]: value } : it));
-      return next;
-    });
+    setItems((prev) => prev.map((it) => (it._rid === rid ? { ...it, [field]: value } : it)));
   }, []);
 
   const removeItem = useCallback((rid) => {
@@ -147,8 +169,19 @@ export function ReviewFlow({
     return sum + qty * cost;
   }, 0);
 
-  const needsAttention = resolvedItems.filter((i) => !i._resolved_match);
-  const ready = resolvedItems.filter((i) => i._resolved_match);
+  const exactMatches = resolvedItems.filter(
+    (i) => i._resolved_match && i._recommendation === "link_existing",
+  );
+  const familyMatches = resolvedItems.filter(
+    (i) => i._recommendation === "add_variant" && !i._resolved_match,
+  );
+  const readyOther = resolvedItems.filter(
+    (i) => i._resolved_match && i._recommendation !== "link_existing",
+  );
+  const needsAttention = resolvedItems.filter(
+    (i) => !i._resolved_match && i._recommendation !== "add_variant",
+  );
+  const ready = [...exactMatches, ...readyOther];
 
   const handleAcceptAll = () => {
     for (const item of resolvedItems) {
@@ -171,7 +204,7 @@ export function ReviewFlow({
 
       const matched = it._resolved_match;
       if (matched) {
-        entry.product_id = matched.id;
+        entry.sku_id = matched.id;
       } else {
         entry.price = parseFloat(it.price) || 0;
         entry.original_sku = it.original_sku;
@@ -181,7 +214,7 @@ export function ReviewFlow({
         entry.suggested_department = it.suggested_department || undefined;
         entry.barcode = it.barcode || undefined;
         entry.min_stock = it.min_stock != null ? parseInt(it.min_stock) : 5;
-        entry._ai_parsed = it._ai_parsed || false;
+        entry.ai_parsed = it._ai_parsed || it.ai_parsed || false;
       }
 
       if (mode === "import") {
@@ -203,11 +236,29 @@ export function ReviewFlow({
     return m?.options?.length > 0 && !m.matched && !item.matched_product;
   });
 
+  const renderItemCard = (item) => (
+    <ReviewItemCard
+      key={item._rid}
+      item={item}
+      matchState={matches[item._rid] || {}}
+      expanded={expandedId === item._rid}
+      onToggleExpand={() => setExpandedId((prev) => (prev === item._rid ? null : item._rid))}
+      onFieldChange={(field, value) => updateItem(item._rid, field, value)}
+      onConfirmMatch={(product) => handleConfirmMatch(item._rid, product)}
+      onClearMatch={() => handleClearMatch(item._rid)}
+      onSearchMatch={(q) => searchMatch(item._rid, q)}
+      onRemove={() => removeItem(item._rid)}
+      onAskAssistant={sendPrompt}
+      departments={departments}
+      mode={mode}
+    />
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-3">
           {onBack && (
             <button
               type="button"
@@ -222,24 +273,27 @@ export function ReviewFlow({
           </h2>
         </div>
 
-        {/* Summary strip */}
-        <div className="grid grid-cols-3 gap-2">
-          <SummaryChip
-            icon={<CheckCircle className="w-3.5 h-3.5 text-success" />}
-            label="Recognized"
-            value={matchedCount}
-            color="success"
-          />
-          <SummaryChip
-            icon={<PackagePlus className="w-3.5 h-3.5 text-warning" />}
-            label="New items"
-            value={newCount}
-            color="warning"
-          />
-          <SummaryChip
-            label="Total cost"
-            value={totalCost > 0 ? `$${totalCost.toFixed(2)}` : "—"}
-          />
+        {/* Summary — inline pills */}
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1.5 text-success">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span className="font-semibold tabular-nums">{matchedCount}</span>
+            <span className="text-muted-foreground">matched</span>
+          </span>
+          <span className="w-px h-3.5 bg-border" />
+          <span className="flex items-center gap-1.5 text-warning">
+            <PackagePlus className="w-3.5 h-3.5" />
+            <span className="font-semibold tabular-nums">{newCount}</span>
+            <span className="text-muted-foreground">new</span>
+          </span>
+          {totalCost > 0 && (
+            <>
+              <span className="w-px h-3.5 bg-border" />
+              <span className="font-mono text-foreground font-semibold tabular-nums">
+                ${totalCost.toFixed(2)}
+              </span>
+            </>
+          )}
         </div>
 
         {hasUnresolvedSuggestions && (
@@ -257,10 +311,15 @@ export function ReviewFlow({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
+      <motion.div
+        className="flex-1 overflow-auto px-5 py-4 space-y-5"
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+      >
         {/* Import-specific: vendor & category */}
         {mode === "import" && (
-          <div className="space-y-3">
+          <motion.div variants={fadeUp} className="space-y-3">
             <div>
               <Label className="text-muted-foreground font-medium text-sm">Supplier name</Label>
               <Input
@@ -307,79 +366,56 @@ export function ReviewFlow({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* Needs attention section */}
+        {/* Needs attention */}
         {needsAttention.length > 0 && (
-          <div className="space-y-2">
+          <motion.section variants={fadeUp} className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-warning flex items-center gap-1.5">
               <AlertTriangle className="w-3 h-3" />
               Needs your attention ({needsAttention.length})
             </p>
-            {needsAttention.map((item) => (
-              <ReviewItemCard
-                key={item._rid}
-                item={item}
-                matchState={matches[item._rid] || {}}
-                expanded={expandedId === item._rid}
-                onToggleExpand={() =>
-                  setExpandedId((prev) => (prev === item._rid ? null : item._rid))
-                }
-                onFieldChange={(field, value) => updateItem(item._rid, field, value)}
-                onConfirmMatch={(product) => handleConfirmMatch(item._rid, product)}
-                onClearMatch={() => handleClearMatch(item._rid)}
-                onSearchMatch={(q) => searchMatch(item._rid, q)}
-                onRemove={() => removeItem(item._rid)}
-                departments={departments}
-                mode={mode}
-              />
-            ))}
-          </div>
+            <AnimatePresence initial={false}>{needsAttention.map(renderItemCard)}</AnimatePresence>
+          </motion.section>
         )}
 
-        {/* Ready section */}
+        {/* Family matches */}
+        {familyMatches.length > 0 && (
+          <motion.section variants={fadeUp} className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-purple-500 flex items-center gap-1.5">
+              <GitBranch className="w-3 h-3" />
+              Family matches ({familyMatches.length})
+            </p>
+            <AnimatePresence initial={false}>{familyMatches.map(renderItemCard)}</AnimatePresence>
+          </motion.section>
+        )}
+
+        {/* Ready */}
         {ready.length > 0 && (
-          <div className="space-y-2">
+          <motion.section variants={fadeUp} className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-success flex items-center gap-1.5">
               <CheckCircle className="w-3 h-3" />
               Good to go ({ready.length})
             </p>
-            {ready.map((item) => (
-              <ReviewItemCard
-                key={item._rid}
-                item={item}
-                matchState={matches[item._rid] || {}}
-                expanded={expandedId === item._rid}
-                onToggleExpand={() =>
-                  setExpandedId((prev) => (prev === item._rid ? null : item._rid))
-                }
-                onFieldChange={(field, value) => updateItem(item._rid, field, value)}
-                onConfirmMatch={(product) => handleConfirmMatch(item._rid, product)}
-                onClearMatch={() => handleClearMatch(item._rid)}
-                onSearchMatch={(q) => searchMatch(item._rid, q)}
-                onRemove={() => removeItem(item._rid)}
-                departments={departments}
-                mode={mode}
-              />
-            ))}
-          </div>
+            <AnimatePresence initial={false}>{ready.map(renderItemCard)}</AnimatePresence>
+          </motion.section>
         )}
 
         {resolvedItems.length === 0 && (
           <div className="text-center py-12 text-muted-foreground text-sm">No items to review</div>
         )}
-      </div>
+      </motion.div>
 
       {/* Sticky footer */}
-      <div className="px-5 py-4 border-t border-border bg-muted/50 shrink-0 space-y-3">
+      <div className="px-5 py-4 border-t border-border bg-card shrink-0 space-y-3">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
             {resolvedItems.length} item{resolvedItems.length !== 1 ? "s" : ""}
             {matchedCount > 0 && newCount > 0 && ` (${matchedCount} existing, ${newCount} new)`}
           </span>
           {totalCost > 0 && (
-            <span className="font-mono text-foreground">${totalCost.toFixed(2)}</span>
+            <span className="font-mono text-foreground font-semibold">${totalCost.toFixed(2)}</span>
           )}
         </div>
         <Button
@@ -404,18 +440,6 @@ export function ReviewFlow({
           )}
         </Button>
       </div>
-    </div>
-  );
-}
-
-function SummaryChip({ icon, label, value, color }) {
-  return (
-    <div className="rounded-lg px-3 py-2 text-center bg-muted/50 border border-border/40">
-      <div className="flex items-center justify-center gap-1.5 mb-0.5">
-        {icon}
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      </div>
-      <p className={`font-mono font-semibold text-sm ${color ? `text-${color}` : ""}`}>{value}</p>
     </div>
   );
 }

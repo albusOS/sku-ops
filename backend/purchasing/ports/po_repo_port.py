@@ -32,7 +32,7 @@ class PORepoPort(ABC):
         self,
         item_id: str,
         status: POItemStatus,
-        product_id: str | None = None,
+        sku_id: str | None = None,
         delivered_qty: float | None = None,
     ) -> bool: ...
 

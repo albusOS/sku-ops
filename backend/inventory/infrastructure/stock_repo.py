@@ -13,12 +13,14 @@ def _row_to_model(row) -> StockTransaction | None:
 async def insert_transaction(tx: StockTransaction) -> None:
     conn = get_connection()
     await conn.execute(
-        """INSERT INTO stock_transactions (id, product_id, sku, product_name, quantity_delta, quantity_before,
-           quantity_after, unit, transaction_type, reference_id, reference_type, reason, user_id, user_name, organization_id, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)""",
+        """INSERT INTO stock_transactions (id, sku_id, sku, product_name, quantity_delta, quantity_before,
+           quantity_after, unit, transaction_type, reference_id, reference_type, reason,
+           original_quantity, original_unit,
+           user_id, user_name, organization_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)""",
         (
             tx.id,
-            tx.product_id,
+            tx.sku_id,
             tx.sku,
             tx.product_name,
             tx.quantity_delta,
@@ -29,6 +31,8 @@ async def insert_transaction(tx: StockTransaction) -> None:
             tx.reference_id,
             tx.reference_type,
             tx.reason,
+            tx.original_quantity,
+            tx.original_unit,
             tx.user_id,
             tx.user_name,
             tx.organization_id,
@@ -39,16 +43,16 @@ async def insert_transaction(tx: StockTransaction) -> None:
 
 
 async def list_by_product(
-    product_id: str,
+    sku_id: str,
     limit: int = 50,
 ) -> list[StockTransaction]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT * FROM stock_transactions
-           WHERE product_id = $1 AND organization_id = $2
+           WHERE sku_id = $1 AND organization_id = $2
            ORDER BY created_at DESC LIMIT $3""",
-        (product_id, org_id, limit),
+        (sku_id, org_id, limit),
     )
     rows = await cursor.fetchall()
     return [_row_to_model(r) for r in rows]

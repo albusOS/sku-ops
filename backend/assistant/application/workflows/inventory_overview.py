@@ -42,7 +42,7 @@ async def run_inventory_overview(
         else []
     )
     low_stock = (
-        data.get("low_stock_raw", {}).get("products", [])
+        data.get("low_stock_raw", {}).get("skus", [])
         if isinstance(data.get("low_stock_raw"), dict)
         else []
     )

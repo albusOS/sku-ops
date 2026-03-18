@@ -4,6 +4,7 @@ Uses cl100k_base encoding as an approximation for both Anthropic and
 OpenRouter models.  Not exact, but close enough for budget decisions.
 """
 
+import asyncio
 import json
 import logging
 
@@ -35,7 +36,7 @@ _LOW_VALUE_FIELDS = frozenset(
 
 # JSON keys that typically contain list items
 _LIST_KEYS = (
-    "products",
+    "skus",
     "forecast",
     "suggestions",
     "slow_movers",
@@ -136,7 +137,11 @@ def _compress_truncate(
     history: list[dict],
     max_tokens: int = 8000,
 ) -> list[dict]:
-    """Trim conversation history by dropping oldest turns first."""
+    """Trim conversation history by dropping oldest user/assistant pairs first.
+
+    Drops turns as pairs to avoid orphaning an assistant message without a
+    preceding user message (which some LLM APIs reject).
+    """
     if len(history) <= 4:
         return history
 
@@ -144,19 +149,34 @@ def _compress_truncate(
     if total <= max_tokens:
         return history
 
-    # Always keep the last 2 turns
-    kept = list(history[-2:])
-    budget_remaining = max_tokens - sum(count_tokens(h.get("content", "")) for h in kept)
+    # Partition into a leading system block (if any) and conversation turns.
+    # System entries are always kept — they carry critical context.
+    system_prefix = [h for h in history if h.get("role") == "system"]
+    conv = [h for h in history if h.get("role") != "system"]
 
-    # Add older turns from most-recent backward until budget exhausted
-    for h in reversed(history[:-2]):
-        t = count_tokens(h.get("content", ""))
-        if budget_remaining - t < 0:
+    # Always keep the last 2 turns (1 user + 1 assistant)
+    kept = list(conv[-2:])
+    budget_remaining = (
+        max_tokens
+        - sum(count_tokens(h.get("content", "")) for h in system_prefix)
+        - sum(count_tokens(h.get("content", "")) for h in kept)
+    )
+
+    # Add older pairs from most-recent backward until budget exhausted.
+    # Step by 2 to always consume a user+assistant pair together.
+    older = conv[:-2]
+    i = len(older) - 1
+    while i >= 1:
+        # Pair = older[i-1] (user) + older[i] (assistant) when i is odd-indexed
+        pair = older[i - 1 : i + 1]
+        pair_tokens = sum(count_tokens(h.get("content", "")) for h in pair)
+        if budget_remaining - pair_tokens < 0:
             break
-        kept.insert(0, h)
-        budget_remaining -= t
+        kept = pair + kept
+        budget_remaining -= pair_tokens
+        i -= 2
 
-    return kept
+    return system_prefix + kept
 
 
 def compress_history(
@@ -200,13 +220,17 @@ async def compress_history_async(
     if not older:
         return _compress_truncate(history, max_tokens)
 
-    # Attempt progressive summarization
+    # Attempt progressive summarization.
+    # The summary is prepended as a user turn so build_message_history
+    # converts it to a ModelRequest (not a ModelResponse).  The content is
+    # prefixed with a marker so the model knows it is a history summary, not
+    # a live user question.
     summary = await _summarize_turns(older)
     if summary:
-        result = [
-            {"role": "system", "content": f"[Prior conversation summary]: {summary}"},
-            *recent,
-        ]
+        summary_turn = {"role": "user", "content": f"[Prior conversation summary]: {summary}"}
+        # Insert a matching assistant acknowledgement so the pair is well-formed.
+        summary_ack = {"role": "assistant", "content": "Understood. Continuing from that context."}
+        result = [summary_turn, summary_ack, *recent]
         result_tokens = sum(count_tokens(h.get("content", "")) for h in result)
         if result_tokens <= max_tokens:
             return result
@@ -242,8 +266,6 @@ async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> 
                 lines.append(f"{role}: {content}")
         if not lines:
             return None
-
-        import asyncio
 
         text = "\n".join(lines)
         result = await asyncio.to_thread(

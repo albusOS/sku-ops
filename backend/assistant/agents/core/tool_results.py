@@ -45,12 +45,12 @@ def blocks_from_inventory_stats(raw: str) -> list[dict[str, Any]]:
 
 
 def blocks_from_list_data(raw: str, title: str, columns: list[str]) -> list[dict[str, Any]]:
-    """Build data_table block from list-based tool JSON (products, suggestions, balances)."""
+    """Build data_table block from list-based tool JSON (skus, suggestions, balances)."""
     d = _safe_parse(raw)
     if not d:
         return []
-    if "products" in d:
-        rows = [[str(item.get(c, "")) for c in columns] for item in d["products"][:50]]
+    if "skus" in d:
+        rows = [[str(item.get(c, "")) for c in columns] for item in d["skus"][:50]]
     elif "suggestions" in d:
         rows = [[str(item.get(c, "")) for c in columns] for item in d["suggestions"][:50]]
     elif "balances" in d:
@@ -123,16 +123,16 @@ def blocks_from_department_health(raw: str) -> list[dict[str, Any]]:
     ]
 
 
-def blocks_from_top_products(raw: str) -> list[dict[str, Any]]:
-    """Build chart block from get_top_products JSON."""
+def blocks_from_top_skus(raw: str) -> list[dict[str, Any]]:
+    """Build chart block from get_top_skus JSON."""
     d = _safe_parse(raw)
-    if not d or "products" not in d:
+    if not d or "skus" not in d:
         return []
-    products = d["products"][:10]
-    if not products:
+    skus = d["skus"][:10]
+    if not skus:
         return []
     # Detect if revenue-ranked or volume-ranked
-    has_revenue = any(p.get("revenue") for p in products)
+    has_revenue = any(s.get("revenue") for s in skus)
     value_key = "revenue" if has_revenue else "total_withdrawn"
     value_label = "Revenue" if has_revenue else "Units"
     value_format = "currency" if has_revenue else "number"
@@ -140,8 +140,8 @@ def blocks_from_top_products(raw: str) -> list[dict[str, Any]]:
         {
             "type": "chart",
             "chart_type": "bar",
-            "title": f"Top products by {value_label.lower()}",
-            "data": products,
+            "title": f"Top SKUs by {value_label.lower()}",
+            "data": skus,
             "category_key": "name",
             "series": [{"key": value_key, "label": value_label}],
             "value_format": value_format,

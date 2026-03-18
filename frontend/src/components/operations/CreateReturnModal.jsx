@@ -59,7 +59,7 @@ export function CreateReturnModal({ open, onOpenChange, prefillWithdrawalId }) {
     if (selectedWd?.items && step === 1 && returnItems.length === 0) {
       setReturnItems(
         selectedWd.items.map((item) => ({
-          product_id: item.product_id,
+          sku_id: item.sku_id,
           sku: item.sku || "",
           name: item.product_name || item.description || item.name || "",
           quantity: 0,
@@ -131,7 +131,7 @@ export function CreateReturnModal({ open, onOpenChange, prefillWithdrawalId }) {
       await createReturn.mutateAsync({
         withdrawal_id: withdrawalId,
         items: itemsToReturn.map((i) => ({
-          product_id: i.product_id,
+          sku_id: i.sku_id,
           sku: i.sku,
           name: i.name,
           quantity: i.quantity,
