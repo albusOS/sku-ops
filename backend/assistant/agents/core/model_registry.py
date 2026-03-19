@@ -88,6 +88,25 @@ def get_model(task: str) -> str:
     return _llm_get_model(get_model_name(task))
 
 
+def get_fallback_model(model_id: str) -> str | None:
+    """Return an OpenRouter fallback for an Anthropic model, or None.
+
+    When Anthropic's API is overloaded, we can route through OpenRouter
+    to reach the same model via a different path. Only applies when
+    OpenRouter is configured and the original model is an Anthropic one.
+    """
+    from shared.infrastructure.config import OPENROUTER_AVAILABLE
+
+    if not OPENROUTER_AVAILABLE:
+        return None
+    if not model_id.startswith("anthropic:"):
+        return None
+    bare = model_id.removeprefix("anthropic:")
+    fallback = f"openrouter:anthropic/{bare}"
+    logger.info("Falling back from %s to %s", model_id, fallback)
+    return fallback
+
+
 def calc_cost(task_or_model: str, usage) -> float:
     """Estimate cost in USD from a PydanticAI Usage object."""
     model = _resolve(task_or_model) if ":" in task_or_model else task_or_model

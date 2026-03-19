@@ -62,6 +62,11 @@ from assistant.application.context_assembly import assemble_context
 from assistant.application.job_manager import GENERATION_TIMEOUT
 from assistant.application.workflows.registry import response_agent_label
 from assistant.infrastructure.agent_run_repo import log_agent_run
+from assistant.infrastructure.concurrency import (
+    GenerationBusyError,
+    acquire_generation_slot,
+    release_generation_slot,
+)
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
@@ -169,10 +174,26 @@ async def _run_generation(
     All streaming events are published through the job manager so any
     connected (or reconnecting) client can receive them.
     """
-    await job_manager.publish_event(job_id, {"type": "chat.status", "status": "thinking"})
-
     full_text = ""
     tool_calls_seen: list[dict] = []
+    slot_acquired = False
+
+    try:
+        await acquire_generation_slot()
+        slot_acquired = True
+    except GenerationBusyError:
+        await job_manager.fail_job(
+            job_id,
+            {
+                "type": "chat.error",
+                "error_type": "busy",
+                "detail": "The AI assistant is handling several requests right now. "
+                "Please try again in a moment.",
+            },
+        )
+        return
+
+    await job_manager.publish_event(job_id, {"type": "chat.status", "status": "thinking"})
 
     logger.info(
         "Generation started: job=%s user=%s session=%s agent=%s",
@@ -426,6 +447,9 @@ async def _run_generation(
             )
         except Exception:
             logger.exception("fail_job itself failed for job=%s", job_id)
+    finally:
+        if slot_acquired:
+            release_generation_slot()
 
 
 async def _save_turn(

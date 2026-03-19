@@ -39,15 +39,32 @@ async def generate_text(
     """One-shot text generation using PydanticAI — retries, cost-aware.
 
     When model_id is provided, uses that model. Otherwise uses infra:synthesis.
+    Automatically falls back to OpenRouter when Anthropic is overloaded.
     Returns None on failure (never raises).
     """
     try:
         from pydantic_ai import Agent
 
+        from assistant.agents.core.model_registry import get_fallback_model
+
         model = model_id or get_model_name("infra:synthesis")
         agent: Agent[None, str] = Agent(model, system_prompt=system_instruction or "")
-        result = await asyncio.wait_for(agent.run(prompt), timeout=30)
-        return result.output
+        try:
+            result = await asyncio.wait_for(agent.run(prompt), timeout=30)
+            return result.output
+        except Exception as primary_err:
+            err_str = str(primary_err).lower()
+            is_overloaded = any(
+                k in err_str for k in ("529", "overload", "service unavailable", "capacity")
+            )
+            if not is_overloaded:
+                raise
+            fallback = get_fallback_model(model)
+            if not fallback:
+                raise
+            logger.info("generate_text: primary overloaded, trying fallback %s", fallback)
+            result = await asyncio.wait_for(agent.run(prompt, model=fallback), timeout=30)
+            return result.output
     except Exception as e:
         logger.warning("generate_text failed: %s", e)
         return None
