@@ -104,14 +104,14 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
 
     token_data = resp.json()
     expiry_ts = datetime.now(UTC).timestamp() + token_data.get("expires_in", 1800)
-    expiry_iso = datetime.fromtimestamp(expiry_ts, tz=UTC).isoformat()
+    expiry_dt = datetime.fromtimestamp(expiry_ts, tz=UTC)
 
     settings = await get_org_settings()
     updated = settings.model_copy(
         update={
             "xero_access_token": token_data["access_token"],
             "xero_refresh_token": token_data.get("refresh_token"),
-            "xero_token_expiry": expiry_iso,
+            "xero_token_expiry": expiry_dt,
         }
     )
     await upsert_org_settings(updated)

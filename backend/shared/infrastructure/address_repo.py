@@ -3,6 +3,8 @@
 Cross-cutting reference data used by billing entities, jobs, etc.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 from shared.infrastructure.database import get_connection, get_org_id
@@ -24,7 +26,7 @@ class StoredAddress(BaseModel):
     billing_entity_id: str | None = None
     job_id: str | None = None
     organization_id: str = ""
-    created_at: str = ""
+    created_at: datetime | None = None
 
 
 def _row_to_model(row) -> StoredAddress | None:

@@ -26,7 +26,7 @@ async def create_payment_for_withdrawals(
 
     Returns the created Payment domain object.
     """
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
 
     if not data.withdrawal_ids and not data.invoice_id:
         raise ValueError("Provide withdrawal_ids or invoice_id")

@@ -5,7 +5,7 @@ These tests enforce that:
   1. What the repo writes to the DB can be read back with the correct field names
   2. Numeric fields are the correct type (float, not int) after a round-trip
   3. Domain model field names match what the repo returns (e.g. unit_price vs price)
-  4. JSON-serialized fields (items) survive round-trip correctly
+  4. Normalized child-table items (withdrawal_items, material_request_items) survive round-trip
 
 These would have caught:
   - The price->unit_price column mapping bug in po_repo
@@ -276,7 +276,7 @@ class TestInvoiceRepoContract:
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NULL, NULL)""",
                 (
                     "w-inv-test",
-                    '[{"sku_id":"p1","sku":"S","name":"X","quantity":2.5,"unit_price":10.0,"cost":5.0,"subtotal":25.0,"cost_total":12.5,"unit":"each"}]',
+                    None,
                     "JOB-1",
                     "123 Main St",
                     25.0,
@@ -291,6 +291,24 @@ class TestInvoiceRepoContract:
                     "user-1",
                     "Test",
                     "supply-yard",
+                ),
+            )
+            await conn.execute(
+                """INSERT INTO withdrawal_items
+                   (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
+                (
+                    "wi-inv-test-1",
+                    "w-inv-test",
+                    "p1",
+                    "S",
+                    "X",
+                    2.5,
+                    10.0,
+                    5.0,
+                    "each",
+                    25.0,
+                    12.5,
                 ),
             )
             await conn.commit()
@@ -312,8 +330,8 @@ class TestInvoiceRepoContract:
 
 
 class TestMaterialRequestRepoContract:
-    def test_round_trip_preserves_items_json(self, call):
-        """Material request items (JSON blob) must survive round-trip."""
+    def test_round_trip_preserves_items(self, call):
+        """Material request items stored in material_request_items table must survive round-trip."""
 
         async def _body():
             from operations.domain.material_request import MaterialRequest

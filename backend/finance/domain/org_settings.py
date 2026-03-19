@@ -4,6 +4,8 @@ Owned by the finance context — this is integration configuration
 for Xero and financial defaults, not authentication data.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -14,7 +16,7 @@ class OrgSettings(BaseModel):
     xero_tenant_id: str | None = None
     xero_access_token: str | None = None
     xero_refresh_token: str | None = None
-    xero_token_expiry: str | None = None
+    xero_token_expiry: datetime | None = None
     xero_sales_account_code: str = "200"
     xero_cogs_account_code: str = "500"
     xero_inventory_account_code: str = "630"

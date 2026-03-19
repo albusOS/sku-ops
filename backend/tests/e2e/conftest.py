@@ -36,7 +36,7 @@ def _seed_contractor(app_client: TestClient) -> str:
             return
         await conn.execute(
             "INSERT INTO users (id, email, password, name, role, company, billing_entity, is_active, organization_id, created_at)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, $9)",
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, NOW())",
             (
                 "contractor-1",
                 "contractor@test.com",
@@ -46,7 +46,6 @@ def _seed_contractor(app_client: TestClient) -> str:
                 "E2E Corp",
                 "E2E Corp",
                 "supply-yard",
-                "2024-01-01T00:00:00+00:00",
             ),
         )
         await conn.commit()

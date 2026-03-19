@@ -1,6 +1,7 @@
 """Xero COGS journal and PO bill sync mixins."""
 
 import logging
+from datetime import datetime
 
 import httpx
 
@@ -199,7 +200,8 @@ class XeroJournalSyncMixin:
             "LineItems": xero_lines,
         }
         if po.get("document_date"):
-            bill["Date"] = po["document_date"][:10]
+            dd = po["document_date"]
+            bill["Date"] = dd.strftime("%Y-%m-%d") if isinstance(dd, datetime) else str(dd)[:10]
 
         existing_bill_id = po.get("xero_bill_id")
         async with httpx.AsyncClient() as client:

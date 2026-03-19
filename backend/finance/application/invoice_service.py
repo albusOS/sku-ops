@@ -136,7 +136,7 @@ async def create_invoice_from_withdrawals(
     )
 
     inv_id = str(uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     payment_terms = "net_30"
     due_date = compute_due_date(now, payment_terms)
     first_tax_rate = withdrawals[0].tax_rate if withdrawals else 0
@@ -208,7 +208,7 @@ async def add_withdrawals_to_invoice(
                 invoice_id,
                 billing_entity,
                 contact_name or inv.contact_name,
-                datetime.now(UTC).isoformat(),
+                datetime.now(UTC),
             )
 
         total_subtotal = 0.0
@@ -312,7 +312,7 @@ async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDe
     if not inv.can_transition_to(InvoiceStatus.APPROVED):
         raise ValueError(f"Cannot approve invoice in '{inv.status}' status")
 
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     async with transaction():
         result = await update_fields(
             invoice_id,

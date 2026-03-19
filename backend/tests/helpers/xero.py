@@ -12,7 +12,7 @@ def make_settings(**overrides) -> OrgSettings:
         "xero_access_token": "tok-valid",
         "xero_refresh_token": "refresh-valid",
         "xero_tenant_id": "tenant-abc",
-        "xero_token_expiry": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        "xero_token_expiry": datetime.now(UTC) + timedelta(hours=1),
         "xero_sales_account_code": "200",
         "xero_cogs_account_code": "500",
         "xero_inventory_account_code": "630",
@@ -23,7 +23,7 @@ def make_settings(**overrides) -> OrgSettings:
 
 
 def make_expired_settings() -> OrgSettings:
-    return make_settings(xero_token_expiry=(datetime.now(UTC) - timedelta(hours=1)).isoformat())
+    return make_settings(xero_token_expiry=datetime.now(UTC) - timedelta(hours=1))
 
 
 def make_invoice(xero_invoice_id=None) -> dict:

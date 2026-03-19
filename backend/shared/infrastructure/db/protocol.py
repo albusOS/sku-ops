@@ -10,11 +10,18 @@ if TYPE_CHECKING:
 
 
 class DictRow(dict):
-    """Dict that also supports integer-index access (row[0], row[1])."""
+    """Dict that also supports integer-index access (row[0], row[1]).
+
+    NUMERIC columns come back from asyncpg as ``Decimal``.  All domain models
+    use ``float`` for monetary/quantity fields, so we coerce at the DB boundary.
+    """
 
     def __init__(self, mapping):
-        super().__init__(mapping)
-        self._keys = list(mapping.keys())
+        from decimal import Decimal
+
+        coerced = {k: float(v) if isinstance(v, Decimal) else v for k, v in mapping.items()}
+        super().__init__(coerced)
+        self._keys = list(coerced.keys())
 
     def __getitem__(self, key):
         if isinstance(key, int):

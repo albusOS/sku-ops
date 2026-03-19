@@ -28,28 +28,11 @@ def _row_to_model(row) -> CreditNote | None:
     if row is None:
         return None
     d = dict(row)
-    for fld in (
-        "quantity",
-        "unit_price",
-        "amount",
-        "cost",
-        "subtotal",
-        "tax",
-        "total",
-        "cost_total",
-    ):
-        if fld in d and d[fld] is not None:
-            d[fld] = float(d[fld])
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return CreditNote.model_validate(d)
 
 
 def _row_to_line_item(row) -> CreditNoteLineItem:
     d = dict(row)
-    for fld in ("quantity", "unit_price", "amount", "cost"):
-        if fld in d and d[fld] is not None:
-            d[fld] = float(d[fld])
     return CreditNoteLineItem.model_validate(d)
 
 
@@ -69,13 +52,13 @@ async def insert_credit_note(
     conn = get_connection()
     org_id = get_org_id()
     cn_id = str(uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     cn_number = await _next_credit_note_number()
 
     billing_entity = ""
     if invoice_id:
         cursor = await conn.execute(
-            "SELECT billing_entity FROM invoices WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)",
+            "SELECT billing_entity FROM invoices WHERE id = $1 AND organization_id = $2",
             (invoice_id, org_id),
         )
         inv_row = await cursor.fetchone()
@@ -137,7 +120,7 @@ async def get_by_id(credit_note_id: str) -> CreditNote | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM credit_notes WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)",
+        "SELECT * FROM credit_notes WHERE id = $1 AND organization_id = $2",
         (credit_note_id, org_id),
     )
     row = await cursor.fetchone()
@@ -167,7 +150,7 @@ async def list_credit_notes(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    query = f"SELECT * FROM credit_notes WHERE (organization_id = ${n} OR organization_id IS NULL)"
+    query = f"SELECT * FROM credit_notes WHERE organization_id = ${n}"
     params: list = [org_id]
     n += 1
     if invoice_id:
@@ -229,7 +212,7 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
         raise ValueError("Credit note has no linked invoice")
 
     inv_id = cn.invoice_id
-    cn_total = float(cn.total)
+    cn_total = cn.total
 
     conn = get_connection()
     org_id = get_org_id()
@@ -241,9 +224,9 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
     if not inv_row:
         raise ValueError(f"Linked invoice {inv_id} not found")
     inv = dict(inv_row)
-    new_credited = round(float(inv.get("amount_credited", 0)) + cn_total, 2)
-    balance_due = round(float(inv["total"]) - new_credited, 2)
-    now = datetime.now(UTC).isoformat()
+    new_credited = round(inv.get("amount_credited", 0) + cn_total, 2)
+    balance_due = round(inv["total"] - new_credited, 2)
+    now = datetime.now(UTC)
 
     await conn.execute(
         "UPDATE invoices SET amount_credited = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
@@ -273,7 +256,7 @@ async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str)
     """Store the Xero credit note ID and mark as synced after a successful sync."""
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await conn.execute(
         "UPDATE credit_notes SET xero_credit_note_id = $1, xero_sync_status = 'synced', updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (xero_credit_note_id, now, credit_note_id, org_id),
@@ -284,7 +267,7 @@ async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str)
 async def set_credit_note_sync_status(credit_note_id: str, status: str) -> None:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await conn.execute(
         "UPDATE credit_notes SET xero_sync_status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (status, now, credit_note_id, org_id),
@@ -299,7 +282,7 @@ async def list_unsynced_credit_notes() -> list[CreditNote]:
     cursor = await conn.execute(
         """SELECT id, credit_note_number, billing_entity, total, status, organization_id, created_at
            FROM credit_notes
-           WHERE (organization_id = $1 OR organization_id IS NULL)
+           WHERE organization_id = $1
              AND status = 'applied'
              AND xero_credit_note_id IS NULL
            ORDER BY created_at""",
@@ -318,7 +301,7 @@ async def list_credit_notes_needing_reconciliation() -> list[CreditNote]:
                   cn.xero_credit_note_id, cn.xero_sync_status, cn.organization_id,
                   (SELECT COUNT(*) FROM credit_note_line_items WHERE credit_note_id = cn.id) AS line_count
            FROM credit_notes cn
-           WHERE (cn.organization_id = $1 OR cn.organization_id IS NULL)
+           WHERE cn.organization_id = $1
              AND cn.xero_credit_note_id IS NOT NULL
              AND cn.xero_sync_status != 'mismatch'
            ORDER BY cn.created_at""",
@@ -334,7 +317,7 @@ async def list_failed_credit_notes() -> list[CreditNote]:
     cursor = await conn.execute(
         """SELECT id, credit_note_number, billing_entity, total, status, organization_id, created_at
            FROM credit_notes
-           WHERE (organization_id = $1 OR organization_id IS NULL)
+           WHERE organization_id = $1
              AND xero_sync_status = 'failed'
            ORDER BY created_at""",
         (org_id,),
@@ -349,7 +332,7 @@ async def list_mismatch_credit_notes() -> list[CreditNote]:
     cursor = await conn.execute(
         """SELECT id, credit_note_number, billing_entity, total, xero_credit_note_id, organization_id, created_at
            FROM credit_notes
-           WHERE (organization_id = $1 OR organization_id IS NULL)
+           WHERE organization_id = $1
              AND xero_sync_status = 'mismatch'
            ORDER BY created_at""",
         (org_id,),

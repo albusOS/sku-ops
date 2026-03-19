@@ -32,10 +32,10 @@ from finance.application.ledger_queries import (
 logger = logging.getLogger(__name__)
 
 
-def _date_range(days: int) -> tuple[str, str]:
+def _date_range(days: int) -> tuple[datetime, datetime]:
     end = datetime.now(UTC)
     start = end - timedelta(days=days)
-    return start.isoformat(), end.isoformat()
+    return start, end
 
 
 async def _get_trend_series(days: int = 30, group_by: str = "day") -> str:

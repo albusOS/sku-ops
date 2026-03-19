@@ -157,7 +157,7 @@ async def upsert(
         if existing and existing["content_hash"] == chash:
             return False
 
-        now = datetime.now(UTC).isoformat()
+        now = datetime.now(UTC)
         vec_str = _vec_to_pgvector(embedding)
         row_id = f"{entity_type}:{entity_id}"
 
@@ -197,7 +197,7 @@ async def upsert_batch(
         from shared.infrastructure.database import get_connection
 
         conn = get_connection()
-        now = datetime.now(UTC).isoformat()
+        now = datetime.now(UTC)
         written = 0
 
         # Fetch existing hashes for diff

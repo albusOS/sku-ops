@@ -20,12 +20,11 @@ PAYMENT_TERMS_DAYS: dict[str, int] = {
 }
 
 
-def compute_due_date(invoice_date: str, payment_terms: str) -> str:
-    """Return ISO due-date string from invoice_date + payment_terms."""
+def compute_due_date(invoice_date: str | datetime, payment_terms: str) -> datetime:
+    """Return due-date datetime from invoice_date + payment_terms."""
     days = PAYMENT_TERMS_DAYS.get(payment_terms, 30)
-    dt = datetime.fromisoformat(invoice_date)
-    due = dt + timedelta(days=days)
-    return due.isoformat()
+    dt = datetime.fromisoformat(invoice_date) if isinstance(invoice_date, str) else invoice_date
+    return dt + timedelta(days=days)
 
 
 class InvoiceLineItem(BaseModel):
@@ -60,7 +59,7 @@ class InvoiceLineItem(BaseModel):
         return cls(
             invoice_id=invoice_id,
             description=item.name,
-            quantity=float(item.quantity),
+            quantity=item.quantity,
             unit_price=item.unit_price,
             amount=item.subtotal,
             cost=item.cost,
@@ -91,8 +90,8 @@ class InvoiceUpdate(BaseModel):
     notes: str | None = None
     tax: float | None = None
     tax_rate: float | None = None
-    invoice_date: str | None = None
-    due_date: str | None = None
+    invoice_date: datetime | None = None
+    due_date: datetime | None = None
     payment_terms: str | None = None
     billing_address: str | None = None
     po_reference: str | None = None
@@ -111,18 +110,18 @@ class Invoice(AuditedEntity):
     total: float = 0.0
     amount_credited: float = 0.0
     notes: str | None = None
-    invoice_date: str | None = None
-    due_date: str | None = None
+    invoice_date: datetime | None = None
+    due_date: datetime | None = None
     payment_terms: str = "net_30"
     billing_address: str = ""
     po_reference: str = ""
     currency: str = "USD"
     approved_by_id: str | None = None
-    approved_at: str | None = None
+    approved_at: datetime | None = None
     xero_invoice_id: str | None = None
     xero_cogs_journal_id: str | None = None
     xero_sync_status: XeroSyncStatus | None = None
-    deleted_at: str | None = None
+    deleted_at: datetime | None = None
     withdrawal_count: int = 0
     line_count: int = 0
 

@@ -5,6 +5,8 @@ filters by organization_id but none owns the concept — it is
 cross-cutting infrastructure.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from shared.infrastructure.database import get_connection
@@ -14,14 +16,13 @@ class Organization(BaseModel):
     id: str
     name: str
     slug: str
-    created_at: str = ""
+    created_at: datetime | str | None = None
 
 
 def _row_to_model(row) -> Organization | None:
     if row is None:
         return None
     d = dict(row)
-    d.pop("organization_id", None)
     return Organization.model_validate(d)
 
 

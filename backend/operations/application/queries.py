@@ -4,6 +4,8 @@ Other bounded contexts import from here, never from operations.infrastructure di
 Thin delegation layer that decouples consumers from infrastructure details.
 """
 
+from datetime import datetime
+
 from operations.domain.material_request import MaterialRequest
 from operations.domain.returns import MaterialReturn
 from operations.domain.withdrawal import MaterialWithdrawal
@@ -38,7 +40,7 @@ async def get_withdrawal_by_id(
     return await _wd_repo.get_by_id(withdrawal_id)
 
 
-async def mark_withdrawal_paid(withdrawal_id: str, paid_at: str) -> MaterialWithdrawal | None:
+async def mark_withdrawal_paid(withdrawal_id: str, paid_at: datetime) -> MaterialWithdrawal | None:
     result, _changed = await _wd_repo.mark_paid(withdrawal_id, paid_at)
     return result
 
@@ -78,7 +80,7 @@ async def unlink_withdrawals_from_invoice(withdrawal_ids: list[str]) -> None:
     await _wd_repo.unlink_from_invoice(withdrawal_ids)
 
 
-async def mark_withdrawals_paid_by_invoice(invoice_id: str, paid_at: str) -> None:
+async def mark_withdrawals_paid_by_invoice(invoice_id: str, paid_at: datetime) -> None:
     """Mark all withdrawals linked to an invoice as paid."""
     await _wd_repo.mark_paid_by_invoice(invoice_id, paid_at)
 
@@ -137,7 +139,7 @@ async def mark_material_request_processed(
     request_id: str,
     withdrawal_id: str,
     processed_by_id: str,
-    processed_at: str,
+    processed_at: datetime,
 ) -> bool:
     return await _mr_repo.mark_processed(
         request_id=request_id,

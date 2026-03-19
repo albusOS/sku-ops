@@ -131,6 +131,7 @@ def cost_per_sell_unit(
         cost_per_sell_unit(1.00, "inch", "foot", 1)  → 12.00   (1 foot = 12 inches)
         cost_per_sell_unit(1.00, "each", "each", 12) → 12.00   (1 case of 12)
     """
+    cost_per_base = float(cost_per_base)
     pack_qty = max(pack_qty, 1)
     base_unit = (base_unit or "each").lower()
     sell_uom = (sell_uom or "each").lower()
@@ -156,6 +157,7 @@ def compute_sell_fields(
     (a sell-unit is ``pack_qty`` of ``sell_uom``).
     sell_quantity = available stock expressed in sell-units.
     """
+    price, cost, quantity = float(price), float(cost), float(quantity)
     pack_qty = max(pack_qty, 1)
     base_unit = (base_unit or "each").lower()
     sell_uom = (sell_uom or "each").lower()

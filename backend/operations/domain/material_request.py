@@ -1,5 +1,7 @@
 """Material request models - contractor pick list before staff processes into withdrawal."""
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from operations.domain.enums import MaterialRequestStatus
@@ -29,5 +31,5 @@ class MaterialRequest(Entity):
     job_id: str | None = None
     service_address: str | None = None
     notes: str | None = None
-    processed_at: str | None = None
+    processed_at: datetime | None = None
     processed_by_id: str | None = None

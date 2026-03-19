@@ -95,19 +95,20 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
     cost_buckets: dict[str, float] = {}
     for i in range(days):
         key = (start + timedelta(days=i)).strftime("%Y-%m-%d")
-        rev_buckets[key] = 0
-        cost_buckets[key] = 0
+        rev_buckets[key] = 0.0
+        cost_buckets[key] = 0.0
     for w in withdrawals:
-        created = (w.created_at or "")[:10]
+        ca = w.created_at
+        created = ca.strftime("%Y-%m-%d") if isinstance(ca, datetime) else (ca or "")[:10]
         if created in rev_buckets:
             rev_buckets[created] += w.total
             cost_buckets[created] += w.cost_total
     return [
         DailyPoint(
             date=k,
-            revenue=round(rev_buckets[k], 2),
-            cost=round(cost_buckets[k], 2),
-            profit=round(rev_buckets[k] - cost_buckets[k], 2),
+            revenue=round_money(rev_buckets[k]),
+            cost=round_money(cost_buckets[k]),
+            profit=round_money(rev_buckets[k] - cost_buckets[k]),
         )
         for k in sorted(rev_buckets)
     ]
@@ -129,8 +130,8 @@ async def contractor_dashboard(
     unpaid = sum(w.total for w in my_withdrawals if w.payment_status == "unpaid")
     return ContractorDashboard(
         total_withdrawals=len(my_withdrawals),
-        total_spent=round(total_spent, 2),
-        unpaid_balance=round(unpaid, 2),
+        total_spent=round_money(total_spent),
+        unpaid_balance=round_money(unpaid),
         recent_withdrawals=[w.model_dump() for w in my_withdrawals[:5]],
     )
 
@@ -205,10 +206,12 @@ async def admin_dashboard(
     daily_chart = _build_daily_chart(range_withdrawals, chart_start, chart_end)
 
     gross_profit = round_money(range_revenue - range_cogs)
-    margin_pct = round(gross_profit / range_revenue * 100, 1) if range_revenue > 0 else 0
+    # float for JSON-friendly percentage
+    margin_pct = round(float(gross_profit / range_revenue * 100), 1) if range_revenue > 0 else 0.0
 
     period_days = (chart_end - chart_start).days + 1
-    avg_dii = round(inventory_cost / range_cogs * period_days, 1) if range_cogs > 0 else 0
+    # float for JSON-friendly ratio
+    avg_dii = round(float(inventory_cost / range_cogs * period_days), 1) if range_cogs > 0 else 0.0
 
     return AdminDashboard(
         range_revenue=round_money(range_revenue),

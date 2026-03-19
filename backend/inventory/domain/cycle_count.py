@@ -1,5 +1,6 @@
 """Cycle count domain — snapshot-based physical inventory counting."""
 
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ class CycleCount(Entity):
     created_by_id: str
     created_by_name: str = ""
     committed_by_id: str | None = None
-    committed_at: str | None = None
+    committed_at: datetime | None = None
 
 
 class CycleCountItem(Entity):
@@ -39,9 +40,7 @@ class CycleCountItem(Entity):
     product_name: str = ""
     # Frozen at the moment the count was opened — never changes after that.
     snapshot_qty: float
-    # Null until the counter physically enters a value.
     counted_qty: float | None = None
-    # Computed at entry time: counted_qty - snapshot_qty.
     variance: float | None = None
     unit: str = "each"
     notes: str | None = None
@@ -57,8 +56,8 @@ class CycleCountDetail(BaseModel):
     created_by_id: str
     created_by_name: str
     committed_by_id: str | None
-    committed_at: str | None
-    created_at: str
+    committed_at: datetime | None
+    created_at: datetime
     items: list[CycleCountItem]
 
 
@@ -72,6 +71,6 @@ class CommitCycleCountResult(BaseModel):
     created_by_id: str
     created_by_name: str
     committed_by_id: str | None
-    committed_at: str | None
-    created_at: str
+    committed_at: datetime | None
+    created_at: datetime
     items_adjusted: int

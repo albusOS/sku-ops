@@ -39,8 +39,8 @@ class PurchaseHistoryItem(TypedDict):
     document_date: str | None
     total: float | None
     status: str
-    created_at: str
-    received_at: str | None
+    created_at: datetime
+    received_at: datetime | None
     items: list[dict]
     item_count: int
 
@@ -70,11 +70,11 @@ async def list_failed_po_bills() -> list[dict]:
     return await _po_repo.list_failed_po_bills()
 
 
-async def set_xero_sync_status(po_id: str, status: str, updated_at: str) -> None:
+async def set_xero_sync_status(po_id: str, status: str, updated_at: datetime) -> None:
     await _po_repo.set_xero_sync_status(po_id, status, updated_at)
 
 
-async def set_xero_bill_id(po_id: str, xero_bill_id: str, updated_at: str) -> None:
+async def set_xero_bill_id(po_id: str, xero_bill_id: str, updated_at: datetime) -> None:
     await _po_repo.set_xero_bill_id(po_id, xero_bill_id, updated_at)
 
 
@@ -140,7 +140,7 @@ async def vendor_catalog(vendor_id: str) -> list[VendorCatalogRow]:
            FROM vendor_items vi
            JOIN skus s ON vi.sku_id = s.id AND s.deleted_at IS NULL
            WHERE vi.vendor_id = $1
-             AND (vi.organization_id = $2 OR vi.organization_id IS NULL)
+             AND vi.organization_id = $2
              AND vi.deleted_at IS NULL
            ORDER BY vi.is_preferred DESC, s.name""",
         (vendor_id, org_id),
@@ -155,7 +155,7 @@ async def vendor_performance(
     """PO count, total spend, avg lead time, fill rate for a vendor."""
     conn = get_connection()
     org_id = get_org_id()
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
 
     cursor = await conn.execute(
         """SELECT COUNT(*) AS po_count,
@@ -201,7 +201,7 @@ async def purchase_history(
     """Recent POs for a vendor with item summaries."""
     conn = get_connection()
     org_id = get_org_id()
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
 
     cursor = await conn.execute(
         """SELECT id, vendor_name, document_date, total, status,
@@ -237,7 +237,7 @@ async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
                   s.cost AS current_cost, s.sell_uom, s.category_name AS department
            FROM skus s
            WHERE s.quantity <= s.min_stock
-             AND (s.organization_id = $1 OR s.organization_id IS NULL)
+             AND s.organization_id = $1
              AND s.deleted_at IS NULL
            ORDER BY (s.min_stock - s.quantity) DESC
            LIMIT $2""",

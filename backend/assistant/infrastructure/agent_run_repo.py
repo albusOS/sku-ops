@@ -34,7 +34,7 @@ async def log_agent_run(
     validation_scores: dict | None = None,
 ) -> str:
     run_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     org_id = get_org_id()
     async with transaction():
         conn = get_connection()

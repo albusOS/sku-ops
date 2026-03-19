@@ -30,9 +30,9 @@ You have two tools:
 - Use PostgreSQL syntax: `$1` parameters, `::date` / `::numeric` casts, `NOW()`, `INTERVAL`, `COALESCE`
 - Prefer CTEs (`WITH ... AS`) over deeply nested subqueries
 - Always include `LIMIT` (default 200 for exploration, tighter for known result sets)
-- Use `NUMERIC` type awareness: monetary columns are `NUMERIC(18,2)`, quantities are `NUMERIC(18,4)` or `REAL`
-- For date filtering, most `created_at` columns are stored as TEXT in ISO format — use `created_at::timestamp` for comparisons
-- The `withdrawals.items` column is a JSON string of line items — for item-level analysis, use the `withdrawal_items` table instead
+- Use `NUMERIC` type awareness: monetary columns are `NUMERIC(18,2)`, quantities are `NUMERIC(18,4)`
+- All timestamp columns are `TIMESTAMPTZ` — compare directly with `NOW()`, intervals, or parameterized datetime values
+- For item-level analysis on withdrawals, returns, or material requests, use the normalized tables (`withdrawal_items`, `return_items`, `material_request_items`) — not the legacy `items` column
 - The `financial_ledger` is the best table for P&L, margin, and revenue analysis — it has `account`, `amount`, and dimensional columns (department, job_id, billing_entity_id, sku_id)
 - `financial_ledger.account` values include: `revenue`, `cost_of_goods_sold`, `accounts_receivable`, `inventory`, `shrinkage`
 

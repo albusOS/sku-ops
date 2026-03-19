@@ -1,5 +1,6 @@
 """Invoice repository port — testable contract for invoice persistence."""
 
+from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
 from finance.domain.invoice import Invoice, InvoiceWithDetails
@@ -47,7 +48,7 @@ class InvoiceRepoPort(Protocol):
         invoice_id: str,
         billing_entity: str,
         contact_name: str,
-        updated_at: str,
+        updated_at: datetime,
     ) -> None: ...
 
     async def update_invoice_fields_dynamic(

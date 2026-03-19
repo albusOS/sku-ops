@@ -10,12 +10,8 @@ def _row_to_sku(row) -> Sku | None:
     if row is None:
         return None
     d = dict(row)
-    if "quantity" in d:
-        d["quantity"] = float(d["quantity"])
     if "min_stock" in d:
         d["min_stock"] = int(d["min_stock"])
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     if "variant_attrs" in d and isinstance(d["variant_attrs"], str):
         try:
             d["variant_attrs"] = json.loads(d["variant_attrs"])
@@ -36,9 +32,13 @@ async def list_skus(
     org_id = get_org_id()
     n = 1
     base = (
-        f"SELECT s.*, p.name AS product_family_name FROM skus s"
+        f"SELECT s.*, p.name AS product_family_name,"
+        f" v.name AS preferred_vendor_name"
+        f" FROM skus s"
         f" LEFT JOIN products p ON p.id = s.product_family_id"
-        f" WHERE (s.organization_id = ${n} OR s.organization_id IS NULL) AND s.deleted_at IS NULL"
+        f" LEFT JOIN vendor_items vi ON vi.sku_id = s.id AND vi.is_preferred = true AND vi.deleted_at IS NULL"
+        f" LEFT JOIN vendors v ON v.id = vi.vendor_id AND v.deleted_at IS NULL"
+        f" WHERE s.organization_id = ${n} AND s.deleted_at IS NULL"
     )
     params: list = [org_id]
     n += 1
@@ -76,7 +76,7 @@ async def count_skus(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    query = f"SELECT COUNT(*) FROM skus WHERE (organization_id = ${n} OR organization_id IS NULL) AND deleted_at IS NULL"
+    query = f"SELECT COUNT(*) FROM skus WHERE organization_id = ${n} AND deleted_at IS NULL"
     params: list = [org_id]
     n += 1
     if category_id:
@@ -103,7 +103,7 @@ async def get_by_id(sku_id: str) -> Sku | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM skus WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT * FROM skus WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (sku_id, org_id),
     )
     row = await cursor.fetchone()
@@ -118,7 +118,7 @@ async def find_by_sku(sku: str) -> Sku | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM skus WHERE UPPER(sku) = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT * FROM skus WHERE UPPER(sku) = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (s, org_id),
     )
     row = await cursor.fetchone()
@@ -137,12 +137,12 @@ async def find_by_barcode(
     org_id = get_org_id()
     if exclude_sku_id:
         cursor = await c.execute(
-            "SELECT * FROM skus WHERE (barcode = $1 OR sku = $2 OR vendor_barcode = $3) AND id != $4 AND (organization_id = $5 OR organization_id IS NULL) AND deleted_at IS NULL",
+            "SELECT * FROM skus WHERE (barcode = $1 OR sku = $2 OR vendor_barcode = $3) AND id != $4 AND organization_id = $5 AND deleted_at IS NULL",
             (b, b, b, exclude_sku_id, org_id),
         )
     else:
         cursor = await c.execute(
-            "SELECT * FROM skus WHERE (barcode = $1 OR sku = $2 OR vendor_barcode = $3) AND (organization_id = $4 OR organization_id IS NULL) AND deleted_at IS NULL",
+            "SELECT * FROM skus WHERE (barcode = $1 OR sku = $2 OR vendor_barcode = $3) AND organization_id = $4 AND deleted_at IS NULL",
             (b, b, b, org_id),
         )
     row = await cursor.fetchone()
@@ -161,7 +161,7 @@ async def find_by_name_and_vendor(name: str, vendor_id: str) -> Sku | None:
         """SELECT s.* FROM skus s
            INNER JOIN vendor_items vi ON vi.sku_id = s.id AND vi.deleted_at IS NULL
            WHERE vi.vendor_id = $1 AND TRIM(LOWER(s.name)) = $2
-           AND (s.organization_id = $3 OR s.organization_id IS NULL) AND s.deleted_at IS NULL""",
+           AND s.organization_id = $3 AND s.deleted_at IS NULL""",
         (vendor_id, norm, org_id),
     )
     row = await cursor.fetchone()
@@ -173,7 +173,7 @@ async def find_by_product_family_id(product_family_id: str) -> list[Sku]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM skus WHERE product_family_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY name",
+        "SELECT * FROM skus WHERE product_family_id = $1 AND organization_id = $2 AND deleted_at IS NULL ORDER BY name",
         (product_family_id, org_id),
     )
     rows = await cursor.fetchall()
@@ -184,7 +184,7 @@ async def count_all() -> int:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM skus WHERE (organization_id = $1 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT COUNT(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL",
         (org_id,),
     )
     row = await cursor.fetchone()
@@ -195,7 +195,7 @@ async def count_low_stock() -> int:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM skus WHERE quantity <= min_stock AND (organization_id = $1 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT COUNT(*) FROM skus WHERE quantity <= min_stock AND organization_id = $1 AND deleted_at IS NULL",
         (org_id,),
     )
     row = await cursor.fetchone()
@@ -206,7 +206,7 @@ async def list_low_stock(limit: int = 10) -> list[Sku]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM skus WHERE quantity <= min_stock AND (organization_id = $1 OR organization_id IS NULL) AND deleted_at IS NULL ORDER BY quantity LIMIT $2",
+        "SELECT * FROM skus WHERE quantity <= min_stock AND organization_id = $1 AND deleted_at IS NULL ORDER BY quantity LIMIT $2",
         (org_id, limit),
     )
     rows = await cursor.fetchall()

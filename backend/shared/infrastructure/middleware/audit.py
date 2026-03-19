@@ -55,7 +55,7 @@ async def audit_log(
             ip = request.client.host
 
     details_str = json.dumps(details) if isinstance(details, dict) else (details or "")
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
 
     try:
         conn = get_connection()

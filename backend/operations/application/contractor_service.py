@@ -21,8 +21,8 @@ def _make_id() -> str:
     return str(uuid.uuid4())
 
 
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 class Contractor(BaseModel):
@@ -40,7 +40,7 @@ class Contractor(BaseModel):
     phone: str | None = ""
     is_active: bool = True
     organization_id: str = ""
-    created_at: str = ""
+    created_at: datetime | None = None
 
     @field_validator("company", "billing_entity", mode="before")
     @classmethod
@@ -69,7 +69,7 @@ class ContractorCreateResult(BaseModel):
     phone: str | None = ""
     is_active: bool = True
     organization_id: str = ""
-    created_at: str = ""
+    created_at: datetime | None = None
 
     @field_validator("company", "billing_entity", mode="before")
     @classmethod
@@ -84,8 +84,6 @@ def _row_to_model(row) -> Contractor | None:
     if "is_active" in d:
         d["is_active"] = bool(d["is_active"])
     d.pop("password", None)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return Contractor.model_validate(d)
 
 
@@ -138,10 +136,7 @@ async def get_users_by_ids(user_ids: list[str]) -> dict[str, Contractor]:
 async def list_contractors(search: str | None = None) -> list[Contractor]:
     conn = get_connection()
     org_id = get_org_id()
-    base = (
-        f"SELECT {_SELECT_COLS} FROM users"
-        " WHERE role = 'contractor' AND (organization_id = $1 OR organization_id IS NULL)"
-    )
+    base = f"SELECT {_SELECT_COLS} FROM users WHERE role = 'contractor' AND organization_id = $1"
     params: list = [org_id]
     if search and search.strip():
         term = f"%{search.strip()}%"
@@ -160,8 +155,7 @@ async def count_contractors() -> int:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM users WHERE role = 'contractor'"
-        " AND (organization_id = $1 OR organization_id IS NULL)",
+        "SELECT COUNT(*) FROM users WHERE role = 'contractor' AND organization_id = $1",
         (org_id,),
     )
     row = await cursor.fetchone()
@@ -198,7 +192,7 @@ async def create_contractor(
         be = await ensure_billing_entity(billing_name)
 
         contractor_id = _make_id()
-        now = _now_iso()
+        now = _now()
         hashed_pw = _hash_password(password)
         company_val = company or "Independent"
 
@@ -218,7 +212,7 @@ async def create_contractor(
                 billing_name,
                 be.id if be else None,
                 phone or "",
-                1,
+                True,
                 org_id,
                 now,
             ),
@@ -259,7 +253,7 @@ async def update_contractor(
             n += 1
     if updates.is_active is not None:
         set_clauses.append(f"is_active = ${n}")
-        values.append(1 if updates.is_active else 0)
+        values.append(bool(updates.is_active))
         n += 1
     if not set_clauses:
         return contractor

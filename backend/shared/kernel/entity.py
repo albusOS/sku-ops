@@ -10,8 +10,8 @@ class Entity(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid4()))
     organization_id: str
-    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AuditedEntity(Entity):
-    updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

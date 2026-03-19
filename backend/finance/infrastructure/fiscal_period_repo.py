@@ -1,5 +1,7 @@
 """Fiscal period repository — persistence for fiscal periods."""
 
+from datetime import datetime
+
 from finance.domain.fiscal_period import FiscalPeriod
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -36,7 +38,7 @@ async def insert_period(
     name: str,
     start_date: str,
     end_date: str,
-    created_at: str,
+    created_at: datetime,
 ) -> None:
     conn = get_connection()
     org_id = get_org_id()
@@ -58,8 +60,12 @@ async def close_period(period_id: str, closed_by_id: str, closed_at: str) -> Non
     await conn.commit()
 
 
-async def find_closed_period_covering(entry_date: str) -> tuple[str, str] | None:
+async def find_closed_period_covering(entry_date: str | datetime) -> tuple[str, str] | None:
     """Return (id, name) of a closed fiscal period covering entry_date, or None."""
+    from datetime import datetime
+
+    if isinstance(entry_date, str):
+        entry_date = datetime.fromisoformat(entry_date)
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
@@ -67,7 +73,7 @@ async def find_closed_period_covering(entry_date: str) -> tuple[str, str] | None
            WHERE organization_id = $1 AND status = 'closed'
              AND $2 >= start_date AND $3 <= end_date
            LIMIT 1""",
-        (org_id, entry_date[:10], entry_date[:10]),
+        (org_id, entry_date, entry_date),
     )
     row = await cursor.fetchone()
     return (row["id"], row["name"]) if row else None

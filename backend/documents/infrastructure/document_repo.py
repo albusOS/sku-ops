@@ -98,12 +98,12 @@ async def update_status(doc_id: str, status: str, po_id: str | None = None) -> N
     if po_id:
         await conn.execute(
             "UPDATE documents SET status = $1, po_id = $2, updated_at = $3 WHERE id = $4 AND organization_id = $5",
-            (status, po_id, datetime.now(UTC).isoformat(), doc_id, org_id),
+            (status, po_id, datetime.now(UTC), doc_id, org_id),
         )
     else:
         await conn.execute(
             "UPDATE documents SET status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
-            (status, datetime.now(UTC).isoformat(), doc_id, org_id),
+            (status, datetime.now(UTC), doc_id, org_id),
         )
     await conn.commit()
 

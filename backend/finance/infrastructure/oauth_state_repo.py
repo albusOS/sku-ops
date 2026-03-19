@@ -12,7 +12,7 @@ from shared.infrastructure.database import get_connection, get_org_id
 async def save_oauth_state(state: str) -> None:
     org_id = get_org_id()
     conn = get_connection()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await conn.execute(
         """INSERT INTO oauth_states (state, org_id, created_at) VALUES ($1, $2, $3)
            ON CONFLICT(state) DO UPDATE SET org_id = $4, created_at = $5""",

@@ -4,6 +4,8 @@ Other bounded contexts import from here, never from catalog.infrastructure direc
 Thin delegation layer that decouples consumers from infrastructure details.
 """
 
+from datetime import datetime
+
 from catalog.domain.department import Department
 from catalog.domain.product_family import ProductFamily
 from catalog.domain.sku import Sku, SkuUpdate
@@ -121,22 +123,22 @@ async def update_sku(sku_id: str, updates: SkuUpdate) -> Sku | None:
         return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
 
 
-async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
+async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
     async with transaction():
         return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
 
 
-async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> None:
+async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: datetime) -> None:
     async with transaction():
         return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
 
 
-async def add_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
+async def add_sku_quantity(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
     async with transaction():
         return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
 
 
-async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: str) -> Sku | None:
+async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: datetime) -> Sku | None:
     async with transaction():
         return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
 

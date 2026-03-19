@@ -209,7 +209,7 @@ async def update_sku(
     # via the catalog edit path. Stock changes must go through inventory adjustment,
     # receiving, or withdrawal flows, which maintain the stock_transactions audit trail.
     update_data.pop("quantity", None)
-    update_data["updated_at"] = datetime.now(UTC).isoformat()
+    update_data["updated_at"] = datetime.now(UTC)
 
     if "barcode" in update_data:
         barcode_raw = update_data["barcode"]
@@ -286,7 +286,7 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
                 "product_family_id": new_family_id,
                 "category_id": new_family.category_id,
                 "category_name": new_family.category_name,
-                "updated_at": datetime.now(UTC).isoformat(),
+                "updated_at": datetime.now(UTC),
             },
         )
         if old_family_id:

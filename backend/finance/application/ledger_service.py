@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 async def _check_fiscal_period() -> None:
     """Check that the current date is not in a closed fiscal period."""
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await check_period_open(now)
 
 
@@ -41,7 +41,7 @@ async def _record_sale_event(
     billing_entity: str,
     contractor_id: str,
     performed_by_user_id: str | None = None,
-    created_at: str | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     """Shared logic for withdrawals (+1) and returns (-1).
 
@@ -141,7 +141,7 @@ async def record_withdrawal(
     billing_entity: str,
     contractor_id: str,
     performed_by_user_id: str | None = None,
-    created_at: str | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     """Write ledger entries for a new material withdrawal."""
     await _record_sale_event(
@@ -168,7 +168,7 @@ async def record_return(
     billing_entity: str,
     contractor_id: str,
     performed_by_user_id: str | None = None,
-    created_at: str | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     """Write reversing entries for a material return."""
     await _record_sale_event(
@@ -191,7 +191,7 @@ async def record_po_receipt(
     items: list[ReceivedItemSummary],
     vendor_name: str,
     performed_by_user_id: str | None = None,
-    created_at: str | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     """Write inventory + AP entries for each received PO line item."""
     if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id):
@@ -271,7 +271,7 @@ async def record_adjustment(
     department: str | None,
     reason: str | None = None,
     performed_by_user_id: str | None = None,
-    created_at: str | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     """Write inventory + contra entries for a stock adjustment.
 
@@ -326,7 +326,7 @@ async def record_payment(
     billing_entity: str,
     contractor_id: str,
     performed_by_user_id: str | None = None,
-    created_at: str | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     """Write AR reduction when a withdrawal is marked paid."""
     if await entries_exist(ReferenceType.PAYMENT.value, withdrawal_id):

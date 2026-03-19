@@ -243,7 +243,7 @@ async def mark_single_withdrawal_paid(
     withdrawal = await withdrawal_repo.get_by_id(withdrawal_id)
     if not withdrawal:
         raise ValueError(f"Withdrawal {withdrawal_id} not found")
-    paid_at = datetime.now(UTC).isoformat()
+    paid_at = datetime.now(UTC)
 
     async with transaction():
         result, changed = await withdrawal_repo.mark_paid(withdrawal_id, paid_at)
@@ -262,7 +262,7 @@ async def mark_single_withdrawal_paid(
     if changed:
         await dispatch(
             WithdrawalPaid(
-                org_id=withdrawal.organization_id or get_org_id(),
+                org_id=withdrawal.organization_id,
                 withdrawal_id=withdrawal_id,
                 amount=withdrawal.total,
                 billing_entity=withdrawal.billing_entity or "",
@@ -288,7 +288,7 @@ async def bulk_mark_withdrawals_paid(
     if len(withdrawal_ids) > 200:
         raise ValueError("Cannot mark more than 200 withdrawals at once")
 
-    paid_at = datetime.now(UTC).isoformat()
+    paid_at = datetime.now(UTC)
 
     # Fetch before the transaction so we have the data needed for ledger entries
     withdrawals = []
@@ -317,7 +317,7 @@ async def bulk_mark_withdrawals_paid(
             continue
         await dispatch(
             WithdrawalPaid(
-                org_id=w.organization_id or get_org_id(),
+                org_id=w.organization_id,
                 withdrawal_id=w.id,
                 amount=w.total,
                 billing_entity=w.billing_entity or "",

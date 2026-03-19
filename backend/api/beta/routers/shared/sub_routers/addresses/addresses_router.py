@@ -85,7 +85,7 @@ async def create_address(
         billing_entity_id=data.billing_entity_id,
         job_id=data.job_id,
         organization_id=get_org_id(),
-        created_at=datetime.now(UTC).isoformat(),
+        created_at=datetime.now(UTC),
     )
     await address_repo.insert(address)
     return address

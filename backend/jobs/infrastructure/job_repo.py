@@ -102,7 +102,7 @@ async def update(job_id: str, updates: dict) -> Job | None:
     if not set_clauses:
         return await get_by_id(job_id)
     set_clauses.append(f"updated_at = ${n}")
-    params.append(datetime.now(UTC).isoformat())
+    params.append(datetime.now(UTC))
     n += 1
     params.extend([job_id, org_id])
     await conn.execute(

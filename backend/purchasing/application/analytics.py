@@ -24,7 +24,7 @@ async def vendor_lead_time_actual(
     """
     conn = get_connection()
     org_id = get_org_id()
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
 
     cur = await conn.execute(
         """SELECT po.id,
@@ -77,7 +77,7 @@ async def vendor_lead_time_actual(
            FROM vendor_items
            WHERE vendor_id = $1
              AND lead_time_days IS NOT NULL
-             AND (organization_id = $2 OR organization_id IS NULL)
+             AND organization_id = $2
              AND deleted_at IS NULL""",
         (vendor_id, org_id),
     )

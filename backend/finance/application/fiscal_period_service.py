@@ -35,7 +35,7 @@ async def list_fiscal_periods(status: str | None = None) -> list[FiscalPeriod]:
 
 async def create_fiscal_period(body: FiscalPeriodCreate) -> FiscalPeriod:
     period_id = str(uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     org_id = get_org_id()
     async with transaction():
         await insert_period(
@@ -65,7 +65,7 @@ async def close_fiscal_period(
     if period.status != FiscalPeriodStatus.OPEN:
         raise ValueError("Period is already closed")
 
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     async with transaction():
         await close_period(period_id, closed_by_id=closed_by_id, closed_at=now)
     result = await get_period(period_id)

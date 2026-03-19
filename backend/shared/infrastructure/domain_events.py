@@ -137,7 +137,7 @@ async def _mark_processed(event_id: str, handler_name: str, event_type: str) -> 
         await conn.execute(
             "INSERT INTO processed_events (event_id, handler_name, event_type, processed_at) "
             "VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-            (event_id, handler_name, event_type, datetime.now(UTC).isoformat()),
+            (event_id, handler_name, event_type, datetime.now(UTC)),
         )
         await conn.commit()
     except Exception:

@@ -78,7 +78,7 @@ async def _truncate_and_seed():
         )
         await conn.execute(
             """INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)
-               VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', 1, 'supply-yard', NOW())
+               VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', TRUE, 'supply-yard', NOW())
                ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
                name = EXCLUDED.name, role = EXCLUDED.role, is_active = EXCLUDED.is_active,
                organization_id = EXCLUDED.organization_id"""
@@ -87,16 +87,15 @@ async def _truncate_and_seed():
             """INSERT INTO users (id, email, password, name, role, company, billing_entity,
                is_active, organization_id, created_at)
                VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User',
-               'contractor', 'ACME', 'ACME Inc', 1, 'supply-yard', NOW())
+               'contractor', 'ACME', 'ACME Inc', TRUE, 'supply-yard', NOW())
                ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
                name = EXCLUDED.name, role = EXCLUDED.role, company = EXCLUDED.company,
                billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
                organization_id = EXCLUDED.organization_id"""
         )
-        # Re-seed global units of measure (wiped by TRUNCATE)
-        from catalog.infrastructure.schema import _UOM_SEED
+        from catalog.infrastructure.schema import uom_seed_sql
 
-        for stmt in _UOM_SEED:
+        for stmt in uom_seed_sql("supply-yard"):
             await conn.execute(stmt)
 
 

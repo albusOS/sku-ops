@@ -10,8 +10,6 @@ def _row_to_model(row) -> Vendor | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return Vendor.model_validate(d)
 
 
@@ -20,7 +18,7 @@ async def list_all() -> list[Vendor]:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
-           WHERE (organization_id = $1 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           WHERE organization_id = $1 AND deleted_at IS NULL""",
         (org_id,),
     )
     rows = await cursor.fetchall()
@@ -32,7 +30,7 @@ async def get_by_id(vendor_id: str) -> Vendor | None:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
-           WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL""",
         (vendor_id, org_id),
     )
     row = await cursor.fetchone()
@@ -48,7 +46,7 @@ async def find_by_name(name: str) -> Vendor | None:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
-           WHERE TRIM(LOWER(name)) = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           WHERE TRIM(LOWER(name)) = $1 AND organization_id = $2 AND deleted_at IS NULL""",
         (normalized, org_id),
     )
     row = await cursor.fetchone()
@@ -70,7 +68,7 @@ async def insert(vendor: Vendor) -> None:
             vendor_dict.get("phone", ""),
             vendor_dict.get("address", ""),
             org_id,
-            vendor_dict.get("created_at", ""),
+            vendor_dict.get("created_at") or datetime.now(UTC),
         ),
     )
 
@@ -102,7 +100,7 @@ async def update(vendor_id: str, vendor_dict: dict) -> Vendor | None:
 async def delete(vendor_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     params: list = [now, vendor_id]
     where = "WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3"
     params.append(org_id)
@@ -116,7 +114,7 @@ async def count() -> int:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM vendors WHERE (organization_id = $1 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT COUNT(*) FROM vendors WHERE organization_id = $1 AND deleted_at IS NULL",
         (org_id,),
     )
     row = await cursor.fetchone()

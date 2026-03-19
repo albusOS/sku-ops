@@ -1,10 +1,6 @@
 """Assistant context schema — agent runs, memory artifacts, and embeddings."""
 
-MIGRATIONS: list[str] = [
-    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_passed BOOLEAN",
-    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_failures TEXT NOT NULL DEFAULT '[]'",
-    "ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS validation_scores TEXT NOT NULL DEFAULT '{}'",
-]
+MIGRATIONS: list[str] = []
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS memory_artifacts (
@@ -16,8 +12,8 @@ TABLES: list[str] = [
         subject TEXT NOT NULL DEFAULT 'general',
         content TEXT NOT NULL DEFAULT '',
         tags TEXT NOT NULL DEFAULT '[]',
-        created_at TEXT NOT NULL,
-        expires_at TEXT
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ
     )""",
     """CREATE TABLE IF NOT EXISTS agent_runs (
         id TEXT PRIMARY KEY,
@@ -32,14 +28,17 @@ TABLES: list[str] = [
         tool_calls TEXT NOT NULL DEFAULT '[]',
         input_tokens INTEGER NOT NULL DEFAULT 0,
         output_tokens INTEGER NOT NULL DEFAULT 0,
-        cost_usd REAL NOT NULL DEFAULT 0,
+        cost_usd NUMERIC(18,4) NOT NULL DEFAULT 0,
         duration_ms INTEGER NOT NULL DEFAULT 0,
         attempts INTEGER NOT NULL DEFAULT 1,
         error TEXT,
         error_kind TEXT,
         parent_run_id TEXT,
         handoff_from TEXT,
-        created_at TEXT NOT NULL
+        validation_passed BOOLEAN,
+        validation_failures TEXT NOT NULL DEFAULT '[]',
+        validation_scores TEXT NOT NULL DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     # Persistent embedding store — pgvector-backed semantic search across
     # all entity types (SKUs, vendors, POs, jobs, memory artifacts, tools).
@@ -52,7 +51,7 @@ TABLES: list[str] = [
         content TEXT NOT NULL,
         content_hash TEXT NOT NULL,
         embedding vector(1536) NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
 ]
 

@@ -186,7 +186,7 @@ async def _get_usage_velocity(sku: str = "", days: int = 30) -> str:
     """Usage velocity for a single SKU over the last N days."""
     sku = sku.strip().upper()
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     p = await catalog_find_by_sku(sku)
     if not p:
         return ErrorResult(error=f"SKU '{sku}' not found").serialize()
@@ -291,7 +291,7 @@ async def _get_top_skus(days: int = 30, by: str = "revenue", limit: int = 10) ->
     if by not in ("volume", "revenue"):
         by = "revenue"
     limit = min(limit, 50)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
     sku_map: dict[str, dict] = {}
     for w in withdrawals:
@@ -327,7 +327,7 @@ async def _get_department_activity(dept_code: str = "", days: int = 30) -> str:
     """Withdrawal activity summary for a department."""
     dept_code = dept_code.strip().upper()
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     dept = await catalog_get_dept_by_code(dept_code)
     if not dept:
         return ErrorResult(error=f"Department '{dept_code}' not found or has no SKUs").serialize()
@@ -396,7 +396,7 @@ async def _get_slow_movers(limit: int = 20, days: int = 30) -> str:
     """In-stock SKUs with lowest withdrawal volume."""
     limit = min(limit, 100)
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     skus = await catalog_list_skus()
     in_stock = [s for s in skus if s.quantity > 0]
     if not in_stock:

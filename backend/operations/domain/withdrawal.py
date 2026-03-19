@@ -1,6 +1,7 @@
 """Material withdrawal (POS) models."""
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
@@ -62,7 +63,7 @@ class MaterialWithdrawal(Entity):
     billing_entity_id: str | None = None
     payment_status: PaymentStatus = PaymentStatus.UNPAID
     invoice_id: str | None = None
-    paid_at: str | None = None
+    paid_at: datetime | None = None
     processed_by_id: str
     processed_by_name: str = ""
 
