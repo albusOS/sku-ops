@@ -86,7 +86,7 @@ export default function ChatAssistant() {
   };
 
   const startNewChat = () => {
-    if (streaming) wsCancel();
+    wsCancel();
     clearSession(sessionId);
     setMessages([]);
     setSessionId(null);
@@ -99,7 +99,7 @@ export default function ChatAssistant() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId, activeJobId }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId }));
     } catch {
       /* sessionStorage may be full or disabled */
     }
@@ -262,10 +262,6 @@ export default function ChatAssistant() {
                       Add{" "}
                       <code className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
                         ANTHROPIC_API_KEY
-                      </code>{" "}
-                      or{" "}
-                      <code className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
-                        OPENROUTER_API_KEY
                       </code>{" "}
                       to{" "}
                       <code className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">

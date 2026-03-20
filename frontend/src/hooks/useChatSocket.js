@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 15_000;
 const HEARTBEAT_TIMEOUT_MS = 35_000;
+const STREAMING_TIMEOUT_MS = 120_000;
 
 function buildWsUrl(token) {
   const base = import.meta.env.VITE_BACKEND_URL || "";
@@ -54,14 +55,34 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
   const [activeJobId, setActiveJobId] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [lastError, setLastError] = useState(null);
+  const cancelledJobsRef = useRef(new Set());
+  const streamingTimeoutRef = useRef(null);
 
   useEffect(() => {
     callbacksRef.current = { onDelta, onToolStart, onDone, onError };
   });
 
-  useEffect(() => {
-    activeJobIdRef.current = activeJobId;
-  }, [activeJobId]);
+  const setActiveJobIdSync = useCallback((id) => {
+    activeJobIdRef.current = id;
+    setActiveJobId(id);
+  }, []);
+
+  const clearStreamingTimeout = useCallback(() => {
+    clearTimeout(streamingTimeoutRef.current);
+    streamingTimeoutRef.current = null;
+  }, []);
+
+  const startStreamingTimeout = useCallback(() => {
+    clearStreamingTimeout();
+    streamingTimeoutRef.current = setTimeout(() => {
+      setStreaming(false);
+      setStreamText("");
+      setActiveTools([]);
+      setActiveJobIdSync(null);
+      setLastError("Response timed out. Please try again.");
+      callbacksRef.current.onError?.("Response timed out. Please try again.");
+    }, STREAMING_TIMEOUT_MS);
+  }, [clearStreamingTimeout, setActiveJobIdSync]);
 
   const resetHeartbeat = useCallback(() => {
     clearTimeout(heartbeatTimerRef.current);
@@ -86,7 +107,7 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
       resetHeartbeat();
 
       const pendingJobId = activeJobIdRef.current;
-      if (pendingJobId) {
+      if (pendingJobId && !cancelledJobsRef.current.has(pendingJobId)) {
         try {
           ws.send(JSON.stringify({ type: "chat.resume", job_id: pendingJobId }));
         } catch {
@@ -116,27 +137,35 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
       }
 
       if (type === "chat.job_started") {
-        setActiveJobId(msg.job_id);
+        cancelledJobsRef.current.delete(msg.job_id);
+        setActiveJobIdSync(msg.job_id);
         setStreaming(true);
         setStreamText("");
         setActiveTools([]);
         setLastError(null);
+        startStreamingTimeout();
         return;
       }
 
       if (type === "chat.status") {
+        if (!activeJobIdRef.current) return;
         setStreaming(true);
         setLastError(null);
+        startStreamingTimeout();
         return;
       }
 
       if (type === "chat.delta") {
+        if (!activeJobIdRef.current) return;
+        startStreamingTimeout();
         setStreamText((prev) => prev + (msg.content || ""));
         callbacksRef.current.onDelta?.(msg.content || "");
         return;
       }
 
       if (type === "chat.tool_start") {
+        if (!activeJobIdRef.current) return;
+        startStreamingTimeout();
         setActiveTools((prev) => [...prev, msg.tool]);
         callbacksRef.current.onToolStart?.(msg.tool);
         return;
@@ -148,20 +177,25 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
       }
 
       if (type === "chat.done") {
+        clearStreamingTimeout();
+        if (msg.job_id) cancelledJobsRef.current.delete(msg.job_id);
         setStreaming(false);
         setStreamText("");
         setActiveTools([]);
-        setActiveJobId(null);
+        setActiveJobIdSync(null);
         setLastResult(msg);
         callbacksRef.current.onDone?.(msg);
         return;
       }
 
       if (type === "chat.error") {
+        clearStreamingTimeout();
+        if (msg.job_id) cancelledJobsRef.current.delete(msg.job_id);
+        // Always clear active job on error — covers stale resume attempts too
+        setActiveJobIdSync(null);
         setStreaming(false);
         setStreamText("");
         setActiveTools([]);
-        setActiveJobId(null);
         setLastError(msg.detail || "Unknown error");
         callbacksRef.current.onError?.(msg.detail || "Unknown error");
         return;
@@ -180,7 +214,14 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
     ws.onerror = () => {
       ws.close();
     };
-  }, [token, enabled, resetHeartbeat]);
+  }, [
+    token,
+    enabled,
+    resetHeartbeat,
+    setActiveJobIdSync,
+    startStreamingTimeout,
+    clearStreamingTimeout,
+  ]);
 
   const scheduleReconnect = useCallback(() => {
     if (timerRef.current) return;
@@ -211,13 +252,12 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
         wsRef.current = null;
       }
       setConnected(false);
-      // Only reset streaming if there's no active job — a token-refresh
-      // reconnect will reattach via chat.resume and keep streaming.
       if (!activeJobIdRef.current) {
+        clearStreamingTimeout();
         setStreaming(false);
       }
     };
-  }, [connect, enabled]);
+  }, [connect, enabled, clearStreamingTimeout]);
 
   const send = useCallback((message, sessionId, agentType = "auto") => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return false;
@@ -237,17 +277,21 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
   }, []);
 
   const cancel = useCallback(() => {
-    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
-    try {
-      wsRef.current.send(JSON.stringify({ type: "cancel" }));
-    } catch {
-      /* WS may be closing */
+    clearStreamingTimeout();
+    const jobId = activeJobIdRef.current;
+    if (jobId) cancelledJobsRef.current.add(jobId);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ type: "cancel" }));
+      } catch {
+        /* WS may be closing */
+      }
     }
     setStreaming(false);
     setStreamText("");
     setActiveTools([]);
-    setActiveJobId(null);
-  }, []);
+    setActiveJobIdSync(null);
+  }, [clearStreamingTimeout, setActiveJobIdSync]);
 
   const clearResult = useCallback(() => {
     setLastResult(null);
