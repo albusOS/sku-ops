@@ -46,7 +46,17 @@ def uom_seed_sql(org_id: str) -> list[str]:
 # Kept for backwards compat — callers that don't have org context yet
 _UOM_SEED = uom_seed_sql("supply-yard")
 
-MIGRATIONS: list[str] = []
+MIGRATIONS: list[str] = [
+    """DO $$ BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'vendor_items' AND column_name = 'is_preferred' AND data_type = 'integer'
+        ) THEN
+            ALTER TABLE vendor_items ALTER COLUMN is_preferred TYPE BOOLEAN USING (is_preferred::int::boolean);
+            ALTER TABLE vendor_items ALTER COLUMN is_preferred SET DEFAULT FALSE;
+        END IF;
+    END $$""",
+]
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS departments (

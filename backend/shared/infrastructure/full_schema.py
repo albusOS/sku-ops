@@ -79,6 +79,9 @@ from shared.infrastructure.schema import (
     INDEXES as _shared_indexes,
 )
 from shared.infrastructure.schema import (
+    MIGRATIONS as _shared_migrations,
+)
+from shared.infrastructure.schema import (
     SEED as _shared_seed,
 )
 from shared.infrastructure.schema import (
@@ -127,7 +130,8 @@ ALL_VIEWS: list[str] = _shared_views
 # Additive ALTER TABLE migrations — applied after tables and indexes.
 # Each entry is idempotent (uses IF NOT EXISTS) or gracefully skipped on failure.
 ALL_MIGRATIONS: list[str] = (
-    _catalog_migrations
+    _shared_migrations
+    + _catalog_migrations
     + _inventory_migrations
     + _operations_migrations
     + _finance_migrations

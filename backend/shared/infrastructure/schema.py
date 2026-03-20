@@ -130,6 +130,27 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status)",
 ]
 
+MIGRATIONS: list[str] = [
+    """DO $$ BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'users' AND column_name = 'is_active' AND data_type = 'integer'
+        ) THEN
+            ALTER TABLE users ALTER COLUMN is_active TYPE BOOLEAN USING (is_active::int::boolean);
+            ALTER TABLE users ALTER COLUMN is_active SET DEFAULT TRUE;
+        END IF;
+    END $$""",
+    """DO $$ BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'billing_entities' AND column_name = 'is_active' AND data_type = 'integer'
+        ) THEN
+            ALTER TABLE billing_entities ALTER COLUMN is_active TYPE BOOLEAN USING (is_active::int::boolean);
+            ALTER TABLE billing_entities ALTER COLUMN is_active SET DEFAULT TRUE;
+        END IF;
+    END $$""",
+]
+
 EXTENSIONS: list[str] = [
     "CREATE EXTENSION IF NOT EXISTS vector",
 ]
