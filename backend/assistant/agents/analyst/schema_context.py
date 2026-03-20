@@ -1,12 +1,15 @@
 """Schema introspection for the analyst agent.
 
-Parses CREATE TABLE DDL from all context schema.py files at import time
+Parses CREATE TABLE DDL from declarative ``supabase/schemas`` files (see
+``supabase/config.toml`` ``[db.migrations] schema_paths``) at import time
 and builds a structured catalog the LLM can query for table/column info.
 """
 
 from __future__ import annotations
 
+import glob
 import re
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,7 +43,7 @@ class TableInfo:
 # ── DDL parsing ──────────────────────────────────────────────────────────────
 
 _TABLE_RE = re.compile(
-    r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\((.*?)\)\s*;",
+    r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\((.*?)\)\s*;\s*",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -50,9 +53,37 @@ _FK_RE = re.compile(
 )
 
 
+def _split_column_definitions(body: str) -> list[str]:
+    """Split CREATE TABLE column list on commas not inside parentheses (e.g. REFERENCES)."""
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in body:
+        if char == "(":
+            depth += 1
+            current.append(char)
+        elif char == ")":
+            depth = max(0, depth - 1)
+            current.append(char)
+        elif char == "," and depth == 0:
+            piece = "".join(current).strip()
+            if piece:
+                parts.append(piece)
+            current = []
+        else:
+            current.append(char)
+    tail = "".join(current).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
 def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
     """Parse a single CREATE TABLE DDL string into a TableInfo."""
-    m = _TABLE_RE.search(ddl)
+    stripped = ddl.strip()
+    if not stripped.endswith(";"):
+        stripped += ";"
+    m = _TABLE_RE.search(stripped)
     if not m:
         return None
 
@@ -64,7 +95,7 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
     pk_columns: set[str] = set()
     has_org_id = False
 
-    for raw_line in body.split(","):
+    for raw_line in _split_column_definitions(body):
         line = raw_line.strip()
         if not line:
             continue
@@ -123,7 +154,7 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
     )
 
 
-# ── Build the catalog from the Supabase migration ────────────────────────────
+# ── Build the catalog from declarative schema SQL ─────────────────────────────
 
 _TABLE_CONTEXT = {
     "organizations": "shared",
@@ -147,6 +178,7 @@ _TABLE_CONTEXT = {
     "cycle_count_items": "inventory",
     "withdrawals": "operations",
     "material_requests": "operations",
+    "material_request_items": "operations",
     "returns": "operations",
     "withdrawal_items": "operations",
     "return_items": "operations",
@@ -170,19 +202,46 @@ _TABLE_CONTEXT = {
 }
 
 
-def _migration_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[4]
-    migration_dir = repo_root / "supabase" / "migrations"
-    candidates = sorted(migration_dir.glob("*.sql"))
-    if not candidates:
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def _load_declarative_schema_sql() -> str:
+    """Concatenate SQL from ``schema_paths`` (same source Supabase uses for db diff)."""
+    supabase_dir = _repo_root() / "supabase"
+    config_path = supabase_dir / "config.toml"
+    paths: list[Path] = []
+    if config_path.is_file():
+        with config_path.open("rb") as f:
+            cfg = tomllib.load(f)
+        raw = cfg.get("db", {}).get("migrations", {}).get("schema_paths", [])
+        for entry in raw:
+            e = entry.strip()
+            if not e:
+                continue
+            if "*" in e or "?" in e:
+                pattern = str(supabase_dir / e.removeprefix("./"))
+                paths.extend(Path(p) for p in sorted(glob.glob(pattern)))
+            else:
+                rel = e.removeprefix("./")
+                paths.append(supabase_dir / rel)
+    if not paths:
+        paths = sorted((supabase_dir / "schemas").glob("??-*-schema.sql"))
+    chunks: list[str] = []
+    for p in paths:
+        if not p.is_file():
+            raise RuntimeError(f"Schema file missing for analyst catalog: {p}")
+        chunks.append(p.read_text())
+    if not chunks:
         raise RuntimeError(
-            "No Supabase migration files found for schema catalog."
+            "No declarative schema SQL found. Set [db.migrations] schema_paths "
+            "in supabase/config.toml or add supabase/schemas/??-*-schema.sql."
         )
-    return candidates[-1]
+    return "\n".join(chunks)
 
 
 def _build_catalog() -> dict[str, TableInfo]:
-    sql = _migration_path().read_text()
+    sql = _load_declarative_schema_sql()
     catalog: dict[str, TableInfo] = {}
     for table_name, body in _TABLE_RE.findall(sql):
         ddl = f"CREATE TABLE IF NOT EXISTS {table_name} ({body})"
@@ -222,6 +281,7 @@ _RELATIONSHIPS = """
 - credit_notes.return_id -> returns.id
 - returns.withdrawal_id -> withdrawals.id
 - return_items.return_id -> returns.id
+- material_request_items.material_request_id -> material_requests.id
 - skus.product_family_id -> products.id (the `products` table stores product families, not individual SKUs)
 - skus.category_id -> departments.id (department)
 - products.category_id -> departments.id

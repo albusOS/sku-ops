@@ -2,11 +2,11 @@
 
 ## Canonical schema and migration surface today
 
-- The current schema source of truth is Python DDL aggregated in `backend/shared/infrastructure/full_schema.py`.
-- Runtime schema bootstrap happens in `backend/shared/infrastructure/migrations/runner.py`.
-- App startup always initializes the database and runs schema bootstrap through `backend/startup.py`.
-- The current connection and transaction contract lives in `backend/shared/infrastructure/db/__init__.py`.
-- The low-level PostgreSQL adapter is `backend/shared/infrastructure/db/postgres.py`.
+- **DDL source of truth**: declarative SQL under `supabase/schemas/` (`01-shared-schema.sql` through `10-entity-edges-schema.sql`), listed in `supabase/config.toml` under `[db.migrations] schema_paths`.
+- **Applied schema**: versioned files in `supabase/migrations/` (baseline plus follow-up migrations). `supabase db reset --local` applies migrations only; use `supabase db diff` to generate new migrations from declarative schema changes.
+- App startup initializes the pool via `init_db()` in `backend/startup.py` - it does **not** run DDL at runtime.
+- Connection and transaction contract: `backend/shared/infrastructure/db/__init__.py`.
+- Low-level PostgreSQL adapter: `backend/shared/infrastructure/db/postgres.py`.
 
 ## Database behavior that must be preserved
 
@@ -18,25 +18,29 @@
 
 ## Current blast radius
 
-### Shared infrastructure
+### Supabase / SQL
 
-- `backend/shared/infrastructure/schema.py`
-- `backend/shared/infrastructure/full_schema.py`
-- `backend/shared/infrastructure/migrations/runner.py`
+- `supabase/schemas/*.sql`
+- `supabase/migrations/*.sql`
+- `supabase/config.toml`
+- `supabase/seed.sql`
+
+### Shared infrastructure (backend)
+
 - `backend/shared/infrastructure/db/__init__.py`
 - `backend/shared/infrastructure/db/postgres.py`
 - `backend/shared/infrastructure/database.py`
 - `backend/shared/infrastructure/config.py`
 - `backend/startup.py`
 
-### Assistant code that currently depends on Python DDL
+### Assistant code tied to schema shape
 
-- `backend/assistant/agents/analyst/schema_context.py`
+- `backend/assistant/agents/analyst/schema_context.py` (parses `CREATE TABLE` from declarative schema files)
 - `backend/assistant/agents/analyst/sql_executor.py`
 - `backend/assistant/application/entity_graph.py`
 - `backend/assistant/infrastructure/embedding_store.py`
 
-### Test files that currently depend on Python DDL or raw connection behavior
+### Test files
 
 - `backend/tests/integration/test_schema_single_source.py`
 - `backend/tests/integration/test_repo_contracts.py`
@@ -48,7 +52,7 @@
 ### Catalog
 
 - Repo files under `backend/catalog/infrastructure/`
-- Application query and lifecycle modules under `backend/catalog/application/`
+- Application query and lifecycle modules under `backend/catalog/application/` (e.g. `uom_seed.py` for test DML)
 
 ### Inventory
 
@@ -89,11 +93,11 @@
 - `frontend/src/lib/supabase.js` is auth-only today.
 - The cutover keeps business data behind the backend and removes the bridge auth fallback.
 
-## Migration sequence locked by this inventory
+## Migration sequence (historical checklist)
 
 1. Generate and commit the root `supabase/` project.
-2. Add a centralized SQLModel plus SQLAlchemy backend layer without breaking the current repo contract.
+2. Add a centralized SQLModel plus SQLAlchemy backend layer without breaking the current repo contract. *(Optional / not current path.)*
 3. Replace local Postgres-only dev flow with local Supabase stack flow.
 4. Cut auth over to Supabase in all environments.
 5. Migrate context repos and query modules behind the new database layer.
-6. Remove Python DDL bootstrap and update assistant schema tooling to use database metadata or Supabase-owned SQL artifacts.
+6. ~~Remove Python DDL bootstrap~~ Done: DDL lives in `supabase/schemas/` and migrations; assistant reads declarative SQL for catalog generation.

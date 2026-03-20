@@ -94,7 +94,7 @@ async def _truncate_and_seed():
                billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
                organization_id = EXCLUDED.organization_id"""
         )
-        from catalog.infrastructure.schema import uom_seed_sql
+        from catalog.application.uom_seed import uom_seed_sql
 
         for stmt in uom_seed_sql("supply-yard"):
             await conn.execute(stmt)

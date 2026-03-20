@@ -137,7 +137,6 @@ class PostgresBackend:
         return self._session_factory
 
     async def connect(self, url: str) -> None:
-        import os
 
         from shared.infrastructure.config import (
             PG_ACQUIRE_TIMEOUT,

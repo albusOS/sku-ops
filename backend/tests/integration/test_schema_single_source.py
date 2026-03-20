@@ -25,6 +25,7 @@ EXPECTED_TABLES = {
     "withdrawals",
     "withdrawal_items",
     "material_requests",
+    "material_request_items",
     "returns",
     "return_items",
     "invoices",

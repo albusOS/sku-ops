@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS organizations (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         slug TEXT UNIQUE NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -21,14 +21,14 @@ CREATE TABLE IF NOT EXISTS users (
         billing_entity TEXT,
         billing_entity_id TEXT,
         phone TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
         organization_id TEXT,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS org_settings (
         organization_id TEXT PRIMARY KEY,
-        auto_invoice INTEGER NOT NULL DEFAULT 0,
+        auto_invoice BOOLEAN NOT NULL DEFAULT FALSE,
         default_tax_rate REAL NOT NULL DEFAULT 0.10,
         xero_tenant_id TEXT,
         xero_access_token TEXT,
@@ -40,22 +40,22 @@ CREATE TABLE IF NOT EXISTS org_settings (
         xero_ap_account_code TEXT NOT NULL DEFAULT '800',
         xero_tracking_category_id TEXT,
         xero_tax_type TEXT NOT NULL DEFAULT '',
-        updated_at TEXT
+        updated_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         token_hash TEXT NOT NULL UNIQUE,
-        expires_at TEXT NOT NULL,
-        revoked INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS oauth_states (
         state TEXT PRIMARY KEY,
         org_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
         details TEXT,
         ip_address TEXT,
         organization_id TEXT,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS billing_entities (
@@ -78,10 +78,10 @@ CREATE TABLE IF NOT EXISTS billing_entities (
         billing_address TEXT NOT NULL DEFAULT '',
         payment_terms TEXT NOT NULL DEFAULT 'net_30',
         xero_contact_id TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
         UNIQUE(organization_id, name)
     );
 
@@ -97,26 +97,26 @@ CREATE TABLE IF NOT EXISTS addresses (
         billing_entity_id TEXT,
         job_id TEXT,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS fiscal_periods (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
         status TEXT NOT NULL DEFAULT 'open',
         closed_by_id TEXT,
-        closed_at TEXT,
+        closed_at TIMESTAMPTZ,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS processed_events (
         event_id TEXT NOT NULL,
         handler_name TEXT NOT NULL,
         event_type TEXT NOT NULL,
-        processed_at TEXT NOT NULL,
+        processed_at TIMESTAMPTZ NOT NULL,
         PRIMARY KEY (event_id, handler_name)
     );
 
@@ -127,8 +127,8 @@ CREATE TABLE IF NOT EXISTS departments (
         description TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        deleted_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ,
         UNIQUE(organization_id, code)
     );
 
@@ -138,8 +138,8 @@ CREATE TABLE IF NOT EXISTS units_of_measure (
         name TEXT NOT NULL,
         family TEXT NOT NULL DEFAULT 'discrete',
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        deleted_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ,
         UNIQUE(organization_id, code)
     );
 
@@ -151,8 +151,8 @@ CREATE TABLE IF NOT EXISTS vendors (
         phone TEXT NOT NULL DEFAULT '',
         address TEXT NOT NULL DEFAULT '',
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        deleted_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS products (
@@ -163,9 +163,9 @@ CREATE TABLE IF NOT EXISTS products (
         category_name TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS skus (
@@ -192,9 +192,9 @@ CREATE TABLE IF NOT EXISTS skus (
         grade TEXT NOT NULL DEFAULT '',
         variant_attrs TEXT NOT NULL DEFAULT '{}',
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS vendor_items (
@@ -208,12 +208,12 @@ CREATE TABLE IF NOT EXISTS vendor_items (
         cost REAL NOT NULL DEFAULT 0,
         lead_time_days INTEGER,
         moq REAL,
-        is_preferred INTEGER NOT NULL DEFAULT 0,
+        is_preferred BOOLEAN NOT NULL DEFAULT FALSE,
         notes TEXT,
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ,
         UNIQUE(vendor_id, sku_id)
     );
 
@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
         user_id TEXT NOT NULL,
         user_name TEXT NOT NULL DEFAULT '',
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS cycle_counts (
@@ -251,8 +251,8 @@ CREATE TABLE IF NOT EXISTS cycle_counts (
         created_by_id TEXT NOT NULL,
         created_by_name TEXT NOT NULL DEFAULT '',
         committed_by_id TEXT,
-        committed_at TEXT,
-        created_at TEXT NOT NULL
+        committed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS cycle_count_items (
@@ -266,12 +266,11 @@ CREATE TABLE IF NOT EXISTS cycle_count_items (
         variance REAL,
         unit TEXT NOT NULL DEFAULT 'each',
         notes TEXT,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
         id TEXT PRIMARY KEY,
-        items TEXT NOT NULL,
         job_id TEXT NOT NULL,
         service_address TEXT NOT NULL,
         notes TEXT,
@@ -287,25 +286,24 @@ CREATE TABLE IF NOT EXISTS withdrawals (
         billing_entity_id TEXT,
         payment_status TEXT NOT NULL DEFAULT 'unpaid',
         invoice_id TEXT,
-        paid_at TEXT,
+        paid_at TIMESTAMPTZ,
         processed_by_id TEXT NOT NULL,
         processed_by_name TEXT NOT NULL DEFAULT '',
         organization_id TEXT,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS material_requests (
         id TEXT PRIMARY KEY,
         contractor_id TEXT NOT NULL,
         contractor_name TEXT NOT NULL DEFAULT '',
-        items TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'pending',
         withdrawal_id TEXT,
         job_id TEXT,
         service_address TEXT,
         notes TEXT,
-        created_at TEXT NOT NULL,
-        processed_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        processed_at TIMESTAMPTZ,
         processed_by_id TEXT,
         organization_id TEXT NOT NULL
     );
@@ -318,7 +316,6 @@ CREATE TABLE IF NOT EXISTS returns (
         billing_entity TEXT NOT NULL DEFAULT '',
         billing_entity_id TEXT,
         job_id TEXT NOT NULL DEFAULT '',
-        items TEXT NOT NULL,
         subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
         tax NUMERIC(18,2) NOT NULL DEFAULT 0,
         total NUMERIC(18,2) NOT NULL DEFAULT 0,
@@ -329,8 +326,8 @@ CREATE TABLE IF NOT EXISTS returns (
         processed_by_id TEXT NOT NULL DEFAULT '',
         processed_by_name TEXT NOT NULL DEFAULT '',
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS withdrawal_items (
@@ -386,14 +383,14 @@ CREATE TABLE IF NOT EXISTS invoices (
         po_reference TEXT NOT NULL DEFAULT '',
         currency TEXT NOT NULL DEFAULT 'USD',
         approved_by_id TEXT,
-        approved_at TEXT,
+        approved_at TIMESTAMPTZ,
         xero_invoice_id TEXT,
         xero_cogs_journal_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS invoice_withdrawals (
@@ -436,8 +433,8 @@ CREATE TABLE IF NOT EXISTS credit_notes (
         xero_credit_note_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS credit_note_line_items (
@@ -465,8 +462,8 @@ CREATE TABLE IF NOT EXISTS payments (
         recorded_by_id TEXT NOT NULL,
         xero_payment_id TEXT,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS payment_withdrawals (
@@ -494,7 +491,7 @@ CREATE TABLE IF NOT EXISTS financial_ledger (
         reference_type TEXT NOT NULL,
         reference_id TEXT NOT NULL,
         organization_id TEXT,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -507,14 +504,14 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
         notes TEXT,
         created_by_id TEXT NOT NULL DEFAULT '',
         created_by_name TEXT NOT NULL DEFAULT '',
-        received_at TEXT,
+        received_at TIMESTAMPTZ,
         received_by_id TEXT,
         received_by_name TEXT,
         document_id TEXT,
         xero_bill_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL,
-        updated_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ,
         organization_id TEXT
     );
 
@@ -551,8 +548,8 @@ CREATE TABLE IF NOT EXISTS documents (
         status TEXT NOT NULL DEFAULT 'parsed',
         uploaded_by_id TEXT NOT NULL,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS jobs (
@@ -564,8 +561,8 @@ CREATE TABLE IF NOT EXISTS jobs (
         service_address TEXT NOT NULL DEFAULT '',
         notes TEXT,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
         UNIQUE(organization_id, code)
     );
 
@@ -578,8 +575,8 @@ CREATE TABLE IF NOT EXISTS memory_artifacts (
         subject TEXT NOT NULL DEFAULT 'general',
         content TEXT NOT NULL DEFAULT '',
         tags TEXT NOT NULL DEFAULT '[]',
-        created_at TEXT NOT NULL,
-        expires_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS agent_runs (
@@ -605,7 +602,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
         validation_passed BOOLEAN,
         validation_failures TEXT NOT NULL DEFAULT '[]',
         validation_scores TEXT NOT NULL DEFAULT '{}',
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS embeddings (
@@ -616,7 +613,7 @@ CREATE TABLE IF NOT EXISTS embeddings (
         content TEXT NOT NULL,
         content_hash TEXT NOT NULL,
         embedding vector(1536) NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
