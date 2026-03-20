@@ -618,8 +618,11 @@ async def ws_chat_endpoint(websocket: WebSocket):
                         await job_manager.cancel_job(active_job_id)
                     if relay_task and not relay_task.done():
                         relay_task.cancel()
+                        with contextlib.suppress(Exception):
+                            await relay_task
                     active_job_id = None
                     cancel_event = None
+                    relay_task = None
                     continue
 
                 if msg_type == "chat.resume":
@@ -630,6 +633,9 @@ async def ws_chat_endpoint(websocket: WebSocket):
 
                     if relay_task and not relay_task.done():
                         relay_task.cancel()
+                        with contextlib.suppress(Exception):
+                            await relay_task
+                        relay_task = None
 
                     status = await job_manager.get_job_status(resume_job_id)
                     if not status:
