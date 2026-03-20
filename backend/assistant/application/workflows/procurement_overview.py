@@ -1,23 +1,17 @@
-"""Procurement overview workflow — fixed fetch plan + LLM synthesis.
+"""Procurement overview workflow — fixed fetch plan + deterministic format.
 
-Runs a bounded procurement fetch for broad ordering questions, then
-synthesizes a markdown buy-plan style report.
+Runs a bounded procurement fetch for broad ordering questions and
+formats into a structured markdown buy-plan report.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-from pathlib import Path
 
-from assistant.application.workflows.base import run_parallel_fetch, run_synthesis
+from assistant.application.workflows.base import format_workflow_result, run_parallel_fetch
 from assistant.application.workflows.types import FetchSpec, ProcurementOverviewResult
 
 logger = logging.getLogger(__name__)
-
-_SYNTHESIS_PROMPT = (Path(__file__).resolve().parent.parent / "dag_synthesis_prompt.md").read_text(
-    encoding="utf-8"
-)
 
 
 def _specs(limit: int = 20) -> list[FetchSpec]:
@@ -28,40 +22,22 @@ def _specs(limit: int = 20) -> list[FetchSpec]:
     ]
 
 
-def _build_synthesis_prompt(data: dict) -> str:
-    """Build a prompt for the synthesis LLM from raw tool data."""
-    parts = []
-    snapshot = data.get("procurement_snapshot", [])
-    if snapshot:
-        parts.append("## Procurement Snapshot\n" + json.dumps(snapshot[:20], indent=2))
-    po_summary = data.get("po_summary", {})
-    if po_summary:
-        parts.append("## Purchase Order Summary\n" + json.dumps(po_summary, indent=2))
-    instructions = (
-        "## Report Goal\n"
-        "Write a concise weekly procurement overview. Lead with what should be ordered now, "
-        "group recommendations by vendor when sensible, call out stockout urgency and any "
-        "min_stock miscalibration, and mention PO pipeline context if it changes urgency."
-    )
-    parts.append(instructions)
-    return "\n\n".join(parts) if parts else "No data available."
-
-
-def _fallback_markdown(data: dict) -> str:
-    """Fallback when LLM synthesis fails."""
-    lines = ["## Procurement Overview"]
+def _format_markdown(data: dict) -> str:
+    """Format workflow data into structured markdown for the calling agent."""
+    lines: list[str] = ["## Procurement Overview"]
     snapshot = data.get("procurement_snapshot", [])
     if snapshot:
         lines.append("")
-        lines.append("### Order Now")
-        for item in snapshot[:5]:
-            vendor = item.get("preferred_vendor") or "unknown vendor"
+        lines.append("### Items to Order\n| SKU | Name | Qty | UOM | Vendor | Stockout |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
+        for item in snapshot[:20]:
+            vendor = item.get("preferred_vendor") or "unknown"
             days = item.get("days_until_stockout")
-            urgency = f"{days} days to stockout" if days is not None else "stockout timing unknown"
+            urgency = f"{days}d" if days is not None else "?"
             lines.append(
-                f"- **{item.get('sku', '')} {item.get('name', '')}**: "
-                f"qty {item.get('quantity', 0)} {item.get('sell_uom') or ''}, "
-                f"vendor {vendor}, {urgency}"
+                f"| {item.get('sku', '')} | {item.get('name', '')} "
+                f"| {item.get('quantity', 0)} | {item.get('sell_uom') or ''} "
+                f"| {vendor} | {urgency} |"
             )
     po_summary = data.get("po_summary", {})
     by_status = po_summary.get("by_status", {}) if isinstance(po_summary, dict) else {}
@@ -70,7 +46,8 @@ def _fallback_markdown(data: dict) -> str:
         lines.append("### PO Pipeline")
         for status, summary in by_status.items():
             lines.append(
-                f"- **{status}**: {summary.get('count', 0)} POs, ${float(summary.get('total', 0) or 0):,.2f}"
+                f"- **{status}**: {summary.get('count', 0)} POs, "
+                f"${float(summary.get('total', 0) or 0):,.2f}"
             )
     return "\n".join(lines)
 
@@ -80,18 +57,13 @@ async def run_procurement_overview(limit: int = 20) -> ProcurementOverviewResult
     data = await run_parallel_fetch(_specs(limit=limit))
     snapshot_raw = data.get("procurement_snapshot_raw", {})
     procurement_snapshot = snapshot_raw.get("items", []) if isinstance(snapshot_raw, dict) else []
-    data_for_synthesis = {
+    data_for_format = {
         "procurement_snapshot": procurement_snapshot,
         "po_summary": data.get("po_summary", {}),
     }
-    markdown = await run_synthesis(
-        data_for_synthesis,
-        _SYNTHESIS_PROMPT,
-        _build_synthesis_prompt,
-        _fallback_markdown,
-    )
+    markdown = format_workflow_result(data_for_format, _format_markdown)
     return ProcurementOverviewResult(
         procurement_snapshot=procurement_snapshot,
-        po_summary=data_for_synthesis["po_summary"],
+        po_summary=data_for_format["po_summary"],
         synthesized_markdown=markdown,
     )

@@ -14,15 +14,9 @@ async def test_trend_overview_shapes_core_trend_sections():
         "daily_withdrawal_activity_raw": {"activity": [{"date": "2026-03-01", "count": 12}]},
     }
 
-    with (
-        patch(
-            "assistant.application.workflows.trend_overview.run_parallel_fetch",
-            new=AsyncMock(return_value=fetched),
-        ),
-        patch(
-            "assistant.application.workflows.trend_overview.run_synthesis",
-            new=AsyncMock(return_value="## Trend Overview\n\nPVC Pipe is up"),
-        ),
+    with patch(
+        "assistant.application.workflows.trend_overview.run_parallel_fetch",
+        new=AsyncMock(return_value=fetched),
     ):
         result = await run_trend_overview(days=30)
 

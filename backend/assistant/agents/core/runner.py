@@ -24,11 +24,11 @@ from shared.infrastructure.metrics import llm_usage, tool_call
 logger = logging.getLogger(__name__)
 
 AGENT_TIMEOUT_SECONDS = 60
-_MAX_RETRIES = 5
-_OVERLOAD_MAX_RETRIES = 2
-_BASE_DELAY = 1.0  # seconds
-_OVERLOAD_BASE_DELAY = 5.0  # longer initial backoff for overloaded APIs
-_MAX_DELAY = 30.0  # seconds
+_MAX_RETRIES = 3
+_OVERLOAD_MAX_RETRIES = 1
+_BASE_DELAY = 0.5  # seconds
+_OVERLOAD_BASE_DELAY = 2.0  # shorter initial backoff — fail fast, switch to fallback
+_MAX_DELAY = 15.0  # seconds
 
 
 def get_agent_timeout(config: AgentConfig | None) -> int:
@@ -481,16 +481,6 @@ async def run_specialist(
         tool_calls_det = extract_tool_calls_detailed(result.all_messages())
         text_history = extract_text_history(result.all_messages())
 
-        intent = await classify_intent(user_message)
-        validation = validate_response(
-            user_message, response_text, tool_calls_final, tool_calls_det, intent=intent
-        )
-        validation_dict = {
-            "passed": validation.passed,
-            "failures": validation.failures,
-            "scores": validation.scores,
-        }
-
         agent_result = AgentResult(
             agent=agent_label,
             response=response_text,
@@ -503,10 +493,42 @@ async def run_specialist(
                 output_tokens=usage.output_tokens,
                 model=model_name,
             ),
-            validation=validation_dict,
+            validation=None,
         )
     except Exception:
         logger.exception("%s result processing failed", agent_name)
         return _soft_error
+
+    # Run validation in background — it makes an LLM call (classify_intent)
+    # that should never block the user-facing response.
+    async def _background_validate():
+        try:
+            intent = await classify_intent(user_message)
+            validation = validate_response(
+                user_message, response_text, tool_calls_final, tool_calls_det, intent=intent
+            )
+            await log_agent_run(
+                session_id=session_id,
+                user_id=getattr(deps, "user_id", ""),
+                agent_name=agent_name,
+                model=model_name,
+                mode="fast",
+                user_message=user_message,
+                response_text=response_text,
+                tool_calls=tool_calls_det,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cost_usd=cost,
+                duration_ms=int((time.monotonic() - t0) * 1000),
+                attempts=1,
+                validation_passed=validation.passed,
+                validation_failures=validation.failures,
+                validation_scores=validation.scores,
+            )
+        except Exception as e:
+            logger.warning("Background validation/logging failed: %s", e)
+
+    t0 = time.monotonic()
+    _ = asyncio.create_task(_background_validate())
 
     return agent_result.to_dict()

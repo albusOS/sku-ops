@@ -15,6 +15,7 @@ query against the edge view + label lookups via LATERAL joins.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 
@@ -120,13 +121,14 @@ async def multi_neighbors(
     entities: list[tuple[str, str]],
     relation_filter: list[str] | None = None,
 ) -> list[GraphContext]:
-    """Traverse neighbors for multiple entities."""
-    results = []
-    for etype, eid in entities:
-        ctx = await neighbors(etype, eid, relation_filter=relation_filter)
-        if ctx:
-            results.append(ctx)
-    return results
+    """Traverse neighbors for multiple entities concurrently."""
+    if not entities:
+        return []
+    raw = await asyncio.gather(
+        *(neighbors(etype, eid, relation_filter=relation_filter) for etype, eid in entities),
+        return_exceptions=True,
+    )
+    return [r for r in raw if isinstance(r, GraphContext)]
 
 
 # ── View availability check ───────────────────────────────────────────────────

@@ -23,15 +23,9 @@ async def test_health_overview_shapes_priority_inputs():
         },
     }
 
-    with (
-        patch(
-            "assistant.application.workflows.health_overview.run_parallel_fetch",
-            new=AsyncMock(return_value=fetched),
-        ),
-        patch(
-            "assistant.application.workflows.health_overview.run_synthesis",
-            new=AsyncMock(return_value="## Health Overview\n\nPVC Pipe is urgent"),
-        ),
+    with patch(
+        "assistant.application.workflows.health_overview.run_parallel_fetch",
+        new=AsyncMock(return_value=fetched),
     ):
         result = await run_health_overview(days=30)
 

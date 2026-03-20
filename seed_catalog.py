@@ -1,7 +1,5 @@
 """Seed product families and SKUs for 6 departments via the API."""
 
-import json
-import sys
 import requests
 
 BASE = "http://localhost:8000/api/beta"

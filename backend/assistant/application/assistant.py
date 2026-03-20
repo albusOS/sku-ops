@@ -30,23 +30,6 @@ from shared.infrastructure.config import (
 logger = logging.getLogger(__name__)
 
 
-async def _get_query_embedding(query: str):
-    """Compute a single embedding vector for the user query.
-
-    Returns None if embedding service is unavailable — callers fall back
-    to computing their own or skipping semantic features.
-    """
-    if not query or not query.strip():
-        return None
-    try:
-        from assistant.infrastructure.embedding_store import embed_query
-
-        return await embed_query(query)
-    except Exception as e:
-        logger.debug("Query embedding failed (non-critical): %s", e)
-        return None
-
-
 LLM_NOT_CONFIGURED_MSG = (
     "Chat assistant requires an API key. Set OPENROUTER_API_KEY (preferred) or "
     f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {LLM_SETUP_URL}"
@@ -74,11 +57,11 @@ async def chat(
         user_name=ctx.get("user_name", ""),
     )
 
-    # Run independent pre-processing concurrently
+    # Run history compression and context assembly concurrently.
+    # assemble_context computes the embedding internally so we don't
+    # block here waiting for an OpenAI round-trip before starting it.
     compress_task = asyncio.create_task(compress_history_async(history))
     if route in specialist_agents:
-        # Specialists already have focused tools; skip semantic recall/graph enrichment
-        # to keep delegated runs responsive.
         context_task = asyncio.create_task(
             assemble_context(
                 query=user_message,
@@ -90,13 +73,11 @@ async def chat(
             )
         )
     else:
-        query_embedding = await _get_query_embedding(user_message)
         context_task = asyncio.create_task(
             assemble_context(
                 query=user_message,
                 user_id=user_id,
                 session_state=session_state,
-                query_embedding=query_embedding,
             )
         )
 

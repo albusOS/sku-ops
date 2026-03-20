@@ -1,23 +1,18 @@
-"""Trend overview workflow — fixed fetch plan + LLM synthesis.
+"""Trend overview workflow — fixed fetch plan + deterministic format.
 
-Runs a bounded trend-analysis fetch for broad demand and performance questions,
-then synthesizes a concise markdown report.
+Runs a bounded trend-analysis fetch for broad demand and performance questions
+and formats into structured markdown.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 
-from assistant.application.workflows.base import run_parallel_fetch, run_synthesis
+from assistant.application.workflows.base import format_workflow_result, run_parallel_fetch
 from assistant.application.workflows.types import FetchSpec, TrendOverviewResult
 
 logger = logging.getLogger(__name__)
-
-_SYNTHESIS_PROMPT = (Path(__file__).resolve().parent.parent / "dag_synthesis_prompt.md").read_text(
-    encoding="utf-8"
-)
 
 
 def _specs(days: int = 30) -> list[FetchSpec]:
@@ -35,53 +30,32 @@ def _specs(days: int = 30) -> list[FetchSpec]:
     ]
 
 
-def _build_synthesis_prompt(data: dict) -> str:
-    """Build a prompt for the synthesis LLM from raw tool data."""
-    parts = []
+def _format_markdown(data: dict) -> str:
+    """Format workflow data into structured markdown for the calling agent."""
+    parts: list[str] = ["## Trend Overview"]
     series = data.get("trend_series", {})
     if series:
-        parts.append("## Trend Series\n" + json.dumps(series, indent=2))
+        parts.append("### Period Series\n" + json.dumps(series, indent=2))
     top_skus = data.get("top_skus", [])
     if top_skus:
-        parts.append("## Top SKUs\n" + json.dumps(top_skus[:10], indent=2))
+        lines = ["### Top SKUs by Revenue\n| SKU | Name | Revenue |", "| --- | --- | --- |"]
+        for item in top_skus[:10]:
+            lines.append(
+                f"| {item.get('sku', '')} | {item.get('name', '')} "
+                f"| ${float(item.get('total_revenue', 0) or 0):,.2f} |"
+            )
+        parts.append("\n".join(lines))
     depts = data.get("department_profitability", [])
     if depts:
-        parts.append("## Department Profitability\n" + json.dumps(depts[:15], indent=2))
+        lines = ["### Department Performance\n| Department | Profit |", "| --- | --- |"]
+        for item in depts[:10]:
+            name = item.get("department", item.get("name", "Unknown"))
+            lines.append(f"| {name} | ${float(item.get('profit', 0) or 0):,.2f} |")
+        parts.append("\n".join(lines))
     activity = data.get("daily_withdrawal_activity", [])
     if activity:
-        parts.append("## Withdrawal Activity\n" + json.dumps(activity[:30], indent=2))
-    parts.append(
-        "## Report Goal\n"
-        "Write a concise trend overview. Lead with the strongest demand or performance shift, "
-        "compare the current period to the recent baseline when the data supports it, "
-        "call out anomalies or concentration risk, and explain what the trend means for "
-        "ordering, stocking, or pricing."
-    )
-    return "\n\n".join(parts) if parts else "No data available."
-
-
-def _fallback_markdown(data: dict) -> str:
-    """Fallback when LLM synthesis fails."""
-    lines = ["## Trend Overview"]
-    top_skus = data.get("top_skus", [])
-    if top_skus:
-        lines.append("")
-        lines.append("### Top SKUs")
-        for item in top_skus[:5]:
-            lines.append(
-                f"- **{item.get('sku', '')} {item.get('name', '')}**: "
-                f"${float(item.get('total_revenue', 0) or 0):,.2f} revenue"
-            )
-    depts = data.get("department_profitability", [])
-    if depts:
-        lines.append("")
-        lines.append("### Department Performance")
-        for item in depts[:5]:
-            lines.append(
-                f"- **{item.get('department', item.get('name', 'Unknown'))}**: "
-                f"${float(item.get('profit', 0) or 0):,.2f} profit"
-            )
-    return "\n".join(lines)
+        parts.append(f"### Withdrawal Activity\n{len(activity)} days of activity data available.")
+    return "\n\n".join(parts)
 
 
 async def run_trend_overview(days: int = 30) -> TrendOverviewResult:
@@ -95,20 +69,15 @@ async def run_trend_overview(days: int = 30) -> TrendOverviewResult:
     daily_withdrawal_activity = (
         activity_raw.get("activity", []) if isinstance(activity_raw, dict) else []
     )
-    data_for_synthesis = {
+    data_for_format = {
         "trend_series": data.get("trend_series", {}),
         "top_skus": top_skus,
         "department_profitability": department_profitability,
         "daily_withdrawal_activity": daily_withdrawal_activity,
     }
-    markdown = await run_synthesis(
-        data_for_synthesis,
-        _SYNTHESIS_PROMPT,
-        _build_synthesis_prompt,
-        _fallback_markdown,
-    )
+    markdown = format_workflow_result(data_for_format, _format_markdown)
     return TrendOverviewResult(
-        trend_series=data_for_synthesis["trend_series"],
+        trend_series=data_for_format["trend_series"],
         top_skus=top_skus,
         department_profitability=department_profitability,
         daily_withdrawal_activity=daily_withdrawal_activity,

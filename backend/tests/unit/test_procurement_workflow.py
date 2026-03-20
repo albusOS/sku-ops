@@ -24,15 +24,9 @@ async def test_procurement_overview_shapes_snapshot_and_po_summary():
         },
     }
 
-    with (
-        patch(
-            "assistant.application.workflows.procurement_overview.run_parallel_fetch",
-            new=AsyncMock(return_value=fetched),
-        ),
-        patch(
-            "assistant.application.workflows.procurement_overview.run_synthesis",
-            new=AsyncMock(return_value="## Procurement Overview\n\nOrder PVC Pipe"),
-        ),
+    with patch(
+        "assistant.application.workflows.procurement_overview.run_parallel_fetch",
+        new=AsyncMock(return_value=fetched),
     ):
         result = await run_procurement_overview()
 
