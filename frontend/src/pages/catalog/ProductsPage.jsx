@@ -1,16 +1,7 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Package, ChevronRight, ChevronDown, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Plus,
-  Printer,
-  Package,
-  ChevronRight,
-  ChevronDown,
-  ChevronLeft,
-  Search,
-  X,
-} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,18 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
-import { PageHeader } from "@/components/PageHeader";
 import { BarcodeLabelsModal } from "@/components/BarcodeLabelsModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useProducts, useDeleteProduct } from "@/hooks/useProducts";
@@ -38,10 +21,11 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { getErrorMessage } from "@/lib/api-client";
 import { toast } from "sonner";
 import { ProductFormDialog } from "./ProductFormDialog";
-import { CatalogDetailPanel } from "./CatalogDetailPanel";
+import { CatalogToolbar } from "./CatalogToolbar";
+import { ProductFamilyCard } from "./ProductFamilyCard";
 
 const PAGE_SIZE = 50;
-const SPRING = { type: "spring", stiffness: 300, damping: 36 };
+const VIEW_MODE_KEY = "catalog-view-mode";
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
@@ -52,15 +36,7 @@ function useDebounce(value, delay) {
   return debounced;
 }
 
-function FamilyGroupRows({
-  group,
-  columns,
-  expanded,
-  onToggle,
-  onRowClick,
-  onAddVariant,
-  selectedId,
-}) {
+function FamilyGroupRows({ group, columns, expanded, onToggle, onNavigate, onAddVariant }) {
   return (
     <>
       <TableRow
@@ -107,21 +83,14 @@ function FamilyGroupRows({
         group.skus.map((row) => (
           <TableRow
             key={row.id}
-            className={cn(
-              "hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0 cursor-pointer bg-card",
-              selectedId === row.id && "bg-accent/5",
-            )}
-            onClick={() => onRowClick?.(row)}
+            className="hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0 cursor-pointer bg-card"
+            onClick={() => onNavigate(group.familyId, row.id)}
           >
             <TableCell className="px-2 py-2.5 w-8" />
             {columns.map((col) => (
               <TableCell
                 key={col.key}
-                className={cn(
-                  "px-3 py-2.5 pl-6",
-                  col.align === "right" && "text-right pl-3",
-                  col.cellClassName,
-                )}
+                className={cn("px-3 py-2.5 pl-6", col.align === "right" && "text-right pl-3")}
               >
                 {col.render ? col.render(row) : row[col.key]}
               </TableCell>
@@ -133,16 +102,16 @@ function FamilyGroupRows({
 }
 
 export default function ProductsPage() {
+  const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [variantContext, setVariantContext] = useState(null);
-  const [detailProduct, setDetailProduct] = useState(null);
   const [labelsModalOpen, setLabelsModalOpen] = useState(false);
   const [labelsProducts, setLabelsProducts] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, product: null });
   const [expandedFamilies, setExpandedFamilies] = useState(new Set());
 
-  // Server-side filter state
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || "cards");
   const [searchInput, setSearchInput] = useState("");
   const [categoryFilter, setCategoryFilter] = useState(null);
   const [page, setPage] = useState(0);
@@ -150,12 +119,15 @@ export default function ProductsPage() {
   const [sortDir, setSortDir] = useState("asc");
 
   const debouncedSearch = useDebounce(searchInput, 300);
-  const searchRef = useRef(null);
 
-  // Reset to page 0 when filters change
   useEffect(() => {
     setPage(0);
   }, [debouncedSearch, categoryFilter]);
+
+  const handleViewModeChange = useCallback((mode) => {
+    setViewMode(mode);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+  }, []);
 
   const deleteMutation = useDeleteProduct();
   const { data: departments = [], isLoading: deptsLoading } = useDepartments();
@@ -212,39 +184,12 @@ export default function ProductsPage() {
         label: "Price",
         sortable: true,
         align: "right",
-        render: (row) => <span className="font-mono">${row.price.toFixed(2)}</span>,
-      },
-      {
-        key: "cost",
-        label: "Cost",
-        sortable: true,
-        align: "right",
-        render: (row) => (
-          <span className="font-mono text-muted-foreground">${(row.cost || 0).toFixed(2)}</span>
-        ),
-      },
-      {
-        key: "_margin",
-        label: "Margin",
-        sortable: false,
-        align: "right",
-        render: (row) => {
-          if (!row.price) return <span className="text-muted-foreground">--</span>;
-          const m = ((row.price - (row.cost || 0)) / row.price) * 100;
-          return (
-            <span
-              className={cn("font-mono text-sm", m < 20 ? "text-warning" : "text-muted-foreground")}
-            >
-              {m.toFixed(0)}%
-            </span>
-          );
-        },
+        render: (row) => <span className="font-mono">${(row.price || 0).toFixed(2)}</span>,
       },
     ],
     [],
   );
 
-  // Client-side sort on current page (server handles search/filter/pagination)
   const sortedProducts = useMemo(() => {
     if (!sortCol) return products;
     return [...products].sort((a, b) => {
@@ -261,7 +206,6 @@ export default function ProductsPage() {
     });
   }, [products, sortCol, sortDir]);
 
-  // Group into families for display
   const productFamilyGroups = useMemo(() => {
     const byFamily = new Map();
     for (const p of sortedProducts) {
@@ -309,17 +253,12 @@ export default function ProductsPage() {
     setDialogOpen(true);
   };
 
-  const handleDeleteClick = (product) => {
-    setDeleteConfirm({ open: true, product });
-  };
-
   const handleDeleteConfirm = async () => {
     const { product } = deleteConfirm;
     if (!product) return;
     try {
       await deleteMutation.mutateAsync(product.id);
       toast.success("Product deleted");
-      if (detailProduct?.id === product.id) setDetailProduct(null);
     } catch (error) {
       toast.error(getErrorMessage(error));
       throw error;
@@ -332,8 +271,14 @@ export default function ProductsPage() {
     setPage(0);
   };
 
+  const handleNavigate = useCallback(
+    (familyId, skuId) => {
+      navigate(`/products/${familyId}${skuId ? `?sku=${skuId}` : ""}`);
+    },
+    [navigate],
+  );
+
   const hasFilters = !!debouncedSearch || !!categoryFilter;
-  const panelOpen = !!detailProduct;
 
   if (loading && deptsLoading) return <PageSkeleton />;
   if (productsError && products.length === 0)
@@ -342,111 +287,101 @@ export default function ProductsPage() {
   return (
     <div className="h-full flex flex-col" data-testid="products-page">
       <div className="px-8 pt-8 pb-0 shrink-0">
-        <PageHeader
-          title="Products"
-          subtitle={
-            hasFilters
-              ? `${total} result${total !== 1 ? "s" : ""}`
-              : `${total} SKUs across ${departments.length} categories`
-          }
-          action={
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setLabelsProducts(sortedProducts);
-                  setLabelsModalOpen(true);
-                }}
-                className="h-12 px-6"
-              >
-                <Printer className="w-5 h-5 mr-2" />
-                Print Labels
-              </Button>
-              <Button
-                onClick={() => openDialog()}
-                className="btn-primary h-12 px-6"
-                data-testid="add-product-btn"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Add Product
-              </Button>
-            </div>
-          }
+        <h1 className="text-2xl font-semibold tracking-tight">Products</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {hasFilters
+            ? `${total} result${total !== 1 ? "s" : ""}`
+            : `${total} SKUs across ${departments.length} categories`}
+        </p>
+      </div>
+
+      <div className="px-8 mt-5 shrink-0">
+        <CatalogToolbar
+          searchInput={searchInput}
+          onSearchChange={setSearchInput}
+          categoryFilter={categoryFilter}
+          onCategoryChange={setCategoryFilter}
+          departments={departments}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          total={total}
+          hasFilters={hasFilters}
+          onClearFilters={clearFilters}
+          isLoading={productsLoading && products.length > 0}
+          onAddProduct={() => openDialog()}
+          onPrintLabels={() => {
+            setLabelsProducts(sortedProducts);
+            setLabelsModalOpen(true);
+          }}
         />
       </div>
 
-      {/* Toolbar: search + category filter */}
-      <div className="px-8 mt-4 shrink-0">
-        <div className="bg-card border border-border rounded-xl shadow-sm">
-          <div className="px-4 py-2.5 flex flex-wrap items-center gap-2.5">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Search products..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="h-7 pl-8 pr-3 rounded-lg border border-border bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent w-56"
-              />
-            </div>
-
-            <div className="w-px h-5 bg-border" />
-
-            {/* Category filter */}
-            <Select
-              value={categoryFilter || "__all__"}
-              onValueChange={(v) => setCategoryFilter(v === "__all__" ? null : v)}
-            >
-              <SelectTrigger className="h-7 text-xs w-auto min-w-[120px]">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Categories</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    <span className="font-mono mr-1">{dept.code}</span> {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="flex-1" />
-
-            {/* Result count */}
-            {hasFilters && (
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {total} result{total !== 1 ? "s" : ""}
-              </span>
-            )}
-
-            {/* Loading indicator for background refetch */}
-            {productsLoading && products.length > 0 && (
-              <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            )}
-
-            {hasFilters && (
-              <button
-                onClick={clearFilters}
-                className="h-7 px-2 flex items-center gap-1 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X className="w-3 h-3" />
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Content area */}
-      <div className="flex-1 flex min-h-0 mt-3">
-        <motion.div
-          layout
-          animate={{ width: panelOpen ? "58%" : "100%" }}
-          transition={SPRING}
-          className="h-full overflow-auto px-8 pb-8 shrink-0"
-        >
+      <div className="flex-1 overflow-auto px-8 pb-8 mt-4">
+        {viewMode === "cards" ? (
+          /* Card feed */
+          productFamilyGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+              <Package className="w-10 h-10 mb-3 opacity-30" />
+              <p className="text-sm font-medium">
+                {hasFilters ? "No products match your filters" : "No products yet"}
+              </p>
+              {hasFilters ? (
+                <button onClick={clearFilters} className="text-xs text-accent hover:underline mt-1">
+                  Clear filters
+                </button>
+              ) : (
+                <Button size="sm" className="btn-primary mt-3 gap-1.5" onClick={() => openDialog()}>
+                  <Plus className="w-3.5 h-3.5" />
+                  Add your first product
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {productFamilyGroups.map((group) => (
+                  <ProductFamilyCard
+                    key={group.familyId}
+                    group={group}
+                    onAddVariant={(familyId, categoryId) =>
+                      openDialog(null, { familyId, categoryId })
+                    }
+                  />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page <= 0}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous
+                  </Button>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    Page {page + 1} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              )}
+            </>
+          )
+        ) : (
+          /* Table view */
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
@@ -509,21 +444,14 @@ export default function ProductsPage() {
                         return (
                           <TableRow
                             key={row.id}
-                            className={cn(
-                              "hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0 cursor-pointer",
-                              detailProduct?.id === row.id && "bg-accent/5",
-                            )}
-                            onClick={() => setDetailProduct(row)}
+                            className="hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0 cursor-pointer"
+                            onClick={() => handleNavigate(group.familyId, row.id)}
                           >
                             <TableCell className="px-2 py-2.5 w-8" />
                             {columns.map((col) => (
                               <TableCell
                                 key={col.key}
-                                className={cn(
-                                  "px-3 py-2.5",
-                                  col.align === "right" && "text-right",
-                                  col.cellClassName,
-                                )}
+                                className={cn("px-3 py-2.5", col.align === "right" && "text-right")}
                               >
                                 {col.render ? col.render(row) : row[col.key]}
                               </TableCell>
@@ -538,11 +466,10 @@ export default function ProductsPage() {
                           columns={columns}
                           expanded={expanded}
                           onToggle={() => toggleFamily(group.familyId)}
-                          onRowClick={(p) => setDetailProduct(p)}
+                          onNavigate={handleNavigate}
                           onAddVariant={(familyId, categoryId) =>
                             openDialog(null, { familyId, categoryId })
                           }
-                          selectedId={detailProduct?.id}
                         />
                       );
                     })
@@ -551,7 +478,6 @@ export default function ProductsPage() {
               </Table>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-border/50">
                 <p className="text-xs text-muted-foreground tabular-nums">
@@ -583,22 +509,7 @@ export default function ProductsPage() {
               </div>
             )}
           </div>
-        </motion.div>
-
-        {/* Inline detail panel */}
-        <CatalogDetailPanel
-          product={detailProduct}
-          open={panelOpen}
-          onClose={() => setDetailProduct(null)}
-          onEdit={(p) => openDialog(p)}
-          onDelete={handleDeleteClick}
-          onPrintLabels={(prods) => {
-            setLabelsProducts(prods);
-            setLabelsModalOpen(true);
-          }}
-          onAddVariant={(familyId, categoryId) => openDialog(null, { familyId, categoryId })}
-          onSelectProduct={(p) => setDetailProduct(p)}
-        />
+        )}
       </div>
 
       <ProductFormDialog

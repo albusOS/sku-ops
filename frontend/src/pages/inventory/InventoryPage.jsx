@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { SlidersHorizontal, Package, AlertTriangle, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import { QueryError } from "@/components/QueryError";
 import { PageHeader } from "@/components/PageHeader";
@@ -92,6 +92,46 @@ const InventoryPage = () => {
         ),
       },
       {
+        key: "price",
+        label: "Price",
+        type: "number",
+        align: "right",
+        render: (row) => <span className="font-mono text-sm">{formatMoney(row.price)}</span>,
+        exportValue: (row) => row.price?.toFixed(2) ?? "",
+      },
+      {
+        key: "cost",
+        label: "Cost",
+        type: "number",
+        align: "right",
+        render: (row) => (
+          <span className="font-mono text-sm text-muted-foreground">{formatMoney(row.cost)}</span>
+        ),
+        exportValue: (row) => row.cost?.toFixed(2) ?? "",
+      },
+      {
+        key: "_margin",
+        label: "Margin",
+        type: "number",
+        align: "right",
+        searchable: false,
+        render: (row) => {
+          if (!row.price) return <span className="text-muted-foreground">—</span>;
+          const m = ((row.price - (row.cost || 0)) / row.price) * 100;
+          return (
+            <span
+              className={cn("font-mono text-sm", m < 20 ? "text-warning" : "text-muted-foreground")}
+            >
+              {m.toFixed(0)}%
+            </span>
+          );
+        },
+        exportValue: (row) => {
+          if (!row.price) return "";
+          return (((row.price - (row.cost || 0)) / row.price) * 100).toFixed(1);
+        },
+      },
+      {
         key: "_status",
         label: "Status",
         type: "enum",
@@ -123,6 +163,30 @@ const InventoryPage = () => {
         label: "Category",
         type: "enum",
         filterValues: departments.map((d) => d.name),
+      },
+      {
+        key: "updated_at",
+        label: "Updated",
+        type: "text",
+        searchable: false,
+        render: (row) => {
+          if (!row.updated_at) return <span className="text-muted-foreground">—</span>;
+          const diff = Date.now() - new Date(row.updated_at).getTime();
+          const mins = Math.floor(diff / 60000);
+          let label;
+          if (mins < 1) label = "just now";
+          else if (mins < 60) label = `${mins}m ago`;
+          else {
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) label = `${hrs}h ago`;
+            else {
+              const days = Math.floor(hrs / 24);
+              label = days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
+            }
+          }
+          return <span className="text-xs text-muted-foreground">{label}</span>;
+        },
+        exportValue: (row) => row.updated_at || "",
       },
     ],
     [departments],
