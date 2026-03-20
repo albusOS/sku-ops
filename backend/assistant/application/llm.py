@@ -1,7 +1,8 @@
 """LLM client for non-agent uses (OCR, UOM classification, enrichment).
 
-generate_text — uses PydanticAI Agent.run() for retries and provider resolution.
-generate_with_image / generate_with_pdf — raw Anthropic SDK (multimodal APIs).
+generate_text         — PydanticAI Agent.run() with provider fallback.
+generate_with_image   — OpenRouter (primary) or Anthropic SDK (fallback).
+generate_with_pdf     — OpenRouter (primary) or Anthropic SDK (fallback).
 """
 
 import asyncio
@@ -13,13 +14,33 @@ from shared.infrastructure.config import (
     ANTHROPIC_API_KEY,
     ANTHROPIC_AVAILABLE,
     ANTHROPIC_MODEL,
+    OPENROUTER_API_KEY,
+    OPENROUTER_AVAILABLE,
+    OPENROUTER_BASE_URL,
 )
 
 logger = logging.getLogger(__name__)
 
+# Model used for multimodal calls (image / PDF parsing).
+# OpenRouter uses the bare provider/model string; Anthropic SDK uses the bare model name.
+_MULTIMODAL_OR_MODEL = "anthropic/claude-sonnet-4-6"
+
+
+def _get_openrouter_client():
+    """Return an OpenAI-compatible client pointed at OpenRouter."""
+    if not OPENROUTER_AVAILABLE:
+        return None
+    try:
+        from openai import OpenAI
+
+        return OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+    except ImportError:
+        logger.warning("openai package not installed — cannot use OpenRouter for multimodal")
+        return None
+
 
 def _get_anthropic_client():
-    """Return sync Anthropic client for multimodal calls (image/PDF)."""
+    """Return sync Anthropic client — fallback when OpenRouter is not configured."""
     if not ANTHROPIC_AVAILABLE:
         return None
     try:
@@ -136,12 +157,81 @@ def generate_with_image(
     image_bytes: bytes,
     system_instruction: str | None = None,
 ) -> str:
-    """Generate from image via raw Anthropic SDK. Raises ValueError on failure."""
-    client = _get_anthropic_client()
-    if not client:
-        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
+    """Generate from image. Uses OpenRouter (primary) or Anthropic SDK (fallback).
+
+    Raises ValueError on failure.
+    """
     media_type = _detect_media_type(image_bytes)
     image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    or_client = _get_openrouter_client()
+    if or_client:
+        data_url = f"data:{media_type};base64,{image_data}"
+        return _openrouter_vision(or_client, prompt, data_url, system_instruction)
+
+    client = _get_anthropic_client()
+    if not client:
+        raise ValueError("LLM not configured. Set OPENROUTER_API_KEY in backend/.env")
+    return _anthropic_image(client, prompt, image_data, media_type, system_instruction)
+
+
+def generate_with_pdf(
+    prompt: str,
+    pdf_path: str,
+    system_instruction: str | None = None,
+) -> str:
+    """Generate from PDF. Uses OpenRouter (primary) or Anthropic SDK (fallback).
+
+    Raises ValueError on failure.
+    """
+    with open(pdf_path, "rb") as f:
+        pdf_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+    or_client = _get_openrouter_client()
+    if or_client:
+        data_url = f"data:application/pdf;base64,{pdf_data}"
+        return _openrouter_vision(or_client, prompt, data_url, system_instruction)
+
+    client = _get_anthropic_client()
+    if not client:
+        raise ValueError("LLM not configured. Set OPENROUTER_API_KEY in backend/.env")
+    return _anthropic_pdf(client, prompt, pdf_data, system_instruction)
+
+
+# ---------------------------------------------------------------------------
+# Provider-specific helpers
+# ---------------------------------------------------------------------------
+
+
+def _openrouter_vision(client, prompt: str, data_url: str, system: str | None) -> str:
+    """Vision/PDF call via OpenRouter's OpenAI-compatible API."""
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append(
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": data_url}},
+                {"type": "text", "text": prompt},
+            ],
+        }
+    )
+    try:
+        response = client.chat.completions.create(
+            model=_MULTIMODAL_OR_MODEL,
+            messages=messages,
+            max_tokens=4096,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        _raise_provider_error(e, "OpenRouter")
+
+
+def _anthropic_image(
+    client, prompt: str, image_data: str, media_type: str, system: str | None
+) -> str:
+    """Image call via raw Anthropic SDK."""
     try:
         kwargs = {
             "model": ANTHROPIC_MODEL,
@@ -163,35 +253,16 @@ def generate_with_image(
                 }
             ],
         }
-        if system_instruction:
-            kwargs["system"] = system_instruction
+        if system:
+            kwargs["system"] = system
         response = client.messages.create(**kwargs)
         return response.content[0].text
     except Exception as e:
-        err = str(e).lower()
-        if "rate" in err or "429" in err or "overloaded" in err:
-            raise ValueError("Anthropic rate limit hit. Try again in a minute.") from e
-        if "authentication" in err or "api_key" in err:
-            raise ValueError("Invalid ANTHROPIC_API_KEY. Check backend/.env") from e
-        if "model" in err or "invalid_request" in err or "not_found" in err or "400" in err:
-            raise ValueError(
-                f"Anthropic model error (model={ANTHROPIC_MODEL}): {e}. "
-                "Check ANTHROPIC_MODEL in your environment."
-            ) from e
-        raise ValueError(f"Anthropic API error: {e}") from e
+        _raise_provider_error(e, "Anthropic")
 
 
-def generate_with_pdf(
-    prompt: str,
-    pdf_path: str,
-    system_instruction: str | None = None,
-) -> str:
-    """Generate from PDF via Anthropic native PDF support. Raises ValueError on failure."""
-    client = _get_anthropic_client()
-    if not client:
-        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
-    with open(pdf_path, "rb") as f:
-        pdf_data = base64.standard_b64encode(f.read()).decode("utf-8")
+def _anthropic_pdf(client, prompt: str, pdf_data: str, system: str | None) -> str:
+    """PDF call via raw Anthropic SDK (native PDF beta)."""
     try:
         kwargs = {
             "model": ANTHROPIC_MODEL,
@@ -214,19 +285,20 @@ def generate_with_pdf(
             ],
             "betas": ["pdfs-2024-09-25"],
         }
-        if system_instruction:
-            kwargs["system"] = system_instruction
+        if system:
+            kwargs["system"] = system
         response = client.beta.messages.create(**kwargs)
         return response.content[0].text
     except Exception as e:
-        err = str(e).lower()
-        if "rate" in err or "429" in err or "overloaded" in err:
-            raise ValueError("Anthropic rate limit hit. Try again in a minute.") from e
-        if "authentication" in err or "api_key" in err:
-            raise ValueError("Invalid ANTHROPIC_API_KEY. Check backend/.env") from e
-        if "model" in err or "invalid_request" in err or "not_found" in err or "400" in err:
-            raise ValueError(
-                f"Anthropic model error (model={ANTHROPIC_MODEL}): {e}. "
-                "Check ANTHROPIC_MODEL in your environment."
-            ) from e
-        raise ValueError(f"Anthropic API error: {e}") from e
+        _raise_provider_error(e, "Anthropic")
+
+
+def _raise_provider_error(e: Exception, provider: str) -> None:
+    err = str(e).lower()
+    if "rate" in err or "429" in err or "overloaded" in err:
+        raise ValueError(f"{provider} rate limit hit. Try again in a minute.") from e
+    if "authentication" in err or "api_key" in err or "unauthorized" in err:
+        raise ValueError(f"Invalid {provider} API key. Check backend/.env") from e
+    if "model" in err or "invalid_request" in err or "not_found" in err or "400" in err:
+        raise ValueError(f"{provider} model error: {e}") from e
+    raise ValueError(f"{provider} API error: {e}") from e
