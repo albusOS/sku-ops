@@ -67,7 +67,7 @@ async def update_product(
         if dept:
             updates["category_name"] = dept.name
 
-    updates["updated_at"] = datetime.now(UTC).isoformat()
+    updates["updated_at"] = datetime.now(UTC)
 
     async with transaction():
         result = await product_family_repo.update(product_id, updates)

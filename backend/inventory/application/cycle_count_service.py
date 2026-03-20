@@ -65,7 +65,7 @@ async def open_cycle_count(
                 sku_id=p.id,
                 sku=p.sku,
                 product_name=p.name,
-                snapshot_qty=float(p.quantity),
+                snapshot_qty=p.quantity,
                 unit=p.base_unit or "each",
             )
             await cycle_count_repo.insert_item(item)
@@ -94,7 +94,7 @@ async def update_counted_qty(
     if not item:
         raise ResourceNotFoundError("CycleCountItem", item_id)
 
-    variance = round(counted_qty - float(item.snapshot_qty), 6)
+    variance = counted_qty - item.snapshot_qty
     updated = await cycle_count_repo.update_item_counted(
         item_id=item_id,
         counted_qty=counted_qty,
@@ -152,7 +152,7 @@ async def commit_cycle_count(
         i for i in items if i.counted_qty is not None and i.variance not in (None, 0, 0.0)
     ]
 
-    committed_at = datetime.now(UTC).isoformat()
+    committed_at = datetime.now(UTC)
 
     adjusted_sku_ids: list[str] = []
     async with transaction():
@@ -169,7 +169,7 @@ async def commit_cycle_count(
         for item in items_to_adjust:
             await process_adjustment_stock_changes(
                 sku_id=item.sku_id,
-                quantity_delta=float(item.variance),  # type: ignore[arg-type]
+                quantity_delta=item.variance,
                 reason="count",
                 user_id=committed_by_id,
                 user_name=committed_by_name,

@@ -10,7 +10,7 @@ def _row_to_model(row) -> BillingEntity | None:
     if row is None:
         return None
     d = dict(row)
-    if "is_active" in d:
+    if "is_active" in d and not isinstance(d["is_active"], bool):
         d["is_active"] = bool(d["is_active"])
     return BillingEntity.model_validate(d)
 
@@ -34,7 +34,7 @@ async def insert(entity: BillingEntity) -> None:
             d.get("billing_address", ""),
             d.get("payment_terms", "net_30"),
             d.get("xero_contact_id"),
-            1 if d.get("is_active", True) else 0,
+            bool(d.get("is_active", True)),
             d["organization_id"],
             d["created_at"],
             d["updated_at"],
@@ -79,7 +79,7 @@ async def list_billing_entities(
     n += 1
     if is_active is not None:
         sql += f" AND is_active = ${n}"
-        params.append(1 if is_active else 0)
+        params.append(is_active)
         n += 1
     if q:
         sql += f" AND (LOWER(name) LIKE ${n} OR LOWER(contact_name) LIKE ${n + 1})"
@@ -112,12 +112,12 @@ async def update(entity_id: str, updates: dict) -> BillingEntity | None:
             n += 1
     if "is_active" in updates and updates["is_active"] is not None:
         set_clauses.append(f"is_active = ${n}")
-        params.append(1 if updates["is_active"] else 0)
+        params.append(bool(updates["is_active"]))
         n += 1
     if not set_clauses:
         return await get_by_id(entity_id)
     set_clauses.append(f"updated_at = ${n}")
-    params.append(datetime.now(UTC).isoformat())
+    params.append(datetime.now(UTC))
     n += 1
     params.extend([entity_id, org_id])
     upd_q = "UPDATE billing_entities SET "

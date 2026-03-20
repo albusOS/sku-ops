@@ -14,6 +14,7 @@ import Layout from "./components/Layout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ProductsPage = lazy(() => import("./pages/catalog"));
+const ProductDetailPage = lazy(() => import("./pages/catalog/ProductDetailPage"));
 const Inventory = lazy(() => import("./pages/inventory"));
 const CycleCountsPage = lazy(() => import("./pages/inventory/CycleCountsPage"));
 const CycleCountDetailPage = lazy(() => import("./pages/inventory/CycleCountDetailPage"));
@@ -134,6 +135,14 @@ function App() {
                                   element={
                                     <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                                       <ProductsPage />
+                                    </ProtectedRoute>
+                                  }
+                                />
+                                <Route
+                                  path="/products/:familyId"
+                                  element={
+                                    <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                                      <ProductDetailPage />
                                     </ProtectedRoute>
                                   }
                                 />

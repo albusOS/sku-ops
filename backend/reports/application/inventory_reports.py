@@ -9,19 +9,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import TypedDict
 
 from catalog.application.queries import list_low_stock, list_skus
 from finance.application import ledger_queries as ledger_repo
 from inventory.application.queries import daily_withdrawal_activity, withdrawal_velocity
 from shared.kernel.types import round_money
-
-
-def _to_decimal(value: object) -> Decimal:
-    if value is None:
-        return Decimal(0)
-    return Decimal(str(value))
 
 
 class DepartmentInventory(TypedDict):
@@ -71,7 +64,10 @@ async def inventory_report() -> InventoryReport:
     total_retail = round_money(sum(p.price * p.quantity for p in products))
     total_cost = round_money(sum(p.cost * p.quantity for p in products))
     unrealized_margin = round_money(total_retail - total_cost)
-    margin_pct = round(unrealized_margin / total_retail * 100, 1) if total_retail > 0 else 0
+    # float for JSON-friendly percentage
+    margin_pct = (
+        round(float(unrealized_margin / total_retail * 100), 1) if total_retail > 0 else 0.0
+    )
     low_stock = [p for p in products if p.quantity <= p.min_stock]
     out_of_stock = [p for p in products if p.quantity == 0]
 
@@ -80,7 +76,7 @@ async def inventory_report() -> InventoryReport:
         dept = p.category_name or "Unknown"
         if dept not in by_department:
             by_department[dept] = DepartmentInventory(
-                count=0, retail_value=0, cost_value=0, margin=0
+                count=0, retail_value=0.0, cost_value=0.0, margin=0.0
             )
         by_department[dept]["count"] += 1
         by_department[dept]["retail_value"] += p.price * p.quantity
@@ -123,18 +119,18 @@ async def product_performance_report(
     for m in margin_data:
         pid = m["sku_id"]
         p = product_map.get(pid)
-        current_stock = _to_decimal(p.quantity if p else 0)
-        units_sold = _to_decimal(units_sold_map.get(pid, 0))
-        revenue = _to_decimal(m["revenue"])
-        cost = _to_decimal(m["cost"])
-        profit = _to_decimal(m["profit"])
-        margin_pct = _to_decimal(m["margin_pct"])
-        catalog_unit_cost = _to_decimal(p.cost if p else 0)
-        avg_cost = cost / units_sold if units_sold > 0 else Decimal(0)
+        current_stock = float(p.quantity if p else 0)
+        units_sold = float(units_sold_map.get(pid, 0))
+        revenue = float(m["revenue"])
+        cost = float(m["cost"])
+        profit = float(m["profit"])
+        margin_pct = float(m["margin_pct"])
+        catalog_unit_cost = float(p.cost if p else 0)
+        avg_cost = cost / units_sold if units_sold > 0 else 0.0
         sell_through = (
-            (units_sold / (units_sold + current_stock) * Decimal(100))
+            (units_sold / (units_sold + current_stock) * 100)
             if (units_sold + current_stock) > 0
-            else Decimal(0)
+            else 0.0
         )
         result.append(
             {
@@ -143,13 +139,14 @@ async def product_performance_report(
                 "sku": p.sku if p else "",
                 "department": p.category_name if p else "",
                 "base_unit": p.base_unit if p else "each",
-                "current_stock": float(current_stock),
-                "catalog_unit_cost": round(float(catalog_unit_cost), 2),
-                "units_sold": float(units_sold),
-                "avg_cost_per_unit": round(float(avg_cost), 2),
-                "revenue": round_money(float(revenue)),
-                "cogs": round_money(float(cost)),
-                "gross_profit": round_money(float(profit)),
+                "current_stock": current_stock,
+                "catalog_unit_cost": round_money(catalog_unit_cost),
+                "units_sold": units_sold,
+                "avg_cost_per_unit": round_money(avg_cost),
+                "revenue": round_money(revenue),
+                "cogs": round_money(cost),
+                "gross_profit": round_money(profit),
+                # float for JSON-friendly percentage
                 "margin_pct": float(margin_pct),
                 "sell_through_pct": round(float(sell_through), 1),
             }
@@ -163,7 +160,7 @@ async def reorder_urgency_report(
     days: int = 30,
     limit: int = 50,
 ) -> ReorderUrgencyReport:
-    since = (datetime.now(UTC) - timedelta(days=min(days, 365))).isoformat()
+    since = datetime.now(UTC) - timedelta(days=min(days, 365))
 
     low_stock, _all_products = await asyncio.gather(
         list_low_stock(limit=200),
@@ -223,6 +220,6 @@ async def product_activity_report(
     sku_id: str | None = None,
     days: int = 365,
 ) -> ProductActivityReport:
-    since = (datetime.now(UTC) - timedelta(days=min(days, 730))).isoformat()
+    since = datetime.now(UTC) - timedelta(days=min(days, 730))
     rows = await daily_withdrawal_activity(since, sku_id=sku_id)
     return ProductActivityReport(series=rows, sku_id=sku_id, days=days)

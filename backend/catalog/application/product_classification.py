@@ -103,8 +103,12 @@ def suggest_department(name: str, departments_by_code: dict) -> str | None:
 # ── UOM inference ────────────────────────────────────────────────────────────
 
 
-def resolve_uom(item: dict) -> tuple[str, str, int]:
-    """Resolve base_unit, sell_uom, pack_qty from item dict, validating against allowed units."""
+def resolve_uom(item: dict, known_units: frozenset[str] | None = None) -> tuple[str, str, int]:
+    """Resolve base_unit, sell_uom, pack_qty from item dict, validating against known units.
+
+    ``known_units`` should be the org's active unit codes from the DB.
+    Falls back to ``ALLOWED_BASE_UNITS`` when not provided.
+    """
     bu = (item.get("base_unit") or "each").lower().strip()
     su = (item.get("sell_uom") or item.get("base_unit") or "each").lower().strip()
     pq = item.get("pack_qty")
@@ -112,8 +116,9 @@ def resolve_uom(item: dict) -> tuple[str, str, int]:
         pq = max(1, int(pq)) if pq is not None else 1
     except (ValueError, TypeError):
         pq = 1
-    bu = bu if bu in ALLOWED_BASE_UNITS else "each"
-    su = su if su in ALLOWED_BASE_UNITS else "each"
+    valid = known_units if known_units is not None else ALLOWED_BASE_UNITS
+    bu = bu if bu in valid else "each"
+    su = su if su in valid else "each"
     return bu, su, pq
 
 

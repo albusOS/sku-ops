@@ -1,5 +1,7 @@
 """Xero credit note sync mixin — ACCREC credit notes."""
 
+from datetime import datetime
+
 import httpx
 
 from finance.adapters.xero._base import XERO_API
@@ -39,7 +41,8 @@ class XeroCreditNoteSyncMixin:
             "LineItems": xero_lines,
         }
         if credit_note.created_at:
-            xero_cn["Date"] = credit_note.created_at[:10]
+            ca = credit_note.created_at
+            xero_cn["Date"] = ca.strftime("%Y-%m-%d") if isinstance(ca, datetime) else str(ca)[:10]
 
         existing_cn_id = credit_note.xero_credit_note_id
         async with httpx.AsyncClient() as client:

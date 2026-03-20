@@ -79,7 +79,7 @@ async def main(
                 print("         For Supabase auth, pass --id with the Supabase user UUID")
                 print("         so /api/auth/me can find this profile row.")
                 print()
-            now = datetime.now(UTC).isoformat()
+            now = datetime.now(UTC)
             if password:
                 import bcrypt
 
@@ -92,7 +92,7 @@ async def main(
                 "INSERT INTO users "
                 "(id, email, password, name, role, company, billing_entity, phone, "
                 "is_active, organization_id, created_at) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9, $10)",
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $10)",
                 (user_id, email, hashed_pw, name, role, "", "", "", resolved_org, now),
             )
             await conn.commit()

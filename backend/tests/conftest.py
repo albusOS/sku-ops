@@ -48,59 +48,55 @@ def _app_client():
 
 async def _truncate_and_seed():
     """Truncate all tables and seed minimal data for test isolation."""
-    from shared.infrastructure.database import get_connection
+    from shared.infrastructure.database import transaction
     from shared.infrastructure.logging_config import org_id_var, user_id_var
-
-    conn = get_connection()
-    await conn.execute(
-        """DO $$
-        DECLARE r RECORD;
-        BEGIN
-            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
-            END LOOP;
-        END $$"""
-    )
-    await conn.commit()
 
     org_id_var.set("supply-yard")
     user_id_var.set("user-1")
 
-    await conn.execute(
-        """INSERT INTO organizations (id, name, slug, created_at)
-           VALUES ('supply-yard', 'Default', 'supply-yard', NOW())
-           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug"""
-    )
-    await conn.execute(
-        """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
-           VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'supply-yard', NOW())
-           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code,
-           description = EXCLUDED.description, sku_count = EXCLUDED.sku_count,
-           organization_id = EXCLUDED.organization_id"""
-    )
-    await conn.execute(
-        """INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)
-           VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', 1, 'supply-yard', NOW())
-           ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
-           name = EXCLUDED.name, role = EXCLUDED.role, is_active = EXCLUDED.is_active,
-           organization_id = EXCLUDED.organization_id"""
-    )
-    await conn.execute(
-        """INSERT INTO users (id, email, password, name, role, company, billing_entity,
-           is_active, organization_id, created_at)
-           VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User',
-           'contractor', 'ACME', 'ACME Inc', 1, 'supply-yard', NOW())
-           ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
-           name = EXCLUDED.name, role = EXCLUDED.role, company = EXCLUDED.company,
-           billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
-           organization_id = EXCLUDED.organization_id"""
-    )
-    # Re-seed global units of measure (wiped by TRUNCATE)
-    from catalog.infrastructure.schema import _UOM_SEED
+    async with transaction() as conn:
+        await conn.execute(
+            """DO $$
+            DECLARE r RECORD;
+            BEGIN
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                    EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
+                END LOOP;
+            END $$"""
+        )
+        await conn.execute(
+            """INSERT INTO organizations (id, name, slug, created_at)
+               VALUES ('supply-yard', 'Default', 'supply-yard', NOW())
+               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug"""
+        )
+        await conn.execute(
+            """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
+               VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'supply-yard', NOW())
+               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code,
+               description = EXCLUDED.description, sku_count = EXCLUDED.sku_count,
+               organization_id = EXCLUDED.organization_id"""
+        )
+        await conn.execute(
+            """INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)
+               VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', TRUE, 'supply-yard', NOW())
+               ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
+               name = EXCLUDED.name, role = EXCLUDED.role, is_active = EXCLUDED.is_active,
+               organization_id = EXCLUDED.organization_id"""
+        )
+        await conn.execute(
+            """INSERT INTO users (id, email, password, name, role, company, billing_entity,
+               is_active, organization_id, created_at)
+               VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User',
+               'contractor', 'ACME', 'ACME Inc', TRUE, 'supply-yard', NOW())
+               ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
+               name = EXCLUDED.name, role = EXCLUDED.role, company = EXCLUDED.company,
+               billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
+               organization_id = EXCLUDED.organization_id"""
+        )
+        from catalog.infrastructure.schema import uom_seed_sql
 
-    for stmt in _UOM_SEED:
-        await conn.execute(stmt)
-    await conn.commit()
+        for stmt in uom_seed_sql("supply-yard"):
+            await conn.execute(stmt)
 
 
 # ── Shared fixtures ──────────────────────────────────────────────────────────

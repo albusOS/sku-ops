@@ -1,5 +1,7 @@
 """Fiscal period domain model."""
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from finance.domain.enums import FiscalPeriodStatus
@@ -7,8 +9,8 @@ from finance.domain.enums import FiscalPeriodStatus
 
 class FiscalPeriodCreate(BaseModel):
     name: str = ""
-    start_date: str
-    end_date: str
+    start_date: datetime
+    end_date: datetime
 
 
 class FiscalPeriod(BaseModel):
@@ -16,10 +18,10 @@ class FiscalPeriod(BaseModel):
 
     id: str
     name: str
-    start_date: str
-    end_date: str
+    start_date: datetime
+    end_date: datetime
     status: FiscalPeriodStatus
     organization_id: str
-    created_at: str
+    created_at: datetime
     closed_by_id: str | None = None
-    closed_at: str | None = None
+    closed_at: datetime | None = None

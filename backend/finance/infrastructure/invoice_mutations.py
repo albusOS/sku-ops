@@ -22,7 +22,7 @@ async def update_fields(
         return await get_by_id(invoice_id)
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     updates["updated_at"] = now
     n = 1
     set_clauses = []
@@ -54,7 +54,9 @@ async def replace_line_items(invoice_id: str, line_items: list[dict]) -> float:
     await conn.execute("DELETE FROM invoice_line_items WHERE invoice_id = $1", (invoice_id,))
     subtotal = 0.0
     for item in line_items:
-        amt = round(float(item.get("quantity", 1)) * float(item.get("unit_price", 0)), 2)
+        qty = float(item.get("quantity", 1))
+        price = float(item.get("unit_price", 0))
+        amt = round(qty * price, 2)
         item_id = item.get("id") or str(uuid4())
         cost_val = float(item.get("cost", 0))
         await conn.execute(
@@ -65,8 +67,8 @@ async def replace_line_items(invoice_id: str, line_items: list[dict]) -> float:
                 item_id,
                 invoice_id,
                 item.get("description", ""),
-                float(item.get("quantity", 1)),
-                float(item.get("unit_price", 0)),
+                qty,
+                price,
                 amt,
                 cost_val,
                 item.get("sku_id"),
@@ -92,9 +94,9 @@ async def insert_line_items(invoice_id: str, line_items: list[dict]) -> float:
         raise ValueError(f"Invoice {invoice_id} not found in this organisation")
     subtotal = 0.0
     for item in line_items:
-        qty = item.get("quantity", 1)
-        price = item.get("unit_price") or item.get("price") or 0
-        amt = round(qty * float(price), 2)
+        qty = float(item.get("quantity", 1))
+        price = float(item.get("unit_price") or item.get("price") or 0)
+        amt = round(qty * price, 2)
         cost_val = float(item.get("cost", 0))
         await conn.execute(
             """INSERT INTO invoice_line_items
@@ -105,7 +107,7 @@ async def insert_line_items(invoice_id: str, line_items: list[dict]) -> float:
                 invoice_id,
                 item.get("description") or item.get("name", ""),
                 qty,
-                float(price),
+                price,
                 amt,
                 cost_val,
                 item.get("sku_id"),
@@ -159,7 +161,7 @@ async def unlink_withdrawals(invoice_id: str) -> list[str]:
 async def soft_delete(invoice_id: str) -> None:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await conn.execute(
         "UPDATE invoices SET status = 'deleted', deleted_at = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (now, now, invoice_id, org_id),
@@ -232,7 +234,7 @@ async def mark_paid_for_withdrawal(withdrawal_id: str) -> None:
     row = await cursor.fetchone()
     if not row or not row[0]:
         return
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await conn.execute(
         "UPDATE invoices SET status = 'paid', updated_at = $1 WHERE id = $2 AND organization_id = $3",
         (now, row[0], org_id),
@@ -249,7 +251,7 @@ async def update_invoice_totals(
     """Update the computed financial totals on an invoice row."""
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     await conn.execute(
         "UPDATE invoices SET subtotal = $1, tax = $2, total = $3, updated_at = $4 WHERE id = $5 AND organization_id = $6",
         (subtotal, tax, total, now, invoice_id, org_id),
@@ -261,7 +263,7 @@ async def update_invoice_billing(
     invoice_id: str,
     billing_entity: str,
     contact_name: str,
-    updated_at: str,
+    updated_at: datetime,
 ) -> None:
     """Update billing entity and contact name on an invoice row."""
     conn = get_connection()
@@ -285,7 +287,7 @@ async def update_invoice_fields_dynamic(
         return
     conn = get_connection()
     org_id = get_org_id()
-    fields = {**fields, "updated_at": datetime.now(UTC).isoformat()}
+    fields = {**fields, "updated_at": datetime.now(UTC)}
     n = 1
     set_clauses = []
     params: list = []

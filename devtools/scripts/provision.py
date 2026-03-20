@@ -65,7 +65,7 @@ async def main(create_dev_user: bool = False) -> None:
             await conn.execute(
                 "INSERT INTO users (id, email, password, name, role, company, billing_entity, "
                 "phone, is_active, organization_id, created_at) "
-                "VALUES ($1, $2, $3, $4, $5, '', '', '', 1, $6, $7) "
+                "VALUES ($1, $2, $3, $4, $5, '', '', '', TRUE, $6, $7) "
                 "ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, "
                 "name = EXCLUDED.name, role = EXCLUDED.role",
                 (
@@ -88,7 +88,7 @@ async def main(create_dev_user: bool = False) -> None:
             await conn.execute(
                 "INSERT INTO users (id, email, password, name, role, company, billing_entity, "
                 "phone, is_active, organization_id, created_at) "
-                "VALUES ($1, $2, $3, $4, $5, 'Dev Contractor Co', 'Dev Contractor Co', '', 1, $6, $7) "
+                "VALUES ($1, $2, $3, $4, $5, 'Dev Contractor Co', 'Dev Contractor Co', '', TRUE, $6, $7) "
                 "ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, "
                 "name = EXCLUDED.name, role = EXCLUDED.role",
                 (

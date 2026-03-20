@@ -76,7 +76,7 @@ async def insert(invoice: Invoice) -> InvoiceWithDetails | None:
     org_id = get_org_id()
     invoice_id = invoice_dict.get("id") or str(uuid4())
     invoice_number = invoice_dict.get("invoice_number") or await next_invoice_number()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     inv_date = invoice_dict.get("invoice_date") or now
     payment_terms = invoice_dict.get("payment_terms") or "net_30"
     due_date = invoice_dict.get("due_date") or compute_due_date(inv_date, payment_terms)
@@ -128,7 +128,7 @@ async def list_invoices(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    query = f"SELECT * FROM invoices WHERE (organization_id = ${n} OR organization_id IS NULL) AND deleted_at IS NULL"
+    query = f"SELECT * FROM invoices WHERE organization_id = ${n} AND deleted_at IS NULL"
     params: list = [org_id]
     n += 1
     if status:

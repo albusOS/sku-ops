@@ -1,24 +1,15 @@
 """Integration test fixtures — TestClient with portal for org-scoped operations.
 
-Uses its own session-scoped _app_client so the event loop is independent
-from the api/ test suite. Each test gets a clean DB via the autouse
-_clean_db fixture.
+Reuses the root session-scoped _app_client so there is only ever one
+TestClient lifespan per pytest session. Multiple TestClient instances
+against the same app object fight over the shared _state["backend"]
+pool singleton, causing intermittent ConnectionDoesNotExistError when
+one client's close_db() races with another's active queries.
 """
 
 import pytest
 
 from tests.helpers.auth import admin_headers, contractor_headers
-
-
-@pytest.fixture(scope="session")
-def _app_client():
-    """Session-scoped TestClient for integration tests — independent event loop."""
-    from starlette.testclient import TestClient
-
-    from server import app
-
-    with TestClient(app, raise_server_exceptions=False) as client:
-        yield client
 
 
 @pytest.fixture(autouse=True)

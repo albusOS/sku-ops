@@ -141,7 +141,7 @@ async def process_material_request(
             request_id=request_id,
             withdrawal_id=withdrawal.id,
             processed_by_id=current_user_id,
-            processed_at=datetime.now(UTC).isoformat(),
+            processed_at=datetime.now(UTC),
         )
 
     await dispatch(

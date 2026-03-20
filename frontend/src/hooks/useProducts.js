@@ -3,13 +3,20 @@ import api from "@/lib/api-client";
 import { createEntityHooks } from "./useEntityHooks";
 import { keys } from "./queryKeys";
 
-const { useList, useCreate, useUpdate, useDelete } = createEntityHooks("products", api.products);
+const { useList, useDetail, useCreate, useUpdate, useDelete } = createEntityHooks(
+  "products",
+  api.products,
+);
 
 export {
   useCreate as useCreateProduct,
   useUpdate as useUpdateProduct,
   useDelete as useDeleteProduct,
 };
+
+export function useProduct(id) {
+  return useDetail(id);
+}
 
 export function useProducts(params) {
   return useList(params);

@@ -36,7 +36,7 @@ def _seed_contractor(app_client: TestClient) -> str:
             return
         await conn.execute(
             "INSERT INTO users (id, email, password, name, role, company, billing_entity, is_active, organization_id, created_at)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, $9)",
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, NOW())",
             (
                 "contractor-1",
                 "contractor@test.com",
@@ -46,7 +46,6 @@ def _seed_contractor(app_client: TestClient) -> str:
                 "E2E Corp",
                 "E2E Corp",
                 "supply-yard",
-                "2024-01-01T00:00:00+00:00",
             ),
         )
         await conn.commit()
@@ -80,15 +79,13 @@ def _seed_dept(client: TestClient, headers: dict) -> str:
 
 
 @pytest.fixture(scope="session")
-def app_client():
-    """TestClient that runs the full lifespan (DB init, event handlers, etc.).
+def app_client(_app_client):
+    """Alias for the root session-scoped TestClient.
 
-    Session-scoped: the app boots once for the entire E2E test suite.
+    E2E tests use app_client; we reuse the single shared instance to avoid
+    spinning up a second lifespan that would fight over the DB pool singleton.
     """
-    from server import app
-
-    with TestClient(app, raise_server_exceptions=False) as client:
-        yield client
+    return _app_client
 
 
 @pytest.fixture(scope="session")

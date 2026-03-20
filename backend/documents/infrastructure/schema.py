@@ -14,8 +14,8 @@ TABLES: list[str] = [
         status TEXT NOT NULL DEFAULT 'parsed',
         uploaded_by_id TEXT NOT NULL,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
 ]
 

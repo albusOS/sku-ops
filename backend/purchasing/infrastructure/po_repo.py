@@ -1,5 +1,7 @@
 """Purchase order repository — typed implementation of PORepoPort."""
 
+from datetime import datetime
+
 from purchasing.domain.purchase_order import (
     POItemRow,
     POItemStatus,
@@ -226,7 +228,7 @@ class PgPORepo(PORepoPort):
             (po_id,),
         )
         total_row = await cursor.fetchone()
-        po["cost_total"] = float(total_row[0] or 0) if total_row else 0.0
+        po["cost_total"] = (total_row[0] or 0.0) if total_row else 0.0
         cursor = await conn.execute(
             """SELECT name, COALESCE(delivered_qty, ordered_qty) AS qty, cost
                FROM purchase_order_items WHERE po_id = $1""",
@@ -236,7 +238,7 @@ class PgPORepo(PORepoPort):
         po["items"] = [dict(r) for r in item_rows]
         return po
 
-    async def set_xero_sync_status(self, po_id: str, status: str, updated_at: str) -> None:
+    async def set_xero_sync_status(self, po_id: str, status: str, updated_at: datetime) -> None:
         conn = get_connection()
         org_id = get_org_id()
         await conn.execute(
@@ -256,9 +258,9 @@ class PgPORepo(PORepoPort):
             (org_id,),
         )
         rows = await cursor.fetchall()
-        return {r["status"]: {"count": r["cnt"], "total": float(r["total"])} for r in rows}
+        return {r["status"]: {"count": r["cnt"], "total": r["total"]} for r in rows}
 
-    async def set_xero_bill_id(self, po_id: str, xero_bill_id: str, updated_at: str) -> None:
+    async def set_xero_bill_id(self, po_id: str, xero_bill_id: str, updated_at: datetime) -> None:
         conn = get_connection()
         org_id = get_org_id()
         await conn.execute(

@@ -8,8 +8,6 @@ def _row_to_model(row) -> Payment | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return Payment.model_validate(d)
 
 

@@ -48,7 +48,7 @@ class PurchasingDeps:
 
 def _resolve_vendor_dict(vendor_name: str, vendor_id: str) -> dict:
     """Build a minimal vendor insert dict."""
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     return {
         "id": vendor_id,
         "name": vendor_name,

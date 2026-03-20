@@ -211,7 +211,11 @@ export function useChatSocket({ onDelta, onToolStart, onDone, onError, enabled =
         wsRef.current = null;
       }
       setConnected(false);
-      setStreaming(false);
+      // Only reset streaming if there's no active job — a token-refresh
+      // reconnect will reattach via chat.resume and keep streaming.
+      if (!activeJobIdRef.current) {
+        setStreaming(false);
+      }
     };
   }, [connect, enabled]);
 

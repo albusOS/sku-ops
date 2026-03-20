@@ -251,7 +251,7 @@ ANTHROPIC_MODEL = (
     os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
 )
 ANTHROPIC_FAST_MODEL = (
-    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
 )
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -293,7 +293,7 @@ AGENT_PRIMARY_MODEL: str = _load_agent_model()
 
 
 def _load_synthesis_model() -> str:
-    """Load synthesis model for workflows (weekly sales, inventory overview)."""
+    """Load synthesis model for history compression and memory extraction."""
     env_override = os.environ.get("MODEL_REGISTRY_INFRA_SYNTHESIS", "").strip()
     if env_override:
         return env_override
@@ -314,6 +314,30 @@ def _load_synthesis_model() -> str:
 
 
 INFRA_SYNTHESIS_MODEL: str = _load_synthesis_model()
+
+
+def _load_classifier_model() -> str:
+    """Load classifier model for intent classification (high-volume, short JSON responses)."""
+    env_override = os.environ.get("MODEL_REGISTRY_INFRA_CLASSIFIER", "").strip()
+    if env_override:
+        return env_override
+    try:
+        import yaml
+
+        _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
+        if _yaml_path.exists():
+            data = yaml.safe_load(_yaml_path.read_text()) or {}
+            model = (data.get("classifier") or "").strip()
+            if model:
+                return model
+    except (OSError, ValueError, KeyError):
+        logging.getLogger(__name__).warning(
+            "Failed to parse classifier from models.yaml", exc_info=True
+        )
+    return "anthropic:claude-haiku-4-5"
+
+
+INFRA_CLASSIFIER_MODEL: str = _load_classifier_model()
 LLM_SETUP_URL = "https://console.anthropic.com/"
 SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
 

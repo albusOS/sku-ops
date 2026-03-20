@@ -1,6 +1,11 @@
-"""Workflow base primitives — parallel fetch and synthesis.
+"""Workflow base primitives — parallel fetch and direct formatting.
 
 Shared by fixed DAG workflows. No workflow-specific logic.
+
+Workflows return structured data formatted by a deterministic fallback
+function.  The calling agent (which is already an LLM) interprets and
+presents the data to the user — adding a second LLM "synthesis" call
+in the workflow was doubling latency for marginal quality gain.
 """
 
 from __future__ import annotations
@@ -10,9 +15,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-from assistant.agents.core.model_registry import get_model_name
 from assistant.agents.tools.registry import init_tools, run_tool
-from assistant.application.llm import generate_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -48,19 +51,13 @@ async def run_parallel_fetch(specs: list[FetchSpec]) -> dict:
     return out
 
 
-async def run_synthesis(
+def format_workflow_result(
     data: dict,
-    system_prompt: str,
-    build_prompt: Callable[[dict], str],
-    fallback_fn: Callable[[dict], str],
+    format_fn: Callable[[dict], str],
 ) -> str:
-    """Synthesize raw data into markdown via LLM, with fallback on failure.
+    """Format workflow data using a deterministic formatter.
 
-    Uses infra:synthesis model from models.yaml / env.
+    No LLM call — the calling agent already has the context to interpret
+    the data and will present it to the user.
     """
-    prompt = build_prompt(data)
-    synthesis_model = get_model_name("infra:synthesis")
-    synthesized = await asyncio.to_thread(generate_text, prompt, system_prompt, synthesis_model)
-    if synthesized and synthesized.strip():
-        return synthesized.strip()
-    return fallback_fn(data)
+    return format_fn(data)

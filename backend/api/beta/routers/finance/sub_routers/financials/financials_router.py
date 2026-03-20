@@ -56,7 +56,8 @@ async def get_financial_summary(
     shrinkage = accounts.get("shrinkage", 0)
 
     gross_profit = round_money(revenue - cogs)
-    margin_pct = round(gross_profit / revenue * 100, 1) if revenue > 0 else 0
+    # float for JSON-friendly percentage
+    margin_pct = round(float(gross_profit / revenue * 100), 1) if revenue > 0 else 0.0
 
     by_entity = {}
     for row in by_entity_rows:

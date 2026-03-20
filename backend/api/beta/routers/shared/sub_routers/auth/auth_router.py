@@ -212,7 +212,7 @@ async def register(body: RegisterRequest) -> AuthResponse:
 
     hashed = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     user_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
 
     await _insert_user_repo(
         user_id=user_id,

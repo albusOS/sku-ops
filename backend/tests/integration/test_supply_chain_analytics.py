@@ -61,7 +61,7 @@ async def _seed_withdrawal_txns(sku_id: str, daily_qtys: list[float], start_days
                        50, 50, 'each',
                        'WITHDRAWAL', 'withdrawal', gen_random_uuid(),
                        'user-1', 'Test', 'supply-yard',
-                       (NOW() - make_interval(days => $3))::text)""",
+                       NOW() - make_interval(days => $3))""",
             (sku_id, -qty, start_days_ago - i),
         )
     await conn.commit()
@@ -79,7 +79,7 @@ async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
                    0, $2, 'each',
                    'receiving', 'purchase_order', gen_random_uuid(),
                    'user-1', 'Test', 'supply-yard',
-                   (NOW() - make_interval(days => $3))::text)""",
+                   NOW() - make_interval(days => $3))""",
         (sku_id, qty, days_ago),
     )
     await conn.commit()
@@ -109,8 +109,8 @@ async def _seed_received_po(
             organization_id, created_at, received_at)
            VALUES ($1, $2, 'Acme', 'received', 'user-1', 'Test',
                    'supply-yard',
-                   (NOW() - make_interval(days => $3))::text,
-                   (NOW() - make_interval(days => $4))::text)
+                   NOW() - make_interval(days => $3),
+                   NOW() - make_interval(days => $4))
            ON CONFLICT (id) DO UPDATE SET received_at = EXCLUDED.received_at""",
         (po_id, vendor_id, created_days_ago, received_days_ago),
     )

@@ -23,8 +23,7 @@ async def get_org_settings() -> OrgSettings:
 async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
     """Insert or replace org settings."""
     conn = get_connection()
-    now = datetime.now(UTC).isoformat()
-    auto_invoice_int = 1 if settings.auto_invoice else 0
+    now = datetime.now(UTC)
     await conn.execute(
         """INSERT INTO org_settings (
                organization_id, auto_invoice, default_tax_rate,
@@ -51,7 +50,7 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
         """,
         (
             settings.organization_id,
-            auto_invoice_int,
+            bool(settings.auto_invoice),
             settings.default_tax_rate,
             settings.xero_tenant_id,
             settings.xero_access_token,
@@ -80,7 +79,7 @@ async def clear_xero_tokens() -> None:
                xero_tenant_id = NULL, xero_token_expiry = NULL,
                updated_at = $1
            WHERE organization_id = $2""",
-        (datetime.now(UTC).isoformat(), org_id),
+        (datetime.now(UTC), org_id),
     )
     await conn.commit()
 

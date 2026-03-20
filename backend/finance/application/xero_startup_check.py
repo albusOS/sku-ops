@@ -20,11 +20,10 @@ _REQUIRED_ACCOUNT_CODES = [
 ]
 
 
-def _is_token_expired(token_expiry: str) -> bool:
+def _is_token_expired(token_expiry: datetime) -> bool:
     try:
-        expiry = datetime.fromisoformat(token_expiry)
-        return datetime.now(UTC).timestamp() >= expiry.timestamp() - 60
-    except (ValueError, TypeError):
+        return datetime.now(UTC).timestamp() >= token_expiry.timestamp() - 60
+    except (ValueError, TypeError, AttributeError):
         return True
 
 

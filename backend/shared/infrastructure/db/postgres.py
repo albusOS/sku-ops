@@ -117,6 +117,8 @@ class PostgresBackend:
         self._acquire_timeout: float = 30.0
 
     async def connect(self, url: str) -> None:
+        import os
+
         from shared.infrastructure.config import (
             PG_ACQUIRE_TIMEOUT,
             PG_COMMAND_TIMEOUT,
@@ -141,6 +143,40 @@ class PostgresBackend:
             if is_deployed:
                 raise RuntimeError(msg)
             logger.warning(msg)
+
+        from urllib.parse import urlparse
+
+        _host = (urlparse(url).hostname or "").lower()
+        _is_supavisor = "pooler.supabase.com" in _host
+
+        # Supabase Supavisor Session mode has a hard connection limit (~15 on
+        # free/pro). With multiple uvicorn workers each pool competes for those
+        # slots.  Clamp per-worker pool size so total connections stay safe.
+        if _is_supavisor:
+            workers = int(os.environ.get("WORKERS", "1"))
+            supavisor_limit = int(os.environ.get("SUPAVISOR_MAX_CONNECTIONS", "15"))
+            safe_per_worker = max(1, supavisor_limit // workers - 1)
+            if max_size > safe_per_worker:
+                logger.warning(
+                    "PG_POOL_MAX=%d × %d workers = %d total connections, but "
+                    "Supabase Supavisor session-mode limit is ~%d. "
+                    "Clamping per-worker pool to %d.",
+                    max_size,
+                    workers,
+                    max_size * workers,
+                    supavisor_limit,
+                    safe_per_worker,
+                )
+                max_size = safe_per_worker
+                min_size = min(min_size, max_size)
+
+        # asyncpg >=0.31 defaults to sslmode=prefer, which tries SSL first.
+        # Local Docker / localhost Postgres doesn't support SSL, so append
+        # sslmode=disable to the URL for local hosts.
+        _local_hosts = {"localhost", "127.0.0.1", "::1", "db"}
+        if _host in _local_hosts and "sslmode=" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}sslmode=disable"
 
         self._pool = await asyncpg.create_pool(
             url,

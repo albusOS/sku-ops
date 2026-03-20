@@ -1,4 +1,6 @@
-"""Units of measure: allowed set, family groupings, and conversion logic."""
+"""Units of measure: allowed set, family groupings, conversion logic, and normalization."""
+
+from typing import Any
 
 ALLOWED_BASE_UNITS: frozenset[str] = frozenset(
     {
@@ -129,6 +131,7 @@ def cost_per_sell_unit(
         cost_per_sell_unit(1.00, "inch", "foot", 1)  → 12.00   (1 foot = 12 inches)
         cost_per_sell_unit(1.00, "each", "each", 12) → 12.00   (1 case of 12)
     """
+    cost_per_base = float(cost_per_base)
     pack_qty = max(pack_qty, 1)
     base_unit = (base_unit or "each").lower()
     sell_uom = (sell_uom or "each").lower()
@@ -154,6 +157,7 @@ def compute_sell_fields(
     (a sell-unit is ``pack_qty`` of ``sell_uom``).
     sell_quantity = available stock expressed in sell-units.
     """
+    price, cost, quantity = float(price), float(cost), float(quantity)
     pack_qty = max(pack_qty, 1)
     base_unit = (base_unit or "each").lower()
     sell_uom = (sell_uom or "each").lower()
@@ -170,3 +174,85 @@ def compute_sell_fields(
         "sell_cost": round(cost * base_per_sell * pack_qty, 4),
         "sell_quantity": round(quantity * sell_per_base / pack_qty, 6),
     }
+
+
+# ── LLM output normalization ────────────────────────────────────────────────
+# Maps common abbreviations and LLM variations to ALLOWED_BASE_UNITS.
+
+_UNIT_ALIASES: dict[str, str] = {
+    "gal": "gallon",
+    "gals": "gallon",
+    "gallons": "gallon",
+    "gal.": "gallon",
+    "qts": "quart",
+    "quarts": "quart",
+    "qt": "quart",
+    "qt.": "quart",
+    "pt": "pint",
+    "pints": "pint",
+    "pts": "pint",
+    "pt.": "pint",
+    "lbs": "pound",
+    "lb": "pound",
+    "pounds": "pound",
+    "lb.": "pound",
+    "oz": "ounce",
+    "ozs": "ounce",
+    "ounces": "ounce",
+    "oz.": "ounce",
+    "ft": "foot",
+    "feet": "foot",
+    "lf": "foot",
+    "lnft": "foot",
+    "ln ft": "foot",
+    "linear foot": "foot",
+    "in": "inch",
+    "in.": "inch",
+    "inches": "inch",
+    "inch": "inch",
+    "m": "meter",
+    "meters": "meter",
+    "metres": "meter",
+    "yd": "yard",
+    "yards": "yard",
+    "yds": "yard",
+    "sq ft": "sqft",
+    "sqft": "sqft",
+    "square feet": "sqft",
+    "sq. ft": "sqft",
+    "bx": "box",
+    "cs": "case",
+    "pk": "pack",
+    "pkg": "pack",
+    "pkgs": "pack",
+    "ea": "each",
+    "pc": "each",
+    "pcs": "each",
+    "piece": "each",
+    "pieces": "each",
+}
+
+
+def normalize_unit(raw: Any, known_units: frozenset[str] | None = None) -> str:
+    """Map raw LLM output or abbreviation to a known unit code.
+
+    When ``known_units`` is provided, validates against that set (org units from DB).
+    Falls back to ``ALLOWED_BASE_UNITS`` when not provided.
+    Returns "each" for unknown, empty, or non-string inputs.
+    """
+    if not raw or not isinstance(raw, str):
+        return "each"
+    v = raw.lower().strip()
+    v = _UNIT_ALIASES.get(v, v)
+    valid = known_units if known_units is not None else ALLOWED_BASE_UNITS
+    return v if v in valid else "each"
+
+
+def normalize_pack_qty(val: Any) -> int:
+    """Coerce a raw value to a valid positive pack quantity (min 1)."""
+    if val is None:
+        return 1
+    try:
+        return max(1, int(val))
+    except (ValueError, TypeError):
+        return 1

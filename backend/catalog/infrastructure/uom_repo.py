@@ -10,8 +10,6 @@ def _row_to_model(row) -> UnitOfMeasure | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return UnitOfMeasure.model_validate(d)
 
 
@@ -21,7 +19,7 @@ async def list_all() -> list[UnitOfMeasure]:
     cursor = await conn.execute(
         """SELECT id, code, name, family, organization_id, created_at
            FROM units_of_measure
-           WHERE (organization_id = $1 OR organization_id IS NULL)
+           WHERE organization_id = $1
              AND deleted_at IS NULL
            ORDER BY code""",
         (org_id,),
@@ -37,7 +35,7 @@ async def get_by_code(code: str) -> UnitOfMeasure | None:
         """SELECT id, code, name, family, organization_id, created_at
            FROM units_of_measure
            WHERE code = $1
-             AND (organization_id = $2 OR organization_id IS NULL)
+             AND organization_id = $2
              AND deleted_at IS NULL""",
         (code.lower(), org_id),
     )
@@ -52,7 +50,7 @@ async def get_by_id(uom_id: str) -> UnitOfMeasure | None:
         """SELECT id, code, name, family, organization_id, created_at
            FROM units_of_measure
            WHERE id = $1
-             AND (organization_id = $2 OR organization_id IS NULL)
+             AND organization_id = $2
              AND deleted_at IS NULL""",
         (uom_id, org_id),
     )
@@ -74,7 +72,7 @@ async def insert(uom: UnitOfMeasure) -> None:
 async def delete(uom_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     cursor = await conn.execute(
         """UPDATE units_of_measure SET deleted_at = $1
            WHERE id = $2 AND organization_id = $3 AND deleted_at IS NULL""",

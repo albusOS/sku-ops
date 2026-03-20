@@ -1,31 +1,42 @@
 """Return repository."""
 
-import json
 from uuid import uuid4
 
 from operations.domain.returns import MaterialReturn
 from shared.infrastructure.database import get_connection, get_org_id
 
 
-def _row_to_model(row) -> MaterialReturn | None:
+async def _hydrate_items(conn, return_id: str) -> list[dict]:
+    """Fetch normalized line items for a return."""
+    cursor = await conn.execute(
+        "SELECT sku_id, sku, name, quantity, unit_price, cost, unit, sell_uom, sell_cost"
+        " FROM return_items WHERE return_id = $1 ORDER BY id",
+        (return_id,),
+    )
+    return [dict(r) for r in await cursor.fetchall()]
+
+
+async def _row_to_model(row, conn=None) -> MaterialReturn | None:
     if row is None:
         return None
     d = dict(row)
-    if "items" in d and isinstance(d["items"], str):
-        d["items"] = json.loads(d["items"]) if d["items"] else []
+    d.pop("items", None)
+    if conn is not None:
+        d["items"] = await _hydrate_items(conn, d["id"])
+    else:
+        d["items"] = []
     return MaterialReturn.model_validate(d)
 
 
 async def insert(ret: MaterialReturn) -> None:
     conn = get_connection()
     org_id = ret.organization_id or get_org_id()
-    items_json = json.dumps([i.model_dump() for i in ret.items])
     await conn.execute(
         """INSERT INTO returns (id, withdrawal_id, contractor_id, contractor_name,
-           billing_entity, job_id, items, subtotal, tax, total, cost_total,
+           billing_entity, job_id, subtotal, tax, total, cost_total,
            reason, notes, credit_note_id, processed_by_id, processed_by_name,
            organization_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)""",
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)""",
         (
             ret.id,
             ret.withdrawal_id,
@@ -33,7 +44,6 @@ async def insert(ret: MaterialReturn) -> None:
             ret.contractor_name,
             ret.billing_entity,
             ret.job_id,
-            items_json,
             ret.subtotal,
             ret.tax,
             ret.total,
@@ -49,13 +59,13 @@ async def insert(ret: MaterialReturn) -> None:
         ),
     )
     for item in ret.items:
-        qty = float(item.quantity)
-        price = float(item.unit_price)
-        cost = float(item.cost)
+        qty = item.quantity
+        price = item.unit_price
+        cost = item.cost
         await conn.execute(
             """INSERT INTO return_items
-               (id, return_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
+               (id, return_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total, sell_uom, sell_cost)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)""",
             (
                 str(uuid4()),
                 ret.id,
@@ -68,6 +78,8 @@ async def insert(ret: MaterialReturn) -> None:
                 item.unit or "each",
                 round(qty * price, 2),
                 round(qty * cost, 2),
+                item.sell_uom or "each",
+                item.sell_cost,
             ),
         )
 
@@ -78,11 +90,11 @@ async def get_by_id(return_id: str) -> MaterialReturn | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM returns WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)",
+        "SELECT * FROM returns WHERE id = $1 AND organization_id = $2",
         (return_id, org_id),
     )
     row = await cursor.fetchone()
-    return _row_to_model(row)
+    return await _row_to_model(row, conn)
 
 
 async def list_returns(
@@ -95,7 +107,7 @@ async def list_returns(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    query = f"SELECT * FROM returns WHERE (organization_id = ${n} OR organization_id IS NULL)"
+    query = f"SELECT * FROM returns WHERE organization_id = ${n}"
     params: list = [org_id]
     n += 1
     if contractor_id:
@@ -118,18 +130,18 @@ async def list_returns(
     params.append(limit)
     cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
-    return [_row_to_model(r) for r in rows]
+    return [await _row_to_model(r, conn) for r in rows]
 
 
 async def list_by_withdrawal(withdrawal_id: str) -> list[MaterialReturn]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM returns WHERE withdrawal_id = $1 AND (organization_id = $2 OR organization_id IS NULL) ORDER BY created_at DESC",
+        "SELECT * FROM returns WHERE withdrawal_id = $1 AND organization_id = $2 ORDER BY created_at DESC",
         (withdrawal_id, org_id),
     )
     rows = await cursor.fetchall()
-    return [_row_to_model(r) for r in rows]
+    return [await _row_to_model(r, conn) for r in rows]
 
 
 async def link_credit_note(return_id: str, credit_note_id: str) -> None:

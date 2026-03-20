@@ -3,14 +3,14 @@
 Exposes stock transaction analytics without leaking infrastructure details.
 """
 
-from __future__ import annotations
+from datetime import datetime
 
 from shared.infrastructure.database import get_connection, get_org_id
 
 
 async def withdrawal_velocity(
     sku_ids: list[str],
-    since: str,
+    since: datetime,
 ) -> dict[str, float]:
     """Total units withdrawn per SKU since a date. Keyed by sku_id."""
     if not sku_ids:
@@ -26,7 +26,7 @@ async def withdrawal_velocity(
         " WHERE sku_id IN ("
         + placeholders
         + f") AND transaction_type = 'WITHDRAWAL' AND created_at >= ${since_idx}"
-        f" AND (organization_id = ${org_idx} OR organization_id IS NULL)"
+        f" AND organization_id = ${org_idx}"
         " GROUP BY sku_id",
         (*sku_ids, since, org_id),
     )
@@ -34,7 +34,7 @@ async def withdrawal_velocity(
 
 
 async def daily_withdrawal_activity(
-    since: str,
+    since: datetime,
     sku_id: str | None = None,
 ) -> list[dict]:
     """Daily withdrawal activity: transaction_count + units_moved per day."""
@@ -51,7 +51,7 @@ async def daily_withdrawal_activity(
         " COUNT(*) AS transaction_count,"
         " COALESCE(SUM(ABS(quantity_delta)), 0) AS units_moved"
         " FROM stock_transactions"
-        " WHERE (organization_id = $1 OR organization_id IS NULL)"
+        " WHERE organization_id = $1"
         " AND transaction_type = 'WITHDRAWAL'"
         " AND created_at >= $2" + sku_filter + " GROUP BY day"
         " ORDER BY day",
@@ -87,8 +87,8 @@ async def demand_normalized_velocity(
         FROM stock_transactions
         WHERE sku_id IN ({ph})
           AND transaction_type = 'WITHDRAWAL'
-          AND created_at >= (NOW() - make_interval(days => ${days_idx}))::text
-          AND (organization_id = ${org_idx} OR organization_id IS NULL)
+          AND created_at >= (NOW() - make_interval(days => ${days_idx}))
+          AND organization_id = ${org_idx}
         GROUP BY sku_id, DATE(created_at)
     ),
     iqr AS (
@@ -146,8 +146,8 @@ async def seasonal_pattern(
            FROM stock_transactions
            WHERE sku_id = $1
              AND transaction_type = 'WITHDRAWAL'
-             AND created_at >= (NOW() - make_interval(months => $2))::text
-             AND (organization_id = $3 OR organization_id IS NULL)
+             AND created_at >= (NOW() - make_interval(months => $2))
+             AND organization_id = $3
            GROUP BY month
            ORDER BY month""",
         (sku_id, months, org_id),
@@ -173,8 +173,8 @@ async def sku_demand_profile(
            FROM stock_transactions st
            WHERE st.sku_id = $1
              AND st.transaction_type = 'WITHDRAWAL'
-             AND st.created_at >= (NOW() - make_interval(days => $2))::text
-             AND (st.organization_id = $3 OR st.organization_id IS NULL)
+             AND st.created_at >= (NOW() - make_interval(days => $2))
+             AND st.organization_id = $3
            GROUP BY DATE(st.created_at)
            ORDER BY day""",
         (sku_id, days, org_id),
@@ -228,8 +228,8 @@ async def sku_demand_profile(
              ON st.reference_id = w.id AND st.reference_type = 'withdrawal'
            WHERE st.sku_id = $1
              AND st.transaction_type = 'WITHDRAWAL'
-             AND st.created_at >= (NOW() - make_interval(days => $2))::text
-             AND (st.organization_id = $3 OR st.organization_id IS NULL)
+             AND st.created_at >= (NOW() - make_interval(days => $2))
+             AND st.organization_id = $3
              AND w.job_id IS NOT NULL
            GROUP BY w.job_id
            ORDER BY job_total DESC

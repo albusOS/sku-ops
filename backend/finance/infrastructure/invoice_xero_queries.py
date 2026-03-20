@@ -17,7 +17,7 @@ async def set_xero_invoice_id(
         "UPDATE invoices SET xero_invoice_id = $1, xero_cogs_journal_id = $2,"
         " xero_sync_status = 'synced', updated_at = $3"
         " WHERE id = $4 AND organization_id = $5",
-        (xero_invoice_id, xero_cogs_journal_id, datetime.now(UTC).isoformat(), invoice_id, org_id),
+        (xero_invoice_id, xero_cogs_journal_id, datetime.now(UTC), invoice_id, org_id),
     )
     await conn.commit()
 
@@ -28,7 +28,7 @@ async def set_xero_sync_status(invoice_id: str, status: str) -> None:
     await conn.execute(
         "UPDATE invoices SET xero_sync_status = $1, updated_at = $2"
         " WHERE id = $3 AND organization_id = $4",
-        (status, datetime.now(UTC).isoformat(), invoice_id, org_id),
+        (status, datetime.now(UTC), invoice_id, org_id),
     )
     await conn.commit()
 
@@ -37,8 +37,6 @@ def _row_to_invoice(row) -> Invoice | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return Invoice.model_validate(d)
 
 

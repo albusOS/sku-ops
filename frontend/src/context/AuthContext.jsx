@@ -201,12 +201,23 @@ export const AuthProvider = ({ children }) => {
       _setAxiosToken(saved);
       scheduleBridgeRefreshRef.current?.(saved);
       _fetchProfile().finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+      return () => clearTimeout(refreshTimerRef.current);
     }
 
+    // Dev-only: auto-login with dev user to bypass manual login (see frontend/.env.example)
+    const bypassAuth =
+      import.meta.env.VITE_BYPASS_AUTH === "1" || import.meta.env.VITE_BYPASS_AUTH === "true";
+    if (bypassAuth) {
+      _bridgeLogin("dev@supply-yard.local", "dev123")
+        .then(() => scheduleBridgeRefreshRef.current?.(sessionStorage.getItem("token")))
+        .catch(() => {})
+        .finally(() => setLoading(false));
+      return () => clearTimeout(refreshTimerRef.current);
+    }
+
+    setLoading(false);
     return () => clearTimeout(refreshTimerRef.current);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only init; _bridgeLogin is stable
 
   const _bridgeLogin = async (email, password) => {
     const { token: jwt, user: userData } = await api.auth.login({ email, password });

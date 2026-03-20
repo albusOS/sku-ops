@@ -10,9 +10,7 @@ def _row_to_model(row) -> VendorItem | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
-    if "is_preferred" in d:
+    if "is_preferred" in d and not isinstance(d["is_preferred"], bool):
         d["is_preferred"] = bool(d["is_preferred"])
     return VendorItem.model_validate(d)
 
@@ -37,11 +35,11 @@ async def insert(item: VendorItem) -> None:
             d.get("cost", 0),
             d.get("lead_time_days"),
             d.get("moq"),
-            int(d.get("is_preferred", False)),
+            bool(d.get("is_preferred", False)),
             d.get("notes"),
             org_id,
-            d.get("created_at", ""),
-            d.get("updated_at", ""),
+            d.get("created_at") or datetime.now(UTC),
+            d.get("updated_at") or datetime.now(UTC),
         ),
     )
 
@@ -50,7 +48,7 @@ async def get_by_id(item_id: str) -> VendorItem | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM vendor_items WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT * FROM vendor_items WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (item_id, org_id),
     )
     row = await cursor.fetchone()
@@ -62,9 +60,27 @@ async def list_by_sku(sku_id: str) -> list[VendorItem]:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT * FROM vendor_items
-           WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL
+           WHERE sku_id = $1 AND organization_id = $2 AND deleted_at IS NULL
            ORDER BY is_preferred DESC, vendor_name""",
         (sku_id, org_id),
+    )
+    rows = await cursor.fetchall()
+    return [vi for r in rows if (vi := _row_to_model(r)) is not None]
+
+
+async def list_by_skus(sku_ids: list[str]) -> list[VendorItem]:
+    """Return vendor items for multiple SKUs in a single query."""
+    if not sku_ids:
+        return []
+    conn = get_connection()
+    org_id = get_org_id()
+    cursor = await conn.execute(
+        """SELECT * FROM vendor_items
+           WHERE sku_id = ANY($1::text[])
+             AND organization_id = $2
+             AND deleted_at IS NULL
+           ORDER BY sku_id, is_preferred DESC, cost ASC NULLS LAST, vendor_name""",
+        (sku_ids, org_id),
     )
     rows = await cursor.fetchall()
     return [vi for r in rows if (vi := _row_to_model(r)) is not None]
@@ -75,7 +91,7 @@ async def list_by_vendor(vendor_id: str) -> list[VendorItem]:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT * FROM vendor_items
-           WHERE vendor_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL
+           WHERE vendor_id = $1 AND organization_id = $2 AND deleted_at IS NULL
            ORDER BY vendor_sku""",
         (vendor_id, org_id),
     )
@@ -93,7 +109,7 @@ async def find_by_vendor_and_vendor_sku(vendor_id: str, vendor_sku: str) -> Vend
     cursor = await conn.execute(
         """SELECT * FROM vendor_items
            WHERE vendor_id = $1 AND TRIM(LOWER(COALESCE(vendor_sku, ''))) = $2
-           AND (organization_id = $3 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           AND organization_id = $3 AND deleted_at IS NULL""",
         (vendor_id, norm, org_id),
     )
     row = await cursor.fetchone()
@@ -107,7 +123,7 @@ async def find_by_sku_and_vendor(sku_id: str, vendor_id: str) -> VendorItem | No
     cursor = await conn.execute(
         """SELECT * FROM vendor_items
            WHERE sku_id = $1 AND vendor_id = $2
-           AND (organization_id = $3 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           AND organization_id = $3 AND deleted_at IS NULL""",
         (sku_id, vendor_id, org_id),
     )
     row = await cursor.fetchone()
@@ -119,7 +135,7 @@ async def update(item_id: str, updates: dict) -> VendorItem | None:
     org_id = get_org_id()
     n = 1
     set_parts = [f"updated_at = ${n}"]
-    values: list = [updates.get("updated_at", datetime.now(UTC).isoformat())]
+    values: list = [updates.get("updated_at", datetime.now(UTC))]
     n += 1
     for key in (
         "vendor_sku",
@@ -135,7 +151,7 @@ async def update(item_id: str, updates: dict) -> VendorItem | None:
         if key in updates and updates[key] is not None:
             val = updates[key]
             if key == "is_preferred":
-                val = int(val)
+                val = bool(val)
             set_parts.append(f"{key} = ${n}")
             values.append(val)
             n += 1
@@ -151,9 +167,9 @@ async def update(item_id: str, updates: dict) -> VendorItem | None:
 async def soft_delete(item_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     cursor = await conn.execute(
-        "UPDATE vendor_items SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND (organization_id = $3 OR organization_id IS NULL)",
+        "UPDATE vendor_items SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, item_id, org_id),
     )
     return cursor.rowcount
@@ -163,9 +179,9 @@ async def soft_delete_by_sku(sku_id: str) -> int:
     """Soft-delete all vendor items for a given SKU."""
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     cursor = await conn.execute(
-        "UPDATE vendor_items SET deleted_at = $1 WHERE sku_id = $2 AND deleted_at IS NULL AND (organization_id = $3 OR organization_id IS NULL)",
+        "UPDATE vendor_items SET deleted_at = $1 WHERE sku_id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, sku_id, org_id),
     )
     return cursor.rowcount
@@ -176,7 +192,7 @@ async def clear_preferred_for_sku(sku_id: str) -> None:
     conn = get_connection()
     org_id = get_org_id()
     await conn.execute(
-        "UPDATE vendor_items SET is_preferred = 0 WHERE sku_id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (sku_id, org_id),
     )
 
@@ -185,6 +201,7 @@ class VendorItemRepo:
     insert = staticmethod(insert)
     get_by_id = staticmethod(get_by_id)
     list_by_sku = staticmethod(list_by_sku)
+    list_by_skus = staticmethod(list_by_skus)
     list_by_vendor = staticmethod(list_by_vendor)
     find_by_vendor_and_vendor_sku = staticmethod(find_by_vendor_and_vendor_sku)
     find_by_sku_and_vendor = staticmethod(find_by_sku_and_vendor)

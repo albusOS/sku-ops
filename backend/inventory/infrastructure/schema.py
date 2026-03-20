@@ -1,12 +1,6 @@
 """Inventory context schema — stock transaction ledger and cycle counts."""
 
-MIGRATIONS: list[str] = [
-    "ALTER TABLE stock_transactions ADD COLUMN IF NOT EXISTS original_quantity REAL",
-    "ALTER TABLE stock_transactions ADD COLUMN IF NOT EXISTS original_unit TEXT",
-    # Rename: product_id -> sku_id (existing dev DBs)
-    "ALTER TABLE stock_transactions RENAME COLUMN product_id TO sku_id",
-    "ALTER TABLE cycle_count_items RENAME COLUMN product_id TO sku_id",
-]
+MIGRATIONS: list[str] = []
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS stock_transactions (
@@ -14,20 +8,20 @@ TABLES: list[str] = [
         sku_id TEXT NOT NULL,
         sku TEXT NOT NULL,
         product_name TEXT NOT NULL DEFAULT '',
-        quantity_delta REAL NOT NULL,
-        quantity_before REAL NOT NULL,
-        quantity_after REAL NOT NULL,
+        quantity_delta NUMERIC(18,4) NOT NULL,
+        quantity_before NUMERIC(18,4) NOT NULL,
+        quantity_after NUMERIC(18,4) NOT NULL,
         unit TEXT NOT NULL DEFAULT 'each',
         transaction_type TEXT NOT NULL,
         reference_id TEXT,
         reference_type TEXT,
         reason TEXT,
-        original_quantity REAL,
+        original_quantity NUMERIC(18,4),
         original_unit TEXT,
         user_id TEXT NOT NULL,
         user_name TEXT NOT NULL DEFAULT '',
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS cycle_counts (
         id TEXT PRIMARY KEY,
@@ -37,8 +31,8 @@ TABLES: list[str] = [
         created_by_id TEXT NOT NULL,
         created_by_name TEXT NOT NULL DEFAULT '',
         committed_by_id TEXT,
-        committed_at TEXT,
-        created_at TEXT NOT NULL
+        committed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS cycle_count_items (
         id TEXT PRIMARY KEY,
@@ -46,12 +40,12 @@ TABLES: list[str] = [
         sku_id TEXT NOT NULL,
         sku TEXT NOT NULL,
         product_name TEXT NOT NULL DEFAULT '',
-        snapshot_qty REAL NOT NULL,
-        counted_qty REAL,
-        variance REAL,
+        snapshot_qty NUMERIC(18,4) NOT NULL,
+        counted_qty NUMERIC(18,4),
+        variance NUMERIC(18,4),
         unit TEXT NOT NULL DEFAULT 'each',
         notes TEXT,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
 ]
 

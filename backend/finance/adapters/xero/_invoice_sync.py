@@ -1,6 +1,7 @@
 """Xero invoice sync mixin — create/update ACCREC invoices."""
 
 import logging
+from datetime import datetime
 
 import httpx
 
@@ -65,9 +66,15 @@ class XeroInvoiceSyncMixin:
                 "Total": inv.get("total", 0),
             }
             if inv.get("due_date"):
-                xero_invoice["DueDate"] = inv["due_date"][:10]
+                dd = inv["due_date"]
+                xero_invoice["DueDate"] = (
+                    dd.strftime("%Y-%m-%d") if isinstance(dd, datetime) else str(dd)[:10]
+                )
             if inv.get("invoice_date"):
-                xero_invoice["Date"] = inv["invoice_date"][:10]
+                id_ = inv["invoice_date"]
+                xero_invoice["Date"] = (
+                    id_.strftime("%Y-%m-%d") if isinstance(id_, datetime) else str(id_)[:10]
+                )
             if inv.get("po_reference"):
                 xero_invoice["Reference"] = inv["po_reference"]
 

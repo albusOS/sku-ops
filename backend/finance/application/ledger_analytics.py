@@ -7,6 +7,7 @@ re-exported from ledger_queries so existing callers are unaffected.
 from typing import TypedDict
 
 from shared.infrastructure.database import get_connection, get_org_id
+from shared.kernel.types import round_money
 
 
 class TrendPoint(TypedDict):
@@ -120,7 +121,7 @@ async def trend_series(
         row = dict(r)
         revenue = row["revenue"]
         cost = row["cost"]
-        profit = round(revenue - cost - row["shrinkage"], 2)
+        profit = round_money(revenue - cost - row["shrinkage"])
         series.append(
             TrendPoint(
                 date=row["period"],
@@ -220,14 +221,15 @@ async def product_margins(
         row = dict(r)
         revenue = row["revenue"]
         cost = row["cost"]
-        profit = round(revenue - cost, 2)
+        profit = round_money(revenue - cost)
         result.append(
             ProductMarginRow(
                 sku_id=row["sku_id"],
                 revenue=revenue,
                 cost=cost,
                 profit=profit,
-                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+                # float for JSON-friendly percentage
+                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
             )
         )
     return result
@@ -347,7 +349,7 @@ async def inventory_carrying_cost(
                       MAX(created_at::timestamp) AS last_received_at
                FROM stock_transactions
                WHERE transaction_type IN ('receiving', 'RECEIVING', 'import', 'IMPORT')
-                 AND (organization_id = $1 OR organization_id IS NULL)
+                 AND organization_id = $1
                GROUP BY sku_id
            )
            SELECT s.id AS sku_id, s.sku, s.name, s.quantity, s.cost,
@@ -360,7 +362,7 @@ async def inventory_carrying_cost(
            LEFT JOIN last_receipt lr ON lr.sku_id = s.id
            WHERE s.quantity > 0
              AND s.cost > 0
-             AND (s.organization_id = $1 OR s.organization_id IS NULL)
+             AND s.organization_id = $1
              AND s.deleted_at IS NULL
            ORDER BY s.quantity * s.cost DESC""",
         (org_id,),
@@ -370,17 +372,17 @@ async def inventory_carrying_cost(
     results = []
     for r in rows:
         row = dict(r)
-        inv_value = float(row["quantity"]) * float(row["cost"])
+        inv_value = row["quantity"] * row["cost"]
         days = float(row["days_held"])
-        carrying = round(inv_value * daily_rate * days, 2)
+        carrying = round(float(inv_value) * daily_rate * days, 2)
         results.append(
             {
                 "sku_id": row["sku_id"],
                 "sku": row["sku"],
                 "name": row["name"],
-                "quantity": float(row["quantity"]),
-                "cost": float(row["cost"]),
-                "inventory_value": round(inv_value, 2),
+                "quantity": row["quantity"],
+                "cost": row["cost"],
+                "inventory_value": round_money(inv_value),
                 "days_held": round(days, 0),
                 "carrying_cost": carrying,
                 "department": row["department"],

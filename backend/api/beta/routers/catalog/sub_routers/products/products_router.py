@@ -2,12 +2,13 @@
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from assistant.application.llm import generate_text as _generate_text
+from assistant.application.llm import generate_text_sync as _generate_text
 from catalog.api.schemas import SuggestUomRequest
 from catalog.application.queries import (
     count_skus,
     find_sku_by_barcode,
     get_department_by_id,
+    get_known_unit_codes,
     get_sku_by_id,
     list_skus,
 )
@@ -137,7 +138,10 @@ async def get_product(sku_id: str, current_user: CurrentUserDep):
 async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
     gen_text = _generate_text if LLM_AVAILABLE else None
-    result = await classify_uom(data.name, data.description, generate_text=gen_text)
+    known = await get_known_unit_codes()
+    result = await classify_uom(
+        data.name, data.description, generate_text=gen_text, known_units=known
+    )
     return result
 
 

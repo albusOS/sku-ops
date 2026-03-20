@@ -43,8 +43,8 @@ async def insert(sku: Sku) -> None:
             sku_dict.get("grade", ""),
             json.dumps(sku_dict.get("variant_attrs") or {}),
             org_id,
-            sku_dict.get("created_at", ""),
-            sku_dict.get("updated_at", ""),
+            sku_dict.get("created_at") or datetime.now(UTC),
+            sku_dict.get("updated_at") or datetime.now(UTC),
         ),
     )
 
@@ -54,7 +54,7 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
     org_id = get_org_id()
     n = 1
     set_parts = [f"updated_at = ${n}"]
-    values = [updates.get("updated_at", "")]
+    values = [updates.get("updated_at", datetime.now(UTC))]
     n += 1
     for key in (
         "sku",
@@ -102,7 +102,7 @@ async def update(sku_id: str, updates: dict) -> Sku | None:
 async def delete(sku_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     params: list = [now, sku_id]
     where = "WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3"
     params.append(org_id)
@@ -112,7 +112,7 @@ async def delete(sku_id: str) -> int:
     return cursor.rowcount
 
 
-async def atomic_decrement(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
+async def atomic_decrement(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
     """Decrement quantity only if >= requested. Returns updated row or None if insufficient."""
     conn = get_connection()
     org_id = get_org_id()
@@ -127,7 +127,7 @@ async def atomic_decrement(sku_id: str, quantity: float, updated_at: str) -> Sku
     return await get_by_id(sku_id)
 
 
-async def increment_quantity(sku_id: str, quantity: float, updated_at: str) -> None:
+async def increment_quantity(sku_id: str, quantity: float, updated_at: datetime) -> None:
     """Rollback: add quantity back."""
     conn = get_connection()
     org_id = get_org_id()
@@ -139,7 +139,7 @@ async def increment_quantity(sku_id: str, quantity: float, updated_at: str) -> N
     await conn.execute(query, params)
 
 
-async def add_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
+async def add_quantity(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
     """Add quantity (receiving) and return updated row."""
     conn = get_connection()
     org_id = get_org_id()
@@ -155,7 +155,7 @@ async def add_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | N
 async def atomic_adjust(
     sku_id: str,
     quantity_delta: float,
-    updated_at: str,
+    updated_at: datetime,
 ) -> Sku | None:
     """Atomically adjust quantity by delta (+ or -).
     Returns updated row or None if adjustment would result in negative stock.

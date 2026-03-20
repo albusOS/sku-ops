@@ -93,11 +93,13 @@ async def assemble_context(
 ) -> AssembledContext:
     """Build rich context for an agent call.
 
-    Runs vector search, graph traversal, and memory recall concurrently.
-    Each source is independent — failures in one don't affect the others.
+    Runs embedding, vector search, graph traversal, and memory recall
+    concurrently where possible.  Each source is independent — failures
+    in one don't affect the others.
 
-    When *query_embedding* is provided, it's reused for both vector search
-    and memory recall to avoid redundant OpenAI embedding calls.
+    When *query_embedding* is provided it's reused; otherwise the embedding
+    is computed inside this function so the caller doesn't have to block on
+    it before kicking off context assembly.
     """
     ctx = AssembledContext()
 
@@ -105,18 +107,24 @@ async def assemble_context(
         ctx.active_entities = session_state.entities[:5]
         ctx.last_topic = session_state.last_topic
 
+    # Compute embedding inline when not pre-supplied, so the caller can
+    # fire context assembly as a task immediately (no serial await).
+    if query_embedding is None and (max_entity_hits > 0 or include_memory):
+        query_embedding = await _get_query_embedding(query)
+
     tasks = {}
 
-    tasks["vector"] = asyncio.create_task(
-        _vector_search(query, max_entity_hits, query_embedding=query_embedding)
-    )
+    if max_entity_hits > 0:
+        tasks["vector"] = asyncio.create_task(
+            _vector_search(query, max_entity_hits, query_embedding=query_embedding)
+        )
 
     if include_memory:
         tasks["memory"] = asyncio.create_task(
             _recall_memory(user_id, query, max_memory_items, query_embedding=query_embedding)
         )
 
-    entity_hits = await tasks["vector"]
+    entity_hits = await tasks["vector"] if "vector" in tasks else []
     ctx.entity_hits = entity_hits
 
     if include_graph and (entity_hits or ctx.active_entities):
@@ -141,6 +149,22 @@ async def assemble_context(
             logger.debug("Memory recall failed (non-critical): %s", e)
 
     return ctx
+
+
+async def _get_query_embedding(query: str):
+    """Compute a single embedding vector for the user query.
+
+    Returns None if embedding service is unavailable.
+    """
+    if not query or not query.strip():
+        return None
+    try:
+        from assistant.infrastructure.embedding_store import embed_query
+
+        return await embed_query(query)
+    except Exception as e:
+        logger.debug("Query embedding failed (non-critical): %s", e)
+        return None
 
 
 async def _vector_search(

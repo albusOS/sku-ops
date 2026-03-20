@@ -294,9 +294,12 @@ async def _redis_subscribe(job_id: str) -> AsyncIterator[dict]:
     except asyncio.CancelledError:
         pass
     finally:
-        with asyncio.timeout(2):
-            await pubsub.unsubscribe(channel)
-            await pubsub.aclose()
+        try:
+            with asyncio.timeout(2):
+                await pubsub.unsubscribe(channel)
+                await pubsub.aclose()
+        except Exception:
+            logger.debug("Pubsub cleanup failed for channel %s", channel, exc_info=True)
 
 
 async def _local_subscribe(job_id: str) -> AsyncIterator[dict]:

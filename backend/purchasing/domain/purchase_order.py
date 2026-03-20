@@ -6,6 +6,7 @@ Status enums and transition rules live here — no free-form strings.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, field_validator
@@ -34,13 +35,13 @@ class POItemStatus(StrEnum):
 class PurchaseOrder(AuditedEntity):
     vendor_id: str
     vendor_name: str = ""
-    document_date: str | None = None
+    document_date: datetime | None = None
     total: float | None = None
     status: POStatus = POStatus.ORDERED
     notes: str | None = None
     created_by_id: str = ""
     created_by_name: str = ""
-    received_at: str | None = None
+    received_at: datetime | None = None
     received_by_id: str | None = None
     received_by_name: str | None = None
 
@@ -49,8 +50,8 @@ class PurchaseOrderItem(Entity):
     po_id: str
     name: str
     original_sku: str | None = None
-    ordered_qty: float = 1
-    delivered_qty: float = 0
+    ordered_qty: float = 1.0
+    delivered_qty: float = 0.0
     unit_price: float = 0.0
     cost: float = 0.0
     base_unit: str = "each"
@@ -71,7 +72,7 @@ class POItemCreate(BaseModel):
 
     name: str
     original_sku: str | None = None
-    quantity: float = 1
+    quantity: float = 1.0
     ordered_qty: float | None = None
     delivered_qty: float | None = None
     price: float = 0.0
@@ -91,7 +92,7 @@ class CreatePORequest(BaseModel):
     vendor_name: str
     create_vendor_if_missing: bool = True
     category_id: str | None = None
-    document_date: str | None = None
+    document_date: datetime | None = None
     total: float | None = None
     products: list[POItemCreate]
 
@@ -130,8 +131,8 @@ class POItemRow(BaseModel):
     po_id: str
     name: str
     original_sku: str | None = None
-    ordered_qty: float = 1
-    delivered_qty: float = 0
+    ordered_qty: float = 1.0
+    delivered_qty: float = 0.0
     unit_price: float = 0.0
     cost: float = 0.0
     base_unit: str = "each"
@@ -143,7 +144,6 @@ class POItemRow(BaseModel):
     status: POItemStatus = POItemStatus.ORDERED
     sku_id: str | None = None
     organization_id: str = ""
-    # Enriched fields — populated by get_po_items when a matched SKU is found
     matched_sku: str | None = None
     matched_name: str | None = None
     matched_quantity: float | None = None
@@ -163,17 +163,17 @@ class PORow(BaseModel):
     id: str
     vendor_id: str
     vendor_name: str = ""
-    document_date: str | None = None
+    document_date: datetime | None = None
     total: float | None = None
     status: POStatus = POStatus.ORDERED
     notes: str | None = None
     created_by_id: str = ""
     created_by_name: str = ""
-    received_at: str | None = None
+    received_at: datetime | None = None
     received_by_id: str | None = None
     received_by_name: str | None = None
-    created_at: str = ""
-    updated_at: str = ""
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     organization_id: str = ""
     xero_bill_id: str | None = None
     xero_sync_status: XeroSyncStatus | None = None
@@ -213,7 +213,7 @@ class CreatePOResult:
     vendor_created: bool
     status: str
     item_count: int
-    created_at: str
+    created_at: datetime
 
 
 @dataclass(frozen=True)

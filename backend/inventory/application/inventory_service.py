@@ -81,7 +81,7 @@ async def process_withdrawal_stock_changes(
     All decrements and ledger entries are committed atomically — if any item
     fails the quantity guard, the entire transaction rolls back.
     """
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
 
     # Resolve UOM conversions before entering the transaction (read-only, no side effects).
     resolved: list[tuple[StockDecrement, float, str]] = []
@@ -153,7 +153,7 @@ async def process_receiving_stock_changes(
     else:
         canonical_qty = quantity
 
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     async with transaction():
         result = await add_sku_quantity(sku_id, canonical_qty, now)
         if not result:
@@ -220,9 +220,10 @@ async def process_adjustment_stock_changes(
     Adjust stock (count, damage, correction) and record transaction.
     Uses atomic UPDATE to avoid TOCTOU race conditions.
     """
+    quantity_delta = float(quantity_delta)
     if quantity_delta == 0:
         raise ValueError("quantity_delta must not be zero")
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     product = await get_sku_by_id(sku_id)
     if not product:
         raise ResourceNotFoundError("Product", sku_id)

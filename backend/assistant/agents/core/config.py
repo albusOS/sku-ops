@@ -14,15 +14,34 @@ _AGENTS_DIR = Path(__file__).parent.parent
 
 
 def _apply_env_overrides(agent_id: str, data: dict) -> dict:
-    """Check for env-var overrides: AGENT_CONFIG_<ID>_<FIELD>=value."""
+    """Apply env-var overrides to raw agent config data.
+
+    Supported patterns (all case-insensitive after the prefix):
+        AGENT_CONFIG_<ID>_MAX_OUTPUT_TOKENS=<int>
+        AGENT_CONFIG_<ID>_TEMPERATURE=<float>
+        AGENT_CONFIG_<ID>_MODEL=<model_string>
+        AGENT_CONFIG_<ID>_RETRY_MAX_RETRIES=<int>
+        AGENT_CONFIG_<ID>_RETRY_TIMEOUT_SECONDS=<int>
+        AGENT_CONFIG_<ID>_RETRY_BACKOFF_BASE=<float>
+    """
     prefix = f"AGENT_CONFIG_{agent_id.upper()}_"
     for key, value in os.environ.items():
-        if key.startswith(prefix):
-            field_name = key[len(prefix) :].lower()
-            if field_name == "max_output_tokens":
-                data["max_output_tokens"] = int(value.strip())
-            elif field_name == "temperature":
-                data["temperature"] = float(value.strip())
+        if not key.startswith(prefix):
+            continue
+        field_name = key[len(prefix) :].lower()
+        stripped = value.strip()
+        if field_name == "max_output_tokens":
+            data["max_output_tokens"] = int(stripped)
+        elif field_name == "temperature":
+            data["temperature"] = float(stripped)
+        elif field_name == "model":
+            data["model"] = stripped
+        elif field_name == "retry_max_retries":
+            data.setdefault("retry", {})["max_retries"] = int(stripped)
+        elif field_name == "retry_timeout_seconds":
+            data.setdefault("retry", {})["timeout_seconds"] = int(stripped)
+        elif field_name == "retry_backoff_base":
+            data.setdefault("retry", {})["backoff_base"] = float(stripped)
     return data
 
 
@@ -52,6 +71,8 @@ def _load_cached(agent_id: str) -> AgentConfig:
     return AgentConfig(
         id=data.get("id", agent_id),
         description=data.get("description", ""),
+        model=data.get("model") or None,
+        prompt_file=data.get("prompt_file", "prompt.md"),
         domains=data.get("domains", []),
         tools=data.get("tools", []),
         max_output_tokens=data.get("max_output_tokens", 4000),

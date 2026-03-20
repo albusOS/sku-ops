@@ -4,6 +4,8 @@ Other bounded contexts import from here, never from catalog.infrastructure direc
 Thin delegation layer that decouples consumers from infrastructure details.
 """
 
+from datetime import datetime
+
 from catalog.domain.department import Department
 from catalog.domain.product_family import ProductFamily
 from catalog.domain.sku import Sku, SkuUpdate
@@ -121,22 +123,22 @@ async def update_sku(sku_id: str, updates: SkuUpdate) -> Sku | None:
         return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
 
 
-async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
+async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
     async with transaction():
         return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
 
 
-async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> None:
+async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: datetime) -> None:
     async with transaction():
         return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
 
 
-async def add_sku_quantity(sku_id: str, quantity: float, updated_at: str) -> Sku | None:
+async def add_sku_quantity(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
     async with transaction():
         return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
 
 
-async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: str) -> Sku | None:
+async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: datetime) -> Sku | None:
     async with transaction():
         return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
 
@@ -146,6 +148,14 @@ async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: str)
 
 async def get_vendor_items_for_sku(sku_id: str) -> list[VendorItem]:
     return await _vi_repo.list_by_sku(sku_id)
+
+
+async def get_vendor_items_for_skus(sku_ids: list[str]) -> dict[str, list[VendorItem]]:
+    items = await _vi_repo.list_by_skus(sku_ids)
+    grouped: dict[str, list[VendorItem]] = {}
+    for item in items:
+        grouped.setdefault(item.sku_id, []).append(item)
+    return grouped
 
 
 async def find_vendor_item_by_vendor_and_sku_code(
@@ -269,6 +279,12 @@ async def insert_unit(uom: UnitOfMeasure) -> None:
 async def delete_unit(uom_id: str) -> int:
     async with transaction():
         return await _uom_repo.delete(uom_id)
+
+
+async def get_known_unit_codes() -> frozenset[str]:
+    """Return all active unit codes visible to the current org (global + org-specific)."""
+    units = await _uom_repo.list_all()
+    return frozenset(u.code for u in units)
 
 
 # ── Vendor queries ───────────────────────────────────────────────────────────

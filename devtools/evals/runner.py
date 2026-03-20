@@ -22,6 +22,7 @@ from assistant.agents.tools.registry import init_tools
 from assistant.application.assistant import chat
 from devtools.evals.scorer import score_case
 from shared.infrastructure.database import init_db
+from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,10 @@ _DATASETS_DIR = Path(__file__).parent / "datasets"
 _REPORTS_DIR = Path(__file__).parent / "reports"
 
 _AVAILABLE_SUITES = ("routing", "inventory", "ops", "finance")
+
+# Dev org/user used for all eval runs — must exist in the dev DB
+_EVAL_ORG_ID = "supply-yard"
+_EVAL_USER_ID = "user-1"
 
 
 # ── Data types ────────────────────────────────────────────────────────────────
@@ -81,7 +86,7 @@ def load_dataset(suite: str) -> list[dict]:
 
 async def _eval_routing_case(case: dict) -> EvalCaseResult:
     """Run a routing test case through the unified agent (LLM-native routing)."""
-    return await _eval_agent_case(case, agent_type="routing")
+    return await _eval_agent_case(case, agent_type="auto")
 
 
 # ── Agent eval ────────────────────────────────────────────────────────────────
@@ -91,13 +96,16 @@ async def _eval_agent_case(
     case: dict, agent_type: str, _model_override: str | None = None
 ) -> EvalCaseResult:
     """Run a single agent test case through the full chat pipeline."""
+    # Set ambient org/user context so tools can resolve the correct data
+    org_id_var.set(_EVAL_ORG_ID)
+    user_id_var.set(_EVAL_USER_ID)
+
     t0 = time.monotonic()
     try:
         result = await chat(
             user_message=case["input"],
             history=None,
-            ctx={"org_id": "default"},
-            mode="fast",
+            ctx={"user_id": _EVAL_USER_ID, "user_name": "Eval User"},
             agent_type=agent_type,
         )
         latency = int((time.monotonic() - t0) * 1000)
@@ -109,6 +117,7 @@ async def _eval_agent_case(
             tool_calls_detailed=result.get("tool_calls", []),
             usage=result.get("usage", {}),
             latency_ms=latency,
+            routed_to=result.get("routed_to"),
         )
         return EvalCaseResult(
             case_id=card.case_id,

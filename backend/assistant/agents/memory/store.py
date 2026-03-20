@@ -44,8 +44,8 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
     if not artifacts:
         return
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
-    expires_at = (datetime.now(UTC) + timedelta(days=_DEFAULT_TTL_DAYS)).isoformat()
+    now = datetime.now(UTC)
+    expires_at = datetime.now(UTC) + timedelta(days=_DEFAULT_TTL_DAYS)
     rows: list[tuple[Any, ...]] = []
     artifact_ids: list[str] = []
     artifact_contents: list[str] = []
@@ -87,8 +87,15 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
     logger.info("Memory: saved %d artifacts for user=%s", len(rows), user_id)
 
     # Embed + persist vectors in background (non-blocking). Keep reference to prevent GC.
+    def _on_embed_done(t: asyncio.Task) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc:
+            logger.warning("Background embed task failed: %s", exc, exc_info=exc)
+
     _embed_task = asyncio.create_task(_embed_artifacts(org_id, artifact_ids, artifact_contents))
-    _embed_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+    _embed_task.add_done_callback(_on_embed_done)
 
 
 async def _embed_artifacts(org_id: str, artifact_ids: list[str], contents: list[str]) -> None:
@@ -133,12 +140,11 @@ async def recall(
     """
     conn = get_connection()
     org_id = get_org_id()
-    now_str = datetime.now(UTC).isoformat()
-    now_ts = datetime.now(UTC)
+    now = datetime.now(UTC)
 
     if query:
         rows = await _semantic_recall(
-            org_id, user_id, query, now_str, now_ts, limit, query_embedding=query_embedding
+            org_id, user_id, query, now, limit, query_embedding=query_embedding
         )
         if rows:
             return _format_rows(rows)
@@ -150,7 +156,7 @@ async def recall(
              AND (expires_at IS NULL OR expires_at > $3)
            ORDER BY created_at DESC
            LIMIT $4""",
-        (org_id, user_id, now_str, limit),
+        (org_id, user_id, now, limit),
     )
     rows = await cur.fetchall()
     if not rows:
@@ -162,8 +168,7 @@ async def _semantic_recall(
     org_id: str,
     user_id: str,
     query: str,
-    now_str: str,
-    now_ts: datetime,
+    now: datetime,
     limit: int,
     query_embedding: "np.ndarray | None" = None,
 ) -> list[dict] | None:
@@ -199,7 +204,7 @@ async def _semantic_recall(
                  AND (m.expires_at IS NULL OR m.expires_at > $4)
                ORDER BY similarity DESC
                LIMIT $5""",
-            (vec_str, org_id, user_id, now_str, limit * 3),
+            (vec_str, org_id, user_id, now, limit * 3),
         )
         candidates = await cur.fetchall()
         if not candidates:
@@ -212,8 +217,10 @@ async def _semantic_recall(
             # Recency decay: e^(-0.02 * days_old) — 1.0 today, ~0.55 at 30d, ~0.16 at 90d
             created = r["created_at"] or ""
             try:
-                created_dt = datetime.fromisoformat(created)
-                days_old = max(0, (now_ts - created_dt).total_seconds() / 86400)
+                created_dt = (
+                    datetime.fromisoformat(created) if isinstance(created, str) else created
+                )
+                days_old = max(0, (now - created_dt).total_seconds() / 86400)
             except (ValueError, TypeError):
                 days_old = 30  # assume moderate age if unparseable
             recency = math.exp(-0.02 * days_old)

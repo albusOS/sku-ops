@@ -1,0 +1,50 @@
+id: unified
+description: "Unified orchestrator — lookup tools + sub-agent delegation"
+prompt_file: prompt.md
+
+temperature: 0.0
+max_output_tokens: 4000
+
+retry:
+  max_retries: 3
+  timeout_seconds: 60
+  backoff_base: 1.0
+
+domains:
+  - inventory
+  - operations
+  - finance
+  - purchasing
+  - catalog
+
+tools:
+  # Inventory lookups
+  - search_skus
+  - search_semantic
+  - get_sku_details
+  - get_inventory_stats
+  - list_low_stock
+  - list_departments
+  - list_vendors
+  # Operations lookups
+  - list_recent_withdrawals
+  - list_pending_material_requests
+  - get_contractor_history
+  - get_job_materials
+  # Finance lookups
+  - get_payment_status_breakdown
+  - get_invoice_summary
+  - get_pl_summary
+  # Entity graph
+  - traverse_entity_graph
+  # Sub-agent delegation
+  - analyze_procurement
+  - analyze_trends
+  - assess_business_health
+  - run_ad_hoc_analysis
+  # Workflow runners
+  - run_weekly_sales_report
+  - run_inventory_overview
+  - run_procurement_overview
+  - run_trend_overview
+  - run_health_overview

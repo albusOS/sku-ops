@@ -1,0 +1,24 @@
+id: trend_analyst
+description: "Demand patterns, outlier detection, seasonality"
+prompt_file: prompt.md
+
+temperature: 0.0
+max_output_tokens: 4000
+
+retry:
+  max_retries: 3
+  timeout_seconds: 45
+  backoff_base: 1.0
+
+domains:
+  - inventory
+  - finance
+  - operations
+
+tools:
+  - get_trend_series
+  - get_daily_withdrawal_activity
+  - get_demand_profile
+  - get_seasonal_pattern
+  - get_top_skus
+  - get_department_profitability

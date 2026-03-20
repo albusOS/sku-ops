@@ -100,7 +100,7 @@ def build_statements() -> list[str]:
     # ── 2. Org Settings ──────────────────────────────────────────────────
     stmts.append(
         f"INSERT INTO org_settings (organization_id, auto_invoice, default_tax_rate) "
-        f"VALUES ('{ORG}', 0, 0.10) "
+        f"VALUES ('{ORG}', FALSE, 0.10) "
         f"ON CONFLICT (organization_id) DO NOTHING"
     )
 
@@ -146,7 +146,7 @@ def build_statements() -> list[str]:
     for u in users:
         stmts.append(
             f"INSERT INTO users (id, email, password, name, role, company, billing_entity, phone, is_active, organization_id, created_at) "
-            f"VALUES ('{u[0]}', '{u[1]}', '{u[2]}', '{q(u[3])}', '{u[4]}', '{q(u[5])}', '{q(u[6])}', '{u[7]}', 1, '{ORG}', '{ago(days=90)}') "
+            f"VALUES ('{u[0]}', '{u[1]}', '{u[2]}', '{q(u[3])}', '{u[4]}', '{q(u[5])}', '{q(u[6])}', '{u[7]}', TRUE, '{ORG}', '{ago(days=90)}') "
             f"ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, role = EXCLUDED.role"
         )
 
@@ -223,7 +223,7 @@ def build_statements() -> list[str]:
     for be in billing_entities:
         stmts.append(
             f"INSERT INTO billing_entities (id, name, contact_name, contact_email, billing_address, payment_terms, is_active, organization_id, created_at, updated_at) "
-            f"VALUES ('{be[0]}', '{q(be[1])}', '{q(be[2])}', '{be[3]}', '{q(be[4])}', '{be[5]}', 1, '{ORG}', '{ago(days=120)}', '{ago(days=120)}') "
+            f"VALUES ('{be[0]}', '{q(be[1])}', '{q(be[2])}', '{be[3]}', '{q(be[4])}', '{be[5]}', TRUE, '{ORG}', '{ago(days=120)}', '{ago(days=120)}') "
             f"ON CONFLICT (organization_id, name) DO NOTHING"
         )
 
@@ -388,7 +388,7 @@ def build_statements() -> list[str]:
             f"INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, vendor_name, purchase_uom, purchase_pack_qty, "
             f"cost, lead_time_days, moq, is_preferred, organization_id, created_at, updated_at) "
             f"VALUES ('{vl[0]}', '{vl[1]}', '{vl[2]}', '{vl[3]}', '{q(vl[4])}', 'each', 1, "
-            f"{vl[5]}, {vl[6]}, 1, {vl[7]}, '{ORG}', '{ago(days=90)}', '{ago(days=90)}') "
+            f"{vl[5]}, {vl[6]}, 1, {'TRUE' if vl[7] else 'FALSE'}, '{ORG}', '{ago(days=90)}', '{ago(days=90)}') "
             f"ON CONFLICT (vendor_id, sku_id) DO NOTHING"
         )
 
@@ -416,7 +416,8 @@ def build_statements() -> list[str]:
 
     # ── 14. Material Requests ────────────────────────────────────────────
     mr_data = _build_material_requests(catalog, wd_data)
-    stmts.extend(mr_data)
+    stmts.extend(mr_data["requests"])
+    stmts.extend(mr_data["items"])
 
     # ── 15. Invoices ─────────────────────────────────────────────────────
     inv_data = _build_invoices(wd_data)
@@ -428,7 +429,8 @@ def build_statements() -> list[str]:
 
     # ── 17. Returns + Credit Notes ───────────────────────────────────────
     ret_data = _build_returns(wd_data, inv_data)
-    stmts.extend(ret_data)
+    stmts.extend(ret_data["returns"])
+    stmts.extend(ret_data["items"])
 
     # ── 18. Stock Transactions ───────────────────────────────────────────
     stx_data = _build_stock_transactions(catalog, wd_data, po_data)
@@ -1710,67 +1712,95 @@ def _build_withdrawals(catalog):
 def _build_material_requests(catalog, _wd_data):
     import json
 
-    stmts = []
+    stmts_mr = []
+    stmts_mri = []
     sku_lookup = {}
     for _fam_id, _fam_name, _dept_code, skus in catalog:
         for s in skus:
             sku_lookup[s[1]] = s
 
+    def q(s: str) -> str:
+        return s.replace("'", "''")
+
     # MR-1: Pending — Sarah needs insulation for deck job
+    mr1_id = uid()
+    mr1_items_data = [
+        ("INS-OWENR15-01", 4, 49.99, 0),
+    ]
     mr1_items = json.dumps(
         [
             {
-                "sku_id": sku_lookup["INS-OWENR15-01"][0],
-                "sku": "INS-OWENR15-01",
-                "name": sku_lookup["INS-OWENR15-01"][2],
-                "quantity": 4,
-                "unit_price": 49.99,
-                "cost": 0,
-                "unit": "pack",
-                "sell_uom": "pack",
-                "sell_cost": 0,
-                "subtotal": 199.96,
-                "cost_total": 0,
+                "sku_id": sku_lookup[sc][0],
+                "sku": sc,
+                "name": sku_lookup[sc][2],
+                "quantity": qty,
+                "unit_price": price,
+                "cost": cost,
+                "unit": sku_lookup[sc][6],
+                "sell_uom": sku_lookup[sc][7],
+                "sell_cost": cost,
+                "subtotal": round(qty * price, 2),
+                "cost_total": round(qty * cost, 2),
             }
+            for sc, qty, price, cost in mr1_items_data
         ]
     )
-    stmts.append(
+    stmts_mr.append(
         f"INSERT INTO material_requests (id, contractor_id, contractor_name, items, status, job_id, "
         f"service_address, created_at, organization_id) "
-        f"VALUES ('{uid()}', '{CONTRACTOR_SARAH_ID}', 'Sarah Okafor', "
+        f"VALUES ('{mr1_id}', '{CONTRACTOR_SARAH_ID}', 'Sarah Okafor', "
         f"'{mr1_items.replace(chr(39), chr(39) + chr(39))}', 'pending', 'SP-2026-001', "
         f"'345 Pine Ridge Rd, Aspen CO', '{ago(hours=6)}', '{ORG}') "
         f"ON CONFLICT DO NOTHING"
     )
+    for sc, qty, price, cost in mr1_items_data:
+        s = sku_lookup[sc]
+        stmts_mri.append(
+            f"INSERT INTO material_request_items (id, material_request_id, sku_id, sku, name, quantity, unit_price, cost, unit) "
+            f"VALUES ('{uid()}', '{mr1_id}', '{s[0]}', '{sc}', '{q(s[2])}', {qty}, {price}, {cost}, '{s[6]}') "
+            f"ON CONFLICT DO NOTHING"
+        )
 
     # MR-2: Processed — Mike's earlier flooring request (became WD-8 essentially)
+    mr2_id = uid()
+    mr2_items_data = [
+        ("FLO-LVPOAK-01", 6, 42.99, 0),
+    ]
     mr2_items = json.dumps(
         [
             {
-                "sku_id": sku_lookup["FLO-LVPOAK-01"][0],
-                "sku": "FLO-LVPOAK-01",
-                "name": sku_lookup["FLO-LVPOAK-01"][2],
-                "quantity": 6,
-                "unit_price": 42.99,
-                "cost": 0,
-                "unit": "box",
-                "sell_uom": "box",
-                "sell_cost": 0,
-                "subtotal": 257.94,
-                "cost_total": 0,
+                "sku_id": sku_lookup[sc][0],
+                "sku": sc,
+                "name": sku_lookup[sc][2],
+                "quantity": qty,
+                "unit_price": price,
+                "cost": cost,
+                "unit": sku_lookup[sc][6],
+                "sell_uom": sku_lookup[sc][7],
+                "sell_cost": cost,
+                "subtotal": round(qty * price, 2),
+                "cost_total": round(qty * cost, 2),
             }
+            for sc, qty, price, cost in mr2_items_data
         ]
     )
-    stmts.append(
+    stmts_mr.append(
         f"INSERT INTO material_requests (id, contractor_id, contractor_name, items, status, "
         f"job_id, service_address, created_at, processed_at, processed_by_id, organization_id) "
-        f"VALUES ('{uid()}', '{CONTRACTOR_MIKE_ID}', 'Mike Torres', "
+        f"VALUES ('{mr2_id}', '{CONTRACTOR_MIKE_ID}', 'Mike Torres', "
         f"'{mr2_items.replace(chr(39), chr(39) + chr(39))}', 'processed', "
         f"'RR-2026-001', '1200 Mountain View Dr, Unit 4A, Vail CO', '{ago(days=2)}', '{ago(days=1)}', '{ADMIN_ID}', '{ORG}') "
         f"ON CONFLICT DO NOTHING"
     )
+    for sc, qty, price, cost in mr2_items_data:
+        s = sku_lookup[sc]
+        stmts_mri.append(
+            f"INSERT INTO material_request_items (id, material_request_id, sku_id, sku, name, quantity, unit_price, cost, unit) "
+            f"VALUES ('{uid()}', '{mr2_id}', '{s[0]}', '{sc}', '{q(s[2])}', {qty}, {price}, {cost}, '{s[6]}') "
+            f"ON CONFLICT DO NOTHING"
+        )
 
-    return stmts
+    return {"requests": stmts_mr, "items": stmts_mri}
 
 
 # ── Invoices ─────────────────────────────────────────────────────────────────
@@ -1936,43 +1966,55 @@ def _build_returns(wd_data, inv_data):
     import json
 
     stmts = []
+    stmts_ri = []
     # Return 2 GFCI outlets from WD-2 (damaged)
     wd_meta = {w["id"]: w for w in _WD_META}
     wd_meta[wd_data["wd2"]]
 
-    # Find GFCI in w2 items
-    ret_qty = 2
-    ret_price = 18.99
-    ret_cost = 10.50
-    ret_subtotal = round(ret_qty * ret_price, 2)
-    ret_tax = round(ret_subtotal * 0.10, 2)
-    ret_total = round(ret_subtotal + ret_tax, 2)
-
     ret_id = uid()
     cn_id = uid()
 
-    # Find the GFCI SKU id
+    # Find the GFCI SKU
     catalog = _build_catalog()
-    gfci_sku_id = None
+    gfci_sku = None
     for _fam_id, _fam_name, _dept_code, skus in catalog:
         for s in skus:
             if "GFCI15" in s[1]:
-                gfci_sku_id = s[0]
+                gfci_sku = s
                 break
+
+    ret_items_data = [
+        (
+            "ELE-GFCI15-01",
+            gfci_sku[0],
+            "Leviton GFCI 15A Outlet White",
+            2,
+            18.99,
+            10.50,
+            "each",
+            "each",
+        ),
+    ]
+
+    ret_subtotal = sum(round(qty * price, 2) for _, _, _, qty, price, _, _, _ in ret_items_data)
+    ret_cost_total = sum(round(qty * cost, 2) for _, _, _, qty, _, cost, _, _ in ret_items_data)
+    ret_tax = round(ret_subtotal * 0.10, 2)
+    ret_total = round(ret_subtotal + ret_tax, 2)
 
     ret_items = json.dumps(
         [
             {
-                "sku_id": gfci_sku_id,
-                "sku": "ELE-GFCI15-01",
-                "name": "Leviton GFCI 15A Outlet White",
-                "quantity": ret_qty,
-                "unit_price": ret_price,
-                "cost": ret_cost,
-                "unit": "each",
+                "sku_id": sku_id,
+                "sku": sc,
+                "name": name,
+                "quantity": qty,
+                "unit_price": price,
+                "cost": cost,
+                "unit": unit,
                 "reason": "damaged",
                 "notes": "Cracked faceplates on arrival",
             }
+            for sc, sku_id, name, qty, price, cost, unit, _sell_uom in ret_items_data
         ]
     )
 
@@ -1982,11 +2024,20 @@ def _build_returns(wd_data, inv_data):
         f"processed_by_id, processed_by_name, organization_id, created_at, updated_at) "
         f"VALUES ('{ret_id}', '{wd_data['wd2']}', '{CONTRACTOR_MIKE_ID}', 'Mike Torres', "
         f"'Riva Ridge Property Mgmt', '{BE_RIVRIDGE}', 'RR-2026-001', "
-        f"'{ret_items.replace(chr(39), chr(39) + chr(39))}', {ret_subtotal}, {ret_tax}, {ret_total}, {round(ret_qty * ret_cost, 2)}, "
+        f"'{ret_items.replace(chr(39), chr(39) + chr(39))}', {ret_subtotal}, {ret_tax}, {ret_total}, {ret_cost_total}, "
         f"'damaged', 'Cracked faceplates on arrival', '{cn_id}', "
         f"'{ADMIN_ID}', 'Marcus Chen', '{ORG}', '{ago(days=9)}', '{ago(days=9)}') "
         f"ON CONFLICT DO NOTHING"
     )
+
+    for sc, sku_id, name, qty, price, cost, unit, sell_uom in ret_items_data:
+        stmts_ri.append(
+            f"INSERT INTO return_items (id, return_id, sku_id, sku, name, quantity, unit_price, cost, "
+            f"unit, amount, cost_total, sell_uom, sell_cost) "
+            f"VALUES ('{uid()}', '{ret_id}', '{sku_id}', '{sc}', '{name.replace(chr(39), chr(39) + chr(39))}', {qty}, {price}, {cost}, "
+            f"'{unit}', {round(qty * price, 2)}, {round(qty * cost, 2)}, '{sell_uom}', {cost}) "
+            f"ON CONFLICT DO NOTHING"
+        )
 
     # Credit note
     stmts.append(
@@ -1998,7 +2049,7 @@ def _build_returns(wd_data, inv_data):
         f"ON CONFLICT DO NOTHING"
     )
 
-    return stmts
+    return {"returns": stmts, "items": stmts_ri}
 
 
 # ── Stock Transactions ───────────────────────────────────────────────────────
@@ -2206,6 +2257,7 @@ TRUNCATE_ORDER = [
     "invoices",
     "return_items",
     "returns",
+    "material_request_items",
     "material_requests",
     "withdrawal_items",
     "withdrawals",

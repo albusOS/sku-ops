@@ -13,7 +13,7 @@ from assistant.agents.core.messages import (
     extract_tool_calls,
     extract_tool_calls_detailed,
 )
-from assistant.agents.core.model_registry import calc_cost, get_model_name
+from assistant.agents.core.model_registry import calc_cost, get_fallback_model, get_model_name
 from assistant.agents.core.validators import classify_intent, validate_response
 from assistant.infrastructure.agent_run_repo import log_agent_run
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE
@@ -24,9 +24,11 @@ from shared.infrastructure.metrics import llm_usage, tool_call
 logger = logging.getLogger(__name__)
 
 AGENT_TIMEOUT_SECONDS = 60
-_MAX_RETRIES = 5
-_BASE_DELAY = 1.0  # seconds
-_MAX_DELAY = 30.0  # seconds
+_MAX_RETRIES = 3
+_OVERLOAD_MAX_RETRIES = 1
+_BASE_DELAY = 0.5  # seconds
+_OVERLOAD_BASE_DELAY = 2.0  # shorter initial backoff — fail fast, switch to fallback
+_MAX_DELAY = 15.0  # seconds
 
 
 def get_agent_timeout(config: AgentConfig | None) -> int:
@@ -44,6 +46,7 @@ class _ErrorKind(StrEnum):
     TIMEOUT = "timeout"
     NETWORK = "network"
     SERVER = "server"
+    OVERLOADED = "overloaded"
     MODEL_ERROR = "model_error"
     AUTH = "auth"
     VALIDATION = "validation"
@@ -85,19 +88,10 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
     ):
         return _ErrorKind.NETWORK, True, None
 
-    if any(
-        k in s
-        for k in (
-            "500",
-            "502",
-            "503",
-            "529",
-            "overload",
-            "internal server",
-            "service unavailable",
-            "bad gateway",
-        )
-    ):
+    if any(k in s for k in ("529", "overload", "service unavailable", "capacity")):
+        return _ErrorKind.OVERLOADED, True, retry_after
+
+    if any(k in s for k in ("500", "502", "503", "internal server", "bad gateway")):
         return _ErrorKind.SERVER, True, None
 
     if any(k in s for k in ("thinking", "budget", "extended thinking", "model_settings")):
@@ -163,25 +157,31 @@ async def run_agent(
     )
 
     active_settings = model_settings
+    active_model_override: str | None = None
     t0 = time.monotonic()
     attempts = 0
+    overload_attempts = 0
 
-    async def _run(settings):
+    async def _run(settings, model_override: str | None = None):
+        run_kwargs: dict = {
+            "message_history": msg_history,
+            "deps": deps,
+            "model_settings": settings or None,
+        }
+        if model_override:
+            run_kwargs["model"] = model_override
         return await asyncio.wait_for(
-            agent.run(
-                user_message,
-                message_history=msg_history,
-                deps=deps,
-                model_settings=settings or None,
-            ),
+            agent.run(user_message, **run_kwargs),
             timeout=timeout_seconds,
         )
 
-    async def _backoff_local(attempt: int, retry_after: float | None) -> None:
+    async def _backoff_local(
+        attempt: int, retry_after: float | None, base: float = backoff_base
+    ) -> None:
         if retry_after is not None:
             delay = min(retry_after, _MAX_DELAY)
         else:
-            delay = min(backoff_base * (2**attempt), _MAX_DELAY)
+            delay = min(base * (2**attempt), _MAX_DELAY)
         jitter = random.uniform(-delay * 0.25, delay * 0.25)
         await asyncio.sleep(max(0.1, delay + jitter))
 
@@ -190,7 +190,7 @@ async def run_agent(
     for attempt in range(max_retries):
         attempts = attempt + 1
         try:
-            result = await _run(active_settings)
+            result = await _run(active_settings, active_model_override)
             duration_ms = int((time.monotonic() - t0) * 1000)
             _log_success(
                 result,
@@ -231,6 +231,31 @@ async def run_agent(
             )
             raise last_exc
 
+        if kind == _ErrorKind.OVERLOADED:
+            overload_attempts += 1
+            if overload_attempts >= _OVERLOAD_MAX_RETRIES and not active_model_override:
+                original_model = get_model_name(
+                    f"agent:{agent_label}" if agent_label else "agent:unified"
+                )
+                fallback = get_fallback_model(original_model)
+                if fallback:
+                    logger.warning(
+                        "%s overloaded after %s attempts, switching to fallback: %s",
+                        agent_name,
+                        overload_attempts,
+                        fallback,
+                    )
+                    active_model_override = fallback
+                    overload_attempts = 0
+                    continue
+                logger.warning(
+                    "%s overloaded after %s attempts, no fallback available: %s",
+                    agent_name,
+                    overload_attempts,
+                    last_exc,
+                )
+                break
+
         if active_settings and kind == _ErrorKind.MODEL_ERROR:
             logger.warning(
                 "%s model_error with thinking settings, dropping and retrying: %s",
@@ -241,6 +266,7 @@ async def run_agent(
             continue
 
         if attempt < max_retries - 1:
+            effective_base = _OVERLOAD_BASE_DELAY if kind == _ErrorKind.OVERLOADED else backoff_base
             logger.warning(
                 "%s %s on attempt %s/%s, backing off: %s",
                 agent_name,
@@ -249,7 +275,7 @@ async def run_agent(
                 max_retries,
                 last_exc,
             )
-            await _backoff_local(attempt, retry_after)
+            await _backoff_local(attempt, retry_after, base=effective_base)
         else:
             logger.warning(
                 "%s %s on final attempt %s/%s: %s",
@@ -353,7 +379,13 @@ def _log_failure(
     model_name = get_model_name(f"agent:{label}")
 
     # Prometheus metrics
-    status = "timeout" if error_kind == "timeout" else "error"
+    status = (
+        "timeout"
+        if error_kind == "timeout"
+        else "overloaded"
+        if error_kind == "overloaded"
+        else "error"
+    )
     record_agent_run(label, status, duration_ms / 1000.0)
 
     async def _write():
@@ -449,16 +481,6 @@ async def run_specialist(
         tool_calls_det = extract_tool_calls_detailed(result.all_messages())
         text_history = extract_text_history(result.all_messages())
 
-        intent = await classify_intent(user_message)
-        validation = validate_response(
-            user_message, response_text, tool_calls_final, tool_calls_det, intent=intent
-        )
-        validation_dict = {
-            "passed": validation.passed,
-            "failures": validation.failures,
-            "scores": validation.scores,
-        }
-
         agent_result = AgentResult(
             agent=agent_label,
             response=response_text,
@@ -471,10 +493,42 @@ async def run_specialist(
                 output_tokens=usage.output_tokens,
                 model=model_name,
             ),
-            validation=validation_dict,
+            validation=None,
         )
     except Exception:
         logger.exception("%s result processing failed", agent_name)
         return _soft_error
+
+    # Run validation in background — it makes an LLM call (classify_intent)
+    # that should never block the user-facing response.
+    async def _background_validate():
+        try:
+            intent = await classify_intent(user_message)
+            validation = validate_response(
+                user_message, response_text, tool_calls_final, tool_calls_det, intent=intent
+            )
+            await log_agent_run(
+                session_id=session_id,
+                user_id=getattr(deps, "user_id", ""),
+                agent_name=agent_name,
+                model=model_name,
+                mode="fast",
+                user_message=user_message,
+                response_text=response_text,
+                tool_calls=tool_calls_det,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                cost_usd=cost,
+                duration_ms=int((time.monotonic() - t0) * 1000),
+                attempts=1,
+                validation_passed=validation.passed,
+                validation_failures=validation.failures,
+                validation_scores=validation.scores,
+            )
+        except Exception as e:
+            logger.warning("Background validation/logging failed: %s", e)
+
+    t0 = time.monotonic()
+    _ = asyncio.create_task(_background_validate())
 
     return agent_result.to_dict()
