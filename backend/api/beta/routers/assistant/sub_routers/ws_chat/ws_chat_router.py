@@ -49,7 +49,7 @@ from assistant.agents.core.messages import (
     extract_tool_calls,
     extract_tool_calls_detailed,
 )
-from assistant.agents.core.model_registry import calc_cost, get_model_name
+from assistant.agents.core.model_registry import calc_cost, get_fallback_model, get_model_name
 from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.core.validators import classify_intent, validate_response
 from assistant.agents.health_analyst.agent import _get_agent as _get_health_agent
@@ -88,6 +88,9 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
 
+_STREAM_OVERLOAD_RETRIES = 2
+_STREAM_OVERLOAD_BACKOFF = 5.0  # seconds — matches runner.py's _OVERLOAD_BASE_DELAY
+
 # Background generation tasks — tracked for clean shutdown
 _running_tasks: set[asyncio.Task] = set()
 
@@ -96,17 +99,6 @@ def _enrich_specialist_message(user_message: str, context_block: str) -> str:
     if not context_block:
         return user_message
     return f"<context>\n{context_block}\n</context>\n\n{user_message}"
-
-
-async def _get_query_embedding(query: str):
-    if not query or not query.strip():
-        return None
-    try:
-        from assistant.infrastructure.embedding_store import embed_query
-
-        return await embed_query(query)
-    except Exception:
-        return None
 
 
 def _classify_chat_error(exc: Exception) -> tuple[str, str]:
@@ -129,6 +121,11 @@ def _classify_chat_error(exc: Exception) -> tuple[str, str]:
         return "network", "Could not reach the AI service. Please check your connection."
 
     return "error", "Something went wrong. Please try again."
+
+
+def _is_overload_error(exc: Exception) -> bool:
+    s = str(exc).lower()
+    return any(k in s for k in ("529", "overload", "service unavailable", "capacity"))
 
 
 router = APIRouter()
@@ -204,176 +201,246 @@ async def _run_generation(
     )
 
     try:
-        async with asyncio.timeout(GENERATION_TIMEOUT):
-            async for event in agent.run_stream_events(
-                user_message,
-                message_history=msg_history,
-                deps=deps,
-            ):
-                if cancel_event.is_set():
-                    logger.info("Generation cancelled: job=%s session=%s", job_id, session_id)
-                    break
+        model_override: str | None = None
+        overload_attempts = 0
+        stream_succeeded = False
 
-                if isinstance(event, PartStartEvent):
-                    if isinstance(event.part, ToolCallPart):
-                        tool_name = event.part.tool_name
-                        tool_calls_seen.append({"tool": tool_name})
-                        await job_manager.publish_event(
-                            job_id, {"type": "chat.tool_start", "tool": tool_name}
-                        )
-                    elif isinstance(event.part, TextPart):
-                        if event.part.content:
-                            full_text += event.part.content
-                            await job_manager.publish_event(
-                                job_id, {"type": "chat.delta", "content": event.part.content}
-                            )
+        for _stream_attempt in range(_STREAM_OVERLOAD_RETRIES + 1):
+            full_text = ""
+            tool_calls_seen.clear()
+            try:
+                stream_kwargs: dict = {
+                    "message_history": msg_history,
+                    "deps": deps,
+                }
+                if model_override:
+                    stream_kwargs["model"] = model_override
 
-                elif isinstance(event, PartDeltaEvent):
-                    if isinstance(event.delta, TextPartDelta):
-                        chunk = event.delta.content_delta
-                        if chunk:
-                            full_text += chunk
-                            await job_manager.publish_event(
-                                job_id, {"type": "chat.delta", "content": chunk}
-                            )
-
-                elif isinstance(event, FinalResultEvent):
-                    pass
-
-                elif isinstance(event, AgentRunResultEvent):
-                    result = event.result
-                    response_text = (
-                        result.output if isinstance(result.output, str) else str(result.output)
-                    )
-
-                    if not full_text:
-                        full_text = response_text
-
-                    model_name = get_model_name(f"agent:{agent_label}")
-                    usage = result.usage()
-                    cost = calc_cost(model_name, usage)
-
-                    all_msgs = result.all_messages()
-                    tool_calls_final = extract_tool_calls(all_msgs)
-                    tool_calls_det = extract_tool_calls_detailed(all_msgs)
-                    text_history = extract_text_history(all_msgs)
-
-                    intent = await classify_intent(original_message)
-                    validation = validate_response(
-                        original_message,
-                        response_text,
-                        tool_calls_final,
-                        tool_calls_det,
-                        intent=intent,
-                    )
-
-                    turn_cost = cost
-                    if text_history:
-                        new_history = text_history
-                    else:
-                        new_history = list(history or [])
-                        new_history.append({"role": "user", "content": original_message})
-                        new_history.append({"role": "assistant", "content": full_text})
-
-                    await session_store.update(session_id, new_history, cost_usd=turn_cost)
-
-                    if len(new_history) % 8 == 0:
-                        schedule_memory_extraction(
-                            user_id=user_id,
-                            session_id=session_id,
-                            history=new_history,
-                        )
-
-                    chat_message(agent_label, "success")
-                    llm_usage(
-                        model=model_name,
-                        input_tokens=usage.input_tokens,
-                        output_tokens=usage.output_tokens,
-                        cost_usd=cost,
-                        agent=agent_label,
-                    )
-
-                    if not validation.passed:
-                        logger.warning(
-                            "Validation failures: session=%s agent=%s failures=%s scores=%s",
-                            session_id,
-                            agent_label,
-                            validation.failures,
-                            validation.scores,
-                        )
-
-                    logger.info(
-                        "Generation done: job=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
-                        job_id,
-                        session_id,
-                        agent_label,
-                        cost,
-                        usage.input_tokens,
-                        usage.output_tokens,
-                    )
-
-                    _snap_model = model_name
-                    _snap_text = full_text
-                    _snap_det = tool_calls_det
-                    _snap_usage = usage
-                    _snap_cost = cost
-                    _snap_val = validation
-
-                    async def _log_run(
-                        _m=_snap_model,
-                        _t=_snap_text,
-                        _d=_snap_det,
-                        _u=_snap_usage,
-                        _c=_snap_cost,
-                        _v=_snap_val,
+                async with asyncio.timeout(GENERATION_TIMEOUT):
+                    async for event in agent.run_stream_events(
+                        user_message,
+                        **stream_kwargs,
                     ):
-                        try:
-                            await log_agent_run(
-                                session_id=session_id,
-                                user_id=user_id,
-                                agent_name=agent_label,
-                                model=_m,
-                                mode="stream",
-                                user_message=original_message,
-                                response_text=_t,
-                                tool_calls=_d,
-                                input_tokens=_u.input_tokens,
-                                output_tokens=_u.output_tokens,
-                                cost_usd=_c,
-                                duration_ms=0,
-                                validation_passed=_v.passed,
-                                validation_failures=_v.failures,
-                                validation_scores=_v.scores,
+                        if cancel_event.is_set():
+                            logger.info(
+                                "Generation cancelled: job=%s session=%s", job_id, session_id
                             )
-                        except Exception as _e:
-                            logger.warning("Failed to log streamed agent run: %s", _e)
+                            break
 
-                    asyncio.create_task(_log_run())  # noqa: RUF006
+                        if isinstance(event, PartStartEvent):
+                            if isinstance(event.part, ToolCallPart):
+                                tool_name = event.part.tool_name
+                                tool_calls_seen.append({"tool": tool_name})
+                                await job_manager.publish_event(
+                                    job_id, {"type": "chat.tool_start", "tool": tool_name}
+                                )
+                            elif isinstance(event.part, TextPart):
+                                if event.part.content:
+                                    full_text += event.part.content
+                                    await job_manager.publish_event(
+                                        job_id,
+                                        {"type": "chat.delta", "content": event.part.content},
+                                    )
 
-                    ui_agent_label = response_agent_label(agent_label, tool_calls_final)
-                    done_event = {
-                        "type": "chat.done",
-                        "response": full_text,
-                        "agent": ui_agent_label,
-                        "tool_calls": tool_calls_final,
-                        "thinking": [],
-                        "blocks": deps.blocks or [],
-                        "session_id": session_id,
-                        "usage": {
-                            "cost_usd": cost,
-                            "input_tokens": usage.input_tokens,
-                            "output_tokens": usage.output_tokens,
-                            "model": model_name,
-                            "session_cost_usd": await session_store.get_cost(session_id),
-                        },
-                        "validation": {
-                            "passed": validation.passed,
-                            "failures": validation.failures,
-                            "scores": validation.scores,
-                        },
-                    }
-                    await job_manager.complete_job(job_id, done_event)
-                    return
+                        elif isinstance(event, PartDeltaEvent):
+                            if isinstance(event.delta, TextPartDelta):
+                                chunk = event.delta.content_delta
+                                if chunk:
+                                    full_text += chunk
+                                    await job_manager.publish_event(
+                                        job_id, {"type": "chat.delta", "content": chunk}
+                                    )
+
+                        elif isinstance(event, FinalResultEvent):
+                            pass
+
+                        elif isinstance(event, AgentRunResultEvent):
+                            result = event.result
+                            response_text = (
+                                result.output
+                                if isinstance(result.output, str)
+                                else str(result.output)
+                            )
+
+                            if not full_text:
+                                full_text = response_text
+
+                            model_name = model_override or get_model_name(f"agent:{agent_label}")
+                            usage = result.usage()
+                            cost = calc_cost(model_name, usage)
+
+                            all_msgs = result.all_messages()
+                            tool_calls_final = extract_tool_calls(all_msgs)
+                            tool_calls_det = extract_tool_calls_detailed(all_msgs)
+                            text_history = extract_text_history(all_msgs)
+
+                            intent = await classify_intent(original_message)
+                            validation = validate_response(
+                                original_message,
+                                response_text,
+                                tool_calls_final,
+                                tool_calls_det,
+                                intent=intent,
+                            )
+
+                            turn_cost = cost
+                            if text_history:
+                                new_history = text_history
+                            else:
+                                new_history = list(history or [])
+                                new_history.append({"role": "user", "content": original_message})
+                                new_history.append({"role": "assistant", "content": full_text})
+
+                            await session_store.update(session_id, new_history, cost_usd=turn_cost)
+
+                            if len(new_history) % 8 == 0:
+                                schedule_memory_extraction(
+                                    user_id=user_id,
+                                    session_id=session_id,
+                                    history=new_history,
+                                )
+
+                            chat_message(agent_label, "success")
+                            llm_usage(
+                                model=model_name,
+                                input_tokens=usage.input_tokens,
+                                output_tokens=usage.output_tokens,
+                                cost_usd=cost,
+                                agent=agent_label,
+                            )
+
+                            if not validation.passed:
+                                logger.warning(
+                                    "Validation failures: session=%s agent=%s failures=%s scores=%s",
+                                    session_id,
+                                    agent_label,
+                                    validation.failures,
+                                    validation.scores,
+                                )
+
+                            logger.info(
+                                "Generation done: job=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
+                                job_id,
+                                session_id,
+                                agent_label,
+                                cost,
+                                usage.input_tokens,
+                                usage.output_tokens,
+                            )
+
+                            _snap_model = model_name
+                            _snap_text = full_text
+                            _snap_det = tool_calls_det
+                            _snap_usage = usage
+                            _snap_cost = cost
+                            _snap_val = validation
+
+                            async def _log_run(
+                                _m=_snap_model,
+                                _t=_snap_text,
+                                _d=_snap_det,
+                                _u=_snap_usage,
+                                _c=_snap_cost,
+                                _v=_snap_val,
+                            ):
+                                try:
+                                    await log_agent_run(
+                                        session_id=session_id,
+                                        user_id=user_id,
+                                        agent_name=agent_label,
+                                        model=_m,
+                                        mode="stream",
+                                        user_message=original_message,
+                                        response_text=_t,
+                                        tool_calls=_d,
+                                        input_tokens=_u.input_tokens,
+                                        output_tokens=_u.output_tokens,
+                                        cost_usd=_c,
+                                        duration_ms=0,
+                                        validation_passed=_v.passed,
+                                        validation_failures=_v.failures,
+                                        validation_scores=_v.scores,
+                                    )
+                                except Exception as _e:
+                                    logger.warning("Failed to log streamed agent run: %s", _e)
+
+                            asyncio.create_task(_log_run())  # noqa: RUF006
+
+                            ui_agent_label = response_agent_label(agent_label, tool_calls_final)
+                            done_event = {
+                                "type": "chat.done",
+                                "response": full_text,
+                                "agent": ui_agent_label,
+                                "tool_calls": tool_calls_final,
+                                "thinking": [],
+                                "blocks": deps.blocks or [],
+                                "session_id": session_id,
+                                "usage": {
+                                    "cost_usd": cost,
+                                    "input_tokens": usage.input_tokens,
+                                    "output_tokens": usage.output_tokens,
+                                    "model": model_name,
+                                    "session_cost_usd": await session_store.get_cost(session_id),
+                                },
+                                "validation": {
+                                    "passed": validation.passed,
+                                    "failures": validation.failures,
+                                    "scores": validation.scores,
+                                },
+                            }
+                            await job_manager.complete_job(job_id, done_event)
+                            stream_succeeded = True
+                            return
+
+                # Inner stream completed without raising — break out of retry loop
+                break
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                if not _is_overload_error(exc):
+                    raise
+
+                overload_attempts += 1
+                if overload_attempts >= _STREAM_OVERLOAD_RETRIES and not model_override:
+                    primary = get_model_name(
+                        f"agent:{agent_label}" if agent_label else "agent:unified"
+                    )
+                    fallback = get_fallback_model(primary)
+                    if fallback:
+                        logger.warning(
+                            "Stream overloaded after %d attempts, falling back to %s: "
+                            "job=%s session=%s",
+                            overload_attempts,
+                            fallback,
+                            job_id,
+                            session_id,
+                        )
+                        model_override = fallback
+                        overload_attempts = 0
+                        await job_manager.publish_event(
+                            job_id,
+                            {"type": "chat.status", "status": "retrying"},
+                        )
+                        await asyncio.sleep(_STREAM_OVERLOAD_BACKOFF)
+                        continue
+                    raise
+
+                logger.warning(
+                    "Stream overloaded (attempt %d/%d), backing off: job=%s session=%s",
+                    overload_attempts,
+                    _STREAM_OVERLOAD_RETRIES,
+                    job_id,
+                    session_id,
+                )
+                await job_manager.publish_event(
+                    job_id,
+                    {"type": "chat.status", "status": "retrying"},
+                )
+                await asyncio.sleep(_STREAM_OVERLOAD_BACKOFF * (2 ** (overload_attempts - 1)))
+
+        if stream_succeeded:
+            return
 
         # Stream ended without AgentRunResultEvent (cancel or partial)
         if cancel_event.is_set():
@@ -733,13 +800,11 @@ async def _prepare_and_generate(
                 )
             )
         else:
-            query_embedding = await _get_query_embedding(user_message)
             context_task = asyncio.create_task(
                 assemble_context(
                     query=user_message,
                     user_id=user_id,
                     include_memory=is_first_turn,
-                    query_embedding=query_embedding,
                 )
             )
 

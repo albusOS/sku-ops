@@ -77,11 +77,18 @@ async def unhandled_exception_handler(request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": detail})
 
 
-# ── Middleware (outermost first → executes first on request) ──────────────────
+# ── Middleware (Starlette add_middleware is LIFO — last added = outermost) ─────
+#
+# Execution order on request:  CORS → RequestID → Timeout → SecurityHeaders → app
+# CORS must be outermost so its headers are present even on timeout/error responses.
 
 from shared.infrastructure.config import CORS_ORIGIN_REGEX
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestTimeoutMiddleware)
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -90,6 +97,3 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestTimeoutMiddleware)
-app.add_middleware(RequestIDMiddleware)
