@@ -28,6 +28,8 @@ class ReturnItem(BaseModel):
     unit_price: float = 0.0
     cost: float = 0.0
     unit: str = "each"
+    sell_uom: str = "each"
+    sell_cost: float = 0.0
     reason: ReturnReason = ReturnReason.OTHER
     notes: str = ""
 

@@ -11,7 +11,10 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from assistant.application.workflows.health_overview import run_health_overview
 from assistant.application.workflows.inventory_overview import run_inventory_overview
+from assistant.application.workflows.procurement_overview import run_procurement_overview
+from assistant.application.workflows.trend_overview import run_trend_overview
 from assistant.application.workflows.weekly_sales import run_weekly_sales_report
 
 if TYPE_CHECKING:
@@ -20,6 +23,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _WORKFLOWS: dict[str, WorkflowRunner[Any]] = {}
+WORKFLOW_TOOL_NAMES = frozenset(
+    {
+        "run_weekly_sales_report",
+        "run_inventory_overview",
+        "run_procurement_overview",
+        "run_trend_overview",
+        "run_health_overview",
+    }
+)
 
 
 def register(workflow_id: str, runner: WorkflowRunner[Any]) -> None:
@@ -38,8 +50,20 @@ def _ensure_registered() -> None:
     async def _inventory_overview(deps: WorkflowDeps) -> Any:
         return await run_inventory_overview()
 
+    async def _procurement_overview(deps: WorkflowDeps) -> Any:
+        return await run_procurement_overview()
+
+    async def _trend_overview(deps: WorkflowDeps) -> Any:
+        return await run_trend_overview(days=deps.days)
+
+    async def _health_overview(deps: WorkflowDeps) -> Any:
+        return await run_health_overview(days=deps.days)
+
     register("weekly_sales_report", _weekly_sales)
     register("inventory_overview", _inventory_overview)
+    register("procurement_overview", _procurement_overview)
+    register("trend_overview", _trend_overview)
+    register("health_overview", _health_overview)
 
 
 async def run_workflow(
@@ -81,3 +105,12 @@ async def run_workflow(
             },
         )
         raise
+
+
+def response_agent_label(agent_label: str, tool_calls: list[dict] | None) -> str:
+    """Map workflow-driven unified responses to the existing UI report label."""
+    if agent_label == "unified" and any(
+        (call or {}).get("tool") in WORKFLOW_TOOL_NAMES for call in (tool_calls or [])
+    ):
+        return "dag"
+    return agent_label

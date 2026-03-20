@@ -78,7 +78,7 @@ async def _get_outstanding_balances(limit: int = 20) -> str:
 async def _get_revenue_summary(days: int = 30) -> str:
     """Revenue breakdown by payment status over a period."""
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_tax = sum(float(w.tax) for w in withdrawals)
@@ -100,7 +100,7 @@ async def _get_revenue_summary(days: int = 30) -> str:
 async def _get_pl_summary(days: int = 30) -> str:
     """Profit & loss: revenue, COGS, gross profit and margin."""
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     withdrawals = await list_withdrawals(start_date=since, limit=10000)
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_cost = sum(float(w.cost_total) for w in withdrawals)

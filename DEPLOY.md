@@ -88,17 +88,17 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
 
    | Variable | Value | Notes |
    |---|---|---|
-   | `REDIS_URL` | `redis://...` | Add a Railway Redis service. Required if `WORKERS > 1`. |
+   | `REDIS_URL` | `redis://...` | Add a Railway Redis service. Required for `WORKERS > 1`. |
+   | `WORKERS` | `2` | Doubles event loop capacity for concurrent AI chat. Requires Redis. |
    | `FRONTEND_URL` | `https://your-app.vercel.app` | Required for Xero OAuth redirects |
    | `SENTRY_DSN` | `https://...@sentry.io/...` | Error tracking |
-   | `WORKERS` | `1` | Increase with Redis. Railway auto-sets `PORT`. |
 
    **Optional:**
 
    | Variable | Value | Notes |
    |---|---|---|
    | `ANTHROPIC_API_KEY` | `sk-ant-...` | Enables AI assistant |
-   | `OPENROUTER_API_KEY` | `sk-or-...` | Alternative AI provider |
+   | `OPENROUTER_API_KEY` | `sk-or-...` | Fallback AI provider — auto-used when Anthropic is overloaded |
    | `OPENAI_API_KEY` | `sk-...` | Product search embeddings |
    | `CORS_ORIGIN_REGEX` | `https://frontend-.*\.vercel\.app` | Allow Vercel preview deploys |
    | `XERO_CLIENT_ID` | | Xero integration |

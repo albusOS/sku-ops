@@ -63,7 +63,7 @@ async def apply_credit_note(
         result = await _repo.apply_credit_note(credit_note_id)
 
         if result.auto_paid and result.invoice_id:
-            now = datetime.now(UTC).isoformat()
+            now = datetime.now(UTC)
             await mark_withdrawals_paid_by_invoice(result.invoice_id, now)
 
         await record_credit_note_application(

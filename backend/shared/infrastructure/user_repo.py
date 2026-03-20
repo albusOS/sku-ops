@@ -5,6 +5,7 @@ consumer that needs user lookups must go through this module.
 """
 
 import time
+from datetime import datetime
 
 from shared.infrastructure.database import get_connection
 
@@ -85,13 +86,13 @@ async def insert_user(
     name: str,
     role: str = "admin",
     organization_id: str,
-    created_at: str,
+    created_at: datetime,
 ) -> None:
     """Insert a new user row."""
     conn = get_connection()
     await conn.execute(
         "INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)"
-        " VALUES ($1, $2, $3, $4, $5, 1, $6, $7)",
+        " VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)",
         (user_id, email, password_hash, name, role, organization_id, created_at),
     )
     await conn.commit()

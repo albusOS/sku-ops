@@ -53,3 +53,39 @@ class InventoryOverviewResult:
     low_stock: list[dict[str, Any]]
     slow_movers: list[dict[str, Any]]
     synthesized_markdown: str
+
+
+@dataclass
+class ProcurementOverviewResult:
+    """Result of the procurement overview workflow."""
+
+    procurement_snapshot: list[dict[str, Any]]
+    po_summary: dict[str, Any]
+    synthesized_markdown: str
+
+
+@dataclass
+class TrendOverviewResult:
+    """Result of the trend overview workflow."""
+
+    trend_series: dict[str, Any]
+    top_skus: list[dict[str, Any]]
+    department_profitability: list[dict[str, Any]]
+    daily_withdrawal_activity: list[dict[str, Any]]
+    synthesized_markdown: str
+
+
+@dataclass
+class HealthOverviewResult:
+    """Result of the health overview workflow."""
+
+    inventory_stats: dict[str, Any]
+    stockout_forecast: list[dict[str, Any]]
+    slow_movers: list[dict[str, Any]]
+    carrying_cost: dict[str, Any]
+    pl_summary: dict[str, Any]
+    outstanding_balances: list[dict[str, Any]]
+    ar_aging: dict[str, Any]
+    payment_status_breakdown: dict[str, Any]
+    pending_material_requests: list[dict[str, Any]]
+    synthesized_markdown: str

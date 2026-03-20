@@ -19,6 +19,7 @@ Tests cover the three most dangerous failure modes:
   7. Health endpoint returns correct counts matching DB state.
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -543,7 +544,7 @@ class TestCreditNoteSync:
             cn_id = str(uuid4())
             cn_number = "CN-00001"
             conn = get_connection()
-            now = "2025-01-01T00:00:00Z"
+            now = datetime(2025, 1, 1, tzinfo=UTC)
             await conn.execute(
                 """INSERT INTO credit_notes
                    (id, credit_note_number, invoice_id, return_id, billing_entity,
@@ -578,7 +579,7 @@ class TestCreditNoteSync:
         async def _body():
             cn_id = str(uuid4())
             conn = get_connection()
-            now = "2025-01-01T00:00:00Z"
+            now = datetime(2025, 1, 1, tzinfo=UTC)
             await conn.execute(
                 """INSERT INTO credit_notes
                    (id, credit_note_number, invoice_id, return_id, billing_entity,

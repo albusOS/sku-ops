@@ -4,7 +4,6 @@ Uses cl100k_base encoding as an approximation for both Anthropic and
 OpenRouter models.  Not exact, but close enough for budget decisions.
 """
 
-import asyncio
 import json
 import logging
 
@@ -189,19 +188,23 @@ def compress_history(
     return _compress_truncate(history, max_tokens)
 
 
+_LLM_SUMMARIZE_THRESHOLD = 16  # messages (~8 turns) before paying for an LLM call
+
+
 async def compress_history_async(
     history: list[dict] | None,
     max_tokens: int = 8000,
 ) -> list[dict] | None:
     """Async compression with progressive summarization.
 
-    Before dropping old turns, summarizes them with a cheap LLM call so
-    the reasoning chain is preserved.  Falls back to truncation if the
-    LLM is unavailable or fails.
+    Uses cheap truncation for short/medium histories.  Only invokes the
+    LLM summarizer when the conversation is long enough (>= 16 messages)
+    to justify the latency.
 
     Strategy:
-        Tier 1 — Last 3 turns (6 messages) kept verbatim
-        Tier 2 — Older turns summarized into ~300 tokens
+        Tier 0 — Short history or under budget → return as-is
+        Tier 1 — Medium history (< 16 msgs) → truncation only (zero LLM cost)
+        Tier 2 — Long history (>= 16 msgs) → summarize older turns via LLM
         Tier 3 — If summary + recent still too large, truncate recent
     """
     if not history:
@@ -213,6 +216,10 @@ async def compress_history_async(
     if total <= max_tokens:
         return history
 
+    # For short-to-medium conversations, truncation is fast and good enough.
+    if len(history) < _LLM_SUMMARIZE_THRESHOLD:
+        return _compress_truncate(history, max_tokens)
+
     # Split into recent (keep) and older (summarize)
     recent = history[-6:]  # last 3 turns
     older = history[:-6]
@@ -220,24 +227,16 @@ async def compress_history_async(
     if not older:
         return _compress_truncate(history, max_tokens)
 
-    # Attempt progressive summarization.
-    # The summary is prepended as a user turn so build_message_history
-    # converts it to a ModelRequest (not a ModelResponse).  The content is
-    # prefixed with a marker so the model knows it is a history summary, not
-    # a live user question.
     summary = await _summarize_turns(older)
     if summary:
         summary_turn = {"role": "user", "content": f"[Prior conversation summary]: {summary}"}
-        # Insert a matching assistant acknowledgement so the pair is well-formed.
         summary_ack = {"role": "assistant", "content": "Understood. Continuing from that context."}
         result = [summary_turn, summary_ack, *recent]
         result_tokens = sum(count_tokens(h.get("content", "")) for h in result)
         if result_tokens <= max_tokens:
             return result
-        # Summary + recent still too long — trim the recent portion
         return _compress_truncate(result, max_tokens)
 
-    # LLM unavailable — fall back to truncation
     return _compress_truncate(history, max_tokens)
 
 
@@ -247,17 +246,15 @@ async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> 
     Returns None if LLM is unavailable. Never raises.
     """
     try:
-        from assistant.infrastructure.llm import get_provider
-
-        provider = get_provider()
-        if not provider.available or provider.provider_name == "stub":
-            return None
-
         from assistant.agents.core.model_registry import get_model_name
+        from assistant.application.llm import generate_text
+        from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
+
+        if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
+            return None
 
         model_id = get_model_name("infra:synthesis")
 
-        # Build a compact representation of the turns
         lines = []
         for t in turns:
             role = (t.get("role") or "user").upper()
@@ -268,8 +265,7 @@ async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> 
             return None
 
         text = "\n".join(lines)
-        result = await asyncio.to_thread(
-            provider.generate_text,
+        result = await generate_text(
             text,
             "Summarize this conversation concisely. Preserve: entity names, "
             "numbers, decisions made, questions still open, and any user "

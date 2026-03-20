@@ -1,5 +1,6 @@
 """Withdrawal repository port — testable contract for withdrawal persistence."""
 
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from operations.domain.withdrawal import MaterialWithdrawal
@@ -28,11 +29,11 @@ class WithdrawalRepoPort(Protocol):
     async def mark_paid(
         self,
         withdrawal_id: str,
-        paid_at: str,
+        paid_at: datetime,
     ) -> MaterialWithdrawal | None: ...
 
     async def bulk_mark_paid(
         self,
         withdrawal_ids: list[str],
-        paid_at: str,
+        paid_at: datetime,
     ) -> list[str]: ...

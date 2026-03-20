@@ -23,7 +23,7 @@ dependencies = [
     "asyncpg>=0.29.0",
     # ── AI / LLM ──
     "pydantic-ai>=1.0.0",
-    "pydantic-ai-slim[anthropic]>=1.0.0",
+    "pydantic-ai-slim[anthropic,openrouter]>=1.0.0",
     "openai>=1.40.0",
     "tiktoken>=0.7.0",
     "rank-bm25>=0.2.2",
@@ -31,7 +31,7 @@ dependencies = [
     # ── Document processing ──
     "Pillow>=10.0.0",
     "pytesseract>=0.3.10",
-    "pypdf>=4.0.0",
+    "pypdf>=6.9.1",
     "pdf2image>=1.17.0",
     # ── HTTP / OAuth ──
     "requests>=2.31.0",

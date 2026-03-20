@@ -1,11 +1,6 @@
 """Finance context schema — invoices, credit notes, and related join/counter tables."""
 
-# Rename: product_id -> sku_id (existing dev DBs)
-MIGRATIONS: list[str] = [
-    "ALTER TABLE invoice_line_items RENAME COLUMN product_id TO sku_id",
-    "ALTER TABLE credit_note_line_items RENAME COLUMN product_id TO sku_id",
-    "ALTER TABLE financial_ledger RENAME COLUMN product_id TO sku_id",
-]
+MIGRATIONS: list[str] = []
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS invoices (
@@ -22,21 +17,21 @@ TABLES: list[str] = [
         total NUMERIC(18,2) NOT NULL,
         amount_credited NUMERIC(18,2) NOT NULL DEFAULT 0,
         notes TEXT,
-        invoice_date TEXT,
-        due_date TEXT,
+        invoice_date TIMESTAMPTZ,
+        due_date TIMESTAMPTZ,
         payment_terms TEXT NOT NULL DEFAULT 'net_30',
         billing_address TEXT NOT NULL DEFAULT '',
         po_reference TEXT NOT NULL DEFAULT '',
         currency TEXT NOT NULL DEFAULT 'USD',
         approved_by_id TEXT,
-        approved_at TEXT,
+        approved_at TIMESTAMPTZ,
         xero_invoice_id TEXT,
         xero_cogs_journal_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        deleted_at TIMESTAMPTZ
     )""",
     """CREATE TABLE IF NOT EXISTS invoice_withdrawals (
         invoice_id TEXT NOT NULL REFERENCES invoices(id),
@@ -74,9 +69,9 @@ TABLES: list[str] = [
         notes TEXT,
         xero_credit_note_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS credit_note_line_items (
         id TEXT PRIMARY KEY,
@@ -97,13 +92,13 @@ TABLES: list[str] = [
         amount NUMERIC(18,2) NOT NULL,
         method TEXT NOT NULL DEFAULT 'bank_transfer',
         reference TEXT NOT NULL DEFAULT '',
-        payment_date TEXT NOT NULL,
+        payment_date TIMESTAMPTZ NOT NULL,
         notes TEXT,
         recorded_by_id TEXT NOT NULL,
         xero_payment_id TEXT,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS payment_withdrawals (
         payment_id TEXT NOT NULL REFERENCES payments(id),
@@ -128,8 +123,8 @@ TABLES: list[str] = [
         performed_by_user_id TEXT,
         reference_type TEXT NOT NULL,
         reference_id TEXT NOT NULL,
-        organization_id TEXT,
-        created_at TEXT NOT NULL
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
 ]
 

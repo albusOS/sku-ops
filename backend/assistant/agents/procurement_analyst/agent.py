@@ -9,6 +9,7 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
+from assistant.agents.core.config import load_agent_config
 from assistant.agents.core.contracts import SpecialistResult, UsageInfo
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
@@ -18,6 +19,7 @@ from assistant.agents.inventory.tools import (
     _forecast_stockout,
 )
 from assistant.agents.purchasing.tools import (
+    _get_procurement_snapshot,
     _get_purchase_history,
     _get_reorder_with_vendor_context,
     _get_sku_vendor_options,
@@ -39,42 +41,51 @@ def _get_agent() -> Agent[AgentDeps, str]:
     global _agent
     if _agent is not None:
         return _agent
+    cfg = load_agent_config("procurement_analyst")
     _agent = Agent(
         get_model("agent:procurement"),
         deps_type=AgentDeps,
         system_prompt=SYSTEM_PROMPT,
-        model_settings={"temperature": 0},
+        model_settings={
+            "temperature": cfg.temperature,
+            "max_tokens": cfg.max_output_tokens,
+        },
     )
 
     @_agent.tool
+    async def get_procurement_snapshot(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
+        """Use first for broad buy-plan questions. Returns bundled reorder risk, stockout timing, smart min_stock gaps, and preferred vendor context."""
+        return budget_tool_result(await _get_procurement_snapshot(limit=limit))
+
+    @_agent.tool
     async def get_reorder_with_vendor_context(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
-        """Low-stock SKUs with vendor options for procurement planning."""
+        """Use when you need the raw low-stock list and vendor options per SKU for ordering decisions."""
         return budget_tool_result(await _get_reorder_with_vendor_context(limit=limit))
 
     @_agent.tool
     async def get_smart_reorder_points(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
-        """Velocity-based reorder points vs. static min_stock — shows miscalibrations."""
+        """Use for reorder-policy questions. Returns velocity-based reorder points vs static min_stock and flags miscalibrations."""
         return budget_tool_result(await _get_smart_reorder_points(limit=limit))
 
     @_agent.tool
     async def get_vendor_lead_times(
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 180
     ) -> str:
-        """Actual vendor lead times from PO data with drift detection."""
+        """Use for vendor delivery-risk questions. Returns actual lead times from PO history plus drift detection."""
         return budget_tool_result(
             await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days)
         )
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """SKUs predicted to run out soonest (normalized velocity)."""
+        """Use for urgency questions. Returns SKUs predicted to run out soonest based on normalized demand velocity."""
         return budget_tool_result(await _forecast_stockout(limit=limit))
 
     @_agent.tool
     async def get_vendor_performance(
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 90
     ) -> str:
-        """Vendor reliability: PO count, spend, avg lead time, fill rate."""
+        """Use for vendor scorecard questions. Returns PO count, spend, average lead time, and fill rate."""
         return budget_tool_result(
             await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days)
         )
@@ -83,12 +94,12 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def get_vendor_catalog(
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = ""
     ) -> str:
-        """SKUs supplied by a vendor with cost, lead time, MOQ."""
+        """Use when the user asks what a vendor sells. Returns SKUs supplied by a vendor with cost, lead time, and MOQ."""
         return budget_tool_result(await _get_vendor_catalog(vendor_id=vendor_id, name=name))
 
     @_agent.tool
     async def get_sku_vendor_options(ctx: RunContext[AgentDeps], sku_id: str) -> str:
-        """All vendors for a SKU with comparative pricing and lead times."""
+        """Use for SKU sourcing and alternatives. Returns all vendor options for one SKU with comparative pricing and lead times."""
         return budget_tool_result(await _get_sku_vendor_options(sku_id=sku_id))
 
     @_agent.tool
@@ -99,7 +110,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
         days: int = 90,
         limit: int = 20,
     ) -> str:
-        """Recent POs for a vendor."""
+        """Use only when you need supporting evidence. Returns recent POs for a vendor with item summaries."""
         return budget_tool_result(
             await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit)
         )

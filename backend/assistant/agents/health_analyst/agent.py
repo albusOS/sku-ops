@@ -9,6 +9,7 @@ import logging
 
 from pydantic_ai import Agent, RunContext
 
+from assistant.agents.core.config import load_agent_config
 from assistant.agents.core.contracts import SpecialistResult, UsageInfo
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
@@ -50,11 +51,15 @@ def _get_agent() -> Agent[AgentDeps, str]:
     global _agent
     if _agent is not None:
         return _agent
+    cfg = load_agent_config("health_analyst")
     _agent = Agent(
         get_model("agent:health"),
         deps_type=AgentDeps,
         system_prompt=SYSTEM_PROMPT,
-        model_settings={"temperature": 0},
+        model_settings={
+            "temperature": cfg.temperature,
+            "max_tokens": cfg.max_output_tokens,
+        },
     )
 
     @_agent.tool

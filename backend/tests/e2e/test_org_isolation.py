@@ -24,14 +24,14 @@ def org_b_headers(app_client):
         cursor = await conn.execute("SELECT id FROM organizations WHERE id = $1", (ORG_B_ID,))
         if not await cursor.fetchone():
             await conn.execute(
-                "INSERT INTO organizations (id, name, slug, created_at) VALUES ($1, $2, $3, $4)",
-                (ORG_B_ID, "Org B", ORG_B_ID, "2024-01-01T00:00:00+00:00"),
+                "INSERT INTO organizations (id, name, slug, created_at) VALUES ($1, $2, $3, NOW())",
+                (ORG_B_ID, "Org B", ORG_B_ID),
             )
         cursor = await conn.execute("SELECT id FROM users WHERE id = $1", (ORG_B_USER,))
         if not await cursor.fetchone():
             await conn.execute(
                 "INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)"
-                " VALUES ($1, $2, $3, $4, $5, 1, $6, $7)",
+                " VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())",
                 (
                     ORG_B_USER,
                     "orgb@test.com",
@@ -39,7 +39,6 @@ def org_b_headers(app_client):
                     "Org B Admin",
                     "admin",
                     ORG_B_ID,
-                    "2024-01-01T00:00:00+00:00",
                 ),
             )
         await conn.commit()

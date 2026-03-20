@@ -20,7 +20,7 @@ class SkuCreate(BaseModel):
     description: str | None = ""
     price: float
     cost: float = 0.0
-    quantity: float = 0
+    quantity: float = 0.0
     min_stock: int = 5
     category_id: str
     product_family_id: str | None = None
@@ -89,11 +89,12 @@ class SkuUpdate(BaseModel):
 class Sku(AuditedEntity):
     sku: str
     product_family_id: str = ""
+    product_family_name: str = ""
     name: str
     description: str = ""
     price: float
     cost: float = 0.0
-    quantity: float = 0
+    quantity: float = 0.0
     min_stock: int = 5
     category_id: str = ""
     category_name: str = ""
@@ -108,6 +109,12 @@ class Sku(AuditedEntity):
     spec: str = ""
     grade: str = ""
     variant_attrs: VariantAttrs = Field(default_factory=dict)
+    preferred_vendor_name: str = ""
+
+    @field_validator("preferred_vendor_name", mode="before")
+    @classmethod
+    def _coerce_preferred_vendor_name(cls, v: str | None) -> str:
+        return v or ""
 
     @property
     def is_low_stock(self) -> bool:

@@ -1,15 +1,11 @@
 """Operations context schema — withdrawals, material requests, returns."""
 
-# Rename: product_id -> sku_id (existing dev DBs)
-MIGRATIONS: list[str] = [
-    "ALTER TABLE withdrawal_items RENAME COLUMN product_id TO sku_id",
-    "ALTER TABLE return_items RENAME COLUMN product_id TO sku_id",
-]
+MIGRATIONS: list[str] = []
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS withdrawals (
         id TEXT PRIMARY KEY,
-        items TEXT NOT NULL,
+        items TEXT,
         job_id TEXT NOT NULL,
         service_address TEXT NOT NULL,
         notes TEXT,
@@ -25,24 +21,24 @@ TABLES: list[str] = [
         billing_entity_id TEXT,
         payment_status TEXT NOT NULL DEFAULT 'unpaid',
         invoice_id TEXT,
-        paid_at TEXT,
+        paid_at TIMESTAMPTZ,
         processed_by_id TEXT NOT NULL,
         processed_by_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT,
-        created_at TEXT NOT NULL
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS material_requests (
         id TEXT PRIMARY KEY,
         contractor_id TEXT NOT NULL,
         contractor_name TEXT NOT NULL DEFAULT '',
-        items TEXT NOT NULL,
+        items TEXT,
         status TEXT NOT NULL DEFAULT 'pending',
         withdrawal_id TEXT,
         job_id TEXT,
         service_address TEXT,
         notes TEXT,
-        created_at TEXT NOT NULL,
-        processed_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        processed_at TIMESTAMPTZ,
         processed_by_id TEXT,
         organization_id TEXT NOT NULL
     )""",
@@ -54,7 +50,7 @@ TABLES: list[str] = [
         billing_entity TEXT NOT NULL DEFAULT '',
         billing_entity_id TEXT,
         job_id TEXT NOT NULL DEFAULT '',
-        items TEXT NOT NULL,
+        items TEXT,
         subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
         tax NUMERIC(18,2) NOT NULL DEFAULT 0,
         total NUMERIC(18,2) NOT NULL DEFAULT 0,
@@ -64,9 +60,9 @@ TABLES: list[str] = [
         credit_note_id TEXT,
         processed_by_id TEXT NOT NULL DEFAULT '',
         processed_by_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS withdrawal_items (
         id TEXT PRIMARY KEY,
@@ -82,6 +78,17 @@ TABLES: list[str] = [
         cost_total NUMERIC(18,2) NOT NULL DEFAULT 0,
         sell_uom TEXT NOT NULL DEFAULT 'each',
         sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
+    )""",
+    """CREATE TABLE IF NOT EXISTS material_request_items (
+        id TEXT PRIMARY KEY,
+        material_request_id TEXT NOT NULL REFERENCES material_requests(id),
+        sku_id TEXT NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL DEFAULT 0,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each'
     )""",
     """CREATE TABLE IF NOT EXISTS return_items (
         id TEXT PRIMARY KEY,
@@ -115,6 +122,8 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_withdrawal_items_wid ON withdrawal_items(withdrawal_id)",
     "CREATE INDEX IF NOT EXISTS idx_withdrawal_items_sku ON withdrawal_items(sku_id)",
+    "CREATE INDEX IF NOT EXISTS idx_material_request_items_mrid ON material_request_items(material_request_id)",
+    "CREATE INDEX IF NOT EXISTS idx_material_request_items_sku ON material_request_items(sku_id)",
     "CREATE INDEX IF NOT EXISTS idx_return_items_rid ON return_items(return_id)",
     "CREATE INDEX IF NOT EXISTS idx_return_items_sku ON return_items(sku_id)",
     "CREATE INDEX IF NOT EXISTS idx_withdrawals_invoice ON withdrawals(invoice_id)",

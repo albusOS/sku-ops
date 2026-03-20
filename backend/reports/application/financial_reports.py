@@ -127,9 +127,9 @@ async def sales_report(
             }
         )
 
-    net_revenue = float(accounts.get("revenue", 0))
-    cogs = float(accounts.get("cogs", 0))
-    tax = float(accounts.get("tax_collected", 0))
+    net_revenue = accounts.get("revenue", 0.0)
+    cogs = accounts.get("cogs", 0.0)
+    tax = accounts.get("tax_collected", 0.0)
     gross_revenue = round_money(net_revenue + ret_total)
     gross_profit = round_money(net_revenue - cogs)
     tx_count = counts.get("withdrawal", 0)
@@ -141,11 +141,14 @@ async def sales_report(
         net_revenue=round_money(net_revenue),
         total_cogs=round_money(cogs),
         gross_profit=gross_profit,
-        gross_margin_pct=round(gross_profit / net_revenue * 100, 1) if net_revenue > 0 else 0,
+        # float for JSON-friendly percentage
+        gross_margin_pct=round(float(gross_profit / net_revenue * 100), 1)
+        if net_revenue > 0
+        else 0.0,
         total_tax=round_money(tax),
         total_transactions=tx_count,
         return_count=return_count,
-        average_transaction=round_money(net_revenue / tx_count) if tx_count > 0 else 0,
+        average_transaction=round_money(net_revenue / tx_count) if tx_count > 0 else 0.0,
         by_payment_status=payment_status,
         top_products=enriched_products,
         total_revenue=round_money(net_revenue),
@@ -230,8 +233,8 @@ async def job_pl_report(
         search=search,
     )
     jobs = result["rows"]
-    total_revenue = float(sum(j["revenue"] for j in jobs))
-    total_cost = float(sum(j["cost"] for j in jobs))
+    total_revenue = sum(j["revenue"] for j in jobs)
+    total_cost = sum(j["cost"] for j in jobs)
     total_profit = total_revenue - total_cost
 
     return JobPlReport(
@@ -240,7 +243,10 @@ async def job_pl_report(
         total_revenue=round_money(total_revenue),
         total_cost=round_money(total_cost),
         total_profit=round_money(total_profit),
-        total_margin_pct=round((total_profit / total_revenue * 100) if total_revenue > 0 else 0, 1),
+        # float for JSON-friendly percentage
+        total_margin_pct=round(
+            float(total_profit / total_revenue * 100) if total_revenue > 0 else 0.0, 1
+        ),
     )
 
 
@@ -262,10 +268,10 @@ async def pl_report(
 
     if group_by == "overall":
         accounts = await ledger_repo.summary_by_account(**date_kw, **dim_kw)
-        revenue = float(accounts.get("revenue", 0))
-        cogs = float(accounts.get("cogs", 0))
-        tax = float(accounts.get("tax_collected", 0))
-        shrinkage = float(accounts.get("shrinkage", 0))
+        revenue = accounts.get("revenue", 0.0)
+        cogs = accounts.get("cogs", 0.0)
+        tax = accounts.get("tax_collected", 0.0)
+        shrinkage = accounts.get("shrinkage", 0.0)
         profit = round_money(revenue - cogs - shrinkage)
         return PlReport(
             group_by="overall",
@@ -275,7 +281,8 @@ async def pl_report(
                 tax_collected=round_money(tax),
                 shrinkage=round_money(shrinkage),
                 gross_profit=profit,
-                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+                # float for JSON-friendly percentage
+                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
             ),
             rows=[],
             label_key="name",
@@ -321,13 +328,15 @@ async def pl_report(
         rows = []
         label_key = "name"
 
-    total_revenue = float(
+    total_revenue = (
         all_revenue_override
         if all_revenue_override is not None
-        else sum(r.get("revenue", 0) for r in rows)
+        else sum(r.get("revenue", 0.0) for r in rows)
     )
-    total_cost = float(
-        all_cost_override if all_cost_override is not None else sum(r.get("cost", 0) for r in rows)
+    total_cost = (
+        all_cost_override
+        if all_cost_override is not None
+        else sum(r.get("cost", 0.0) for r in rows)
     )
     total_profit = round_money(total_revenue - total_cost)
 
@@ -337,7 +346,10 @@ async def pl_report(
             revenue=round_money(total_revenue),
             cogs=round_money(total_cost),
             gross_profit=total_profit,
-            margin_pct=round(total_profit / total_revenue * 100, 1) if total_revenue > 0 else 0,
+            # float for JSON-friendly percentage
+            margin_pct=round(float(total_profit / total_revenue * 100), 1)
+            if total_revenue > 0
+            else 0.0,
         ),
         rows=rows,
         label_key=label_key,
@@ -373,9 +385,9 @@ async def kpi_report(
         ledger_repo.units_sold_by_product(start_date=start_date, end_date=end_date),
     )
 
-    total_revenue = float(accounts.get("revenue", 0))
-    total_cogs = float(accounts.get("cogs", 0))
-    inventory_cost_value = float(sum(p.cost * p.quantity for p in products_data))
+    total_revenue = accounts.get("revenue", 0.0)
+    total_cogs = accounts.get("cogs", 0.0)
+    inventory_cost_value = sum(p.cost * p.quantity for p in products_data)
 
     if start_date and end_date:
         try:
@@ -387,19 +399,20 @@ async def kpi_report(
     else:
         period_days = 365
 
-    inventory_turnover = total_cogs / inventory_cost_value if inventory_cost_value > 0 else 0
-    dio = (inventory_cost_value / total_cogs * period_days) if total_cogs > 0 else 0
-    gross_margin_pct = (
-        ((total_revenue - total_cogs) / total_revenue * 100) if total_revenue > 0 else 0
-    )
+    # float for JSON-friendly ratios and percentages
+    inv_cost_f = float(inventory_cost_value)
+    cogs_f = float(total_cogs)
+    rev_f = float(total_revenue)
+    inventory_turnover = cogs_f / inv_cost_f if inv_cost_f > 0 else 0.0
+    dio = (inv_cost_f / cogs_f * period_days) if cogs_f > 0 else 0.0
+    gross_margin_pct = ((rev_f - cogs_f) / rev_f * 100) if rev_f > 0 else 0.0
 
-    total_units_sold = float(sum(units_sold_map.values()))
-    total_stock = float(sum(p.quantity for p in products_data))
-    sell_through_pct = (
-        (total_units_sold / (total_units_sold + total_stock) * 100)
-        if (total_units_sold + total_stock) > 0
-        else 0
-    )
+    total_units_sold = sum(units_sold_map.values())
+    total_stock = sum(p.quantity for p in products_data)
+    # float for JSON-friendly percentage
+    units_f = float(total_units_sold)
+    stock_f = float(total_stock)
+    sell_through_pct = (units_f / (units_f + stock_f) * 100) if (units_f + stock_f) > 0 else 0.0
 
     return KpiReport(
         period_days=period_days,
@@ -411,5 +424,5 @@ async def kpi_report(
         inventory_turnover=round(inventory_turnover, 2),
         dio=round(dio, 1),
         sell_through_pct=round(sell_through_pct, 1),
-        total_units_sold=total_units_sold,
+        total_units_sold=int(total_units_sold),
     )

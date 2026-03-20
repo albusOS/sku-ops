@@ -33,6 +33,7 @@ from operations.application.queries import (
     units_sold_by_product as _ops_units_sold,
 )
 from shared.infrastructure.database import get_connection, get_org_id
+from shared.kernel.types import round_money
 
 
 class DepartmentSummaryRow(TypedDict):
@@ -150,7 +151,7 @@ async def summary_by_department(
         row = dict(r)
         revenue = row["revenue"]
         cost = row["cost"]
-        profit = round(revenue - cost, 2)
+        profit = round_money(revenue - cost)
         result.append(
             DepartmentSummaryRow(
                 department=row["department"],
@@ -158,7 +159,8 @@ async def summary_by_department(
                 cost=cost,
                 shrinkage=row["shrinkage"],
                 profit=profit,
-                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+                # float for JSON-friendly percentage
+                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
             )
         )
     return result
@@ -211,8 +213,8 @@ async def summary_by_job(
     count_cursor = await conn.execute(count_query, all_count_params)
     agg = dict(await count_cursor.fetchone())
     total = agg["cnt"]
-    all_revenue = float(agg["total_revenue"])
-    all_cost = float(agg["total_cost"])
+    all_revenue = agg["total_revenue"]
+    all_cost = agg["total_cost"]
 
     limit_n = len(all_count_params) + 1
     data_query = (
@@ -226,7 +228,7 @@ async def summary_by_job(
         row = dict(r)
         revenue = row["revenue"]
         cost = row["cost"]
-        profit = round(revenue - cost, 2)
+        profit = round_money(revenue - cost)
         result.append(
             JobSummaryRow(
                 job_id=row["job_id"],
@@ -234,7 +236,8 @@ async def summary_by_job(
                 revenue=revenue,
                 cost=cost,
                 profit=profit,
-                margin_pct=round(profit / revenue * 100, 1) if revenue > 0 else 0,
+                # float for JSON-friendly percentage
+                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
                 withdrawal_count=row["transaction_count"],
             )
         )
@@ -277,7 +280,7 @@ async def summary_by_billing_entity(
         row = dict(r)
         revenue = row["revenue"]
         cost = row["cost"]
-        profit = round(revenue - cost, 2)
+        profit = round_money(revenue - cost)
         result.append(
             BillingEntitySummaryRow(
                 billing_entity=row["billing_entity"],

@@ -1,33 +1,25 @@
 """LLM client for non-agent uses (OCR, UOM classification, enrichment).
 
-Uses the LLM infrastructure adapter when available, falls back to direct
-Anthropic SDK construction for backward compatibility.
+generate_text — uses PydanticAI Agent.run() for retries and provider resolution.
+generate_with_image / generate_with_pdf — raw Anthropic SDK (multimodal APIs).
 """
 
+import asyncio
 import base64
 import logging
 
-from assistant.infrastructure.llm import get_provider
+from assistant.agents.core.model_registry import get_model_name
 from shared.infrastructure.config import (
     ANTHROPIC_API_KEY,
     ANTHROPIC_AVAILABLE,
-    ANTHROPIC_FAST_MODEL,
     ANTHROPIC_MODEL,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _get_client():
-    """Return configured Anthropic client, preferring the infrastructure adapter."""
-    try:
-        provider = get_provider()
-        client = provider.get_raw_client()
-        if client is not None:
-            return client
-    except RuntimeError:
-        pass
-
+def _get_anthropic_client():
+    """Return sync Anthropic client for multimodal calls (image/PDF)."""
     if not ANTHROPIC_AVAILABLE:
         return None
     try:
@@ -35,7 +27,94 @@ def _get_client():
 
         return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     except ImportError:
-        logger.warning("anthropic package not installed. Run: pip install anthropic")
+        logger.warning("anthropic package not installed")
+        return None
+
+
+async def generate_text(
+    prompt: str,
+    system_instruction: str | None = None,
+    model_id: str | None = None,
+) -> str | None:
+    """One-shot text generation using PydanticAI — retries, cost-aware.
+
+    When model_id is provided, uses that model. Otherwise uses infra:synthesis.
+    Automatically falls back to OpenRouter when Anthropic is overloaded.
+    Returns None on failure (never raises).
+    """
+    try:
+        from pydantic_ai import Agent
+
+        from assistant.agents.core.model_registry import get_fallback_model
+
+        model = model_id or get_model_name("infra:synthesis")
+        agent: Agent[None, str] = Agent(model, system_prompt=system_instruction or "")
+        try:
+            result = await asyncio.wait_for(agent.run(prompt), timeout=30)
+            return result.output
+        except Exception as primary_err:
+            err_str = str(primary_err).lower()
+            is_overloaded = any(
+                k in err_str for k in ("529", "overload", "service unavailable", "capacity")
+            )
+            if not is_overloaded:
+                raise
+            fallback = get_fallback_model(model)
+            if not fallback:
+                raise
+            logger.info("generate_text: primary overloaded, trying fallback %s", fallback)
+            result = await asyncio.wait_for(agent.run(prompt, model=fallback), timeout=30)
+            return result.output
+    except Exception as e:
+        logger.warning("generate_text failed: %s", e)
+        return None
+
+
+_sync_pool = None
+_sync_pool_lock = None
+
+
+def _get_sync_pool():
+    """Return the module-level thread pool for sync→async bridging.
+
+    Lazily initialized so import-time has no side effects.
+    Capped at 4 workers — enough for concurrent OCR/classification requests
+    without unbounded thread growth.
+    """
+    global _sync_pool, _sync_pool_lock
+    import concurrent.futures
+    import threading
+
+    if _sync_pool_lock is None:
+        _sync_pool_lock = threading.Lock()
+    with _sync_pool_lock:
+        if _sync_pool is None:
+            _sync_pool = concurrent.futures.ThreadPoolExecutor(
+                max_workers=4,
+                thread_name_prefix="llm-sync",
+            )
+    return _sync_pool
+
+
+def generate_text_sync(
+    prompt: str,
+    system_instruction: str | None = None,
+) -> str | None:
+    """Synchronous generate_text for injection into sync-callable consumers.
+
+    Used by product_intelligence and uom_classifier which accept a sync
+    (prompt, system) -> str|None callable. Runs the async generate_text
+    via asyncio.run() in a shared background thread pool (max 4 workers).
+    """
+
+    async def _inner():
+        return await generate_text(prompt, system_instruction)
+
+    try:
+        future = _get_sync_pool().submit(asyncio.run, _inner())
+        return future.result(timeout=35)
+    except Exception as e:
+        logger.warning("generate_text_sync failed: %s", e)
         return None
 
 
@@ -52,47 +131,13 @@ def _detect_media_type(image_bytes: bytes) -> str:
     return "image/jpeg"
 
 
-def generate_text(
-    prompt: str,
-    system_instruction: str | None = None,
-    model_id: str | None = None,
-) -> str | None:
-    """Generate text. Returns None if LLM is not configured.
-
-    When model_id is provided, uses the active LLM provider (OpenRouter or Anthropic).
-    When model_id is None, uses ANTHROPIC_FAST_MODEL via raw client (legacy path).
-    """
-    if model_id:
-        try:
-            provider = get_provider()
-            return provider.generate_text(prompt, system_instruction, model_id)
-        except RuntimeError:
-            pass
-    client = _get_client()
-    if not client:
-        return None
-    try:
-        kwargs = {
-            "model": ANTHROPIC_FAST_MODEL,
-            "max_tokens": 4096,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system_instruction:
-            kwargs["system"] = system_instruction
-        response = client.messages.create(**kwargs)
-        return response.content[0].text
-    except Exception as e:
-        logger.warning("Anthropic generate_text failed: %s", e)
-        return None
-
-
 def generate_with_image(
     prompt: str,
     image_bytes: bytes,
     system_instruction: str | None = None,
 ) -> str:
-    """Generate from image. Raises ValueError on failure or if not configured."""
-    client = _get_client()
+    """Generate from image via raw Anthropic SDK. Raises ValueError on failure."""
+    client = _get_anthropic_client()
     if not client:
         raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
     media_type = _detect_media_type(image_bytes)
@@ -142,7 +187,7 @@ def generate_with_pdf(
     system_instruction: str | None = None,
 ) -> str:
     """Generate from PDF via Anthropic native PDF support. Raises ValueError on failure."""
-    client = _get_client()
+    client = _get_anthropic_client()
     if not client:
         raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
     with open(pdf_path, "rb") as f:

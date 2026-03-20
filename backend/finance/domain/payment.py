@@ -1,5 +1,6 @@
 """Payment domain models — first-class record of money received."""
 
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -23,7 +24,7 @@ class Payment(AuditedEntity):
     amount: float
     method: str = PaymentMethod.BANK_TRANSFER
     reference: str = ""
-    payment_date: str
+    payment_date: datetime
     notes: str | None = None
     recorded_by_id: str
     xero_payment_id: str | None = None
@@ -36,5 +37,5 @@ class PaymentCreate(BaseModel):
     amount: float | None = None
     method: str = PaymentMethod.BANK_TRANSFER
     reference: str = ""
-    payment_date: str | None = None
+    payment_date: datetime | None = None
     notes: str | None = None

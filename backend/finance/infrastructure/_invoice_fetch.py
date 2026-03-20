@@ -12,8 +12,6 @@ def _row_to_model(row) -> Invoice | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return Invoice.model_validate(d)
 
 
@@ -26,9 +24,6 @@ def _build_invoice_with_details(
     items = []
     for r in line_item_rows:
         li = dict(r)
-        for col in ("quantity", "unit_price", "amount", "cost", "sell_cost"):
-            if col in li and li[col] is not None:
-                li[col] = float(li[col])
         items.append(InvoiceLineItem.model_validate(li))
     d["line_items"] = items
     d["withdrawal_ids"] = withdrawal_ids
@@ -39,7 +34,7 @@ async def get_by_id(invoice_id: str) -> InvoiceWithDetails | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM invoices WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (invoice_id, org_id),
     )
     row = await cursor.fetchone()
@@ -49,7 +44,7 @@ async def get_by_id(invoice_id: str) -> InvoiceWithDetails | None:
     cursor = await conn.execute(
         "SELECT li.* FROM invoice_line_items li"
         " JOIN invoices i ON i.id = li.invoice_id"
-        " WHERE li.invoice_id = $1 AND (i.organization_id = $2 OR i.organization_id IS NULL)"
+        " WHERE li.invoice_id = $1 AND i.organization_id = $2"
         " ORDER BY li.id",
         (invoice_id, org_id),
     )
@@ -58,7 +53,7 @@ async def get_by_id(invoice_id: str) -> InvoiceWithDetails | None:
     cursor = await conn.execute(
         "SELECT iw.withdrawal_id FROM invoice_withdrawals iw"
         " JOIN invoices i ON i.id = iw.invoice_id"
-        " WHERE iw.invoice_id = $1 AND (i.organization_id = $2 OR i.organization_id IS NULL)",
+        " WHERE iw.invoice_id = $1 AND i.organization_id = $2",
         (invoice_id, org_id),
     )
     w_rows = await cursor.fetchall()

@@ -1,40 +1,37 @@
 """Purchasing context schema — purchase orders and line items."""
 
-# Rename: product_id -> sku_id (existing dev DBs)
-MIGRATIONS: list[str] = [
-    "ALTER TABLE purchase_order_items RENAME COLUMN product_id TO sku_id",
-]
+MIGRATIONS: list[str] = []
 
 TABLES: list[str] = [
     """CREATE TABLE IF NOT EXISTS purchase_orders (
         id TEXT PRIMARY KEY,
         vendor_id TEXT,
         vendor_name TEXT NOT NULL DEFAULT '',
-        document_date TEXT,
-        total REAL,
+        document_date TIMESTAMPTZ,
+        total NUMERIC(18,2),
         status TEXT NOT NULL DEFAULT 'ordered',
         notes TEXT,
         created_by_id TEXT NOT NULL DEFAULT '',
         created_by_name TEXT NOT NULL DEFAULT '',
-        received_at TEXT,
+        received_at TIMESTAMPTZ,
         received_by_id TEXT,
         received_by_name TEXT,
         document_id TEXT,
         xero_bill_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL,
-        updated_at TEXT,
-        organization_id TEXT
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ,
+        organization_id TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS purchase_order_items (
         id TEXT PRIMARY KEY,
         po_id TEXT NOT NULL REFERENCES purchase_orders(id),
         name TEXT NOT NULL,
         original_sku TEXT,
-        ordered_qty REAL NOT NULL DEFAULT 1,
-        delivered_qty REAL,
-        unit_price REAL NOT NULL DEFAULT 0,
-        cost REAL NOT NULL DEFAULT 0,
+        ordered_qty NUMERIC(18,4) NOT NULL DEFAULT 1,
+        delivered_qty NUMERIC(18,4),
+        unit_price NUMERIC(18,4) NOT NULL DEFAULT 0,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
         base_unit TEXT NOT NULL DEFAULT 'each',
         sell_uom TEXT NOT NULL DEFAULT 'each',
         pack_qty INTEGER NOT NULL DEFAULT 1,
@@ -43,7 +40,7 @@ TABLES: list[str] = [
         suggested_department TEXT NOT NULL DEFAULT 'HDW',
         status TEXT NOT NULL DEFAULT 'ordered',
         sku_id TEXT,
-        organization_id TEXT
+        organization_id TEXT NOT NULL
     )""",
 ]
 

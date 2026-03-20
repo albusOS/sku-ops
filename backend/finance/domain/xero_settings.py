@@ -4,7 +4,7 @@ Finance defines what it needs from org settings. Callers map OrgSettings → Xer
 before invoking the InvoicingGateway port.
 """
 
-from __future__ import annotations
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -16,7 +16,7 @@ class XeroSettings(BaseModel):
     xero_tenant_id: str | None = None
     xero_access_token: str | None = None
     xero_refresh_token: str | None = None
-    xero_token_expiry: str | None = None
+    xero_token_expiry: datetime | None = None
     xero_sales_account_code: str = "200"
     xero_cogs_account_code: str = "500"
     xero_inventory_account_code: str = "630"

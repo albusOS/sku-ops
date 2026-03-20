@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from catalog.application.queries import get_vendor_items_for_sku, list_low_stock
+from catalog.application.queries import get_vendor_items_for_skus, list_low_stock
 from inventory.application.queries import demand_normalized_velocity
 from shared.infrastructure.database import get_connection, get_org_id
 
@@ -24,7 +24,7 @@ async def vendor_lead_time_actual(
     """
     conn = get_connection()
     org_id = get_org_id()
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
 
     cur = await conn.execute(
         """SELECT po.id,
@@ -77,7 +77,7 @@ async def vendor_lead_time_actual(
            FROM vendor_items
            WHERE vendor_id = $1
              AND lead_time_days IS NOT NULL
-             AND (organization_id = $2 OR organization_id IS NULL)
+             AND organization_id = $2
              AND deleted_at IS NULL""",
         (vendor_id, org_id),
     )
@@ -111,6 +111,8 @@ async def reorder_point_smart(
 
     sku_ids = [s.id for s in low_stock]
     vel_map = await demand_normalized_velocity(sku_ids, velocity_days)
+    vendor_items_by_sku = await get_vendor_items_for_skus(sku_ids)
+    lead_time_cache: dict[str, float | None] = {}
 
     results = []
     for sku in low_stock[:limit]:
@@ -118,15 +120,17 @@ async def reorder_point_smart(
         norm_daily = vel["normalized_daily"] if vel else 0
 
         # Get preferred vendor's actual lead time
-        vendor_items = await get_vendor_items_for_sku(sku.id)
+        vendor_items = vendor_items_by_sku.get(sku.id, [])
         preferred = next((vi for vi in vendor_items if vi.is_preferred), None)
         if not preferred and vendor_items:
             preferred = vendor_items[0]
 
         actual_lead = None
         if preferred:
-            lt_data = await vendor_lead_time_actual(preferred.vendor_id, days=180)
-            actual_lead = lt_data.get("actual_median_days")
+            if preferred.vendor_id not in lead_time_cache:
+                lt_data = await vendor_lead_time_actual(preferred.vendor_id, days=180)
+                lead_time_cache[preferred.vendor_id] = lt_data.get("actual_median_days")
+            actual_lead = lead_time_cache[preferred.vendor_id]
 
         lead_days = actual_lead or 7.0
         recommended = round(norm_daily * lead_days * safety_factor, 0)

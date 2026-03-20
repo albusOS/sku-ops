@@ -1,6 +1,6 @@
 """Withdrawal repository."""
 
-import json
+from datetime import datetime
 from uuid import uuid4
 
 from operations.domain.enums import PaymentStatus
@@ -8,27 +8,38 @@ from operations.domain.withdrawal import MaterialWithdrawal
 from shared.infrastructure.database import get_connection, get_org_id
 
 
-def _row_to_model(row) -> MaterialWithdrawal | None:
+async def _hydrate_items(conn, withdrawal_id: str) -> list[dict]:
+    """Fetch normalized line items for a withdrawal."""
+    cursor = await conn.execute(
+        "SELECT sku_id, sku, name, quantity, unit_price, cost, unit, sell_uom, sell_cost"
+        " FROM withdrawal_items WHERE withdrawal_id = $1 ORDER BY id",
+        (withdrawal_id,),
+    )
+    return [dict(r) for r in await cursor.fetchall()]
+
+
+async def _row_to_model(row, conn=None) -> MaterialWithdrawal | None:
     if row is None:
         return None
     d = dict(row)
-    if d and "items" in d and isinstance(d["items"], str):
-        d["items"] = json.loads(d["items"]) if d["items"] else []
+    d.pop("items", None)
+    if conn is not None:
+        d["items"] = await _hydrate_items(conn, d["id"])
+    else:
+        d["items"] = []
     return MaterialWithdrawal.model_validate(d)
 
 
 async def insert(withdrawal: MaterialWithdrawal) -> None:
     conn = get_connection()
     org_id = withdrawal.organization_id or get_org_id()
-    items_json = json.dumps([i.model_dump() for i in withdrawal.items])
     await conn.execute(
-        """INSERT INTO withdrawals (id, items, job_id, service_address, notes, subtotal, tax, tax_rate, total, cost_total,
+        """INSERT INTO withdrawals (id, job_id, service_address, notes, subtotal, tax, tax_rate, total, cost_total,
            contractor_id, contractor_name, contractor_company, billing_entity, billing_entity_id, payment_status, invoice_id, paid_at,
            processed_by_id, processed_by_name, organization_id, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)""",
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)""",
         (
             withdrawal.id,
-            items_json,
             withdrawal.job_id,
             withdrawal.service_address,
             withdrawal.notes,
@@ -52,13 +63,13 @@ async def insert(withdrawal: MaterialWithdrawal) -> None:
         ),
     )
     for item in withdrawal.items:
-        qty = float(item.quantity)
-        price = float(item.unit_price)
-        cost = float(item.cost)
+        qty = item.quantity
+        price = item.unit_price
+        cost = item.cost
         await conn.execute(
             """INSERT INTO withdrawal_items
-               (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
+               (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total, sell_uom, sell_cost)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)""",
             (
                 str(uuid4()),
                 withdrawal.id,
@@ -71,6 +82,8 @@ async def insert(withdrawal: MaterialWithdrawal) -> None:
                 item.unit or "each",
                 round(qty * price, 2),
                 round(qty * cost, 2),
+                item.sell_uom or "each",
+                item.sell_cost,
             ),
         )
 
@@ -89,7 +102,7 @@ async def list_withdrawals(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    query = f"SELECT * FROM withdrawals WHERE (organization_id = ${n} OR organization_id IS NULL)"
+    query = f"SELECT * FROM withdrawals WHERE organization_id = ${n}"
     params: list = [org_id]
     n += 1
     if contractor_id:
@@ -116,21 +129,23 @@ async def list_withdrawals(
     params.extend([limit, offset])
     cursor = await conn.execute(query, params)
     rows = await cursor.fetchall()
-    return [_row_to_model(r) for r in rows]
+    return [await _row_to_model(r, conn) for r in rows]
 
 
 async def get_by_id(withdrawal_id: str) -> MaterialWithdrawal | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM withdrawals WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)",
+        "SELECT * FROM withdrawals WHERE id = $1 AND organization_id = $2",
         (withdrawal_id, org_id),
     )
     row = await cursor.fetchone()
-    return _row_to_model(row)
+    return await _row_to_model(row, conn)
 
 
-async def mark_paid(withdrawal_id: str, paid_at: str) -> tuple[MaterialWithdrawal | None, bool]:
+async def mark_paid(
+    withdrawal_id: str, paid_at: datetime
+) -> tuple[MaterialWithdrawal | None, bool]:
     """Mark withdrawal paid. Returns (withdrawal, actually_changed).
 
     Only transitions from 'unpaid' — invoiced withdrawals must be paid via the
@@ -147,7 +162,7 @@ async def mark_paid(withdrawal_id: str, paid_at: str) -> tuple[MaterialWithdrawa
     return await get_by_id(withdrawal_id), cursor.rowcount > 0
 
 
-async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: str) -> list[str]:
+async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: datetime) -> list[str]:
     """Mark withdrawals paid. Returns IDs that were actually changed (previously unpaid)."""
     if not withdrawal_ids:
         return []
@@ -160,7 +175,7 @@ async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: str) -> list[str]:
     cursor = await conn.execute(
         f"UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
         f"WHERE id IN ({id_placeholders}) AND payment_status != ${exclude_idx} "
-        f"AND (organization_id = ${org_idx} OR organization_id IS NULL) RETURNING id",
+        f"AND organization_id = ${org_idx} RETURNING id",
         [PaymentStatus.PAID, paid_at, *withdrawal_ids, PaymentStatus.PAID, org_id],
     )
     await conn.commit()
@@ -206,7 +221,7 @@ async def unlink_from_invoice(withdrawal_ids: list[str]) -> None:
     await conn.commit()
 
 
-async def mark_paid_by_invoice(invoice_id: str, paid_at: str) -> None:
+async def mark_paid_by_invoice(invoice_id: str, paid_at: datetime) -> None:
     """Mark all withdrawals linked to an invoice as paid. Called by finance context via facade.
 
     Org-scoped to prevent cross-tenant mutation.

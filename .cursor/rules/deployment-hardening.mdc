@@ -75,9 +75,9 @@ ENV=production
 DATABASE_URL=postgresql://...          # Supabase direct, port 5432
 JWT_SECRET=<supabase-jwt-secret>       # Must match Supabase project
 CORS_ORIGINS=https://your.vercel.app   # All stable Vercel domains
-REDIS_URL=redis://...                  # Required if WORKERS > 1
+REDIS_URL=redis://...                  # Required for WORKERS > 1
 FRONTEND_URL=https://your.vercel.app   # For OAuth redirects
-WORKERS=1                              # Increase with Redis
+WORKERS=2                              # Recommended. Requires Redis.
 ```
 
 ## Required production env vars (Vercel)

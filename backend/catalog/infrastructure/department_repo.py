@@ -10,8 +10,6 @@ def _row_to_model(row) -> Department | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return Department.model_validate(d)
 
 
@@ -20,7 +18,7 @@ async def list_all() -> list[Department]:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
-           WHERE (organization_id = $1 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           WHERE organization_id = $1 AND deleted_at IS NULL""",
         (org_id,),
     )
     rows = await cursor.fetchall()
@@ -32,7 +30,7 @@ async def get_by_id(dept_id: str) -> Department | None:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
-           WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL""",
         (dept_id, org_id),
     )
     row = await cursor.fetchone()
@@ -44,7 +42,7 @@ async def get_by_code(code: str) -> Department | None:
     org_id = get_org_id()
     cursor = await conn.execute(
         """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
-           WHERE code = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL""",
+           WHERE code = $1 AND organization_id = $2 AND deleted_at IS NULL""",
         (code.upper(), org_id),
     )
     row = await cursor.fetchone()
@@ -66,7 +64,7 @@ async def insert(department: Department) -> None:
             dept_dict.get("description", ""),
             dept_dict.get("sku_count", 0),
             org_id,
-            dept_dict.get("created_at", ""),
+            dept_dict.get("created_at") or datetime.now(UTC),
         ),
     )
 
@@ -95,7 +93,7 @@ async def count_skus_by_department(dept_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM skus WHERE category_id = $1 AND deleted_at IS NULL AND (organization_id = $2 OR organization_id IS NULL)",
+        "SELECT COUNT(*) FROM skus WHERE category_id = $1 AND deleted_at IS NULL AND organization_id = $2",
         (dept_id, org_id),
     )
     row = await cursor.fetchone()
@@ -105,7 +103,7 @@ async def count_skus_by_department(dept_id: str) -> int:
 async def delete(dept_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     params: list = [now, dept_id]
     where = "WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3"
     params.append(org_id)

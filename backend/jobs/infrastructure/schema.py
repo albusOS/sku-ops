@@ -10,8 +10,8 @@ TABLES: list[str] = [
         service_address TEXT NOT NULL DEFAULT '',
         notes TEXT,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(organization_id, code)
     )""",
 ]

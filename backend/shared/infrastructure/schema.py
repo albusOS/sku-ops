@@ -10,7 +10,7 @@ TABLES: list[str] = [
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         slug TEXT UNIQUE NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -22,38 +22,38 @@ TABLES: list[str] = [
         billing_entity TEXT,
         billing_entity_id TEXT,
         phone TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        organization_id TEXT,
-        created_at TEXT NOT NULL
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS org_settings (
         organization_id TEXT PRIMARY KEY,
-        auto_invoice INTEGER NOT NULL DEFAULT 0,
-        default_tax_rate REAL NOT NULL DEFAULT 0.10,
+        auto_invoice BOOLEAN NOT NULL DEFAULT FALSE,
+        default_tax_rate NUMERIC(9,4) NOT NULL DEFAULT 0.10,
         xero_tenant_id TEXT,
         xero_access_token TEXT,
         xero_refresh_token TEXT,
-        xero_token_expiry TEXT,
+        xero_token_expiry TIMESTAMPTZ,
         xero_sales_account_code TEXT NOT NULL DEFAULT '200',
         xero_cogs_account_code TEXT NOT NULL DEFAULT '500',
         xero_inventory_account_code TEXT NOT NULL DEFAULT '630',
         xero_ap_account_code TEXT NOT NULL DEFAULT '800',
         xero_tracking_category_id TEXT,
         xero_tax_type TEXT NOT NULL DEFAULT '',
-        updated_at TEXT
+        updated_at TIMESTAMPTZ
     )""",
     """CREATE TABLE IF NOT EXISTS refresh_tokens (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         token_hash TEXT NOT NULL UNIQUE,
-        expires_at TEXT NOT NULL,
-        revoked INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS oauth_states (
         state TEXT PRIMARY KEY,
         org_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS audit_log (
         id TEXT PRIMARY KEY,
@@ -63,8 +63,8 @@ TABLES: list[str] = [
         resource_id TEXT,
         details TEXT,
         ip_address TEXT,
-        organization_id TEXT,
-        created_at TEXT NOT NULL
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS billing_entities (
         id TEXT PRIMARY KEY,
@@ -74,10 +74,10 @@ TABLES: list[str] = [
         billing_address TEXT NOT NULL DEFAULT '',
         payment_terms TEXT NOT NULL DEFAULT 'net_30',
         xero_contact_id TEXT,
-        is_active INTEGER NOT NULL DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(organization_id, name)
     )""",
     """CREATE TABLE IF NOT EXISTS addresses (
@@ -92,24 +92,24 @@ TABLES: list[str] = [
         billing_entity_id TEXT,
         job_id TEXT,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS fiscal_periods (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT NOT NULL,
+        start_date TIMESTAMPTZ NOT NULL,
+        end_date TIMESTAMPTZ NOT NULL,
         status TEXT NOT NULL DEFAULT 'open',
         closed_by_id TEXT,
-        closed_at TEXT,
+        closed_at TIMESTAMPTZ,
         organization_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS processed_events (
         event_id TEXT NOT NULL,
         handler_name TEXT NOT NULL,
         event_type TEXT NOT NULL,
-        processed_at TEXT NOT NULL,
+        processed_at TIMESTAMPTZ NOT NULL,
         PRIMARY KEY (event_id, handler_name)
     )""",
 ]
@@ -128,6 +128,27 @@ INDEXES: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_addresses_entity ON addresses(billing_entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_addresses_job ON addresses(job_id)",
     "CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status)",
+]
+
+MIGRATIONS: list[str] = [
+    """DO $$ BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'users' AND column_name = 'is_active' AND data_type = 'integer'
+        ) THEN
+            ALTER TABLE users ALTER COLUMN is_active TYPE BOOLEAN USING (is_active::int::boolean);
+            ALTER TABLE users ALTER COLUMN is_active SET DEFAULT TRUE;
+        END IF;
+    END $$""",
+    """DO $$ BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'billing_entities' AND column_name = 'is_active' AND data_type = 'integer'
+        ) THEN
+            ALTER TABLE billing_entities ALTER COLUMN is_active TYPE BOOLEAN USING (is_active::int::boolean);
+            ALTER TABLE billing_entities ALTER COLUMN is_active SET DEFAULT TRUE;
+        END IF;
+    END $$""",
 ]
 
 EXTENSIONS: list[str] = [
@@ -287,5 +308,5 @@ VIEWS: list[str] = [
 ]
 
 SEED: list[str] = [
-    "INSERT INTO organizations (id, name, slug, created_at) VALUES ('supply-yard', 'Supply Yard', 'supply-yard', '2024-01-01T00:00:00+00:00') ON CONFLICT DO NOTHING",
+    "INSERT INTO organizations (id, name, slug, created_at) VALUES ('supply-yard', 'Supply Yard', 'supply-yard', '2024-01-01T00:00:00+00:00'::timestamptz) ON CONFLICT DO NOTHING",
 ]

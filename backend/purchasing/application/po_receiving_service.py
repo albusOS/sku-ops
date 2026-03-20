@@ -407,7 +407,7 @@ async def _recompute_po_status(
     all_items = await repo.get_po_items(po_id)
     arrived_count = sum(1 for i in all_items if i.status == POItemStatus.ARRIVED.value)
     total = len(all_items)
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
 
     if arrived_count == total and total > 0:
         new_status = POStatus.RECEIVED.value

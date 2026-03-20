@@ -137,6 +137,8 @@ class PostgresBackend:
         return self._session_factory
 
     async def connect(self, url: str) -> None:
+        import os
+
         from shared.infrastructure.config import (
             PG_ACQUIRE_TIMEOUT,
             PG_COMMAND_TIMEOUT,
@@ -167,7 +169,7 @@ class PostgresBackend:
                 "postgres://", "postgresql+asyncpg://", 1
             )
 
-        engine_kwargs = {
+        engine_kwargs: dict[str, Any] = {
             "pool_pre_ping": True,
             "connect_args": {"command_timeout": PG_COMMAND_TIMEOUT},
         }

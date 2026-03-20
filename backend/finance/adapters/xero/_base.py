@@ -27,10 +27,8 @@ class XeroBaseMixin:
         if not settings.xero_token_expiry:
             return True
         try:
-            expiry = datetime.fromisoformat(settings.xero_token_expiry)
-            # Treat as expired 60 s before actual expiry to avoid edge races
-            return datetime.now(UTC).timestamp() >= expiry.timestamp() - 60
-        except (ValueError, TypeError):
+            return datetime.now(UTC).timestamp() >= settings.xero_token_expiry.timestamp() - 60
+        except (ValueError, TypeError, AttributeError):
             return True
 
     async def _ensure_tracking_option(

@@ -138,8 +138,80 @@ export const AuthProvider = ({ children }) => {
     }
     return null;
   };
-  const login = _supabaseLogin;
-  const register = _supabaseRegister;
+
+  // ── Bridge mode (dev, no Supabase) ──────────────────────────────────────────
+
+  const refreshTimerRef = useRef(null);
+  const scheduleBridgeRefreshRef = useRef(null);
+
+  scheduleBridgeRefreshRef.current = (jwt) => {
+    clearTimeout(refreshTimerRef.current);
+    try {
+      const payload = JSON.parse(atob(jwt.split(".")[1]));
+      const expiresAt = payload.exp * 1000;
+      // Refresh 2 minutes before expiry, minimum 30 seconds from now
+      const refreshAt = Math.max(expiresAt - 2 * 60 * 1000, Date.now() + 30_000);
+      const delay = refreshAt - Date.now();
+      refreshTimerRef.current = setTimeout(async () => {
+        try {
+          const { token: newJwt } = await api.auth.refresh();
+          sessionStorage.setItem("token", newJwt);
+          _setAxiosToken(newJwt);
+          scheduleBridgeRefreshRef.current?.(newJwt);
+        } catch {
+          toast.error("Session expired — please log in again.");
+          logoutRef.current?.();
+        }
+      }, delay);
+    } catch {
+      /* malformed token — will fail on next API call and trigger logout */
+    }
+  };
+
+  const _bridgeLogout = () => {
+    clearTimeout(refreshTimerRef.current);
+    sessionStorage.removeItem("token");
+    _setAxiosToken(null);
+    setUser(null);
+  };
+
+  useEffect(() => {
+    if (isSupabaseConfigured) return;
+
+    const saved = sessionStorage.getItem("token");
+    if (saved) {
+      _setAxiosToken(saved);
+      scheduleBridgeRefreshRef.current?.(saved);
+      _fetchProfile().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+
+    return () => clearTimeout(refreshTimerRef.current);
+  }, []);
+
+  const _bridgeLogin = async (email, password) => {
+    const { token: jwt, user: userData } = await api.auth.login({ email, password });
+    sessionStorage.setItem("token", jwt);
+    _setAxiosToken(jwt);
+    scheduleBridgeRefreshRef.current?.(jwt);
+    setUser(userData);
+    return userData;
+  };
+
+  const _bridgeRegister = async (email, password, name) => {
+    const { token: jwt, user: userData } = await api.auth.register({ email, password, name });
+    sessionStorage.setItem("token", jwt);
+    _setAxiosToken(jwt);
+    scheduleBridgeRefreshRef.current?.(jwt);
+    setUser(userData);
+    return userData;
+  };
+
+  // ── Public API ──────────────────────────────────────────────────────────────
+
+  const login = isSupabaseConfigured ? _supabaseLogin : _bridgeLogin;
+  const register = isSupabaseConfigured ? _supabaseRegister : _bridgeRegister;
   const logout = () => {
     _supabaseLogout();
   };

@@ -24,7 +24,7 @@ from catalog.domain.product_analysis import (
     ProductAnalysis,
 )
 from shared.infrastructure.prompt_loader import load_prompt, register_partial
-from shared.kernel.units import ALLOWED_BASE_UNITS
+from shared.kernel.units import ALLOWED_BASE_UNITS, normalize_pack_qty, normalize_unit
 
 logger = logging.getLogger(__name__)
 
@@ -51,60 +51,8 @@ def _get_system_prompt() -> str:
     return _SYSTEM_PROMPT
 
 
-def _normalize_unit(raw: Any) -> str:
-    if not raw or not isinstance(raw, str):
-        return "each"
-    v = raw.lower().strip()
-    mapping = {
-        "gal": "gallon",
-        "gals": "gallon",
-        "gallons": "gallon",
-        "gal.": "gallon",
-        "ft": "foot",
-        "feet": "foot",
-        "lf": "foot",
-        "linear foot": "foot",
-        "in": "inch",
-        "in.": "inch",
-        "inches": "inch",
-        "yd": "yard",
-        "yards": "yard",
-        "lb": "pound",
-        "lbs": "pound",
-        "pounds": "pound",
-        "lb.": "pound",
-        "oz": "ounce",
-        "ozs": "ounce",
-        "ounces": "ounce",
-        "oz.": "ounce",
-        "qt": "quart",
-        "quarts": "quart",
-        "qt.": "quart",
-        "pt": "pint",
-        "pints": "pint",
-        "pt.": "pint",
-        "sq ft": "sqft",
-        "square feet": "sqft",
-        "sq. ft": "sqft",
-        "bx": "box",
-        "cs": "case",
-        "pk": "pack",
-        "pkg": "pack",
-        "ea": "each",
-        "pc": "each",
-        "pcs": "each",
-    }
-    v = mapping.get(v, v)
-    return v if v in ALLOWED_BASE_UNITS else "each"
-
-
-def _normalize_pack_qty(val: Any) -> int:
-    if val is None:
-        return 1
-    try:
-        return max(1, int(val))
-    except (ValueError, TypeError):
-        return 1
+_normalize_unit = normalize_unit
+_normalize_pack_qty = normalize_pack_qty
 
 
 def _parse_llm_products(response: str) -> list[dict]:
@@ -119,7 +67,11 @@ def _parse_llm_products(response: str) -> list[dict]:
         return []
 
 
-def _dict_to_analyzed_product(raw: dict, raw_text: str) -> AnalyzedProduct:
+def _dict_to_analyzed_product(
+    raw: dict,
+    raw_text: str,
+    known_units: frozenset[str] | None = None,
+) -> AnalyzedProduct:
     """Convert LLM or agent JSON output to typed AnalyzedProduct."""
     specs = raw.get("specifications") or {}
     if not isinstance(specs, dict):
@@ -134,10 +86,10 @@ def _dict_to_analyzed_product(raw: dict, raw_text: str) -> AnalyzedProduct:
         brand=raw.get("brand") or None,
         product_type=raw.get("product_type") or "",
         specifications={str(k): str(v) for k, v in specs.items()},
-        base_unit=_normalize_unit(raw.get("base_unit")),
-        sell_uom=_normalize_unit(raw.get("sell_uom", raw.get("base_unit"))),
+        base_unit=_normalize_unit(raw.get("base_unit"), known_units),
+        sell_uom=_normalize_unit(raw.get("sell_uom", raw.get("base_unit")), known_units),
         pack_qty=_normalize_pack_qty(raw.get("pack_qty")),
-        purchase_uom=_normalize_unit(raw.get("purchase_uom", raw.get("base_unit"))),
+        purchase_uom=_normalize_unit(raw.get("purchase_uom", raw.get("base_unit")), known_units),
         purchase_pack_qty=_normalize_pack_qty(raw.get("purchase_pack_qty")),
         suggested_department=(raw.get("suggested_department") or "HDW").upper().strip(),
         variant_label=raw.get("variant_label") or "",
@@ -176,10 +128,14 @@ _FALLBACK_DEPTS = dict.fromkeys(("PLU", "ELE", "PNT", "LUM", "TOL", "HDW", "GDN"
 # Used by assistant/agents/product_analyst when run standalone.
 
 
-def _agent_dict_to_analysis(raw: dict, source_item: dict) -> ProductAnalysis:
+def _agent_dict_to_analysis(
+    raw: dict,
+    source_item: dict,
+    known_units: frozenset[str] | None = None,
+) -> ProductAnalysis:
     """Convert an agent-submitted analysis dict to typed ProductAnalysis."""
     raw_text = source_item.get("name") or ""
-    product = _dict_to_analyzed_product(raw, raw_text)
+    product = _dict_to_analyzed_product(raw, raw_text, known_units)
 
     family_candidates: list[FamilyCandidate] = []
     if raw.get("matched_family_id"):
@@ -205,12 +161,13 @@ def _agent_dict_to_analysis(raw: dict, source_item: dict) -> ProductAnalysis:
 async def _run_agent_from_dicts(
     items: list[dict],
     analyses_dicts: list[dict],
+    known_units: frozenset[str] | None = None,
 ) -> list[ProductAnalysis]:
     """Convert raw agent output dicts to typed ProductAnalysis list."""
     results: list[ProductAnalysis] = []
     for i, item in enumerate(items):
         if i < len(analyses_dicts):
-            results.append(_agent_dict_to_analysis(analyses_dicts[i], item))
+            results.append(_agent_dict_to_analysis(analyses_dicts[i], item, known_units))
         else:
             ap = _rule_fallback(item)
             results.append(
@@ -228,6 +185,7 @@ async def _run_agent_from_dicts(
 async def _decompose_products(
     items: list[dict],
     generate_text: GenerateTextFn,
+    known_units: frozenset[str] | None = None,
 ) -> list[AnalyzedProduct]:
     """Batch LLM decomposition — single call for all items."""
     if not items:
@@ -263,7 +221,7 @@ Decompose each into structured product data following the system instructions.""
         for i, item in enumerate(items):
             raw_text = item.get("name") or ""
             if i < len(parsed) and isinstance(parsed[i], dict):
-                results.append(_dict_to_analyzed_product(parsed[i], raw_text))
+                results.append(_dict_to_analyzed_product(parsed[i], raw_text, known_units))
             else:
                 results.append(_rule_fallback(item))
         return results
@@ -337,11 +295,13 @@ async def _find_vendor_match(
 def _validate_product(
     product: AnalyzedProduct,
     valid_dept_codes: set[str],
+    known_units: frozenset[str] | None = None,
 ) -> list[str]:
+    valid = known_units if known_units is not None else ALLOWED_BASE_UNITS
     warnings: list[str] = []
-    if product.base_unit not in ALLOWED_BASE_UNITS:
+    if product.base_unit not in valid:
         warnings.append(f"Unknown base_unit '{product.base_unit}' — defaulting to 'each'")
-    if product.sell_uom not in ALLOWED_BASE_UNITS:
+    if product.sell_uom not in valid:
         warnings.append(f"Unknown sell_uom '{product.sell_uom}' — defaulting to 'each'")
     if product.suggested_department not in valid_dept_codes:
         warnings.append(
@@ -389,13 +349,14 @@ async def _enrich_single(
     search_families: SearchFamiliesFn | None,
     find_by_vendor_sku: FindByVendorSkuFn | None,
     find_by_name_and_vendor: FindByNameVendorFn | None,
+    known_units: frozenset[str] | None = None,
 ) -> ProductAnalysis:
     family_task = _find_family_candidates(product, search_families)
     vendor_task = _find_vendor_match(
         product, vendor_id, find_by_vendor_sku, find_by_name_and_vendor
     )
     families, (sku_id, vi_id) = await asyncio.gather(family_task, vendor_task)
-    warnings = _validate_product(product, valid_dept_codes)
+    warnings = _validate_product(product, valid_dept_codes, known_units)
 
     recommendation, reason = _derive_recommendation(product, sku_id, vi_id, families)
 
@@ -419,11 +380,15 @@ async def analyze_products(
     generate_text: GenerateTextFn = None,
     vendor_id: str | None = None,
     dept_codes: list[str] | None = None,
+    known_units: frozenset[str] | None = None,
     search_families: SearchFamiliesFn | None = None,
     find_by_vendor_sku: FindByVendorSkuFn | None = None,
     find_by_name_and_vendor: FindByNameVendorFn | None = None,
 ) -> list[ProductAnalysis]:
     """Batch product intelligence: single LLM call for decomposition + parallel DB matching.
+
+    Pass ``known_units`` (from ``catalog_queries.get_known_unit_codes()``) to enable
+    org-custom units in LLM prompts and validation.
 
     Strategy:
     1. Batch LLM — single call for decomposition when generate_text is provided.
@@ -435,7 +400,7 @@ async def analyze_products(
         return []
 
     valid_depts = set(dept_codes or []) | set(_FALLBACK_DEPTS.keys())
-    analyzed = await _decompose_products(items, generate_text)
+    analyzed = await _decompose_products(items, generate_text, known_units)
 
     tasks = [
         _enrich_single(
@@ -445,6 +410,7 @@ async def analyze_products(
             search_families=search_families,
             find_by_vendor_sku=find_by_vendor_sku,
             find_by_name_and_vendor=find_by_name_and_vendor,
+            known_units=known_units,
         )
         for ap in analyzed
     ]

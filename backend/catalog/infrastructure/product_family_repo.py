@@ -10,8 +10,6 @@ def _row_to_product(row) -> ProductFamily | None:
     if row is None:
         return None
     d = dict(row)
-    if d.get("organization_id") is None:
-        d.pop("organization_id", None)
     return ProductFamily.model_validate(d)
 
 
@@ -31,8 +29,8 @@ async def insert(product: ProductFamily) -> None:
             p.get("category_name", ""),
             p.get("sku_count", 0),
             org_id,
-            p.get("created_at", ""),
-            p.get("updated_at", ""),
+            p.get("created_at") or datetime.now(UTC),
+            p.get("updated_at") or datetime.now(UTC),
         ),
     )
 
@@ -41,7 +39,7 @@ async def get_by_id(product_id: str) -> ProductFamily | None:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
-        "SELECT * FROM products WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL) AND deleted_at IS NULL",
+        "SELECT * FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (product_id, org_id),
     )
     row = await cursor.fetchone()
@@ -57,7 +55,7 @@ async def list_all(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    base = f"SELECT * FROM products WHERE (organization_id = ${n} OR organization_id IS NULL) AND deleted_at IS NULL"
+    base = f"SELECT * FROM products WHERE organization_id = ${n} AND deleted_at IS NULL"
     params: list = [org_id]
     n += 1
     if category_id:
@@ -85,7 +83,7 @@ async def count(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    query = f"SELECT COUNT(*) FROM products WHERE (organization_id = ${n} OR organization_id IS NULL) AND deleted_at IS NULL"
+    query = f"SELECT COUNT(*) FROM products WHERE organization_id = ${n} AND deleted_at IS NULL"
     params: list = [org_id]
     n += 1
     if category_id:
@@ -106,7 +104,7 @@ async def update(product_id: str, updates: dict) -> ProductFamily | None:
     org_id = get_org_id()
     n = 1
     set_parts = [f"updated_at = ${n}"]
-    values: list = [updates.get("updated_at", datetime.now(UTC).isoformat())]
+    values: list = [updates.get("updated_at", datetime.now(UTC))]
     n += 1
     for key in ("name", "description", "category_id", "category_name"):
         if key in updates and updates[key] is not None:
@@ -127,7 +125,7 @@ async def update(product_id: str, updates: dict) -> ProductFamily | None:
 async def soft_delete(product_id: str) -> int:
     conn = get_connection()
     org_id = get_org_id()
-    now = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
     cursor = await conn.execute(
         "UPDATE products SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, product_id, org_id),

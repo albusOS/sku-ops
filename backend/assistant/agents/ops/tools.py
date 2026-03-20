@@ -41,7 +41,9 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
     ]
     details = [
         WithdrawalDetail(
-            date=(w.created_at or "")[:10],
+            date=w.created_at.strftime("%Y-%m-%d")
+            if isinstance(w.created_at, datetime)
+            else (w.created_at or "")[:10],
             job_id=w.job_id,
             service_address=w.service_address,
             contractor=w.contractor_name,
@@ -112,11 +114,13 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
     """Recent material withdrawals across all jobs."""
     days = min(days, 365)
     limit = min(limit, 100)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     withdrawals = await list_withdrawals(start_date=since, limit=limit)
     summaries = [
         WithdrawalSummary(
-            date=(w.created_at or "")[:10],
+            date=w.created_at.strftime("%Y-%m-%d")
+            if isinstance(w.created_at, datetime)
+            else (w.created_at or "")[:10],
             job_id=w.job_id,
             contractor=w.contractor_name,
             service_address=w.service_address,
@@ -157,7 +161,7 @@ async def _list_pending_material_requests(limit: int = 20) -> str:
 async def _get_daily_withdrawal_activity(days: int = 30, sku_id: str = "") -> str:
     """Daily withdrawal volume over the last N days."""
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
     sku_id_val = sku_id.strip() or None
     activity = await daily_withdrawal_activity(since, sku_id=sku_id_val)
     return DailyActivityResult(
@@ -170,8 +174,8 @@ async def _get_daily_withdrawal_activity(days: int = 30, sku_id: str = "") -> st
 async def _get_payment_status_breakdown(days: int = 30) -> str:
     """Withdrawal totals by payment status (paid/invoiced/unpaid)."""
     days = min(days, 365)
-    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    end = datetime.now(UTC).isoformat()
+    since = datetime.now(UTC) - timedelta(days=days)
+    end = datetime.now(UTC)
     breakdown = await payment_status_breakdown(since, end)
     total = round(sum(float(v) for v in breakdown.values()), 2)
     return PaymentStatusResult(

@@ -5,8 +5,6 @@ a quantity of a product through the system, you use LineItem. If you're
 identifying the authenticated caller, you use CurrentUser.
 """
 
-from decimal import ROUND_HALF_EVEN, Decimal
-
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -18,13 +16,7 @@ from pydantic import (
 
 
 def round_money(value: float) -> float:
-    """Round to 2 decimal places using banker's rounding (IEEE 754 standard).
-
-    Uses Python's Decimal for exact intermediate arithmetic, then converts
-    back to float for storage.  This avoids the rare half-penny drift that
-    plain ``round(x, 2)`` can introduce on IEEE 754 boundary values.
-    """
-    return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN))
+    return round(float(value), 2)
 
 
 class LineItem(BaseModel):

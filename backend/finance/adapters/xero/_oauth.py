@@ -31,7 +31,7 @@ class XeroOAuthMixin:
             update={
                 "xero_access_token": token_data["access_token"],
                 "xero_refresh_token": token_data.get("refresh_token", settings.xero_refresh_token),
-                "xero_token_expiry": datetime.fromtimestamp(expiry, tz=UTC).isoformat(),
+                "xero_token_expiry": datetime.fromtimestamp(expiry, tz=UTC),
             }
         )
         persisted = await upsert_org_settings(updated)

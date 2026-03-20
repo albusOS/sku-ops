@@ -14,7 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from shared.infrastructure.prompt_loader import load_prompt
-from shared.kernel.units import ALLOWED_BASE_UNITS
+from shared.kernel.units import ALLOWED_BASE_UNITS, normalize_pack_qty, normalize_unit
 
 logger = logging.getLogger(__name__)
 
@@ -37,77 +37,8 @@ def _default_rule_infer(_name: str) -> tuple[str, str, int]:
     return "each", "each", 1
 
 
-def _normalize_unit(raw: str) -> str:
-    """Map LLM output to allowed unit, default to each."""
-    if not raw or not isinstance(raw, str):
-        return "each"
-    v = raw.lower().strip()
-    # Common LLM variations and abbreviations
-    mapping = {
-        "gal": "gallon",
-        "gals": "gallon",
-        "gallons": "gallon",
-        "gal.": "gallon",
-        "qts": "quart",
-        "quarts": "quart",
-        "qt": "quart",
-        "qt.": "quart",
-        "pt": "pint",
-        "pints": "pint",
-        "pts": "pint",
-        "pt.": "pint",
-        "lbs": "pound",
-        "lb": "pound",
-        "pounds": "pound",
-        "lb.": "pound",
-        "oz": "ounce",
-        "ozs": "ounce",
-        "ounces": "ounce",
-        "oz.": "ounce",
-        "ft": "foot",
-        "feet": "foot",
-        "lf": "foot",
-        "lnft": "foot",
-        "ln ft": "foot",
-        "linear foot": "foot",
-        "in": "inch",
-        "in.": "inch",
-        "inches": "inch",
-        "inch": "inch",
-        "m": "meter",
-        "meters": "meter",
-        "metres": "meter",
-        "yd": "yard",
-        "yards": "yard",
-        "yds": "yard",
-        "sq ft": "sqft",
-        "sqft": "sqft",
-        "square feet": "sqft",
-        "sq. ft": "sqft",
-        "bx": "box",
-        "cs": "case",
-        "pk": "pack",
-        "pkg": "pack",
-        "pkgs": "pack",
-        "ea": "each",
-        "pc": "each",
-        "pcs": "each",
-        "piece": "each",
-        "pieces": "each",
-    }
-    v = mapping.get(v, v)
-    return v if v in ALLOWED_BASE_UNITS else "each"
-
-
-def _normalize_pack_qty(val) -> int:
-    """Ensure pack_qty is valid positive int."""
-    if val is None:
-        return 1
-    try:
-        n = int(val)
-        return max(1, n)
-    except (ValueError, TypeError):
-        return 1
+_normalize_unit = normalize_unit
+_normalize_pack_qty = normalize_pack_qty
 
 
 async def classify_uom(
@@ -115,16 +46,19 @@ async def classify_uom(
     description: str | None = None,
     *,
     generate_text: GenerateTextFn = None,
+    known_units: frozenset[str] | None = None,
 ) -> UOMClassification:
     """Use AI to classify UOM for a single product.
 
     Pass generate_text callable to enable LLM classification.
+    Pass known_units (from DB) to include org-custom units in the prompt and validation.
     Falls back to each/each/1 when no LLM is available.
     """
     if not generate_text:
         return UOMClassification(base_unit="each", sell_uom="each", pack_qty=1)
 
-    units_str = ", ".join(sorted(ALLOWED_BASE_UNITS))
+    valid = known_units if known_units is not None else ALLOWED_BASE_UNITS
+    units_str = ", ".join(sorted(valid))
     prompt = f"""Classify the unit of measure for this hardware/building-supply product.
 Product name: {product_name}
 {f"Description: {description}" if description else ""}
@@ -155,8 +89,8 @@ Return ONLY valid JSON: {{"base_unit": "...", "sell_uom": "...", "pack_qty": 1}}
             if json_match:
                 data = json.loads(json_match.group())
                 return UOMClassification(
-                    base_unit=_normalize_unit(data.get("base_unit")),
-                    sell_uom=_normalize_unit(data.get("sell_uom", data.get("base_unit"))),
+                    base_unit=_normalize_unit(data.get("base_unit"), valid),
+                    sell_uom=_normalize_unit(data.get("sell_uom", data.get("base_unit")), valid),
                     pack_qty=_normalize_pack_qty(data.get("pack_qty")),
                 )
     except (json.JSONDecodeError, ValueError, RuntimeError, OSError) as e:
@@ -169,10 +103,12 @@ async def classify_uom_batch(
     *,
     generate_text: GenerateTextFn = None,
     rule_infer: RuleInferFn = _default_rule_infer,
+    known_units: frozenset[str] | None = None,
 ) -> list[dict]:
     """
     Classify UOM for products. Uses LLM when generate_text is provided;
     otherwise falls back to rule_infer.
+    Pass known_units (from DB) to include org-custom units in the prompt and validation.
     Returns same list with base_unit, sell_uom, pack_qty added to each item.
     """
     if not products:
@@ -194,7 +130,8 @@ async def classify_uom_batch(
         p.setdefault("sell_uom", "each")
         p.setdefault("pack_qty", 1)
 
-    units_str = ", ".join(sorted(ALLOWED_BASE_UNITS))
+    valid = known_units if known_units is not None else ALLOWED_BASE_UNITS
+    units_str = ", ".join(sorted(valid))
     names = [p.get("name", "Unknown") for p in products]
     prompt = f"""Classify unit of measure for each hardware/building-supply product.
 Allowed units: {units_str}
@@ -229,8 +166,10 @@ Return ONLY a JSON array, one object per product in same order: [{{"base_unit":"
                 for i, p in enumerate(products):
                     r = results[i] if i < len(results) else None
                     if r and isinstance(r, dict):
-                        p["base_unit"] = _normalize_unit(r.get("base_unit"))
-                        p["sell_uom"] = _normalize_unit(r.get("sell_uom", r.get("base_unit")))
+                        p["base_unit"] = _normalize_unit(r.get("base_unit"), valid)
+                        p["sell_uom"] = _normalize_unit(
+                            r.get("sell_uom", r.get("base_unit")), valid
+                        )
                         p["pack_qty"] = _normalize_pack_qty(r.get("pack_qty"))
                     else:
                         _rule_fallback(p)
