@@ -9,13 +9,14 @@ specific to their scope (e.g. DB seeding, auth helpers).
 import os
 
 os.environ["ENV"] = "test"
-# CI injects DATABASE_URL (:5432). Local dev: docker-compose binds host :5433→container :5432.
-os.environ.setdefault("DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops_test")
+# CI injects DATABASE_URL. Local dev defaults to the Supabase local DB.
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+)
 os.environ.setdefault("REDIS_URL", "")
 os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
-os.environ.setdefault(
-    "ANTHROPIC_API_KEY", ""
-)  # intentionally empty — ANTHROPIC_AVAILABLE=False in tests
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = ""
 
 
 import pytest
@@ -123,5 +124,8 @@ def event_collector():
         await collector.capture(event)
         await real_dispatch(event)
 
-    with patch("shared.infrastructure.domain_events.dispatch", side_effect=_capturing_dispatch):
+    with patch(
+        "shared.infrastructure.domain_events.dispatch",
+        side_effect=_capturing_dispatch,
+    ):
         yield collector

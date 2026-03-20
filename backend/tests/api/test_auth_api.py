@@ -1,43 +1,6 @@
-"""Auth endpoint tests — login, /me, register."""
+"""Auth endpoint tests — Supabase-only auth plus backend profile hydration."""
 
 import pytest
-
-
-class TestLogin:
-    """POST /api/beta/shared/auth/login"""
-
-    def test_login_no_db_returns_503_or_401(self, client):
-        """Without DB init the login route must not crash — 503 or 401 acceptable."""
-        r = client.post(
-            "/api/beta/shared/auth/login",
-            json={"email": "nobody@nowhere.com", "password": "x"},
-        )
-        assert r.status_code in (401, 503)
-
-    def test_login_missing_fields_returns_422(self, client):
-        r = client.post("/api/beta/shared/auth/login", json={"email": "x@x.com"})
-        assert r.status_code == 422
-
-    @pytest.mark.usefixtures("_db_with_bcrypt_user")
-    def test_login_wrong_password(self, client):
-        r = client.post(
-            "/api/beta/shared/auth/login",
-            json={"email": "bcrypt@test.com", "password": "wrong"},
-        )
-        assert r.status_code == 401
-
-    @pytest.mark.usefixtures("_db_with_bcrypt_user")
-    def test_login_correct_password_returns_token_and_user(self, client):
-        r = client.post(
-            "/api/beta/shared/auth/login",
-            json={"email": "bcrypt@test.com", "password": "secret123"},
-        )
-        assert r.status_code == 200
-        data = r.json()
-        assert "token" in data
-        assert data["user"]["email"] == "bcrypt@test.com"
-        assert data["user"]["role"] == "admin"
-        assert "password" not in data["user"]
 
 
 class TestMe:
@@ -64,11 +27,17 @@ class TestMe:
         assert r.status_code == 401
 
 
-class TestRegister:
-    """POST /api/beta/shared/auth/register"""
+class TestSupabaseOnlyAuthSurface:
+    """The backend should no longer expose credential auth endpoints."""
 
-    @pytest.mark.usefixtures("_db")
-    def test_register_creates_user_and_returns_token(self, client):
+    def test_login_endpoint_not_mounted(self, client):
+        r = client.post(
+            "/api/beta/shared/auth/login",
+            json={"email": "nobody@nowhere.com", "password": "x"},
+        )
+        assert r.status_code == 404
+
+    def test_register_endpoint_not_mounted(self, client):
         r = client.post(
             "/api/beta/shared/auth/register",
             json={
@@ -77,20 +46,11 @@ class TestRegister:
                 "name": "New User",
             },
         )
-        assert r.status_code == 200
-        data = r.json()
-        assert "token" in data
-        assert data["user"]["email"] == "new@test.com"
-        assert data["user"]["role"] == "admin"
+        assert r.status_code == 404
 
-    @pytest.mark.usefixtures("_db")
-    def test_register_duplicate_email_returns_409(self, client):
+    def test_refresh_endpoint_not_mounted(self, client):
         r = client.post(
-            "/api/beta/shared/auth/register",
-            json={"email": "test@test.com", "password": "x", "name": "Dupe"},
+            "/api/beta/shared/auth/refresh",
+            headers={"Authorization": "Bearer anything"},
         )
-        assert r.status_code == 409
-
-    def test_register_missing_fields_returns_422(self, client):
-        r = client.post("/api/beta/shared/auth/register", json={"email": "x@x.com"})
-        assert r.status_code == 422
+        assert r.status_code == 404

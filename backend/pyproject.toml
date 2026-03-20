@@ -42,12 +42,16 @@ dependencies = [
     "PyYAML>=6.0",
     "tzdata>=2024.2",
     # ── Security constraints ──
-    "pyasn1>=0.6.3",  # CVE-2026-30922 — transitive via google-genai→google-auth→rsa
+    "pyasn1>=0.6.3", # CVE-2026-30922 — transitive via google-genai→google-auth→rsa
     # ── Production hardening ──
     "python-json-logger>=2.0.7",
     "prometheus-client>=0.20.0",
     "sentry-sdk[fastapi]>=1.40.0",
     "redis>=7.3.0",
+    "sqlmodel>=0.0.37",
+    "sqlalchemy>=2.0.48",
+    "supabase>=2.28.2",
+    "greenlet>=3.3.2",
 ]
 
 [dependency-groups]

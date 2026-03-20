@@ -70,7 +70,7 @@ This works because `pythonpath = ["backend"]` in the root `pyproject.toml` pytes
 
 ## Shared test infrastructure
 
-All backend tests run against a real Postgres database (`sku_ops_test`). The test database is created automatically by `./bin/dev db` (docker-compose.dev.yml binds host port 5433 to container port 5432).
+All backend tests run against a real Postgres database provided by the local Supabase stack. `./bin/dev test` and `./bin/dev test:be` reset the local database from `supabase/migrations/` and `supabase/seed.sql` before pytest starts.
 
 A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables and seeds minimal data: an organization (`supply-yard`), a department (`dept-1`), an admin user (`user-1`), and a contractor user (`contractor-1`).
 

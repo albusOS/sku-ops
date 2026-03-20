@@ -1,59 +1,20 @@
-"""Auth HTTP surface — login, /me, register.
-
-In production, Supabase owns the auth surface (signIn, signUp, session refresh).
-The backend only validates the JWT that Supabase issues.
-
-These endpoints exist for two purposes:
-  1. Dev/test: local demo users can log in without Supabase running.
-  2. Supabase JWT bridge: /me returns the enriched profile (name, role, org)
-     by looking up the users table after the Supabase JWT is verified.
-
-The login and register routes are ONLY mounted in development/test environments
-(gated in routes.py). The /me route is always mounted — Supabase-issued JWTs
-will hit it on every page load to hydrate the user profile.
-"""
+"""Auth HTTP surface - backend-owned profile hydration for Supabase sessions."""
 
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
-
-import bcrypt
-import jwt as pyjwt
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from shared.api.deps import CurrentUserDep
-from shared.infrastructure.config import (
-    JWT_ACCESS_EXPIRATION_MINUTES,
-    JWT_ALGORITHM,
-    JWT_SECRET,
+from shared.infrastructure.user_repo import (
+    fetch_by_email as _fetch_user_by_email_repo,
 )
-from shared.infrastructure.user_repo import fetch_by_email as _fetch_user_by_email_repo
-from shared.infrastructure.user_repo import fetch_by_id as _fetch_user_by_id_repo
-from shared.infrastructure.user_repo import insert_user as _insert_user_repo
+from shared.infrastructure.user_repo import (
+    fetch_by_id as _fetch_user_by_id_repo,
+)
 from shared.kernel.constants import DEFAULT_ORG_ID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-# Routes that are only safe in dev/test — login and register use the local
-# users table and a shared JWT secret. In production, Supabase owns this surface.
-dev_router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-# ── Request / Response models ─────────────────────────────────────────────────
-
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-
-class RegisterRequest(BaseModel):
-    email: str
-    password: str
-    name: str
-    org_id: str = DEFAULT_ORG_ID
 
 
 class UserResponse(BaseModel):
@@ -66,29 +27,6 @@ class UserResponse(BaseModel):
     billing_entity: str
     billing_entity_id: str | None = None
     phone: str
-
-
-class AuthResponse(BaseModel):
-    token: str
-    user: UserResponse
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _issue_token(user_row: dict) -> str:
-    import time  # stdlib — no cycle risk, kept inline for locality
-
-    payload = {
-        "sub": user_row["id"],
-        "user_id": user_row["id"],
-        "email": user_row["email"],
-        "name": user_row["name"],
-        "role": user_row["role"],
-        "organization_id": user_row.get("organization_id") or DEFAULT_ORG_ID,
-        "exp": int(time.time()) + JWT_ACCESS_EXPIRATION_MINUTES * 60,
-    }
-    return pyjwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def _row_to_user(row) -> UserResponse:
@@ -154,75 +92,3 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
     if not row["is_active"]:
         raise HTTPException(status_code=403, detail="Account is deactivated")
     return _row_to_user(row)
-
-
-@dev_router.post("/refresh")
-async def refresh(current_user: CurrentUserDep) -> AuthResponse:
-    """Dev-only: issue a fresh JWT for the currently authenticated user.
-
-    Called by the frontend before the current token expires to keep the
-    session alive without forcing a re-login.
-    """
-    try:
-        row = await _fetch_user_by_id(current_user.id)
-    except RuntimeError:
-        row = None
-    if not row:
-        raise HTTPException(status_code=401, detail="User not found")
-    if not row["is_active"]:
-        raise HTTPException(status_code=403, detail="Account is deactivated")
-    token = _issue_token(dict(row))
-    return AuthResponse(token=token, user=_row_to_user(row))
-
-
-@dev_router.post("/login")
-async def login(body: LoginRequest) -> AuthResponse:
-    """Dev-only: authenticate with email + password against the local users table.
-
-    Not mounted in production. In production, Supabase handles login and issues
-    the JWT directly to the frontend.
-    """
-    try:
-        row = await _fetch_user_by_email(body.email)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail="Database not available") from e
-    if not row:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not row["is_active"]:
-        raise HTTPException(status_code=403, detail="Account is deactivated")
-    if not bcrypt.checkpw(body.password.encode("utf-8"), row["password"].encode("utf-8")):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = _issue_token(dict(row))
-    return AuthResponse(token=token, user=_row_to_user(row))
-
-
-@dev_router.post("/register")
-async def register(body: RegisterRequest) -> AuthResponse:
-    """Dev-only: create a new admin user in the local users table.
-
-    Not mounted in production. In production, Supabase handles registration.
-    Admin creates contractors via the contractors endpoint.
-    """
-    try:
-        existing = await _fetch_user_by_email(body.email)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail="Database not available") from e
-    if existing:
-        raise HTTPException(status_code=409, detail="Email already registered")
-
-    hashed = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    user_id = str(uuid.uuid4())
-    now = datetime.now(UTC).isoformat()
-
-    await _insert_user_repo(
-        user_id=user_id,
-        email=body.email,
-        password_hash=hashed,
-        name=body.name,
-        organization_id=body.org_id,
-        created_at=now,
-    )
-
-    row = await _fetch_user_by_id(user_id)
-    token = _issue_token(dict(row))
-    return AuthResponse(token=token, user=_row_to_user(row))

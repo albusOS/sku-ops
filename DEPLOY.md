@@ -26,7 +26,7 @@ There is also a **self-hosted** path via `docker-compose.yml` (Postgres + Redis 
 
 | Environment | `ENV` value | Where | Purpose |
 |---|---|---|---|
-| Local dev | `development` | Your machine | Postgres via docker-compose.dev.yml, permissive defaults |
+| Local dev | `development` | Your machine | Local Supabase stack, permissive defaults |
 | Test | `test` | CI / local pytest | Test Postgres DB, conftest sets this |
 | Production | `production` | Railway + Vercel + Supabase | Strict config, Supabase Auth required |
 

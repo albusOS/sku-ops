@@ -34,7 +34,6 @@ COMPOSITION_ROOTS = frozenset(
         "routes.py",
         "startup.py",
         "scheduler.py",
-        "shared/infrastructure/full_schema.py",
     }
 )
 
@@ -71,7 +70,9 @@ def _from_imports(path: Path) -> list[str]:
     return [
         node.module
         for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module and id(node) not in type_checking_nodes
+        if isinstance(node, ast.ImportFrom)
+        and node.module
+        and id(node) not in type_checking_nodes
     ]
 
 
@@ -89,11 +90,7 @@ def _all_backend_py_files(skip_roots: bool = True):
 
 
 def test_shared_has_no_context_imports():
-    """shared/ must not import from any bounded context.
-
-    shared/infrastructure/full_schema.py is a composition root (aggregates
-    all context schemas) and is exempted.
-    """
+    """shared/ must not import from any bounded context."""
     violations = []
     for py_file in (BACKEND / "shared").rglob("*.py"):
         if "__pycache__" in py_file.parts:
@@ -104,7 +101,9 @@ def test_shared_has_no_context_imports():
         for module in _from_imports(py_file):
             if module.split(".")[0] in BOUNDED_CONTEXTS:
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, "shared/ imports from bounded contexts:\n" + "\n".join(violations)
+    assert not violations, (
+        "shared/ imports from bounded contexts:\n" + "\n".join(violations)
+    )
 
 
 # ── Test 2: domain layer purity ──────────────────────────────────────────────
@@ -122,8 +121,9 @@ def test_domain_layer_does_not_import_infrastructure_or_api():
             seg = module.split(".")
             if len(seg) >= 2 and seg[1] in ("infrastructure", "api"):
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, "Domain files import from infrastructure or api layers:\n" + "\n".join(
-        violations
+    assert not violations, (
+        "Domain files import from infrastructure or api layers:\n"
+        + "\n".join(violations)
     )
 
 
@@ -148,7 +148,8 @@ def test_no_cross_context_api_imports():
             ):
                 violations.append(f"  {rel}: from {module}")
     assert not violations, (
-        "Cross-context api imports (only composition roots may do this):\n" + "\n".join(violations)
+        "Cross-context api imports (only composition roots may do this):\n"
+        + "\n".join(violations)
     )
 
 
@@ -197,11 +198,19 @@ def test_api_layer_does_not_import_repos():
     for py_file in _all_backend_py_files():
         rel = py_file.relative_to(BACKEND)
         parts = rel.parts
-        if len(parts) < 2 or parts[1] != "api" or parts[0] not in BOUNDED_CONTEXTS:
+        if (
+            len(parts) < 2
+            or parts[1] != "api"
+            or parts[0] not in BOUNDED_CONTEXTS
+        ):
             continue
         for module in _from_imports(py_file):
             seg = module.split(".")
-            if len(seg) >= 2 and seg[-1].endswith("_repo") and "infrastructure" in seg:
+            if (
+                len(seg) >= 2
+                and seg[-1].endswith("_repo")
+                and "infrastructure" in seg
+            ):
                 violations.append(f"  {rel}: from {module}")
     assert not violations, (
         "API files import repos directly (should go through application layer):\n"
@@ -236,5 +245,6 @@ def test_no_cross_context_domain_imports():
             ):
                 violations.append(f"  {rel}: from {module}")
     assert not violations, (
-        "Cross-context domain imports (use application facades instead):\n" + "\n".join(violations)
+        "Cross-context domain imports (use application facades instead):\n"
+        + "\n".join(violations)
     )

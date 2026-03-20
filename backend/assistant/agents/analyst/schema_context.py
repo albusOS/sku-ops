@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 # ── Structured schema types ──────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ class TableInfo:
 # ── DDL parsing ──────────────────────────────────────────────────────────────
 
 _TABLE_RE = re.compile(
-    r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\((.*)\)",
+    r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\((.*?)\)\s*;",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -73,7 +74,9 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
         if upper.startswith("PRIMARY KEY"):
             pk_match = re.search(r"\(([^)]+)\)", line)
             if pk_match:
-                pk_columns.update(c.strip() for c in pk_match.group(1).split(","))
+                pk_columns.update(
+                    c.strip() for c in pk_match.group(1).split(",")
+                )
             continue
 
         if upper.startswith(("UNIQUE", "CHECK", "CONSTRAINT", "FOREIGN KEY")):
@@ -97,7 +100,9 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
 
         fk_match = _FK_RE.search(rest)
         if fk_match:
-            foreign_keys.append(ForeignKey(col_name, fk_match.group(1), fk_match.group(2)))
+            foreign_keys.append(
+                ForeignKey(col_name, fk_match.group(1), fk_match.group(2))
+            )
 
         if col_name in ("organization_id", "org_id"):
             has_org_id = True
@@ -118,18 +123,73 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
     )
 
 
-# ── Build the catalog at import time ─────────────────────────────────────────
+# ── Build the catalog from the Supabase migration ────────────────────────────
+
+_TABLE_CONTEXT = {
+    "organizations": "shared",
+    "users": "shared",
+    "refresh_tokens": "shared",
+    "oauth_states": "shared",
+    "audit_log": "shared",
+    "billing_entities": "finance",
+    "addresses": "shared",
+    "fiscal_periods": "finance",
+    "processed_events": "shared",
+    "departments": "catalog",
+    "units_of_measure": "catalog",
+    "vendors": "catalog",
+    "products": "catalog",
+    "skus": "catalog",
+    "vendor_items": "catalog",
+    "sku_counters": "catalog",
+    "stock_transactions": "inventory",
+    "cycle_counts": "inventory",
+    "cycle_count_items": "inventory",
+    "withdrawals": "operations",
+    "material_requests": "operations",
+    "returns": "operations",
+    "withdrawal_items": "operations",
+    "return_items": "operations",
+    "invoices": "finance",
+    "invoice_withdrawals": "finance",
+    "invoice_line_items": "finance",
+    "invoice_counters": "finance",
+    "credit_notes": "finance",
+    "credit_note_line_items": "finance",
+    "payments": "finance",
+    "payment_withdrawals": "finance",
+    "financial_ledger": "finance",
+    "purchase_orders": "purchasing",
+    "purchase_order_items": "purchasing",
+    "documents": "documents",
+    "jobs": "jobs",
+    "memory_artifacts": "assistant",
+    "agent_runs": "assistant",
+    "embeddings": "assistant",
+    "org_settings": "finance",
+}
+
+
+def _migration_path() -> Path:
+    repo_root = Path(__file__).resolve().parents[4]
+    migration_dir = repo_root / "supabase" / "migrations"
+    candidates = sorted(migration_dir.glob("*.sql"))
+    if not candidates:
+        raise RuntimeError(
+            "No Supabase migration files found for schema catalog."
+        )
+    return candidates[-1]
 
 
 def _build_catalog() -> dict[str, TableInfo]:
-    from shared.infrastructure.full_schema import TABLES_BY_CONTEXT
-
+    sql = _migration_path().read_text()
     catalog: dict[str, TableInfo] = {}
-    for ctx_name, tables in TABLES_BY_CONTEXT.items():
-        for ddl in tables:
-            info = _parse_ddl(ddl, ctx_name)
-            if info:
-                catalog[info.name] = info
+    for table_name, body in _TABLE_RE.findall(sql):
+        ddl = f"CREATE TABLE IF NOT EXISTS {table_name} ({body})"
+        context = _TABLE_CONTEXT.get(table_name, "shared")
+        info = _parse_ddl(ddl, context)
+        if info:
+            catalog[info.name] = info
     return catalog
 
 

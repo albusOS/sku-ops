@@ -279,9 +279,6 @@ const api = {
   // ── Auth / Seed ─────────────────────────────────────────────────────
   auth: {
     me: () => axios.get(`${API}/shared/auth/me`).then((r) => r.data),
-    login: (data) => axios.post(`${API}/shared/auth/login`, data).then((r) => r.data),
-    register: (data) => axios.post(`${API}/shared/auth/register`, data).then((r) => r.data),
-    refresh: () => axios.post(`${API}/shared/auth/refresh`).then((r) => r.data),
   },
 
   seed: {

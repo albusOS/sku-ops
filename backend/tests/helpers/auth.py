@@ -18,13 +18,14 @@ def make_token(
 ) -> str:
     payload = {
         "sub": user_id,
-        "user_id": user_id,
         "email": email or f"{user_id}@test.com",
-        "organization_id": org_id,
-        "role": role,
-        "name": name,
+        "role": "authenticated",
+        "app_metadata": {"role": role},
+        "user_metadata": {"name": name},
         "exp": int(time.time()) + (-3600 if expired else 3600),
     }
+    if org_id:
+        payload["app_metadata"]["organization_id"] = org_id
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -35,7 +36,10 @@ def admin_headers() -> dict[str, str]:
 
 def contractor_headers() -> dict[str, str]:
     token = make_token(
-        "contractor-1", role="contractor", name="Contractor User", email="contractor@test.com"
+        "contractor-1",
+        role="contractor",
+        name="Contractor User",
+        email="contractor@test.com",
     )
     return {"Authorization": f"Bearer {token}"}
 
@@ -45,7 +49,9 @@ def admin_token() -> str:
 
 
 def contractor_token() -> str:
-    return make_token("contractor-1", role="contractor", email="contractor@test.com")
+    return make_token(
+        "contractor-1", role="contractor", email="contractor@test.com"
+    )
 
 
 def expired_token() -> str:
