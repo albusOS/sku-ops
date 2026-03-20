@@ -3,7 +3,7 @@
 ## Canonical schema and migration surface today
 
 - **DDL source of truth**: declarative SQL under `supabase/schemas/` (`01-shared-schema.sql` through `10-entity-edges-schema.sql`), listed in `supabase/config.toml` under `[db.migrations] schema_paths`.
-- **Applied schema**: versioned files in `supabase/migrations/` (baseline plus follow-up migrations). `supabase db reset --local` applies migrations only; use `supabase db diff` to generate new migrations from declarative schema changes.
+- **Applied schema**: `supabase/migrations/20260318170213_initial_schema.sql` is the squashed baseline (concatenation of the declarative slices). Supabase CLI only applies files matching `<timestamp>_name.sql`. After editing files under `supabase/schemas/`, keep the migration in sync (re-concatenate in dependency order, or use `supabase db diff`). Incremental changes can add new timestamped migrations under `supabase/migrations/`.
 - App startup initializes the pool via `init_db()` in `backend/startup.py` - it does **not** run DDL at runtime.
 - Connection and transaction contract: `backend/shared/infrastructure/db/__init__.py`.
 - Low-level PostgreSQL adapter: `backend/shared/infrastructure/db/postgres.py`.

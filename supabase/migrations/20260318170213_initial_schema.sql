@@ -1,6 +1,9 @@
--- Generated from legacy Python schema modules during the Supabase cutover.
--- This file is the baseline migration for fresh databases. Follow-up changes
--- must land as normal Supabase SQL migrations rather than backend schema.py edits.
+-- Squashed baseline: concatenation of supabase/schemas/01-..10-*.sql (declarative source).
+-- Supabase CLI requires migrations named <timestamp>_name.sql (not plain initial_schema.sql).
+
+-- Shared context: vector extension, tenancy, auth-adjacent tables, audit, billing_entities,
+-- addresses, fiscal_periods, processed_events.
+-- Declarative slice; migrations remain authoritative for apply order.
 
 create extension if not exists vector with schema extensions;
 
@@ -120,6 +123,34 @@ CREATE TABLE IF NOT EXISTS processed_events (
         PRIMARY KEY (event_id, handler_name)
     );
 
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_users_org_role ON users(organization_id, role);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(organization_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_billing_entities_org ON billing_entities(organization_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_billing_entities_name ON billing_entities(organization_id, name);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_org ON addresses(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_entity ON addresses(billing_entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_job ON addresses(job_id);
+
+CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status);
+
+-- Catalog: departments, UOM, vendors, products, skus, vendor_items, sku_counters.
+
 CREATE TABLE IF NOT EXISTS departments (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -222,6 +253,38 @@ CREATE TABLE IF NOT EXISTS sku_counters (
         counter INTEGER NOT NULL DEFAULT 0
     );
 
+CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_uom_org ON units_of_measure(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendors_org ON vendors(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+
+CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_sku ON skus(sku);
+
+CREATE INDEX IF NOT EXISTS idx_skus_product_family ON skus(product_family_id);
+
+CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(category_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_barcode ON skus(barcode) WHERE barcode IS NOT NULL AND TRIM(barcode) != '';
+
+CREATE INDEX IF NOT EXISTS idx_skus_vendor_barcode ON skus(vendor_barcode) WHERE vendor_barcode IS NOT NULL AND TRIM(vendor_barcode) != '';
+
+CREATE INDEX IF NOT EXISTS idx_skus_org ON skus(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_sku ON vendor_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_vendor ON vendor_items(vendor_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_vendor_sku ON vendor_items(vendor_id, vendor_sku);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_org ON vendor_items(organization_id);
+
+-- Inventory: stock_transactions, cycle_counts, cycle_count_items.
+
 CREATE TABLE IF NOT EXISTS stock_transactions (
         id TEXT PRIMARY KEY,
         sku_id TEXT NOT NULL,
@@ -269,8 +332,30 @@ CREATE TABLE IF NOT EXISTS cycle_count_items (
         created_at TIMESTAMPTZ NOT NULL
     );
 
+CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_transactions(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_transactions(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_transactions(sku_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_stock_transactions_org ON stock_transactions(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_counts_org ON cycle_counts(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_counts_status ON cycle_counts(status);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_count_items_count ON cycle_count_items(cycle_count_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_count_items_product ON cycle_count_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_counts_org_status_created ON cycle_counts(organization_id, status, created_at);
+
+-- Operations: withdrawals, material_requests, material_request_items, returns,
+-- withdrawal_items, return_items.
+
 CREATE TABLE IF NOT EXISTS withdrawals (
         id TEXT PRIMARY KEY,
+        items TEXT,
         job_id TEXT NOT NULL,
         service_address TEXT NOT NULL,
         notes TEXT,
@@ -306,6 +391,18 @@ CREATE TABLE IF NOT EXISTS material_requests (
         processed_at TIMESTAMPTZ,
         processed_by_id TEXT,
         organization_id TEXT NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS material_request_items (
+        id TEXT PRIMARY KEY,
+        material_request_id TEXT NOT NULL REFERENCES material_requests(id),
+        sku_id TEXT NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL DEFAULT 0,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each'
     );
 
 CREATE TABLE IF NOT EXISTS returns (
@@ -362,6 +459,50 @@ CREATE TABLE IF NOT EXISTS return_items (
         sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
     );
 
+CREATE INDEX IF NOT EXISTS idx_withdrawals_contractor ON withdrawals(contractor_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_created ON withdrawals(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(payment_status);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_billing ON withdrawals(billing_entity);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_org ON withdrawals(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_requests_contractor ON material_requests(contractor_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_requests_status ON material_requests(status);
+
+CREATE INDEX IF NOT EXISTS idx_material_requests_org ON material_requests(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_request_items_mrid ON material_request_items(material_request_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_request_items_sku ON material_request_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_withdrawal ON returns(withdrawal_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_contractor ON returns(contractor_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_org ON returns(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawal_items_wid ON withdrawal_items(withdrawal_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawal_items_sku ON withdrawal_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_return_items_rid ON return_items(return_id);
+
+CREATE INDEX IF NOT EXISTS idx_return_items_sku ON return_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_invoice ON withdrawals(invoice_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_job ON withdrawals(organization_id, job_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_credit_note ON returns(organization_id, credit_note_id);
+
+-- Finance: invoices, credit notes, payments, ledger, join tables, counters.
+
 CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
         invoice_number TEXT UNIQUE NOT NULL,
@@ -376,8 +517,8 @@ CREATE TABLE IF NOT EXISTS invoices (
         total NUMERIC(18,2) NOT NULL,
         amount_credited NUMERIC(18,2) NOT NULL DEFAULT 0,
         notes TEXT,
-        invoice_date TEXT,
-        due_date TEXT,
+        invoice_date TIMESTAMPTZ,
+        due_date TIMESTAMPTZ,
         payment_terms TEXT NOT NULL DEFAULT 'net_30',
         billing_address TEXT NOT NULL DEFAULT '',
         po_reference TEXT NOT NULL DEFAULT '',
@@ -457,7 +598,7 @@ CREATE TABLE IF NOT EXISTS payments (
         amount NUMERIC(18,2) NOT NULL,
         method TEXT NOT NULL DEFAULT 'bank_transfer',
         reference TEXT NOT NULL DEFAULT '',
-        payment_date TEXT NOT NULL,
+        payment_date TIMESTAMPTZ NOT NULL,
         notes TEXT,
         recorded_by_id TEXT NOT NULL,
         xero_payment_id TEXT,
@@ -493,240 +634,6 @@ CREATE TABLE IF NOT EXISTS financial_ledger (
         organization_id TEXT,
         created_at TIMESTAMPTZ NOT NULL
     );
-
-CREATE TABLE IF NOT EXISTS purchase_orders (
-        id TEXT PRIMARY KEY,
-        vendor_id TEXT,
-        vendor_name TEXT NOT NULL DEFAULT '',
-        document_date TEXT,
-        total REAL,
-        status TEXT NOT NULL DEFAULT 'ordered',
-        notes TEXT,
-        created_by_id TEXT NOT NULL DEFAULT '',
-        created_by_name TEXT NOT NULL DEFAULT '',
-        received_at TIMESTAMPTZ,
-        received_by_id TEXT,
-        received_by_name TEXT,
-        document_id TEXT,
-        xero_bill_id TEXT,
-        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ,
-        organization_id TEXT
-    );
-
-CREATE TABLE IF NOT EXISTS purchase_order_items (
-        id TEXT PRIMARY KEY,
-        po_id TEXT NOT NULL REFERENCES purchase_orders(id),
-        name TEXT NOT NULL,
-        original_sku TEXT,
-        ordered_qty REAL NOT NULL DEFAULT 1,
-        delivered_qty REAL,
-        unit_price REAL NOT NULL DEFAULT 0,
-        cost REAL NOT NULL DEFAULT 0,
-        base_unit TEXT NOT NULL DEFAULT 'each',
-        sell_uom TEXT NOT NULL DEFAULT 'each',
-        pack_qty INTEGER NOT NULL DEFAULT 1,
-        purchase_uom TEXT NOT NULL DEFAULT 'each',
-        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
-        suggested_department TEXT NOT NULL DEFAULT 'HDW',
-        status TEXT NOT NULL DEFAULT 'ordered',
-        sku_id TEXT,
-        organization_id TEXT
-    );
-
-CREATE TABLE IF NOT EXISTS documents (
-        id TEXT PRIMARY KEY,
-        filename TEXT NOT NULL,
-        document_type TEXT NOT NULL DEFAULT 'other',
-        vendor_name TEXT,
-        file_hash TEXT NOT NULL DEFAULT '',
-        file_size INTEGER NOT NULL DEFAULT 0,
-        mime_type TEXT NOT NULL DEFAULT '',
-        parsed_data TEXT,
-        po_id TEXT,
-        status TEXT NOT NULL DEFAULT 'parsed',
-        uploaded_by_id TEXT NOT NULL,
-        organization_id TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-    );
-
-CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY,
-        code TEXT NOT NULL,
-        name TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT,
-        status TEXT NOT NULL DEFAULT 'active',
-        service_address TEXT NOT NULL DEFAULT '',
-        notes TEXT,
-        organization_id TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL,
-        UNIQUE(organization_id, code)
-    );
-
-CREATE TABLE IF NOT EXISTS memory_artifacts (
-        id TEXT PRIMARY KEY,
-        org_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'entity_fact',
-        subject TEXT NOT NULL DEFAULT 'general',
-        content TEXT NOT NULL DEFAULT '',
-        tags TEXT NOT NULL DEFAULT '[]',
-        created_at TIMESTAMPTZ NOT NULL,
-        expires_at TIMESTAMPTZ
-    );
-
-CREATE TABLE IF NOT EXISTS agent_runs (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        org_id TEXT NOT NULL,
-        user_id TEXT,
-        agent_name TEXT NOT NULL,
-        model TEXT NOT NULL,
-        mode TEXT,
-        user_message TEXT,
-        response_text TEXT,
-        tool_calls TEXT NOT NULL DEFAULT '[]',
-        input_tokens INTEGER NOT NULL DEFAULT 0,
-        output_tokens INTEGER NOT NULL DEFAULT 0,
-        cost_usd REAL NOT NULL DEFAULT 0,
-        duration_ms INTEGER NOT NULL DEFAULT 0,
-        attempts INTEGER NOT NULL DEFAULT 1,
-        error TEXT,
-        error_kind TEXT,
-        parent_run_id TEXT,
-        handoff_from TEXT,
-        validation_passed BOOLEAN,
-        validation_failures TEXT NOT NULL DEFAULT '[]',
-        validation_scores TEXT NOT NULL DEFAULT '{}',
-        created_at TIMESTAMPTZ NOT NULL
-    );
-
-CREATE TABLE IF NOT EXISTS embeddings (
-        id TEXT PRIMARY KEY,
-        org_id TEXT NOT NULL,
-        entity_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        content TEXT NOT NULL,
-        content_hash TEXT NOT NULL,
-        embedding vector(1536) NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL
-    );
-
-CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_users_org_role ON users(organization_id, role);
-
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
-
-CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(organization_id, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_billing_entities_org ON billing_entities(organization_id, is_active);
-
-CREATE INDEX IF NOT EXISTS idx_billing_entities_name ON billing_entities(organization_id, name);
-
-CREATE INDEX IF NOT EXISTS idx_addresses_org ON addresses(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_addresses_entity ON addresses(billing_entity_id);
-
-CREATE INDEX IF NOT EXISTS idx_addresses_job ON addresses(job_id);
-
-CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status);
-
-CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_uom_org ON units_of_measure(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_vendors_org ON vendors(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
-
-CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_sku ON skus(sku);
-
-CREATE INDEX IF NOT EXISTS idx_skus_product_family ON skus(product_family_id);
-
-CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(category_id);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_barcode ON skus(barcode) WHERE barcode IS NOT NULL AND TRIM(barcode) != '';
-
-CREATE INDEX IF NOT EXISTS idx_skus_vendor_barcode ON skus(vendor_barcode) WHERE vendor_barcode IS NOT NULL AND TRIM(vendor_barcode) != '';
-
-CREATE INDEX IF NOT EXISTS idx_skus_org ON skus(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_vendor_items_sku ON vendor_items(sku_id);
-
-CREATE INDEX IF NOT EXISTS idx_vendor_items_vendor ON vendor_items(vendor_id);
-
-CREATE INDEX IF NOT EXISTS idx_vendor_items_vendor_sku ON vendor_items(vendor_id, vendor_sku);
-
-CREATE INDEX IF NOT EXISTS idx_vendor_items_org ON vendor_items(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_transactions(sku_id);
-
-CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_transactions(created_at);
-
-CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_transactions(sku_id, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_stock_transactions_org ON stock_transactions(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_cycle_counts_org ON cycle_counts(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_cycle_counts_status ON cycle_counts(status);
-
-CREATE INDEX IF NOT EXISTS idx_cycle_count_items_count ON cycle_count_items(cycle_count_id);
-
-CREATE INDEX IF NOT EXISTS idx_cycle_count_items_product ON cycle_count_items(sku_id);
-
-CREATE INDEX IF NOT EXISTS idx_cycle_counts_org_status_created ON cycle_counts(organization_id, status, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_contractor ON withdrawals(contractor_id);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_created ON withdrawals(created_at);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(payment_status);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_billing ON withdrawals(billing_entity);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_org ON withdrawals(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_material_requests_contractor ON material_requests(contractor_id);
-
-CREATE INDEX IF NOT EXISTS idx_material_requests_status ON material_requests(status);
-
-CREATE INDEX IF NOT EXISTS idx_material_requests_org ON material_requests(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_returns_withdrawal ON returns(withdrawal_id);
-
-CREATE INDEX IF NOT EXISTS idx_returns_contractor ON returns(contractor_id);
-
-CREATE INDEX IF NOT EXISTS idx_returns_org ON returns(organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawal_items_wid ON withdrawal_items(withdrawal_id);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawal_items_sku ON withdrawal_items(sku_id);
-
-CREATE INDEX IF NOT EXISTS idx_return_items_rid ON return_items(return_id);
-
-CREATE INDEX IF NOT EXISTS idx_return_items_sku ON return_items(sku_id);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_invoice ON withdrawals(invoice_id);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawals_job ON withdrawals(organization_id, job_id);
-
-CREATE INDEX IF NOT EXISTS idx_returns_credit_note ON returns(organization_id, credit_note_id);
 
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 
@@ -778,6 +685,49 @@ CREATE INDEX IF NOT EXISTS idx_cn_xero_sync ON credit_notes(xero_sync_status, xe
 
 CREATE INDEX IF NOT EXISTS idx_invoice_withdrawals_withdrawal ON invoice_withdrawals(withdrawal_id);
 
+-- Purchasing: purchase_orders, purchase_order_items.
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+        id TEXT PRIMARY KEY,
+        vendor_id TEXT,
+        vendor_name TEXT NOT NULL DEFAULT '',
+        document_date TEXT,
+        total REAL,
+        status TEXT NOT NULL DEFAULT 'ordered',
+        notes TEXT,
+        created_by_id TEXT NOT NULL DEFAULT '',
+        created_by_name TEXT NOT NULL DEFAULT '',
+        received_at TIMESTAMPTZ,
+        received_by_id TEXT,
+        received_by_name TEXT,
+        document_id TEXT,
+        xero_bill_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ,
+        organization_id TEXT
+    );
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+        id TEXT PRIMARY KEY,
+        po_id TEXT NOT NULL REFERENCES purchase_orders(id),
+        name TEXT NOT NULL,
+        original_sku TEXT,
+        ordered_qty REAL NOT NULL DEFAULT 1,
+        delivered_qty REAL,
+        unit_price REAL NOT NULL DEFAULT 0,
+        cost REAL NOT NULL DEFAULT 0,
+        base_unit TEXT NOT NULL DEFAULT 'each',
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        pack_qty INTEGER NOT NULL DEFAULT 1,
+        purchase_uom TEXT NOT NULL DEFAULT 'each',
+        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
+        suggested_department TEXT NOT NULL DEFAULT 'HDW',
+        status TEXT NOT NULL DEFAULT 'ordered',
+        sku_id TEXT,
+        organization_id TEXT
+    );
+
 CREATE INDEX IF NOT EXISTS idx_po_org_status ON purchase_orders(organization_id, status);
 
 CREATE INDEX IF NOT EXISTS idx_po_created ON purchase_orders(created_at);
@@ -788,6 +738,25 @@ CREATE INDEX IF NOT EXISTS idx_po_items_status ON purchase_order_items(status);
 
 CREATE INDEX IF NOT EXISTS idx_po_xero_sync ON purchase_orders(xero_sync_status, xero_bill_id);
 
+-- Documents: documents archive.
+
+CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL,
+        document_type TEXT NOT NULL DEFAULT 'other',
+        vendor_name TEXT,
+        file_hash TEXT NOT NULL DEFAULT '',
+        file_size INTEGER NOT NULL DEFAULT 0,
+        mime_type TEXT NOT NULL DEFAULT '',
+        parsed_data TEXT,
+        po_id TEXT,
+        status TEXT NOT NULL DEFAULT 'parsed',
+        uploaded_by_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
+
 CREATE INDEX IF NOT EXISTS idx_documents_org ON documents(organization_id);
 
 CREATE INDEX IF NOT EXISTS idx_documents_po ON documents(po_id);
@@ -796,9 +765,77 @@ CREATE INDEX IF NOT EXISTS idx_documents_vendor ON documents(vendor_name);
 
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
 
+-- Jobs: job master data.
+
+CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        billing_entity_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        service_address TEXT NOT NULL DEFAULT '',
+        notes TEXT,
+        organization_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        UNIQUE(organization_id, code)
+    );
+
 CREATE INDEX IF NOT EXISTS idx_jobs_org_code ON jobs(organization_id, code);
 
 CREATE INDEX IF NOT EXISTS idx_jobs_org_status ON jobs(organization_id, status);
+
+-- Assistant: memory_artifacts, agent_runs, embeddings (pgvector).
+
+CREATE TABLE IF NOT EXISTS memory_artifacts (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'entity_fact',
+        subject TEXT NOT NULL DEFAULT 'general',
+        content TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '[]',
+        created_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        org_id TEXT NOT NULL,
+        user_id TEXT,
+        agent_name TEXT NOT NULL,
+        model TEXT NOT NULL,
+        mode TEXT,
+        user_message TEXT,
+        response_text TEXT,
+        tool_calls TEXT NOT NULL DEFAULT '[]',
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        attempts INTEGER NOT NULL DEFAULT 1,
+        error TEXT,
+        error_kind TEXT,
+        parent_run_id TEXT,
+        handoff_from TEXT,
+        validation_passed BOOLEAN,
+        validation_failures TEXT NOT NULL DEFAULT '[]',
+        validation_scores TEXT NOT NULL DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS embeddings (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        embedding vector(1536) NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
 
 CREATE INDEX IF NOT EXISTS idx_memory_user ON memory_artifacts(org_id, user_id, expires_at);
 
@@ -815,6 +852,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_runs_created ON agent_runs(created_at);
 CREATE INDEX IF NOT EXISTS idx_embeddings_org_type ON embeddings(org_id, entity_type);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_entity ON embeddings(org_id, entity_type, entity_id);
+
+-- Cross-context graph view for assistant / analytics.
 
 CREATE OR REPLACE VIEW entity_edges AS
     -- sku → vendor (via vendor_items)
@@ -957,3 +996,4 @@ CREATE OR REPLACE VIEW entity_edges AS
     FROM invoice_line_items ili
     JOIN invoices i ON i.id = ili.invoice_id
     WHERE ili.job_id IS NOT NULL;
+
