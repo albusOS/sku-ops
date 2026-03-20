@@ -9,17 +9,40 @@ if TYPE_CHECKING:
     from contextlib import AbstractAsyncContextManager
 
 
+import re
+
+# Matches Postgres text-format timestamps with a two-digit tz offset (e.g. +00, -05)
+# that stdlib fromisoformat (pre-3.11) and Pydantic reject.
+_TRUNCATED_TZ_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?)([+-]\d{2})$")
+
+
+def _coerce_value(v, decimal_type, datetime_type):
+    if isinstance(v, decimal_type):
+        return float(v)
+    if isinstance(v, str):
+        m = _TRUNCATED_TZ_RE.match(v)
+        if m:
+            return datetime_type.fromisoformat(m.group(1) + m.group(2) + ":00")
+    return v
+
+
 class DictRow(dict):
     """Dict that also supports integer-index access (row[0], row[1]).
 
     NUMERIC columns come back from asyncpg as ``Decimal``.  All domain models
     use ``float`` for monetary/quantity fields, so we coerce at the DB boundary.
+
+    TIMESTAMPTZ columns may arrive as strings when routed through connection
+    poolers (e.g. Supavisor).  Postgres text format uses a shortened timezone
+    offset (``+00``) that Pydantic rejects, so we parse those into proper
+    ``datetime`` objects here.
     """
 
     def __init__(self, mapping):
+        from datetime import datetime
         from decimal import Decimal
 
-        coerced = {k: float(v) if isinstance(v, Decimal) else v for k, v in mapping.items()}
+        coerced = {k: _coerce_value(v, Decimal, datetime) for k, v in mapping.items()}
         super().__init__(coerced)
         self._keys = list(coerced.keys())
 
