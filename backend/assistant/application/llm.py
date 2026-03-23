@@ -156,22 +156,27 @@ def generate_with_image(
     prompt: str,
     image_bytes: bytes,
     system_instruction: str | None = None,
+    *,
+    anthropic_direct: bool = False,
 ) -> str:
-    """Generate from image. Uses OpenRouter (primary) or Anthropic SDK (fallback).
+    """Generate from image.
 
+    When anthropic_direct=True, always uses the Anthropic SDK (skips OpenRouter).
+    Otherwise uses OpenRouter (primary) with Anthropic SDK fallback.
     Raises ValueError on failure.
     """
     media_type = _detect_media_type(image_bytes)
     image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
 
-    or_client = _get_openrouter_client()
-    if or_client:
-        data_url = f"data:{media_type};base64,{image_data}"
-        return _openrouter_vision(or_client, prompt, data_url, system_instruction)
+    if not anthropic_direct:
+        or_client = _get_openrouter_client()
+        if or_client:
+            data_url = f"data:{media_type};base64,{image_data}"
+            return _openrouter_vision(or_client, prompt, data_url, system_instruction)
 
     client = _get_anthropic_client()
     if not client:
-        raise ValueError("LLM not configured. Set OPENROUTER_API_KEY in backend/.env")
+        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
     return _anthropic_image(client, prompt, image_data, media_type, system_instruction)
 
 
@@ -179,22 +184,27 @@ def generate_with_pdf(
     prompt: str,
     pdf_path: str,
     system_instruction: str | None = None,
+    *,
+    anthropic_direct: bool = False,
 ) -> str:
-    """Generate from PDF. Uses OpenRouter (primary) or Anthropic SDK (fallback).
+    """Generate from PDF.
 
+    When anthropic_direct=True, always uses the Anthropic SDK (skips OpenRouter).
+    Otherwise uses OpenRouter (primary) with Anthropic SDK fallback.
     Raises ValueError on failure.
     """
     with open(pdf_path, "rb") as f:
         pdf_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
-    or_client = _get_openrouter_client()
-    if or_client:
-        data_url = f"data:application/pdf;base64,{pdf_data}"
-        return _openrouter_vision(or_client, prompt, data_url, system_instruction)
+    if not anthropic_direct:
+        or_client = _get_openrouter_client()
+        if or_client:
+            data_url = f"data:application/pdf;base64,{pdf_data}"
+            return _openrouter_vision(or_client, prompt, data_url, system_instruction)
 
     client = _get_anthropic_client()
     if not client:
-        raise ValueError("LLM not configured. Set OPENROUTER_API_KEY in backend/.env")
+        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
     return _anthropic_pdf(client, prompt, pdf_data, system_instruction)
 
 
