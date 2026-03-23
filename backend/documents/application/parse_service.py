@@ -112,6 +112,7 @@ async def parse_document_with_ai(
                     "Extract all product and vendor information. Classify each product with UOM, department, and variant info. Return only valid JSON.",
                     temp_path,
                     system_instruction=system_prompt,
+                    anthropic_direct=True,
                 )
             finally:
                 if os.path.exists(temp_path):
@@ -121,6 +122,7 @@ async def parse_document_with_ai(
                 "Extract all product and vendor information. Classify each product with UOM, department, and variant info. Return only valid JSON.",
                 contents,
                 system_instruction=system_prompt,
+                anthropic_direct=True,
             )
 
     response = None
