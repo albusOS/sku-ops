@@ -48,10 +48,10 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
 ### 1. Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) and create a new project
-2. From **Settings > API**, collect:
+2. From **Settings > API** / **Settings > API keys**, collect:
    - **Project URL** — `https://xxxx.supabase.co`
-   - **Anon key** — `eyJ...` (public, safe for frontend)
-   - **JWT Secret** — under "JWT Settings" (this is NOT the anon key)
+   - **Publishable key** — `sb_publishable_...` (public, safe for frontend; not the JWT secret)
+   - **JWT Secret** — under **JWT Settings** (used by the backend to validate tokens; not the publishable key)
 3. From **Settings > Database**, collect:
    - **Connection string** — use the **Direct** connection (port 5432), NOT the pooler (port 6543)
    - Format: `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`
@@ -80,6 +80,7 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
    |---|---|---|
    | `ENV` | `production` | |
    | `DATABASE_URL` | `postgresql://...` | Supabase direct connection, port 5432 |
+   | `SUPABASE_URL` | `https://xxxx.supabase.co` | Same project URL as the frontend; required for JWKS |
    | `JWT_SECRET` | Supabase JWT secret | Dashboard > Settings > API > JWT Secret |
    | `CORS_ORIGINS` | `https://your-app.vercel.app` | Comma-separated. Include all Vercel domains. |
 
@@ -126,8 +127,8 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
    | Variable | Value | Notes |
    |---|---|---|
    | `VITE_BACKEND_URL` | `https://your-app.up.railway.app` | No trailing slash. All API calls go here. |
-   | `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` | From Supabase Dashboard > Settings > API |
-   | `VITE_SUPABASE_ANON_KEY` | `eyJ...` | From Supabase Dashboard > Settings > API |
+   | `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` | Dashboard > Settings > API > Project URL |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` | Dashboard > Settings > API keys > Publishable key |
 
    These are **build-time** variables (baked into JS). Changing them requires a redeploy.
 

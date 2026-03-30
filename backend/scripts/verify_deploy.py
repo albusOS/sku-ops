@@ -392,7 +392,7 @@ def check_frontend_build() -> None:
     env = {
         **os.environ,
         "VITE_SUPABASE_URL": "https://test-project.supabase.co",
-        "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test",
+        "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_testkey_local_verify_only",
         "VITE_BACKEND_URL": "https://test-backend.railway.app",
     }
 

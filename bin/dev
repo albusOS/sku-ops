@@ -14,12 +14,12 @@ _load_supabase_env() {
       DB_URL)
         export DATABASE_URL="${DATABASE_URL:-$value}"
         ;;
-      ANON_KEY)
-        export PUBLIC_SUPABASE_ANON_KEY="${PUBLIC_SUPABASE_ANON_KEY:-$value}"
-        export VITE_SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY:-$value}"
+      PUBLISHABLE_KEY)
+        export PUBLIC_SUPABASE_PUBLISHABLE_KEY="${PUBLIC_SUPABASE_PUBLISHABLE_KEY:-$value}"
+        export VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY:-$value}"
         ;;
-      SERVICE_ROLE_KEY)
-        export SUPABASE_SERVICE_KEY="${SUPABASE_SERVICE_KEY:-$value}"
+      SECRET_KEY)
+        export SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-$value}"
         ;;
       JWT_SECRET)
         export JWT_SECRET="${JWT_SECRET:-$value}"

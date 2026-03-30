@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-import os
-
-from shared.infrastructure.config import SUPABASE_URL
+from shared.infrastructure.config import (
+    PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    SUPABASE_SECRET_KEY,
+    SUPABASE_URL,
+)
 
 _sync_clients: dict[bool, object | None] = {False: None, True: None}
 _async_clients: dict[bool, object | None] = {False: None, True: None}
@@ -12,8 +14,8 @@ _async_clients: dict[bool, object | None] = {False: None, True: None}
 
 def _get_key(admin: bool) -> str:
     if admin:
-        return os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
-    return os.environ.get("PUBLIC_SUPABASE_ANON_KEY", "").strip()
+        return SUPABASE_SECRET_KEY
+    return PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 
 def _build_sync(admin: bool):

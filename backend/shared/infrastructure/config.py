@@ -142,10 +142,10 @@ _local_supabase_url = (
 SUPABASE_URL = (
     os.environ.get("SUPABASE_URL", _local_supabase_url).strip().rstrip("/")
 )
-PUBLIC_SUPABASE_ANON_KEY = os.environ.get(
-    "PUBLIC_SUPABASE_ANON_KEY", ""
+PUBLIC_SUPABASE_PUBLISHABLE_KEY = os.environ.get(
+    "PUBLIC_SUPABASE_PUBLISHABLE_KEY", ""
 ).strip()
-SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
+SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
 _SUPABASE_JWKS_URL = (
     f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
 )

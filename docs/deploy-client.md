@@ -14,10 +14,10 @@ For the full deployment guide and architecture diagram, see [DEPLOY.md](../DEPLO
 ## 1. Set up Supabase
 
 1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Collect from **Settings > API**:
+2. Collect from **Settings > API** / **API keys**:
    - Project URL (`https://xxxx.supabase.co`)
-   - Anon key (`eyJ...`)
-   - JWT Secret (under "JWT Settings")
+   - Publishable key (`sb_publishable_...`, frontends only)
+   - JWT Secret (under **JWT Settings**)
 3. Collect from **Settings > Database**:
    - Direct connection string (port **5432**, NOT 6543)
 
@@ -27,6 +27,7 @@ For the full deployment guide and architecture diagram, see [DEPLOY.md](../DEPLO
 2. Fill in all `REQUIRED` values:
    - `ENV=production`
    - `DATABASE_URL` — Supabase direct connection string
+   - `SUPABASE_URL` — same project URL as the frontend (`https://....supabase.co`)
    - `JWT_SECRET` — Supabase JWT secret (must match exactly)
    - `CORS_ORIGINS` — Vercel production domain(s)
 3. Add a Railway Redis service and set `REDIS_URL` if using `WORKERS > 1`
@@ -44,7 +45,7 @@ Schema is bootstrapped automatically on first startup.
 2. Fill in:
    - `VITE_BACKEND_URL` — Railway deployment URL (no trailing slash)
    - `VITE_SUPABASE_URL` — Supabase project URL
-   - `VITE_SUPABASE_ANON_KEY` — Supabase anon key
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` — Supabase publishable key (`sb_publishable_...`)
 3. Trigger a redeploy (VITE_* vars are baked at build time)
 4. Note all stable Vercel domains and add them to Railway's `CORS_ORIGINS`
 
