@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import event
@@ -22,6 +24,32 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
+
+# asyncpg rejects str for TIMESTAMPTZ binds when using exec_driver_sql; API/query
+# layers often pass ISO-8601 strings from HTTP query params.
+_ISO_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def _coerce_bind_for_asyncpg(value: Any) -> Any:
+    """Coerce ISO date/datetime strings to datetime for asyncpg type binding."""
+    if not isinstance(value, str) or len(value) < 10:
+        return value
+    if not _ISO_DATE_PREFIX.match(value):
+        return value
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+
+
+def _normalize_param_tuple(params: tuple | list) -> tuple:
+    return tuple(_coerce_bind_for_asyncpg(p) for p in params)
+
+
+def _normalize_params(params: tuple | list) -> tuple | None:
+    if not params:
+        return None
+    return _normalize_param_tuple(params)
 
 
 class PgCursor:
@@ -42,12 +70,6 @@ class PgCursor:
 
     async def fetchall(self) -> list[DictRow]:
         return [DictRow(row) for row in self._rows]
-
-
-def _normalize_params(params: tuple | list) -> tuple | None:
-    if not params:
-        return None
-    return tuple(params)
 
 
 async def _execute_sql(
@@ -78,7 +100,7 @@ class PgPoolProxy:
     async def executemany(
         self, sql: str, params_list: Sequence[tuple | list]
     ) -> None:
-        compiled = [tuple(params) for params in params_list]
+        compiled = [_normalize_param_tuple(params) for params in params_list]
         async with self._engine.begin() as conn:
             await conn.exec_driver_sql(sql, compiled)
 
@@ -103,7 +125,7 @@ class PgTransactionProxy:
     async def executemany(
         self, sql: str, params_list: Sequence[tuple | list]
     ) -> None:
-        compiled = [tuple(params) for params in params_list]
+        compiled = [_normalize_param_tuple(params) for params in params_list]
         await self._conn.exec_driver_sql(sql, compiled)
 
     async def commit(self) -> None:
