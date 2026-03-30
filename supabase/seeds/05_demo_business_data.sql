@@ -1,4 +1,4 @@
--- Seed: Supply Yard demo (split from devtools/data/seed_demo.sql)
+-- Seed: Supply Yard demo (canonical in repo)
 INSERT INTO vendors (id, name, contact_name, email, phone, address, organization_id, created_at) VALUES ('80627dc3-b450-4baf-8625-e36e1dc4d5cc', 'Emery Jensen Distribution', 'Pat Emery', 'orders@emeryjensen.com', '555-0101', '2400 Industrial Pkwy, Elkhart IN', 'supply-yard', '2025-09-18T12:00:00+00:00') ON CONFLICT DO NOTHING;
 INSERT INTO vendors (id, name, contact_name, email, phone, address, organization_id, created_at) VALUES ('3416f02d-424d-4d69-8557-997907d232f1', 'Sherwin-Williams', 'Alex Rivera', 'pro@sherwin.com', '555-0102', '101 W Prospect Ave, Cleveland OH', 'supply-yard', '2025-09-18T12:00:00+00:00') ON CONFLICT DO NOTHING;
 INSERT INTO vendors (id, name, contact_name, email, phone, address, organization_id, created_at) VALUES ('9da8de3b-e547-41c5-b35e-19bd384348fd', 'The Home Depot Pro', 'Jordan Lee', 'pro-desk@homedepot.com', '555-0103', '2455 Paces Ferry Rd, Atlanta GA', 'supply-yard', '2025-09-18T12:00:00+00:00') ON CONFLICT DO NOTHING;

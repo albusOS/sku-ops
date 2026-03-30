@@ -12,7 +12,7 @@
 #
 # IMPORTANT: ENV here uses ${ENV:-development} so that if your root .env sets
 # ENV=production, it is respected. The app enforces hard guards in production
-# (JWT_SECRET required, CORS locked, ALLOW_RESET forbidden).
+# (JWT_SECRET required, CORS locked, production guards in config).
 #
 # Docker-local workflow (dev):
 #   cp .env.production.example .env && edit .env   # fill POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS

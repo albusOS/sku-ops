@@ -101,7 +101,7 @@ backend/
 ├── reports/          # Dashboard analytics, P&L, trends
 ├── jobs/             # Job definitions
 ├── shared/           # Config, DB, logging, metrics, middleware, health, WebSocket
-├── devtools/         # Seed data, evals, dev-only endpoints (excluded from Docker)
+├── devtools/         # Import scripts, evals (excluded from Docker)
 └── kernel/           # Shared types, errors
 
 frontend/

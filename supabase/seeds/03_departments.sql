@@ -1,4 +1,4 @@
--- Seed: Supply Yard demo (split from devtools/data/seed_demo.sql)
+-- Seed: Supply Yard demo (canonical in repo)
 INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at) VALUES ('4753efba-dd4e-4b40-9c79-78c2090d1649', 'Adhesives', 'ADH', '', 0, 'supply-yard', '2025-03-17T12:00:00+00:00') ON CONFLICT (organization_id, code) DO NOTHING;
 INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at) VALUES ('fd08740e-d05a-42db-acde-7159ead5adb7', 'Appliances', 'APP', '', 0, 'supply-yard', '2025-03-17T12:00:00+00:00') ON CONFLICT (organization_id, code) DO NOTHING;
 INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at) VALUES ('df02cbfb-9524-4f5e-ac5e-b60fa9699b4f', 'Automotive', 'AUT', '', 0, 'supply-yard', '2025-03-17T12:00:00+00:00') ON CONFLICT (organization_id, code) DO NOTHING;

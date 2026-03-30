@@ -149,12 +149,11 @@ Create `e2e/specs/<name>.spec.ts`. Uses Playwright. Server starts automatically.
 
 ```bash
 ./bin/dev db:reset           # migrations + supabase/seeds (full local demo)
-PYTHONPATH=backend:. uv run python -m devtools.scripts.seed_demo --target supabase  # regenerate devtools/data/seed_demo.sql (re-split into supabase/seeds/ as needed)
 ./bin/dev eval --suite all   # run all LLM evals
 ./bin/dev eval --suite routing --model anthropic/claude-haiku-4-5
 ```
 
-Canonical SQL seeds live under `supabase/seeds/`. Evals and generators live in `devtools/`. They import backend production code via `PYTHONPATH=backend:.` (set by `bin/dev`).
+Canonical SQL seeds live under `supabase/seeds/` (edit there, then `./bin/dev db:reset` or `supabase db reset --local`). Evals live in `devtools/`. They import backend production code via `PYTHONPATH=backend:.` (set by `bin/dev`).
 
 ## Linting
 

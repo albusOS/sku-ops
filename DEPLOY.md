@@ -38,7 +38,6 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
 |---|---|
 | `JWT_SECRET` missing or dev default | `RuntimeError` — app refuses to start |
 | `CORS_ORIGINS` is `*` or empty | `RuntimeError` — app refuses to start |
-| `ALLOW_RESET=true` | `RuntimeError` — seed/reset endpoint would be exposed |
 | `ALLOW_PUBLIC_AUTH=true` | `RuntimeError` — local login/register would be exposed |
 | `DATABASE_URL` not PostgreSQL | `RuntimeError` |
 

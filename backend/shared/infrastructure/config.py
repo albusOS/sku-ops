@@ -239,23 +239,6 @@ _enforce_cors()
 # ── Sentry ────────────────────────────────────────────────────────────────────
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 
-# ── Dangerous feature flags ───────────────────────────────────────────────────
-# These flags are ON by default in development/test and OFF in production.
-# Setting them to true in production is a hard startup error — not a warning —
-# because forgetting to remove them after a one-time use is a common mistake.
-
-_allow_reset_raw = os.environ.get("ALLOW_RESET", "").lower()
-_allow_reset_explicit = _allow_reset_raw in ("1", "true")
-
-if is_production and _allow_reset_explicit:
-    raise RuntimeError(
-        "ALLOW_RESET=true is set in production. "
-        "This exposes seed/reset endpoints that can destroy all application data. "
-        "Remove ALLOW_RESET from the environment and redeploy."
-    )
-
-ALLOW_RESET = _allow_reset_explicit or is_development or is_test
-
 ALLOW_PUBLIC_AUTH = False
 
 # ── Auth provider ─────────────────────────────────────────────────────────────
@@ -388,8 +371,6 @@ def startup_summary() -> dict:
         db_display = "<unparseable>"
 
     flags: list[str] = []
-    if ALLOW_RESET:
-        flags.append("ALLOW_RESET")
     if cors_is_permissive:
         flags.append("CORS=*")
 
