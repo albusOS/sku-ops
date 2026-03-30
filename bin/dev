@@ -98,7 +98,7 @@ case "${1:-help}" in
     ;;
   provision)
     _ensure_supabase
-    echo "Provisioning org + departments..."
+    echo "Hint: org/departments/demo data load from supabase/seeds on db reset."
     PYTHONPATH=backend:. uv run python -m devtools.scripts.provision "${@:2}"
     ;;
   import)
@@ -149,7 +149,7 @@ case "${1:-help}" in
     echo "  ./bin/dev commit           - Commitizen commit"
     echo "  ./bin/dev server           - Start backend dev server"
     echo "  ./bin/dev ui               - Start frontend dev server"
-    echo "  ./bin/dev provision [--dev] - Provision org + departments (+ dev user)"
+    echo "  ./bin/dev provision          - Print hint (seed data: ./bin/dev db:reset)"
     echo "  ./bin/dev import [flags]   - Import Hike data (--vendors, --products)"
     echo "  ./bin/dev eval [args]      - Run LLM evals"
     echo "  ./bin/dev create-admin     - Create/update admin user in DB"

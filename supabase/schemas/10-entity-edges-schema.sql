@@ -1,6 +1,6 @@
 -- Cross-context graph view for assistant / analytics.
 
-CREATE OR REPLACE VIEW entity_edges AS
+CREATE OR REPLACE VIEW entity_edges WITH (security_invoker = true) AS
     -- sku → vendor (via vendor_items)
     SELECT vi.sku_id       AS source_id,
            'sku'           AS source_type,

@@ -121,7 +121,16 @@ def build_statements() -> list[str]:
     demo_hash = "$2b$12$LJ3m4ys3Lg8U0cOqXn6xAOQzf3LYwnBR6FmPXjBZ5VQ9IJ6Lqt3jC"
 
     users = [
-        (ADMIN_ID, "admin@supplyyard.com", demo_hash, "Marcus Chen", "admin", "", "", ""),
+        (
+            ADMIN_ID,
+            "admin@supplyyard.com",
+            demo_hash,
+            "Marcus Chen",
+            "admin",
+            "",
+            "",
+            "",
+        ),
         (
             CONTRACTOR_MIKE_ID,
             "mike@rivridge.com",
@@ -473,7 +482,17 @@ def _build_catalog():
         catalog.append((fid, name, dept, skus))
 
     def sku(
-        dept, slug, seq, name, price, cost, qty, unit="each", uom="each", attrs="{}", barcode=None
+        dept,
+        slug,
+        seq,
+        name,
+        price,
+        cost,
+        qty,
+        unit="each",
+        uom="each",
+        attrs="{}",
+        barcode=None,
     ):
         return (
             uid(),
@@ -1252,13 +1271,26 @@ def _build_vendor_items(catalog):
         vid = vendor_map.get(dept_code, V_EMERY)
         for s in skus:
             s_id, s_sku = s[0], s[1]
-            links.append((uid(), vid, s_id, s_sku, vendor_names[vid], s[4], 5, 1))
+            links.append(
+                (uid(), vid, s_id, s_sku, vendor_names[vid], s[4], 5, 1)
+            )
 
     # Deck boards also supplied by Deck Expressions (secondary vendor)
     for _fam_id, fam_name, _dept_code, skus in catalog:
         if "Deck Board" in fam_name:
             for s in skus:
-                links.append((uid(), V_DECKEXP, s[0], s[1], "Deck Expressions", s[4] * 0.95, 7, 0))
+                links.append(
+                    (
+                        uid(),
+                        V_DECKEXP,
+                        s[0],
+                        s[1],
+                        "Deck Expressions",
+                        s[4] * 0.95,
+                        7,
+                        0,
+                    )
+                )
 
     return links
 
@@ -1996,8 +2028,12 @@ def _build_returns(wd_data, inv_data):
         ),
     ]
 
-    ret_subtotal = sum(round(qty * price, 2) for _, _, _, qty, price, _, _, _ in ret_items_data)
-    ret_cost_total = sum(round(qty * cost, 2) for _, _, _, qty, _, cost, _, _ in ret_items_data)
+    ret_subtotal = sum(
+        round(qty * price, 2) for _, _, _, qty, price, _, _, _ in ret_items_data
+    )
+    ret_cost_total = sum(
+        round(qty * cost, 2) for _, _, _, qty, _, cost, _, _ in ret_items_data
+    )
     ret_tax = round(ret_subtotal * 0.10, 2)
     ret_total = round(ret_subtotal + ret_tax, 2)
 
@@ -2181,8 +2217,20 @@ def _build_financial_ledger(wd_data, po_data, _inv_data):
 
     # PO receipt journal entries (inventory + AP)
     for po_items, po_id, _vid, vname, days in [
-        (po_data["po1_items"], po_data["po1_id"], V_SHERWIN, "Sherwin-Williams", 14),
-        (po_data["po2_items"], po_data["po2_id"], V_HOMEDEPOT, "The Home Depot Pro", 10),
+        (
+            po_data["po1_items"],
+            po_data["po1_id"],
+            V_SHERWIN,
+            "Sherwin-Williams",
+            14,
+        ),
+        (
+            po_data["po2_items"],
+            po_data["po2_id"],
+            V_HOMEDEPOT,
+            "The Home Depot Pro",
+            10,
+        ),
     ]:
         jid = uid()
         for sc, q, c in po_items:
@@ -2317,22 +2365,24 @@ async def run_local():
 
 
 async def run_supabase():
-    """Run via Supabase MCP — outputs SQL to paste or pipe."""
+    """Write DELETE + INSERT bundle for manual use (split into supabase/seeds/ for db reset)."""
+    from pathlib import Path
+
     stmts = truncate_statements() + build_statements()
-    # Write to a file for execution
     sql = ";\n".join(stmts) + ";"
-    out_path = "/Users/nooz/products/sku-ops/devtools/data/seed_demo.sql"
-    with open(out_path, "w") as f:
-        f.write(sql)
+    out_path = Path(__file__).resolve().parents[1] / "data" / "seed_demo.sql"
+    out_path.write_text(sql)
     print(f"Wrote {len(stmts)} statements to {out_path}")
     print(
-        "Execute in Supabase SQL editor or via: psql $DATABASE_URL -f devtools/data/seed_demo.sql"
+        "Split/reconcile output into supabase/seeds/*.sql before relying on it for db reset."
     )
 
 
 async def main():
     parser = argparse.ArgumentParser(description="Seed demo data")
-    parser.add_argument("--target", choices=["local", "supabase", "both"], default="both")
+    parser.add_argument(
+        "--target", choices=["local", "supabase", "both"], default="both"
+    )
     args = parser.parse_args()
 
     if args.target in ("local", "both"):

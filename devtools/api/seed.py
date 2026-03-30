@@ -14,31 +14,13 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 
 @router.post("/departments")
 async def seed_departments(current_user: AdminDep):
-    """Create standard departments for the org (idempotent)."""
-    from datetime import UTC, datetime
+    """Departments are defined in ``supabase/seeds/03_departments.sql`` (applied on ``db reset``).
 
-    from catalog.application.queries import insert_department
-    from catalog.domain.department import Department
-    from devtools.scripts.company import DEPARTMENTS
-
-    org_id = current_user.organization_id
-    now = datetime.now(UTC).isoformat()
-    created = 0
-    for dept in DEPARTMENTS:
-        try:
-            d = Department(
-                name=dept.name,
-                code=dept.code,
-                description=dept.description,
-                organization_id=org_id,
-                created_at=now,
-            )
-            await insert_department(d)
-            created += 1
-        except Exception as e:
-            logger.debug("Department %s already exists: %s", dept.code, e)
+    Random UUID inserts here would break FK parity with the committed demo dataset.
+    """
+    _ = current_user
     return {
-        "message": f"Departments ready ({created} created, {len(DEPARTMENTS) - created} already existed)"
+        "message": "No action: use ./bin/dev db:reset to load departments from supabase/seeds/03_departments.sql",
     }
 
 
@@ -58,7 +40,9 @@ async def backfill_ledger(current_user: AdminDep):
     org_id = current_user.organization_id
     conn = get_connection()
 
-    await conn.execute("DELETE FROM financial_ledger WHERE organization_id = $1", (org_id,))
+    await conn.execute(
+        "DELETE FROM financial_ledger WHERE organization_id = $1", (org_id,)
+    )
 
     products = await list_products(organization_id=org_id)
     dept_map = {p["id"]: p.get("department_name") for p in products}
@@ -67,7 +51,8 @@ async def backfill_ledger(current_user: AdminDep):
     withdrawals = await list_withdrawals(limit=100000, organization_id=org_id)
     for w in withdrawals:
         items = [
-            {**i, "department_name": dept_map.get(i.get("sku_id"))} for i in w.get("items", [])
+            {**i, "department_name": dept_map.get(i.get("sku_id"))}
+            for i in w.get("items", [])
         ]
         await record_withdrawal(
             withdrawal_id=w["id"],
@@ -93,7 +78,8 @@ async def backfill_ledger(current_user: AdminDep):
     returns = await list_returns(limit=100000, organization_id=org_id)
     for r in returns:
         items = [
-            {**i, "department_name": dept_map.get(i.get("sku_id"))} for i in r.get("items", [])
+            {**i, "department_name": dept_map.get(i.get("sku_id"))}
+            for i in r.get("items", [])
         ]
         await record_return(
             return_id=r["id"],
@@ -155,7 +141,8 @@ async def backfill_ledger(current_user: AdminDep):
         )
 
     cursor = await conn.execute(
-        "SELECT COUNT(*) FROM financial_ledger WHERE organization_id = $1", (org_id,)
+        "SELECT COUNT(*) FROM financial_ledger WHERE organization_id = $1",
+        (org_id,),
     )
     row = await cursor.fetchone()
     total_entries = row[0] if row else 0

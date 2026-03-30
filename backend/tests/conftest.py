@@ -19,12 +19,28 @@ os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["OPENAI_API_KEY"] = ""
 
 
+from pathlib import Path
+
 import pytest
 
 import finance.application.event_handlers  # noqa: F401 — registers domain event handlers
 import inventory.application.event_handlers  # noqa: F401
 import shared.infrastructure.ws_bridge  # noqa: F401
 from tests.helpers.events import EventCollector
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _seed_sql_statements(relative_path: str) -> list[str]:
+    path = _REPO_ROOT / relative_path
+    stmts: list[str] = []
+    for line in path.read_text().splitlines():
+        stmt = line.strip()
+        if not stmt or stmt.startswith("--"):
+            continue
+        stmts.append(stmt)
+    return stmts
+
 
 # ── Session-scoped app client ────────────────────────────────────────────────
 
@@ -65,35 +81,8 @@ async def _truncate_and_seed():
                 END LOOP;
             END $$"""
         )
-        await conn.execute(
-            """INSERT INTO organizations (id, name, slug, created_at)
-               VALUES ('supply-yard', 'Default', 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug"""
-        )
-        await conn.execute(
-            """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
-               VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code,
-               description = EXCLUDED.description, sku_count = EXCLUDED.sku_count,
-               organization_id = EXCLUDED.organization_id"""
-        )
-        await conn.execute(
-            """INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)
-               VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', TRUE, 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
-               name = EXCLUDED.name, role = EXCLUDED.role, is_active = EXCLUDED.is_active,
-               organization_id = EXCLUDED.organization_id"""
-        )
-        await conn.execute(
-            """INSERT INTO users (id, email, password, name, role, company, billing_entity,
-               is_active, organization_id, created_at)
-               VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User',
-               'contractor', 'ACME', 'ACME Inc', TRUE, 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
-               name = EXCLUDED.name, role = EXCLUDED.role, company = EXCLUDED.company,
-               billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
-               organization_id = EXCLUDED.organization_id"""
-        )
+        for stmt in _seed_sql_statements("supabase/seeds/pytest_minimal.sql"):
+            await conn.execute(stmt)
         from catalog.application.uom_seed import uom_seed_sql
 
         for stmt in uom_seed_sql("supply-yard"):

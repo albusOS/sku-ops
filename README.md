@@ -22,12 +22,12 @@ npm run dev                           # starts backend + frontend
 | Admin | dev@supply-yard.local | dev123 |
 | Contractor | contractor@supply-yard.local | dev123 |
 
-Dev users are created via provisioning:
+Dev users and demo data load from `supabase/seeds/` on database reset:
 
 ```bash
-./bin/dev provision --dev        # org + 58 departments + dev users
-./bin/dev import --vendors       # 7 vendors from Hike POS
-./bin/dev import --products      # 1,294 products from Hike POS
+./bin/dev db:reset               # migrations + seeds (org, departments, demo, dev users above)
+./bin/dev import --vendors       # optional: Hike POS vendors
+./bin/dev import --products      # optional: Hike POS products
 ```
 
 ## Features
@@ -77,7 +77,7 @@ Configuration is environment-aware (`ENV=development|test|production`). See `bac
 |---|---|---|---|
 | JWT_SECRET | default | default | required |
 | CORS | permissive (*) | permissive (*) | required |
-| Provisioning | via bin/dev | conftest fixtures | via provision script |
+| Provisioning | `supabase/seeds/` + `./bin/dev db:reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
 | Database | Postgres (Docker) | Postgres | Postgres |
 | Redis | optional | required | required |
 | WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |
