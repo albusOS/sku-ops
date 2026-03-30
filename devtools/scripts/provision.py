@@ -5,7 +5,7 @@ Local workflow:
 
 That runs migrations and applies ``supabase/config.toml`` ``[db.seed] sql_paths`` (``01_org`` through ``05_demo``).
 
-Dev users ``dev@supply-yard.local`` / ``contractor@supply-yard.local`` (password ``dev123``) are in ``04_users.sql``.
+``04_users.sql`` seeds ``auth.users`` + ``auth.identities`` for every ``public.users`` row (demo + dev); local password for all is ``dev123``.
 
 This module no longer mutates the database; it only prints the above hint.
 """

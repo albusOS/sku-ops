@@ -17,15 +17,22 @@ npm run dev                           # starts backend + frontend
 
 ## Dev Credentials
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | dev@supply-yard.local | dev123 |
-| Contractor | contractor@supply-yard.local | dev123 |
+All seeded accounts use password **dev123** (Supabase Auth + matching `public.users` ids).
 
-Dev users and demo data load from `supabase/seeds/` on database reset:
+| Role | Email |
+|------|-------|
+| Admin (demo) | admin@supplyyard.com |
+| Contractor (demo) | mike@rivridge.com |
+| Contractor (demo) | sarah@summitpm.com |
+| Admin (local) | dev@supply-yard.local |
+| Contractor (local) | contractor@supply-yard.local |
+
+Login uses **Supabase Auth** (`signInWithPassword`). `./bin/dev db:reset` runs `supabase/seeds/04_users.sql`, which seeds **`auth.users` + `auth.identities`** first, then **`public.users`** with the same ids for profile data (company, billing, etc.).
+
+Frontend env: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (from `supabase status` or `./bin/dev ui`, which exports them from `supabase status -o env`). See `frontend/.env.example`.
 
 ```bash
-./bin/dev db:reset               # migrations + seeds (org, departments, demo, dev users above)
+./bin/dev db:reset               # migrations + seeds (org, departments, demo, dev + auth users)
 ./bin/dev import --vendors       # optional: Hike POS vendors
 ./bin/dev import --products      # optional: Hike POS products
 ```

@@ -180,17 +180,18 @@ def decode_token(token: str) -> dict:
     """Decode a JWT using the strategy matching the current environment.
 
     Production: ES256 via Supabase JWKS with issuer verification.
-    Dev/test:   HS256 with local secret (no JWKS call).
+    Development: Supabase local issues ES256 (JWKS); pytest still uses HS256.
+    Test:        HS256 with JWT_SECRET only (no Supabase in unit API tests).
 
     Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError on failure.
     """
     import jwt as _jwt
 
-    if is_production:
+    def _decode_es256() -> dict:
         jwks = _get_jwks_client()
         if jwks is None:
             raise _jwt.InvalidTokenError(
-                "SUPABASE_URL not configured for production"
+                "SUPABASE_URL not configured for JWKS token verification"
             )
         try:
             signing_key = jwks.get_signing_key_from_jwt(token)
@@ -211,6 +212,17 @@ def decode_token(token: str) -> dict:
             issuer=_SUPABASE_ISSUER,
             options={"verify_aud": False, "verify_iss": True},
         )
+
+    if is_production:
+        return _decode_es256()
+
+    if not is_test:
+        try:
+            header = _jwt.get_unverified_header(token)
+        except _jwt.InvalidTokenError:
+            header = {}
+        if header.get("alg") == "ES256" and _SUPABASE_JWKS_URL:
+            return _decode_es256()
 
     return _jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 

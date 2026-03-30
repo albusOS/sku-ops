@@ -46,6 +46,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const _supabaseLogout = async () => {
+    if (!isSupabaseConfigured) {
+      _setAxiosToken(null);
+      setUser(null);
+      return;
+    }
+    const sb = await getSupabase();
+    await sb.auth.signOut();
+    _setAxiosToken(null);
+    setUser(null);
+  };
+
   useEffect(() => {
     logoutRef.current = _supabaseLogout;
   });
@@ -64,19 +76,14 @@ export const AuthProvider = ({ children }) => {
     return () => axios.interceptors.response.eject(interceptor);
   }, []);
 
-  const _supabaseLogout = async () => {
-    const sb = await getSupabase();
-    await sb.auth.signOut();
-    _setAxiosToken(null);
-    setUser(null);
-  };
-
   const supabaseSubRef = useRef(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setLoading(false);
-      toast.error("Supabase auth is not configured for this environment.");
+      toast.error(
+        "Supabase auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (see frontend/.env.example).",
+      );
       return;
     }
 
@@ -115,7 +122,10 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const _supabaseLogin = async (email, password) => {
+  const login = async (email, password) => {
+    if (!isSupabaseConfigured) {
+      throw new Error("Supabase auth is not configured.");
+    }
     const sb = await getSupabase();
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -124,7 +134,10 @@ export const AuthProvider = ({ children }) => {
     return profile;
   };
 
-  const _supabaseRegister = async (email, password, name) => {
+  const register = async (email, password, name) => {
+    if (!isSupabaseConfigured) {
+      throw new Error("Supabase auth is not configured.");
+    }
     const sb = await getSupabase();
     const { data, error } = await sb.auth.signUp({
       email,
@@ -139,81 +152,8 @@ export const AuthProvider = ({ children }) => {
     return null;
   };
 
-  // ── Bridge mode (dev, no Supabase) ──────────────────────────────────────────
-
-  const refreshTimerRef = useRef(null);
-  const scheduleBridgeRefreshRef = useRef(null);
-
-  scheduleBridgeRefreshRef.current = (jwt) => {
-    clearTimeout(refreshTimerRef.current);
-    try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const expiresAt = payload.exp * 1000;
-      // Refresh 2 minutes before expiry, minimum 30 seconds from now
-      const refreshAt = Math.max(expiresAt - 2 * 60 * 1000, Date.now() + 30_000);
-      const delay = refreshAt - Date.now();
-      refreshTimerRef.current = setTimeout(async () => {
-        try {
-          const { token: newJwt } = await api.auth.refresh();
-          sessionStorage.setItem("token", newJwt);
-          _setAxiosToken(newJwt);
-          scheduleBridgeRefreshRef.current?.(newJwt);
-        } catch {
-          toast.error("Session expired — please log in again.");
-          logoutRef.current?.();
-        }
-      }, delay);
-    } catch {
-      /* malformed token — will fail on next API call and trigger logout */
-    }
-  };
-
-  const _bridgeLogout = () => {
-    clearTimeout(refreshTimerRef.current);
-    sessionStorage.removeItem("token");
-    _setAxiosToken(null);
-    setUser(null);
-  };
-
-  useEffect(() => {
-    if (isSupabaseConfigured) return;
-
-    const saved = sessionStorage.getItem("token");
-    if (saved) {
-      _setAxiosToken(saved);
-      scheduleBridgeRefreshRef.current?.(saved);
-      _fetchProfile().finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-
-    return () => clearTimeout(refreshTimerRef.current);
-  }, []);
-
-  const _bridgeLogin = async (email, password) => {
-    const { token: jwt, user: userData } = await api.auth.login({ email, password });
-    sessionStorage.setItem("token", jwt);
-    _setAxiosToken(jwt);
-    scheduleBridgeRefreshRef.current?.(jwt);
-    setUser(userData);
-    return userData;
-  };
-
-  const _bridgeRegister = async (email, password, name) => {
-    const { token: jwt, user: userData } = await api.auth.register({ email, password, name });
-    sessionStorage.setItem("token", jwt);
-    _setAxiosToken(jwt);
-    scheduleBridgeRefreshRef.current?.(jwt);
-    setUser(userData);
-    return userData;
-  };
-
-  // ── Public API ──────────────────────────────────────────────────────────────
-
-  const login = isSupabaseConfigured ? _supabaseLogin : _bridgeLogin;
-  const register = isSupabaseConfigured ? _supabaseRegister : _bridgeRegister;
   const logout = () => {
-    _supabaseLogout();
+    void _supabaseLogout();
   };
 
   return (
