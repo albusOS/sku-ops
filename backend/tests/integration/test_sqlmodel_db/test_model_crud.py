@@ -21,6 +21,7 @@ pytestmark = pytest.mark.skipif(
 
 ORG_ID = f"test-org-{uuid.uuid4().hex[:8]}"
 NOW = datetime.now(tz=UTC)
+SEEDED_ORG_ID = "supply-yard"
 
 
 class TestOrganizationCRUD:
@@ -73,7 +74,10 @@ class TestParentChildInsert:
             id=dept_id,
             name="Test Department",
             code=f"TST-{uuid.uuid4().hex[:4]}",
+            description="Test department for SQLModel integration coverage",
             created_at=NOW,
+            organization_id=SEEDED_ORG_ID,
+            sku_count=0,
         )
         session.add(dept)
         await session.flush()
@@ -82,7 +86,10 @@ class TestParentChildInsert:
             id=prod_id,
             name="Test Product",
             category_id=dept_id,
+            category_name="Test Department",
             created_at=NOW,
+            description="Generated SQLModel product fixture",
+            sku_count=0,
             updated_at=NOW,
         )
         session.add(product)

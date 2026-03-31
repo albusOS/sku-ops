@@ -11,6 +11,7 @@ from backend.shared.infrastructure.types.public_sql_model_models import (
     Invoices,
     InvoiceWithdrawals,
     Products,
+    Users,
     Withdrawals,
 )
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +23,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 NOW = datetime.now(tz=UTC)
+SEEDED_ORG_ID = "supply-yard"
+SEEDED_BILLING_ENTITY_NAME = "Riva Ridge Property Mgmt"
+SEEDED_CONTRACTOR_NAME = "Dev Contractor"
+SEEDED_CONTRACTOR_COMPANY = "Dev Contractor Co"
+SEEDED_ADMIN_NAME = "Dev Admin"
 
 
 class TestFKConstraintEnforcement:
@@ -31,7 +37,10 @@ class TestFKConstraintEnforcement:
             id=f"prod-{uuid.uuid4().hex[:8]}",
             name="Orphan Product",
             category_id="nonexistent-dept-id",
+            category_name="Missing Department",
             created_at=NOW,
+            description="Product fixture for FK enforcement",
+            sku_count=0,
             updated_at=NOW,
         )
         session.add(product)
@@ -45,7 +54,10 @@ class TestFKConstraintEnforcement:
             id=dept_id,
             name="Valid Dept",
             code=f"VLD-{uuid.uuid4().hex[:4]}",
+            description="Department fixture for FK success path",
             created_at=NOW,
+            organization_id=SEEDED_ORG_ID,
+            sku_count=0,
         )
         session.add(dept)
         await session.flush()
@@ -54,7 +66,10 @@ class TestFKConstraintEnforcement:
             id=f"prod-{uuid.uuid4().hex[:8]}",
             name="Valid Product",
             category_id=dept_id,
+            category_name="Valid Dept",
             created_at=NOW,
+            description="Product fixture for valid FK path",
+            sku_count=0,
             updated_at=NOW,
         )
         session.add(product)
@@ -71,20 +86,61 @@ class TestM2MRelationship:
         """Test M2M link between invoices and withdrawals via junction table."""
         inv_id = f"inv-{uuid.uuid4().hex[:8]}"
         wd_id = f"wd-{uuid.uuid4().hex[:8]}"
+        contractor_id = f"contractor-{uuid.uuid4().hex[:8]}"
+        admin_id = f"admin-{uuid.uuid4().hex[:8]}"
+
+        contractor = Users(
+            id=contractor_id,
+            email=f"{contractor_id}@example.com",
+            password="hash",
+            name=SEEDED_CONTRACTOR_NAME,
+            role="contractor",
+            company=SEEDED_CONTRACTOR_COMPANY,
+            billing_entity=SEEDED_BILLING_ENTITY_NAME,
+            is_active=True,
+            organization_id=SEEDED_ORG_ID,
+            created_at=NOW,
+        )
+        admin = Users(
+            id=admin_id,
+            email=f"{admin_id}@example.com",
+            password="hash",
+            name=SEEDED_ADMIN_NAME,
+            role="admin",
+            is_active=True,
+            organization_id=SEEDED_ORG_ID,
+            created_at=NOW,
+        )
+        session.add(contractor)
+        session.add(admin)
 
         invoice = Invoices(
             id=inv_id,
             invoice_number=f"INV-{uuid.uuid4().hex[:6]}",
+            amount_credited=0.0,
+            billing_address="1200 Mountain View Dr, Ste 400, Vail CO 81657",
+            billing_entity=SEEDED_BILLING_ENTITY_NAME,
+            contact_email="mike@rivridge.com",
+            contact_name="Mike Torres",
             subtotal=100.0,
+            currency="USD",
             tax=10.0,
+            tax_rate=0.1,
             total=110.0,
             created_at=NOW,
+            organization_id=SEEDED_ORG_ID,
+            payment_terms="net_30",
+            po_reference="TEST-PO",
+            status="draft",
             updated_at=NOW,
+            xero_sync_status="pending",
         )
         session.add(invoice)
 
         withdrawal = Withdrawals(
             id=wd_id,
+            billing_entity=SEEDED_BILLING_ENTITY_NAME,
+            contractor_company=SEEDED_CONTRACTOR_COMPANY,
             job_id="test-job",
             service_address="123 Test St",
             subtotal=100.0,
@@ -92,8 +148,12 @@ class TestM2MRelationship:
             tax_rate=0.1,
             total=110.0,
             cost_total=80.0,
-            contractor_id="test-user",
-            processed_by_id="test-admin",
+            contractor_id=contractor_id,
+            contractor_name=SEEDED_CONTRACTOR_NAME,
+            organization_id=SEEDED_ORG_ID,
+            payment_status="pending",
+            processed_by_id=admin_id,
+            processed_by_name=SEEDED_ADMIN_NAME,
             created_at=NOW,
         )
         session.add(withdrawal)

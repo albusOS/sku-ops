@@ -31,6 +31,15 @@ from tests.helpers.events import EventCollector
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests that require the local Supabase Postgres stack.",
+    )
+
+
 def _seed_sql_statements(relative_path: str) -> list[str]:
     path = _REPO_ROOT / relative_path
     stmts: list[str] = []

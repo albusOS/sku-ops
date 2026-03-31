@@ -10,7 +10,8 @@ Produces one {schema}_sql_model_models.py file per schema with:
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
+from dataclasses import dataclass
 
 from backend.scripts.supabase_type_generation.pydantic_to_sql_model_type_mapping import (
     map_pydantic_type,
@@ -162,6 +163,17 @@ def generate_sqlmodel_code(
     ]
     sorted_models = _topological_sort(models_with_pks, fks, link_tables)
     table_names = {m.table_name for m in sorted_models}
+    table_columns = {
+        model.table_name: {field.name for field in model.fields}
+        for model in sorted_models
+    }
+    relationship_plan = _plan_relationships(
+        fk_by_source=fk_by_source,
+        fk_by_target=fk_by_target,
+        link_tables=link_tables,
+        table_names=table_names,
+        table_columns=table_columns,
+    )
     sa_imports: set[str] = set()
     needs_relationship = False
 
@@ -198,6 +210,7 @@ def generate_sqlmodel_code(
             link_tables,
             table_names,
             schema,
+            relationship_plan,
             field_names,
         )
         if rel_lines:
@@ -233,13 +246,11 @@ def _generate_field_line(
         field_args.append("primary_key=True")
 
     if fk:
-        target = (
-            f"{fk.target_table}.{fk.target_columns[0]}"
-            if fk.target_columns
-            else f"{fk.target_table}.id"
-        )
-        if fk.target_schema != fk.schema:
-            target = f"{fk.target_schema}.{target}"
+        target_column = fk.target_columns[0] if fk.target_columns else "id"
+        target = f"{fk.target_table}.{target_column}"
+        target_schema = fk.target_schema or fk.schema
+        if target_schema:
+            target = f"{target_schema}.{target}"
         field_args.append(f'foreign_key="{target}"')
 
     if field_info.is_optional and not is_pk:
@@ -268,6 +279,115 @@ def _dedupe_name(name: str, used: set[str], column_names: set[str]) -> str:
     return candidate
 
 
+def _collection_annotation(class_name: str) -> str:
+    """Render SQLModel collection annotations as quoted forward refs."""
+    return f'list["{class_name}"]'
+
+
+def _optional_relationship_annotation(class_name: str) -> str:
+    """Render scalar SQLModel relationship annotations as forward refs."""
+    return f'Optional["{class_name}"]'
+
+
+@dataclass(frozen=True)
+class RelationshipPlan:
+    source_name_by_constraint: dict[str, str]
+    target_name_by_constraint: dict[str, str]
+    explicit_foreign_keys: set[str]
+    self_referential_constraints: set[str]
+
+
+def _plan_relationships(
+    fk_by_source: dict[str, list[ForeignKeyInfo]],
+    fk_by_target: dict[str, list[ForeignKeyInfo]],
+    link_tables: set[str],
+    table_names: set[str],
+    table_columns: dict[str, set[str]],
+) -> RelationshipPlan:
+    source_name_by_constraint: dict[str, str] = {}
+    target_name_by_constraint: dict[str, str] = {}
+
+    relevant_fks = [
+        fk
+        for table in sorted(table_names)
+        for fk in fk_by_source.get(table, [])
+        if len(fk.source_columns) == 1
+        and fk.source_table in table_names
+        and fk.target_table in table_names
+        and fk.source_table not in link_tables
+        and fk.target_table not in link_tables
+    ]
+    relevant_keys = {fk.constraint_name for fk in relevant_fks}
+
+    for table in sorted(table_names):
+        used_names: set[str] = set()
+        column_names = table_columns.get(table, set())
+        for fk in fk_by_source.get(table, []):
+            if fk.constraint_name not in relevant_keys:
+                continue
+            base_name = _fk_col_to_rel_name(fk.source_columns[0])
+            source_name_by_constraint[fk.constraint_name] = _dedupe_name(
+                base_name, used_names, column_names
+            )
+
+    for table in sorted(table_names):
+        used_names: set[str] = set()
+        column_names = table_columns.get(table, set())
+        for fk in fk_by_target.get(table, []):
+            if fk.constraint_name not in relevant_keys:
+                continue
+            base_name = _pluralize(fk.source_table)
+            fk_hint = _fk_col_to_rel_name(fk.source_columns[0])
+            if base_name in used_names or base_name in column_names:
+                base_name = f"{fk_hint}_{base_name}"
+            target_name_by_constraint[fk.constraint_name] = _dedupe_name(
+                base_name, used_names, column_names
+            )
+
+    pair_counts = Counter(
+        (fk.source_table, fk.target_table) for fk in relevant_fks
+    )
+    explicit_foreign_keys = {
+        fk.constraint_name
+        for fk in relevant_fks
+        if pair_counts[(fk.source_table, fk.target_table)] > 1
+    }
+    self_referential_constraints = {
+        fk.constraint_name
+        for fk in relevant_fks
+        if fk.source_table == fk.target_table
+    }
+
+    return RelationshipPlan(
+        source_name_by_constraint=source_name_by_constraint,
+        target_name_by_constraint=target_name_by_constraint,
+        explicit_foreign_keys=explicit_foreign_keys,
+        self_referential_constraints=self_referential_constraints,
+    )
+
+
+def _relationship_call(
+    *,
+    back_populates: str,
+    link_model: str | None = None,
+    foreign_keys: str | None = None,
+    remote_side: str | None = None,
+) -> str:
+    args = [f'back_populates="{back_populates}"']
+    if link_model is not None:
+        args.append(f"link_model={link_model}")
+
+    sa_kwargs: list[str] = []
+    if foreign_keys is not None:
+        sa_kwargs.append(f'"foreign_keys": "{foreign_keys}"')
+    if remote_side is not None:
+        sa_kwargs.append(f'"remote_side": "{remote_side}"')
+    if sa_kwargs:
+        args.append(f"sa_relationship_kwargs={{{', '.join(sa_kwargs)}}}")
+
+    return f"Relationship({', '.join(args)})"
+
+
 def _generate_relationships(
     table: str,
     class_name: str,
@@ -276,6 +396,7 @@ def _generate_relationships(
     link_tables: set[str],
     all_tables: set[str],
     schema: str,
+    relationship_plan: RelationshipPlan,
     column_names: set[str] | None = None,
 ) -> list[str]:
     """Generate Relationship() lines for a model."""
@@ -286,8 +407,6 @@ def _generate_relationships(
     if table in link_tables:
         return lines
 
-    used_names: set[str] = set()
-
     for fk in fk_by_source.get(table, []):
         if len(fk.source_columns) != 1:
             continue
@@ -297,16 +416,26 @@ def _generate_relationships(
             continue
 
         target_class = _table_to_class(fk.target_table)
-        rel_name = _fk_col_to_rel_name(fk.source_columns[0])
-        back_name = _pluralize(table)
-
-        rel_name = _dedupe_name(rel_name, used_names, column_names)
-        back_name = _dedupe_name(back_name, set(), set())
+        rel_name = relationship_plan.source_name_by_constraint[
+            fk.constraint_name
+        ]
+        back_name = relationship_plan.target_name_by_constraint[
+            fk.constraint_name
+        ]
+        foreign_keys = None
+        remote_side = None
+        if fk.constraint_name in relationship_plan.explicit_foreign_keys:
+            foreign_keys = f"{class_name}.{fk.source_columns[0]}"
+        if fk.constraint_name in relationship_plan.self_referential_constraints:
+            foreign_keys = f"{class_name}.{fk.source_columns[0]}"
+            remote_side = f"{target_class}.{fk.target_columns[0]}"
 
         lines.append(
-            f'{rel_name}: {target_class} | None = Relationship(back_populates="{back_name}")'
+            f"{rel_name}: {_optional_relationship_annotation(target_class)} = "
+            f"{_relationship_call(back_populates=back_name, foreign_keys=foreign_keys, remote_side=remote_side)}"
         )
 
+    used_names: set[str] = set()
     for fk in fk_by_target.get(table, []):
         if len(fk.source_columns) != 1:
             continue
@@ -329,21 +458,25 @@ def _generate_relationships(
             )
             continue
 
-        back_name = _fk_col_to_rel_name(fk.source_columns[0])
-        base_rel_name = _pluralize(fk.source_table)
-        fk_hint = _fk_col_to_rel_name(fk.source_columns[0])
-        if base_rel_name in used_names or base_rel_name in column_names:
-            base_rel_name = f"{fk_hint}_{base_rel_name}"
-
-        rel_name = _dedupe_name(base_rel_name, used_names, column_names)
+        rel_name = relationship_plan.target_name_by_constraint[
+            fk.constraint_name
+        ]
+        back_name = relationship_plan.source_name_by_constraint[
+            fk.constraint_name
+        ]
+        foreign_keys = None
+        if fk.constraint_name in relationship_plan.explicit_foreign_keys:
+            foreign_keys = f"{source_class}.{fk.source_columns[0]}"
 
         if fk.is_one_to_one:
             lines.append(
-                f'{rel_name}: {source_class} | None = Relationship(back_populates="{back_name}")'
+                f"{rel_name}: {_optional_relationship_annotation(source_class)} = "
+                f"{_relationship_call(back_populates=back_name, foreign_keys=foreign_keys)}"
             )
         else:
             lines.append(
-                f'{rel_name}: list[{source_class}] = Relationship(back_populates="{back_name}")'
+                f"{rel_name}: {_collection_annotation(source_class)} = "
+                f"{_relationship_call(back_populates=back_name, foreign_keys=foreign_keys)}"
             )
 
     return lines
@@ -383,7 +516,7 @@ def _add_m2m_relationship(
         back_name = _pluralize(table)
 
         lines.append(
-            f"{rel_name}: list[{other_class}] = Relationship("
+            f"{rel_name}: {_collection_annotation(other_class)} = Relationship("
             f'back_populates="{back_name}", link_model={link_class})'
         )
 
@@ -400,8 +533,6 @@ def _generate_header(
         "DO NOT EDIT - regenerate with:",
         "  python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models",
         '"""',
-        "from __future__ import annotations",
-        "",
         "import datetime",
         "import uuid",
         "",
@@ -431,6 +562,10 @@ def _generate_header(
         lines.append(pg_line)
 
     if sa_from_main or sa_from_pg:
+        lines.append("")
+
+    if needs_relationship:
+        lines.append("from typing import Optional")
         lines.append("")
 
     sqlmodel_imports = ["Field", "SQLModel"]

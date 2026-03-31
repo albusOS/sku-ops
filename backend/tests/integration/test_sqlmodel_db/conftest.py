@@ -9,6 +9,7 @@ import os
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 
@@ -25,13 +26,14 @@ def database_url():
     return url
 
 
-@pytest.fixture(scope="session")
-def async_engine(database_url):
-    return create_async_engine(database_url, echo=False)
-
-
 @pytest.fixture
-async def session(async_engine):
+async def session(database_url):
+    async_engine = create_async_engine(
+        database_url,
+        echo=False,
+        poolclass=NullPool,
+    )
     async with SQLModelAsyncSession(async_engine) as session:
         yield session
         await session.rollback()
+    await async_engine.dispose()
