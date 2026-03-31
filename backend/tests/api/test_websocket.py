@@ -282,16 +282,18 @@ class TestEventDeliveryEndToEnd:
                 ws.close()
 
     def test_user_scoped_event_skips_wrong_user(self, client: TestClient):
-        """User-scoped events are filtered: u-1 doesn't get u-2's chat.done.
+        """User-scoped events are filtered: user A doesn't get user B's chat.done.
 
-        Emits a user-scoped event (for u-2) followed by a broadcast. The
-        client connected as u-1 should only see the broadcast.
+        Emits a user-scoped event (for B) followed by a broadcast. The
+        client connected as A should only see the broadcast.
         """
         from unittest.mock import patch
 
         from shared.infrastructure import event_hub
 
-        token_u1 = _make_token(user_id="u-1")
+        ws_user_a = "00000000-0000-0000-0000-0000000000c1"
+        ws_user_b = "00000000-0000-0000-0000-0000000000c2"
+        token_u1 = _make_token(user_id=ws_user_a)
         with patch(
             "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
             999,
@@ -304,7 +306,7 @@ class TestEventDeliveryEndToEnd:
                     event_hub.emit_sync(
                         events.CHAT_DONE,
                         org_id=DEFAULT_ORG_ID,
-                        user_id="u-2",
+                        user_id=ws_user_b,
                         response="hi",
                     )
                     event_hub.emit_sync(

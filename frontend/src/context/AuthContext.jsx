@@ -131,6 +131,12 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
     _setAxiosToken(data.session.access_token);
     const profile = await _fetchProfile();
+    if (!profile) {
+      await _supabaseLogout();
+      throw new Error(
+        "Could not load your profile from the server. Is the API up and the database seeded?",
+      );
+    }
     return profile;
   };
 
@@ -147,7 +153,14 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
     if (data.session?.access_token) {
       _setAxiosToken(data.session.access_token);
-      return await _fetchProfile();
+      const profile = await _fetchProfile();
+      if (!profile) {
+        await _supabaseLogout();
+        throw new Error(
+          "Could not load your profile from the server. Is the API up and the database seeded?",
+        );
+      }
+      return profile;
     }
     return null;
   };
