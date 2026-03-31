@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
         id TEXT PRIMARY KEY,
-        vendor_id TEXT,
+        vendor_id TEXT REFERENCES vendors(id),
         vendor_name TEXT NOT NULL DEFAULT '',
         document_date TEXT,
         total REAL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ,
-        organization_id TEXT
+        organization_id TEXT REFERENCES organizations(id)
     );
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
         suggested_department TEXT NOT NULL DEFAULT 'HDW',
         status TEXT NOT NULL DEFAULT 'ordered',
         sku_id TEXT,
-        organization_id TEXT
+        organization_id TEXT REFERENCES organizations(id)
     );
 
 CREATE INDEX IF NOT EXISTS idx_po_org_status ON purchase_orders(organization_id, status);

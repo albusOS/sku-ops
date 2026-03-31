@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
         invoice_number TEXT UNIQUE NOT NULL,
         billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT,
+        billing_entity_id TEXT REFERENCES billing_entities(id),
         contact_name TEXT NOT NULL DEFAULT '',
         contact_email TEXT NOT NULL DEFAULT '',
         status TEXT NOT NULL DEFAULT 'draft',
@@ -20,12 +20,12 @@ CREATE TABLE IF NOT EXISTS invoices (
         billing_address TEXT NOT NULL DEFAULT '',
         po_reference TEXT NOT NULL DEFAULT '',
         currency TEXT NOT NULL DEFAULT 'USD',
-        approved_by_id TEXT,
+        approved_by_id TEXT REFERENCES users(id),
         approved_at TIMESTAMPTZ,
         xero_invoice_id TEXT,
         xero_cogs_journal_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
@@ -59,10 +59,10 @@ CREATE TABLE IF NOT EXISTS invoice_counters (
 CREATE TABLE IF NOT EXISTS credit_notes (
         id TEXT PRIMARY KEY,
         credit_note_number TEXT UNIQUE NOT NULL,
-        invoice_id TEXT,
+        invoice_id TEXT REFERENCES invoices(id),
         return_id TEXT,
         billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT,
+        billing_entity_id TEXT REFERENCES billing_entities(id),
         status TEXT NOT NULL DEFAULT 'draft',
         subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
         tax NUMERIC(18,2) NOT NULL DEFAULT 0,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS credit_notes (
         notes TEXT,
         xero_credit_note_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );
@@ -90,16 +90,16 @@ CREATE TABLE IF NOT EXISTS credit_note_line_items (
 
 CREATE TABLE IF NOT EXISTS payments (
         id TEXT PRIMARY KEY,
-        invoice_id TEXT,
-        billing_entity_id TEXT,
+        invoice_id TEXT REFERENCES invoices(id),
+        billing_entity_id TEXT REFERENCES billing_entities(id),
         amount NUMERIC(18,2) NOT NULL,
         method TEXT NOT NULL DEFAULT 'bank_transfer',
         reference TEXT NOT NULL DEFAULT '',
         payment_date TIMESTAMPTZ NOT NULL,
         notes TEXT,
-        recorded_by_id TEXT NOT NULL,
+        recorded_by_id TEXT NOT NULL REFERENCES users(id),
         xero_payment_id TEXT,
-        organization_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS departments (
         code TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ,
         UNIQUE(organization_id, code)
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS units_of_measure (
         code TEXT NOT NULL,
         name TEXT NOT NULL,
         family TEXT NOT NULL DEFAULT 'discrete',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ,
         UNIQUE(organization_id, code)
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS vendors (
         email TEXT NOT NULL DEFAULT '',
         phone TEXT NOT NULL DEFAULT '',
         address TEXT NOT NULL DEFAULT '',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
     );
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS products (
         category_id TEXT NOT NULL REFERENCES departments(id),
         category_name TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS skus (
         spec TEXT NOT NULL DEFAULT '',
         grade TEXT NOT NULL DEFAULT '',
         variant_attrs TEXT NOT NULL DEFAULT '{}',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS vendor_items (
         moq REAL,
         is_preferred BOOLEAN NOT NULL DEFAULT FALSE,
         notes TEXT,
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ,

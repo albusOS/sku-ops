@@ -22,12 +22,12 @@ CREATE TABLE IF NOT EXISTS users (
         billing_entity_id TEXT,
         phone TEXT,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS org_settings (
-        organization_id TEXT PRIMARY KEY,
+        organization_id TEXT PRIMARY KEY REFERENCES organizations(id),
         auto_invoice BOOLEAN NOT NULL DEFAULT FALSE,
         default_tax_rate REAL NOT NULL DEFAULT 0.10,
         xero_tenant_id TEXT,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS org_settings (
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
         id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id),
         token_hash TEXT NOT NULL UNIQUE,
         expires_at TIMESTAMPTZ NOT NULL,
         revoked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -54,19 +54,19 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 CREATE TABLE IF NOT EXISTS oauth_states (
         state TEXT PRIMARY KEY,
-        org_id TEXT NOT NULL,
+        org_id TEXT NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS audit_log (
         id TEXT PRIMARY KEY,
-        user_id TEXT,
+        user_id TEXT REFERENCES users(id),
         action TEXT NOT NULL,
         resource_type TEXT,
         resource_id TEXT,
         details TEXT,
         ip_address TEXT,
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS billing_entities (
         payment_terms TEXT NOT NULL DEFAULT 'net_30',
         xero_contact_id TEXT,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        organization_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         UNIQUE(organization_id, name)
@@ -94,9 +94,9 @@ CREATE TABLE IF NOT EXISTS addresses (
         state TEXT NOT NULL DEFAULT '',
         postal_code TEXT NOT NULL DEFAULT '',
         country TEXT NOT NULL DEFAULT 'US',
-        billing_entity_id TEXT,
+        billing_entity_id TEXT REFERENCES billing_entities(id),
         job_id TEXT,
-        organization_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
@@ -106,9 +106,9 @@ CREATE TABLE IF NOT EXISTS fiscal_periods (
         start_date DATE NOT NULL,
         end_date DATE NOT NULL,
         status TEXT NOT NULL DEFAULT 'open',
-        closed_by_id TEXT,
+        closed_by_id TEXT REFERENCES users(id),
         closed_at TIMESTAMPTZ,
-        organization_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 

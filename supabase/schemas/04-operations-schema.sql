@@ -12,33 +12,33 @@ CREATE TABLE IF NOT EXISTS withdrawals (
         tax_rate NUMERIC(9,4) NOT NULL DEFAULT 0.0,
         total NUMERIC(18,2) NOT NULL,
         cost_total NUMERIC(18,2) NOT NULL,
-        contractor_id TEXT NOT NULL,
+        contractor_id TEXT NOT NULL REFERENCES users(id),
         contractor_name TEXT NOT NULL DEFAULT '',
         contractor_company TEXT NOT NULL DEFAULT '',
         billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT,
+        billing_entity_id TEXT REFERENCES billing_entities(id),
         payment_status TEXT NOT NULL DEFAULT 'unpaid',
         invoice_id TEXT,
         paid_at TIMESTAMPTZ,
-        processed_by_id TEXT NOT NULL,
+        processed_by_id TEXT NOT NULL REFERENCES users(id),
         processed_by_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS material_requests (
         id TEXT PRIMARY KEY,
-        contractor_id TEXT NOT NULL,
+        contractor_id TEXT NOT NULL REFERENCES users(id),
         contractor_name TEXT NOT NULL DEFAULT '',
         status TEXT NOT NULL DEFAULT 'pending',
-        withdrawal_id TEXT,
+        withdrawal_id TEXT REFERENCES withdrawals(id),
         job_id TEXT,
         service_address TEXT,
         notes TEXT,
         created_at TIMESTAMPTZ NOT NULL,
         processed_at TIMESTAMPTZ,
-        processed_by_id TEXT,
-        organization_id TEXT NOT NULL
+        processed_by_id TEXT REFERENCES users(id),
+        organization_id TEXT NOT NULL REFERENCES organizations(id)
     );
 
 CREATE TABLE IF NOT EXISTS material_request_items (
@@ -55,11 +55,11 @@ CREATE TABLE IF NOT EXISTS material_request_items (
 
 CREATE TABLE IF NOT EXISTS returns (
         id TEXT PRIMARY KEY,
-        withdrawal_id TEXT NOT NULL,
-        contractor_id TEXT NOT NULL,
+        withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
+        contractor_id TEXT NOT NULL REFERENCES users(id),
         contractor_name TEXT NOT NULL DEFAULT '',
         billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT,
+        billing_entity_id TEXT REFERENCES billing_entities(id),
         job_id TEXT NOT NULL DEFAULT '',
         subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
         tax NUMERIC(18,2) NOT NULL DEFAULT 0,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS returns (
         credit_note_id TEXT,
         processed_by_id TEXT NOT NULL DEFAULT '',
         processed_by_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT,
+        organization_id TEXT REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );

@@ -141,3 +141,15 @@ CREATE OR REPLACE VIEW entity_edges WITH (security_invoker = true) AS
     FROM invoice_line_items ili
     JOIN invoices i ON i.id = ili.invoice_id
     WHERE ili.job_id IS NOT NULL;
+
+-- Deferred FK constraints for columns that reference tables defined in later schema files.
+-- These cannot be inline REFERENCES because the target table does not exist yet at CREATE TABLE time.
+
+ALTER TABLE users ADD CONSTRAINT users_billing_entity_id_fkey
+    FOREIGN KEY (billing_entity_id) REFERENCES billing_entities(id);
+
+ALTER TABLE withdrawals ADD CONSTRAINT withdrawals_invoice_id_fkey
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id);
+
+-- NOTE: returns.credit_note_id <-> credit_notes.return_id is a bidirectional
+-- link with circular dependency. Enforced at application level, not via FK.

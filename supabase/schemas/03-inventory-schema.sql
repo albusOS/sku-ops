@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS stock_transactions (
         id TEXT PRIMARY KEY,
-        sku_id TEXT NOT NULL,
+        sku_id TEXT NOT NULL REFERENCES skus(id),
         sku TEXT NOT NULL,
         product_name TEXT NOT NULL DEFAULT '',
         quantity_delta REAL NOT NULL,
@@ -15,28 +15,28 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
         reason TEXT,
         original_quantity REAL,
         original_unit TEXT,
-        user_id TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id),
         user_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS cycle_counts (
         id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL REFERENCES organizations(id),
         status TEXT NOT NULL DEFAULT 'open',
         scope TEXT,
-        created_by_id TEXT NOT NULL,
+        created_by_id TEXT NOT NULL REFERENCES users(id),
         created_by_name TEXT NOT NULL DEFAULT '',
-        committed_by_id TEXT,
+        committed_by_id TEXT REFERENCES users(id),
         committed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS cycle_count_items (
         id TEXT PRIMARY KEY,
-        cycle_count_id TEXT NOT NULL,
-        sku_id TEXT NOT NULL,
+        cycle_count_id TEXT NOT NULL REFERENCES cycle_counts(id),
+        sku_id TEXT NOT NULL REFERENCES skus(id),
         sku TEXT NOT NULL,
         product_name TEXT NOT NULL DEFAULT '',
         snapshot_qty REAL NOT NULL,

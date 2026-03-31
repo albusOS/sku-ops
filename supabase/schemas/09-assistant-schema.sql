@@ -2,8 +2,8 @@
 
 CREATE TABLE IF NOT EXISTS memory_artifacts (
         id TEXT PRIMARY KEY,
-        org_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
+        org_id TEXT NOT NULL REFERENCES organizations(id),
+        user_id TEXT NOT NULL REFERENCES users(id),
         session_id TEXT NOT NULL,
         type TEXT NOT NULL DEFAULT 'entity_fact',
         subject TEXT NOT NULL DEFAULT 'general',
@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS memory_artifacts (
 CREATE TABLE IF NOT EXISTS agent_runs (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
-        org_id TEXT NOT NULL,
-        user_id TEXT,
+        org_id TEXT NOT NULL REFERENCES organizations(id),
+        user_id TEXT REFERENCES users(id),
         agent_name TEXT NOT NULL,
         model TEXT NOT NULL,
         mode TEXT,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
         attempts INTEGER NOT NULL DEFAULT 1,
         error TEXT,
         error_kind TEXT,
-        parent_run_id TEXT,
+        parent_run_id TEXT REFERENCES agent_runs(id),
         handoff_from TEXT,
         validation_passed BOOLEAN,
         validation_failures TEXT NOT NULL DEFAULT '[]',
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 
 CREATE TABLE IF NOT EXISTS embeddings (
         id TEXT PRIMARY KEY,
-        org_id TEXT NOT NULL,
+        org_id TEXT NOT NULL REFERENCES organizations(id),
         entity_type TEXT NOT NULL,
         entity_id TEXT NOT NULL,
         content TEXT NOT NULL,
