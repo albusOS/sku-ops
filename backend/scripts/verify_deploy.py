@@ -115,7 +115,7 @@ def check_config_guards() -> None:
             + "\nimport importlib, shared.infrastructure.config as _c; importlib.reload(_c)"
         )
 
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-c", code],
             check=False,
             capture_output=True,
@@ -397,7 +397,7 @@ def check_frontend_build() -> None:
     }
 
     result = subprocess.run(
-        ["npm", "run", "build"],  # noqa: S607
+        ["npm", "run", "build"],
         check=False,
         cwd=frontend_dir,
         capture_output=True,
