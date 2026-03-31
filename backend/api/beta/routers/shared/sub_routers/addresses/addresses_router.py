@@ -1,12 +1,12 @@
 """Address book routes — CRUD and autocomplete for saved addresses."""
 
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from shared.api.deps import AdminDep, CurrentUserDep
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.address_repo import StoredAddress, address_repo
 from shared.infrastructure.database import get_org_id
 
@@ -71,10 +71,12 @@ async def create_address(
     current_user: AdminDep,
 ):
     if not data.line1.strip():
-        raise HTTPException(status_code=400, detail="Address line 1 is required")
+        raise HTTPException(
+            status_code=400, detail="Address line 1 is required"
+        )
 
     address = StoredAddress(
-        id=str(uuid4()),
+        id=new_uuid7_str(),
         label=data.label or data.line1[:80],
         line1=data.line1,
         line2=data.line2,

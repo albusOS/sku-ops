@@ -25,10 +25,10 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection
 
 if TYPE_CHECKING:
@@ -54,7 +54,9 @@ async def audit_log(
         if not ip and request.client:
             ip = request.client.host
 
-    details_str = json.dumps(details) if isinstance(details, dict) else (details or "")
+    details_str = (
+        json.dumps(details) if isinstance(details, dict) else (details or "")
+    )
     now = datetime.now(UTC)
 
     try:
@@ -64,14 +66,14 @@ async def audit_log(
                details, ip_address, organization_id, created_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
             (
-                str(uuid.uuid4()),
+                new_uuid7_str(),
                 user_id,
                 action,
                 resource_type,
                 resource_id,
                 details_str,
                 ip,
-                org_id or "",
+                org_id,
                 now,
             ),
         )

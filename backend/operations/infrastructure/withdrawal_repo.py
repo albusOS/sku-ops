@@ -1,10 +1,10 @@
 """Withdrawal repository."""
 
 from datetime import datetime
-from uuid import uuid4
 
 from operations.domain.enums import PaymentStatus
 from operations.domain.withdrawal import MaterialWithdrawal
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection, get_org_id
 
 
@@ -71,7 +71,7 @@ async def insert(withdrawal: MaterialWithdrawal) -> None:
                (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total, sell_uom, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)""",
             (
-                str(uuid4()),
+                new_uuid7_str(),
                 withdrawal.id,
                 item.sku_id or "",
                 item.sku or "",
@@ -156,13 +156,21 @@ async def mark_paid(
     cursor = await conn.execute(
         "UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
         "WHERE id = $3 AND payment_status != $4 AND organization_id = $5",
-        (PaymentStatus.PAID, paid_at, withdrawal_id, PaymentStatus.PAID, org_id),
+        (
+            PaymentStatus.PAID,
+            paid_at,
+            withdrawal_id,
+            PaymentStatus.PAID,
+            org_id,
+        ),
     )
     await conn.commit()
     return await get_by_id(withdrawal_id), cursor.rowcount > 0
 
 
-async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: datetime) -> list[str]:
+async def bulk_mark_paid(
+    withdrawal_ids: list[str], paid_at: datetime
+) -> list[str]:
     """Mark withdrawals paid. Returns IDs that were actually changed (previously unpaid)."""
     if not withdrawal_ids:
         return []
@@ -176,7 +184,13 @@ async def bulk_mark_paid(withdrawal_ids: list[str], paid_at: datetime) -> list[s
         f"UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
         f"WHERE id IN ({id_placeholders}) AND payment_status != ${exclude_idx} "
         f"AND organization_id = ${org_idx} RETURNING id",
-        [PaymentStatus.PAID, paid_at, *withdrawal_ids, PaymentStatus.PAID, org_id],
+        [
+            PaymentStatus.PAID,
+            paid_at,
+            *withdrawal_ids,
+            PaymentStatus.PAID,
+            org_id,
+        ],
     )
     await conn.commit()
     rows = await cursor.fetchall()
@@ -195,7 +209,13 @@ async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> bool:
         "UPDATE withdrawals SET invoice_id = $1, payment_status = $2 "
         "WHERE id = $3 AND invoice_id IS NULL AND payment_status = $4 "
         "AND organization_id = $5",
-        (invoice_id, PaymentStatus.INVOICED, withdrawal_id, PaymentStatus.UNPAID, org_id),
+        (
+            invoice_id,
+            PaymentStatus.INVOICED,
+            withdrawal_id,
+            PaymentStatus.UNPAID,
+            org_id,
+        ),
     )
     await conn.commit()
     return cursor.rowcount > 0

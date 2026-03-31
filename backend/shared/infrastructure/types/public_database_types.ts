@@ -812,16 +812,27 @@ export type Database = {
         Row: {
           counter: number
           key: string
+          organization_id: string
         }
         Insert: {
           counter?: number
           key: string
+          organization_id: string
         }
         Update: {
           counter?: number
           key?: string
+          organization_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoice_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoice_line_items: {
         Row: {
@@ -1630,7 +1641,7 @@ export type Database = {
         }
         Insert: {
           created_at: string
-          created_by_id?: string
+          created_by_id: string
           created_by_name?: string
           document_date?: string | null
           document_id?: string | null
@@ -1670,10 +1681,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "purchase_orders_created_by_id_fkey"
+            columns: ["created_by_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchase_orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_received_by_id_fkey"
+            columns: ["received_by_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -1807,10 +1832,10 @@ export type Database = {
           created_at: string
           credit_note_id?: string | null
           id: string
-          job_id?: string
+          job_id: string
           notes?: string | null
           organization_id?: string | null
-          processed_by_id?: string
+          processed_by_id: string
           processed_by_name?: string
           reason?: string
           subtotal?: number
@@ -1863,6 +1888,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "returns_processed_by_id_fkey"
+            columns: ["processed_by_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "returns_withdrawal_id_fkey"
             columns: ["withdrawal_id"]
             isOneToOne: false
@@ -1874,17 +1906,35 @@ export type Database = {
       sku_counters: {
         Row: {
           counter: number
-          department_code: string
+          organization_id: string
+          product_family_id: string
         }
         Insert: {
           counter?: number
-          department_code: string
+          organization_id: string
+          product_family_id: string
         }
         Update: {
           counter?: number
-          department_code?: string
+          organization_id?: string
+          product_family_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sku_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sku_counters_product_family_id_fkey"
+            columns: ["product_family_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       skus: {
         Row: {

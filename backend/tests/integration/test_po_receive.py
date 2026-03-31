@@ -24,21 +24,23 @@ from purchasing.domain.purchase_order import (
 )
 from purchasing.infrastructure.po_repo import po_repo
 from shared.infrastructure.database import get_connection
+from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
+from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
 
 
 def _user():
     return CurrentUser(
-        id="user-1",
+        id=ADMIN_USER_ID,
         email="test@test.com",
         name="Test User",
         role="admin",
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
     )
 
 
 async def _create_test_product(
-    name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id="dept-1"
+    name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id=SEEDED_DEPT_ID
 ):
     return await create_product_with_sku(
         category_id=dept_id,
@@ -47,7 +49,7 @@ async def _create_test_product(
         quantity=quantity,
         price=price,
         cost=cost,
-        user_id="user-1",
+        user_id=ADMIN_USER_ID,
         user_name="Test",
         on_stock_import=process_import_stock_changes,
     )
@@ -61,13 +63,21 @@ async def _create_po_with_item(
     name="Widget",
     status=POItemStatus.PENDING,
 ):
+    conn = get_connection()
+    await conn.execute(
+        """INSERT INTO vendors (id, name, organization_id, created_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (id) DO NOTHING""",
+        ("0195f2c0-89af-7000-8000-000000000041", "Acme Corp", DEFAULT_ORG_ID),
+    )
+    await conn.commit()
     po = PurchaseOrder(
-        vendor_id="v1",
+        vendor_id="0195f2c0-89af-7000-8000-000000000041",
         vendor_name="Acme Corp",
         status=POStatus.ORDERED,
-        created_by_id="user-1",
+        created_by_id=ADMIN_USER_ID,
         created_by_name="Test",
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
     )
     await po_repo.insert_po(po)
 
@@ -84,7 +94,7 @@ async def _create_po_with_item(
         suggested_department="HDW",
         status=status,
         sku_id=sku_id,
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
     )
     await po_repo.insert_items([item])
     return po, item
@@ -104,7 +114,9 @@ def _stub_deps():
     from catalog.application.vendor_item_lifecycle import add_vendor_item
 
     async def _noop_create(**kw):
-        return await create_product_with_sku(**kw, on_stock_import=process_receiving_stock_changes)
+        return await create_product_with_sku(
+            **kw, on_stock_import=process_receiving_stock_changes
+        )
 
     return PurchasingDeps(
         list_departments=list_departments,
@@ -135,7 +147,9 @@ class TestResolvePOItemCost:
         assert _resolve_po_item_cost({"price": 20.0}) == pytest.approx(14.0)
 
     def test_cost_zero_falls_through(self):
-        assert _resolve_po_item_cost({"cost": 0, "unit_price": 10.0}) == pytest.approx(7.0)
+        assert _resolve_po_item_cost(
+            {"cost": 0, "unit_price": 10.0}
+        ) == pytest.approx(7.0)
 
     def test_no_cost_no_price(self):
         assert _resolve_po_item_cost({}) == 0
@@ -152,7 +166,9 @@ def test_receive_updates_stock(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=7.0, ordered_qty=50)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=7.0, ordered_qty=50
+        )
 
         result = await receive_po_items(
             po_id=po.id,
@@ -175,7 +191,9 @@ def test_receive_weighted_average_cost(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0, cost=8.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=12.0, ordered_qty=50)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=12.0, ordered_qty=50
+        )
 
         await receive_po_items(
             po_id=po.id,
@@ -210,7 +228,9 @@ def test_receive_cost_fallback_from_unit_price(call):
             current_user=_user(),
         )
 
-        assert result.cost_total > 0, "cost_total should use unit_price fallback"
+        assert result.cost_total > 0, (
+            "cost_total should use unit_price fallback"
+        )
         assert result.cost_total == pytest.approx(7.0 * 50)
 
         conn = get_connection()
@@ -219,7 +239,9 @@ def test_receive_cost_fallback_from_unit_price(call):
             (po.id,),
         )
         row = await cursor.fetchone()
-        assert row[0] is not None and row[0] > 0, "Ledger INVENTORY entry should be non-zero"
+        assert row[0] is not None and row[0] > 0, (
+            "Ledger INVENTORY entry should be non-zero"
+        )
 
     call(_body)
 
@@ -229,7 +251,9 @@ def test_receive_creates_stock_transaction(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=7.0, ordered_qty=25)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=7.0, ordered_qty=25
+        )
 
         await receive_po_items(
             po_id=po.id,
@@ -252,7 +276,9 @@ def test_receive_creates_ledger_entries(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=20)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=6.0, ordered_qty=20
+        )
 
         await receive_po_items(
             po_id=po.id,
@@ -282,7 +308,9 @@ def test_receive_po_status_becomes_received(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=5.0, ordered_qty=10)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=5.0, ordered_qty=10
+        )
 
         result = await receive_po_items(
             po_id=po.id,
@@ -330,11 +358,15 @@ def test_receive_cost_override_affects_wac(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0, cost=8.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=50)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=6.0, ordered_qty=50
+        )
 
         result = await receive_po_items(
             po_id=po.id,
-            item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=50, cost=20.0)],
+            item_updates=[
+                ReceiveItemUpdate(id=item.id, delivered_qty=50, cost=20.0)
+            ],
             deps=_stub_deps(),
             current_user=_user(),
         )
@@ -391,8 +423,12 @@ def test_receive_sku_id_override_matches_explicit(call):
     """When the review modal sets sku_id, it should be used instead of auto-match."""
 
     async def _body():
-        product_a = await _create_test_product(name="Alpha Widget", quantity=50.0, cost=10.0)
-        product_b = await _create_test_product(name="Bravo Widget", quantity=30.0, cost=12.0)
+        product_a = await _create_test_product(
+            name="Alpha Widget", quantity=50.0, cost=10.0
+        )
+        product_b = await _create_test_product(
+            name="Bravo Widget", quantity=30.0, cost=12.0
+        )
         po, item = await _create_po_with_item(
             sku_id=product_a.id,
             cost=8.0,
@@ -401,7 +437,11 @@ def test_receive_sku_id_override_matches_explicit(call):
 
         result = await receive_po_items(
             po_id=po.id,
-            item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=20, sku_id=product_b.id)],
+            item_updates=[
+                ReceiveItemUpdate(
+                    id=item.id, delivered_qty=20, sku_id=product_b.id
+                )
+            ],
             deps=_stub_deps(),
             current_user=_user(),
         )
@@ -420,8 +460,12 @@ def test_receive_items_with_typed_input(call):
     """receive_po_items accepts ReceiveItemUpdate objects and correctly updates stock."""
 
     async def _body():
-        product = await _create_test_product(name="Typed Input Product", quantity=20.0, cost=5.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=15)
+        product = await _create_test_product(
+            name="Typed Input Product", quantity=20.0, cost=5.0
+        )
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=6.0, ordered_qty=15
+        )
 
         update = ReceiveItemUpdate(
             id=item.id,

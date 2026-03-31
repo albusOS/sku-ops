@@ -10,7 +10,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
 from purchasing.domain.purchase_order import (
     CreatePOResult,
@@ -22,6 +21,7 @@ from purchasing.domain.purchase_order import (
 )
 from purchasing.infrastructure.po_repo import po_repo as _default_repo
 from purchasing.ports.po_repo_port import PORepoPort
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id, transaction
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.types import CurrentUser
@@ -96,7 +96,7 @@ async def create_purchase_order(
     if not vendor:
         if not create_vendor_if_missing:
             raise ResourceNotFoundError("Vendor", vendor_name)
-        vendor_id = uuid4().hex
+        vendor_id = new_uuid7_str()
         vendor_dict = _resolve_vendor_dict(vendor_name, vendor_id)
         vendor_dict["organization_id"] = org_id
         await deps.insert_vendor(vendor_dict)
@@ -142,7 +142,9 @@ async def create_purchase_order(
                 po_id=po.id,
                 name=item.get("name", "Unknown"),
                 original_sku=item.get("original_sku"),
-                ordered_qty=float(item.get("ordered_qty") or item.get("quantity") or 1),
+                ordered_qty=float(
+                    item.get("ordered_qty") or item.get("quantity") or 1
+                ),
                 delivered_qty=item.get("delivered_qty") or 0,
                 unit_price=float(item.get("price") or 0),
                 cost=round(cost_val, 2),
@@ -151,7 +153,9 @@ async def create_purchase_order(
                 pack_qty=int(item.get("pack_qty") or 1),
                 purchase_uom=item.get("purchase_uom") or "each",
                 purchase_pack_qty=int(item.get("purchase_pack_qty") or 1),
-                suggested_department=(item.get("suggested_department") or "HDW").upper(),
+                suggested_department=(
+                    item.get("suggested_department") or "HDW"
+                ).upper(),
                 status=POItemStatus.ORDERED,
                 sku_id=item.get("sku_id") or None,
                 organization_id=org_id,

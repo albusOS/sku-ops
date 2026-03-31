@@ -1,8 +1,7 @@
 """Return repository."""
 
-from uuid import uuid4
-
 from operations.domain.returns import MaterialReturn
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection, get_org_id
 
 
@@ -67,7 +66,7 @@ async def insert(ret: MaterialReturn) -> None:
                (id, return_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total, sell_uom, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)""",
             (
-                str(uuid4()),
+                new_uuid7_str(),
                 ret.id,
                 item.sku_id or "",
                 item.sku or "",

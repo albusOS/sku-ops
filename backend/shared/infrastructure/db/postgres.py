@@ -7,6 +7,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
@@ -52,6 +53,18 @@ def _normalize_params(params: tuple | list) -> tuple | None:
     return _normalize_param_tuple(params)
 
 
+def _coerce_result_value(value: Any) -> Any:
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _coerce_result_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_coerce_result_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_coerce_result_value(item) for item in value)
+    return value
+
+
 class PgCursor:
     __slots__ = ("_rowcount", "_rows")
 
@@ -77,7 +90,7 @@ async def _execute_sql(
 ) -> PgCursor:
     result = await conn.exec_driver_sql(sql, _normalize_params(params))
     rows = (
-        [dict(row) for row in result.mappings().all()]
+        [_coerce_result_value(dict(row)) for row in result.mappings().all()]
         if result.returns_rows
         else []
     )

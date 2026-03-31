@@ -2,10 +2,14 @@
 
 import json
 import logging
-import uuid
 from datetime import UTC, datetime
 
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.database import (
+    get_connection,
+    get_org_id,
+    transaction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ async def log_agent_run(
     validation_failures: list[str] | None = None,
     validation_scores: dict | None = None,
 ) -> str:
-    run_id = str(uuid.uuid4())
+    run_id = new_uuid7_str()
     now = datetime.now(UTC)
     org_id = get_org_id()
     async with transaction():
@@ -86,7 +90,9 @@ async def list_runs(
     conn = get_connection()
     org_id = get_org_id()
     n = 1
-    clauses = [f"created_at::timestamptz >= NOW() - INTERVAL '{minutes} minutes'"]
+    clauses = [
+        f"created_at::timestamptz >= NOW() - INTERVAL '{minutes} minutes'"
+    ]
     params: list = []
 
     clauses.append(f"org_id = ${n}")
@@ -157,7 +163,9 @@ async def get_stats(*, hours: int = 24) -> dict:
 
     cur = await conn.execute(
         "SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost"
-        " FROM agent_runs WHERE " + since_expr + " GROUP BY model ORDER BY cost DESC",
+        " FROM agent_runs WHERE "
+        + since_expr
+        + " GROUP BY model ORDER BY cost DESC",
         [org_id],
     )
     by_model = await cur.fetchall()
@@ -196,7 +204,9 @@ async def get_validation_summary(*, hours: int = 24) -> dict:
         " COUNT(*) as runs,"
         " SUM(CASE WHEN validation_passed THEN 1 ELSE 0 END) as passed,"
         " SUM(CASE WHEN NOT validation_passed THEN 1 ELSE 0 END) as failed"
-        " FROM agent_runs WHERE " + since_expr + " GROUP BY agent_name ORDER BY failed DESC",
+        " FROM agent_runs WHERE "
+        + since_expr
+        + " GROUP BY agent_name ORDER BY failed DESC",
         [org_id],
     )
     by_agent = [dict(r) for r in await cur.fetchall()]
@@ -222,17 +232,23 @@ async def get_validation_summary(*, hours: int = 24) -> dict:
     return {
         "period_hours": hours,
         "by_agent": by_agent,
-        "failure_type_counts": dict(sorted(failure_counts.items(), key=lambda x: -x[1])),
+        "failure_type_counts": dict(
+            sorted(failure_counts.items(), key=lambda x: -x[1])
+        ),
     }
 
 
-async def get_cost_breakdown(*, days: int = 7, group_by: str = "agent") -> list[dict]:
+async def get_cost_breakdown(
+    *, days: int = 7, group_by: str = "agent"
+) -> list[dict]:
     conn = get_connection()
     org_id = get_org_id()
     since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{days} days'"
     day_expr = "(created_at::timestamptz)::date"
 
-    col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(group_by, "agent_name")
+    col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(
+        group_by, "agent_name"
+    )
     query = "SELECT "
     query += col
     query += " as group_key, "

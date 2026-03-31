@@ -1,8 +1,8 @@
 -- Inventory: stock_transactions, cycle_counts, cycle_count_items.
 
 CREATE TABLE IF NOT EXISTS stock_transactions (
-        id TEXT PRIMARY KEY,
-        sku_id TEXT NOT NULL REFERENCES skus(id),
+        id UUID PRIMARY KEY,
+        sku_id UUID NOT NULL REFERENCES skus(id),
         sku TEXT NOT NULL,
         product_name TEXT NOT NULL DEFAULT '',
         quantity_delta REAL NOT NULL,
@@ -15,28 +15,28 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
         reason TEXT,
         original_quantity REAL,
         original_unit TEXT,
-        user_id TEXT NOT NULL REFERENCES users(id),
+        user_id UUID NOT NULL REFERENCES users(id),
         user_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        organization_id UUID NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS cycle_counts (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        id UUID PRIMARY KEY,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
         status TEXT NOT NULL DEFAULT 'open',
         scope TEXT,
-        created_by_id TEXT NOT NULL REFERENCES users(id),
+        created_by_id UUID NOT NULL REFERENCES users(id),
         created_by_name TEXT NOT NULL DEFAULT '',
-        committed_by_id TEXT REFERENCES users(id),
+        committed_by_id UUID REFERENCES users(id),
         committed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS cycle_count_items (
-        id TEXT PRIMARY KEY,
-        cycle_count_id TEXT NOT NULL REFERENCES cycle_counts(id),
-        sku_id TEXT NOT NULL REFERENCES skus(id),
+        id UUID PRIMARY KEY,
+        cycle_count_id UUID NOT NULL REFERENCES cycle_counts(id),
+        sku_id UUID NOT NULL REFERENCES skus(id),
         sku TEXT NOT NULL,
         product_name TEXT NOT NULL DEFAULT '',
         snapshot_qty REAL NOT NULL,

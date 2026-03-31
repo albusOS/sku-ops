@@ -1,10 +1,10 @@
 """Material request repository."""
 
 from datetime import datetime
-from uuid import uuid4
 
 from operations.domain.enums import MaterialRequestStatus
 from operations.domain.material_request import MaterialRequest
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection, get_org_id
 from shared.kernel.errors import InvalidTransitionError
 
@@ -59,7 +59,7 @@ async def insert(request: MaterialRequest) -> None:
                (id, material_request_id, sku_id, sku, name, quantity, unit_price, cost, unit)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
             (
-                str(uuid4()),
+                new_uuid7_str(),
                 request.id,
                 item.sku_id or "",
                 item.sku or "",
@@ -95,7 +95,9 @@ async def list_pending(limit: int = 100) -> list[MaterialRequest]:
     return [await _row_to_model(r, conn) for r in rows]
 
 
-async def list_by_contractor(contractor_id: str, limit: int = 100) -> list[MaterialRequest]:
+async def list_by_contractor(
+    contractor_id: str, limit: int = 100
+) -> list[MaterialRequest]:
     conn = get_connection()
     org_id = get_org_id()
     cursor = await conn.execute(
@@ -128,7 +130,9 @@ async def mark_processed(
         ),
     )
     if cursor.rowcount == 0:
-        raise InvalidTransitionError("MaterialRequest", "processed", "processed")
+        raise InvalidTransitionError(
+            "MaterialRequest", "processed", "processed"
+        )
     await conn.commit()
     return True
 

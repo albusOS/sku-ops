@@ -6,30 +6,34 @@ fixture from conftest.py runs everything inside the ASGI event loop with
 org context pre-set.
 """
 
+import uuid
+
 from shared.infrastructure.database import get_connection
+from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID, SEEDED_VENDOR_ID
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
 async def _seed_sku(
-    sku_id: str = "sku-1",
+    sku_id: str = "0195f2c0-89af-7000-8000-000000000101",
     sku_code: str = "HDW-TEST-01",
     name: str = "Test Widget",
     quantity: float = 50.0,
     cost: float = 10.0,
     price: float = 15.0,
     min_stock: int = 10,
-    dept_id: str = "dept-1",
+    dept_id: str = SEEDED_DEPT_ID,
 ):
     conn = get_connection()
     # Need a product_family row first (skus.product_family_id is FK)
-    pf_id = f"pf-{sku_id}"
+    pf_id = str(uuid.uuid4())
     await conn.execute(
         """INSERT INTO products
            (id, name, category_id, category_name, organization_id, created_at, updated_at)
-           VALUES ($1, $2, $3, 'Hardware', 'supply-yard', NOW(), NOW())
+           VALUES ($1, $2, $3, 'Hardware', $4, NOW(), NOW())
            ON CONFLICT (id) DO NOTHING""",
-        (pf_id, name, dept_id),
+        (pf_id, name, dept_id, DEFAULT_ORG_ID),
     )
     await conn.execute(
         """INSERT INTO skus
@@ -37,15 +41,28 @@ async def _seed_sku(
             category_id, category_name,
             base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
             organization_id, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Hardware','each','each',1,'each',1,'supply-yard',NOW(),NOW())
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Hardware','each','each',1,'each',1,$10,NOW(),NOW())
            ON CONFLICT (id) DO UPDATE SET quantity=EXCLUDED.quantity, cost=EXCLUDED.cost""",
-        (sku_id, sku_code, pf_id, name, quantity, cost, price, min_stock, dept_id),
+        (
+            sku_id,
+            sku_code,
+            pf_id,
+            name,
+            quantity,
+            cost,
+            price,
+            min_stock,
+            dept_id,
+            DEFAULT_ORG_ID,
+        ),
     )
     await conn.commit()
     return sku_id
 
 
-async def _seed_withdrawal_txns(sku_id: str, daily_qtys: list[float], start_days_ago: int = 30):
+async def _seed_withdrawal_txns(
+    sku_id: str, daily_qtys: list[float], start_days_ago: int = 30
+):
     """Seed stock_transactions (WITHDRAWAL type) over consecutive days."""
     conn = get_connection()
     for i, qty in enumerate(daily_qtys):
@@ -60,9 +77,9 @@ async def _seed_withdrawal_txns(sku_id: str, daily_qtys: list[float], start_days
                VALUES (gen_random_uuid(), $1, 'HDW-TEST-01', 'Test Widget', $2,
                        50, 50, 'each',
                        'WITHDRAWAL', 'withdrawal', gen_random_uuid(),
-                       'user-1', 'Test', 'supply-yard',
+                       $4, 'Test', $5,
                        NOW() - make_interval(days => $3))""",
-            (sku_id, -qty, start_days_ago - i),
+            (sku_id, -qty, start_days_ago - i, ADMIN_USER_ID, DEFAULT_ORG_ID),
         )
     await conn.commit()
 
@@ -78,41 +95,53 @@ async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
            VALUES (gen_random_uuid(), $1, 'HDW-TEST-01', 'Test Widget', $2,
                    0, $2, 'each',
                    'receiving', 'purchase_order', gen_random_uuid(),
-                   'user-1', 'Test', 'supply-yard',
+                   $4, 'Test', $5,
                    NOW() - make_interval(days => $3))""",
-        (sku_id, qty, days_ago),
+        (sku_id, qty, days_ago, ADMIN_USER_ID, DEFAULT_ORG_ID),
     )
     await conn.commit()
 
 
-async def _seed_vendor(vendor_id: str = "vendor-1", name: str = "Acme Supplies"):
+async def _seed_vendor(
+    vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supplies"
+):
     conn = get_connection()
     await conn.execute(
         """INSERT INTO vendors (id, name, organization_id, created_at)
-           VALUES ($1, $2, 'supply-yard', NOW())
+           VALUES ($1, $2, $3, NOW())
            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name""",
-        (vendor_id, name),
+        (vendor_id, name, DEFAULT_ORG_ID),
     )
     await conn.commit()
     return vendor_id
 
 
 async def _seed_received_po(
-    vendor_id: str, created_days_ago: int, received_days_ago: int, sku_id: str = "sku-1"
+    vendor_id: str,
+    created_days_ago: int,
+    received_days_ago: int,
+    sku_id: str = "0195f2c0-89af-7000-8000-000000000101",
 ):
     conn = get_connection()
-    po_id = f"po-{vendor_id}-{created_days_ago}-{received_days_ago}"
+    po_id = str(uuid.uuid4())
 
     await conn.execute(
         """INSERT INTO purchase_orders
            (id, vendor_id, vendor_name, status, created_by_id, created_by_name,
             organization_id, created_at, received_at)
-           VALUES ($1, $2, 'Acme', 'received', 'user-1', 'Test',
-                   'supply-yard',
-                   NOW() - make_interval(days => $3),
-                   NOW() - make_interval(days => $4))
+           VALUES ($1, $2, 'Acme', 'received', $3, 'Test',
+                   $4,
+                   NOW() - make_interval(days => $5),
+                   NOW() - make_interval(days => $6))
            ON CONFLICT (id) DO UPDATE SET received_at = EXCLUDED.received_at""",
-        (po_id, vendor_id, created_days_ago, received_days_ago),
+        (
+            po_id,
+            vendor_id,
+            ADMIN_USER_ID,
+            DEFAULT_ORG_ID,
+            created_days_ago,
+            received_days_ago,
+        ),
     )
     await conn.execute(
         """INSERT INTO purchase_order_items
@@ -120,9 +149,9 @@ async def _seed_received_po(
             base_unit, sell_uom, pack_qty, suggested_department, status, sku_id,
             organization_id)
            VALUES (gen_random_uuid(), $1, 'Widget', 50, 50, 10.0, 10.0,
-                   'each', 'each', 1, 'HDW', 'received', $2, 'supply-yard')
+                   'each', 'each', 1, 'HDW', 'received', $2, $3)
            ON CONFLICT DO NOTHING""",
-        (po_id, sku_id),
+        (po_id, sku_id, DEFAULT_ORG_ID),
     )
     await conn.commit()
     return po_id
@@ -245,9 +274,15 @@ class TestVendorLeadTimeActual:
 
             vendor_id = await _seed_vendor()
             # 3 POs: created 30d ago received 20d ago (10d lead), etc.
-            await _seed_received_po(vendor_id, created_days_ago=90, received_days_ago=83)  # 7d
-            await _seed_received_po(vendor_id, created_days_ago=60, received_days_ago=50)  # 10d
-            await _seed_received_po(vendor_id, created_days_ago=30, received_days_ago=22)  # 8d
+            await _seed_received_po(
+                vendor_id, created_days_ago=90, received_days_ago=83
+            )  # 7d
+            await _seed_received_po(
+                vendor_id, created_days_ago=60, received_days_ago=50
+            )  # 10d
+            await _seed_received_po(
+                vendor_id, created_days_ago=30, received_days_ago=22
+            )  # 8d
 
             result = await vendor_lead_time_actual(vendor_id, days=180)
             assert result["po_count"] == 3
@@ -262,7 +297,7 @@ class TestVendorLeadTimeActual:
         async def _body():
             from purchasing.application.analytics import vendor_lead_time_actual
 
-            vendor_id = await _seed_vendor("vendor-empty", "Empty Vendor")
+            vendor_id = await _seed_vendor(str(uuid.uuid4()), "Empty Vendor")
             result = await vendor_lead_time_actual(vendor_id, days=180)
             assert result["po_count"] == 0
             assert result["actual_median_days"] is None
@@ -274,15 +309,27 @@ class TestVendorLeadTimeActual:
         async def _body():
             from purchasing.application.analytics import vendor_lead_time_actual
 
-            vendor_id = await _seed_vendor("vendor-slow", "Slow Vendor")
+            vendor_id = await _seed_vendor(str(uuid.uuid4()), "Slow Vendor")
             # Early POs: fast (3 day lead)
-            await _seed_received_po(vendor_id, created_days_ago=120, received_days_ago=117)  # 3d
-            await _seed_received_po(vendor_id, created_days_ago=100, received_days_ago=97)  # 3d
-            await _seed_received_po(vendor_id, created_days_ago=80, received_days_ago=77)  # 3d
+            await _seed_received_po(
+                vendor_id, created_days_ago=120, received_days_ago=117
+            )  # 3d
+            await _seed_received_po(
+                vendor_id, created_days_ago=100, received_days_ago=97
+            )  # 3d
+            await _seed_received_po(
+                vendor_id, created_days_ago=80, received_days_ago=77
+            )  # 3d
             # Recent POs: slow (15 day lead)
-            await _seed_received_po(vendor_id, created_days_ago=30, received_days_ago=15)  # 15d
-            await _seed_received_po(vendor_id, created_days_ago=25, received_days_ago=10)  # 15d
-            await _seed_received_po(vendor_id, created_days_ago=20, received_days_ago=5)  # 15d
+            await _seed_received_po(
+                vendor_id, created_days_ago=30, received_days_ago=15
+            )  # 15d
+            await _seed_received_po(
+                vendor_id, created_days_ago=25, received_days_ago=10
+            )  # 15d
+            await _seed_received_po(
+                vendor_id, created_days_ago=20, received_days_ago=5
+            )  # 15d
 
             result = await vendor_lead_time_actual(vendor_id, days=180)
             assert result["po_count"] == 6
@@ -299,7 +346,9 @@ class TestInventoryCarryingCost:
 
     def test_basic_carrying_cost(self, call):
         async def _body():
-            from finance.application.ledger_analytics import inventory_carrying_cost
+            from finance.application.ledger_analytics import (
+                inventory_carrying_cost,
+            )
 
             sku_id = await _seed_sku(quantity=100.0, cost=20.0)
             await _seed_receiving_txn(sku_id, qty=100, days_ago=30)
@@ -318,22 +367,32 @@ class TestInventoryCarryingCost:
 
     def test_zero_cost_excluded(self, call):
         async def _body():
-            from finance.application.ledger_analytics import inventory_carrying_cost
+            from finance.application.ledger_analytics import (
+                inventory_carrying_cost,
+            )
 
-            await _seed_sku(sku_id="sku-free", sku_code="HDW-FREE-01", quantity=100, cost=0)
+            sku_id = str(uuid.uuid4())
+            await _seed_sku(
+                sku_id=sku_id, sku_code="HDW-FREE-01", quantity=100, cost=0
+            )
             results = await inventory_carrying_cost()
-            free_matches = [r for r in results if r["sku_id"] == "sku-free"]
+            free_matches = [r for r in results if r["sku_id"] == sku_id]
             assert len(free_matches) == 0
 
         call(_body)
 
     def test_zero_stock_excluded(self, call):
         async def _body():
-            from finance.application.ledger_analytics import inventory_carrying_cost
+            from finance.application.ledger_analytics import (
+                inventory_carrying_cost,
+            )
 
-            await _seed_sku(sku_id="sku-empty", sku_code="HDW-EMPTY-01", quantity=0, cost=10)
+            sku_id = str(uuid.uuid4())
+            await _seed_sku(
+                sku_id=sku_id, sku_code="HDW-EMPTY-01", quantity=0, cost=10
+            )
             results = await inventory_carrying_cost()
-            empty_matches = [r for r in results if r["sku_id"] == "sku-empty"]
+            empty_matches = [r for r in results if r["sku_id"] == sku_id]
             assert len(empty_matches) == 0
 
         call(_body)
@@ -369,9 +428,15 @@ class TestReorderPointSmart:
             from purchasing.application.analytics import reorder_point_smart
 
             # SKU with plenty of stock above min
-            await _seed_sku(sku_id="sku-plenty", sku_code="HDW-FULL-01", quantity=1000, min_stock=5)
+            sku_id = str(uuid.uuid4())
+            await _seed_sku(
+                sku_id=sku_id,
+                sku_code="HDW-FULL-01",
+                quantity=1000,
+                min_stock=5,
+            )
             results = await reorder_point_smart(limit=10)
-            plenty_matches = [r for r in results if r["sku_id"] == "sku-plenty"]
+            plenty_matches = [r for r in results if r["sku_id"] == sku_id]
             # Won't be in results because it's not low stock
             assert len(plenty_matches) == 0
 

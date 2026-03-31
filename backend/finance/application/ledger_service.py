@@ -12,11 +12,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from finance.application.fiscal_period_service import check_period_open
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
 from finance.infrastructure.ledger_repo import entries_exist, insert_entries
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_org_id
 from shared.kernel.types import round_money
 
@@ -52,7 +52,7 @@ async def _record_sale_event(
     if await entries_exist(reference_type.value, reference_id):
         return
     await _check_fiscal_period()
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     common = {
         "journal_id": journal_id,
         "job_id": job_id,
@@ -197,7 +197,7 @@ async def record_po_receipt(
     if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id):
         return
     await _check_fiscal_period()
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     org_id = get_org_id()
     entries: list[FinancialEntry] = []
 
@@ -287,7 +287,7 @@ async def record_adjustment(
         return
 
     org_id = get_org_id()
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     sign = -1 if quantity_delta < 0 else 1
     offset_account = _offset_account_for_reason(reason)
     entries = [
@@ -331,7 +331,7 @@ async def record_payment(
     """Write AR reduction when a withdrawal is marked paid."""
     if await entries_exist(ReferenceType.PAYMENT.value, withdrawal_id):
         return
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     entry = FinancialEntry(
         account=Account.ACCOUNTS_RECEIVABLE,
         amount=-round_money(amount),
@@ -358,7 +358,7 @@ async def record_credit_note_application(
     """Write AR reduction when a credit note is applied to an invoice."""
     if await entries_exist(ReferenceType.CREDIT_NOTE.value, credit_note_id):
         return
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     await insert_entries(
         [
             FinancialEntry(

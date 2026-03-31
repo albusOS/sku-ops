@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from shared.kernel.constants import DEFAULT_ORG_ID
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
@@ -19,7 +21,7 @@ def uom_seed_sql(org_id: str) -> list[str]:
         stmt = line.strip()
         if not stmt or stmt.startswith("--"):
             continue
-        if org_id != "supply-yard":
-            stmt = stmt.replace("supply-yard", org_id)
+        if org_id != DEFAULT_ORG_ID:
+            stmt = stmt.replace(DEFAULT_ORG_ID, org_id)
         out.append(stmt)
     return out

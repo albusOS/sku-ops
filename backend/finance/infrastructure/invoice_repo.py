@@ -6,7 +6,6 @@ Sub-modules:
 """
 
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from finance.domain.invoice import (
     Invoice,
@@ -43,6 +42,7 @@ from finance.infrastructure.invoice_xero_queries import (
     set_xero_invoice_id,
     set_xero_sync_status,
 )
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection, get_org_id
 
 # ---------------------------------------------------------------------------
@@ -54,15 +54,16 @@ async def next_invoice_number() -> str:
     """Generate next invoice number: INV-00001, INV-00002, etc. Org-scoped counter."""
     conn = get_connection()
     org_id = get_org_id()
-    key = f"{org_id}|inv"
+    key = "inv"
     await conn.execute(
-        """INSERT INTO invoice_counters (key, counter) VALUES ($1, 1)
-           ON CONFLICT(key) DO UPDATE SET counter = invoice_counters.counter + 1""",
-        (key,),
+        """INSERT INTO invoice_counters (organization_id, key, counter) VALUES ($1, $2, 1)
+           ON CONFLICT(organization_id, key)
+           DO UPDATE SET counter = invoice_counters.counter + 1""",
+        (org_id, key),
     )
     cursor = await conn.execute(
-        "SELECT counter FROM invoice_counters WHERE key = $1",
-        (key,),
+        "SELECT counter FROM invoice_counters WHERE organization_id = $1 AND key = $2",
+        (org_id, key),
     )
     row = await cursor.fetchone()
     await conn.commit()
@@ -74,12 +75,16 @@ async def insert(invoice: Invoice) -> InvoiceWithDetails | None:
     invoice_dict = invoice.model_dump()
     conn = get_connection()
     org_id = get_org_id()
-    invoice_id = invoice_dict.get("id") or str(uuid4())
-    invoice_number = invoice_dict.get("invoice_number") or await next_invoice_number()
+    invoice_id = invoice_dict.get("id") or new_uuid7_str()
+    invoice_number = (
+        invoice_dict.get("invoice_number") or await next_invoice_number()
+    )
     now = datetime.now(UTC)
     inv_date = invoice_dict.get("invoice_date") or now
     payment_terms = invoice_dict.get("payment_terms") or "net_30"
-    due_date = invoice_dict.get("due_date") or compute_due_date(inv_date, payment_terms)
+    due_date = invoice_dict.get("due_date") or compute_due_date(
+        inv_date, payment_terms
+    )
     await conn.execute(
         """INSERT INTO invoices (id, invoice_number, billing_entity, contact_name, contact_email,
            status, subtotal, tax, tax_rate, total, amount_credited, notes,
@@ -210,7 +215,9 @@ class InvoiceRepo:
     set_xero_invoice_id = staticmethod(set_xero_invoice_id)
     set_xero_sync_status = staticmethod(set_xero_sync_status)
     list_unsynced_invoices = staticmethod(list_unsynced_invoices)
-    list_invoices_needing_reconciliation = staticmethod(list_invoices_needing_reconciliation)
+    list_invoices_needing_reconciliation = staticmethod(
+        list_invoices_needing_reconciliation
+    )
     list_failed_invoices = staticmethod(list_failed_invoices)
     list_mismatch_invoices = staticmethod(list_mismatch_invoices)
     list_stale_cogs_invoices = staticmethod(list_stale_cogs_invoices)

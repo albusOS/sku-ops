@@ -1,7 +1,7 @@
 -- Documents: documents archive.
 
 CREATE TABLE IF NOT EXISTS documents (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         filename TEXT NOT NULL,
         document_type TEXT NOT NULL DEFAULT 'other',
         vendor_name TEXT,
@@ -9,10 +9,10 @@ CREATE TABLE IF NOT EXISTS documents (
         file_size INTEGER NOT NULL DEFAULT 0,
         mime_type TEXT NOT NULL DEFAULT '',
         parsed_data TEXT,
-        po_id TEXT REFERENCES purchase_orders(id),
+        po_id UUID REFERENCES purchase_orders(id),
         status TEXT NOT NULL DEFAULT 'parsed',
-        uploaded_by_id TEXT NOT NULL REFERENCES users(id),
-        organization_id TEXT NOT NULL REFERENCES organizations(id),
+        uploaded_by_id UUID NOT NULL REFERENCES users(id),
+        organization_id UUID NOT NULL REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );

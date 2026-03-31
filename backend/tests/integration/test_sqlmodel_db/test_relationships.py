@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 NOW = datetime.now(tz=UTC)
-SEEDED_ORG_ID = "supply-yard"
+SEEDED_ORG_ID = uuid.UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69c001")
 SEEDED_BILLING_ENTITY_NAME = "Riva Ridge Property Mgmt"
 SEEDED_CONTRACTOR_NAME = "Dev Contractor"
 SEEDED_CONTRACTOR_COMPANY = "Dev Contractor Co"
@@ -34,9 +34,9 @@ class TestFKConstraintEnforcement:
     async def test_child_with_invalid_fk_raises(self, session):
         """Inserting a product with a non-existent category_id should fail."""
         product = Products(
-            id=f"prod-{uuid.uuid4().hex[:8]}",
+            id=uuid.uuid4(),
             name="Orphan Product",
-            category_id="nonexistent-dept-id",
+            category_id=uuid.uuid4(),
             category_name="Missing Department",
             created_at=NOW,
             description="Product fixture for FK enforcement",
@@ -49,7 +49,7 @@ class TestFKConstraintEnforcement:
 
     async def test_valid_fk_succeeds(self, session):
         """Inserting a product with a valid category_id should succeed."""
-        dept_id = f"dept-{uuid.uuid4().hex[:8]}"
+        dept_id = uuid.uuid4()
         dept = Departments(
             id=dept_id,
             name="Valid Dept",
@@ -63,7 +63,7 @@ class TestFKConstraintEnforcement:
         await session.flush()
 
         product = Products(
-            id=f"prod-{uuid.uuid4().hex[:8]}",
+            id=uuid.uuid4(),
             name="Valid Product",
             category_id=dept_id,
             category_name="Valid Dept",
@@ -84,10 +84,10 @@ class TestFKConstraintEnforcement:
 class TestM2MRelationship:
     async def test_invoice_withdrawal_link(self, session):
         """Test M2M link between invoices and withdrawals via junction table."""
-        inv_id = f"inv-{uuid.uuid4().hex[:8]}"
-        wd_id = f"wd-{uuid.uuid4().hex[:8]}"
-        contractor_id = f"contractor-{uuid.uuid4().hex[:8]}"
-        admin_id = f"admin-{uuid.uuid4().hex[:8]}"
+        inv_id = uuid.uuid4()
+        wd_id = uuid.uuid4()
+        contractor_id = uuid.uuid4()
+        admin_id = uuid.uuid4()
 
         contractor = Users(
             id=contractor_id,
@@ -141,7 +141,7 @@ class TestM2MRelationship:
             id=wd_id,
             billing_entity=SEEDED_BILLING_ENTITY_NAME,
             contractor_company=SEEDED_CONTRACTOR_COMPANY,
-            job_id="test-job",
+            job_id=uuid.uuid4(),
             service_address="123 Test St",
             subtotal=100.0,
             tax=10.0,

@@ -29,12 +29,18 @@ Usage:
 
 import argparse
 import asyncio
-import uuid
 from datetime import UTC, datetime
+
+from shared.helpers.uuid import new_uuid7_str
 
 
 async def main(
-    user_id_arg: str, email: str, name: str, role: str, org_id: str, password: str = ""
+    user_id_arg: str,
+    email: str,
+    name: str,
+    role: str,
+    org_id: str,
+    password: str = "",
 ) -> None:
     from shared.infrastructure.db import close_db, get_connection, init_db
     from shared.kernel.constants import DEFAULT_ORG_ID
@@ -45,7 +51,9 @@ async def main(
     try:
         conn = get_connection()
 
-        cursor = await conn.execute("SELECT id, role FROM users WHERE email = $1", (email,))
+        cursor = await conn.execute(
+            "SELECT id, role FROM users WHERE email = $1", (email,)
+        )
         existing = await cursor.fetchone()
 
         if existing:
@@ -73,19 +81,21 @@ async def main(
             print(f"  role:  {existing['role']} -> {role}")
             print(f"  name:  {name}")
         else:
-            user_id = user_id_arg or str(uuid.uuid4())
+            user_id = user_id_arg or new_uuid7_str()
             if not user_id_arg:
                 print("WARNING: No --id provided. Generating random UUID.")
-                print("         For Supabase auth, pass --id with the Supabase user UUID")
+                print(
+                    "         For Supabase auth, pass --id with the Supabase user UUID"
+                )
                 print("         so /api/auth/me can find this profile row.")
                 print()
             now = datetime.now(UTC)
             if password:
                 import bcrypt
 
-                hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
-                    "utf-8"
-                )
+                hashed_pw = bcrypt.hashpw(
+                    password.encode("utf-8"), bcrypt.gensalt()
+                ).decode("utf-8")
             else:
                 hashed_pw = "!supabase-managed"
             await conn.execute(
@@ -93,7 +103,18 @@ async def main(
                 "(id, email, password, name, role, company, billing_entity, phone, "
                 "is_active, organization_id, created_at) "
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $10)",
-                (user_id, email, hashed_pw, name, role, "", "", "", resolved_org, now),
+                (
+                    user_id,
+                    email,
+                    hashed_pw,
+                    name,
+                    role,
+                    "",
+                    "",
+                    "",
+                    resolved_org,
+                    now,
+                ),
             )
             await conn.commit()
             print(f"Created user {user_id}")
@@ -104,7 +125,9 @@ async def main(
 
         if not password:
             print()
-            print("If using Supabase auth, also run in the Supabase SQL Editor:")
+            print(
+                "If using Supabase auth, also run in the Supabase SQL Editor:"
+            )
             print("  UPDATE auth.users")
             print("  SET raw_app_meta_data = jsonb_set(")
             print("    COALESCE(raw_app_meta_data, '{}'::jsonb),")
@@ -116,7 +139,9 @@ async def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create or update an admin user")
+    parser = argparse.ArgumentParser(
+        description="Create or update an admin user"
+    )
     parser.add_argument(
         "--id",
         default="",
@@ -124,9 +149,24 @@ if __name__ == "__main__":
     )
     parser.add_argument("--email", required=True, help="User email address")
     parser.add_argument("--name", required=True, help="Display name")
-    parser.add_argument("--role", default="admin", help="User role (default: admin)")
-    parser.add_argument("--org-id", default="", help="Organization ID (default: DEFAULT_ORG_ID)")
-    parser.add_argument("--password", default="", help="Password for local auth (bcrypt hashed)")
+    parser.add_argument(
+        "--role", default="admin", help="User role (default: admin)"
+    )
+    parser.add_argument(
+        "--org-id", default="", help="Organization ID (default: DEFAULT_ORG_ID)"
+    )
+    parser.add_argument(
+        "--password", default="", help="Password for local auth (bcrypt hashed)"
+    )
     args = parser.parse_args()
 
-    asyncio.run(main(args.id, args.email, args.name, args.role, args.org_id, args.password))
+    asyncio.run(
+        main(
+            args.id,
+            args.email,
+            args.name,
+            args.role,
+            args.org_id,
+            args.password,
+        )
+    )

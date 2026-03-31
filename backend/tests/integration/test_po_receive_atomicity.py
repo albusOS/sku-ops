@@ -15,7 +15,10 @@ from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_receiving_stock_changes,
 )
-from purchasing.application.purchase_order_service import PurchasingDeps, receive_po_items
+from purchasing.application.purchase_order_service import (
+    PurchasingDeps,
+    receive_po_items,
+)
 from purchasing.domain.purchase_order import (
     POItemStatus,
     POStatus,
@@ -24,16 +27,18 @@ from purchasing.domain.purchase_order import (
     ReceiveItemUpdate,
 )
 from purchasing.infrastructure.po_repo import po_repo
+from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
+from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
 
 
 def _user():
     return CurrentUser(
-        id="user-1",
+        id=ADMIN_USER_ID,
         email="test@test.com",
         name="Test User",
         role="admin",
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
     )
 
 
@@ -42,7 +47,7 @@ async def _create_test_product(
     quantity=100.0,
     cost=8.0,
     price=10.0,
-    dept_id="dept-1",
+    dept_id=SEEDED_DEPT_ID,
     base_unit="each",
     purchase_uom="each",
     purchase_pack_qty=1,
@@ -54,7 +59,7 @@ async def _create_test_product(
         quantity=quantity,
         price=price,
         cost=cost,
-        user_id="user-1",
+        user_id=ADMIN_USER_ID,
         user_name="Test",
         base_unit=base_unit,
         purchase_uom=purchase_uom,
@@ -73,13 +78,23 @@ async def _create_po_with_item(
     purchase_uom="each",
     purchase_pack_qty=1,
 ):
+    from shared.infrastructure.database import get_connection
+
+    conn = get_connection()
+    await conn.execute(
+        """INSERT INTO vendors (id, name, organization_id, created_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (id) DO NOTHING""",
+        ("0195f2c0-89af-7000-8000-000000000051", "Acme Corp", DEFAULT_ORG_ID),
+    )
+    await conn.commit()
     po = PurchaseOrder(
-        vendor_id="v1",
+        vendor_id="0195f2c0-89af-7000-8000-000000000051",
         vendor_name="Acme Corp",
         status=POStatus.ORDERED,
-        created_by_id="user-1",
+        created_by_id=ADMIN_USER_ID,
         created_by_name="Test",
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
     )
     await po_repo.insert_po(po)
 
@@ -98,7 +113,7 @@ async def _create_po_with_item(
         suggested_department="HDW",
         status=status,
         sku_id=sku_id,
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
     )
     await po_repo.insert_items([item])
     return po, item
@@ -117,7 +132,9 @@ def _stub_deps(**overrides):
     from catalog.application.vendor_item_lifecycle import add_vendor_item
 
     async def _noop_create(**kw):
-        return await create_product_with_sku(**kw, on_stock_import=process_receiving_stock_changes)
+        return await create_product_with_sku(
+            **kw, on_stock_import=process_receiving_stock_changes
+        )
 
     defaults = {
         "list_departments": list_departments,
@@ -148,18 +165,24 @@ def test_po_receive_rolls_back_stock_on_ledger_failure(call):
 
         async def _body():
             product = await _create_test_product(quantity=100.0)
-            po, item = await _create_po_with_item(sku_id=product.id, cost=7.0, ordered_qty=50)
+            po, item = await _create_po_with_item(
+                sku_id=product.id, cost=7.0, ordered_qty=50
+            )
 
             with pytest.raises(RuntimeError, match="Simulated ledger failure"):
                 await receive_po_items(
                     po_id=po.id,
-                    item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=50)],
+                    item_updates=[
+                        ReceiveItemUpdate(id=item.id, delivered_qty=50)
+                    ],
                     deps=_stub_deps(),
                     current_user=_user(),
                 )
 
             updated = await sku_repo.get_by_id(product.id)
-            assert updated.quantity == pytest.approx(100.0), "Stock should NOT have increased"
+            assert updated.quantity == pytest.approx(100.0), (
+                "Stock should NOT have increased"
+            )
 
             po_items = await po_repo.get_po_items(po.id)
             assert po_items[0].status == POItemStatus.PENDING.value, (
@@ -177,13 +200,27 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
     """
 
     async def _body():
+        from shared.infrastructure.database import get_connection
+
+        conn = get_connection()
+        await conn.execute(
+            """INSERT INTO vendors (id, name, organization_id, created_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (id) DO NOTHING""",
+            (
+                "0195f2c0-89af-7000-8000-000000000052",
+                "Acme Corp",
+                DEFAULT_ORG_ID,
+            ),
+        )
+        await conn.commit()
         po = PurchaseOrder(
-            vendor_id="v1",
+            vendor_id="0195f2c0-89af-7000-8000-000000000052",
             vendor_name="Acme Corp",
             status=POStatus.ORDERED,
-            created_by_id="user-1",
+            created_by_id=ADMIN_USER_ID,
             created_by_name="Test",
-            organization_id="supply-yard",
+            organization_id=DEFAULT_ORG_ID,
         )
         await po_repo.insert_po(po)
         item = PurchaseOrderItem(
@@ -200,11 +237,13 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
             suggested_department="HDW",
             status=POItemStatus.PENDING,
             sku_id=None,
-            organization_id="supply-yard",
+            organization_id=DEFAULT_ORG_ID,
         )
         await po_repo.insert_items([item])
 
-        failing_add = AsyncMock(side_effect=RuntimeError("Simulated vendor item failure"))
+        failing_add = AsyncMock(
+            side_effect=RuntimeError("Simulated vendor item failure")
+        )
         deps = _stub_deps(add_vendor_item=failing_add)
 
         result = await receive_po_items(
@@ -220,7 +259,9 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
             current_user=_user(),
         )
 
-        assert result.errors == 1, "Error should be reported for the failed item"
+        assert result.errors == 1, (
+            "Error should be reported for the failed item"
+        )
 
         po_items = await po_repo.get_po_items(po.id)
         assert po_items[0].status != POItemStatus.ARRIVED.value, (
@@ -311,7 +352,9 @@ def test_po_receive_same_uom_no_multiplication(call):
 
     async def _body():
         product = await _create_test_product(quantity=50.0, cost=5.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=20)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=6.0, ordered_qty=20
+        )
 
         await receive_po_items(
             po_id=po.id,
@@ -321,6 +364,8 @@ def test_po_receive_same_uom_no_multiplication(call):
         )
 
         updated = await sku_repo.get_by_id(product.id)
-        assert updated.quantity == pytest.approx(70.0), "Stock should be 50 + 20"
+        assert updated.quantity == pytest.approx(70.0), (
+            "Stock should be 50 + 20"
+        )
 
     call(_body)

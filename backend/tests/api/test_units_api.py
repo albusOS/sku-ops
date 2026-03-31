@@ -1,5 +1,9 @@
 """Tests for the units of measure CRUD API."""
 
+import uuid
+
+from tests.helpers.auth import SEEDED_DEPT_ID
+
 
 class TestListUnits:
     def test_returns_seeded_units(self, client, auth_headers):
@@ -52,7 +56,9 @@ class TestCreateUnit:
         assert unit["name"] == "Pail"
         assert unit["family"] == "discrete"
 
-        units = client.get("/api/beta/catalog/units", headers=auth_headers).json()
+        units = client.get(
+            "/api/beta/catalog/units", headers=auth_headers
+        ).json()
         assert any(u["code"] == "pail" for u in units)
 
     def test_duplicate_code_rejected(self, client, auth_headers):
@@ -112,18 +118,26 @@ class TestDeleteUnit:
         )
         uom_id = create.json()["id"]
 
-        resp = client.delete(f"/api/beta/catalog/units/{uom_id}", headers=auth_headers)
+        resp = client.delete(
+            f"/api/beta/catalog/units/{uom_id}", headers=auth_headers
+        )
         assert resp.status_code == 200
 
-        units = client.get("/api/beta/catalog/units", headers=auth_headers).json()
+        units = client.get(
+            "/api/beta/catalog/units", headers=auth_headers
+        ).json()
         assert not any(u["id"] == uom_id for u in units)
 
     def test_delete_nonexistent_returns_404(self, client, auth_headers):
-        resp = client.delete("/api/beta/catalog/units/does-not-exist", headers=auth_headers)
+        resp = client.delete(
+            f"/api/beta/catalog/units/{uuid.uuid4()}", headers=auth_headers
+        )
         assert resp.status_code == 404
 
     def test_contractor_cannot_delete(self, client, contractor_auth_headers):
-        resp = client.delete("/api/beta/catalog/units/uom-each", headers=contractor_auth_headers)
+        resp = client.delete(
+            "/api/beta/catalog/units/uom-each", headers=contractor_auth_headers
+        )
         assert resp.status_code == 403
 
 
@@ -135,7 +149,7 @@ class TestSkuAcceptsCustomUnits:
             "/api/beta/catalog/skus",
             json={
                 "name": "Custom Unit Widget",
-                "category_id": "dept-1",
+                "category_id": SEEDED_DEPT_ID,
                 "price": 5.00,
                 "quantity": 10,
                 "base_unit": "pallet",
@@ -153,7 +167,7 @@ class TestSkuAcceptsCustomUnits:
             "/api/beta/catalog/skus",
             json={
                 "name": "Unit Update Widget",
-                "category_id": "dept-1",
+                "category_id": SEEDED_DEPT_ID,
                 "price": 5.00,
                 "quantity": 10,
             },
@@ -174,7 +188,7 @@ class TestSkuAcceptsCustomUnits:
             "/api/beta/catalog/skus",
             json={
                 "name": "Case Widget",
-                "category_id": "dept-1",
+                "category_id": SEEDED_DEPT_ID,
                 "price": 5.00,
                 "quantity": 10,
                 "base_unit": "PALLET",
@@ -193,7 +207,7 @@ class TestSkuRename:
             "/api/beta/catalog/skus",
             json={
                 "name": "Rename Widget",
-                "category_id": "dept-1",
+                "category_id": SEEDED_DEPT_ID,
                 "price": 5.00,
                 "quantity": 10,
             },
@@ -213,19 +227,31 @@ class TestSkuRename:
         assert resp.json()["sku"] != old_sku
 
         # Verify persisted
-        get_resp = client.get(f"/api/beta/catalog/skus/{sku_id}", headers=auth_headers)
+        get_resp = client.get(
+            f"/api/beta/catalog/skus/{sku_id}", headers=auth_headers
+        )
         assert get_resp.json()["sku"] == "CUSTOM-NEW-01"
 
     def test_rename_to_duplicate_rejected(self, client, auth_headers):
         # Create two products
         resp1 = client.post(
             "/api/beta/catalog/skus",
-            json={"name": "First Widget", "category_id": "dept-1", "price": 5, "quantity": 1},
+            json={
+                "name": "First Widget",
+                "category_id": SEEDED_DEPT_ID,
+                "price": 5,
+                "quantity": 1,
+            },
             headers=auth_headers,
         )
         resp2 = client.post(
             "/api/beta/catalog/skus",
-            json={"name": "Second Widget", "category_id": "dept-1", "price": 5, "quantity": 1},
+            json={
+                "name": "Second Widget",
+                "category_id": SEEDED_DEPT_ID,
+                "price": 5,
+                "quantity": 1,
+            },
             headers=auth_headers,
         )
         first_sku = resp1.json()["sku"]
@@ -243,7 +269,12 @@ class TestSkuRename:
     def test_rename_to_same_sku_is_noop(self, client, auth_headers):
         create = client.post(
             "/api/beta/catalog/skus",
-            json={"name": "Noop Widget", "category_id": "dept-1", "price": 5, "quantity": 1},
+            json={
+                "name": "Noop Widget",
+                "category_id": SEEDED_DEPT_ID,
+                "price": 5,
+                "quantity": 1,
+            },
             headers=auth_headers,
         )
         sku_id = create.json()["id"]
@@ -260,7 +291,12 @@ class TestSkuRename:
     def test_rename_with_empty_string_is_noop(self, client, auth_headers):
         create = client.post(
             "/api/beta/catalog/skus",
-            json={"name": "Empty SKU Widget", "category_id": "dept-1", "price": 5, "quantity": 1},
+            json={
+                "name": "Empty SKU Widget",
+                "category_id": SEEDED_DEPT_ID,
+                "price": 5,
+                "quantity": 1,
+            },
             headers=auth_headers,
         )
         sku_id = create.json()["id"]

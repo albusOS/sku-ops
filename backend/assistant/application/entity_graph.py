@@ -65,7 +65,9 @@ class GraphContext:
 
         by_relation: dict[str, list[str]] = {}
         for edge, node in zip(
-            self.edges[:max_neighbors], self.neighbors[:max_neighbors], strict=False
+            self.edges[:max_neighbors],
+            self.neighbors[:max_neighbors],
+            strict=False,
         ):
             by_relation.setdefault(edge.relation, []).append(node.label)
 
@@ -109,11 +111,15 @@ async def neighbors(
                 center.entity_type, center.entity_id, depth, relation_filter
             )
 
-        nodes, edges = await _hydrate_neighbors(center.entity_type, center.entity_id, neighbor_rows)
+        nodes, edges = await _hydrate_neighbors(
+            center.entity_type, center.entity_id, neighbor_rows
+        )
         return GraphContext(center=center, neighbors=nodes, edges=edges)
 
     except Exception as e:
-        logger.warning("Graph traversal failed for %s:%s — %s", entity_type, entity_id, e)
+        logger.warning(
+            "Graph traversal failed for %s:%s — %s", entity_type, entity_id, e
+        )
         return None
 
 
@@ -125,7 +131,10 @@ async def multi_neighbors(
     if not entities:
         return []
     raw = await asyncio.gather(
-        *(neighbors(etype, eid, relation_filter=relation_filter) for etype, eid in entities),
+        *(
+            neighbors(etype, eid, relation_filter=relation_filter)
+            for etype, eid in entities
+        ),
         return_exceptions=True,
     )
     return [r for r in raw if isinstance(r, GraphContext)]
@@ -168,7 +177,7 @@ async def _load_sku(entity_id: str) -> GraphNode | None:
     org_id = get_org_id()
     cur = await conn.execute(
         "SELECT id, sku, name, price, cost, quantity, min_stock, sell_uom "
-        "FROM skus WHERE (id = $1 OR sku = $1) AND organization_id = $2 LIMIT 1",
+        "FROM skus WHERE (id::text = $1 OR sku = $1) AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
     )
     r = await cur.fetchone()
@@ -193,7 +202,7 @@ async def _load_vendor(entity_id: str) -> GraphNode | None:
     org_id = get_org_id()
     cur = await conn.execute(
         "SELECT id, name, contact_name, email, phone "
-        "FROM vendors WHERE id = $1 AND organization_id = $2 LIMIT 1",
+        "FROM vendors WHERE id::text = $1 AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
     )
     r = await cur.fetchone()
@@ -215,7 +224,7 @@ async def _load_job(entity_id: str) -> GraphNode | None:
     org_id = get_org_id()
     cur = await conn.execute(
         "SELECT id, code, name, service_address, status "
-        "FROM jobs WHERE (id = $1 OR code = $1) AND organization_id = $2 LIMIT 1",
+        "FROM jobs WHERE (id::text = $1 OR code = $1) AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
     )
     r = await cur.fetchone()
@@ -237,7 +246,7 @@ async def _load_invoice(entity_id: str) -> GraphNode | None:
     org_id = get_org_id()
     cur = await conn.execute(
         "SELECT id, invoice_number, contact_name, status, total, amount_credited "
-        "FROM invoices WHERE (id = $1 OR invoice_number = $1) AND organization_id = $2 LIMIT 1",
+        "FROM invoices WHERE (id::text = $1 OR invoice_number = $1) AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
     )
     r = await cur.fetchone()
@@ -260,7 +269,7 @@ async def _load_po(entity_id: str) -> GraphNode | None:
     org_id = get_org_id()
     cur = await conn.execute(
         "SELECT id, vendor_name, document_date, total, status "
-        "FROM purchase_orders WHERE id = $1 AND organization_id = $2 LIMIT 1",
+        "FROM purchase_orders WHERE id::text = $1 AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
     )
     r = await cur.fetchone()
@@ -302,20 +311,22 @@ async def _edges_one_hop(
     org_id = get_org_id()
 
     if relation_filter:
-        placeholders = ", ".join(f"${i + 4}" for i in range(len(relation_filter)))
+        placeholders = ", ".join(
+            f"${i + 4}" for i in range(len(relation_filter))
+        )
         cur = await conn.execute(
-            f"SELECT DISTINCT target_id, target_type, relation "
+            f"SELECT DISTINCT target_id::text AS target_id, target_type, relation "
             f"FROM entity_edges "
-            f"WHERE source_id = $1 AND source_type = $2 AND org_id = $3 "
+            f"WHERE source_id::text = $1 AND source_type = $2 AND org_id::text = $3 "
             f"  AND relation IN ({placeholders}) "
             f"LIMIT 25",
             (source_id, source_type, org_id, *relation_filter),
         )
     else:
         cur = await conn.execute(
-            "SELECT DISTINCT target_id, target_type, relation "
+            "SELECT DISTINCT target_id::text AS target_id, target_type, relation "
             "FROM entity_edges "
-            "WHERE source_id = $1 AND source_type = $2 AND org_id = $3 "
+            "WHERE source_id::text = $1 AND source_type = $2 AND org_id::text = $3 "
             "LIMIT 25",
             (source_id, source_type, org_id),
         )
@@ -336,7 +347,9 @@ async def _edges_recursive(
     rel_clause = ""
     params: list = [source_id, source_type, org_id, max_depth]
     if relation_filter:
-        placeholders = ", ".join(f"${i + 5}" for i in range(len(relation_filter)))
+        placeholders = ", ".join(
+            f"${i + 5}" for i in range(len(relation_filter))
+        )
         rel_clause = f"AND e.relation IN ({placeholders})"
         params.extend(relation_filter)
 
@@ -344,22 +357,22 @@ async def _edges_recursive(
         f"""
         WITH RECURSIVE traversal AS (
             -- Seed: direct neighbors
-            SELECT e.target_id, e.target_type, e.relation,
+            SELECT e.target_id::text AS target_id, e.target_type, e.relation,
                    1 AS depth
             FROM entity_edges e
-            WHERE e.source_id = $1 AND e.source_type = $2 AND e.org_id = $3
+            WHERE e.source_id::text = $1 AND e.source_type = $2 AND e.org_id::text = $3
                   {rel_clause}
             UNION
             -- Recurse: neighbors of neighbors
-            SELECT e.target_id, e.target_type, e.relation,
+            SELECT e.target_id::text AS target_id, e.target_type, e.relation,
                    t.depth + 1 AS depth
             FROM traversal t
-            JOIN entity_edges e ON e.source_id = t.target_id
+            JOIN entity_edges e ON e.source_id::text = t.target_id
                                 AND e.source_type = t.target_type
-                                AND e.org_id = $3
+                                AND e.org_id::text = $3
                                 {rel_clause}
             WHERE t.depth < $4
-              AND e.target_id != $1  -- avoid cycles back to center
+              AND e.target_id::text != $1  -- avoid cycles back to center
         )
         SELECT DISTINCT target_id, target_type, relation, depth
         FROM traversal
@@ -423,42 +436,42 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
     # Build query based on entity type
     query_map = {
         "sku": (
-            "SELECT id, sku || ' — ' || name AS label FROM skus "
-            "WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, sku || ' — ' || name AS label FROM skus "
+            "WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "vendor": (
-            "SELECT id, name AS label FROM vendors WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, name AS label FROM vendors WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "department": (
-            "SELECT id, name AS label FROM departments WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, name AS label FROM departments WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "po": (
-            "SELECT id, 'PO ' || LEFT(id, 8) || ' — ' || vendor_name AS label "
-            "FROM purchase_orders WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, 'PO ' || LEFT(id::text, 8) || ' — ' || vendor_name AS label "
+            "FROM purchase_orders WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "job": (
-            "SELECT id, 'Job ' || code || ' — ' || name AS label "
-            "FROM jobs WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, 'Job ' || code || ' — ' || name AS label "
+            "FROM jobs WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "invoice": (
-            "SELECT id, 'Invoice ' || invoice_number || ' — ' || contact_name AS label "
-            "FROM invoices WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, 'Invoice ' || invoice_number || ' — ' || contact_name AS label "
+            "FROM invoices WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "withdrawal": (
-            "SELECT id, 'Withdrawal — ' || COALESCE(contractor_name, 'unknown') AS label "
-            "FROM withdrawals WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, 'Withdrawal — ' || COALESCE(contractor_name, 'unknown') AS label "
+            "FROM withdrawals WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "billing_entity": (
-            "SELECT id, name AS label FROM billing_entities "
-            "WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, name AS label FROM billing_entities "
+            "WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "payment": (
-            "SELECT id, 'Payment $' || amount || ' (' || method || ')' AS label "
-            "FROM payments WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, 'Payment $' || amount || ' (' || method || ')' AS label "
+            "FROM payments WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "credit_note": (
-            "SELECT id, 'CN ' || credit_note_number AS label "
-            "FROM credit_notes WHERE id = ANY($1) AND organization_id = $2"
+            "SELECT id::text AS id, 'CN ' || credit_note_number AS label "
+            "FROM credit_notes WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
     }
 
@@ -474,7 +487,9 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
 # Simplified versions — just load center and basic neighbors.
 
 
-async def _direct_sku(entity_id: str, relation_filter: list[str] | None) -> GraphContext:
+async def _direct_sku(
+    entity_id: str, relation_filter: list[str] | None
+) -> GraphContext:
     center = await _load_sku(entity_id)
     if not center:
         return GraphContext(GraphNode("sku", entity_id, entity_id), [], [])
@@ -493,12 +508,18 @@ async def _direct_sku(entity_id: str, relation_filter: list[str] | None) -> Grap
     )
     for r in await cur.fetchall():
         nodes.append(GraphNode("vendor", r["vendor_id"], r["name"]))
-        edges.append(GraphEdge("sku", center.entity_id, "vendor", r["vendor_id"], "supplied_by"))
+        edges.append(
+            GraphEdge(
+                "sku", center.entity_id, "vendor", r["vendor_id"], "supplied_by"
+            )
+        )
 
     return GraphContext(center, nodes, edges)
 
 
-async def _direct_vendor(entity_id: str, relation_filter: list[str] | None) -> GraphContext:
+async def _direct_vendor(
+    entity_id: str, relation_filter: list[str] | None
+) -> GraphContext:
     center = await _load_vendor(entity_id)
     if not center:
         return GraphContext(GraphNode("vendor", entity_id, entity_id), [], [])
@@ -516,7 +537,11 @@ async def _direct_vendor(entity_id: str, relation_filter: list[str] | None) -> G
     )
     for r in await cur.fetchall():
         nodes.append(GraphNode("sku", r["sku_id"], f"{r['sku']} — {r['name']}"))
-        edges.append(GraphEdge("vendor", center.entity_id, "sku", r["sku_id"], "supplies"))
+        edges.append(
+            GraphEdge(
+                "vendor", center.entity_id, "sku", r["sku_id"], "supplies"
+            )
+        )
 
     return GraphContext(center, nodes, edges)
 

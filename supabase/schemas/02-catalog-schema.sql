@@ -1,64 +1,64 @@
 -- Catalog: departments, UOM, vendors, products, skus, vendor_items, sku_counters.
 
 CREATE TABLE IF NOT EXISTS departments (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         name TEXT NOT NULL,
         code TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ,
         UNIQUE(organization_id, code)
     );
 
 CREATE TABLE IF NOT EXISTS units_of_measure (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
         family TEXT NOT NULL DEFAULT 'discrete',
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ,
         UNIQUE(organization_id, code)
     );
 
 CREATE TABLE IF NOT EXISTS vendors (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         name TEXT NOT NULL,
         contact_name TEXT NOT NULL DEFAULT '',
         email TEXT NOT NULL DEFAULT '',
         phone TEXT NOT NULL DEFAULT '',
         address TEXT NOT NULL DEFAULT '',
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS products (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
-        category_id TEXT NOT NULL REFERENCES departments(id),
+        category_id UUID NOT NULL REFERENCES departments(id),
         category_name TEXT NOT NULL DEFAULT '',
         sku_count INTEGER NOT NULL DEFAULT 0,
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS skus (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         sku TEXT NOT NULL,
-        product_family_id TEXT NOT NULL REFERENCES products(id),
+        product_family_id UUID NOT NULL REFERENCES products(id),
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         price REAL NOT NULL,
         cost REAL NOT NULL DEFAULT 0,
         quantity REAL NOT NULL DEFAULT 0,
         min_stock INTEGER NOT NULL DEFAULT 5,
-        category_id TEXT NOT NULL REFERENCES departments(id),
+        category_id UUID NOT NULL REFERENCES departments(id),
         category_name TEXT NOT NULL DEFAULT '',
         barcode TEXT,
         vendor_barcode TEXT,
@@ -71,16 +71,16 @@ CREATE TABLE IF NOT EXISTS skus (
         spec TEXT NOT NULL DEFAULT '',
         grade TEXT NOT NULL DEFAULT '',
         variant_attrs TEXT NOT NULL DEFAULT '{}',
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ
     );
 
 CREATE TABLE IF NOT EXISTS vendor_items (
-        id TEXT PRIMARY KEY,
-        vendor_id TEXT NOT NULL REFERENCES vendors(id),
-        sku_id TEXT NOT NULL REFERENCES skus(id),
+        id UUID PRIMARY KEY,
+        vendor_id UUID NOT NULL REFERENCES vendors(id),
+        sku_id UUID NOT NULL REFERENCES skus(id),
         vendor_sku TEXT,
         vendor_name TEXT NOT NULL DEFAULT '',
         purchase_uom TEXT NOT NULL DEFAULT 'each',
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS vendor_items (
         moq REAL,
         is_preferred BOOLEAN NOT NULL DEFAULT FALSE,
         notes TEXT,
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         deleted_at TIMESTAMPTZ,
@@ -98,8 +98,10 @@ CREATE TABLE IF NOT EXISTS vendor_items (
     );
 
 CREATE TABLE IF NOT EXISTS sku_counters (
-        department_code TEXT PRIMARY KEY,
-        counter INTEGER NOT NULL DEFAULT 0
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        product_family_id UUID NOT NULL REFERENCES products(id),
+        counter INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (organization_id, product_family_id)
     );
 
 CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id);

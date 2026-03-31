@@ -7,7 +7,6 @@ Unit conversion happens here — stock is always stored in the product's base_un
 """
 
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from catalog.application.queries import (
     add_sku_quantity,
@@ -15,11 +14,20 @@ from catalog.application.queries import (
     atomic_decrement_sku,
     get_sku_by_id,
 )
-from finance.application.ledger_service import record_adjustment as _record_ledger_adjustment
+from finance.application.ledger_service import (
+    record_adjustment as _record_ledger_adjustment,
+)
 from inventory.domain.errors import InsufficientStockError, NegativeStockError
-from inventory.domain.stock import StockDecrement, StockTransaction, StockTransactionType
-from inventory.infrastructure.stock_repo import stock_repo as _default_stock_repo
+from inventory.domain.stock import (
+    StockDecrement,
+    StockTransaction,
+    StockTransactionType,
+)
+from inventory.infrastructure.stock_repo import (
+    stock_repo as _default_stock_repo,
+)
 from inventory.ports.stock_repo_port import StockRepoPort
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged
@@ -90,11 +98,19 @@ async def process_withdrawal_stock_changes(
         base_unit = (product.base_unit if product else "each").lower()
         requested_unit = (item.unit or "each").lower()
         pack_qty = product.pack_qty if product else 1
-        if requested_unit != base_unit and are_compatible(requested_unit, base_unit):
-            canonical_qty = convert_quantity(item.quantity, requested_unit, base_unit)
+        if requested_unit != base_unit and are_compatible(
+            requested_unit, base_unit
+        ):
+            canonical_qty = convert_quantity(
+                item.quantity, requested_unit, base_unit
+            )
         else:
             canonical_qty = item.quantity
-        if pack_qty > 1 and requested_unit != base_unit and requested_unit in _DISCRETE_SELL_UOMS:
+        if (
+            pack_qty > 1
+            and requested_unit != base_unit
+            and requested_unit in _DISCRETE_SELL_UOMS
+        ):
             canonical_qty = canonical_qty * pack_qty
         resolved.append((item, canonical_qty, base_unit))
 
@@ -232,11 +248,13 @@ async def process_adjustment_stock_changes(
     async with transaction():
         result = await atomic_adjust_sku(sku_id, quantity_delta, now)
         if not result:
-            raise NegativeStockError(sku_id, current=product.quantity, delta=quantity_delta)
+            raise NegativeStockError(
+                sku_id, current=product.quantity, delta=quantity_delta
+            )
 
         quantity_after = result.quantity
         quantity_before = quantity_after - quantity_delta
-        adjustment_id = str(uuid4())
+        adjustment_id = new_uuid7_str()
         await _record_stock_transaction(
             sku_id=sku_id,
             sku=product.sku,

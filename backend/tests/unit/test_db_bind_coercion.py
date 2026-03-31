@@ -1,9 +1,11 @@
 """Unit tests for asyncpg-compatible bind coercion in postgres.py."""
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from shared.infrastructure.db.postgres import (
     _coerce_bind_for_asyncpg,
+    _coerce_result_value,
     _normalize_param_tuple,
     _normalize_params,
 )
@@ -65,3 +67,21 @@ def test_normalize_params_mixed():
     out = _normalize_params(["2026-01-01", "x"])
     assert isinstance(out[0], datetime)
     assert out[1] == "x"
+
+
+def test_coerce_result_uuid_to_string():
+    value = UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69c001")
+
+    assert _coerce_result_value(value) == "0195f2c0-89aa-7d6d-bb34-7f3b3f69c001"
+
+
+def test_coerce_result_nested_uuid_structures():
+    value = {
+        "id": UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69c001"),
+        "children": [UUID("0195f2c0-89ab-7a10-8a01-000000000001")],
+    }
+
+    assert _coerce_result_value(value) == {
+        "id": "0195f2c0-89aa-7d6d-bb34-7f3b3f69c001",
+        "children": ["0195f2c0-89ab-7a10-8a01-000000000001"],
+    }

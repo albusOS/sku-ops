@@ -1,23 +1,27 @@
 """Credit note repository — pure persistence for credit notes and line items."""
 
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from finance.domain.credit_note import CreditNote, CreditNoteLineItem
 from finance.domain.enums import CreditNoteStatus, InvoiceStatus
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection, get_org_id
 
 
 async def _next_credit_note_number() -> str:
     conn = get_connection()
     org_id = get_org_id()
-    key = f"{org_id}|cn"
+    key = "cn"
     await conn.execute(
-        """INSERT INTO invoice_counters (key, counter) VALUES ($1, 1)
-           ON CONFLICT(key) DO UPDATE SET counter = invoice_counters.counter + 1""",
-        (key,),
+        """INSERT INTO invoice_counters (organization_id, key, counter) VALUES ($1, $2, 1)
+           ON CONFLICT(organization_id, key)
+           DO UPDATE SET counter = invoice_counters.counter + 1""",
+        (org_id, key),
     )
-    cursor = await conn.execute("SELECT counter FROM invoice_counters WHERE key = $1", (key,))
+    cursor = await conn.execute(
+        "SELECT counter FROM invoice_counters WHERE organization_id = $1 AND key = $2",
+        (org_id, key),
+    )
     row = await cursor.fetchone()
     await conn.commit()
     num = row[0] if row else 1
@@ -51,7 +55,7 @@ async def insert_credit_note(
     """
     conn = get_connection()
     org_id = get_org_id()
-    cn_id = str(uuid4())
+    cn_id = new_uuid7_str()
     now = datetime.now(UTC)
     cn_number = await _next_credit_note_number()
 
@@ -97,7 +101,7 @@ async def insert_credit_note(
                (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
             (
-                str(uuid4()),
+                new_uuid7_str(),
                 cn_id,
                 item.get("name") or item.get("description", ""),
                 qty,
@@ -112,7 +116,9 @@ async def insert_credit_note(
 
     result = await get_by_id(cn_id)
     if not result:
-        raise RuntimeError(f"Credit note {cn_id} missing immediately after insert")
+        raise RuntimeError(
+            f"Credit note {cn_id} missing immediately after insert"
+        )
     return result
 
 
@@ -185,7 +191,9 @@ class ApplyCreditNoteResult:
 
     __slots__ = ("auto_paid", "credit_note", "invoice_id")
 
-    def __init__(self, credit_note: CreditNote, auto_paid: bool, invoice_id: str):
+    def __init__(
+        self, credit_note: CreditNote, auto_paid: bool, invoice_id: str
+    ):
         self.credit_note = credit_note
         self.auto_paid = auto_paid
         self.invoice_id = invoice_id
@@ -249,10 +257,14 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
     updated = await get_by_id(credit_note_id)
     if not updated:
         raise RuntimeError(f"Credit note {credit_note_id} missing after apply")
-    return ApplyCreditNoteResult(credit_note=updated, auto_paid=auto_paid, invoice_id=inv_id)
+    return ApplyCreditNoteResult(
+        credit_note=updated, auto_paid=auto_paid, invoice_id=inv_id
+    )
 
 
-async def set_xero_credit_note_id(credit_note_id: str, xero_credit_note_id: str) -> None:
+async def set_xero_credit_note_id(
+    credit_note_id: str, xero_credit_note_id: str
+) -> None:
     """Store the Xero credit note ID and mark as synced after a successful sync."""
     conn = get_connection()
     org_id = get_org_id()

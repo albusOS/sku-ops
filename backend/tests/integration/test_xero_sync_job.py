@@ -31,6 +31,14 @@ from finance.infrastructure.credit_note_repo import credit_note_repo
 from finance.infrastructure.invoice_repo import invoice_repo
 from operations.infrastructure.withdrawal_repo import withdrawal_repo
 from shared.infrastructure.database import get_connection
+from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import (
+    ADMIN_USER_ID,
+    CONTRACTOR_USER_ID,
+    SEEDED_DEPT_ID,
+    SEEDED_JOB_ID,
+    SEEDED_VENDOR_ID,
+)
 
 _STUB_XERO_TOKEN = "stub-" + "token"
 _STUB_TENANT = "stub-tenant"
@@ -47,7 +55,7 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
             id=wid,
             items=[
                 WithdrawalItem(
-                    sku_id="p1",
+                    sku_id=str(uuid4()),
                     sku="SKU-1",
                     name="Lumber",
                     quantity=2,
@@ -55,21 +63,21 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
                     cost=6.0,
                 )
             ],
-            job_id="JOB-1",
+            job_id=SEEDED_JOB_ID,
             service_address="1 Main St",
             subtotal=20.0,
             tax=1.6,
             total=21.6,
             cost_total=12.0,
-            contractor_id="contractor-1",
+            contractor_id=CONTRACTOR_USER_ID,
             contractor_name="Test Contractor",
             contractor_company=billing_entity,
             billing_entity=billing_entity,
             payment_status="unpaid",
-            processed_by_id="user-1",
+            processed_by_id=ADMIN_USER_ID,
             processed_by_name="Test",
             created_at="2025-01-01T00:00:00Z",
-            organization_id="supply-yard",
+            organization_id=DEFAULT_ORG_ID,
         )
     )
     return wid
@@ -88,7 +96,7 @@ async def _run_sync_with_stub():
     from finance.domain.xero_settings import XeroSettings
 
     stub_settings = XeroSettings(
-        organization_id="supply-yard",
+        organization_id=DEFAULT_ORG_ID,
         xero_access_token=_STUB_XERO_TOKEN,
         xero_tenant_id="stub-tenant",
     )
@@ -99,12 +107,18 @@ async def _run_sync_with_stub():
             "finance.application.xero_sync_job.get_xero_settings",
             AsyncMock(return_value=stub_settings),
         ),
-        patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
+        patch(
+            "finance.application.xero_sync_job.get_invoicing_gateway",
+            return_value=stub_gateway,
+        ),
         patch(
             "finance.application.invoice_sync.get_xero_settings",
             AsyncMock(return_value=stub_settings),
         ),
-        patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
+        patch(
+            "finance.application.invoice_sync.get_invoicing_gateway",
+            return_value=stub_gateway,
+        ),
     ):
         return await run_sync(reconcile=False)
 
@@ -123,7 +137,9 @@ class TestSyncJobIdempotency:
             await _run_sync_with_stub()
             inv_after_1 = await invoice_repo.get_by_id(inv_id)
             xero_id_1 = inv_after_1.xero_invoice_id
-            assert xero_id_1 is not None, "First sync should set xero_invoice_id"
+            assert xero_id_1 is not None, (
+                "First sync should set xero_invoice_id"
+            )
 
             await _run_sync_with_stub()
             inv_after_2 = await invoice_repo.get_by_id(inv_id)
@@ -143,7 +159,7 @@ class TestSyncJobIdempotency:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard",
+            organization_id=DEFAULT_ORG_ID,
             xero_access_token=_STUB_XERO_TOKEN,
             xero_tenant_id="stub-tenant",
         )
@@ -164,7 +180,8 @@ class TestSyncJobIdempotency:
                 AsyncMock(return_value=stub_settings),
             ),
             patch(
-                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=stub_gateway,
             ),
             patch(
                 "finance.application.invoice_sync.get_xero_settings",
@@ -213,7 +230,9 @@ class TestSyncStatusGating:
             await _run_sync_with_stub()
 
             inv_after = await invoice_repo.get_by_id(inv.id)
-            assert inv_after.xero_invoice_id is None, "Draft invoice must not be synced to Xero"
+            assert inv_after.xero_invoice_id is None, (
+                "Draft invoice must not be synced to Xero"
+            )
             assert inv_after.xero_sync_status == "pending"
 
         call(_body)
@@ -234,7 +253,9 @@ class TestSyncStatusGating:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         stub_gateway = StubXeroAdapter()
         call_count = 0
@@ -253,7 +274,8 @@ class TestSyncStatusGating:
                 AsyncMock(return_value=stub_settings),
             ),
             patch(
-                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=stub_gateway,
             ),
             patch(
                 "finance.application.invoice_sync.get_xero_settings",
@@ -279,7 +301,9 @@ class TestSyncStatusGating:
 
             call(_body)
 
-        assert call_count == 0, "Already-synced invoice must not trigger another sync call"
+        assert call_count == 0, (
+            "Already-synced invoice must not trigger another sync call"
+        )
 
 
 # ── 3. Adjustment idempotency bug fix ─────────────────────────────────────────
@@ -292,22 +316,26 @@ class TestAdjustmentIdempotencyFix:
     After the fix, each adjustment generates a unique ID, so both are recorded.
     """
 
-    def test_two_adjustments_on_same_product_both_record_ledger_entries(self, call):
+    def test_two_adjustments_on_same_product_both_record_ledger_entries(
+        self, call
+    ):
         async def _body():
-            from catalog.application.sku_lifecycle import create_product_with_sku
+            from catalog.application.sku_lifecycle import (
+                create_product_with_sku,
+            )
             from inventory.application.inventory_service import (
                 process_adjustment_stock_changes,
                 process_import_stock_changes,
             )
 
             product = await create_product_with_sku(
-                category_id="dept-1",
+                category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
                 name="Test Adjust Product",
                 quantity=100.0,
                 price=10.0,
                 cost=5.0,
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
@@ -316,14 +344,14 @@ class TestAdjustmentIdempotencyFix:
                 sku_id=product.id,
                 quantity_delta=+5.0,
                 reason="found",
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
             )
             await process_adjustment_stock_changes(
                 sku_id=product.id,
                 quantity_delta=-3.0,
                 reason="damage",
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
             )
 
@@ -349,20 +377,22 @@ class TestAdjustmentIdempotencyFix:
         """Each adjustment must produce a distinct reference_id in the ledger."""
 
         async def _body():
-            from catalog.application.sku_lifecycle import create_product_with_sku
+            from catalog.application.sku_lifecycle import (
+                create_product_with_sku,
+            )
             from inventory.application.inventory_service import (
                 process_adjustment_stock_changes,
                 process_import_stock_changes,
             )
 
             product = await create_product_with_sku(
-                category_id="dept-1",
+                category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
                 name="Test Unique Refs",
                 quantity=50.0,
                 price=10.0,
                 cost=5.0,
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
@@ -372,7 +402,7 @@ class TestAdjustmentIdempotencyFix:
                     sku_id=product.id,
                     quantity_delta=float(i + 1),
                     reason="found",
-                    user_id="user-1",
+                    user_id=ADMIN_USER_ID,
                     user_name="Test",
                 )
 
@@ -404,7 +434,9 @@ class TestReconciliationMismatch:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         stub_gateway = StubXeroAdapter()
 
@@ -415,7 +447,8 @@ class TestReconciliationMismatch:
                 AsyncMock(return_value=stub_settings),
             ),
             patch(
-                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=stub_gateway,
             ),
             patch(
                 "finance.application.invoice_sync.get_xero_settings",
@@ -473,7 +506,9 @@ class TestReconciliationMismatch:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
 
         # First sync
@@ -484,7 +519,8 @@ class TestReconciliationMismatch:
                 AsyncMock(return_value=stub_settings),
             ),
             patch(
-                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=stub_gateway,
             ),
             patch(
                 "finance.application.invoice_sync.get_xero_settings",
@@ -552,8 +588,8 @@ class TestCreditNoteSync:
                     xero_sync_status, organization_id, created_at, updated_at)
                    VALUES ($1, $2, NULL, NULL, 'On Point LLC',
                            'applied', 30.0, 0.0, 30.0, NULL, NULL,
-                           'pending', 'supply-yard', $3, $4)""",
-                (cn_id, cn_number, now, now),
+                           'pending', $3, $4, $5)""",
+                (cn_id, cn_number, DEFAULT_ORG_ID, now, now),
             )
             await conn.execute(
                 """INSERT INTO credit_note_line_items
@@ -587,8 +623,8 @@ class TestCreditNoteSync:
                     xero_sync_status, organization_id, created_at, updated_at)
                    VALUES ($1, 'CN-DRAFT', NULL, NULL, 'On Point LLC',
                            'draft', 30.0, 0.0, 30.0, NULL, NULL,
-                           'pending', 'supply-yard', $2, $3)""",
-                (cn_id, now, now),
+                           'pending', $2, $3, $4)""",
+                (cn_id, DEFAULT_ORG_ID, now, now),
             )
             await conn.commit()
 
@@ -610,13 +646,22 @@ class TestPOQueuing:
             from purchasing.domain.purchase_order import POStatus, PurchaseOrder
             from purchasing.infrastructure.po_repo import po_repo
 
+            conn = get_connection()
+            await conn.execute(
+                """INSERT INTO vendors (id, name, organization_id, created_at)
+                   VALUES ($1, $2, $3, NOW())
+                   ON CONFLICT (id) DO NOTHING""",
+                (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
+            )
+            await conn.commit()
+
             po = PurchaseOrder(
-                vendor_id="v1",
+                vendor_id=SEEDED_VENDOR_ID,
                 vendor_name="Acme Corp",
                 status=POStatus.RECEIVED,
-                created_by_id="user-1",
+                created_by_id=ADMIN_USER_ID,
                 created_by_name="Test",
-                organization_id="supply-yard",
+                organization_id=DEFAULT_ORG_ID,
             )
             await po_repo.insert_po(po)
 
@@ -632,7 +677,9 @@ class TestPOQueuing:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         stub_gateway = StubXeroAdapter()
 
@@ -648,7 +695,10 @@ class TestPOQueuing:
         ):
 
             async def _body():
-                from finance.application.po_sync_service import queue_po_for_sync, sync_po_bill
+                from finance.application.po_sync_service import (
+                    queue_po_for_sync,
+                    sync_po_bill,
+                )
                 from purchasing.domain.purchase_order import (
                     POItemStatus,
                     POStatus,
@@ -657,13 +707,22 @@ class TestPOQueuing:
                 )
                 from purchasing.infrastructure.po_repo import po_repo
 
+                conn = get_connection()
+                await conn.execute(
+                    """INSERT INTO vendors (id, name, organization_id, created_at)
+                       VALUES ($1, $2, $3, NOW())
+                       ON CONFLICT (id) DO NOTHING""",
+                    (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
+                )
+                await conn.commit()
+
                 po = PurchaseOrder(
-                    vendor_id="v1",
+                    vendor_id=SEEDED_VENDOR_ID,
                     vendor_name="Acme Corp",
                     status=POStatus.RECEIVED,
-                    created_by_id="user-1",
+                    created_by_id=ADMIN_USER_ID,
                     created_by_name="Test",
-                    organization_id="supply-yard",
+                    organization_id=DEFAULT_ORG_ID,
                 )
                 await po_repo.insert_po(po)
 
@@ -679,7 +738,7 @@ class TestPOQueuing:
                     pack_qty=1,
                     suggested_department="HDW",
                     status=POItemStatus.ARRIVED,
-                    organization_id="supply-yard",
+                    organization_id=DEFAULT_ORG_ID,
                 )
                 await po_repo.insert_items([item])
                 await queue_po_for_sync(po.id)
@@ -699,7 +758,9 @@ class TestPOQueuing:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         stub_gateway = StubXeroAdapter()
 
@@ -724,13 +785,22 @@ class TestPOQueuing:
                 )
                 from purchasing.infrastructure.po_repo import po_repo
 
+                conn = get_connection()
+                await conn.execute(
+                    """INSERT INTO vendors (id, name, organization_id, created_at)
+                       VALUES ($1, $2, $3, NOW())
+                       ON CONFLICT (id) DO NOTHING""",
+                    (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
+                )
+                await conn.commit()
+
                 po = PurchaseOrder(
-                    vendor_id="v1",
+                    vendor_id=SEEDED_VENDOR_ID,
                     vendor_name="Acme Corp",
                     status=POStatus.RECEIVED,
-                    created_by_id="user-1",
+                    created_by_id=ADMIN_USER_ID,
                     created_by_name="Test",
-                    organization_id="supply-yard",
+                    organization_id=DEFAULT_ORG_ID,
                 )
                 await po_repo.insert_po(po)
                 item = PurchaseOrderItem(
@@ -745,7 +815,7 @@ class TestPOQueuing:
                     pack_qty=1,
                     suggested_department="HDW",
                     status=POItemStatus.ARRIVED,
-                    organization_id="supply-yard",
+                    organization_id=DEFAULT_ORG_ID,
                 )
                 await po_repo.insert_items([item])
 
@@ -753,7 +823,9 @@ class TestPOQueuing:
                 r2 = await sync_po_bill(po.id)
 
                 po_after = await po_repo.get_po(po.id)
-                assert r1.xero_bill_id == r2.xero_bill_id == po_after.xero_bill_id
+                assert (
+                    r1.xero_bill_id == r2.xero_bill_id == po_after.xero_bill_id
+                )
 
             call(_body)
 
@@ -783,11 +855,15 @@ class TestSyncSummaryCounts:
 
         failing_gateway = StubXeroAdapter()
         failing_gateway.sync_invoice = AsyncMock(
-            return_value=InvoiceSyncResult(success=False, error="Xero API unavailable")
+            return_value=InvoiceSyncResult(
+                success=False, error="Xero API unavailable"
+            )
         )
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         with (
             patch(
@@ -855,8 +931,8 @@ class TestCogsRepost:
                     "unit_price": 12.0,
                     "amount": 60.0,
                     "cost": 7.0,
-                    "sku_id": "p1",
-                    "job_id": "JOB-1",
+                    "sku_id": str(uuid4()),
+                    "job_id": SEEDED_JOB_ID,
                 }
             ]
             await update_invoice(inv_id, line_items=new_items)
@@ -868,7 +944,9 @@ class TestCogsRepost:
 
         call(_body)
 
-    def test_editing_line_items_on_unsynced_invoice_does_not_set_cogs_stale(self, call):
+    def test_editing_line_items_on_unsynced_invoice_does_not_set_cogs_stale(
+        self, call
+    ):
         """Editing a draft/unsynced invoice must NOT set cogs_stale — it was never in Xero."""
 
         async def _body():
@@ -883,7 +961,7 @@ class TestCogsRepost:
                     "unit_price": 5.0,
                     "amount": 5.0,
                     "cost": 3.0,
-                    "sku_id": "p1",
+                    "sku_id": str(uuid4()),
                     "job_id": None,
                 }
             ]
@@ -903,7 +981,9 @@ class TestCogsRepost:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         stub_gateway = StubXeroAdapter()
         repost_called = []
@@ -921,7 +1001,8 @@ class TestCogsRepost:
                 AsyncMock(return_value=stub_settings),
             ),
             patch(
-                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=stub_gateway,
             ),
             patch(
                 "finance.application.invoice_sync.get_xero_settings",
@@ -952,8 +1033,8 @@ class TestCogsRepost:
                             "unit_price": 15.0,
                             "amount": 45.0,
                             "cost": 9.0,
-                            "sku_id": "p1",
-                            "job_id": "JOB-1",
+                            "sku_id": str(uuid4()),
+                            "job_id": SEEDED_JOB_ID,
                         }
                     ],
                 )
@@ -998,10 +1079,14 @@ class TestCogsRepost:
         from finance.domain.xero_settings import XeroSettings
 
         stub_settings = XeroSettings(
-            organization_id="supply-yard", xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="t",
         )
         failing_gateway = StubXeroAdapter()
-        failing_gateway.repost_cogs_journal = AsyncMock(side_effect=Exception("Xero journal error"))
+        failing_gateway.repost_cogs_journal = AsyncMock(
+            side_effect=Exception("Xero journal error")
+        )
 
         with (
             patch(
@@ -1036,7 +1121,7 @@ class TestCogsRepost:
                             "unit_price": 5.0,
                             "amount": 5.0,
                             "cost": 3.0,
-                            "sku_id": "p1",
+                            "sku_id": str(uuid4()),
                             "job_id": None,
                         }
                     ],

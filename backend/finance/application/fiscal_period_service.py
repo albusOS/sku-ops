@@ -2,7 +2,6 @@
 
 import logging
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from finance.domain.enums import FiscalPeriodStatus
 from finance.domain.fiscal_period import FiscalPeriod, FiscalPeriodCreate
@@ -13,6 +12,7 @@ from finance.infrastructure.fiscal_period_repo import (
     insert_period,
     list_periods,
 )
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id, transaction
 from shared.kernel.errors import ResourceNotFoundError
 
@@ -34,7 +34,7 @@ async def list_fiscal_periods(status: str | None = None) -> list[FiscalPeriod]:
 
 
 async def create_fiscal_period(body: FiscalPeriodCreate) -> FiscalPeriod:
-    period_id = str(uuid4())
+    period_id = new_uuid7_str()
     now = datetime.now(UTC)
     org_id = get_org_id()
     async with transaction():
@@ -50,7 +50,11 @@ async def create_fiscal_period(body: FiscalPeriodCreate) -> FiscalPeriod:
         raise ResourceNotFoundError("Fiscal period not found after insert")
     logger.info(
         "fiscal_period.created",
-        extra={"org_id": org_id, "period_id": period_id, "period_name": body.name},
+        extra={
+            "org_id": org_id,
+            "period_id": period_id,
+            "period_name": body.name,
+        },
     )
     return result
 
@@ -73,6 +77,10 @@ async def close_fiscal_period(
         raise ResourceNotFoundError("Fiscal period not found after close")
     logger.info(
         "fiscal_period.closed",
-        extra={"org_id": get_org_id(), "period_id": period_id, "closed_by_id": closed_by_id},
+        extra={
+            "org_id": get_org_id(),
+            "period_id": period_id,
+            "closed_by_id": closed_by_id,
+        },
     )
     return result

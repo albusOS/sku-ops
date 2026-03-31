@@ -75,3 +75,16 @@ class TestJsonTypes:
     def test_json_bare(self):
         result = map_pydantic_type("Json", is_optional=False)
         assert result.sa_type == "JSONB"
+
+
+class TestUuidTypes:
+    def test_uuid(self):
+        result = map_pydantic_type("uuid.UUID", is_optional=False)
+        assert result.python_type == "uuid.UUID"
+        assert result.sa_type == "PG_UUID(as_uuid=True)"
+        assert result.needs_import == {"PG_UUID"}
+
+    def test_optional_uuid(self):
+        result = map_pydantic_type("uuid.UUID | None", is_optional=True)
+        assert result.python_type == "uuid.UUID | None"
+        assert result.sa_type == "PG_UUID(as_uuid=True)"

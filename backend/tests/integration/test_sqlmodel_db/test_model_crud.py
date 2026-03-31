@@ -19,9 +19,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-ORG_ID = f"test-org-{uuid.uuid4().hex[:8]}"
+ORG_ID = uuid.uuid4()
 NOW = datetime.now(tz=UTC)
-SEEDED_ORG_ID = "supply-yard"
+SEEDED_ORG_ID = uuid.UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69c001")
 
 
 class TestOrganizationCRUD:
@@ -67,8 +67,8 @@ class TestOrganizationCRUD:
 
 class TestParentChildInsert:
     async def test_insert_department_and_product(self, session):
-        dept_id = f"dept-{uuid.uuid4().hex[:8]}"
-        prod_id = f"prod-{uuid.uuid4().hex[:8]}"
+        dept_id = uuid.uuid4()
+        prod_id = uuid.uuid4()
 
         dept = Departments(
             id=dept_id,

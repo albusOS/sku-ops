@@ -3,16 +3,16 @@
 -- Application backend uses a DB role that bypasses RLS.
 
 CREATE OR REPLACE FUNCTION public.jwt_organization_id()
-RETURNS text
+RETURNS uuid
 LANGUAGE sql
 STABLE
 SECURITY INVOKER
 SET search_path = public, auth
 AS $$
-  SELECT COALESCE(
+  SELECT NULLIF(COALESCE(
     (SELECT auth.jwt()->'app_metadata'->>'organization_id'),
     (SELECT auth.jwt()->>'organization_id')
-  );
+  ), '')::uuid;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.jwt_organization_id() TO authenticated, anon;
@@ -135,8 +135,8 @@ CREATE POLICY tenant_isolation ON vendor_items
 ALTER TABLE sku_counters ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON sku_counters
   FOR ALL TO authenticated
-  USING (split_part(department_code, '|', 1) = public.jwt_organization_id())
-  WITH CHECK (split_part(department_code, '|', 1) = public.jwt_organization_id());
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
 
 -- inventory
 ALTER TABLE stock_transactions ENABLE ROW LEVEL SECURITY;
@@ -288,8 +288,8 @@ CREATE POLICY tenant_isolation ON invoice_line_items
 ALTER TABLE invoice_counters ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON invoice_counters
   FOR ALL TO authenticated
-  USING (split_part(key, '|', 1) = public.jwt_organization_id())
-  WITH CHECK (split_part(key, '|', 1) = public.jwt_organization_id());
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
 
 ALTER TABLE credit_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON credit_notes

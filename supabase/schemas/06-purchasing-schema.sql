@@ -1,29 +1,29 @@
 -- Purchasing: purchase_orders, purchase_order_items.
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
-        id TEXT PRIMARY KEY,
-        vendor_id TEXT REFERENCES vendors(id),
+        id UUID PRIMARY KEY,
+        vendor_id UUID REFERENCES vendors(id),
         vendor_name TEXT NOT NULL DEFAULT '',
         document_date TEXT,
         total REAL,
         status TEXT NOT NULL DEFAULT 'ordered',
         notes TEXT,
-        created_by_id TEXT NOT NULL DEFAULT '',
+        created_by_id UUID NOT NULL REFERENCES users(id),
         created_by_name TEXT NOT NULL DEFAULT '',
         received_at TIMESTAMPTZ,
-        received_by_id TEXT,
+        received_by_id UUID REFERENCES users(id),
         received_by_name TEXT,
-        document_id TEXT,
+        document_id UUID,
         xero_bill_id TEXT,
         xero_sync_status TEXT NOT NULL DEFAULT 'pending',
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ,
-        organization_id TEXT REFERENCES organizations(id)
+        organization_id UUID REFERENCES organizations(id)
     );
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
-        id TEXT PRIMARY KEY,
-        po_id TEXT NOT NULL REFERENCES purchase_orders(id),
+        id UUID PRIMARY KEY,
+        po_id UUID NOT NULL REFERENCES purchase_orders(id),
         name TEXT NOT NULL,
         original_sku TEXT,
         ordered_qty REAL NOT NULL DEFAULT 1,
@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
         purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
         suggested_department TEXT NOT NULL DEFAULT 'HDW',
         status TEXT NOT NULL DEFAULT 'ordered',
-        sku_id TEXT,
-        organization_id TEXT REFERENCES organizations(id)
+        sku_id UUID,
+        organization_id UUID REFERENCES organizations(id)
     );
 
 CREATE INDEX IF NOT EXISTS idx_po_org_status ON purchase_orders(organization_id, status);

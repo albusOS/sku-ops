@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 if TYPE_CHECKING:
     from shared.kernel.event_payloads import LedgerItem, ReceivedItemSummary
+
+from shared.helpers.uuid import new_uuid7_str
 
 __all__ = [
     "CatalogChanged",
@@ -43,7 +44,7 @@ class DomainEvent:
     """
 
     org_id: str
-    event_id: str = field(default_factory=lambda: str(uuid4()))
+    event_id: str = field(default_factory=new_uuid7_str)
 
 
 # ── Operations context ───────────────────────────────────────────────────────

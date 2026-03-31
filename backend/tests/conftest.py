@@ -26,6 +26,7 @@ import pytest
 import finance.application.event_handlers  # noqa: F401 — registers domain event handlers
 import inventory.application.event_handlers  # noqa: F401
 import shared.infrastructure.ws_bridge  # noqa: F401
+from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.events import EventCollector
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -77,8 +78,8 @@ async def _truncate_and_seed():
     from shared.infrastructure.database import transaction
     from shared.infrastructure.logging_config import org_id_var, user_id_var
 
-    org_id_var.set("supply-yard")
-    user_id_var.set("user-1")
+    org_id_var.set(DEFAULT_ORG_ID)
+    user_id_var.set("0195f2c0-89ac-7f42-8b11-000000000002")
 
     async with transaction() as conn:
         await conn.execute(
@@ -94,7 +95,7 @@ async def _truncate_and_seed():
             await conn.execute(stmt)
         from catalog.application.uom_seed import uom_seed_sql
 
-        for stmt in uom_seed_sql("supply-yard"):
+        for stmt in uom_seed_sql(DEFAULT_ORG_ID):
             await conn.execute(stmt)
 
 

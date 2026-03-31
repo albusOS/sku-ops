@@ -2,9 +2,9 @@
 -- withdrawal_items, return_items.
 
 CREATE TABLE IF NOT EXISTS withdrawals (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY,
         items TEXT,
-        job_id TEXT NOT NULL,
+        job_id UUID NOT NULL,
         service_address TEXT NOT NULL,
         notes TEXT,
         subtotal NUMERIC(18,2) NOT NULL,
@@ -12,39 +12,39 @@ CREATE TABLE IF NOT EXISTS withdrawals (
         tax_rate NUMERIC(9,4) NOT NULL DEFAULT 0.0,
         total NUMERIC(18,2) NOT NULL,
         cost_total NUMERIC(18,2) NOT NULL,
-        contractor_id TEXT NOT NULL REFERENCES users(id),
+        contractor_id UUID NOT NULL REFERENCES users(id),
         contractor_name TEXT NOT NULL DEFAULT '',
         contractor_company TEXT NOT NULL DEFAULT '',
         billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT REFERENCES billing_entities(id),
+        billing_entity_id UUID REFERENCES billing_entities(id),
         payment_status TEXT NOT NULL DEFAULT 'unpaid',
-        invoice_id TEXT,
+        invoice_id UUID,
         paid_at TIMESTAMPTZ,
-        processed_by_id TEXT NOT NULL REFERENCES users(id),
+        processed_by_id UUID NOT NULL REFERENCES users(id),
         processed_by_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS material_requests (
-        id TEXT PRIMARY KEY,
-        contractor_id TEXT NOT NULL REFERENCES users(id),
+        id UUID PRIMARY KEY,
+        contractor_id UUID NOT NULL REFERENCES users(id),
         contractor_name TEXT NOT NULL DEFAULT '',
         status TEXT NOT NULL DEFAULT 'pending',
-        withdrawal_id TEXT REFERENCES withdrawals(id),
-        job_id TEXT,
+        withdrawal_id UUID REFERENCES withdrawals(id),
+        job_id UUID,
         service_address TEXT,
         notes TEXT,
         created_at TIMESTAMPTZ NOT NULL,
         processed_at TIMESTAMPTZ,
-        processed_by_id TEXT REFERENCES users(id),
-        organization_id TEXT NOT NULL REFERENCES organizations(id)
+        processed_by_id UUID REFERENCES users(id),
+        organization_id UUID NOT NULL REFERENCES organizations(id)
     );
 
 CREATE TABLE IF NOT EXISTS material_request_items (
-        id TEXT PRIMARY KEY,
-        material_request_id TEXT NOT NULL REFERENCES material_requests(id),
-        sku_id TEXT NOT NULL,
+        id UUID PRIMARY KEY,
+        material_request_id UUID NOT NULL REFERENCES material_requests(id),
+        sku_id UUID NOT NULL,
         sku TEXT NOT NULL DEFAULT '',
         name TEXT NOT NULL DEFAULT '',
         quantity NUMERIC(18,4) NOT NULL,
@@ -54,31 +54,31 @@ CREATE TABLE IF NOT EXISTS material_request_items (
     );
 
 CREATE TABLE IF NOT EXISTS returns (
-        id TEXT PRIMARY KEY,
-        withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
-        contractor_id TEXT NOT NULL REFERENCES users(id),
+        id UUID PRIMARY KEY,
+        withdrawal_id UUID NOT NULL REFERENCES withdrawals(id),
+        contractor_id UUID NOT NULL REFERENCES users(id),
         contractor_name TEXT NOT NULL DEFAULT '',
         billing_entity TEXT NOT NULL DEFAULT '',
-        billing_entity_id TEXT REFERENCES billing_entities(id),
-        job_id TEXT NOT NULL DEFAULT '',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        job_id UUID NOT NULL,
         subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
         tax NUMERIC(18,2) NOT NULL DEFAULT 0,
         total NUMERIC(18,2) NOT NULL DEFAULT 0,
         cost_total NUMERIC(18,2) NOT NULL DEFAULT 0,
         reason TEXT NOT NULL DEFAULT 'other',
         notes TEXT,
-        credit_note_id TEXT,
-        processed_by_id TEXT NOT NULL DEFAULT '',
+        credit_note_id UUID,
+        processed_by_id UUID NOT NULL REFERENCES users(id),
         processed_by_name TEXT NOT NULL DEFAULT '',
-        organization_id TEXT REFERENCES organizations(id),
+        organization_id UUID REFERENCES organizations(id),
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS withdrawal_items (
-        id TEXT PRIMARY KEY,
-        withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
-        sku_id TEXT NOT NULL,
+        id UUID PRIMARY KEY,
+        withdrawal_id UUID NOT NULL REFERENCES withdrawals(id),
+        sku_id UUID NOT NULL,
         sku TEXT NOT NULL DEFAULT '',
         name TEXT NOT NULL DEFAULT '',
         quantity NUMERIC(18,4) NOT NULL,
@@ -92,9 +92,9 @@ CREATE TABLE IF NOT EXISTS withdrawal_items (
     );
 
 CREATE TABLE IF NOT EXISTS return_items (
-        id TEXT PRIMARY KEY,
-        return_id TEXT NOT NULL REFERENCES returns(id),
-        sku_id TEXT NOT NULL,
+        id UUID PRIMARY KEY,
+        return_id UUID NOT NULL REFERENCES returns(id),
+        sku_id UUID NOT NULL,
         sku TEXT NOT NULL DEFAULT '',
         name TEXT NOT NULL DEFAULT '',
         quantity NUMERIC(18,4) NOT NULL,

@@ -12,14 +12,18 @@ import asyncio
 import json
 import logging
 import math
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import numpy as np
 
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.database import (
+    get_connection,
+    get_org_id,
+    transaction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +57,7 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
     for a in artifacts:
         if not isinstance(a, dict) or not a.get("content"):
             continue
-        aid = str(uuid.uuid4())
+        aid = new_uuid7_str()
         content = (a.get("content") or "")[:1000]
         rows.append(
             (
@@ -92,13 +96,19 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
             return
         exc = t.exception()
         if exc:
-            logger.warning("Background embed task failed: %s", exc, exc_info=exc)
+            logger.warning(
+                "Background embed task failed: %s", exc, exc_info=exc
+            )
 
-    _embed_task = asyncio.create_task(_embed_artifacts(org_id, artifact_ids, artifact_contents))
+    _embed_task = asyncio.create_task(
+        _embed_artifacts(org_id, artifact_ids, artifact_contents)
+    )
     _embed_task.add_done_callback(_on_embed_done)
 
 
-async def _embed_artifacts(org_id: str, artifact_ids: list[str], contents: list[str]) -> None:
+async def _embed_artifacts(
+    org_id: str, artifact_ids: list[str], contents: list[str]
+) -> None:
     """Background task: embed memory artifacts and persist to pgvector."""
     try:
         from assistant.infrastructure.embedding_store import (
@@ -114,7 +124,9 @@ async def _embed_artifacts(org_id: str, artifact_ids: list[str], contents: list[
             return
         items = [
             (aid, content, vec)
-            for aid, content, vec in zip(artifact_ids, contents, vecs, strict=False)
+            for aid, content, vec in zip(
+                artifact_ids, contents, vecs, strict=False
+            )
         ]
         written = await upsert_batch(org_id, "memory", items)
         if written:
@@ -185,7 +197,11 @@ async def _semantic_recall(
         if not await is_pgvector_available():
             return None
 
-        qvec = query_embedding if query_embedding is not None else await embed_query(query)
+        qvec = (
+            query_embedding
+            if query_embedding is not None
+            else await embed_query(query)
+        )
         if qvec is None:
             return None
 
@@ -218,7 +234,9 @@ async def _semantic_recall(
             created = r["created_at"] or ""
             try:
                 created_dt = (
-                    datetime.fromisoformat(created) if isinstance(created, str) else created
+                    datetime.fromisoformat(created)
+                    if isinstance(created, str)
+                    else created
                 )
                 days_old = max(0, (now - created_dt).total_seconds() / 86400)
             except (ValueError, TypeError):
@@ -239,7 +257,9 @@ async def _semantic_recall(
 
 def _format_rows(rows: list) -> str:
     """Format artifact rows as a context string for agent injection."""
-    lines = ["[Memory from previous sessions — background context only, not ground truth]"]
+    lines = [
+        "[Memory from previous sessions — background context only, not ground truth]"
+    ]
     for r in rows:
         date = (r["created_at"] or "")[:10]
         lines.append(f"- [{r['type']}] {r['subject']}: {r['content']} ({date})")

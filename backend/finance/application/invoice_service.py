@@ -3,10 +3,13 @@
 import logging
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
 from finance.domain.enums import InvoiceStatus, XeroSyncStatus
-from finance.domain.invoice import InvoiceLineItem, InvoiceWithDetails, compute_due_date
+from finance.domain.invoice import (
+    InvoiceLineItem,
+    InvoiceWithDetails,
+    compute_due_date,
+)
 from finance.infrastructure.invoice_repo import (
     insert_invoice_row,
     insert_line_items,
@@ -29,9 +32,14 @@ from operations.application.queries import (
     link_withdrawal_to_invoice,
     unlink_withdrawals_from_invoice,
 )
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
-from shared.kernel.domain_events import InvoiceApproved, InvoiceCreated, InvoiceDeleted
+from shared.kernel.domain_events import (
+    InvoiceApproved,
+    InvoiceCreated,
+    InvoiceDeleted,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +104,9 @@ async def _validate_withdrawals_for_invoice(
             raise ValueError(f"Withdrawal {wid} is already on invoice")
         be = w.billing_entity or ""
         if billing_entity is not None and be != billing_entity:
-            raise ValueError("All withdrawals must share the same billing_entity")
+            raise ValueError(
+                "All withdrawals must share the same billing_entity"
+            )
         billing_entity = be
         contact_name = w.contractor_name or w.contractor_company or ""
         withdrawals.append(w)
@@ -108,7 +118,9 @@ def _build_line_items_from_withdrawal(w, inv_id: str) -> list[dict]:
     """Convert typed WithdrawalItems to dicts for insert_line_items (repo persistence)."""
     items = []
     for item in w.items:
-        line = InvoiceLineItem.from_line_item(item, invoice_id=inv_id, job_id=w.job_id)
+        line = InvoiceLineItem.from_line_item(
+            item, invoice_id=inv_id, job_id=w.job_id
+        )
         items.append(
             {
                 "name": line.description,
@@ -131,11 +143,13 @@ async def create_invoice_from_withdrawals(
     if not withdrawal_ids:
         raise ValueError("At least one withdrawal required")
 
-    withdrawals, billing_entity, contact_name = await _validate_withdrawals_for_invoice(
-        withdrawal_ids
-    )
+    (
+        withdrawals,
+        billing_entity,
+        contact_name,
+    ) = await _validate_withdrawals_for_invoice(withdrawal_ids)
 
-    inv_id = str(uuid4())
+    inv_id = new_uuid7_str()
     now = datetime.now(UTC)
     payment_terms = "net_30"
     due_date = compute_due_date(now, payment_terms)
@@ -171,7 +185,9 @@ async def create_invoice_from_withdrawals(
             await link_withdrawal(inv_id, wid)
             linked = await link_withdrawal_to_invoice(wid, inv_id)
             if not linked:
-                raise ValueError(f"Withdrawal {wid} was already linked to another invoice")
+                raise ValueError(
+                    f"Withdrawal {wid} was already linked to another invoice"
+                )
 
     await dispatch(
         InvoiceCreated(
@@ -191,9 +207,11 @@ async def add_withdrawals_to_invoice(
     if not withdrawal_ids:
         return await _default_invoice_repo.get_by_id(invoice_id)
 
-    withdrawals, billing_entity, contact_name = await _validate_withdrawals_for_invoice(
-        withdrawal_ids
-    )
+    (
+        withdrawals,
+        billing_entity,
+        contact_name,
+    ) = await _validate_withdrawals_for_invoice(withdrawal_ids)
 
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:
@@ -220,13 +238,17 @@ async def add_withdrawals_to_invoice(
             total_tax += w.tax
 
         total = round(total_subtotal + total_tax, 2)
-        await update_invoice_totals(invoice_id, total_subtotal, total_tax, total)
+        await update_invoice_totals(
+            invoice_id, total_subtotal, total_tax, total
+        )
 
         for wid in withdrawal_ids:
             await link_withdrawal(invoice_id, wid)
             linked = await link_withdrawal_to_invoice(wid, invoice_id)
             if not linked:
-                raise ValueError(f"Withdrawal {wid} was already linked to another invoice")
+                raise ValueError(
+                    f"Withdrawal {wid} was already linked to another invoice"
+                )
 
     return await _default_invoice_repo.get_by_id(invoice_id)
 
@@ -256,7 +278,10 @@ async def update_invoice(
         if line_items is not None:
             subtotal = await replace_line_items(
                 invoice_id,
-                [i.model_dump() if hasattr(i, "model_dump") else i for i in line_items],
+                [
+                    i.model_dump() if hasattr(i, "model_dump") else i
+                    for i in line_items
+                ],
             )
             tax_val = tax if tax is not None else float(inv.tax)
             total = round(subtotal + tax_val, 2)
@@ -304,7 +329,9 @@ async def update_invoice(
     return await _default_invoice_repo.get_by_id(invoice_id)
 
 
-async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDetails | None:
+async def approve_invoice(
+    invoice_id: str, approved_by_id: str
+) -> InvoiceWithDetails | None:
     """Approve a draft invoice, locking it for Xero sync."""
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 from finance.infrastructure._invoice_fetch import get_by_id
+from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.database import get_connection, get_org_id
 
 if TYPE_CHECKING:
@@ -51,13 +51,15 @@ async def replace_line_items(invoice_id: str, line_items: list[dict]) -> float:
     )
     if not await cursor.fetchone():
         raise ValueError(f"Invoice {invoice_id} not found in this organisation")
-    await conn.execute("DELETE FROM invoice_line_items WHERE invoice_id = $1", (invoice_id,))
+    await conn.execute(
+        "DELETE FROM invoice_line_items WHERE invoice_id = $1", (invoice_id,)
+    )
     subtotal = 0.0
     for item in line_items:
         qty = float(item.get("quantity", 1))
         price = float(item.get("unit_price", 0))
         amt = round(qty * price, 2)
-        item_id = item.get("id") or str(uuid4())
+        item_id = item.get("id") or new_uuid7_str()
         cost_val = float(item.get("cost", 0))
         await conn.execute(
             """INSERT INTO invoice_line_items
@@ -103,7 +105,7 @@ async def insert_line_items(invoice_id: str, line_items: list[dict]) -> float:
                (id, invoice_id, description, quantity, unit_price, amount, cost, sku_id, job_id, unit, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
             (
-                str(uuid4()),
+                new_uuid7_str(),
                 invoice_id,
                 item.get("description") or item.get("name", ""),
                 qty,
@@ -153,7 +155,9 @@ async def unlink_withdrawals(invoice_id: str) -> list[str]:
     )
     rows = await cursor.fetchall()
     wids = [r[0] for r in rows]
-    await conn.execute("DELETE FROM invoice_withdrawals WHERE invoice_id = $1", (invoice_id,))
+    await conn.execute(
+        "DELETE FROM invoice_withdrawals WHERE invoice_id = $1", (invoice_id,)
+    )
     await conn.commit()
     return wids
 

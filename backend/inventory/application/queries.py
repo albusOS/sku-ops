@@ -125,7 +125,9 @@ async def demand_normalized_velocity(
             "normalized_total": float(r["normalized_total"]),
             "median_daily": round(float(r["median_daily"]), 2),
             "mean_daily": round(float(r["mean_daily"]), 2),
-            "normalized_daily": round(float(r["normalized_total"]) / max(clean_days, 1), 2),
+            "normalized_daily": round(
+                float(r["normalized_total"]) / max(clean_days, 1), 2
+            ),
             "outlier_days": int(r["outlier_days"] or 0),
             "total_days": int(total_days),
         }
@@ -225,7 +227,7 @@ async def sku_demand_profile(
         """SELECT w.job_id, SUM(ABS(st.quantity_delta)) AS job_total
            FROM stock_transactions st
            LEFT JOIN withdrawals w
-             ON st.reference_id = w.id AND st.reference_type = 'withdrawal'
+             ON st.reference_id = w.id::text AND st.reference_type = 'withdrawal'
            WHERE st.sku_id = $1
              AND st.transaction_type = 'WITHDRAWAL'
              AND st.created_at >= (NOW() - make_interval(days => $2))

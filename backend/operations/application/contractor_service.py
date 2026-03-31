@@ -7,18 +7,22 @@ from here for contractor lookups. When Supabase arrives, the auth parts
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 
 import bcrypt
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from finance.application.billing_entity_service import ensure_billing_entity
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.database import (
+    get_connection,
+    get_org_id,
+    transaction,
+)
 
 
 def _make_id() -> str:
-    return str(uuid.uuid4())
+    return new_uuid7_str()
 
 
 def _now() -> datetime:
@@ -94,7 +98,9 @@ _SELECT_COLS = (
 
 
 def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
+        "utf-8"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +190,9 @@ async def create_contractor(
 
     async with transaction():
         conn = get_connection()
-        cursor = await conn.execute("SELECT id FROM users WHERE email = $1", (email,))
+        cursor = await conn.execute(
+            "SELECT id FROM users WHERE email = $1", (email,)
+        )
         if await cursor.fetchone():
             raise ValueError("Email already registered")
 
@@ -259,7 +267,8 @@ async def update_contractor(
         return contractor
 
     billing_name_changed = (
-        updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
+        updates.billing_entity is not None
+        and updates.billing_entity != contractor.billing_entity
     )
 
     async with transaction():
