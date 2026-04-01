@@ -7,8 +7,13 @@ import logging
 from datetime import UTC, datetime
 
 from catalog.application.queries import SkuUpdate
-from finance.application.ledger_service import record_po_receipt as _record_po_receipt_ledger
-from purchasing.application.purchase_order_service import PurchasingDeps, _resolve_po_item_cost
+from finance.application.ledger_service import (
+    record_po_receipt as _record_po_receipt_ledger,
+)
+from purchasing.application.purchase_order_service import (
+    PurchasingDeps,
+    _resolve_po_item_cost,
+)
 from purchasing.domain.purchase_order import (
     MarkDeliveryResult,
     POItemRow,
@@ -19,9 +24,8 @@ from purchasing.domain.purchase_order import (
     ReceiveItemsResult,
     ReceiveItemUpdate,
 )
-from purchasing.infrastructure.po_repo import po_repo as _default_repo
-from purchasing.ports.po_repo_port import PORepoPort
 from shared.infrastructure.db import transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged, POItemsReceived
 from shared.kernel.errors import ResourceNotFoundError
@@ -35,7 +39,6 @@ async def mark_delivery_received(
     po_id: str,
     item_ids: list[str],
     current_user: CurrentUser,
-    repo: PORepoPort = _default_repo,
 ) -> MarkDeliveryResult:
     """Transition selected 'ordered' items to 'pending' (delivery arrived at dock).
 
@@ -43,11 +46,13 @@ async def mark_delivery_received(
     All item transitions run inside a single transaction so partial
     updates cannot occur.
     """
-    po = await repo.get_po(po_id)
+    db = get_database_manager().purchasing
+    org_id = current_user.organization_id
+    po = await db.get_po(org_id, po_id)
     if not po:
         raise ResourceNotFoundError("PurchaseOrder", po_id)
 
-    all_items = await repo.get_po_items(po_id)
+    all_items = await db.get_po_items(org_id, po_id)
     items_by_id = {i.id: i for i in all_items}
 
     transitioned = 0
@@ -56,13 +61,19 @@ async def mark_delivery_received(
             item = items_by_id.get(item_id)
             if not item or item.status != POItemStatus.ORDERED.value:
                 continue
-            await repo.update_po_item(item_id, POItemStatus.PENDING)
+            await db.update_po_item(org_id, item_id, POItemStatus.PENDING)
             transitioned += 1
 
-    result = MarkDeliveryResult(po_id=po_id, status=po.status, transitioned=transitioned)
+    result = MarkDeliveryResult(
+        po_id=po_id, status=po.status, transitioned=transitioned
+    )
     logger.info(
         "po.delivery_marked",
-        extra={"po_id": po_id, "transitioned": transitioned, "user_id": current_user.id},
+        extra={
+            "po_id": po_id,
+            "transitioned": transitioned,
+            "user_id": current_user.id,
+        },
     )
     return result
 
@@ -72,14 +83,15 @@ async def receive_po_items(
     item_updates: list[ReceiveItemUpdate],
     deps: PurchasingDeps,
     current_user: CurrentUser,
-    repo: PORepoPort = _default_repo,
 ) -> ReceiveItemsResult:
     """Mark selected items as arrived and update inventory stock.
 
     New SKUs are created for unmatched items; existing SKUs get a
     RECEIVING transaction.
     """
-    po = await repo.get_po(po_id)
+    db = get_database_manager().purchasing
+    org_id = current_user.organization_id
+    po = await db.get_po(org_id, po_id)
     if not po:
         raise ResourceNotFoundError("PurchaseOrder", po_id)
 
@@ -90,7 +102,7 @@ async def receive_po_items(
     )
     dept_by_code = {d.code.upper(): d for d in departments}
 
-    all_items = await repo.get_po_items(po_id)
+    all_items = await db.get_po_items(org_id, po_id)
     items_by_id = {item.id: item for item in all_items}
     updates_by_id = {u.id: u for u in item_updates}
 
@@ -104,7 +116,9 @@ async def receive_po_items(
         for item_id, update in updates_by_id.items():
             item = items_by_id.get(item_id)
             if not item:
-                error_details.append(ReceiveItemError(item=item_id, error="Item not found"))
+                error_details.append(
+                    ReceiveItemError(item=item_id, error="Item not found")
+                )
                 continue
 
             current_status = POItemStatus(item.status)
@@ -113,7 +127,8 @@ async def receive_po_items(
             if current_status == POItemStatus.ORDERED:
                 error_details.append(
                     ReceiveItemError(
-                        item=item.name, error="Item not yet marked as received at dock"
+                        item=item.name,
+                        error="Item not yet marked as received at dock",
                     )
                 )
                 continue
@@ -122,7 +137,11 @@ async def receive_po_items(
 
             delivered = update.delivered_qty
             if delivered is None:
-                delivered = working.get("delivered_qty") or working.get("ordered_qty") or 1
+                delivered = (
+                    working.get("delivered_qty")
+                    or working.get("ordered_qty")
+                    or 1
+                )
             delivered = max(0.0, float(delivered))
 
             try:
@@ -136,7 +155,8 @@ async def receive_po_items(
                 if existing:
                     resolved_pid = existing.id
 
-                    transitioned = await repo.update_po_item(
+                    transitioned = await db.update_po_item(
+                        org_id,
                         item_id,
                         POItemStatus.ARRIVED,
                         sku_id=existing.id,
@@ -146,10 +166,14 @@ async def receive_po_items(
                         continue
 
                     purchase_pack_qty = int(
-                        working.get("purchase_pack_qty") or existing.purchase_pack_qty or 1
+                        working.get("purchase_pack_qty")
+                        or existing.purchase_pack_qty
+                        or 1
                     )
                     purchase_uom = (
-                        working.get("purchase_uom") or existing.purchase_uom or "each"
+                        working.get("purchase_uom")
+                        or existing.purchase_uom
+                        or "each"
                     ).lower()
                     base_unit = (existing.base_unit or "each").lower()
                     stock_qty = _convert_purchase_to_base(
@@ -169,7 +193,9 @@ async def receive_po_items(
                     )
                     po_item_cost = _resolve_po_item_cost(working)
                     per_base_cost = (
-                        po_item_cost / purchase_pack_qty if purchase_pack_qty > 1 else po_item_cost
+                        po_item_cost / purchase_pack_qty
+                        if purchase_pack_qty > 1
+                        else po_item_cost
                     )
                     old_qty = float(existing.quantity)
                     old_cost = float(existing.cost)
@@ -182,23 +208,34 @@ async def receive_po_items(
                         )
 
                     if new_cost is not None:
-                        await deps.update_sku(existing.id, SkuUpdate(cost=new_cost))
+                        await deps.update_sku(
+                            existing.id, SkuUpdate(cost=new_cost)
+                        )
 
                     updated = await deps.get_sku_by_id(existing.id)
                     matched.append(updated)
                 else:
                     dept = (
-                        dept_by_code.get((working.get("suggested_department") or "HDW").upper())
+                        dept_by_code.get(
+                            (
+                                working.get("suggested_department") or "HDW"
+                            ).upper()
+                        )
                         or default_dept
                     )
                     if not dept:
                         error_details.append(
-                            ReceiveItemError(item=working.get("name"), error="No valid department")
+                            ReceiveItemError(
+                                item=working.get("name"),
+                                error="No valid department",
+                            )
                         )
                         continue
 
                     cost_val = _resolve_po_item_cost(working)
-                    new_purchase_uom = (working.get("purchase_uom") or "each").lower()
+                    new_purchase_uom = (
+                        working.get("purchase_uom") or "each"
+                    ).lower()
                     new_base_unit = (working.get("base_unit") or "each").lower()
                     new_pack_qty = int(working.get("purchase_pack_qty") or 1)
                     new_stock_qty = _convert_purchase_to_base(
@@ -206,7 +243,8 @@ async def receive_po_items(
                     )
                     per_base_cost_new = (
                         cost_val / new_pack_qty
-                        if new_pack_qty > 1 and new_purchase_uom in _DISCRETE_CONTAINER_UOMS
+                        if new_pack_qty > 1
+                        and new_purchase_uom in _DISCRETE_CONTAINER_UOMS
                         else cost_val
                     )
                     new_sku = await deps.create_product_with_sku(
@@ -214,7 +252,11 @@ async def receive_po_items(
                         category_name=dept.name,
                         name=working.get("name", "Unknown"),
                         description="",
-                        price=float(working.get("unit_price") or working.get("price") or 0),
+                        price=float(
+                            working.get("unit_price")
+                            or working.get("price")
+                            or 0
+                        ),
                         cost=round(per_base_cost_new, 2),
                         quantity=new_stock_qty,
                         min_stock=5,
@@ -223,7 +265,9 @@ async def receive_po_items(
                         sell_uom=working.get("sell_uom") or "each",
                         pack_qty=int(working.get("pack_qty") or 1),
                         purchase_uom=working.get("purchase_uom") or "each",
-                        purchase_pack_qty=int(working.get("purchase_pack_qty") or 1),
+                        purchase_pack_qty=int(
+                            working.get("purchase_pack_qty") or 1
+                        ),
                         user_id=current_user.id,
                         user_name=current_user.name,
                     )
@@ -235,12 +279,15 @@ async def receive_po_items(
                             vendor_id=vendor_id,
                             vendor_sku=str(working["original_sku"]),
                             purchase_uom=working.get("purchase_uom") or "each",
-                            purchase_pack_qty=int(working.get("purchase_pack_qty") or 1),
+                            purchase_pack_qty=int(
+                                working.get("purchase_pack_qty") or 1
+                            ),
                             cost=round(cost_val, 2),
                             is_preferred=True,
                         )
 
-                    transitioned = await repo.update_po_item(
+                    transitioned = await db.update_po_item(
+                        org_id,
                         item_id,
                         POItemStatus.ARRIVED,
                         sku_id=new_sku.id,
@@ -253,7 +300,9 @@ async def receive_po_items(
 
                 item_cost = _resolve_po_item_cost(working)
                 cost_total += item_cost * delivered
-                dept_code = (working.get("suggested_department") or "HDW").upper()
+                dept_code = (
+                    working.get("suggested_department") or "HDW"
+                ).upper()
                 ledger_items.append(
                     ReceivedItemSummary(
                         cost=item_cost,
@@ -265,7 +314,9 @@ async def receive_po_items(
                     )
                 )
             except (ValueError, RuntimeError, OSError, KeyError) as e:
-                error_details.append(ReceiveItemError(item=item.name, error=str(e)))
+                error_details.append(
+                    ReceiveItemError(item=item.name, error=str(e))
+                )
 
         if ledger_items:
             await _record_po_receipt_ledger(
@@ -275,7 +326,7 @@ async def receive_po_items(
                 performed_by_user_id=current_user.id,
             )
 
-        new_status = await _recompute_po_status(po_id, po, current_user, repo)
+        new_status = await _recompute_po_status(org_id, po_id, po, current_user)
 
     if ledger_items:
         sku_ids = tuple(li.sku_id for li in ledger_items if li.sku_id)
@@ -323,7 +374,9 @@ async def receive_po_items(
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-_DISCRETE_CONTAINER_UOMS = frozenset({"case", "box", "pack", "bag", "roll", "kit"})
+_DISCRETE_CONTAINER_UOMS = frozenset(
+    {"case", "box", "pack", "bag", "roll", "kit"}
+)
 
 
 def _convert_purchase_to_base(
@@ -386,17 +439,19 @@ async def _match_sku(item: dict, vendor_id: str, deps: PurchasingDeps):
             if existing:
                 return existing
     if item.get("name") and vendor_id:
-        existing = await deps.find_sku_by_name_and_vendor(item["name"], vendor_id)
+        existing = await deps.find_sku_by_name_and_vendor(
+            item["name"], vendor_id
+        )
         if existing:
             return existing
     return None
 
 
 async def _recompute_po_status(
+    org_id: str,
     po_id: str,
     po: PORow,
     current_user: CurrentUser,
-    repo: PORepoPort,
 ) -> str:
     """Recompute PO header status from item statuses.
 
@@ -404,14 +459,18 @@ async def _recompute_po_status(
     partial  — some items arrived, some still outstanding
     received — all items arrived
     """
-    all_items = await repo.get_po_items(po_id)
-    arrived_count = sum(1 for i in all_items if i.status == POItemStatus.ARRIVED.value)
+    db = get_database_manager().purchasing
+    all_items = await db.get_po_items(org_id, po_id)
+    arrived_count = sum(
+        1 for i in all_items if i.status == POItemStatus.ARRIVED.value
+    )
     total = len(all_items)
     now = datetime.now(UTC)
 
     if arrived_count == total and total > 0:
         new_status = POStatus.RECEIVED.value
-        await repo.update_po_status(
+        await db.update_po_status(
+            org_id,
             po_id,
             status=new_status,
             received_at=now,
@@ -420,7 +479,7 @@ async def _recompute_po_status(
         )
     elif arrived_count > 0:
         new_status = POStatus.PARTIAL.value
-        await repo.update_po_status(po_id, status=new_status)
+        await db.update_po_status(org_id, po_id, status=new_status)
     else:
         new_status = po.status
 

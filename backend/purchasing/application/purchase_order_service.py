@@ -19,10 +19,9 @@ from purchasing.domain.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
 )
-from purchasing.infrastructure.po_repo import po_repo as _default_repo
-from purchasing.ports.po_repo_port import PORepoPort
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.types import CurrentUser
 
@@ -78,7 +77,6 @@ async def create_purchase_order(
     total: float | None = None,
     category_id: str | None = None,
     create_vendor_if_missing: bool = True,
-    repo: PORepoPort = _default_repo,
 ) -> CreatePOResult:
     """Save reviewed receipt items as a pending purchase order.
 
@@ -162,9 +160,10 @@ async def create_purchase_order(
             )
         )
 
+    db = get_database_manager().purchasing
     async with transaction():
-        await repo.insert_po(po)
-        await repo.insert_items(po_items)
+        await db.insert_po(org_id, po)
+        await db.insert_po_items(org_id, po_items)
 
     logger.info(
         "purchase_order.created",
