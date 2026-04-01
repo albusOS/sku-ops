@@ -8,7 +8,7 @@ These tests enforce that:
   4. Normalized child-table items (withdrawal_items, material_request_items) survive round-trip
 
 These would have caught:
-  - The price->unit_price column mapping bug in po_repo
+  - The price->unit_price column mapping bug in the purchasing PO service
   - Missing float coercion in credit_note_repo
   - Any schema drift between domain models and SQL columns
 """
@@ -18,18 +18,14 @@ import uuid
 import pytest
 
 from catalog.application.sku_lifecycle import create_product_with_sku
-from catalog.infrastructure.sku_repo import sku_repo
 from finance.application.invoice_service import create_invoice_from_withdrawals
-from finance.infrastructure.credit_note_repo import credit_note_repo
 from inventory.application.inventory_service import process_import_stock_changes
-from inventory.infrastructure.stock_repo import stock_repo
 from purchasing.domain.purchase_order import (
     POItemStatus,
     POStatus,
     PurchaseOrder,
     PurchaseOrderItem,
 )
-from purchasing.infrastructure.po_repo import po_repo
 from shared.infrastructure.db import sql_execute
 from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
@@ -62,7 +58,9 @@ class TestProductRepoContract:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            row = await sku_repo.get_by_id(sku.id)
+            row = await get_database_manager().catalog.get_sku_by_id(
+                sku.id, DEFAULT_ORG_ID
+            )
             assert row is not None
 
             assert isinstance(row.quantity, float), (
@@ -94,7 +92,9 @@ class TestProductRepoContract:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            skus = await sku_repo.list_skus(limit=10)
+            skus = await get_database_manager().catalog.list_skus(
+                DEFAULT_ORG_ID, limit=10
+            )
             assert len(skus) >= 1
             for s in skus:
                 assert isinstance(s.quantity, float), (
@@ -122,7 +122,9 @@ class TestStockRepoContract:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            txs = await stock_repo.list_by_product(product.id, limit=10)
+            txs = await get_database_manager().inventory.list_stock_transactions_by_product(
+                DEFAULT_ORG_ID, product.id, limit=10
+            )
             assert len(txs) >= 1
             tx = txs[0]
 
@@ -167,7 +169,8 @@ class TestPORepoContract:
                 created_by_name="Test",
                 organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_po(po)
+            pdb = get_database_manager().purchasing
+            await pdb.insert_po(DEFAULT_ORG_ID, po)
 
             item = PurchaseOrderItem(
                 po_id=po.id,
@@ -183,9 +186,9 @@ class TestPORepoContract:
                 status=POItemStatus.ORDERED,
                 organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_items([item])
+            await pdb.insert_po_items(DEFAULT_ORG_ID, [item])
 
-            items = await po_repo.get_po_items(po.id)
+            items = await pdb.get_po_items(DEFAULT_ORG_ID, po.id)
             assert len(items) == 1
             read_item = items[0]
 
@@ -216,7 +219,8 @@ class TestPORepoContract:
                 created_by_name="Test",
                 organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_po(po)
+            pdb = get_database_manager().purchasing
+            await pdb.insert_po(DEFAULT_ORG_ID, po)
 
             item = PurchaseOrderItem(
                 po_id=po.id,
@@ -232,9 +236,9 @@ class TestPORepoContract:
                 status=POItemStatus.PENDING,
                 organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_items([item])
+            await pdb.insert_po_items(DEFAULT_ORG_ID, [item])
 
-            items = await po_repo.get_po_items(po.id)
+            items = await pdb.get_po_items(DEFAULT_ORG_ID, po.id)
             read_item = items[0]
 
             for field in ("ordered_qty", "delivered_qty", "unit_price", "cost"):
@@ -253,10 +257,12 @@ class TestCreditNoteRepoContract:
         """Credit note line items must have float quantity, unit_price, amount, cost."""
 
         async def _body():
-            cn = await credit_note_repo.insert_credit_note(
-                return_id=str(uuid.uuid4()),
-                invoice_id=None,
-                items=[
+            fin = get_database_manager().finance
+            cn = await fin.credit_note_insert(
+                DEFAULT_ORG_ID,
+                str(uuid.uuid4()),
+                None,
+                [
                     {
                         "description": "Widget return",
                         "quantity": 2.5,
@@ -265,13 +271,13 @@ class TestCreditNoteRepoContract:
                         "sku_id": None,
                     },
                 ],
-                subtotal=25.0,
-                tax=2.50,
-                total=27.50,
+                25.0,
+                2.50,
+                27.50,
             )
             assert cn is not None
 
-            cn_read = await credit_note_repo.get_by_id(cn.id)
+            cn_read = await fin.credit_note_get_by_id(DEFAULT_ORG_ID, cn.id)
             assert cn_read is not None
             assert len(cn_read.line_items) == 1
 

@@ -34,9 +34,9 @@ logger = logging.getLogger(__name__)
 
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
-    from shared.infrastructure.org_repo import list_all
+    from shared.infrastructure.db.base import get_database_manager
 
-    orgs = await list_all()
+    orgs = await get_database_manager().shared.list_organizations()
     return [o.id for o in orgs] if orgs else []
 
 

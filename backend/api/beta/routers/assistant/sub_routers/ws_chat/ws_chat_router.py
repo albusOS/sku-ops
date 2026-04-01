@@ -64,11 +64,11 @@ from assistant.agents.procurement_analyst.agent import (
 from assistant.agents.trend_analyst.agent import _get_agent as _get_trend_agent
 from assistant.agents.unified.agent import _get_agent
 from assistant.application import job_manager, session_store
+from assistant.application.agent_run_logging import log_agent_run
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
 from assistant.application.job_manager import GENERATION_TIMEOUT
 from assistant.application.workflows.registry import response_agent_label
-from assistant.infrastructure.agent_run_repo import log_agent_run
 from assistant.infrastructure.concurrency import (
     GenerationBusyError,
     acquire_generation_slot,

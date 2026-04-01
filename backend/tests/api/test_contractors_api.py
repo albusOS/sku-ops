@@ -18,35 +18,37 @@ class TestContractorsList:
         data = r.json()
         assert isinstance(data, list)
         assert len(data) >= 1
-        contractor = next((c for c in data if c.get("email") == "contractor@test.com"), None)
+        contractor = next(
+            (c for c in data if c.get("email") == "sarah@summitpm.com"), None
+        )
         assert contractor is not None
-        assert contractor["name"] == "Contractor User"
-        assert contractor["company"] == "ACME"
+        assert contractor["name"] == "Sarah Okafor"
+        assert contractor["company"] == "Summit Property Group"
 
     @pytest.mark.usefixtures("_db")
     def test_search_filters_by_name(self, client, auth_headers):
         """search param filters by name, email, company, etc."""
         r = client.get(
             "/api/beta/operations/contractors",
-            params={"search": "Contractor User"},
+            params={"search": "Sarah Okafor"},
             headers=auth_headers,
         )
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
-        assert any(c["name"] == "Contractor User" for c in data)
+        assert any(c["name"] == "Sarah Okafor" for c in data)
 
     @pytest.mark.usefixtures("_db")
     def test_search_filters_by_company(self, client, auth_headers):
         r = client.get(
             "/api/beta/operations/contractors",
-            params={"search": "ACME"},
+            params={"search": "Summit"},
             headers=auth_headers,
         )
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
-        assert any(c.get("company") == "ACME" for c in data)
+        assert any(c.get("company") == "Summit Property Group" for c in data)
 
     @pytest.mark.usefixtures("_db")
     def test_search_empty_when_no_match(self, client, auth_headers):

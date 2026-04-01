@@ -137,7 +137,7 @@ def test_create_material_request_as_contractor(client, auth, contractor_auth):
     result = cast("dict[str, Any]", resp.json())
 
     assert result["contractor_id"] == CONTRACTOR_USER_ID
-    assert result["contractor_name"] == "Contractor User"
+    assert result["contractor_name"] == "Sarah Okafor"
     assert result["job_id"] == SEEDED_JOB_ID
     assert result["service_address"] == "100 Main St"
     assert result["status"] == "pending"

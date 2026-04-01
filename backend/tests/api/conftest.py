@@ -7,7 +7,7 @@ for proper isolation.
 import pytest
 
 from shared.kernel.constants import DEFAULT_ORG_ID
-from tests.helpers.auth import admin_headers, contractor_headers
+from tests.helpers.auth import BCRYPT_USER_ID, admin_headers, contractor_headers
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +48,7 @@ def _db_with_bcrypt_user(db, _app_client):
         await sql_execute(
             "INSERT INTO users "
             "(id, email, password, name, role, is_active, organization_id, created_at) "
-            "VALUES ('0195f2c0-89ac-7f42-8b11-000000000004', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, $2, NOW()) "
+            f"VALUES ('{BCRYPT_USER_ID}', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, $2, NOW()) "
             "ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password",
             (hashed, DEFAULT_ORG_ID),
         )

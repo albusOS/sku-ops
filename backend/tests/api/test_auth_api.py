@@ -20,7 +20,7 @@ class TestMe:
         r = client.get("/api/beta/shared/auth/me", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert data["email"] == "test@test.com"
+        assert data["email"] == "admin@supplyyard.com"
         assert data["role"] == "admin"
         assert "password" not in data
 

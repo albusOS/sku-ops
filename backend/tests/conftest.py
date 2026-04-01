@@ -27,6 +27,7 @@ import finance.application.event_handlers  # noqa: F401 — registers domain eve
 import inventory.application.event_handlers  # noqa: F401
 import shared.infrastructure.ws_bridge  # noqa: F401
 from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import ADMIN_USER_ID
 from tests.helpers.events import EventCollector
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -79,7 +80,7 @@ async def _truncate_and_seed():
     from shared.infrastructure.logging_config import org_id_var, user_id_var
 
     org_id_var.set(DEFAULT_ORG_ID)
-    user_id_var.set("0195f2c0-89ac-7f42-8b11-000000000002")
+    user_id_var.set(ADMIN_USER_ID)
 
     from shared.infrastructure.db import sql_execute
 

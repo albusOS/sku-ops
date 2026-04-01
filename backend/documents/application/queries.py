@@ -5,7 +5,8 @@ Thin delegation layer that decouples consumers from infrastructure details.
 """
 
 from documents.domain.document import Document
-from documents.infrastructure.document_repo import document_repo as _doc_repo
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 
 async def list_documents(
@@ -15,7 +16,9 @@ async def list_documents(
     limit: int = 100,
     offset: int = 0,
 ) -> list[Document]:
-    return await _doc_repo.list_documents(
+    db = get_database_manager()
+    return await db.documents.list_documents(
+        get_org_id(),
         status=status,
         vendor_name=vendor_name,
         po_id=po_id,
@@ -25,4 +28,5 @@ async def list_documents(
 
 
 async def get_document_by_id(doc_id: str) -> Document | None:
-    return await _doc_repo.get_by_id(doc_id)
+    db = get_database_manager()
+    return await db.documents.get_document_by_id(doc_id, get_org_id())

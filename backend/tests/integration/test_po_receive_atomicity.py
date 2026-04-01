@@ -10,7 +10,6 @@ import pytest
 
 from catalog.application.queries import list_departments
 from catalog.application.sku_lifecycle import create_product_with_sku
-from catalog.infrastructure.sku_repo import sku_repo
 from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_receiving_stock_changes,
@@ -26,7 +25,7 @@ from purchasing.domain.purchase_order import (
     PurchaseOrderItem,
     ReceiveItemUpdate,
 )
-from purchasing.infrastructure.po_repo import po_repo
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
 from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
@@ -79,6 +78,7 @@ async def _create_po_with_item(
     purchase_pack_qty=1,
 ):
     from shared.infrastructure.db import sql_execute
+
     await sql_execute(
         """INSERT INTO vendors (id, name, organization_id, created_at)
            VALUES ($1, $2, $3, NOW())
@@ -93,7 +93,7 @@ async def _create_po_with_item(
         created_by_name="Test",
         organization_id=DEFAULT_ORG_ID,
     )
-    await po_repo.insert_po(po)
+    await get_database_manager().purchasing.insert_po(DEFAULT_ORG_ID, po)
 
     item = PurchaseOrderItem(
         po_id=po.id,
@@ -112,7 +112,9 @@ async def _create_po_with_item(
         sku_id=sku_id,
         organization_id=DEFAULT_ORG_ID,
     )
-    await po_repo.insert_items([item])
+    await get_database_manager().purchasing.insert_po_items(
+        DEFAULT_ORG_ID, [item]
+    )
     return po, item
 
 
@@ -176,12 +178,16 @@ def test_po_receive_rolls_back_stock_on_ledger_failure(call):
                     current_user=_user(),
                 )
 
-            updated = await sku_repo.get_by_id(product.id)
+            updated = await get_database_manager().catalog.get_sku_by_id(
+                product.id, DEFAULT_ORG_ID
+            )
             assert updated.quantity == pytest.approx(100.0), (
                 "Stock should NOT have increased"
             )
 
-            po_items = await po_repo.get_po_items(po.id)
+            po_items = await get_database_manager().purchasing.get_po_items(
+                DEFAULT_ORG_ID, po.id
+            )
             assert po_items[0].status == POItemStatus.PENDING.value, (
                 "PO item should still be PENDING"
             )
@@ -198,6 +204,7 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
 
     async def _body():
         from shared.infrastructure.db import sql_execute
+
         await sql_execute(
             """INSERT INTO vendors (id, name, organization_id, created_at)
                VALUES ($1, $2, $3, NOW())
@@ -216,7 +223,7 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
             created_by_name="Test",
             organization_id=DEFAULT_ORG_ID,
         )
-        await po_repo.insert_po(po)
+        await get_database_manager().purchasing.insert_po(DEFAULT_ORG_ID, po)
         item = PurchaseOrderItem(
             po_id=po.id,
             name="Atomicity Widget",
@@ -233,7 +240,9 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
             sku_id=None,
             organization_id=DEFAULT_ORG_ID,
         )
-        await po_repo.insert_items([item])
+        await get_database_manager().purchasing.insert_po_items(
+            DEFAULT_ORG_ID, [item]
+        )
 
         failing_add = AsyncMock(
             side_effect=RuntimeError("Simulated vendor item failure")
@@ -257,7 +266,9 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
             "Error should be reported for the failed item"
         )
 
-        po_items = await po_repo.get_po_items(po.id)
+        po_items = await get_database_manager().purchasing.get_po_items(
+            DEFAULT_ORG_ID, po.id
+        )
         assert po_items[0].status != POItemStatus.ARRIVED.value, (
             "PO item should NOT be ARRIVED when add_vendor_item failed"
         )
@@ -294,7 +305,9 @@ def test_po_receive_case_uom_converts_to_base_units(call):
         )
 
         assert result.errors == 0
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         assert updated.quantity == pytest.approx(160.0), (
             f"Expected 100 + 60, got {updated.quantity}"
         )
@@ -332,7 +345,9 @@ def test_po_receive_wac_correct_with_uom_conversion(call):
             current_user=_user(),
         )
 
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         expected_wac = round((100 * 1 + 60 * 2) / 160, 4)
         assert updated.cost == pytest.approx(expected_wac, abs=0.01), (
             f"Expected WAC {expected_wac}, got {updated.cost}"
@@ -357,7 +372,9 @@ def test_po_receive_same_uom_no_multiplication(call):
             current_user=_user(),
         )
 
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         assert updated.quantity == pytest.approx(70.0), (
             "Stock should be 50 + 20"
         )

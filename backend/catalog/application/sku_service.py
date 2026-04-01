@@ -9,7 +9,6 @@ SKU format: DEPT-FAMILYSLUG-NN
 import re
 
 from catalog.application import queries as catalog_queries
-from catalog.infrastructure.sku_counter_repo import sku_counter_repo
 from shared.kernel.errors import ResourceNotFoundError
 
 SKU_FORMAT = "DEPT-FAMILYSLUG-NN"
@@ -41,20 +40,28 @@ async def generate_sku(
     already exists (slug collision between different families), appends
     a hash suffix to disambiguate.
     """
-    from catalog.infrastructure.sku_repo import sku_repo
-
-    number = await sku_counter_repo.increment_and_get(product_family_id)
-    raw_slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
+    number = await catalog_queries.increment_sku_counter_and_get(
+        product_family_id
+    )
+    raw_slug = (
+        slug_from_name(family_name or "", max_len=8)
+        if family_name
+        else _DEFAULT_SLUG
+    )
     candidate = f"{department_code}-{raw_slug}-{str(number).zfill(2)}"
 
     # Check for collision and disambiguate if needed
-    existing = await sku_repo.find_by_sku(candidate)
+    existing = await catalog_queries.find_sku_by_sku_code(candidate)
     if existing is None:
         return candidate
 
     # Collision — use a shorter slug + hash from the family ID
     suffix = product_family_id[:4].upper()
-    slug = slug_from_name(family_name or "", max_len=4) if family_name else _DEFAULT_SLUG
+    slug = (
+        slug_from_name(family_name or "", max_len=4)
+        if family_name
+        else _DEFAULT_SLUG
+    )
     return f"{department_code}-{slug}{suffix}-{str(number).zfill(2)}"
 
 
@@ -68,9 +75,13 @@ async def preview_sku(
     if not department:
         raise ResourceNotFoundError("Category", category_id)
     code = department.code
-    slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
+    slug = (
+        slug_from_name(family_name or "", max_len=8)
+        if family_name
+        else _DEFAULT_SLUG
+    )
     if product_family_id:
-        next_num = await sku_counter_repo.get_next_number(product_family_id)
+        next_num = await catalog_queries.get_next_sku_number(product_family_id)
     else:
         next_num = 1
     return {
@@ -84,7 +95,11 @@ async def preview_sku(
 async def sku_overview(family_name: str | None = None) -> dict:
     """Return SKU format info and example SKU for every department."""
     departments = await catalog_queries.list_departments()
-    slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
+    slug = (
+        slug_from_name(family_name or "", max_len=8)
+        if family_name
+        else _DEFAULT_SLUG
+    )
     depts = []
     for d in departments:
         dept_data = d.model_dump()

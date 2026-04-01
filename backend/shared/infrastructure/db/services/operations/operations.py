@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from sqlalchemy import case, cast, func, select, update
@@ -13,7 +15,6 @@ from operations.domain.returns import MaterialReturn
 from operations.domain.withdrawal import MaterialWithdrawal
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
-from shared.infrastructure.db.services._org_scope import scoped_org
 from shared.infrastructure.db.services.operations._helpers import (
     build_material_request_item_row,
     build_material_request_row,
@@ -28,6 +29,7 @@ from shared.infrastructure.db.services.operations._helpers import (
     hydrate_withdrawal,
     hydrate_withdrawals,
 )
+from shared.infrastructure.logging_config import org_id_var
 from shared.infrastructure.types.public_sql_model_models import (
     MaterialRequests,
     Returns,
@@ -35,6 +37,15 @@ from shared.infrastructure.types.public_sql_model_models import (
     Withdrawals,
 )
 from shared.kernel.errors import InvalidTransitionError
+
+
+@asynccontextmanager
+async def _scoped_org(org_id: str) -> AsyncIterator[None]:
+    token = org_id_var.set(org_id)
+    try:
+        yield None
+    finally:
+        org_id_var.reset(token)
 
 
 class OperationsDatabaseService(DomainDatabaseService):
@@ -469,25 +480,25 @@ class OperationsDatabaseService(DomainDatabaseService):
     async def get_contractor_by_id(self, org_id: str, user_id: str):
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.get_contractor_by_id(user_id)
 
     async def get_contractors_by_ids(self, org_id: str, user_ids: list[str]):
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.get_users_by_ids(user_ids)
 
     async def list_contractors(self, org_id: str, search: str | None = None):
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.list_contractors(search=search)
 
     async def count_contractors(self, org_id: str) -> int:
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.count_contractors()
 
     async def create_contractor(
@@ -502,7 +513,7 @@ class OperationsDatabaseService(DomainDatabaseService):
     ):
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.create_contractor(
                 email,
                 password,
@@ -515,7 +526,7 @@ class OperationsDatabaseService(DomainDatabaseService):
     async def update_contractor(self, org_id: str, contractor_id: str, updates):
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.update_contractor(
                 contractor_id, updates
             )
@@ -523,5 +534,5 @@ class OperationsDatabaseService(DomainDatabaseService):
     async def delete_contractor(self, org_id: str, contractor_id: str) -> int:
         from operations.application import contractor_service
 
-        async with scoped_org(org_id):
+        async with _scoped_org(org_id):
             return await contractor_service.delete_contractor(contractor_id)

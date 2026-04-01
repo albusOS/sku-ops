@@ -5,7 +5,8 @@ Thin delegation layer that decouples consumers from infrastructure details.
 """
 
 from jobs.domain.job import Job
-from jobs.infrastructure.job_repo import job_repo as _job_repo
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 
 async def list_jobs(
@@ -14,7 +15,9 @@ async def list_jobs(
     limit: int = 200,
     offset: int = 0,
 ) -> list[Job]:
-    return await _job_repo.list_jobs(
+    db = get_database_manager()
+    return await db.jobs.list_jobs(
+        get_org_id(),
         status=status,
         q=q,
         limit=limit,
@@ -23,20 +26,25 @@ async def list_jobs(
 
 
 async def search_jobs(query: str, limit: int = 20) -> list[Job]:
-    return await _job_repo.search(query, limit=limit)
+    db = get_database_manager()
+    return await db.jobs.search_jobs(get_org_id(), query, limit=limit)
 
 
 async def get_job_by_id(job_id: str) -> Job | None:
-    return await _job_repo.get_by_id(job_id)
+    db = get_database_manager()
+    return await db.jobs.get_job_by_id(job_id, get_org_id())
 
 
 async def get_job_by_code(code: str) -> Job | None:
-    return await _job_repo.get_by_code(code)
+    db = get_database_manager()
+    return await db.jobs.get_job_by_code(code, get_org_id())
 
 
 async def insert_job(job: Job | dict) -> None:
-    return await _job_repo.insert(job)
+    db = get_database_manager()
+    await db.jobs.insert_job(job)
 
 
 async def update_job(job_id: str, updates: dict) -> Job | None:
-    return await _job_repo.update(job_id, updates)
+    db = get_database_manager()
+    return await db.jobs.update_job(job_id, get_org_id(), updates)

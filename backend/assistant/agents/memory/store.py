@@ -1,269 +1,42 @@
 """Persistent cross-session memory for chat agents.
 
-Artifacts are typed facts extracted from completed conversations.
-They are recalled at the start of fresh sessions so agents have context
-about recurring contractors, SKUs, and user preferences.
-
-Recall uses hybrid scoring (semantic similarity + recency + type boost)
-when pgvector is available, falling back to date-ordered retrieval.
+Delegates persistence and semantic recall to ``AssistantDatabaseService``.
 """
 
-import asyncio
-import json
+from __future__ import annotations
+
 import logging
-import math
-from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 if TYPE_CHECKING:
     import numpy as np
 
-from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.db import (
-    get_org_id,
-    sql_execute,
-    sql_execute_many,
-    transaction,
-)
-
 logger = logging.getLogger(__name__)
-
-_DEFAULT_TTL_DAYS = 90
-
-# Type boost weights for hybrid recall scoring.
-_TYPE_BOOST: dict[str, float] = {
-    "user_preference": 0.10,
-    "decision": 0.08,
-    "entity_fact": 0.04,
-    "insight": 0.04,
-    "session_summary": 0.0,
-}
 
 
 async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
-    """Persist a list of extracted artifacts to the DB.
-
-    Also embeds each artifact and upserts to the embeddings table for
-    semantic recall (fire-and-forget, non-blocking).
-    """
-    if not artifacts:
-        return
+    """Persist extracted artifacts and queue embedding upsert (non-blocking)."""
     org_id = get_org_id()
-    now = datetime.now(UTC)
-    expires_at = datetime.now(UTC) + timedelta(days=_DEFAULT_TTL_DAYS)
-    rows: list[tuple[Any, ...]] = []
-    artifact_ids: list[str] = []
-    artifact_contents: list[str] = []
-
-    for a in artifacts:
-        if not isinstance(a, dict) or not a.get("content"):
-            continue
-        aid = new_uuid7_str()
-        content = (a.get("content") or "")[:1000]
-        rows.append(
-            (
-                aid,
-                org_id,
-                user_id,
-                session_id,
-                (a.get("type") or "entity_fact")[:32],
-                (a.get("subject") or "general")[:128],
-                content,
-                json.dumps(a.get("tags") or []),
-                now,
-                expires_at,
-            )
-        )
-        artifact_ids.append(aid)
-        # Embed the subject + content together for richer semantic matching
-        subject = (a.get("subject") or "general")[:128]
-        artifact_contents.append(f"{subject}: {content}")
-
-    if not rows:
-        return
-    async with transaction():
-        await sql_execute_many(
-            """INSERT INTO memory_artifacts
-                   (id, org_id, user_id, session_id, type, subject, content, tags, created_at, expires_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
-            rows,
-            read_only=False,
-        )
-    logger.info("Memory: saved %d artifacts for user=%s", len(rows), user_id)
-
-    # Embed + persist vectors in background (non-blocking). Keep reference to prevent GC.
-    def _on_embed_done(t: asyncio.Task) -> None:
-        if t.cancelled():
-            return
-        exc = t.exception()
-        if exc:
-            logger.warning(
-                "Background embed task failed: %s", exc, exc_info=exc
-            )
-
-    _embed_task = asyncio.create_task(
-        _embed_artifacts(org_id, artifact_ids, artifact_contents)
-    )
-    _embed_task.add_done_callback(_on_embed_done)
-
-
-async def _embed_artifacts(
-    org_id: str, artifact_ids: list[str], contents: list[str]
-) -> None:
-    """Background task: embed memory artifacts and persist to pgvector."""
-    try:
-        from assistant.infrastructure.embedding_store import (
-            embed_texts,
-            is_pgvector_available,
-            upsert_batch,
-        )
-
-        if not await is_pgvector_available():
-            return
-        vecs = await embed_texts(contents)
-        if vecs is None:
-            return
-        items = [
-            (aid, content, vec)
-            for aid, content, vec in zip(
-                artifact_ids, contents, vecs, strict=False
-            )
-        ]
-        written = await upsert_batch(org_id, "memory", items)
-        if written:
-            logger.debug("Memory embeddings: wrote %d vectors", written)
-    except Exception as e:
-        logger.warning("Memory embedding failed (non-critical): %s", e)
+    db = get_database_manager()
+    await db.assistant.memory_save(org_id, user_id, session_id, artifacts)
 
 
 async def recall(
     user_id: str,
     query: str | None = None,
     limit: int = 10,
-    query_embedding: "np.ndarray | None" = None,
+    query_embedding: np.ndarray | None = None,
 ) -> str:
-    """Return a formatted context string of relevant artifacts for session injection.
-
-    When *query* is provided and pgvector is available, uses hybrid scoring:
-      0.6 * semantic_similarity + 0.3 * recency_decay + 0.1 * type_boost
-
-    When *query_embedding* is provided, skips the embedding API call.
-    Falls back to date-ordered retrieval (original behavior) otherwise.
-    Returns empty string if no artifacts exist.
-    """
+    """Return formatted memory context for session injection."""
     org_id = get_org_id()
-    now = datetime.now(UTC)
-
-    if query:
-        rows = await _semantic_recall(
-            org_id, user_id, query, now, limit, query_embedding=query_embedding
-        )
-        if rows:
-            return _format_rows(rows)
-
-    res = await sql_execute(
-        """SELECT type, subject, content, created_at
-           FROM memory_artifacts
-           WHERE org_id = $1 AND user_id = $2
-             AND (expires_at IS NULL OR expires_at > $3)
-           ORDER BY created_at DESC
-           LIMIT $4""",
-        (org_id, user_id, now, limit),
-        read_only=True,
-        max_rows=limit + 1,
+    db = get_database_manager()
+    return await db.assistant.memory_recall(
+        org_id,
+        user_id,
+        query=query,
+        limit=limit,
+        query_embedding=query_embedding,
     )
-    rows = res.rows
-    if not rows:
-        return ""
-    return _format_rows(rows)
-
-
-async def _semantic_recall(
-    org_id: str,
-    user_id: str,
-    query: str,
-    now: datetime,
-    limit: int,
-    query_embedding: "np.ndarray | None" = None,
-) -> list[dict] | None:
-    """Attempt pgvector-based semantic recall with hybrid scoring.
-
-    Returns None if pgvector or embeddings unavailable, triggering fallback.
-    """
-    try:
-        from assistant.infrastructure.embedding_store import (
-            embed_query,
-            is_pgvector_available,
-        )
-
-        if not await is_pgvector_available():
-            return None
-
-        qvec = (
-            query_embedding
-            if query_embedding is not None
-            else await embed_query(query)
-        )
-        if qvec is None:
-            return None
-
-        from assistant.infrastructure.embedding_store import _vec_to_pgvector
-
-        vec_str = _vec_to_pgvector(qvec)
-
-        # Join memory_artifacts with embeddings for hybrid scoring
-        res = await sql_execute(
-            """SELECT m.type, m.subject, m.content, m.created_at,
-                      1 - (e.embedding <=> $1::vector) AS similarity
-               FROM memory_artifacts m
-               JOIN embeddings e ON e.entity_id = m.id AND e.entity_type = 'memory'
-               WHERE m.org_id = $2 AND m.user_id = $3
-                 AND (m.expires_at IS NULL OR m.expires_at > $4)
-               ORDER BY similarity DESC
-               LIMIT $5""",
-            (vec_str, org_id, user_id, now, limit * 3),
-            read_only=True,
-            max_rows=limit * 3 + 1,
-        )
-        candidates = res.rows
-        if not candidates:
-            return None
-
-        # Apply hybrid scoring
-        scored = []
-        for r in candidates:
-            sim = float(r["similarity"])
-            # Recency decay: e^(-0.02 * days_old) — 1.0 today, ~0.55 at 30d, ~0.16 at 90d
-            created = r["created_at"] or ""
-            try:
-                created_dt = (
-                    datetime.fromisoformat(created)
-                    if isinstance(created, str)
-                    else created
-                )
-                days_old = max(0, (now - created_dt).total_seconds() / 86400)
-            except (ValueError, TypeError):
-                days_old = 30  # assume moderate age if unparseable
-            recency = math.exp(-0.02 * days_old)
-            type_boost = _TYPE_BOOST.get(r["type"], 0.0)
-            hybrid_score = 0.6 * sim + 0.3 * recency + type_boost
-
-            scored.append((hybrid_score, r))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [r for _, r in scored[:limit]]
-
-    except Exception as e:
-        logger.debug("Semantic recall unavailable, falling back: %s", e)
-        return None
-
-
-def _format_rows(rows: list) -> str:
-    """Format artifact rows as a context string for agent injection."""
-    lines = [
-        "[Memory from previous sessions — background context only, not ground truth]"
-    ]
-    for r in rows:
-        date = (r["created_at"] or "")[:10]
-        lines.append(f"- [{r['type']}] {r['subject']}: {r['content']} ({date})")
-    return "\n".join(lines)

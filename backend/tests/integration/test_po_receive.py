@@ -4,12 +4,10 @@ import pytest
 
 from catalog.application.queries import list_departments
 from catalog.application.sku_lifecycle import create_product_with_sku
-from catalog.infrastructure.sku_repo import sku_repo
 from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_receiving_stock_changes,
 )
-from inventory.infrastructure.stock_repo import stock_repo
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
     _resolve_po_item_cost,
@@ -22,8 +20,8 @@ from purchasing.domain.purchase_order import (
     PurchaseOrderItem,
     ReceiveItemUpdate,
 )
-from purchasing.infrastructure.po_repo import po_repo
 from shared.infrastructure.db import sql_execute
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
 from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
@@ -77,7 +75,7 @@ async def _create_po_with_item(
         created_by_name="Test",
         organization_id=DEFAULT_ORG_ID,
     )
-    await po_repo.insert_po(po)
+    await get_database_manager().purchasing.insert_po(DEFAULT_ORG_ID, po)
 
     item = PurchaseOrderItem(
         po_id=po.id,
@@ -94,7 +92,9 @@ async def _create_po_with_item(
         sku_id=sku_id,
         organization_id=DEFAULT_ORG_ID,
     )
-    await po_repo.insert_items([item])
+    await get_database_manager().purchasing.insert_po_items(
+        DEFAULT_ORG_ID, [item]
+    )
     return po, item
 
 
@@ -178,7 +178,9 @@ def test_receive_updates_stock(call):
         assert result.matched == 1
         assert result.errors == 0
 
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         assert updated.quantity == pytest.approx(150.0)
 
     call(_body)
@@ -200,7 +202,9 @@ def test_receive_weighted_average_cost(call):
             current_user=_user(),
         )
 
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         expected_wac = (100 * 8 + 50 * 12) / 150
         assert updated.cost == pytest.approx(expected_wac, abs=0.01)
 
@@ -234,7 +238,7 @@ def test_receive_cost_fallback_from_unit_price(call):
             "SELECT SUM(amount) FROM financial_ledger WHERE reference_id = $1 AND account = 'inventory'",
             (po.id,),
         )
-        row = (cursor.rows[0] if cursor.rows else None)
+        row = cursor.rows[0] if cursor.rows else None
         assert row[0] is not None and row[0] > 0, (
             "Ledger INVENTORY entry should be non-zero"
         )
@@ -258,7 +262,9 @@ def test_receive_creates_stock_transaction(call):
             current_user=_user(),
         )
 
-        txs = await stock_repo.list_by_product(product.id, limit=50)
+        txs = await get_database_manager().inventory.list_stock_transactions_by_product(
+            DEFAULT_ORG_ID, product.id, limit=50
+        )
         receiving_txs = [t for t in txs if t.transaction_type == "receiving"]
         assert len(receiving_txs) >= 1
         assert receiving_txs[0].quantity_delta == pytest.approx(25.0)
@@ -366,7 +372,9 @@ def test_receive_cost_override_affects_wac(call):
         )
 
         assert result.matched == 1
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         expected_wac = (100 * 8 + 50 * 20) / 150
         assert updated.cost == pytest.approx(expected_wac, abs=0.01)
 
@@ -404,7 +412,7 @@ def test_receive_creates_product_with_overridden_name(call):
             "SELECT name FROM skus WHERE id = (SELECT sku_id FROM purchase_order_items WHERE id = $1)",
             (item.id,),
         )
-        row = (cursor.rows[0] if cursor.rows else None)
+        row = cursor.rows[0] if cursor.rows else None
         assert row is not None
         assert row[0] == "Corrected Widget Name"
 
@@ -439,10 +447,14 @@ def test_receive_sku_id_override_matches_explicit(call):
         )
 
         assert result.matched == 1
-        updated_b = await sku_repo.get_by_id(product_b.id)
+        updated_b = await get_database_manager().catalog.get_sku_by_id(
+            product_b.id, DEFAULT_ORG_ID
+        )
         assert updated_b.quantity == pytest.approx(50.0)
 
-        updated_a = await sku_repo.get_by_id(product_a.id)
+        updated_a = await get_database_manager().catalog.get_sku_by_id(
+            product_a.id, DEFAULT_ORG_ID
+        )
         assert updated_a.quantity == pytest.approx(50.0)
 
     call(_body)
@@ -476,7 +488,9 @@ def test_receive_items_with_typed_input(call):
         assert result.errors == 0
         assert result.cost_total == pytest.approx(6.0 * 15)
 
-        updated = await sku_repo.get_by_id(product.id)
+        updated = await get_database_manager().catalog.get_sku_by_id(
+            product.id, DEFAULT_ORG_ID
+        )
         assert updated.quantity == pytest.approx(35.0)
 
     call(_body)

@@ -6,12 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from shared.api.deps import CurrentUserDep
-from shared.infrastructure.user_repo import (
-    fetch_by_email as _fetch_user_by_email_repo,
-)
-from shared.infrastructure.user_repo import (
-    fetch_by_id as _fetch_user_by_id_repo,
-)
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,11 +39,11 @@ def _row_to_user(row) -> UserResponse:
 
 
 async def _fetch_user_by_email(email: str):
-    return await _fetch_user_by_email_repo(email)
+    return await get_database_manager().shared.fetch_user_by_email(email)
 
 
 async def _fetch_user_by_id(user_id: str):
-    return await _fetch_user_by_id_repo(user_id)
+    return await get_database_manager().shared.fetch_user_safe_by_id(user_id)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────

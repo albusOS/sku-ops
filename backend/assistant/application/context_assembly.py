@@ -61,7 +61,9 @@ class AssembledContext:
                     f"- [{h['entity_type']}] {h.get('content', h['entity_id'])} "
                     f"(relevance: {h.get('similarity', 0):.2f})"
                 )
-            sections.append("[Potentially relevant entities]\n" + "\n".join(hit_lines))
+            sections.append(
+                "[Potentially relevant entities]\n" + "\n".join(hit_lines)
+            )
 
         # Memory context
         if self.memory_context:
@@ -69,8 +71,13 @@ class AssembledContext:
 
         # Active session entities
         if self.active_entities:
-            active_lines = [f"- {e.type}: {e.label} ({e.id[:8]})" for e in self.active_entities[:5]]
-            sections.append("[Active in this session]\n" + "\n".join(active_lines))
+            active_lines = [
+                f"- {e.type}: {e.label} ({e.id[:8]})"
+                for e in self.active_entities[:5]
+            ]
+            sections.append(
+                "[Active in this session]\n" + "\n".join(active_lines)
+            )
 
         # Last topic
         if self.last_topic:
@@ -116,12 +123,19 @@ async def assemble_context(
 
     if max_entity_hits > 0:
         tasks["vector"] = asyncio.create_task(
-            _vector_search(query, max_entity_hits, query_embedding=query_embedding)
+            _vector_search(
+                query, max_entity_hits, query_embedding=query_embedding
+            )
         )
 
     if include_memory:
         tasks["memory"] = asyncio.create_task(
-            _recall_memory(user_id, query, max_memory_items, query_embedding=query_embedding)
+            _recall_memory(
+                user_id,
+                query,
+                max_memory_items,
+                query_embedding=query_embedding,
+            )
         )
 
     entity_hits = await tasks["vector"] if "vector" in tasks else []
@@ -177,21 +191,26 @@ async def _vector_search(
         from assistant.infrastructure.embedding_store import (
             embed_query,
             is_pgvector_available,
-            search,
         )
         from shared.infrastructure.db import get_org_id
+        from shared.infrastructure.db.base import get_database_manager
 
         if not await is_pgvector_available():
             return []
 
-        qvec = query_embedding if query_embedding is not None else await embed_query(query)
+        qvec = (
+            query_embedding
+            if query_embedding is not None
+            else await embed_query(query)
+        )
         if qvec is None:
             return []
 
         org_id = get_org_id()
-        hits = await search(
-            qvec,
+        db = get_database_manager()
+        hits = await db.assistant.embedding_search(
             org_id,
+            qvec,
             entity_types=["sku", "vendor", "purchase_order", "job"],
             limit=limit,
         )
@@ -212,7 +231,10 @@ async def _recall_memory(
         from assistant.agents.memory.store import recall
 
         return await recall(
-            user_id=user_id, query=query, limit=limit, query_embedding=query_embedding
+            user_id=user_id,
+            query=query,
+            limit=limit,
+            query_embedding=query_embedding,
         )
     except Exception as e:
         logger.debug("Memory recall failed (non-critical): %s", e)

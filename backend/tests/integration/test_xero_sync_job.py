@@ -27,8 +27,6 @@ from finance.application.invoice_service import (
     create_invoice_from_withdrawals,
     update_invoice,
 )
-from finance.infrastructure.credit_note_repo import credit_note_repo
-from finance.infrastructure.invoice_repo import invoice_repo
 from shared.infrastructure.db import sql_execute
 from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
@@ -44,6 +42,18 @@ _STUB_XERO_TOKEN = "stub-" + "token"
 _STUB_TENANT = "stub-tenant"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+async def _get_invoice(inv_id: str):
+    return await get_database_manager().finance.invoice_get_by_id(
+        DEFAULT_ORG_ID, inv_id
+    )
+
+
+async def _get_credit_note(cn_id: str):
+    return await get_database_manager().finance.credit_note_get_by_id(
+        DEFAULT_ORG_ID, cn_id
+    )
 
 
 async def _make_withdrawal(billing_entity="On Point LLC") -> str:
@@ -136,14 +146,14 @@ class TestSyncJobIdempotency:
             inv_id = inv.id
 
             await _run_sync_with_stub()
-            inv_after_1 = await invoice_repo.get_by_id(inv_id)
+            inv_after_1 = await _get_invoice(inv_id)
             xero_id_1 = inv_after_1.xero_invoice_id
             assert xero_id_1 is not None, (
                 "First sync should set xero_invoice_id"
             )
 
             await _run_sync_with_stub()
-            inv_after_2 = await invoice_repo.get_by_id(inv_id)
+            inv_after_2 = await _get_invoice(inv_id)
             xero_id_2 = inv_after_2.xero_invoice_id
 
             assert xero_id_1 == xero_id_2, (
@@ -210,7 +220,7 @@ class TestSyncJobIdempotency:
         async def _body():
             inv = await _make_approved_invoice()
             await _run_sync_with_stub()
-            inv_after = await invoice_repo.get_by_id(inv.id)
+            inv_after = await _get_invoice(inv.id)
             assert inv_after.xero_sync_status == "synced"
 
         call(_body)
@@ -230,7 +240,7 @@ class TestSyncStatusGating:
 
             await _run_sync_with_stub()
 
-            inv_after = await invoice_repo.get_by_id(inv.id)
+            inv_after = await _get_invoice(inv.id)
             assert inv_after.xero_invoice_id is None, (
                 "Draft invoice must not be synced to Xero"
             )
@@ -242,7 +252,7 @@ class TestSyncStatusGating:
         async def _body():
             inv = await _make_approved_invoice()
             await _run_sync_with_stub()
-            inv_after = await invoice_repo.get_by_id(inv.id)
+            inv_after = await _get_invoice(inv.id)
             assert inv_after.xero_invoice_id is not None
 
         call(_body)
@@ -458,7 +468,7 @@ class TestReconciliationMismatch:
             async def _body_sync():
                 inv = await _make_approved_invoice()
                 await run_sync(reconcile=False)
-                inv_synced = await invoice_repo.get_by_id(inv.id)
+                inv_synced = await _get_invoice(inv.id)
                 assert inv_synced.xero_invoice_id is not None
                 return inv.id
 
@@ -487,7 +497,7 @@ class TestReconciliationMismatch:
 
             async def _body_reconcile():
                 await run_sync(reconcile=True)
-                inv_after = await invoice_repo.get_by_id(inv_id)
+                inv_after = await _get_invoice(inv_id)
                 assert inv_after.xero_sync_status == "mismatch", (
                     f"Expected xero_sync_status='mismatch', got {inv_after.xero_sync_status!r}"
                 )
@@ -530,7 +540,7 @@ class TestReconciliationMismatch:
             async def _body_sync():
                 inv = await _make_approved_invoice()
                 await run_sync(reconcile=False)
-                inv_synced = await invoice_repo.get_by_id(inv.id)
+                inv_synced = await _get_invoice(inv.id)
                 return inv.id, inv_synced.total, len(inv_synced.line_items)
 
             inv_id, local_total, local_line_count = call(_body_sync)
@@ -558,7 +568,7 @@ class TestReconciliationMismatch:
 
             async def _body_reconcile():
                 await run_sync(reconcile=True)
-                inv_final = await invoice_repo.get_by_id(inv_id)
+                inv_final = await _get_invoice(inv_id)
                 assert inv_final.xero_sync_status == "synced"
 
             call(_body_reconcile)
@@ -593,7 +603,7 @@ class TestCreditNoteSync:
             )
             await _run_sync_with_stub()
 
-            cn_after = await credit_note_repo.get_by_id(cn_id)
+            cn_after = await _get_credit_note(cn_id)
             assert cn_after.xero_credit_note_id is not None, (
                 "Applied credit note must be synced to Xero"
             )
@@ -619,7 +629,7 @@ class TestCreditNoteSync:
             )
             await _run_sync_with_stub()
 
-            cn_after = await credit_note_repo.get_by_id(cn_id)
+            cn_after = await _get_credit_note(cn_id)
             assert cn_after.xero_credit_note_id is None
 
         call(_body)
@@ -633,8 +643,8 @@ class TestPOQueuing:
         async def _body():
             from finance.application.po_sync_service import queue_po_for_sync
             from purchasing.domain.purchase_order import POStatus, PurchaseOrder
-            from purchasing.infrastructure.po_repo import po_repo
 
+            pdb = get_database_manager().purchasing
             await sql_execute(
                 """INSERT INTO vendors (id, name, organization_id, created_at)
                    VALUES ($1, $2, $3, NOW())
@@ -649,11 +659,11 @@ class TestPOQueuing:
                 created_by_name="Test",
                 organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_po(po)
+            await pdb.insert_po(DEFAULT_ORG_ID, po)
 
             await queue_po_for_sync(po.id)
 
-            po_after = await po_repo.get_po(po.id)
+            po_after = await pdb.get_po(DEFAULT_ORG_ID, po.id)
             assert po_after.xero_sync_status == "pending"
 
         call(_body)
@@ -691,8 +701,8 @@ class TestPOQueuing:
                     PurchaseOrder,
                     PurchaseOrderItem,
                 )
-                from purchasing.infrastructure.po_repo import po_repo
 
+                pdb = get_database_manager().purchasing
                 await sql_execute(
                     """INSERT INTO vendors (id, name, organization_id, created_at)
                        VALUES ($1, $2, $3, NOW())
@@ -707,7 +717,7 @@ class TestPOQueuing:
                     created_by_name="Test",
                     organization_id=DEFAULT_ORG_ID,
                 )
-                await po_repo.insert_po(po)
+                await pdb.insert_po(DEFAULT_ORG_ID, po)
 
                 item = PurchaseOrderItem(
                     po_id=po.id,
@@ -723,13 +733,13 @@ class TestPOQueuing:
                     status=POItemStatus.ARRIVED,
                     organization_id=DEFAULT_ORG_ID,
                 )
-                await po_repo.insert_items([item])
+                await pdb.insert_po_items(DEFAULT_ORG_ID, [item])
                 await queue_po_for_sync(po.id)
 
                 result = await sync_po_bill(po.id)
 
                 assert result.success is True
-                po_after = await po_repo.get_po(po.id)
+                po_after = await pdb.get_po(DEFAULT_ORG_ID, po.id)
                 assert po_after.xero_bill_id is not None
                 assert po_after.xero_sync_status == "synced"
 
@@ -766,8 +776,8 @@ class TestPOQueuing:
                     PurchaseOrder,
                     PurchaseOrderItem,
                 )
-                from purchasing.infrastructure.po_repo import po_repo
 
+                pdb = get_database_manager().purchasing
                 await sql_execute(
                     """INSERT INTO vendors (id, name, organization_id, created_at)
                        VALUES ($1, $2, $3, NOW())
@@ -782,7 +792,7 @@ class TestPOQueuing:
                     created_by_name="Test",
                     organization_id=DEFAULT_ORG_ID,
                 )
-                await po_repo.insert_po(po)
+                await pdb.insert_po(DEFAULT_ORG_ID, po)
                 item = PurchaseOrderItem(
                     po_id=po.id,
                     name="Widget",
@@ -797,12 +807,12 @@ class TestPOQueuing:
                     status=POItemStatus.ARRIVED,
                     organization_id=DEFAULT_ORG_ID,
                 )
-                await po_repo.insert_items([item])
+                await pdb.insert_po_items(DEFAULT_ORG_ID, [item])
 
                 r1 = await sync_po_bill(po.id)
                 r2 = await sync_po_bill(po.id)
 
-                po_after = await po_repo.get_po(po.id)
+                po_after = await pdb.get_po(DEFAULT_ORG_ID, po.id)
                 assert (
                     r1.xero_bill_id == r2.xero_bill_id == po_after.xero_bill_id
                 )
@@ -869,7 +879,7 @@ class TestSyncSummaryCounts:
                 summary = await run_sync(reconcile=False)
 
                 assert summary.invoices_failed == 1
-                inv_after = await invoice_repo.get_by_id(inv.id)
+                inv_after = await _get_invoice(inv.id)
                 assert inv_after.xero_sync_status == "failed"
                 assert inv_after.xero_invoice_id is None
 
@@ -899,7 +909,7 @@ class TestCogsRepost:
 
             # Sync it first
             await _run_sync_with_stub()
-            inv_synced = await invoice_repo.get_by_id(inv_id)
+            inv_synced = await _get_invoice(inv_id)
             assert inv_synced.xero_invoice_id is not None
             assert inv_synced.xero_sync_status == "synced"
 
@@ -917,7 +927,7 @@ class TestCogsRepost:
             ]
             await update_invoice(inv_id, line_items=new_items)
 
-            inv_after_edit = await invoice_repo.get_by_id(inv_id)
+            inv_after_edit = await _get_invoice(inv_id)
             assert inv_after_edit.xero_sync_status == "cogs_stale", (
                 f"Expected 'cogs_stale' after line item edit, got {inv_after_edit.xero_sync_status!r}"
             )
@@ -947,7 +957,7 @@ class TestCogsRepost:
             ]
             await update_invoice(inv.id, line_items=new_items)
 
-            inv_after = await invoice_repo.get_by_id(inv.id)
+            inv_after = await _get_invoice(inv.id)
             assert inv_after.xero_sync_status != "cogs_stale", (
                 "Unsynced invoice must not be marked cogs_stale — it was never sent to Xero"
             )
@@ -1000,7 +1010,7 @@ class TestCogsRepost:
 
                 # First sync
                 await _run_sync_with_stub()
-                inv_synced = await invoice_repo.get_by_id(inv_id)
+                inv_synced = await _get_invoice(inv_id)
                 assert inv_synced.xero_sync_status == "synced"
 
                 # Edit line items -> triggers cogs_stale
@@ -1018,7 +1028,7 @@ class TestCogsRepost:
                         }
                     ],
                 )
-                inv_stale = await invoice_repo.get_by_id(inv_id)
+                inv_stale = await _get_invoice(inv_id)
                 assert inv_stale.xero_sync_status == "cogs_stale"
 
                 # Run sync again — the repost pass should fix it
@@ -1030,7 +1040,7 @@ class TestCogsRepost:
                 assert summary.cogs_reposted == 1
                 assert summary.cogs_repost_failed == 0
 
-                inv_final = await invoice_repo.get_by_id(inv_id)
+                inv_final = await _get_invoice(inv_id)
                 assert inv_final.xero_sync_status == "synced", (
                     f"After COGS re-post, status must be 'synced', got {inv_final.xero_sync_status!r}"
                 )

@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.address_repo import StoredAddress, address_repo
-from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.db.services.shared import StoredAddress
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 
@@ -34,7 +34,8 @@ async def list_addresses(
     limit: int = 100,
     offset: int = 0,
 ):
-    return await address_repo.list_addresses(
+    return await get_database_manager().shared.list_addresses(
+        current_user.organization_id,
         billing_entity_id=billing_entity_id,
         job_id=job_id,
         q=q,
@@ -50,16 +51,21 @@ async def search_addresses(
     limit: int = 20,
 ):
     """Autocomplete endpoint for address pickers."""
+    oid = current_user.organization_id
     if not q.strip():
-        return await address_repo.list_addresses(
-            limit=limit,
+        return await get_database_manager().shared.list_addresses(
+            oid, limit=limit
         )
-    return await address_repo.search(q, limit=limit)
+    return await get_database_manager().shared.search_addresses(
+        oid, q, limit=limit
+    )
 
 
 @router.get("/{address_id}")
 async def get_address(address_id: str, current_user: AdminDep):
-    addr = await address_repo.get_by_id(address_id)
+    addr = await get_database_manager().shared.get_address_by_id(
+        address_id, current_user.organization_id
+    )
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
     return addr
@@ -86,8 +92,8 @@ async def create_address(
         country=data.country,
         billing_entity_id=data.billing_entity_id,
         job_id=data.job_id,
-        organization_id=get_org_id(),
+        organization_id=current_user.organization_id,
         created_at=datetime.now(UTC),
     )
-    await address_repo.insert(address)
+    await get_database_manager().shared.insert_address(address)
     return address

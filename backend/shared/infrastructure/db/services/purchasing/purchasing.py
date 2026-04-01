@@ -789,3 +789,35 @@ class PurchasingDatabaseService(DomainDatabaseService):
             "stated_days": round(stated_days, 1) if stated_days else None,
             "trend": trend,
         }
+
+    async def last_po_created_at_by_vendor_for_sku(
+        self, org_id: str, sku_id: str
+    ) -> dict[str, datetime | None]:
+        """Latest PO created_at per vendor for order lines matching sku_id (org scoped)."""
+        oid = as_uuid_required(org_id)
+        sid = as_uuid_required(sku_id)
+        async with self.session() as session:
+            stmt = (
+                select(
+                    PurchaseOrders.vendor_id,
+                    func.max(PurchaseOrders.created_at).label("last_po_date"),
+                )
+                .select_from(PurchaseOrders)
+                .join(
+                    PurchaseOrderItems,
+                    PurchaseOrderItems.po_id == PurchaseOrders.id,
+                )
+                .where(
+                    PurchaseOrders.organization_id == oid,
+                    PurchaseOrderItems.sku_id == sid,
+                )
+                .group_by(PurchaseOrders.vendor_id)
+            )
+            result = await session.execute(stmt)
+            rows = result.mappings().all()
+        out: dict[str, datetime | None] = {}
+        for r in rows:
+            vid = r["vendor_id"]
+            if vid is not None:
+                out[str(vid)] = r["last_po_date"]
+        return out

@@ -24,9 +24,9 @@ from catalog.application.queries import (
     list_product_families,
 )
 from documents.domain.document import Document
-from documents.infrastructure.document_repo import document_repo
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 
 if TYPE_CHECKING:
     from shared.kernel.types import CurrentUser
@@ -43,9 +43,9 @@ _DOCUMENT_PARSE_SYSTEM: str | None = None
 def _get_parse_system_prompt() -> str:
     global _DOCUMENT_PARSE_SYSTEM
     if _DOCUMENT_PARSE_SYSTEM is None:
-        _DOCUMENT_PARSE_SYSTEM = (_PROMPT_DIR / "document_parse_prompt.md").read_text(
-            encoding="utf-8"
-        )
+        _DOCUMENT_PARSE_SYSTEM = (
+            _PROMPT_DIR / "document_parse_prompt.md"
+        ).read_text(encoding="utf-8")
     return _DOCUMENT_PARSE_SYSTEM
 
 
@@ -70,11 +70,15 @@ async def persist_parsed_document(
         organization_id=get_org_id(),
     )
     async with transaction():
-        await document_repo.insert(doc)
+        await get_database_manager().documents.insert_document(doc)
     extracted["document_id"] = doc.id
     logger.info(
         "document.parsed_and_persisted",
-        extra={"org_id": get_org_id(), "document_id": doc.id, "doc_filename": filename},
+        extra={
+            "org_id": get_org_id(),
+            "document_id": doc.id,
+            "doc_filename": filename,
+        },
     )
     return extracted
 
@@ -100,7 +104,9 @@ async def parse_document_with_ai(
         )
 
     system_prompt = _get_parse_system_prompt()
-    is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
+    is_pdf = content_type == "application/pdf" or filename.lower().endswith(
+        ".pdf"
+    )
 
     def _do_parse():
         if is_pdf:
@@ -134,20 +140,32 @@ async def parse_document_with_ai(
                 "rate limit" in err_lower or "overloaded" in err_lower
             ) and attempt < _PARSE_MAX_RETRIES:
                 delay = _PARSE_RETRY_DELAYS[attempt]
-                logger.info("Rate limit, retrying in %ss (attempt %d)", delay, attempt + 1)
+                logger.info(
+                    "Rate limit, retrying in %ss (attempt %d)",
+                    delay,
+                    attempt + 1,
+                )
                 await asyncio.sleep(delay)
             else:
                 raise
 
     if not response or not str(response).strip():
-        raise ValueError("Claude returned no content. The document may be unreadable or blocked.")
+        raise ValueError(
+            "Claude returned no content. The document may be unreadable or blocked."
+        )
 
     json_match = re.search(r"\{[\s\S]*\}", response)
     try:
-        extracted = json.loads(json_match.group()) if json_match else json.loads(response)
+        extracted = (
+            json.loads(json_match.group())
+            if json_match
+            else json.loads(response)
+        )
     except (json.JSONDecodeError, AttributeError) as e:
         logger.warning(
-            "Failed to parse Claude response as JSON: %s\nResponse preview: %.200s", e, response
+            "Failed to parse Claude response as JSON: %s\nResponse preview: %.200s",
+            e,
+            response,
         )
         raise ValueError(
             "Could not extract structured data from the document. "
@@ -184,7 +202,9 @@ def _add_warnings(product: dict) -> None:
     warnings: list[str] = []
     confidence = product.get("_confidence", 0)
     if confidence and confidence < 0.7:
-        warnings.append("Low confidence classification — verify department and UOM")
+        warnings.append(
+            "Low confidence classification — verify department and UOM"
+        )
     dept = product.get("suggested_department", "")
     if dept and dept.upper() not in _KNOWN_DEPTS:
         warnings.append(f"Unknown department '{dept}' — defaulting to HDW")
@@ -192,7 +212,9 @@ def _add_warnings(product: dict) -> None:
         product["_warnings"] = warnings
 
 
-async def _match_vendor_skus(products: list[dict], vendor_name: str | None) -> None:
+async def _match_vendor_skus(
+    products: list[dict], vendor_name: str | None
+) -> None:
     """Lightweight DB pass: match products against vendor catalog and product families.
 
     Mutates product dicts in-place, adding _recommendation, _recommendation_reason,
@@ -221,7 +243,9 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
         original_sku = product.get("original_sku")
         if original_sku:
             try:
-                vi = await find_vendor_item_by_vendor_and_sku_code(vendor_id, original_sku)
+                vi = await find_vendor_item_by_vendor_and_sku_code(
+                    vendor_id, original_sku
+                )
                 if vi:
                     sku_id = vi.sku_id
                     vendor_item_id = vi.id
@@ -232,7 +256,9 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             clean_name = product.get("name", "")
             if clean_name:
                 try:
-                    sku = await find_product_by_name_and_vendor(clean_name, vendor_id)
+                    sku = await find_product_by_name_and_vendor(
+                        clean_name, vendor_id
+                    )
                     if sku:
                         sku_id = sku.id
                 except Exception as e:
