@@ -2,19 +2,17 @@
 
 from fastapi import APIRouter, HTTPException
 
-from finance.application.billing_entity_service import (
-    create_billing_entity as svc_create,
-)
-from finance.application.billing_entity_service import get_by_name
-from finance.application.billing_entity_service import (
-    update_billing_entity as svc_update,
-)
 from finance.application.queries import get_billing_entity_by_id
 from finance.application.queries import list_billing_entities as query_list
 from finance.application.queries import search_billing_entities as query_search
-from finance.domain.billing_entity import BillingEntity, BillingEntityCreate, BillingEntityUpdate
+from finance.domain.billing_entity import (
+    BillingEntity,
+    BillingEntityCreate,
+    BillingEntityUpdate,
+)
 from shared.api.deps import AdminDep
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 router = APIRouter(prefix="/billing-entities", tags=["billing-entities"])
 
@@ -67,9 +65,14 @@ async def create_billing_entity(
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
 
-    existing = await get_by_name(name)
+    oid = get_org_id()
+    existing = await get_database_manager().finance.billing_entity_get_by_name(
+        oid, name
+    )
     if existing:
-        raise HTTPException(status_code=409, detail=f"Billing entity '{name}' already exists")
+        raise HTTPException(
+            status_code=409, detail=f"Billing entity '{name}' already exists"
+        )
 
     entity = BillingEntity(
         name=name,
@@ -77,9 +80,9 @@ async def create_billing_entity(
         contact_email=data.contact_email,
         billing_address=data.billing_address,
         payment_terms=data.payment_terms,
-        organization_id=get_org_id(),
+        organization_id=oid,
     )
-    await svc_create(entity)
+    await get_database_manager().finance.billing_entity_insert(oid, entity)
     return entity.model_dump()
 
 
@@ -93,4 +96,7 @@ async def update_billing_entity(
     if not existing:
         raise HTTPException(status_code=404, detail="Billing entity not found")
 
-    return await svc_update(entity_id, data)
+    oid = get_org_id()
+    return await get_database_manager().finance.billing_entity_update(
+        oid, entity_id, data.model_dump(exclude_none=True)
+    )

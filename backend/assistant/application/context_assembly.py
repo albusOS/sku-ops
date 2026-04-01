@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from assistant.application.entity_graph import GraphContext, multi_neighbors
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 if TYPE_CHECKING:
     import numpy as np
@@ -192,8 +194,6 @@ async def _vector_search(
             embed_query,
             is_pgvector_available,
         )
-        from shared.infrastructure.db import get_org_id
-        from shared.infrastructure.db.base import get_database_manager
 
         if not await is_pgvector_available():
             return []
@@ -228,10 +228,9 @@ async def _recall_memory(
 ) -> str:
     """Recall semantic memory. Returns empty string on failure."""
     try:
-        from assistant.agents.memory.store import recall
-
-        return await recall(
-            user_id=user_id,
+        return await get_database_manager().assistant.memory_recall(
+            get_org_id(),
+            user_id,
             query=query,
             limit=limit,
             query_embedding=query_embedding,

@@ -103,24 +103,3 @@ async def apply_credit_note(
         },
     )
     return result.credit_note
-
-
-async def list_credit_notes(
-    invoice_id: str | None = None,
-    billing_entity: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> list[CreditNote]:
-    return await _finance().credit_note_list(
-        get_org_id(),
-        invoice_id=invoice_id,
-        billing_entity=billing_entity,
-        start_date=start_date,
-        end_date=end_date,
-    )
-
-
-async def get_credit_note_by_id(
-    credit_note_id: str,
-) -> CreditNote | None:
-    return await _finance().credit_note_get_by_id(get_org_id(), credit_note_id)

@@ -8,7 +8,8 @@ org context pre-set.
 
 import uuid
 
-from shared.infrastructure.db import sql_execute
+from shared.infrastructure.db import get_org_id, sql_execute
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID, SEEDED_VENDOR_ID
 
@@ -78,6 +79,8 @@ async def _seed_withdrawal_txns(
                        NOW() - make_interval(days => $3))""",
             (sku_id, -qty, start_days_ago - i, ADMIN_USER_ID, DEFAULT_ORG_ID),
         )
+
+
 async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
     await sql_execute(
         """INSERT INTO stock_transactions
@@ -92,6 +95,8 @@ async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
                    NOW() - make_interval(days => $3))""",
         (sku_id, qty, days_ago, ADMIN_USER_ID, DEFAULT_ORG_ID),
     )
+
+
 async def _seed_vendor(
     vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supplies"
 ):
@@ -151,14 +156,14 @@ class TestDemandNormalizedVelocity:
 
     def test_basic_velocity_with_outliers(self, call):
         async def _body():
-            from inventory.application.queries import demand_normalized_velocity
-
             sku_id = await _seed_sku()
             # 15 normal days at 5 units/day, then 1 spike day at 200
             daily = [5.0] * 15 + [200.0]
             await _seed_withdrawal_txns(sku_id, daily, start_days_ago=20)
 
-            result = await demand_normalized_velocity([sku_id], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [sku_id], days=30
+            )
             assert sku_id in result
             vel = result[sku_id]
             assert vel["raw_total"] == 275.0
@@ -171,32 +176,32 @@ class TestDemandNormalizedVelocity:
 
     def test_empty_returns_empty(self, call):
         async def _body():
-            from inventory.application.queries import demand_normalized_velocity
-
-            result = await demand_normalized_velocity([], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [], days=30
+            )
             assert result == {}
 
         call(_body)
 
     def test_no_activity_returns_empty(self, call):
         async def _body():
-            from inventory.application.queries import demand_normalized_velocity
-
             sku_id = await _seed_sku()
-            result = await demand_normalized_velocity([sku_id], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [sku_id], days=30
+            )
             assert sku_id not in result
 
         call(_body)
 
     def test_uniform_demand_no_outliers(self, call):
         async def _body():
-            from inventory.application.queries import demand_normalized_velocity
-
             sku_id = await _seed_sku()
             daily = [5.0] * 15
             await _seed_withdrawal_txns(sku_id, daily, start_days_ago=20)
 
-            result = await demand_normalized_velocity([sku_id], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [sku_id], days=30
+            )
             assert sku_id in result
             vel = result[sku_id]
             assert vel["outlier_days"] == 0
@@ -213,15 +218,15 @@ class TestSkuDemandProfile:
 
     def test_profile_with_spike(self, call):
         async def _body():
-            from inventory.application.queries import sku_demand_profile
-
             sku_id = await _seed_sku()
             # Varied baseline (IQR needs spread) + 1 massive spike
             # days: 2,3,4,5,3,4,2,3,5,4 (baseline, IQR ~= 1.5) + 150 spike
             daily = [2.0, 3.0, 4.0, 5.0, 3.0, 4.0, 2.0, 3.0, 5.0, 4.0, 150.0]
             await _seed_withdrawal_txns(sku_id, daily, start_days_ago=15)
 
-            profile = await sku_demand_profile(sku_id, days=30)
+            profile = await get_database_manager().inventory.sku_demand_profile(
+                get_org_id(), sku_id, days=30
+            )
             assert profile["sku_id"] == sku_id
             assert profile["total_days_active"] == 11
             # sum = 2+3+4+5+3+4+2+3+5+4+150 = 185
@@ -236,10 +241,10 @@ class TestSkuDemandProfile:
 
     def test_empty_profile(self, call):
         async def _body():
-            from inventory.application.queries import sku_demand_profile
-
             sku_id = await _seed_sku()
-            profile = await sku_demand_profile(sku_id, days=30)
+            profile = await get_database_manager().inventory.sku_demand_profile(
+                get_org_id(), sku_id, days=30
+            )
             assert profile["total_days_active"] == 0
             assert profile["raw_total"] == 0
             assert profile["daily"] == []
@@ -332,7 +337,7 @@ class TestInventoryCarryingCost:
 
     def test_basic_carrying_cost(self, call):
         async def _body():
-            from finance.application.ledger_analytics import (
+            from finance.application.ledger_queries import (
                 inventory_carrying_cost,
             )
 
@@ -353,7 +358,7 @@ class TestInventoryCarryingCost:
 
     def test_zero_cost_excluded(self, call):
         async def _body():
-            from finance.application.ledger_analytics import (
+            from finance.application.ledger_queries import (
                 inventory_carrying_cost,
             )
 
@@ -369,7 +374,7 @@ class TestInventoryCarryingCost:
 
     def test_zero_stock_excluded(self, call):
         async def _body():
-            from finance.application.ledger_analytics import (
+            from finance.application.ledger_queries import (
                 inventory_carrying_cost,
             )
 

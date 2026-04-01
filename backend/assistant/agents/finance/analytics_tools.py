@@ -15,18 +15,16 @@ from assistant.agents.tools.models import (
     TrendSeriesResult,
 )
 from assistant.agents.tools.registry import register as _reg
-from finance.application.ledger_analytics import (
+from finance.application.ledger_queries import (
     ar_aging,
     inventory_carrying_cost,
     product_margins,
     purchase_spend,
-    trend_series,
-)
-from finance.application.ledger_queries import (
     summary_by_billing_entity,
     summary_by_contractor,
     summary_by_department,
     summary_by_job,
+    trend_series,
 )
 
 logger = logging.getLogger(__name__)
@@ -149,7 +147,9 @@ async def _get_carrying_cost(holding_rate_pct: float = 25.0) -> str:
     by_dept: dict[str, float] = {}
     for i in items:
         dept = i["department"] or "Unknown"
-        by_dept[dept] = round(by_dept.get(dept, 0) + float(i["carrying_cost"]), 2)
+        by_dept[dept] = round(
+            by_dept.get(dept, 0) + float(i["carrying_cost"]), 2
+        )
     return CarryingCostResult(
         holding_rate_pct=rate,
         total_carrying_cost=total,

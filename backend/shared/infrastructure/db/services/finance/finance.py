@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime
+
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.db.services.finance import _billing as billing_ops
@@ -15,6 +18,8 @@ from shared.infrastructure.db.services.finance._ledger_orm import (
     ledger_get_journal_rows,
     ledger_insert_entries_in_session,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FinanceDatabaseService(DomainDatabaseService):
@@ -375,6 +380,14 @@ class FinanceDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await billing_ops.billing_entity_insert(session, oid, entity)
             await self.end_write_session(session)
+        logger.info(
+            "billing_entity.created",
+            extra={
+                "org_id": org_id,
+                "entity_id": entity.id,
+                "entity_name": entity.name,
+            },
+        )
 
     async def billing_entity_get_by_id(self, org_id: str, entity_id: str):
         oid = as_uuid_required(org_id)
@@ -404,7 +417,11 @@ class FinanceDatabaseService(DomainDatabaseService):
                 session, oid, entity_id, updates
             )
             await self.end_write_session(session)
-            return out
+        logger.info(
+            "billing_entity.updated",
+            extra={"org_id": org_id, "entity_id": entity_id},
+        )
+        return out
 
     async def billing_entity_search(
         self, org_id: str, query: str, limit: int = 20
@@ -499,6 +516,21 @@ class FinanceDatabaseService(DomainDatabaseService):
                 session, oid, entry_date
             )
 
+    async def fiscal_check_period_open(
+        self, org_id: str, entry_date: str | datetime
+    ) -> None:
+        """Raise ValueError if entry_date falls in a closed fiscal period."""
+        oid = as_uuid_required(org_id)
+        async with self.session() as session:
+            period = await billing_ops.fiscal_find_closed_covering(
+                session, oid, entry_date
+            )
+        if period:
+            period_id, period_name = period
+            raise ValueError(
+                f"Cannot create entries in closed fiscal period '{period_name or period_id}'"
+            )
+
     # --- Org settings / OAuth ----------------------------------------------
 
     async def org_settings_get(self, org_id: str):
@@ -567,8 +599,6 @@ class FinanceDatabaseService(DomainDatabaseService):
         return out
 
     async def ledger_summary_by_job(self, org_id: str, **kwargs):
-        from finance.application import ledger_queries as lq
-
         oid = as_uuid_required(org_id)
         limit = kwargs.get("limit", 100)
         offset = kwargs.get("offset", 0)
@@ -588,33 +618,33 @@ class FinanceDatabaseService(DomainDatabaseService):
                 limit=limit,
                 offset=offset,
             )
-        result = []
         from shared.kernel.types import round_money
 
+        result = []
         for row in rows:
             revenue = row["revenue"]
             cost = row["cost"]
             profit = round_money(revenue - cost)
             rev_f = float(revenue)
             result.append(
-                lq.JobSummaryRow(
-                    job_id=row["job_id"],
-                    billing_entity=row["billing_entity"],
-                    revenue=revenue,
-                    cost=cost,
-                    profit=profit,
-                    margin_pct=round(float(profit) / rev_f * 100, 1)
+                {
+                    "job_id": row["job_id"],
+                    "billing_entity": row["billing_entity"],
+                    "revenue": revenue,
+                    "cost": cost,
+                    "profit": profit,
+                    "margin_pct": round(float(profit) / rev_f * 100, 1)
                     if rev_f > 0
                     else 0.0,
-                    withdrawal_count=row["transaction_count"],
-                )
+                    "withdrawal_count": row["transaction_count"],
+                }
             )
-        return lq.JobSummaryResult(
-            rows=result,
-            total=total,
-            all_revenue=all_revenue,
-            all_cost=all_cost,
-        )
+        return {
+            "rows": result,
+            "total": total,
+            "all_revenue": all_revenue,
+            "all_cost": all_cost,
+        }
 
     async def ledger_summary_by_billing_entity(self, org_id: str, **kwargs):
         oid = as_uuid_required(org_id)

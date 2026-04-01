@@ -64,7 +64,6 @@ from assistant.agents.procurement_analyst.agent import (
 from assistant.agents.trend_analyst.agent import _get_agent as _get_trend_agent
 from assistant.agents.unified.agent import _get_agent
 from assistant.application import job_manager, session_store
-from assistant.application.agent_run_logging import log_agent_run
 from assistant.application.assistant import schedule_memory_extraction
 from assistant.application.context_assembly import assemble_context
 from assistant.application.job_manager import GENERATION_TIMEOUT
@@ -83,6 +82,8 @@ from shared.infrastructure.config import (
     decode_token,
     is_deployed,
 )
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 from shared.infrastructure.metrics import (
     chat_message,
@@ -414,7 +415,8 @@ async def _run_generation(
                                 _v=_snap_val,
                             ):
                                 try:
-                                    await log_agent_run(
+                                    await get_database_manager().assistant.log_agent_run(
+                                        get_org_id(),
                                         session_id=session_id,
                                         user_id=user_id,
                                         agent_name=agent_label,

@@ -141,10 +141,3 @@ async def set_preferred_vendor(sku_id: str, vendor_item_id: str) -> None:
             "sku_id": sku_id,
         },
     )
-
-
-async def get_vendor_items_for_sku(sku_id: str) -> list[VendorItem]:
-    """Return all vendor items for a SKU."""
-    return await get_database_manager().catalog.list_vendor_items_by_sku(
-        sku_id, get_org_id()
-    )

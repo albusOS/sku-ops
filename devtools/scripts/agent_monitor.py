@@ -203,10 +203,15 @@ def _build_display(stats: dict, runs: list[dict]) -> Layout:
 
 
 async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
-    from assistant.application.queries import get_stats, list_runs
+    from shared.infrastructure.db import get_org_id
+    from shared.infrastructure.db.base import get_database_manager
 
-    stats = await get_stats(hours=max(1, minutes // 60) or 1)
-    runs = await list_runs(minutes=minutes, limit=limit)
+    oid = get_org_id()
+    db = get_database_manager()
+    stats = await db.assistant.agent_run_stats(
+        oid, hours=max(1, minutes // 60) or 1
+    )
+    runs = await db.assistant.list_agent_runs(oid, minutes=minutes, limit=limit)
     return stats, runs
 
 

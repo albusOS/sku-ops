@@ -5,9 +5,10 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from assistant.agents.memory.store import save
 from shared.api.deps import CurrentUserDep
 from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/memory", tags=["assistant-memory"])
@@ -65,7 +66,9 @@ async def save_corrections(
             }
         )
 
-    await save(user.id, session_id, artifacts)
+    await get_database_manager().assistant.memory_save(
+        get_org_id(), user.id, session_id, artifacts
+    )
     logger.info(
         "Saved %d product corrections for user=%s", len(artifacts), user.id
     )

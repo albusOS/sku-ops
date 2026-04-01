@@ -15,7 +15,7 @@ from finance.application import ledger_queries as ledger_repo
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:
-    from finance.application.ledger_analytics import (
+    from finance.application.ledger_queries import (
         ArAgingRow,
         ProductMarginRow,
         TrendPoint,

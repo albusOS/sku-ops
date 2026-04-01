@@ -17,13 +17,13 @@ from assistant.agents.tools.models import (
     WithdrawalSummary,
 )
 from assistant.agents.tools.registry import register as _reg
-from inventory.application.queries import daily_withdrawal_activity
 from operations.application.queries import (
     list_pending_material_requests,
     list_withdrawals,
     payment_status_breakdown,
 )
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,9 @@ async def _get_daily_withdrawal_activity(
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
     sku_id_val = sku_id.strip() or None
-    activity = await daily_withdrawal_activity(since, sku_id=sku_id_val)
+    activity = await get_database_manager().inventory.daily_withdrawal_activity(
+        get_org_id(), since, sku_id=sku_id_val
+    )
     return DailyActivityResult(
         period_days=days,
         data_points=len(activity),

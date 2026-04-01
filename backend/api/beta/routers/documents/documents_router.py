@@ -6,9 +6,9 @@ from typing import Annotated
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from documents.application.parse_service import parse_document_with_ai
-from documents.application.queries import get_document_by_id
-from documents.application.queries import list_documents as query_list_documents
 from shared.api.deps import AdminDep
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,8 @@ async def list_documents(
     offset: int = 0,
 ):
     """List uploaded/parsed documents."""
-    return await query_list_documents(
+    return await get_database_manager().documents.list_documents(
+        get_org_id(),
         status=status,
         vendor_name=vendor_name,
         po_id=po_id,
@@ -72,7 +73,9 @@ async def list_documents(
 
 @router.get("/{doc_id}")
 async def get_document(doc_id: str, current_user: AdminDep):
-    doc = await get_document_by_id(doc_id)
+    doc = await get_database_manager().documents.get_document_by_id(
+        doc_id, get_org_id()
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return doc

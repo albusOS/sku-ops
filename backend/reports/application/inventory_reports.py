@@ -13,10 +13,8 @@ from typing import TypedDict
 
 from catalog.application.queries import list_low_stock, list_skus
 from finance.application import ledger_queries as ledger_repo
-from inventory.application.queries import (
-    daily_withdrawal_activity,
-    withdrawal_velocity,
-)
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.types import round_money
 
 
@@ -183,7 +181,9 @@ async def reorder_urgency_report(
     if not sku_ids:
         return ReorderUrgencyReport(products=[], total=0)
 
-    velocity_map = await withdrawal_velocity(sku_ids, since)
+    velocity_map = await get_database_manager().inventory.withdrawal_velocity(
+        get_org_id(), sku_ids, since
+    )
 
     result = []
     for p in low_stock:
@@ -235,5 +235,7 @@ async def product_activity_report(
     days: int = 365,
 ) -> ProductActivityReport:
     since = datetime.now(UTC) - timedelta(days=min(days, 730))
-    rows = await daily_withdrawal_activity(since, sku_id=sku_id)
+    rows = await get_database_manager().inventory.daily_withdrawal_activity(
+        get_org_id(), since, sku_id=sku_id
+    )
     return ProductActivityReport(series=rows, sku_id=sku_id, days=days)

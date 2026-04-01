@@ -126,70 +126,9 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-# ── pgvector persistence ─────────────────────────────────────────────────────
+# ── pgvector literal formatting (used by AssistantDatabaseService) ───────────
 
 
 def _vec_to_pgvector(vec: np.ndarray) -> str:
     """Format a numpy vector as a pgvector literal string."""
     return "[" + ",".join(f"{x:.6f}" for x in vec) + "]"
-
-
-async def upsert(
-    org_id: str,
-    entity_type: str,
-    entity_id: str,
-    content: str,
-    embedding: np.ndarray,
-) -> bool:
-    """Persist an embedding. Returns True if written, False if unchanged or unavailable."""
-    from shared.infrastructure.db.base import get_database_manager
-
-    return await get_database_manager().assistant.embedding_upsert(
-        org_id, entity_type, entity_id, content, embedding
-    )
-
-
-async def upsert_batch(
-    org_id: str,
-    entity_type: str,
-    items: list[tuple[str, str, np.ndarray]],
-) -> int:
-    """Batch upsert embeddings. items = [(entity_id, content, vector), ...].
-
-    Returns count of rows written (skips unchanged content).
-    """
-    from shared.infrastructure.db.base import get_database_manager
-
-    return await get_database_manager().assistant.embedding_upsert_batch(
-        org_id, entity_type, items
-    )
-
-
-async def search(
-    query_embedding: np.ndarray,
-    org_id: str,
-    entity_types: list[str] | None = None,
-    limit: int = 10,
-) -> list[dict]:
-    """Semantic search via pgvector cosine distance.
-
-    Returns list of {entity_type, entity_id, content, similarity}.
-    Falls back to empty list if pgvector unavailable.
-    """
-    from shared.infrastructure.db.base import get_database_manager
-
-    rows = await get_database_manager().assistant.embedding_search(
-        org_id,
-        query_embedding,
-        entity_types=entity_types,
-        limit=limit,
-    )
-    return [
-        {
-            "entity_type": r["entity_type"],
-            "entity_id": r["entity_id"],
-            "content": r["content"],
-            "similarity": float(r["similarity"]),
-        }
-        for r in rows
-    ]

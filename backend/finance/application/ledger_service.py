@@ -13,7 +13,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from finance.application.fiscal_period_service import check_period_open
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id
@@ -27,7 +26,9 @@ if TYPE_CHECKING:
 async def _check_fiscal_period() -> None:
     """Check that the current date is not in a closed fiscal period."""
     now = datetime.now(UTC)
-    await check_period_open(now)
+    await get_database_manager().finance.fiscal_check_period_open(
+        get_org_id(), now
+    )
 
 
 async def _record_sale_event(

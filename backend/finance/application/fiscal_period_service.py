@@ -13,24 +13,6 @@ from shared.kernel.errors import ResourceNotFoundError
 logger = logging.getLogger(__name__)
 
 
-async def check_period_open(entry_date: str) -> None:
-    """Raise ValueError if the entry date falls in a closed fiscal period."""
-    period = await get_database_manager().finance.fiscal_find_closed_covering(
-        get_org_id(), entry_date
-    )
-    if period:
-        period_id, period_name = period
-        raise ValueError(
-            f"Cannot create entries in closed fiscal period '{period_name or period_id}'"
-        )
-
-
-async def list_fiscal_periods(status: str | None = None) -> list[FiscalPeriod]:
-    return await get_database_manager().finance.fiscal_list_periods(
-        get_org_id(), status=status
-    )
-
-
 async def create_fiscal_period(body: FiscalPeriodCreate) -> FiscalPeriod:
     period_id = new_uuid7_str()
     now = datetime.now(UTC)

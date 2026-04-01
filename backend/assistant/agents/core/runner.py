@@ -19,11 +19,12 @@ from assistant.agents.core.model_registry import (
     get_model_name,
 )
 from assistant.agents.core.validators import classify_intent, validate_response
-from assistant.application.agent_run_logging import log_agent_run
 from shared.infrastructure.config import (
     ANTHROPIC_AVAILABLE,
     OPENROUTER_AVAILABLE,
 )
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import (
     agent_name_var,
     operation_var,
@@ -390,7 +391,8 @@ def _log_success(
                 tool_calls,
                 intent=intent,
             )
-            await log_agent_run(
+            await get_database_manager().assistant.log_agent_run(
+                get_org_id(),
                 session_id=session_id,
                 user_id=user_id,
                 agent_name=agent_name,
@@ -445,7 +447,8 @@ def _log_failure(
 
     async def _write():
         try:
-            await log_agent_run(
+            await get_database_manager().assistant.log_agent_run(
+                get_org_id(),
                 session_id=session_id,
                 user_id=user_id,
                 agent_name=agent_name,
@@ -570,7 +573,8 @@ async def run_specialist(
                 tool_calls_det,
                 intent=intent,
             )
-            await log_agent_run(
+            await get_database_manager().assistant.log_agent_run(
+                get_org_id(),
                 session_id=session_id,
                 user_id=getattr(deps, "user_id", ""),
                 agent_name=agent_name,

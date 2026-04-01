@@ -57,15 +57,10 @@ from catalog.application.queries import (
 from catalog.application.queries import (
     list_vendors as catalog_list_vendors,
 )
-from inventory.application.queries import (
-    demand_normalized_velocity,
-    seasonal_pattern,
-    sku_demand_profile,
-    withdrawal_velocity,
-)
 from operations.application.queries import list_withdrawals
 from shared.infrastructure.config import OPENAI_API_KEY
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +190,9 @@ async def _get_usage_velocity(sku: str = "", days: int = 30) -> str:
     p = await catalog_find_by_sku(sku)
     if not p:
         return ErrorResult(error=f"SKU '{sku}' not found").serialize()
-    vel = await withdrawal_velocity([p.id], since)
+    vel = await get_database_manager().inventory.withdrawal_velocity(
+        get_org_id(), [p.id], since
+    )
     total_used = float(vel.get(p.id, 0))
     avg_daily = round(total_used / days, 2)
     days_until_zero = (
@@ -223,7 +220,9 @@ async def _get_reorder_suggestions(limit: int = 20) -> str:
     if not low_stock:
         return ReorderSuggestionsResult(count=0, suggestions=[]).serialize()
     sku_ids = [p.id for p in low_stock]
-    vel_map = await demand_normalized_velocity(sku_ids, 30)
+    vel_map = await get_database_manager().inventory.demand_normalized_velocity(
+        get_org_id(), sku_ids, days=30
+    )
     suggestions: list[ReorderSuggestion] = []
     for p in low_stock:
         vel = vel_map.get(p.id)
@@ -361,7 +360,9 @@ async def _get_department_activity(dept_code: str = "", days: int = 30) -> str:
             error=f"Department '{dept_code}' not found or has no SKUs"
         ).serialize()
     sku_ids = [p.id for p in skus]
-    vel = await withdrawal_velocity(sku_ids, since)
+    vel = await get_database_manager().inventory.withdrawal_velocity(
+        get_org_id(), sku_ids, since
+    )
     total_withdrawn = sum(float(v) for v in vel.values())
     low_stock_count = sum(1 for p in skus if p.quantity <= p.min_stock)
     return DepartmentActivityResult(
@@ -383,7 +384,9 @@ async def _forecast_stockout(limit: int = 15) -> str:
     if not in_stock:
         return StockoutForecastResult(count=0, forecast=[]).serialize()
     sku_ids = [p.id for p in in_stock]
-    vel_map = await demand_normalized_velocity(sku_ids, 30)
+    vel_map = await get_database_manager().inventory.demand_normalized_velocity(
+        get_org_id(), sku_ids, days=30
+    )
     forecast: list[StockoutItem] = []
     for p in in_stock:
         vel = vel_map.get(p.id)
@@ -430,7 +433,9 @@ async def _get_slow_movers(limit: int = 20, days: int = 30) -> str:
             period_days=days, count=0, slow_movers=[]
         ).serialize()
     sku_ids = [p.id for p in in_stock]
-    velocity_map = await withdrawal_velocity(sku_ids, since)
+    velocity_map = await get_database_manager().inventory.withdrawal_velocity(
+        get_org_id(), sku_ids, since
+    )
     ranked = []
     for p in in_stock:
         withdrawn = float(velocity_map.get(p.id, 0))
@@ -504,7 +509,9 @@ async def _get_demand_profile(sku: str = "", days: int = 60) -> str:
     p = await catalog_find_by_sku(sku_code)
     if not p:
         return ErrorResult(error=f"SKU '{sku_code}' not found").serialize()
-    profile = await sku_demand_profile(p.id, days)
+    profile = await get_database_manager().inventory.sku_demand_profile(
+        get_org_id(), p.id, days=days
+    )
     profile["sku"] = sku_code
     profile["name"] = p.name
     profile["sell_uom"] = p.sell_uom or "each"
@@ -519,7 +526,9 @@ async def _get_seasonal_pattern(sku: str = "", months: int = 12) -> str:
     p = await catalog_find_by_sku(sku_code)
     if not p:
         return ErrorResult(error=f"SKU '{sku_code}' not found").serialize()
-    rows = await seasonal_pattern(p.id, months)
+    rows = await get_database_manager().inventory.seasonal_pattern(
+        get_org_id(), p.id, months=months
+    )
     return SeasonalPatternResult(
         sku=sku_code,
         name=p.name,

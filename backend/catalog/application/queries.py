@@ -183,12 +183,6 @@ async def atomic_adjust_sku(
 # ── VendorItem queries ───────────────────────────────────────────────────────
 
 
-async def get_vendor_items_for_sku(sku_id: str) -> list[VendorItem]:
-    return await get_database_manager().catalog.list_vendor_items_by_sku(
-        sku_id, get_org_id()
-    )
-
-
 async def get_vendor_items_for_skus(
     sku_ids: list[str],
 ) -> dict[str, list[VendorItem]]:

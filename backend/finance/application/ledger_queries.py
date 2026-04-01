@@ -1,26 +1,15 @@
-"""Ledger read queries — dimension summaries and cross-context delegations.
+"""Ledger read queries — dimension summaries, analytics, and cross-context delegations.
 
 Cross-context consumers import from here, never from finance.infrastructure directly.
 Write operations use ``get_database_manager().finance`` (see ``ledger_service``).
-
-Analytics queries (trend_series, ar_aging, product_margins, purchase_spend,
-reference_counts) live in ledger_analytics.py and are re-exported below.
 """
 
-# Re-export write-path helpers that some callers (tests, ledger_service) need via this module.
-# Re-export analytics so callers using `from finance.application import ledger_queries` see everything.
 from typing import TypedDict
 
-from finance.application.ledger_analytics import (  # noqa: F401
+from finance.domain.ledger_analytics_rows import (
     ArAgingRow,
     ProductMarginRow,
     TrendPoint,
-    ar_aging,
-    product_margins,
-    purchase_spend,
-    reference_counts,
-    returns_total,
-    trend_series,
 )
 from operations.application.queries import (
     payment_status_breakdown as _ops_pmt_status,
@@ -32,10 +21,105 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 
-async def get_journal(journal_id: str) -> list[dict]:
-    """All ledger lines for a single journal transaction."""
-    return await get_database_manager().finance.ledger_get_journal(
-        get_org_id(), journal_id
+async def trend_series(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    group_by: str = "day",
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> list[TrendPoint]:
+    """Time-series of revenue, cost, profit."""
+    return await get_database_manager().finance.analytics_trend_series(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        group_by=group_by,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
+    )
+
+
+async def ar_aging(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[ArAgingRow]:
+    """AR aging buckets by billing entity based on invoice due_date."""
+    return await get_database_manager().finance.analytics_ar_aging(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
+
+
+async def product_margins(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 50,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> list[ProductMarginRow]:
+    """Per-product revenue, COGS, profit, margin."""
+    return await get_database_manager().finance.analytics_product_margins(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
+    )
+
+
+async def purchase_spend(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> float:
+    """Total inventory additions from PO receipts in the period."""
+    return await get_database_manager().finance.analytics_purchase_spend(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
+
+
+async def reference_counts(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, int]:
+    """Count distinct references by type (withdrawal, return, etc.)."""
+    return await get_database_manager().finance.analytics_reference_counts(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
+
+
+async def returns_total(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> float:
+    """Sum of revenue reversed by returns (positive number)."""
+    return await get_database_manager().finance.analytics_returns_total(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
+    )
+
+
+async def inventory_carrying_cost(
+    holding_rate_pct: float = 25.0,
+) -> list[dict]:
+    """Estimated carrying cost per SKU with stock > 0."""
+    return (
+        await get_database_manager().finance.analytics_inventory_carrying_cost(
+            get_org_id(), holding_rate_pct=holding_rate_pct
+        )
     )
 
 
@@ -107,10 +191,9 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[DepartmentSummaryRow]:
     """Per-department revenue, cogs, shrinkage."""
-    rows = await get_database_manager().finance.ledger_summary_by_department(
+    return await get_database_manager().finance.ledger_summary_by_department(
         get_org_id(), start_date=start_date, end_date=end_date
     )
-    return [DepartmentSummaryRow(**r) for r in rows]
 
 
 async def summary_by_job(
@@ -136,12 +219,11 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[BillingEntitySummaryRow]:
     """Per-entity AR balances and revenue."""
-    rows = (
+    return (
         await get_database_manager().finance.ledger_summary_by_billing_entity(
             get_org_id(), start_date=start_date, end_date=end_date
         )
     )
-    return [BillingEntitySummaryRow(**r) for r in rows]
 
 
 async def summary_by_contractor(
@@ -149,10 +231,9 @@ async def summary_by_contractor(
     end_date: str | None = None,
 ) -> list[ContractorSummaryRow]:
     """Per-contractor spend totals."""
-    rows = await get_database_manager().finance.ledger_summary_by_contractor(
+    return await get_database_manager().finance.ledger_summary_by_contractor(
         get_org_id(), start_date=start_date, end_date=end_date
     )
-    return [ContractorSummaryRow(**r) for r in rows]
 
 
 async def units_sold_by_product(

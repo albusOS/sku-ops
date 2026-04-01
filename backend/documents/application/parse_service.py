@@ -7,7 +7,6 @@ matches vendor SKUs against the existing catalog.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
 import os
@@ -23,9 +22,8 @@ from catalog.application.queries import (
     find_vendor_item_by_vendor_and_sku_code,
     list_product_families,
 )
-from documents.domain.document import Document
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
-from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 if TYPE_CHECKING:
@@ -57,30 +55,14 @@ async def persist_parsed_document(
     current_user: CurrentUser,
 ) -> dict:
     """Save parsed document to the archive and return the extracted data with document_id."""
-    doc = Document(
-        filename=filename,
-        document_type="other",
-        vendor_name=extracted.get("vendor_name"),
-        file_hash=hashlib.sha256(filename.encode()).hexdigest()[:16],
-        file_size=file_size,
-        mime_type=content_type,
-        parsed_data=json.dumps(extracted),
-        status="parsed",
-        uploaded_by_id=current_user.id,
-        organization_id=get_org_id(),
+    return await get_database_manager().documents.insert_parsed_document(
+        get_org_id(),
+        extracted,
+        filename,
+        content_type,
+        file_size,
+        current_user.id,
     )
-    async with transaction():
-        await get_database_manager().documents.insert_document(doc)
-    extracted["document_id"] = doc.id
-    logger.info(
-        "document.parsed_and_persisted",
-        extra={
-            "org_id": get_org_id(),
-            "document_id": doc.id,
-            "doc_filename": filename,
-        },
-    )
-    return extracted
 
 
 async def parse_document_with_ai(

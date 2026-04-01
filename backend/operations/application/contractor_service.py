@@ -12,13 +12,13 @@ from datetime import UTC, datetime
 import bcrypt
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from finance.application.billing_entity_service import ensure_billing_entity
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import (
     get_org_id,
     sql_execute,
     transaction,
 )
+from shared.infrastructure.db.base import get_database_manager
 
 
 def _make_id() -> str:
@@ -192,7 +192,9 @@ async def create_contractor(
             raise ValueError("Email already registered")
 
         billing_name = billing_entity_name or company or "Independent"
-        be = await ensure_billing_entity(billing_name)
+        be = await get_database_manager().finance.billing_entity_ensure(
+            org_id, billing_name
+        )
 
         contractor_id = _make_id()
         now = _now()
@@ -268,7 +270,9 @@ async def update_contractor(
 
     async with transaction():
         if billing_name_changed:
-            be = await ensure_billing_entity(updates.billing_entity)
+            be = await get_database_manager().finance.billing_entity_ensure(
+                org_id, updates.billing_entity
+            )
             set_clauses.append(f"billing_entity_id = ${n}")
             values.append(be.id if be else None)
             n += 1

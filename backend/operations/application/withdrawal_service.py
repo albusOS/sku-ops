@@ -6,7 +6,6 @@ import logging
 from datetime import UTC, datetime
 
 from catalog.application.queries import list_skus
-from finance.application.billing_entity_service import ensure_billing_entity
 from finance.application.invoice_service import (
     create_invoice_from_withdrawals as _create_invoice,
 )
@@ -23,7 +22,6 @@ from finance.application.org_settings_service import get_org_settings
 from inventory.application.inventory_service import (
     process_withdrawal_stock_changes,
 )
-from jobs.application.job_service import ensure_job as _ensure_job
 from operations.domain.enums import PaymentStatus
 from operations.domain.withdrawal import (
     ContractorContext,
@@ -90,7 +88,7 @@ async def create_withdrawal(
     org_id = current_user.organization_id
     db = get_database_manager().operations
     if data.job_id:
-        await _ensure_job(data.job_id)
+        await get_database_manager().jobs.ensure_job(data.job_id, org_id)
     products = await list_skus()
     product_map = {p.id: p for p in products}
     dept_map = {p.id: p.category_name for p in products}
@@ -144,7 +142,9 @@ async def create_withdrawal(
     billing_entity_name = contractor.billing_entity
     billing_entity_id = contractor.billing_entity_id
     if billing_entity_name and not billing_entity_id:
-        be = await ensure_billing_entity(billing_entity_name)
+        be = await get_database_manager().finance.billing_entity_ensure(
+            org_id, billing_entity_name
+        )
         billing_entity_id = be.id if be else None
 
     withdrawal = MaterialWithdrawal(

@@ -38,14 +38,6 @@ def _row_to_user(row) -> UserResponse:
     )
 
 
-async def _fetch_user_by_email(email: str):
-    return await get_database_manager().shared.fetch_user_by_email(email)
-
-
-async def _fetch_user_by_id(user_id: str):
-    return await get_database_manager().shared.fetch_user_safe_by_id(user_id)
-
-
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 
@@ -76,10 +68,11 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
     users not yet in the local profile table) or if the DB is not initialised
     (e.g. smoke-test context).
     """
+    db = get_database_manager()
     try:
-        row = await _fetch_user_by_id(current_user.id)
+        row = await db.shared.fetch_user_safe_by_id(current_user.id)
         if not row and current_user.email:
-            row = await _fetch_user_by_email(current_user.email)
+            row = await db.shared.fetch_user_by_email(current_user.email)
     except RuntimeError:
         return _user_from_claims(current_user)
     if not row:

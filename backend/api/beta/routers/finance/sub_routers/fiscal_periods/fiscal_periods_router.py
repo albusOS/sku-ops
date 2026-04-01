@@ -5,10 +5,11 @@ from fastapi import APIRouter, HTTPException, Request
 from finance.application.fiscal_period_service import (
     close_fiscal_period,
     create_fiscal_period,
-    list_fiscal_periods,
 )
 from finance.domain.fiscal_period import FiscalPeriodCreate
 from shared.api.deps import AdminDep
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/fiscal-periods", tags=["fiscal-periods"])
@@ -19,7 +20,9 @@ async def list_periods(
     current_user: AdminDep,
     status: str | None = None,
 ):
-    return await list_fiscal_periods(status=status)
+    return await get_database_manager().finance.fiscal_list_periods(
+        get_org_id(), status=status
+    )
 
 
 @router.post("")

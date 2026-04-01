@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -11,6 +13,8 @@ from documents.domain.document import Document
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.types.public_sql_model_models import Documents
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentsDatabaseService(DomainDatabaseService):
@@ -59,6 +63,40 @@ class DocumentsDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             session.add(row)
             await self.end_write_session(session)
+
+    async def insert_parsed_document(
+        self,
+        org_id: str,
+        extracted: dict,
+        filename: str,
+        content_type: str,
+        file_size: int,
+        uploaded_by_id: str,
+    ) -> dict:
+        """Build Document from parse output, persist, return extracted dict with document_id."""
+        doc = Document(
+            filename=filename,
+            document_type="other",
+            vendor_name=extracted.get("vendor_name"),
+            file_hash=hashlib.sha256(filename.encode()).hexdigest()[:16],
+            file_size=file_size,
+            mime_type=content_type,
+            parsed_data=json.dumps(extracted),
+            status="parsed",
+            uploaded_by_id=uploaded_by_id,
+            organization_id=org_id,
+        )
+        await self.insert_document(doc)
+        out = {**extracted, "document_id": doc.id}
+        logger.info(
+            "document.parsed_and_persisted",
+            extra={
+                "org_id": org_id,
+                "document_id": doc.id,
+                "doc_filename": filename,
+            },
+        )
+        return out
 
     async def get_document_by_id(
         self, doc_id: str, org_id: str
