@@ -20,7 +20,7 @@ from catalog.infrastructure.department_repo import department_repo
 from catalog.infrastructure.product_family_repo import product_family_repo
 from catalog.infrastructure.sku_repo import sku_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.barcode import validate_barcode
 from shared.kernel.domain_events import CatalogChanged

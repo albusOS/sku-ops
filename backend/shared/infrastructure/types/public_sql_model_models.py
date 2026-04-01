@@ -7,13 +7,11 @@ DO NOT EDIT - regenerate with:
 
 import datetime
 import uuid
+from typing import Optional
 
 from sqlalchemy import Date, DateTime, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-
-from typing import Optional
-
 from sqlmodel import Field, Relationship, SQLModel
 
 

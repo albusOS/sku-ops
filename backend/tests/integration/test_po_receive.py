@@ -23,7 +23,7 @@ from purchasing.domain.purchase_order import (
     ReceiveItemUpdate,
 )
 from purchasing.infrastructure.po_repo import po_repo
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
 from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
@@ -63,14 +63,12 @@ async def _create_po_with_item(
     name="Widget",
     status=POItemStatus.PENDING,
 ):
-    conn = get_connection()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO vendors (id, name, organization_id, created_at)
            VALUES ($1, $2, $3, NOW())
            ON CONFLICT (id) DO NOTHING""",
         ("0195f2c0-89af-7000-8000-000000000041", "Acme Corp", DEFAULT_ORG_ID),
     )
-    await conn.commit()
     po = PurchaseOrder(
         vendor_id="0195f2c0-89af-7000-8000-000000000041",
         vendor_name="Acme Corp",
@@ -232,13 +230,11 @@ def test_receive_cost_fallback_from_unit_price(call):
             "cost_total should use unit_price fallback"
         )
         assert result.cost_total == pytest.approx(7.0 * 50)
-
-        conn = get_connection()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT SUM(amount) FROM financial_ledger WHERE reference_id = $1 AND account = 'inventory'",
             (po.id,),
         )
-        row = await cursor.fetchone()
+        row = (cursor.rows[0] if cursor.rows else None)
         assert row[0] is not None and row[0] > 0, (
             "Ledger INVENTORY entry should be non-zero"
         )
@@ -286,13 +282,11 @@ def test_receive_creates_ledger_entries(call):
             deps=_stub_deps(),
             current_user=_user(),
         )
-
-        conn = get_connection()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT account, ROUND(CAST(SUM(amount) AS NUMERIC), 2) FROM financial_ledger WHERE reference_id = $1 GROUP BY account",
             (po.id,),
         )
-        rows = {r[0]: r[1] for r in await cursor.fetchall()}
+        rows = {r[0]: r[1] for r in cursor.rows}
 
         expected = 6.0 * 20
         assert "inventory" in rows, "Should have INVENTORY ledger entry"
@@ -406,13 +400,11 @@ def test_receive_creates_product_with_overridden_name(call):
 
         assert result.received == 1
         assert result.errors == 0
-
-        conn = get_connection()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT name FROM skus WHERE id = (SELECT sku_id FROM purchase_order_items WHERE id = $1)",
             (item.id,),
         )
-        row = await cursor.fetchone()
+        row = (cursor.rows[0] if cursor.rows else None)
         assert row is not None
         assert row[0] == "Corrected Widget Name"
 

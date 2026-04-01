@@ -13,7 +13,10 @@ from typing import TypedDict
 
 from catalog.application.queries import list_low_stock, list_skus
 from finance.application import ledger_queries as ledger_repo
-from inventory.application.queries import daily_withdrawal_activity, withdrawal_velocity
+from inventory.application.queries import (
+    daily_withdrawal_activity,
+    withdrawal_velocity,
+)
 from shared.kernel.types import round_money
 
 
@@ -66,7 +69,9 @@ async def inventory_report() -> InventoryReport:
     unrealized_margin = round_money(total_retail - total_cost)
     # float for JSON-friendly percentage
     margin_pct = (
-        round(float(unrealized_margin / total_retail * 100), 1) if total_retail > 0 else 0.0
+        round(float(unrealized_margin / total_retail * 100), 1)
+        if total_retail > 0
+        else 0.0
     )
     low_stock = [p for p in products if p.quantity <= p.min_stock]
     out_of_stock = [p for p in products if p.quantity == 0]
@@ -85,7 +90,9 @@ async def inventory_report() -> InventoryReport:
     for dept_data in by_department.values():
         dept_data["retail_value"] = round_money(dept_data["retail_value"])
         dept_data["cost_value"] = round_money(dept_data["cost_value"])
-        dept_data["margin"] = round_money(dept_data["retail_value"] - dept_data["cost_value"])
+        dept_data["margin"] = round_money(
+            dept_data["retail_value"] - dept_data["cost_value"]
+        )
 
     return InventoryReport(
         total_products=total_products,
@@ -103,14 +110,19 @@ async def inventory_report() -> InventoryReport:
 
 async def product_performance_report(
     *,
+    org_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = 200,
 ) -> ProductPerformanceReport:
     margin_data, products_data, units_sold_map = await asyncio.gather(
-        ledger_repo.product_margins(start_date=start_date, end_date=end_date, limit=limit),
+        ledger_repo.product_margins(
+            start_date=start_date, end_date=end_date, limit=limit
+        ),
         list_skus(),
-        ledger_repo.units_sold_by_product(start_date=start_date, end_date=end_date),
+        ledger_repo.units_sold_by_product(
+            org_id, start_date=start_date, end_date=end_date
+        ),
     )
 
     product_map = {p.id: p for p in products_data}
@@ -208,7 +220,9 @@ async def reorder_urgency_report(
     result.sort(
         key=lambda x: (
             x["days_until_stockout"] is None,
-            x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
+            x["days_until_stockout"]
+            if x["days_until_stockout"] is not None
+            else 9999,
         )
     )
 

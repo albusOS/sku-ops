@@ -11,14 +11,19 @@ from operations.application.material_request_service import (
     process_material_request as _process_request,
 )
 from operations.application.queries import get_material_request_by_id
-from operations.domain.material_request import MaterialRequestCreate, MaterialRequestProcess
+from operations.domain.material_request import (
+    MaterialRequestCreate,
+    MaterialRequestProcess,
+)
 from shared.api.deps import AdminDep, CurrentUserDep
 
 router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 
 @router.post("")
-async def create_material_request_route(data: MaterialRequestCreate, current_user: CurrentUserDep):
+async def create_material_request_route(
+    data: MaterialRequestCreate, current_user: CurrentUserDep
+):
     """Contractor creates a material request (pick list). Staff will process it into a withdrawal."""
     try:
         result = await create_material_request(data, current_user)
@@ -38,10 +43,17 @@ async def list_material_requests_route(current_user: CurrentUserDep):
 
 @router.get("/{request_id}")
 async def get_material_request(request_id: str, current_user: CurrentUserDep):
-    req = await get_material_request_by_id(request_id)
+    req = await get_material_request_by_id(
+        current_user.organization_id, request_id
+    )
     if not req:
-        raise HTTPException(status_code=404, detail="Material request not found")
-    if current_user.role == "contractor" and req.contractor_id != current_user.id:
+        raise HTTPException(
+            status_code=404, detail="Material request not found"
+        )
+    if (
+        current_user.role == "contractor"
+        and req.contractor_id != current_user.id
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
     return req
 

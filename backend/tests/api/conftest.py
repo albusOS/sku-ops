@@ -41,19 +41,17 @@ def _db_with_bcrypt_user(db, _app_client):
     """DB with a user whose password is a real bcrypt hash."""
     import bcrypt
 
-    from shared.infrastructure.database import get_connection
+    from shared.infrastructure.db import sql_execute
 
     async def _seed():
         hashed = bcrypt.hashpw(b"secret123", bcrypt.gensalt()).decode("utf-8")
-        conn = get_connection()
-        await conn.execute(
+        await sql_execute(
             "INSERT INTO users "
             "(id, email, password, name, role, is_active, organization_id, created_at) "
             "VALUES ('0195f2c0-89ac-7f42-8b11-000000000004', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, $2, NOW()) "
             "ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password",
             (hashed, DEFAULT_ORG_ID),
         )
-        await conn.commit()
 
     _app_client.portal.call(_seed)
 

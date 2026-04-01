@@ -15,7 +15,11 @@ from finance.application import ledger_queries as ledger_repo
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:
-    from finance.application.ledger_analytics import ArAgingRow, ProductMarginRow, TrendPoint
+    from finance.application.ledger_analytics import (
+        ArAgingRow,
+        ProductMarginRow,
+        TrendPoint,
+    )
 
 
 @dataclass(frozen=True)
@@ -98,21 +102,41 @@ class KpiReport:
 
 async def sales_report(
     *,
+    org_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
 ) -> SalesReport:
-    dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
+    dim_kw = {
+        "job_id": job_id,
+        "department": department,
+        "billing_entity": billing_entity,
+    }
 
-    accounts, top_products, counts, catalog, payment_status, ret_total = await asyncio.gather(
-        ledger_repo.summary_by_account(start_date=start_date, end_date=end_date, **dim_kw),
-        ledger_repo.product_margins(start_date=start_date, end_date=end_date, limit=10, **dim_kw),
+    (
+        accounts,
+        top_products,
+        counts,
+        catalog,
+        payment_status,
+        ret_total,
+    ) = await asyncio.gather(
+        ledger_repo.summary_by_account(
+            start_date=start_date, end_date=end_date, **dim_kw
+        ),
+        ledger_repo.product_margins(
+            start_date=start_date, end_date=end_date, limit=10, **dim_kw
+        ),
         ledger_repo.reference_counts(start_date=start_date, end_date=end_date),
         list_skus(),
-        ledger_repo.payment_status_breakdown(start_date=start_date, end_date=end_date),
-        ledger_repo.returns_total(start_date=start_date, end_date=end_date, **dim_kw),
+        ledger_repo.payment_status_breakdown(
+            org_id, start_date=start_date, end_date=end_date
+        ),
+        ledger_repo.returns_total(
+            start_date=start_date, end_date=end_date, **dim_kw
+        ),
     )
     product_map = {p.id: p for p in catalog}
     enriched_products = []
@@ -148,7 +172,9 @@ async def sales_report(
         total_tax=round_money(tax),
         total_transactions=tx_count,
         return_count=return_count,
-        average_transaction=round_money(net_revenue / tx_count) if tx_count > 0 else 0.0,
+        average_transaction=round_money(net_revenue / tx_count)
+        if tx_count > 0
+        else 0.0,
         by_payment_status=payment_status,
         top_products=enriched_products,
         total_revenue=round_money(net_revenue),
@@ -245,7 +271,10 @@ async def job_pl_report(
         total_profit=round_money(total_profit),
         # float for JSON-friendly percentage
         total_margin_pct=round(
-            float(total_profit / total_revenue * 100) if total_revenue > 0 else 0.0, 1
+            float(total_profit / total_revenue * 100)
+            if total_revenue > 0
+            else 0.0,
+            1,
         ),
     )
 
@@ -263,7 +292,11 @@ async def pl_report(
     billing_entity: str | None = None,
 ) -> PlReport:
     date_kw = {"start_date": start_date, "end_date": end_date}
-    dim_kw = {"job_id": job_id, "department": department, "billing_entity": billing_entity}
+    dim_kw = {
+        "job_id": job_id,
+        "department": department,
+        "billing_entity": billing_entity,
+    }
     total_rows = None
 
     if group_by == "overall":
@@ -282,7 +315,9 @@ async def pl_report(
                 shrinkage=round_money(shrinkage),
                 gross_profit=profit,
                 # float for JSON-friendly percentage
-                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
+                margin_pct=round(float(profit / revenue * 100), 1)
+                if revenue > 0
+                else 0.0,
             ),
             rows=[],
             label_key="name",
@@ -318,8 +353,12 @@ async def pl_report(
         rows = [
             {
                 **m,
-                "name": pmap[m["sku_id"]].name if m["sku_id"] in pmap else "Unknown",
-                "base_unit": pmap[m["sku_id"]].base_unit if m["sku_id"] in pmap else "each",
+                "name": pmap[m["sku_id"]].name
+                if m["sku_id"] in pmap
+                else "Unknown",
+                "base_unit": pmap[m["sku_id"]].base_unit
+                if m["sku_id"] in pmap
+                else "each",
             }
             for m in margin_rows
         ]
@@ -367,6 +406,7 @@ async def ar_aging_report(
 
 async def kpi_report(
     *,
+    org_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
     job_id: str | None = None,
@@ -382,7 +422,9 @@ async def kpi_report(
             billing_entity=billing_entity,
         ),
         list_skus(),
-        ledger_repo.units_sold_by_product(start_date=start_date, end_date=end_date),
+        ledger_repo.units_sold_by_product(
+            org_id, start_date=start_date, end_date=end_date
+        ),
     )
 
     total_revenue = accounts.get("revenue", 0.0)
@@ -412,7 +454,11 @@ async def kpi_report(
     # float for JSON-friendly percentage
     units_f = float(total_units_sold)
     stock_f = float(total_stock)
-    sell_through_pct = (units_f / (units_f + stock_f) * 100) if (units_f + stock_f) > 0 else 0.0
+    sell_through_pct = (
+        (units_f / (units_f + stock_f) * 100)
+        if (units_f + stock_f) > 0
+        else 0.0
+    )
 
     return KpiReport(
         period_days=period_days,

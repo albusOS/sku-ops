@@ -1,65 +1,18 @@
-"""Document repository — persistence for uploaded/parsed documents."""
-
-import contextlib
-import json
-from datetime import UTC, datetime
+"""Document repository — delegates to DocumentsDatabaseService."""
 
 from documents.domain.document import Document
-from shared.infrastructure.database import get_connection, get_org_id
-
-
-def _row_to_model(row) -> Document | None:
-    if row is None:
-        return None
-    d = dict(row)
-    if "parsed_data" in d and isinstance(d["parsed_data"], str):
-        with contextlib.suppress(json.JSONDecodeError, TypeError):
-            d["parsed_data"] = json.loads(d["parsed_data"])
-    if d.get("parsed_data") and not isinstance(d["parsed_data"], str):
-        d["parsed_data"] = json.dumps(d["parsed_data"])
-    return Document.model_validate(d)
-
-
-_COLUMNS = "id, filename, document_type, vendor_name, file_hash, file_size, mime_type, parsed_data, po_id, status, uploaded_by_id, organization_id, created_at, updated_at"
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 
 async def insert(doc: Document) -> None:
-    d = doc.model_dump()
-    conn = get_connection()
-    parsed = d.get("parsed_data")
-    if parsed and not isinstance(parsed, str):
-        parsed = json.dumps(parsed)
-    await conn.execute(
-        "INSERT INTO documents (" + _COLUMNS + ")"
-        " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
-        (
-            d["id"],
-            d["filename"],
-            d.get("document_type", "other"),
-            d.get("vendor_name"),
-            d.get("file_hash", ""),
-            d.get("file_size", 0),
-            d.get("mime_type", ""),
-            parsed,
-            d.get("po_id"),
-            d.get("status", "parsed"),
-            d["uploaded_by_id"],
-            d["organization_id"],
-            d["created_at"],
-            d["updated_at"],
-        ),
-    )
-    await conn.commit()
+    db = get_database_manager()
+    await db.documents.insert_document(doc)
 
 
 async def get_by_id(doc_id: str) -> Document | None:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        "SELECT " + _COLUMNS + " FROM documents WHERE id = $1 AND organization_id = $2",
-        (doc_id, org_id),
-    )
-    return _row_to_model(await cursor.fetchone())
+    db = get_database_manager()
+    return await db.documents.get_document_by_id(doc_id, get_org_id())
 
 
 async def list_documents(
@@ -69,43 +22,24 @@ async def list_documents(
     limit: int = 100,
     offset: int = 0,
 ) -> list[Document]:
-    conn = get_connection()
-    org_id = get_org_id()
-    sql = "SELECT " + _COLUMNS + " FROM documents WHERE organization_id = $1"
-    params: list = [org_id]
-    n = 2
-    if status:
-        sql += f" AND status = ${n}"
-        params.append(status)
-        n += 1
-    if vendor_name:
-        sql += f" AND LOWER(vendor_name) LIKE ${n}"
-        params.append(f"%{vendor_name.lower()}%")
-        n += 1
-    if po_id:
-        sql += f" AND po_id = ${n}"
-        params.append(po_id)
-        n += 1
-    sql += f" ORDER BY created_at DESC LIMIT ${n} OFFSET ${n + 1}"
-    params.extend([limit, offset])
-    cursor = await conn.execute(sql, params)
-    return [_row_to_model(r) for r in await cursor.fetchall()]
+    db = get_database_manager()
+    return await db.documents.list_documents(
+        get_org_id(),
+        status=status,
+        vendor_name=vendor_name,
+        po_id=po_id,
+        limit=limit,
+        offset=offset,
+    )
 
 
-async def update_status(doc_id: str, status: str, po_id: str | None = None) -> None:
-    conn = get_connection()
-    org_id = get_org_id()
-    if po_id:
-        await conn.execute(
-            "UPDATE documents SET status = $1, po_id = $2, updated_at = $3 WHERE id = $4 AND organization_id = $5",
-            (status, po_id, datetime.now(UTC), doc_id, org_id),
-        )
-    else:
-        await conn.execute(
-            "UPDATE documents SET status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
-            (status, datetime.now(UTC), doc_id, org_id),
-        )
-    await conn.commit()
+async def update_status(
+    doc_id: str, status: str, po_id: str | None = None
+) -> None:
+    db = get_database_manager()
+    await db.documents.update_document_status(
+        doc_id, get_org_id(), status, po_id=po_id
+    )
 
 
 class DocumentRepo:

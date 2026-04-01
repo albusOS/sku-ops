@@ -23,9 +23,6 @@ from finance.application.invoice_service import create_invoice_from_withdrawals
 from finance.infrastructure.credit_note_repo import credit_note_repo
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.infrastructure.stock_repo import stock_repo
-from operations.infrastructure.material_request_repo import (
-    material_request_repo,
-)
 from purchasing.domain.purchase_order import (
     POItemStatus,
     POStatus,
@@ -33,7 +30,8 @@ from purchasing.domain.purchase_order import (
     PurchaseOrderItem,
 )
 from purchasing.infrastructure.po_repo import po_repo
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import (
     ADMIN_USER_ID,
@@ -155,15 +153,12 @@ class TestPORepoContract:
         """PO items read from DB must use 'unit_price', not the raw column name 'price'."""
 
         async def _body():
-            conn = get_connection()
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO vendors (id, name, organization_id, created_at)
                    VALUES ($1, $2, $3, NOW())
                    ON CONFLICT (id) DO NOTHING""",
                 (SEEDED_VENDOR_ID, "Acme", DEFAULT_ORG_ID),
             )
-            await conn.commit()
-
             po = PurchaseOrder(
                 vendor_id=SEEDED_VENDOR_ID,
                 vendor_name="Acme",
@@ -207,15 +202,12 @@ class TestPORepoContract:
         """PO item quantities must be float after read-back."""
 
         async def _body():
-            conn = get_connection()
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO vendors (id, name, organization_id, created_at)
                    VALUES ($1, $2, $3, NOW())
                    ON CONFLICT (id) DO NOTHING""",
                 (SEEDED_VENDOR_ID, "Acme", DEFAULT_ORG_ID),
             )
-            await conn.commit()
-
             po = PurchaseOrder(
                 vendor_id=SEEDED_VENDOR_ID,
                 vendor_name="Acme",
@@ -302,9 +294,8 @@ class TestInvoiceRepoContract:
         """Invoice line items must have float quantity and amounts."""
 
         async def _body():
-            conn = get_connection()
             withdrawal_id = "0195f2c0-89af-7000-8000-000000000001"
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO withdrawals
                    (id, items, job_id, service_address, subtotal, tax, total, cost_total,
                     contractor_id, contractor_name, contractor_company, billing_entity,
@@ -330,7 +321,7 @@ class TestInvoiceRepoContract:
                     DEFAULT_ORG_ID,
                 ),
             )
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO withdrawal_items
                    (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
@@ -348,8 +339,6 @@ class TestInvoiceRepoContract:
                     12.5,
                 ),
             )
-            await conn.commit()
-
             inv = await create_invoice_from_withdrawals([withdrawal_id])
             assert inv is not None
             assert len(inv.line_items) >= 1
@@ -393,9 +382,10 @@ class TestMaterialRequestRepoContract:
                 service_address="456 Oak",
                 organization_id=DEFAULT_ORG_ID,
             )
-            await material_request_repo.insert(mr)
+            db = get_database_manager().operations
+            await db.insert_material_request(DEFAULT_ORG_ID, mr)
 
-            read = await material_request_repo.get_by_id(mr.id)
+            read = await db.get_material_request_by_id(DEFAULT_ORG_ID, mr.id)
             assert read is not None
             assert len(read.items) == 1
             item = read.items[0]

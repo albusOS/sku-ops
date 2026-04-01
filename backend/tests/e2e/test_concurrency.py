@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from tests.e2e.helpers import create_product, create_withdrawal
+from tests.e2e.helpers import create_product, create_withdrawal, e2e_job_id
 from tests.helpers.auth import admin_headers
 
 
@@ -63,8 +63,22 @@ class TestConcurrency:
         )
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f1 = pool.submit(_attempt_withdrawal, client, headers, product, 6, "JOB-RACE-1")
-            f2 = pool.submit(_attempt_withdrawal, client, headers, product, 6, "JOB-RACE-2")
+            f1 = pool.submit(
+                _attempt_withdrawal,
+                client,
+                headers,
+                product,
+                6,
+                e2e_job_id("RACE-1"),
+            )
+            f2 = pool.submit(
+                _attempt_withdrawal,
+                client,
+                headers,
+                product,
+                6,
+                e2e_job_id("RACE-2"),
+            )
 
             results = []
             for f in as_completed([f1, f2]):
@@ -72,15 +86,23 @@ class TestConcurrency:
 
         successes = [r for r in results if r[0] == 200]
 
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         final_qty = resp.json()["quantity"]
 
-        assert final_qty >= 0, f"Stock should never go negative, got {final_qty}"
+        assert final_qty >= 0, (
+            f"Stock should never go negative, got {final_qty}"
+        )
 
         if len(successes) == 2:
-            assert final_qty == 8 - 12  # Both succeeded = -4, but that shouldn't happen
+            assert (
+                final_qty == 8 - 12
+            )  # Both succeeded = -4, but that shouldn't happen
         elif len(successes) == 1:
-            assert final_qty == 2, f"One withdrawal of 6 from 8 should leave 2, got {final_qty}"
+            assert final_qty == 2, (
+                f"One withdrawal of 6 from 8 should leave 2, got {final_qty}"
+            )
         else:
             assert final_qty == 8, "If both failed, stock should be unchanged"
 
@@ -99,17 +121,35 @@ class TestConcurrency:
         )
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f1 = pool.submit(_attempt_withdrawal, client, headers, product, 10, "JOB-BOTH-1")
-            f2 = pool.submit(_attempt_withdrawal, client, headers, product, 10, "JOB-BOTH-2")
+            f1 = pool.submit(
+                _attempt_withdrawal,
+                client,
+                headers,
+                product,
+                10,
+                e2e_job_id("BOTH-1"),
+            )
+            f2 = pool.submit(
+                _attempt_withdrawal,
+                client,
+                headers,
+                product,
+                10,
+                e2e_job_id("BOTH-2"),
+            )
 
             results = [f.result() for f in as_completed([f1, f2])]
 
         successes = sum(1 for r in results if r[0] == 200)
 
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         final_qty = resp.json()["quantity"]
         expected = 100 - (successes * 10)
-        assert final_qty == expected, f"Expected {expected} (100 - {successes}*10), got {final_qty}"
+        assert final_qty == expected, (
+            f"Expected {expected} (100 - {successes}*10), got {final_qty}"
+        )
 
     def test_parallel_mark_paid_safe(self, client, seed_dept_id):
         """Two concurrent mark-paid on the same withdrawal should not double-pay."""
@@ -132,5 +172,7 @@ class TestConcurrency:
         successes = [s for s in statuses if s == 200]
         assert len(successes) >= 1, "At least one mark-paid should succeed"
 
-        resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers
+        )
         assert resp.json()["payment_status"] == "paid"

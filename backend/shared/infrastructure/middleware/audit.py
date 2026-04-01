@@ -29,7 +29,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.db.orm_utils import as_uuid_required
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -60,23 +61,17 @@ async def audit_log(
     now = datetime.now(UTC)
 
     try:
-        conn = get_connection()
-        await conn.execute(
-            """INSERT INTO audit_log (id, user_id, action, resource_type, resource_id,
-               details, ip_address, organization_id, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-            (
-                new_uuid7_str(),
-                user_id,
-                action,
-                resource_type,
-                resource_id,
-                details_str,
-                ip,
-                org_id,
-                now,
-            ),
+        db = get_database_manager()
+        await db.shared.insert_audit_row(
+            audit_id=as_uuid_required(new_uuid7_str()),
+            user_id=user_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            details=details_str,
+            ip_address=ip,
+            organization_id=org_id,
+            created_at=now,
         )
-        await conn.commit()
     except Exception:
         logger.exception("Failed to write audit log entry")

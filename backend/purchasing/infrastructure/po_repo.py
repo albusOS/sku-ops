@@ -10,7 +10,7 @@ from purchasing.domain.purchase_order import (
     PurchaseOrderItem,
 )
 from purchasing.ports.po_repo_port import PORepoPort
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 def _row(row) -> dict | None:
@@ -19,9 +19,8 @@ def _row(row) -> dict | None:
 
 class PgPORepo(PORepoPort):
     async def insert_po(self, po: PurchaseOrder) -> None:
-        conn = get_connection()
         d = po.model_dump()
-        await conn.execute(
+        await sql_execute(
             """INSERT INTO purchase_orders
                (id, vendor_id, vendor_name, document_date, total, status, notes,
                 created_by_id, created_by_name, received_at, received_by_id, received_by_name,
@@ -45,13 +44,11 @@ class PgPORepo(PORepoPort):
                 d["organization_id"],
             ),
         )
-        await conn.commit()
 
     async def insert_items(self, items: list[PurchaseOrderItem]) -> None:
-        conn = get_connection()
         for item in items:
             d = item.model_dump()
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO purchase_order_items
                    (id, po_id, name, original_sku, ordered_qty, delivered_qty, unit_price, cost,
                     base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
@@ -77,34 +74,33 @@ class PgPORepo(PORepoPort):
                     d["organization_id"],
                 ),
             )
-        await conn.commit()
 
     async def list_pos(self, status: str | None = None) -> list[PORow]:
-        conn = get_connection()
         org_id = get_org_id()
         if status:
-            cursor = await conn.execute(
+            cursor = await sql_execute(
                 "SELECT * FROM purchase_orders WHERE organization_id = $1 AND status = $2 ORDER BY created_at DESC",
                 (org_id, status),
             )
         else:
-            cursor = await conn.execute(
+            cursor = await sql_execute(
                 "SELECT * FROM purchase_orders WHERE organization_id = $1 ORDER BY created_at DESC",
                 (org_id,),
             )
-        rows = await cursor.fetchall()
+        rows = cursor.rows
         return [PORow.model_validate(dict(r)) for r in rows]
 
-    async def list_pos_with_counts(self, status: str | None = None) -> list[PORow]:
+    async def list_pos_with_counts(
+        self, status: str | None = None
+    ) -> list[PORow]:
         """List POs with item status counts in a single query (no N+1)."""
-        conn = get_connection()
         org_id = get_org_id()
         where = "WHERE po.organization_id = $1"
         params: tuple = (org_id,)
         if status:
             where += " AND po.status = $2"
             params = (org_id, status)
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             f"""SELECT po.*,
                        COUNT(poi.id) AS item_count,
                        COUNT(*) FILTER (WHERE poi.status = 'ordered') AS ordered_count,
@@ -117,27 +113,25 @@ class PgPORepo(PORepoPort):
                 ORDER BY po.created_at DESC""",
             params,
         )
-        rows = await cursor.fetchall()
+        rows = cursor.rows
         return [PORow.model_validate(dict(r)) for r in rows]
 
     async def get_po(self, po_id: str) -> PORow | None:
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT * FROM purchase_orders WHERE id = $1 AND organization_id = $2",
             (po_id, org_id),
         )
-        row = await cursor.fetchone()
+        row = cursor.rows[0] if cursor.rows else None
         return PORow.model_validate(dict(row)) if row else None
 
     async def get_po_items(self, po_id: str) -> list[POItemRow]:
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT * FROM purchase_order_items WHERE po_id = $1 AND organization_id = $2 ORDER BY id",
             (po_id, org_id),
         )
-        rows = await cursor.fetchall()
+        rows = cursor.rows
         return [POItemRow.model_validate(dict(r)) for r in rows]
 
     async def update_po_item(
@@ -147,17 +141,22 @@ class PgPORepo(PORepoPort):
         sku_id: str | None = None,
         delivered_qty: float | None = None,
     ) -> bool:
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             """UPDATE purchase_order_items
                SET status = $1, sku_id = COALESCE($2, sku_id),
                    delivered_qty = COALESCE($3, delivered_qty)
                WHERE id = $4 AND status != $5 AND organization_id = $6""",
-            (status.value, sku_id, delivered_qty, item_id, POItemStatus.ARRIVED.value, org_id),
+            (
+                status.value,
+                sku_id,
+                delivered_qty,
+                item_id,
+                POItemStatus.ARRIVED.value,
+                org_id,
+            ),
         )
-        await conn.commit()
-        return cursor.rowcount > 0
+        return cursor.row_count > 0
 
     async def update_po_status(
         self,
@@ -167,24 +166,28 @@ class PgPORepo(PORepoPort):
         received_by_id: str | None = None,
         received_by_name: str | None = None,
     ) -> None:
-        conn = get_connection()
         org_id = get_org_id()
-        await conn.execute(
+        await sql_execute(
             """UPDATE purchase_orders
                SET status = $1,
                    received_at = COALESCE($2, received_at),
                    received_by_id = COALESCE($3, received_by_id),
                    received_by_name = COALESCE($4, received_by_name)
                WHERE id = $5 AND organization_id = $6""",
-            (status, received_at, received_by_id, received_by_name, po_id, org_id),
+            (
+                status,
+                received_at,
+                received_by_id,
+                received_by_name,
+                po_id,
+                org_id,
+            ),
         )
-        await conn.commit()
 
     async def list_unsynced_po_bills(self) -> list[dict]:
         """Return received POs with pending Xero sync."""
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             """SELECT id, vendor_name, total, document_date, created_at
                FROM purchase_orders
                WHERE organization_id = $1
@@ -194,13 +197,12 @@ class PgPORepo(PORepoPort):
                ORDER BY created_at""",
             (org_id,),
         )
-        rows = await cursor.fetchall()
+        rows = cursor.rows
         return [dict(r) for r in rows]
 
     async def list_failed_po_bills(self) -> list[dict]:
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             """SELECT id, vendor_name, total, document_date, created_at
                FROM purchase_orders
                WHERE organization_id = $1
@@ -208,66 +210,66 @@ class PgPORepo(PORepoPort):
                ORDER BY created_at""",
             (org_id,),
         )
-        rows = await cursor.fetchall()
+        rows = cursor.rows
         return [dict(r) for r in rows]
 
     async def get_po_with_cost(self, po_id: str) -> dict | None:
         """Get PO with computed cost_total and items for Xero sync."""
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT * FROM purchase_orders WHERE id = $1 AND organization_id = $2",
             (po_id, org_id),
         )
-        row = await cursor.fetchone()
+        row = cursor.rows[0] if cursor.rows else None
         if not row:
             return None
         po = dict(row)
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT SUM(cost * COALESCE(delivered_qty, ordered_qty)) FROM purchase_order_items WHERE po_id = $1",
             (po_id,),
         )
-        total_row = await cursor.fetchone()
+        total_row = cursor.rows[0] if cursor.rows else None
         po["cost_total"] = (total_row[0] or 0.0) if total_row else 0.0
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             """SELECT name, COALESCE(delivered_qty, ordered_qty) AS qty, cost
                FROM purchase_order_items WHERE po_id = $1""",
             (po_id,),
         )
-        item_rows = await cursor.fetchall()
+        item_rows = cursor.rows
         po["items"] = [dict(r) for r in item_rows]
         return po
 
-    async def set_xero_sync_status(self, po_id: str, status: str, updated_at: datetime) -> None:
-        conn = get_connection()
+    async def set_xero_sync_status(
+        self, po_id: str, status: str, updated_at: datetime
+    ) -> None:
         org_id = get_org_id()
-        await conn.execute(
+        await sql_execute(
             "UPDATE purchase_orders SET xero_sync_status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
             (status, updated_at, po_id, org_id),
         )
-        await conn.commit()
 
     async def summary_by_status(self) -> dict[str, dict]:
         """Return {status: {count, total}} for all POs in the org."""
-        conn = get_connection()
         org_id = get_org_id()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             """SELECT status, COUNT(*) as cnt, COALESCE(SUM(total), 0) as total
                FROM purchase_orders WHERE organization_id = $1
                GROUP BY status""",
             (org_id,),
         )
-        rows = await cursor.fetchall()
-        return {r["status"]: {"count": r["cnt"], "total": r["total"]} for r in rows}
+        rows = cursor.rows
+        return {
+            r["status"]: {"count": r["cnt"], "total": r["total"]} for r in rows
+        }
 
-    async def set_xero_bill_id(self, po_id: str, xero_bill_id: str, updated_at: datetime) -> None:
-        conn = get_connection()
+    async def set_xero_bill_id(
+        self, po_id: str, xero_bill_id: str, updated_at: datetime
+    ) -> None:
         org_id = get_org_id()
-        await conn.execute(
+        await sql_execute(
             "UPDATE purchase_orders SET xero_bill_id = $1, xero_sync_status = 'synced', updated_at = $2 WHERE id = $3 AND organization_id = $4",
             (xero_bill_id, updated_at, po_id, org_id),
         )
-        await conn.commit()
 
 
 po_repo = PgPORepo()

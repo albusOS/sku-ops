@@ -33,16 +33,15 @@ def _seed_contractor(app_client: TestClient) -> str:
     API to create contractor users in test mode.
     """
 
-    from shared.infrastructure.database import get_connection
+    from shared.infrastructure.db import sql_execute
 
     async def _insert():
-        conn = get_connection()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT id FROM users WHERE id = $1", (CONTRACTOR_USER_ID,)
         )
-        if await cursor.fetchone():
+        if cursor.rows:
             return
-        await conn.execute(
+        await sql_execute(
             "INSERT INTO users (id, email, password, name, role, company, billing_entity, is_active, organization_id, created_at)"
             " VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, NOW())",
             (
@@ -56,7 +55,6 @@ def _seed_contractor(app_client: TestClient) -> str:
                 DEFAULT_ORG_ID,
             ),
         )
-        await conn.commit()
 
     app_client.portal.call(_insert)
     return CONTRACTOR_USER_ID

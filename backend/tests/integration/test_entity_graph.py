@@ -4,7 +4,7 @@ import uuid
 
 from catalog.application.sku_lifecycle import create_product_with_sku
 from inventory.application.inventory_service import process_import_stock_changes
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
 
@@ -19,11 +19,10 @@ VENDOR_ITEM_ID_FMT = "0195f2c0-89af-7000-8000-000000000032"
 class TestEntityGraph:
     def test_view_exists(self, call):
         async def _body():
-            conn = get_connection()
-            cur = await conn.execute(
+            cur = await sql_execute(
                 "SELECT table_name FROM information_schema.views WHERE table_name = 'entity_edges'"
             )
-            row = await cur.fetchone()
+            row = (cur.rows[0] if cur.rows else None)
             assert row is not None, (
                 "entity_edges view should exist after schema bootstrap"
             )
@@ -32,16 +31,13 @@ class TestEntityGraph:
 
     def test_sku_to_vendor_traversal(self, call):
         async def _body():
-            conn = get_connection()
-
             # Seed a vendor + sku + vendor_item link
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) "
                 "VALUES ($1, 'Graph Vendor', 'Contact', 'v@test.com', '555', $2, NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (VENDOR_ID_1, DEFAULT_ORG_ID),
             )
-            await conn.commit()
             sku = await create_product_with_sku(
                 category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
@@ -55,14 +51,12 @@ class TestEntityGraph:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) "
                 "VALUES ($1, $2, $3, 'VND-BOLT', 1.40, 1, TRUE, $4, NOW(), NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (VENDOR_ITEM_ID_1, VENDOR_ID_1, sku.id, DEFAULT_ORG_ID),
             )
-            await conn.commit()
-
             # Reset view cache
             import assistant.application.entity_graph as eg
 
@@ -92,16 +86,13 @@ class TestEntityGraph:
 
     def test_vendor_to_sku_reverse(self, call):
         async def _body():
-            conn = get_connection()
-
             # Seed vendor + sku + link
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) "
                 "VALUES ($1, 'Reverse Vendor', 'C', 'rv@test.com', '555', $2, NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (VENDOR_ID_2, DEFAULT_ORG_ID),
             )
-            await conn.commit()
             sku = await create_product_with_sku(
                 category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
@@ -115,14 +106,12 @@ class TestEntityGraph:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) "
                 "VALUES ($1, $2, $3, 'VND-NUT', 0.45, 1, TRUE, $4, NOW(), NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (VENDOR_ITEM_ID_2, VENDOR_ID_2, sku.id, DEFAULT_ORG_ID),
             )
-            await conn.commit()
-
             import assistant.application.entity_graph as eg
 
             eg._view_ok = None
@@ -180,14 +169,12 @@ class TestEntityGraph:
 
     def test_format_for_agent(self, call):
         async def _body():
-            conn = get_connection()
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) "
                 "VALUES ($1, 'Format Vendor', 'C', 'fmt@test.com', '555', $2, NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (VENDOR_ID_FMT, DEFAULT_ORG_ID),
             )
-            await conn.commit()
             sku = await create_product_with_sku(
                 category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
@@ -201,14 +188,12 @@ class TestEntityGraph:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) "
                 "VALUES ($1, $2, $3, 'VND-FMT', 0.90, 1, TRUE, $4, NOW(), NOW()) "
                 "ON CONFLICT DO NOTHING",
                 (VENDOR_ITEM_ID_FMT, VENDOR_ID_FMT, sku.id, DEFAULT_ORG_ID),
             )
-            await conn.commit()
-
             import assistant.application.entity_graph as eg
 
             eg._view_ok = None

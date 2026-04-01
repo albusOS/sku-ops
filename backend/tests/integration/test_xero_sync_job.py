@@ -29,8 +29,8 @@ from finance.application.invoice_service import (
 )
 from finance.infrastructure.credit_note_repo import credit_note_repo
 from finance.infrastructure.invoice_repo import invoice_repo
-from operations.infrastructure.withdrawal_repo import withdrawal_repo
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import (
     ADMIN_USER_ID,
@@ -50,7 +50,8 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
     from operations.domain.withdrawal import MaterialWithdrawal, WithdrawalItem
 
     wid = str(uuid4())
-    await withdrawal_repo.insert(
+    await get_database_manager().operations.insert_withdrawal(
+        DEFAULT_ORG_ID,
         MaterialWithdrawal(
             id=wid,
             items=[
@@ -78,7 +79,7 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
             processed_by_name="Test",
             created_at="2025-01-01T00:00:00Z",
             organization_id=DEFAULT_ORG_ID,
-        )
+        ),
     )
     return wid
 
@@ -290,13 +291,11 @@ class TestSyncStatusGating:
             async def _body():
                 inv = await _make_approved_invoice()
                 inv_id = inv.id
-                conn = get_connection()
                 # Manually set it as already synced + paid
-                await conn.execute(
+                await sql_execute(
                     "UPDATE invoices SET xero_invoice_id = 'already-synced', xero_sync_status = 'synced', status = 'paid' WHERE id = $1",
                     (inv_id,),
                 )
-                await conn.commit()
                 await run_sync(reconcile=False)
 
             call(_body)
@@ -354,14 +353,12 @@ class TestAdjustmentIdempotencyFix:
                 user_id=ADMIN_USER_ID,
                 user_name="Test",
             )
-
-            conn = get_connection()
-            cursor = await conn.execute(
+            cursor = await sql_execute(
                 """SELECT COUNT(*) FROM financial_ledger
                    WHERE reference_type = 'adjustment' AND sku_id = $1""",
                 (product.id,),
             )
-            row = await cursor.fetchone()
+            row = cursor.rows[0] if cursor.rows else None
             count = row[0]
 
             # 2 entries per adjustment (INVENTORY + offset account) × 2 adjustments = 4
@@ -405,14 +402,12 @@ class TestAdjustmentIdempotencyFix:
                     user_id=ADMIN_USER_ID,
                     user_name="Test",
                 )
-
-            conn = get_connection()
-            cursor = await conn.execute(
+            cursor = await sql_execute(
                 """SELECT DISTINCT reference_id FROM financial_ledger
                    WHERE reference_type = 'adjustment' AND sku_id = $1""",
                 (product.id,),
             )
-            rows = await cursor.fetchall()
+            rows = cursor.rows
             distinct_ref_ids = [r[0] for r in rows]
 
             assert len(distinct_ref_ids) == 3, (
@@ -579,9 +574,8 @@ class TestCreditNoteSync:
         async def _body():
             cn_id = str(uuid4())
             cn_number = "CN-00001"
-            conn = get_connection()
             now = datetime(2025, 1, 1, tzinfo=UTC)
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO credit_notes
                    (id, credit_note_number, invoice_id, return_id, billing_entity,
                     status, subtotal, tax, total, notes, xero_credit_note_id,
@@ -591,14 +585,12 @@ class TestCreditNoteSync:
                            'pending', $3, $4, $5)""",
                 (cn_id, cn_number, DEFAULT_ORG_ID, now, now),
             )
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO credit_note_line_items
                    (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)
                    VALUES ($1, $2, 'Returned lumber', 3, 10.0, 30.0, 6.0, NULL)""",
                 (str(uuid4()), cn_id),
             )
-            await conn.commit()
-
             await _run_sync_with_stub()
 
             cn_after = await credit_note_repo.get_by_id(cn_id)
@@ -614,9 +606,8 @@ class TestCreditNoteSync:
 
         async def _body():
             cn_id = str(uuid4())
-            conn = get_connection()
             now = datetime(2025, 1, 1, tzinfo=UTC)
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO credit_notes
                    (id, credit_note_number, invoice_id, return_id, billing_entity,
                     status, subtotal, tax, total, notes, xero_credit_note_id,
@@ -626,8 +617,6 @@ class TestCreditNoteSync:
                            'pending', $2, $3, $4)""",
                 (cn_id, DEFAULT_ORG_ID, now, now),
             )
-            await conn.commit()
-
             await _run_sync_with_stub()
 
             cn_after = await credit_note_repo.get_by_id(cn_id)
@@ -646,15 +635,12 @@ class TestPOQueuing:
             from purchasing.domain.purchase_order import POStatus, PurchaseOrder
             from purchasing.infrastructure.po_repo import po_repo
 
-            conn = get_connection()
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO vendors (id, name, organization_id, created_at)
                    VALUES ($1, $2, $3, NOW())
                    ON CONFLICT (id) DO NOTHING""",
                 (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
             )
-            await conn.commit()
-
             po = PurchaseOrder(
                 vendor_id=SEEDED_VENDOR_ID,
                 vendor_name="Acme Corp",
@@ -707,15 +693,12 @@ class TestPOQueuing:
                 )
                 from purchasing.infrastructure.po_repo import po_repo
 
-                conn = get_connection()
-                await conn.execute(
+                await sql_execute(
                     """INSERT INTO vendors (id, name, organization_id, created_at)
                        VALUES ($1, $2, $3, NOW())
                        ON CONFLICT (id) DO NOTHING""",
                     (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
                 )
-                await conn.commit()
-
                 po = PurchaseOrder(
                     vendor_id=SEEDED_VENDOR_ID,
                     vendor_name="Acme Corp",
@@ -785,15 +768,12 @@ class TestPOQueuing:
                 )
                 from purchasing.infrastructure.po_repo import po_repo
 
-                conn = get_connection()
-                await conn.execute(
+                await sql_execute(
                     """INSERT INTO vendors (id, name, organization_id, created_at)
                        VALUES ($1, $2, $3, NOW())
                        ON CONFLICT (id) DO NOTHING""",
                     (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
                 )
-                await conn.commit()
-
                 po = PurchaseOrder(
                     vendor_id=SEEDED_VENDOR_ID,
                     vendor_name="Acme Corp",

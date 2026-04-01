@@ -9,7 +9,7 @@ import logging
 from datetime import UTC, datetime
 
 from finance.application.org_settings_service import get_org_settings
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.db import get_org_id
 
 logger = logging.getLogger(__name__)
 

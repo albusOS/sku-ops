@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.address_repo import StoredAddress, address_repo
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.db import get_org_id
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 

@@ -40,6 +40,10 @@ COMPOSITION_ROOTS = frozenset(
 # All pre-DDD violations resolved — contexts communicate via application-layer facades.
 KNOWN_CROSS_INFRA_VIOLATIONS: frozenset[str] = frozenset()
 
+# DatabaseManager lazy-loaded service modules orchestrate context repos; they sit under
+# shared/infrastructure but intentionally import bounded-context types (same role as wiring).
+SHARED_DB_SERVICE_PREFIX = "shared/infrastructure/db/services/"
+
 
 def _get_context(path: Path) -> str | None:
     parts = path.relative_to(BACKEND).parts
@@ -98,8 +102,11 @@ def test_shared_has_no_context_imports():
         rel = py_file.relative_to(BACKEND)
         if str(rel) in COMPOSITION_ROOTS:
             continue
+        str_rel = str(rel)
         for module in _from_imports(py_file):
             if module.split(".")[0] in BOUNDED_CONTEXTS:
+                if str_rel.startswith(SHARED_DB_SERVICE_PREFIX):
+                    continue
                 violations.append(f"  {rel}: from {module}")
     assert not violations, (
         "shared/ imports from bounded contexts:\n" + "\n".join(violations)

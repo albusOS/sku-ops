@@ -5,27 +5,25 @@ which is the cross-context entry point for analytics consumers.
 """
 
 from finance.domain.ledger import FinancialEntry
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 from shared.kernel.types import round_money
 
 
 async def entries_exist(reference_type: str, reference_id: str) -> bool:
     """Return True if any ledger rows already exist for this reference."""
-    c = get_connection()
     org_id = get_org_id()
-    cursor = await c.execute(
+    cursor = await sql_execute(
         "SELECT 1 FROM financial_ledger WHERE reference_type = $1 AND reference_id = $2 AND organization_id = $3 LIMIT 1",
         [reference_type, reference_id, org_id],
     )
-    return (await cursor.fetchone()) is not None
+    return (cursor.rows[0] if cursor.rows else None) is not None
 
 
 async def insert_entries(entries: list[FinancialEntry]) -> None:
     """Batch-insert ledger entries."""
-    c = get_connection()
     org_id = get_org_id()
     for e in entries:
-        await c.execute(
+        await sql_execute(
             """INSERT INTO financial_ledger
                (id, journal_id, account, amount, quantity, unit, unit_cost,
                 department, job_id, billing_entity,
@@ -53,15 +51,13 @@ async def insert_entries(entries: list[FinancialEntry]) -> None:
                 e.created_at,
             ),
         )
-    await c.commit()
 
 
 async def get_journal(journal_id: str) -> list[dict]:
     """Return all entries for a single journal transaction."""
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM financial_ledger WHERE journal_id = $1 AND organization_id = $2 ORDER BY id",
         [journal_id, org_id],
     )
-    return [dict(r) for r in await cursor.fetchall()]
+    return [dict(r) for r in cursor.rows]

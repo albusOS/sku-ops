@@ -1,15 +1,10 @@
-"""Organization (tenant) repository — shared infrastructure.
-
-Organizations are the tenancy boundary. Every bounded context
-filters by organization_id but none owns the concept — it is
-cross-cutting infrastructure.
-"""
+"""Organization (tenant) repository — delegates to SharedDatabaseService."""
 
 from datetime import datetime
 
 from pydantic import BaseModel
 
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db.base import get_database_manager
 
 
 class Organization(BaseModel):
@@ -19,27 +14,15 @@ class Organization(BaseModel):
     created_at: datetime | str | None = None
 
 
-def _row_to_model(row) -> Organization | None:
+async def get_by_id(org_id: str) -> Organization | None:
+    db = get_database_manager()
+    row = await db.shared.get_organization_by_id(org_id)
     if row is None:
         return None
-    d = dict(row)
-    return Organization.model_validate(d)
-
-
-async def get_by_id(org_id: str) -> Organization | None:
-    conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT id, name, slug, created_at FROM organizations WHERE id = $1",
-        (org_id,),
-    )
-    row = await cursor.fetchone()
-    return _row_to_model(row)
+    return Organization.model_validate(row.model_dump())
 
 
 async def list_all() -> list[Organization]:
-    conn = get_connection()
-    cursor = await conn.execute(
-        "SELECT id, name, slug, created_at FROM organizations ORDER BY name"
-    )
-    rows = await cursor.fetchall()
-    return [_row_to_model(r) for r in rows]
+    db = get_database_manager()
+    rows = await db.shared.list_organizations()
+    return [Organization.model_validate(r.model_dump()) for r in rows]

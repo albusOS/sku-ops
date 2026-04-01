@@ -19,7 +19,7 @@ from catalog.infrastructure.sku_repo import sku_repo as _sku_repo
 from catalog.infrastructure.uom_repo import uom_repo as _uom_repo
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo as _vi_repo
 from catalog.infrastructure.vendor_repo import vendor_repo as _vendor_repo
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from shared.infrastructure.db import get_org_id, sql_execute, transaction
 
 # ── Product family (parent) queries ──────────────────────────────────────────
 
@@ -187,12 +187,11 @@ async def sku_vendor_options(sku_id: str) -> list[dict]:
     if not items:
         return []
 
-    conn = get_connection()
     org_id = get_org_id()
     result = []
     for vi in items:
         vendor = await _vendor_repo.get_by_id(vi.vendor_id)
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             """SELECT MAX(po.created_at) AS last_po_date
                FROM purchase_orders po
                JOIN purchase_order_items poi ON poi.po_id = po.id
@@ -200,7 +199,7 @@ async def sku_vendor_options(sku_id: str) -> list[dict]:
                  AND poi.sku_id = $3""",
             (vi.vendor_id, org_id, sku_id),
         )
-        row = await cursor.fetchone()
+        row = (cursor.rows[0] if cursor.rows else None)
         result.append(
             {
                 "vendor_id": vi.vendor_id,

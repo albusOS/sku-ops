@@ -17,7 +17,7 @@ from finance.application.fiscal_period_service import check_period_open
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
 from finance.infrastructure.ledger_repo import entries_exist, insert_entries
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.db import get_org_id
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:

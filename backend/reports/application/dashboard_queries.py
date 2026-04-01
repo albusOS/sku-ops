@@ -16,7 +16,10 @@ from catalog.application.queries import (
 )
 from finance.application import ledger_queries as ledger_repo
 from operations.application.contractor_service import count_contractors
-from operations.application.queries import list_pending_material_requests, list_withdrawals
+from operations.application.queries import (
+    list_pending_material_requests,
+    list_withdrawals,
+)
 from purchasing.application.queries import po_summary_by_status
 from shared.kernel.types import round_money
 
@@ -88,7 +91,9 @@ def _parse_iso(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
-def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> list[DailyPoint]:
+def _build_daily_chart(
+    withdrawals: list, start: datetime, end: datetime
+) -> list[DailyPoint]:
     """Bucket withdrawal totals and costs by calendar day between start and end."""
     days = (end - start).days + 1
     rev_buckets: dict[str, float] = {}
@@ -99,7 +104,11 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
         cost_buckets[key] = 0.0
     for w in withdrawals:
         ca = w.created_at
-        created = ca.strftime("%Y-%m-%d") if isinstance(ca, datetime) else (ca or "")[:10]
+        created = (
+            ca.strftime("%Y-%m-%d")
+            if isinstance(ca, datetime)
+            else (ca or "")[:10]
+        )
         if created in rev_buckets:
             rev_buckets[created] += w.total
             cost_buckets[created] += w.cost_total
@@ -115,19 +124,23 @@ def _build_daily_chart(withdrawals: list, start: datetime, end: datetime) -> lis
 
 
 async def contractor_dashboard(
+    org_id: str,
     contractor_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> ContractorDashboard:
     sd, ed = _parse_date_range(start_date, end_date)
     my_withdrawals = await list_withdrawals(
+        org_id,
         contractor_id=contractor_id,
         start_date=sd,
         end_date=ed,
         limit=1000,
     )
     total_spent = sum(w.total for w in my_withdrawals)
-    unpaid = sum(w.total for w in my_withdrawals if w.payment_status == "unpaid")
+    unpaid = sum(
+        w.total for w in my_withdrawals if w.payment_status == "unpaid"
+    )
     return ContractorDashboard(
         total_withdrawals=len(my_withdrawals),
         total_spent=round_money(total_spent),
@@ -137,6 +150,7 @@ async def contractor_dashboard(
 
 
 async def admin_dashboard(
+    org_id: str,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> AdminDashboard:
@@ -156,9 +170,21 @@ async def admin_dashboard(
         by_department,
         pending_requests,
     ) = await asyncio.gather(
-        list_withdrawals(start_date=sd, end_date=ed, limit=10000),
-        list_withdrawals(payment_status="unpaid", start_date=sd, end_date=ed, limit=10000),
-        list_withdrawals(payment_status="invoiced", start_date=sd, end_date=ed, limit=10000),
+        list_withdrawals(org_id, start_date=sd, end_date=ed, limit=10000),
+        list_withdrawals(
+            org_id,
+            payment_status="unpaid",
+            start_date=sd,
+            end_date=ed,
+            limit=10000,
+        ),
+        list_withdrawals(
+            org_id,
+            payment_status="invoiced",
+            start_date=sd,
+            end_date=ed,
+            limit=10000,
+        ),
         list_skus(),
         count_all_skus(),
         count_low_stock(),
@@ -166,7 +192,7 @@ async def admin_dashboard(
         count_contractors(),
         list_low_stock(10),
         ledger_repo.summary_by_department(start_date=sd, end_date=ed),
-        list_pending_material_requests(limit=10),
+        list_pending_material_requests(org_id, limit=10),
     )
 
     range_revenue = sum(w.total for w in range_withdrawals)
@@ -200,18 +226,28 @@ async def admin_dashboard(
     chart_start = (
         _parse_iso(sd)
         if sd
-        else (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        else (now - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     )
     chart_end = _parse_iso(ed) if ed else now
     daily_chart = _build_daily_chart(range_withdrawals, chart_start, chart_end)
 
     gross_profit = round_money(range_revenue - range_cogs)
     # float for JSON-friendly percentage
-    margin_pct = round(float(gross_profit / range_revenue * 100), 1) if range_revenue > 0 else 0.0
+    margin_pct = (
+        round(float(gross_profit / range_revenue * 100), 1)
+        if range_revenue > 0
+        else 0.0
+    )
 
     period_days = (chart_end - chart_start).days + 1
     # float for JSON-friendly ratio
-    avg_dii = round(float(inventory_cost / range_cogs * period_days), 1) if range_cogs > 0 else 0.0
+    avg_dii = (
+        round(float(inventory_cost / range_cogs * period_days), 1)
+        if range_cogs > 0
+        else 0.0
+    )
 
     return AdminDashboard(
         range_revenue=round_money(range_revenue),
@@ -240,6 +276,7 @@ async def admin_dashboard(
 
 async def dashboard_transactions(
     *,
+    org_id: str,
     limit: int = 20,
     offset: int = 0,
     start_date: str | None = None,
@@ -250,6 +287,7 @@ async def dashboard_transactions(
     sd, ed = _parse_date_range(start_date, end_date)
     fetch_limit = limit + 1
     rows = await list_withdrawals(
+        org_id,
         start_date=sd,
         end_date=ed,
         contractor_id=contractor_id or None,

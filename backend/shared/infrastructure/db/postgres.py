@@ -1,17 +1,13 @@
-"""PostgreSQL backend using SQLAlchemy async engine plus raw-SQL compatibility."""
+"""PostgreSQL backend using SQLAlchemy async engine and session factory."""
 
 from __future__ import annotations
 
 import logging
-import re
 from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
@@ -19,133 +15,10 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from shared.infrastructure.db.protocol import Connection, DictRow
-
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
-
-# asyncpg rejects str for TIMESTAMPTZ binds when using exec_driver_sql; API/query
-# layers often pass ISO-8601 strings from HTTP query params.
-_ISO_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}")
-
-
-def _coerce_bind_for_asyncpg(value: Any) -> Any:
-    """Coerce ISO date/datetime strings to datetime for asyncpg type binding."""
-    if not isinstance(value, str) or len(value) < 10:
-        return value
-    if not _ISO_DATE_PREFIX.match(value):
-        return value
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return value
-
-
-def _normalize_param_tuple(params: tuple | list) -> tuple:
-    return tuple(_coerce_bind_for_asyncpg(p) for p in params)
-
-
-def _normalize_params(params: tuple | list) -> tuple | None:
-    if not params:
-        return None
-    return _normalize_param_tuple(params)
-
-
-def _coerce_result_value(value: Any) -> Any:
-    if isinstance(value, UUID):
-        return str(value)
-    if isinstance(value, dict):
-        return {key: _coerce_result_value(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_coerce_result_value(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_coerce_result_value(item) for item in value)
-    return value
-
-
-class PgCursor:
-    __slots__ = ("_rowcount", "_rows")
-
-    def __init__(self, rows: list[dict[str, Any]], rowcount: int) -> None:
-        self._rows = rows
-        self._rowcount = rowcount
-
-    @property
-    def rowcount(self) -> int:
-        return self._rowcount
-
-    async def fetchone(self) -> DictRow | None:
-        if not self._rows:
-            return None
-        return DictRow(self._rows[0])
-
-    async def fetchall(self) -> list[DictRow]:
-        return [DictRow(row) for row in self._rows]
-
-
-async def _execute_sql(
-    conn: AsyncConnection, sql: str, params: tuple | list = ()
-) -> PgCursor:
-    result = await conn.exec_driver_sql(sql, _normalize_params(params))
-    rows = (
-        [_coerce_result_value(dict(row)) for row in result.mappings().all()]
-        if result.returns_rows
-        else []
-    )
-    rowcount = result.rowcount if result.rowcount != -1 else len(rows)
-    return PgCursor(rows, rowcount)
-
-
-class PgPoolProxy:
-    """Returned by ``get_connection()`` — acquires per execute, auto-commits."""
-
-    __slots__ = ("_engine",)
-
-    def __init__(self, engine: AsyncEngine) -> None:
-        self._engine = engine
-
-    async def execute(self, sql: str, params: tuple | list = ()) -> PgCursor:
-        async with self._engine.begin() as conn:
-            return await _execute_sql(conn, sql, params)
-
-    async def executemany(
-        self, sql: str, params_list: Sequence[tuple | list]
-    ) -> None:
-        compiled = [_normalize_param_tuple(params) for params in params_list]
-        async with self._engine.begin() as conn:
-            await conn.exec_driver_sql(sql, compiled)
-
-    async def commit(self) -> None:
-        pass
-
-    async def rollback(self) -> None:
-        pass
-
-
-class PgTransactionProxy:
-    """Single-connection raw SQL proxy used inside transaction context."""
-
-    __slots__ = ("_conn",)
-
-    def __init__(self, conn: AsyncConnection) -> None:
-        self._conn = conn
-
-    async def execute(self, sql: str, params: tuple | list = ()) -> PgCursor:
-        return await _execute_sql(self._conn, sql, params)
-
-    async def executemany(
-        self, sql: str, params_list: Sequence[tuple | list]
-    ) -> None:
-        compiled = [_normalize_param_tuple(params) for params in params_list]
-        await self._conn.exec_driver_sql(sql, compiled)
-
-    async def commit(self) -> None:
-        pass
-
-    async def rollback(self) -> None:
-        pass
+    from collections.abc import AsyncIterator
 
 
 class PostgresBackend:
@@ -241,15 +114,6 @@ class PostgresBackend:
     def _on_invalidate(*_args: object) -> None:
         logger.warning("DB connection invalidated")
 
-    def connection(self) -> Connection:
-        return PgPoolProxy(self.engine)
-
-    @asynccontextmanager
-    async def transaction(self) -> AsyncIterator[Connection]:
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                yield PgTransactionProxy(conn)
-
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:
         session = self.session_factory()
@@ -262,14 +126,12 @@ class PostgresBackend:
             await session.close()
 
     @asynccontextmanager
-    async def transaction_bundle(
-        self,
-    ) -> AsyncIterator[tuple[Connection, AsyncSession]]:
+    async def transaction_bundle(self) -> AsyncIterator[AsyncSession]:
         async with self.engine.connect() as conn:
             async with conn.begin():
                 session = AsyncSession(bind=conn, expire_on_commit=False)
                 try:
-                    yield PgTransactionProxy(conn), session
+                    yield session
                 except Exception:
                     await session.rollback()
                     raise

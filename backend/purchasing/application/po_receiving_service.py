@@ -21,7 +21,7 @@ from purchasing.domain.purchase_order import (
 )
 from purchasing.infrastructure.po_repo import po_repo as _default_repo
 from purchasing.ports.po_repo_port import PORepoPort
-from shared.infrastructure.database import transaction
+from shared.infrastructure.db import transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged, POItemsReceived
 from shared.kernel.errors import ResourceNotFoundError

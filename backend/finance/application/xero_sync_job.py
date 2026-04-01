@@ -23,7 +23,7 @@ from finance.application.sync_results import (
 from finance.infrastructure.credit_note_repo import credit_note_repo
 from finance.infrastructure.invoice_repo import invoice_repo
 from purchasing.application.queries import list_unsynced_po_bills
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.db import get_org_id
 
 logger = logging.getLogger(__name__)
 

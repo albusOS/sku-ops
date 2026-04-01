@@ -14,7 +14,7 @@ from catalog.application.queries import (
 )
 from purchasing.domain.purchase_order import POItemRow, PORow, VendorPerformance
 from purchasing.infrastructure.po_repo import po_repo as _po_repo
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 class VendorCatalogRow(TypedDict):
@@ -130,9 +130,8 @@ async def get_po_items(po_id: str) -> list[POItemRow]:
 
 async def vendor_catalog(vendor_id: str) -> list[VendorCatalogRow]:
     """SKUs supplied by a vendor with cost, lead time, moq, preferred status."""
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT vi.vendor_sku, vi.cost, vi.lead_time_days, vi.moq,
                   vi.is_preferred, vi.purchase_uom, vi.purchase_pack_qty,
                   s.sku, s.name, s.quantity, s.min_stock, s.sell_uom,
@@ -145,7 +144,7 @@ async def vendor_catalog(vendor_id: str) -> list[VendorCatalogRow]:
            ORDER BY vi.is_preferred DESC, s.name""",
         (vendor_id, org_id),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [VendorCatalogRow(**dict(r)) for r in rows]
 
 
@@ -153,11 +152,10 @@ async def vendor_performance(
     vendor_id: str, days: int = 90, vendor_name: str = ""
 ) -> VendorPerformance:
     """PO count, total spend, avg lead time, fill rate for a vendor."""
-    conn = get_connection()
     org_id = get_org_id()
     since = datetime.now(UTC) - timedelta(days=days)
 
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT COUNT(*) AS po_count,
                   ROUND(COALESCE(SUM(total), 0)::NUMERIC, 2) AS total_spend,
                   SUM(CASE WHEN status = 'received' THEN 1 ELSE 0 END) AS received_count
@@ -165,9 +163,9 @@ async def vendor_performance(
            WHERE vendor_id = $1 AND organization_id = $2 AND created_at >= $3""",
         (vendor_id, org_id, since),
     )
-    summary = dict(await cursor.fetchone())
+    summary = dict(cursor.rows[0]) if cursor.rows else {}
 
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT ROUND(CAST(AVG(
                     EXTRACT(EPOCH FROM (po.received_at::timestamp - po.created_at::timestamp)) / 86400.0
                   ) AS NUMERIC), 1) AS avg_lead_time_days,
@@ -181,7 +179,7 @@ async def vendor_performance(
              AND po.created_at >= $3 AND po.received_at IS NOT NULL""",
         (vendor_id, org_id, since),
     )
-    perf = dict(await cursor.fetchone())
+    perf = dict(cursor.rows[0]) if cursor.rows else {}
 
     return VendorPerformance(
         vendor_id=vendor_id,
@@ -199,11 +197,10 @@ async def purchase_history(
     vendor_id: str, days: int = 90, limit: int = 20
 ) -> list[PurchaseHistoryItem]:
     """Recent POs for a vendor with item summaries."""
-    conn = get_connection()
     org_id = get_org_id()
     since = datetime.now(UTC) - timedelta(days=days)
 
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, vendor_name, document_date, total, status,
                   created_at, received_at
            FROM purchase_orders
@@ -212,16 +209,16 @@ async def purchase_history(
         (vendor_id, org_id, since, limit),
     )
     pos: list[PurchaseHistoryItem] = [
-        PurchaseHistoryItem(**dict(r), items=[], item_count=0) for r in await cursor.fetchall()
+        PurchaseHistoryItem(**dict(r), items=[], item_count=0) for r in cursor.rows
     ]
 
     for po in pos:
-        item_cursor = await conn.execute(
+        item_cursor = await sql_execute(
             """SELECT name, ordered_qty, delivered_qty, unit_price, cost, status
                FROM purchase_order_items WHERE po_id = $1 AND organization_id = $2""",
             (po["id"], org_id),
         )
-        po["items"] = [dict(r) for r in await item_cursor.fetchall()]
+        po["items"] = [dict(r) for r in item_cursor.rows]
         po["item_count"] = len(po["items"])
 
     return pos
@@ -229,10 +226,9 @@ async def purchase_history(
 
 async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
     """Low-stock SKUs enriched with vendor options for procurement planning."""
-    conn = get_connection()
     org_id = get_org_id()
 
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT s.id AS sku_id, s.sku, s.name, s.quantity, s.min_stock,
                   s.cost AS current_cost, s.sell_uom, s.category_name AS department
            FROM skus s
@@ -244,7 +240,7 @@ async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
         (org_id, limit),
     )
     low_stock: list[ReorderRow] = [
-        ReorderRow(**dict(r), vendor_options=[], deficit=0.0) for r in await cursor.fetchall()
+        ReorderRow(**dict(r), vendor_options=[], deficit=0.0) for r in cursor.rows
     ]
 
     vendor_items_by_sku = await _get_vendor_items_for_skus([item["sku_id"] for item in low_stock])

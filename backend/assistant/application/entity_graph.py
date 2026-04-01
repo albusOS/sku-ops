@@ -19,7 +19,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 logger = logging.getLogger(__name__)
 
@@ -150,12 +150,12 @@ async def _view_exists() -> bool:
     if _view_ok is not None:
         return _view_ok
     try:
-        conn = get_connection()
-        cur = await conn.execute(
-            "SELECT 1 FROM information_schema.views WHERE table_name = 'entity_edges' LIMIT 1"
+        res = await sql_execute(
+            "SELECT 1 FROM information_schema.views WHERE table_name = 'entity_edges' LIMIT 1",
+            read_only=True,
+            max_rows=1,
         )
-        row = await cur.fetchone()
-        _view_ok = row is not None
+        _view_ok = len(res.rows) > 0
     except Exception:
         _view_ok = False
     return _view_ok
@@ -173,14 +173,15 @@ async def _load_center(entity_type: str, entity_id: str) -> GraphNode | None:
 
 
 async def _load_sku(entity_id: str) -> GraphNode | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT id, sku, name, price, cost, quantity, min_stock, sell_uom "
         "FROM skus WHERE (id::text = $1 OR sku = $1) AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    r = await cur.fetchone()
+    r = res.rows[0] if res.rows else None
     if not r:
         return None
     return GraphNode(
@@ -198,14 +199,15 @@ async def _load_sku(entity_id: str) -> GraphNode | None:
 
 
 async def _load_vendor(entity_id: str) -> GraphNode | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT id, name, contact_name, email, phone "
         "FROM vendors WHERE id::text = $1 AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    r = await cur.fetchone()
+    r = res.rows[0] if res.rows else None
     if not r:
         return None
     return GraphNode(
@@ -220,14 +222,15 @@ async def _load_vendor(entity_id: str) -> GraphNode | None:
 
 
 async def _load_job(entity_id: str) -> GraphNode | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT id, code, name, service_address, status "
         "FROM jobs WHERE (id::text = $1 OR code = $1) AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    r = await cur.fetchone()
+    r = res.rows[0] if res.rows else None
     if not r:
         return None
     return GraphNode(
@@ -242,14 +245,15 @@ async def _load_job(entity_id: str) -> GraphNode | None:
 
 
 async def _load_invoice(entity_id: str) -> GraphNode | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT id, invoice_number, contact_name, status, total, amount_credited "
         "FROM invoices WHERE (id::text = $1 OR invoice_number = $1) AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    r = await cur.fetchone()
+    r = res.rows[0] if res.rows else None
     if not r:
         return None
     return GraphNode(
@@ -265,14 +269,15 @@ async def _load_invoice(entity_id: str) -> GraphNode | None:
 
 
 async def _load_po(entity_id: str) -> GraphNode | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT id, vendor_name, document_date, total, status "
         "FROM purchase_orders WHERE id::text = $1 AND organization_id::text = $2 LIMIT 1",
         (entity_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    r = await cur.fetchone()
+    r = res.rows[0] if res.rows else None
     if not r:
         return None
     return GraphNode(
@@ -307,30 +312,33 @@ async def _edges_one_hop(
     relation_filter: list[str] | None = None,
 ) -> list[dict]:
     """Fetch direct neighbors in one query."""
-    conn = get_connection()
     org_id = get_org_id()
 
     if relation_filter:
         placeholders = ", ".join(
             f"${i + 4}" for i in range(len(relation_filter))
         )
-        cur = await conn.execute(
+        res = await sql_execute(
             f"SELECT DISTINCT target_id::text AS target_id, target_type, relation "
             f"FROM entity_edges "
             f"WHERE source_id::text = $1 AND source_type = $2 AND org_id::text = $3 "
             f"  AND relation IN ({placeholders}) "
             f"LIMIT 25",
             (source_id, source_type, org_id, *relation_filter),
+            read_only=True,
+            max_rows=50,
         )
     else:
-        cur = await conn.execute(
+        res = await sql_execute(
             "SELECT DISTINCT target_id::text AS target_id, target_type, relation "
             "FROM entity_edges "
             "WHERE source_id::text = $1 AND source_type = $2 AND org_id::text = $3 "
             "LIMIT 25",
             (source_id, source_type, org_id),
+            read_only=True,
+            max_rows=50,
         )
-    return [dict(r) for r in await cur.fetchall()]
+    return list(res.rows)
 
 
 async def _edges_recursive(
@@ -340,7 +348,6 @@ async def _edges_recursive(
     relation_filter: list[str] | None = None,
 ) -> list[dict]:
     """Multi-hop traversal via WITH RECURSIVE."""
-    conn = get_connection()
     org_id = get_org_id()
 
     # Build relation filter clause
@@ -353,7 +360,7 @@ async def _edges_recursive(
         rel_clause = f"AND e.relation IN ({placeholders})"
         params.extend(relation_filter)
 
-    cur = await conn.execute(
+    res = await sql_execute(
         f"""
         WITH RECURSIVE traversal AS (
             -- Seed: direct neighbors
@@ -380,8 +387,10 @@ async def _edges_recursive(
         LIMIT 30
         """,
         tuple(params),
+        read_only=True,
+        max_rows=50,
     )
-    return [dict(r) for r in await cur.fetchall()]
+    return list(res.rows)
 
 
 # ── Neighbor hydration (labels from actual tables) ────────────────────────────
@@ -430,7 +439,6 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
     """Fetch display labels for a batch of entity IDs. Single query per type."""
     if not ids:
         return {}
-    conn = get_connection()
     org_id = get_org_id()
 
     # Build query based on entity type
@@ -479,8 +487,8 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
     if not sql:
         return {eid: eid[:12] for eid in ids}
 
-    cur = await conn.execute(sql, (ids, org_id))
-    return {r["id"]: r["label"] for r in await cur.fetchall()}
+    res = await sql_execute(sql, (ids, org_id), read_only=True, max_rows=500)
+    return {r["id"]: r["label"] for r in res.rows}
 
 
 # ── Direct query fallback (when entity_edges view doesn't exist yet) ──────────
@@ -494,19 +502,20 @@ async def _direct_sku(
     if not center:
         return GraphContext(GraphNode("sku", entity_id, entity_id), [], [])
 
-    conn = get_connection()
     org_id = get_org_id()
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
 
     # Vendors
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT vi.vendor_id, v.name "
         "FROM vendor_items vi JOIN vendors v ON v.id = vi.vendor_id "
         "WHERE vi.sku_id = $1 AND vi.organization_id = $2",
         (center.entity_id, org_id),
+        read_only=True,
+        max_rows=100,
     )
-    for r in await cur.fetchall():
+    for r in res.rows:
         nodes.append(GraphNode("vendor", r["vendor_id"], r["name"]))
         edges.append(
             GraphEdge(
@@ -524,18 +533,19 @@ async def _direct_vendor(
     if not center:
         return GraphContext(GraphNode("vendor", entity_id, entity_id), [], [])
 
-    conn = get_connection()
     org_id = get_org_id()
     nodes: list[GraphNode] = []
     edges: list[GraphEdge] = []
 
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT vi.sku_id, s.sku, s.name "
         "FROM vendor_items vi JOIN skus s ON s.id = vi.sku_id "
         "WHERE vi.vendor_id = $1 AND vi.organization_id = $2 LIMIT 15",
         (center.entity_id, org_id),
+        read_only=True,
+        max_rows=20,
     )
-    for r in await cur.fetchall():
+    for r in res.rows:
         nodes.append(GraphNode("sku", r["sku_id"], f"{r['sku']} — {r['name']}"))
         edges.append(
             GraphEdge(

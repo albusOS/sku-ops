@@ -40,7 +40,7 @@ import pytest
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
-from tests.e2e.helpers import create_product, create_withdrawal
+from tests.e2e.helpers import create_product, create_withdrawal, e2e_job_id
 from tests.helpers.auth import admin_headers
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -50,11 +50,12 @@ def _db_qty(client: TestClient, sku_id: str) -> float:
     """Read skus.quantity directly from the database."""
 
     async def _q() -> float:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute("SELECT quantity FROM skus WHERE id = $1", (sku_id,))
-        row = await cur.fetchone()
+        cur = await sql_execute(
+            "SELECT quantity FROM skus WHERE id = $1", (sku_id,)
+        )
+        row = cur.rows[0] if cur.rows else None
         return float(row[0]) if row else -1.0
 
     return client.portal.call(_q)
@@ -64,11 +65,12 @@ def _db_dept_sku_count(client: TestClient, dept_id: str) -> int:
     """Read departments.sku_count directly from the database."""
 
     async def _q() -> int:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute("SELECT sku_count FROM departments WHERE id = $1", (dept_id,))
-        row = await cur.fetchone()
+        cur = await sql_execute(
+            "SELECT sku_count FROM departments WHERE id = $1", (dept_id,)
+        )
+        row = cur.rows[0] if cur.rows else None
         return int(row[0]) if row else -1
 
     return client.portal.call(_q)
@@ -78,11 +80,12 @@ def _db_product_sku_count(client: TestClient, product_id: str) -> int:
     """Read products.sku_count directly from the database."""
 
     async def _q() -> int:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute("SELECT sku_count FROM products WHERE id = $1", (product_id,))
-        row = await cur.fetchone()
+        cur = await sql_execute(
+            "SELECT sku_count FROM products WHERE id = $1", (product_id,)
+        )
+        row = cur.rows[0] if cur.rows else None
         return int(row[0]) if row else -1
 
     return client.portal.call(_q)
@@ -92,28 +95,30 @@ def _db_product_family_id_for_sku(client: TestClient, sku_id: str) -> str:
     """Read skus.product_family_id directly from the database."""
 
     async def _q() -> str:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute("SELECT product_family_id FROM skus WHERE id = $1", (sku_id,))
-        row = await cur.fetchone()
+        cur = await sql_execute(
+            "SELECT product_family_id FROM skus WHERE id = $1", (sku_id,)
+        )
+        row = cur.rows[0] if cur.rows else None
         return str(row[0]) if row else ""
 
     return client.portal.call(_q)
 
 
-def _db_count_inventory_transactions(client: TestClient, sku_id: str, tx_type: str) -> int:
+def _db_count_inventory_transactions(
+    client: TestClient, sku_id: str, tx_type: str
+) -> int:
     """Count stock_transactions rows for a product and transaction type."""
 
     async def _q() -> int:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute(
+        cur = await sql_execute(
             "SELECT COUNT(*) FROM stock_transactions WHERE sku_id = $1 AND transaction_type = $2",
             (sku_id, tx_type),
         )
-        row = await cur.fetchone()
+        row = cur.rows[0] if cur.rows else None
         return int(row[0]) if row else 0
 
     return client.portal.call(_q)
@@ -123,11 +128,12 @@ def _db_variant_attrs(client: TestClient, sku_id: str) -> dict:
     """Read variant_attrs JSON directly from the database and parse it."""
 
     async def _q() -> str:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute("SELECT variant_attrs FROM skus WHERE id = $1", (sku_id,))
-        row = await cur.fetchone()
+        cur = await sql_execute(
+            "SELECT variant_attrs FROM skus WHERE id = $1", (sku_id,)
+        )
+        row = cur.rows[0] if cur.rows else None
         return str(row[0]) if row else "{}"
 
     import json
@@ -143,11 +149,12 @@ def _db_category_id(client: TestClient, sku_id: str) -> str:
     """Read skus.category_id directly from the database."""
 
     async def _q() -> str:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute("SELECT category_id FROM skus WHERE id = $1", (sku_id,))
-        row = await cur.fetchone()
+        cur = await sql_execute(
+            "SELECT category_id FROM skus WHERE id = $1", (sku_id,)
+        )
+        row = cur.rows[0] if cur.rows else None
         return str(row[0]) if row else ""
 
     return client.portal.call(_q)
@@ -156,7 +163,9 @@ def _db_category_id(client: TestClient, sku_id: str) -> str:
 # ── Second department fixture ─────────────────────────────────────────────────
 
 
-def _get_or_create_dept(client: TestClient, headers: dict, name: str, code: str) -> str:
+def _get_or_create_dept(
+    client: TestClient, headers: dict, name: str, code: str
+) -> str:
     resp = client.get("/api/beta/catalog/departments", headers=headers)
     if resp.status_code == 200:
         for dept in resp.json():
@@ -222,7 +231,9 @@ class TestCatalogIntegrity:
 
         # All three effects must be visible atomically
         db_cat = _db_category_id(client, sku_id)
-        assert db_cat == plmb_id, f"SKU category_id should be {plmb_id}, got {db_cat}"
+        assert db_cat == plmb_id, (
+            f"SKU category_id should be {plmb_id}, got {db_cat}"
+        )
 
         sku_count_hdw_final = _db_dept_sku_count(client, seed_dept_id)
         sku_count_plmb_final = _db_dept_sku_count(client, plmb_id)
@@ -246,7 +257,11 @@ class TestCatalogIntegrity:
         """
         headers = admin_headers()
 
-        initial_attrs = {"holes": "1H", "size": '1/2"', "material": "galvanized steel"}
+        initial_attrs = {
+            "holes": "1H",
+            "size": '1/2"',
+            "material": "galvanized steel",
+        }
 
         resp = client.post(
             "/api/beta/catalog/skus",
@@ -278,7 +293,12 @@ class TestCatalogIntegrity:
         )
 
         # Update: add a key, mutate a key
-        updated_attrs = {"holes": "1H", "size": '1/2"', "material": "zinc-plated", "pack": "3pk"}
+        updated_attrs = {
+            "holes": "1H",
+            "size": '1/2"',
+            "material": "zinc-plated",
+            "pack": "3pk",
+        }
         resp = client.put(
             f"/api/beta/catalog/skus/{sku_id}",
             json={"variant_attrs": updated_attrs},
@@ -317,7 +337,9 @@ class TestCatalogIntegrity:
             json={"name": "EMT Strap 1/2in", "category_id": seed_dept_id},
             headers=headers,
         )
-        assert resp.status_code == 200, f"Product family create failed: {resp.text}"
+        assert resp.status_code == 200, (
+            f"Product family create failed: {resp.text}"
+        )
         family_id = resp.json()["id"]
 
         # Add first variant
@@ -333,7 +355,9 @@ class TestCatalogIntegrity:
             },
             headers=headers,
         )
-        assert resp1.status_code == 200, f"Variant 1 create failed: {resp1.text}"
+        assert resp1.status_code == 200, (
+            f"Variant 1 create failed: {resp1.text}"
+        )
         sku1_id = resp1.json()["id"]
 
         # Add second variant
@@ -349,7 +373,9 @@ class TestCatalogIntegrity:
             },
             headers=headers,
         )
-        assert resp2.status_code == 200, f"Variant 2 create failed: {resp2.text}"
+        assert resp2.status_code == 200, (
+            f"Variant 2 create failed: {resp2.text}"
+        )
         sku2_id = resp2.json()["id"]
 
         # DB must show sku_count == 2
@@ -357,17 +383,29 @@ class TestCatalogIntegrity:
         assert db_count == 2, f"products.sku_count should be 2, got {db_count}"
 
         # HTTP family detail must list both variants
-        resp = client.get(f"/api/beta/catalog/products/{family_id}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/products/{family_id}", headers=headers
+        )
         assert resp.status_code == 200
         family = resp.json()
         sku_ids = {s["id"] for s in family.get("skus", [])}
-        assert sku1_id in sku_ids, f"Variant 1 ({sku1_id}) missing from family SKUs: {sku_ids}"
-        assert sku2_id in sku_ids, f"Variant 2 ({sku2_id}) missing from family SKUs: {sku_ids}"
+        assert sku1_id in sku_ids, (
+            f"Variant 1 ({sku1_id}) missing from family SKUs: {sku_ids}"
+        )
+        assert sku2_id in sku_ids, (
+            f"Variant 2 ({sku2_id}) missing from family SKUs: {sku_ids}"
+        )
 
         # Variant attrs must be distinct
-        attrs1 = next(s["variant_attrs"] for s in family["skus"] if s["id"] == sku1_id)
-        attrs2 = next(s["variant_attrs"] for s in family["skus"] if s["id"] == sku2_id)
-        assert attrs1 != attrs2, "Sibling SKUs should have distinct variant_attrs"
+        attrs1 = next(
+            s["variant_attrs"] for s in family["skus"] if s["id"] == sku1_id
+        )
+        attrs2 = next(
+            s["variant_attrs"] for s in family["skus"] if s["id"] == sku2_id
+        )
+        assert attrs1 != attrs2, (
+            "Sibling SKUs should have distinct variant_attrs"
+        )
         assert attrs1.get("holes") == "1H"
         assert attrs2.get("holes") == "2H"
 
@@ -391,7 +429,9 @@ class TestCatalogIntegrity:
             name="Orphan-Paint-Brush-2in",
             quantity=10,
         )
-        orphan_original_family_id = _db_product_family_id_for_sku(client, orphan["id"])
+        orphan_original_family_id = _db_product_family_id_for_sku(
+            client, orphan["id"]
+        )
 
         # Target family
         resp = client.post(
@@ -419,7 +459,9 @@ class TestCatalogIntegrity:
         )
 
         # HTTP family detail must now include the adopted SKU
-        resp = client.get(f"/api/beta/catalog/products/{family_id}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/products/{family_id}", headers=headers
+        )
         assert resp.status_code == 200
         sku_ids = {s["id"] for s in resp.json().get("skus", [])}
         assert orphan["id"] in sku_ids, (
@@ -433,7 +475,9 @@ class TestCatalogIntegrity:
         )
         assert resp2.status_code == 200
         db_family_id_again = _db_product_family_id_for_sku(client, orphan["id"])
-        assert db_family_id_again == family_id, "Re-adopt must not corrupt the product_family_id"
+        assert db_family_id_again == family_id, (
+            "Re-adopt must not corrupt the product_family_id"
+        )
 
     # ── 5. Stock ledger coherence: receiving ─────────────────────────────────
 
@@ -462,7 +506,9 @@ class TestCatalogIntegrity:
         sku_id = product["id"]
         qty_before = _db_qty(client, sku_id)
 
-        po = create_po(client, headers, product, quantity=30, vendor_name="AtomicVendor")
+        po = create_po(
+            client, headers, product, quantity=30, vendor_name="AtomicVendor"
+        )
         receive_po(client, headers, po["id"])
 
         qty_after = _db_qty(client, sku_id)
@@ -498,12 +544,16 @@ class TestCatalogIntegrity:
         sku_id = product["id"]
         qty_before = _db_qty(client, sku_id)
 
-        tx_before = _db_count_inventory_transactions(client, sku_id, "withdrawal")
+        tx_before = _db_count_inventory_transactions(
+            client, sku_id, "withdrawal"
+        )
 
         create_withdrawal(client, headers, product, quantity=withdraw_qty)
 
         qty_after = _db_qty(client, sku_id)
-        tx_after = _db_count_inventory_transactions(client, sku_id, "withdrawal")
+        tx_after = _db_count_inventory_transactions(
+            client, sku_id, "withdrawal"
+        )
 
         assert qty_after == qty_before - withdraw_qty, (
             f"Stock should be {qty_before - withdraw_qty}, got {qty_after}"
@@ -558,7 +608,7 @@ class TestCatalogIntegrity:
                             "cost": product["cost"],
                         }
                     ],
-                    "job_id": f"JOB-CONCURRENT-{i}",
+                    "job_id": e2e_job_id(f"CONCURRENT-{i}"),
                     "service_address": "100 Concurrent Lane",
                 },
                 headers=headers,
@@ -578,7 +628,9 @@ class TestCatalogIntegrity:
             f"At most {max_possible} withdrawals of {withdraw_qty} can succeed from "
             f"stock={initial_stock}, but {successes} succeeded"
         )
-        assert successes + failures == n_workers, "All attempts must have a definitive outcome"
+        assert successes + failures == n_workers, (
+            "All attempts must have a definitive outcome"
+        )
 
         # DB stock must be exact: initial - (successes * withdraw_qty)
         final_qty = _db_qty(client, sku_id)
@@ -590,7 +642,9 @@ class TestCatalogIntegrity:
         assert final_qty >= 0, f"Stock went negative: {final_qty}"
 
         # Ledger must have exactly one 'withdrawal' row per success — no phantom entries
-        tx_count = _db_count_inventory_transactions(client, sku_id, "withdrawal")
+        tx_count = _db_count_inventory_transactions(
+            client, sku_id, "withdrawal"
+        )
         assert tx_count == successes, (
             f"stock_transactions must have exactly {successes} withdrawal rows "
             f"(one per success), found {tx_count}"
@@ -668,13 +722,17 @@ class TestCatalogIntegrity:
         sku_id = resp.json()["id"]
 
         db_attrs = _db_variant_attrs(client, sku_id)
-        assert db_attrs == {}, f"variant_attrs should be empty dict, got {db_attrs!r}"
+        assert db_attrs == {}, (
+            f"variant_attrs should be empty dict, got {db_attrs!r}"
+        )
 
         http_attrs = resp.json().get("variant_attrs")
         assert isinstance(http_attrs, dict), (
             f"HTTP variant_attrs should be dict, got {http_attrs!r}"
         )
-        assert http_attrs == {}, f"HTTP variant_attrs should be {{}}, got {http_attrs}"
+        assert http_attrs == {}, (
+            f"HTTP variant_attrs should be {{}}, got {http_attrs}"
+        )
 
     # ── 10. Pack conversion: sell-side decrement ──────────────────────────────
 
@@ -800,4 +858,6 @@ class TestCatalogIntegrity:
             contractor_id=seed_contractor_id,
         )
         qty_after = _db_qty(client, sku_id)
-        assert qty_after == qty_before - 7, f"Stock should be {qty_before - 7}, got {qty_after}"
+        assert qty_after == qty_before - 7, (
+            f"Stock should be {qty_before - 7}, got {qty_after}"
+        )

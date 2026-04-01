@@ -1,61 +1,23 @@
-"""Stock transaction repository."""
+"""Stock transaction repository — delegates to InventoryDatabaseService."""
 
 from inventory.domain.stock import StockTransaction
-from shared.infrastructure.database import get_connection, get_org_id
-
-
-def _row_to_model(row) -> StockTransaction | None:
-    if row is None:
-        return None
-    return StockTransaction.model_validate(dict(row))
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 
 async def insert_transaction(tx: StockTransaction) -> None:
-    conn = get_connection()
-    await conn.execute(
-        """INSERT INTO stock_transactions (id, sku_id, sku, product_name, quantity_delta, quantity_before,
-           quantity_after, unit, transaction_type, reference_id, reference_type, reason,
-           original_quantity, original_unit,
-           user_id, user_name, organization_id, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)""",
-        (
-            tx.id,
-            tx.sku_id,
-            tx.sku,
-            tx.product_name,
-            tx.quantity_delta,
-            tx.quantity_before,
-            tx.quantity_after,
-            tx.unit,
-            tx.transaction_type.value,
-            tx.reference_id,
-            tx.reference_type,
-            tx.reason,
-            tx.original_quantity,
-            tx.original_unit,
-            tx.user_id,
-            tx.user_name,
-            tx.organization_id,
-            tx.created_at,
-        ),
-    )
-    await conn.commit()
+    db = get_database_manager()
+    await db.inventory.insert_stock_transaction(tx)
 
 
 async def list_by_product(
     sku_id: str,
     limit: int = 50,
 ) -> list[StockTransaction]:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT * FROM stock_transactions
-           WHERE sku_id = $1 AND organization_id = $2
-           ORDER BY created_at DESC LIMIT $3""",
-        (sku_id, org_id, limit),
+    db = get_database_manager()
+    return await db.inventory.list_stock_transactions_by_product(
+        get_org_id(), sku_id, limit=limit
     )
-    rows = await cursor.fetchall()
-    return [_row_to_model(r) for r in rows]
 
 
 class StockRepo:

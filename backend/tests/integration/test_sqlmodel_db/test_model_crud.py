@@ -6,12 +6,13 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from backend.shared.infrastructure.types.public_sql_model_models import (
+from sqlmodel import select
+
+from shared.infrastructure.types.public_sql_model_models import (
     Departments,
     Organizations,
     Products,
 )
-from sqlmodel import select
 
 pytestmark = pytest.mark.skipif(
     "not config.getoption('--run-integration', default=False)",

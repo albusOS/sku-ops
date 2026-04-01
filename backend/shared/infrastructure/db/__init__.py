@@ -1,12 +1,13 @@
-"""Central DB API - raw SQL compatibility plus async session access."""
+"""Central DB API - async session access and transaction scope."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
-from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.db.services.raw_sql import ExecutionResult
+from shared.infrastructure.db.uow import _tx_session
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 if TYPE_CHECKING:
@@ -14,17 +15,12 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from shared.infrastructure.db.protocol import Connection
-
 _state: dict[str, object | None] = {"manager": None}
-
-_tx_conn: ContextVar[Connection | None] = ContextVar("_tx_conn", default=None)
-_tx_session: ContextVar[AsyncSession | None] = ContextVar(
-    "_tx_session", default=None
-)
 
 
 def _manager():
+    from shared.infrastructure.db.base import get_database_manager
+
     manager = _state["manager"]
     if manager is None:
         manager = get_database_manager()
@@ -34,6 +30,8 @@ def _manager():
 
 async def init_db() -> None:
     """Open connection pool using the externally managed Supabase schema."""
+    from shared.infrastructure.db.base import get_database_manager
+
     manager = get_database_manager()
     _state["manager"] = manager
     await manager.connect()
@@ -49,15 +47,6 @@ def get_user_id() -> str:
     return user_id_var.get("")
 
 
-def get_connection() -> Connection:
-    """Return the ambient transactional connection if inside a transaction(),
-    otherwise fall back to the pool proxy."""
-    tx = _tx_conn.get()
-    if tx is not None:
-        return tx
-    return _manager().db_service.connection()
-
-
 @asynccontextmanager
 async def get_session() -> AsyncIterator[AsyncSession]:
     tx_session = _tx_session.get()
@@ -69,25 +58,17 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 @asynccontextmanager
-async def transaction() -> AsyncIterator[Connection]:
-    """Async context manager — commits on success, rolls back on exception.
+async def transaction() -> AsyncIterator[None]:
+    """Open a unit of work (commits on success, rolls back on error).
 
-    Stores the transactional connection in a contextvar so that
-    get_connection() returns it for the duration of the block.
-    Nested calls reuse the existing ambient connection.
+    Nested calls reuse the ambient session without opening a new transaction.
+    Use ``get_session()`` or ``get_database_manager().sql`` inside the block.
     """
-    existing = _tx_conn.get()
-    if existing is not None:
-        yield existing
+    if _tx_session.get() is not None:
+        yield
         return
-    async with _manager().transaction() as tx:
-        conn_token = _tx_conn.set(tx.connection)
-        session_token = _tx_session.set(tx.session)
-        try:
-            yield tx.connection
-        finally:
-            _tx_conn.reset(conn_token)
-            _tx_session.reset(session_token)
+    async with _manager().transaction():
+        yield
 
 
 async def close_db() -> None:
@@ -96,3 +77,47 @@ async def close_db() -> None:
     if manager is not None:
         await manager.close()
         _state["manager"] = None
+
+
+async def sql_execute(
+    sql: str,
+    params: dict[str, Any] | Sequence[Any] | None = None,
+    *,
+    read_only: bool = False,
+    timeout_ms: int = 10_000,
+    max_rows: int = 500,
+) -> ExecutionResult:
+    """Run a single raw SQL statement via :named or ``$1``-style parameters."""
+    return await _manager().sql.execute(
+        sql,
+        params,
+        read_only=read_only,
+        timeout_ms=timeout_ms,
+        max_rows=max_rows,
+    )
+
+
+async def sql_execute_many(
+    sql: str,
+    params_list: list[dict[str, Any]] | list[Sequence[Any]],
+    *,
+    read_only: bool = False,
+) -> int:
+    """Execute the same statement for many parameter rows; returns rows affected."""
+    return await _manager().sql.execute_many(
+        sql, params_list, read_only=read_only
+    )
+
+
+__all__ = [
+    "ExecutionResult",
+    "_tx_session",
+    "close_db",
+    "get_org_id",
+    "get_session",
+    "get_user_id",
+    "init_db",
+    "sql_execute",
+    "sql_execute_many",
+    "transaction",
+]

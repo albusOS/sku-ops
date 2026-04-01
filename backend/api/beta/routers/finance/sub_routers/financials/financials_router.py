@@ -38,11 +38,21 @@ async def get_financial_summary(
             by_contractor_rows,
             counts,
         ) = await asyncio.gather(
-            ledger_repo.summary_by_account(start_date=start_date, end_date=end_date),
-            ledger_repo.summary_by_department(start_date=start_date, end_date=end_date),
-            ledger_repo.summary_by_billing_entity(start_date=start_date, end_date=end_date),
-            ledger_repo.summary_by_contractor(start_date=start_date, end_date=end_date),
-            ledger_repo.reference_counts(start_date=start_date, end_date=end_date),
+            ledger_repo.summary_by_account(
+                start_date=start_date, end_date=end_date
+            ),
+            ledger_repo.summary_by_department(
+                start_date=start_date, end_date=end_date
+            ),
+            ledger_repo.summary_by_billing_entity(
+                start_date=start_date, end_date=end_date
+            ),
+            ledger_repo.summary_by_contractor(
+                start_date=start_date, end_date=end_date
+            ),
+            ledger_repo.reference_counts(
+                start_date=start_date, end_date=end_date
+            ),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -57,7 +67,9 @@ async def get_financial_summary(
 
     gross_profit = round_money(revenue - cogs)
     # float for JSON-friendly percentage
-    margin_pct = round(float(gross_profit / revenue * 100), 1) if revenue > 0 else 0.0
+    margin_pct = (
+        round(float(gross_profit / revenue * 100), 1) if revenue > 0 else 0.0
+    )
 
     by_entity = {}
     for row in by_entity_rows:
@@ -108,6 +120,7 @@ async def export_financials(
     """Export financial data as CSV (line-level, from operational tables)."""
     try:
         withdrawals = await list_withdrawals(
+            current_user.organization_id,
             payment_status=payment_status,
             billing_entity=billing_entity,
             start_date=start_date,
@@ -143,7 +156,9 @@ async def export_financials(
     )
 
     for w in withdrawals:
-        items_str = "; ".join([f"{i['name']} x{i['quantity']}" for i in w.get("items", [])])
+        items_str = "; ".join(
+            [f"{i['name']} x{i['quantity']}" for i in w.get("items", [])]
+        )
         writer.writerow(
             [
                 w.get("id", ""),

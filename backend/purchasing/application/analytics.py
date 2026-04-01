@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from catalog.application.queries import get_vendor_items_for_skus, list_low_stock
+from catalog.application.queries import (
+    get_vendor_items_for_skus,
+    list_low_stock,
+)
 from inventory.application.queries import demand_normalized_velocity
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 async def vendor_lead_time_actual(
@@ -22,11 +25,10 @@ async def vendor_lead_time_actual(
     Computes median and P90 from fully received POs. Detects trend drift
     by comparing the most recent 3 POs against all prior POs.
     """
-    conn = get_connection()
     org_id = get_org_id()
     since = datetime.now(UTC) - timedelta(days=days)
 
-    cur = await conn.execute(
+    res = await sql_execute(
         """SELECT po.id,
                   EXTRACT(EPOCH FROM (
                       po.received_at::timestamp - po.created_at::timestamp
@@ -38,8 +40,10 @@ async def vendor_lead_time_actual(
              AND po.received_at IS NOT NULL
            ORDER BY po.received_at""",
         (vendor_id, org_id, since),
+        read_only=True,
+        max_rows=5000,
     )
-    rows = [dict(r) for r in await cur.fetchall()]
+    rows = [dict(r) for r in res.rows]
 
     if not rows:
         return {
@@ -72,7 +76,7 @@ async def vendor_lead_time_actual(
                 trend = "improving"
 
     # Get stated lead time from vendor_items (median across SKUs for this vendor)
-    stated_cur = await conn.execute(
+    stated_res = await sql_execute(
         """SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lead_time_days) AS stated
            FROM vendor_items
            WHERE vendor_id = $1
@@ -80,9 +84,15 @@ async def vendor_lead_time_actual(
              AND organization_id = $2
              AND deleted_at IS NULL""",
         (vendor_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    stated_row = await stated_cur.fetchone()
-    stated_days = float(stated_row["stated"]) if stated_row and stated_row["stated"] else None
+    stated_row = stated_res.rows[0] if stated_res.rows else None
+    stated_days = (
+        float(stated_row["stated"])
+        if stated_row and stated_row["stated"]
+        else None
+    )
 
     return {
         "vendor_id": vendor_id,
@@ -128,8 +138,12 @@ async def reorder_point_smart(
         actual_lead = None
         if preferred:
             if preferred.vendor_id not in lead_time_cache:
-                lt_data = await vendor_lead_time_actual(preferred.vendor_id, days=180)
-                lead_time_cache[preferred.vendor_id] = lt_data.get("actual_median_days")
+                lt_data = await vendor_lead_time_actual(
+                    preferred.vendor_id, days=180
+                )
+                lead_time_cache[preferred.vendor_id] = lt_data.get(
+                    "actual_median_days"
+                )
             actual_lead = lead_time_cache[preferred.vendor_id]
 
         lead_days = actual_lead or 7.0

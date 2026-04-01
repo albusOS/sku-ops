@@ -5,7 +5,7 @@ creating a circular import with invoice_repo.
 """
 
 from finance.domain.invoice import Invoice, InvoiceLineItem, InvoiceWithDetails
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 def _row_to_model(row) -> Invoice | None:
@@ -31,32 +31,36 @@ def _build_invoice_with_details(
 
 
 async def get_by_id(invoice_id: str) -> InvoiceWithDetails | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    res_inv = await sql_execute(
         "SELECT * FROM invoices WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (invoice_id, org_id),
+        read_only=True,
+        max_rows=2,
     )
-    row = await cursor.fetchone()
+    row = res_inv.rows[0] if res_inv.rows else None
     if not row:
         return None
 
-    cursor = await conn.execute(
+    res_li = await sql_execute(
         "SELECT li.* FROM invoice_line_items li"
         " JOIN invoices i ON i.id = li.invoice_id"
         " WHERE li.invoice_id = $1 AND i.organization_id = $2"
         " ORDER BY li.id",
         (invoice_id, org_id),
+        read_only=True,
+        max_rows=2000,
     )
-    li_rows = await cursor.fetchall()
+    li_rows = res_li.rows
 
-    cursor = await conn.execute(
+    res_w = await sql_execute(
         "SELECT iw.withdrawal_id FROM invoice_withdrawals iw"
         " JOIN invoices i ON i.id = iw.invoice_id"
         " WHERE iw.invoice_id = $1 AND i.organization_id = $2",
         (invoice_id, org_id),
+        read_only=True,
+        max_rows=500,
     )
-    w_rows = await cursor.fetchall()
-    withdrawal_ids = [r[0] for r in w_rows]
+    withdrawal_ids = [r["withdrawal_id"] for r in res_w.rows]
 
     return _build_invoice_with_details(row, li_rows, withdrawal_ids)

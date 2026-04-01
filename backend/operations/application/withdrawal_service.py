@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
 from catalog.application.queries import list_skus
 from finance.application.billing_entity_service import ensure_billing_entity
-from finance.application.invoice_service import create_invoice_from_withdrawals as _create_invoice
-from finance.application.invoice_service import mark_paid_for_withdrawal as _mark_invoice_paid
-from finance.application.ledger_service import record_payment as _record_payment_ledger
-from finance.application.ledger_service import record_withdrawal as _record_withdrawal_ledger
+from finance.application.invoice_service import (
+    create_invoice_from_withdrawals as _create_invoice,
+)
+from finance.application.invoice_service import (
+    mark_paid_for_withdrawal as _mark_invoice_paid,
+)
+from finance.application.ledger_service import (
+    record_payment as _record_payment_ledger,
+)
+from finance.application.ledger_service import (
+    record_withdrawal as _record_withdrawal_ledger,
+)
 from finance.application.org_settings_service import get_org_settings
-from inventory.application.inventory_service import process_withdrawal_stock_changes
+from inventory.application.inventory_service import (
+    process_withdrawal_stock_changes,
+)
 from jobs.application.job_service import ensure_job as _ensure_job
 from operations.domain.enums import PaymentStatus
 from operations.domain.withdrawal import (
@@ -21,17 +30,22 @@ from operations.domain.withdrawal import (
     MaterialWithdrawal,
     MaterialWithdrawalCreate,
 )
-from operations.infrastructure.withdrawal_repo import withdrawal_repo as _default_withdrawal_repo
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
-from shared.kernel.domain_events import InventoryChanged, WithdrawalCreated, WithdrawalPaid
+from shared.kernel.domain_events import (
+    InventoryChanged,
+    WithdrawalCreated,
+    WithdrawalPaid,
+)
 from shared.kernel.event_payloads import LedgerItem
 from shared.kernel.stock import StockDecrement
-from shared.kernel.units import are_compatible, convert_quantity, cost_per_sell_unit
-
-if TYPE_CHECKING:
-    from operations.ports.withdrawal_repo_port import WithdrawalRepoPort
-    from shared.kernel.types import CurrentUser
+from shared.kernel.types import CurrentUser
+from shared.kernel.units import (
+    are_compatible,
+    convert_quantity,
+    cost_per_sell_unit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +73,6 @@ async def create_withdrawal(
     contractor: ContractorContext,
     current_user: CurrentUser,
     *,
-    withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
     tax_rate: float = 0.10,
 ) -> MaterialWithdrawal:
     """Create a material withdrawal.
@@ -74,7 +87,8 @@ async def create_withdrawal(
     if not contractor.id:
         raise ValueError("contractor.id must not be empty")
 
-    org_id = get_org_id()
+    org_id = current_user.organization_id
+    db = get_database_manager().operations
     if data.job_id:
         await _ensure_job(data.job_id)
     products = await list_skus()
@@ -93,21 +107,35 @@ async def create_withdrawal(
         p_price = p.price if p else 0
 
         if item.cost == 0.0 and p_cost:
-            updates["cost"] = _convert_price_per_unit(p_cost, base_unit, req_unit)
-        elif item.cost != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
-            updates["cost"] = _convert_price_per_unit(p_cost or item.cost, base_unit, req_unit)
+            updates["cost"] = _convert_price_per_unit(
+                p_cost, base_unit, req_unit
+            )
+        elif (
+            item.cost != 0.0
+            and req_unit != base_unit
+            and are_compatible(base_unit, req_unit)
+        ):
+            updates["cost"] = _convert_price_per_unit(
+                p_cost or item.cost, base_unit, req_unit
+            )
 
         if item.unit_price == 0.0 and p_price:
-            updates["unit_price"] = _convert_price_per_unit(p_price, base_unit, req_unit)
+            updates["unit_price"] = _convert_price_per_unit(
+                p_price, base_unit, req_unit
+            )
         elif (
-            item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit)
+            item.unit_price != 0.0
+            and req_unit != base_unit
+            and are_compatible(base_unit, req_unit)
         ):
             updates["unit_price"] = _convert_price_per_unit(
                 p_price or item.unit_price, base_unit, req_unit
             )
 
         updates["sell_uom"] = sell_uom
-        updates["sell_cost"] = cost_per_sell_unit(p_cost, base_unit, sell_uom, pack_qty)
+        updates["sell_cost"] = cost_per_sell_unit(
+            p_cost, base_unit, sell_uom, pack_qty
+        )
 
         item = item.model_copy(update=updates)
         enriched_items.append(item)
@@ -173,7 +201,7 @@ async def create_withdrawal(
             user_name=current_user.name,
         )
 
-        await withdrawal_repo.insert(withdrawal)
+        await db.insert_withdrawal(org_id, withdrawal)
 
         await _record_withdrawal_ledger(
             withdrawal_id=withdrawal.id,
@@ -231,7 +259,8 @@ async def create_withdrawal_wired(
 async def mark_single_withdrawal_paid(
     withdrawal_id: str,
     performed_by_user_id: str,
-    withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
+    *,
+    organization_id: str,
 ) -> MaterialWithdrawal:
     """Mark a withdrawal as paid.
 
@@ -240,15 +269,20 @@ async def mark_single_withdrawal_paid(
 
     Post-commit (best-effort): WithdrawalPaid dispatched for WS notification.
     """
-    withdrawal = await withdrawal_repo.get_by_id(withdrawal_id)
+    db = get_database_manager().operations
+    withdrawal = await db.get_withdrawal_by_id(organization_id, withdrawal_id)
     if not withdrawal:
         raise ValueError(f"Withdrawal {withdrawal_id} not found")
     paid_at = datetime.now(UTC)
 
     async with transaction():
-        result, changed = await withdrawal_repo.mark_paid(withdrawal_id, paid_at)
+        result, changed = await db.mark_withdrawal_paid(
+            organization_id, withdrawal_id, paid_at
+        )
         if not result:
-            raise ValueError(f"Withdrawal {withdrawal_id} could not be marked paid")
+            raise ValueError(
+                f"Withdrawal {withdrawal_id} could not be marked paid"
+            )
         if changed:
             await _mark_invoice_paid(withdrawal_id)
             await _record_payment_ledger(
@@ -276,7 +310,8 @@ async def mark_single_withdrawal_paid(
 async def bulk_mark_withdrawals_paid(
     withdrawal_ids: list[str],
     performed_by_user_id: str,
-    withdrawal_repo: WithdrawalRepoPort = _default_withdrawal_repo,
+    *,
+    organization_id: str,
 ) -> int:
     """Mark multiple withdrawals as paid in bulk.
 
@@ -290,16 +325,21 @@ async def bulk_mark_withdrawals_paid(
 
     paid_at = datetime.now(UTC)
 
+    db = get_database_manager().operations
     # Fetch before the transaction so we have the data needed for ledger entries
     withdrawals = []
     for wid in withdrawal_ids:
-        w = await withdrawal_repo.get_by_id(wid)
+        w = await db.get_withdrawal_by_id(organization_id, wid)
         if w:
             withdrawals.append(w)
 
     changed_ids: set[str] = set()
     async with transaction():
-        changed_ids = set(await withdrawal_repo.bulk_mark_paid(withdrawal_ids, paid_at))
+        changed_ids = set(
+            await db.bulk_mark_withdrawals_paid(
+                organization_id, withdrawal_ids, paid_at
+            )
+        )
         for w in withdrawals:
             if w.id not in changed_ids:
                 continue

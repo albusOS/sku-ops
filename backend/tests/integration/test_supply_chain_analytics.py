@@ -8,7 +8,7 @@ org context pre-set.
 
 import uuid
 
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID, SEEDED_VENDOR_ID
 
@@ -25,17 +25,16 @@ async def _seed_sku(
     min_stock: int = 10,
     dept_id: str = SEEDED_DEPT_ID,
 ):
-    conn = get_connection()
     # Need a product_family row first (skus.product_family_id is FK)
     pf_id = str(uuid.uuid4())
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO products
            (id, name, category_id, category_name, organization_id, created_at, updated_at)
            VALUES ($1, $2, $3, 'Hardware', $4, NOW(), NOW())
            ON CONFLICT (id) DO NOTHING""",
         (pf_id, name, dept_id, DEFAULT_ORG_ID),
     )
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO skus
            (id, sku, product_family_id, name, quantity, cost, price, min_stock,
             category_id, category_name,
@@ -56,7 +55,6 @@ async def _seed_sku(
             DEFAULT_ORG_ID,
         ),
     )
-    await conn.commit()
     return sku_id
 
 
@@ -64,11 +62,10 @@ async def _seed_withdrawal_txns(
     sku_id: str, daily_qtys: list[float], start_days_ago: int = 30
 ):
     """Seed stock_transactions (WITHDRAWAL type) over consecutive days."""
-    conn = get_connection()
     for i, qty in enumerate(daily_qtys):
         if qty <= 0:
             continue
-        await conn.execute(
+        await sql_execute(
             """INSERT INTO stock_transactions
                (id, sku_id, sku, product_name, quantity_delta,
                 quantity_before, quantity_after, unit,
@@ -81,12 +78,8 @@ async def _seed_withdrawal_txns(
                        NOW() - make_interval(days => $3))""",
             (sku_id, -qty, start_days_ago - i, ADMIN_USER_ID, DEFAULT_ORG_ID),
         )
-    await conn.commit()
-
-
 async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
-    conn = get_connection()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO stock_transactions
            (id, sku_id, sku, product_name, quantity_delta,
             quantity_before, quantity_after, unit,
@@ -99,20 +92,15 @@ async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
                    NOW() - make_interval(days => $3))""",
         (sku_id, qty, days_ago, ADMIN_USER_ID, DEFAULT_ORG_ID),
     )
-    await conn.commit()
-
-
 async def _seed_vendor(
     vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supplies"
 ):
-    conn = get_connection()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO vendors (id, name, organization_id, created_at)
            VALUES ($1, $2, $3, NOW())
            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name""",
         (vendor_id, name, DEFAULT_ORG_ID),
     )
-    await conn.commit()
     return vendor_id
 
 
@@ -122,10 +110,9 @@ async def _seed_received_po(
     received_days_ago: int,
     sku_id: str = "0195f2c0-89af-7000-8000-000000000101",
 ):
-    conn = get_connection()
     po_id = str(uuid.uuid4())
 
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO purchase_orders
            (id, vendor_id, vendor_name, status, created_by_id, created_by_name,
             organization_id, created_at, received_at)
@@ -143,7 +130,7 @@ async def _seed_received_po(
             received_days_ago,
         ),
     )
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO purchase_order_items
            (id, po_id, name, ordered_qty, delivered_qty, unit_price, cost,
             base_unit, sell_uom, pack_qty, suggested_department, status, sku_id,
@@ -153,7 +140,6 @@ async def _seed_received_po(
            ON CONFLICT DO NOTHING""",
         (po_id, sku_id, DEFAULT_ORG_ID),
     )
-    await conn.commit()
     return po_id
 
 

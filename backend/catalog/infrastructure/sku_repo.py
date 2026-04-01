@@ -3,7 +3,7 @@
 import json
 
 from catalog.domain.sku import Sku
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 def _row_to_sku(row) -> Sku | None:
@@ -28,7 +28,6 @@ async def list_skus(
     offset: int = 0,
     product_family_id: str | None = None,
 ) -> list[Sku]:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     base = (
@@ -62,8 +61,8 @@ async def list_skus(
         base += f" LIMIT ${n} OFFSET ${n + 1}"
         params.extend([limit, offset])
         n += 2
-    cursor = await conn.execute(base, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(base, params)
+    rows = cursor.rows
     return [s for r in rows if (s := _row_to_sku(r)) is not None]
 
 
@@ -73,7 +72,6 @@ async def count_skus(
     low_stock: bool = False,
     product_family_id: str | None = None,
 ) -> int:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     query = f"SELECT COUNT(*) FROM skus WHERE organization_id = ${n} AND deleted_at IS NULL"
@@ -94,19 +92,18 @@ async def count_skus(
         n += 3
     if low_stock:
         query += " AND quantity <= min_stock"
-    cursor = await conn.execute(query, params)
-    row = await cursor.fetchone()
+    cursor = await sql_execute(query, params)
+    row = (cursor.rows[0] if cursor.rows else None)
     return row[0] if row else 0
 
 
 async def get_by_id(sku_id: str) -> Sku | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM skus WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (sku_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_sku(row)
 
 
@@ -115,13 +112,12 @@ async def find_by_sku(sku: str) -> Sku | None:
     s = sku.strip().upper() if sku else ""
     if not s:
         return None
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM skus WHERE UPPER(sku) = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (s, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_sku(row)
 
 
@@ -133,19 +129,18 @@ async def find_by_barcode(
     b = barcode.strip() if barcode else ""
     if not b:
         return None
-    c = get_connection()
     org_id = get_org_id()
     if exclude_sku_id:
-        cursor = await c.execute(
+        cursor = await sql_execute(
             "SELECT * FROM skus WHERE (barcode = $1 OR sku = $2 OR vendor_barcode = $3) AND id != $4 AND organization_id = $5 AND deleted_at IS NULL",
             (b, b, b, exclude_sku_id, org_id),
         )
     else:
-        cursor = await c.execute(
+        cursor = await sql_execute(
             "SELECT * FROM skus WHERE (barcode = $1 OR sku = $2 OR vendor_barcode = $3) AND organization_id = $4 AND deleted_at IS NULL",
             (b, b, b, org_id),
         )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_sku(row)
 
 
@@ -156,60 +151,55 @@ async def find_by_name_and_vendor(name: str, vendor_id: str) -> Sku | None:
         return None
     norm = str(name).strip().lower()
     org_id = get_org_id()
-    conn = get_connection()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT s.* FROM skus s
            INNER JOIN vendor_items vi ON vi.sku_id = s.id AND vi.deleted_at IS NULL
            WHERE vi.vendor_id = $1 AND TRIM(LOWER(s.name)) = $2
            AND s.organization_id = $3 AND s.deleted_at IS NULL""",
         (vendor_id, norm, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_sku(row)
 
 
 async def find_by_product_family_id(product_family_id: str) -> list[Sku]:
     """Return all SKUs belonging to a product family."""
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM skus WHERE product_family_id = $1 AND organization_id = $2 AND deleted_at IS NULL ORDER BY name",
         (product_family_id, org_id),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [s for r in rows if (s := _row_to_sku(r)) is not None]
 
 
 async def count_all() -> int:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT COUNT(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL",
         (org_id,),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return row[0] if row else 0
 
 
 async def count_low_stock() -> int:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT COUNT(*) FROM skus WHERE quantity <= min_stock AND organization_id = $1 AND deleted_at IS NULL",
         (org_id,),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return row[0] if row else 0
 
 
 async def list_low_stock(limit: int = 10) -> list[Sku]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM skus WHERE quantity <= min_stock AND organization_id = $1 AND deleted_at IS NULL ORDER BY quantity LIMIT $2",
         (org_id, limit),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [s for r in rows if (s := _row_to_sku(r)) is not None]
 
 

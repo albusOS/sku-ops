@@ -19,9 +19,10 @@ if TYPE_CHECKING:
     import numpy as np
 
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import (
-    get_connection,
+from shared.infrastructure.db import (
     get_org_id,
+    sql_execute,
+    sql_execute_many,
     transaction,
 )
 
@@ -81,12 +82,12 @@ async def save(user_id: str, session_id: str, artifacts: list[dict]) -> None:
     if not rows:
         return
     async with transaction():
-        conn = get_connection()
-        await conn.executemany(
+        await sql_execute_many(
             """INSERT INTO memory_artifacts
                    (id, org_id, user_id, session_id, type, subject, content, tags, created_at, expires_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
             rows,
+            read_only=False,
         )
     logger.info("Memory: saved %d artifacts for user=%s", len(rows), user_id)
 
@@ -150,7 +151,6 @@ async def recall(
     Falls back to date-ordered retrieval (original behavior) otherwise.
     Returns empty string if no artifacts exist.
     """
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
 
@@ -161,7 +161,7 @@ async def recall(
         if rows:
             return _format_rows(rows)
 
-    cur = await conn.execute(
+    res = await sql_execute(
         """SELECT type, subject, content, created_at
            FROM memory_artifacts
            WHERE org_id = $1 AND user_id = $2
@@ -169,8 +169,10 @@ async def recall(
            ORDER BY created_at DESC
            LIMIT $4""",
         (org_id, user_id, now, limit),
+        read_only=True,
+        max_rows=limit + 1,
     )
-    rows = await cur.fetchall()
+    rows = res.rows
     if not rows:
         return ""
     return _format_rows(rows)
@@ -208,10 +210,9 @@ async def _semantic_recall(
         from assistant.infrastructure.embedding_store import _vec_to_pgvector
 
         vec_str = _vec_to_pgvector(qvec)
-        conn = get_connection()
 
         # Join memory_artifacts with embeddings for hybrid scoring
-        cur = await conn.execute(
+        res = await sql_execute(
             """SELECT m.type, m.subject, m.content, m.created_at,
                       1 - (e.embedding <=> $1::vector) AS similarity
                FROM memory_artifacts m
@@ -221,8 +222,10 @@ async def _semantic_recall(
                ORDER BY similarity DESC
                LIMIT $5""",
             (vec_str, org_id, user_id, now, limit * 3),
+            read_only=True,
+            max_rows=limit * 3 + 1,
         )
-        candidates = await cur.fetchall()
+        candidates = res.rows
         if not candidates:
             return None
 

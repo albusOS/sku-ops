@@ -6,7 +6,7 @@ re-exported from ledger_queries so existing callers are unaffected.
 
 from typing import TypedDict
 
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 from shared.kernel.types import round_money
 
 
@@ -84,7 +84,6 @@ async def trend_series(
     billing_entity: str | None = None,
 ) -> list[TrendPoint]:
     """Time-series of revenue, cost, profit."""
-    conn = get_connection()
     period_expr = _date_group_expr("created_at", group_by)
     params: list = [get_org_id()]
     date_filter = ""
@@ -114,8 +113,8 @@ async def trend_series(
     )
     query += date_filter + dim_filter
     query += " GROUP BY period ORDER BY period"
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(query, params)
+    rows = cursor.rows
     series = []
     for r in rows:
         row = dict(r)
@@ -140,7 +139,6 @@ async def ar_aging(
     end_date: str | None = None,
 ) -> list[ArAgingRow]:
     """AR aging buckets by billing entity based on invoice due_date."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -173,8 +171,8 @@ async def ar_aging(
     )
     query += date_filter
     query += " GROUP BY fl.billing_entity HAVING ROUND(CAST(SUM(fl.amount) AS NUMERIC), 2) != 0"
-    cursor = await conn.execute(query, params)
-    return [ArAgingRow(**dict(r)) for r in await cursor.fetchall()]
+    cursor = await sql_execute(query, params)
+    return [ArAgingRow(**dict(r)) for r in cursor.rows]
 
 
 async def product_margins(
@@ -187,7 +185,6 @@ async def product_margins(
     billing_entity: str | None = None,
 ) -> list[ProductMarginRow]:
     """Per-product revenue, COGS, profit, margin."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -214,8 +211,8 @@ async def product_margins(
     )
     query += date_filter + dim_filter
     query += f" GROUP BY sku_id ORDER BY revenue DESC LIMIT ${limit_n}"
-    cursor = await conn.execute(query, [*params, limit])
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(query, [*params, limit])
+    rows = cursor.rows
     result = []
     for r in rows:
         row = dict(r)
@@ -240,7 +237,6 @@ async def purchase_spend(
     end_date: str | None = None,
 ) -> float:
     """Total inventory additions from PO receipts in the period."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -260,8 +256,8 @@ async def purchase_spend(
         " AND reference_type = 'po_receipt'"
     )
     query += date_filter
-    cursor = await conn.execute(query, params)
-    row = await cursor.fetchone()
+    cursor = await sql_execute(query, params)
+    row = (cursor.rows[0] if cursor.rows else None)
     return row[0] if row else 0.0
 
 
@@ -270,7 +266,6 @@ async def reference_counts(
     end_date: str | None = None,
 ) -> dict[str, int]:
     """Count distinct references by type (withdrawal, return, etc.)."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -289,8 +284,8 @@ async def reference_counts(
     )
     query += date_filter
     query += " GROUP BY reference_type"
-    cursor = await conn.execute(query, params)
-    return {row[0]: row[1] for row in await cursor.fetchall()}
+    cursor = await sql_execute(query, params)
+    return {row[0]: row[1] for row in cursor.rows}
 
 
 async def returns_total(
@@ -302,7 +297,6 @@ async def returns_total(
     billing_entity: str | None = None,
 ) -> float:
     """Sum of revenue reversed by returns (positive number)."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -325,8 +319,8 @@ async def returns_total(
         " AND account = 'revenue'"
     )
     query += date_filter + dim_filter
-    cursor = await conn.execute(query, params)
-    row = await cursor.fetchone()
+    cursor = await sql_execute(query, params)
+    row = (cursor.rows[0] if cursor.rows else None)
     return float(row[0]) if row and row[0] else 0.0
 
 
@@ -340,10 +334,9 @@ async def inventory_carrying_cost(
     to 25% (industry standard for building materials — capital, storage,
     insurance, obsolescence).
     """
-    conn = get_connection()
     org_id = get_org_id()
 
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """WITH last_receipt AS (
                SELECT sku_id,
                       MAX(created_at::timestamp) AS last_received_at
@@ -367,7 +360,7 @@ async def inventory_carrying_cost(
            ORDER BY s.quantity * s.cost DESC""",
         (org_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     daily_rate = holding_rate_pct / 100.0 / 365.0
     results = []
     for r in rows:

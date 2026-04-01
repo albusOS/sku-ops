@@ -37,6 +37,7 @@ async def get_sales_report(
 ):
     try:
         return await sales_report(
+            org_id=current_user.organization_id,
             start_date=start_date,
             end_date=end_date,
             job_id=job_id,
@@ -221,6 +222,7 @@ async def get_product_performance(
 ):
     try:
         return await product_performance_report(
+            org_id=current_user.organization_id,
             start_date=start_date,
             end_date=end_date,
             limit=limit,

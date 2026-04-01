@@ -14,7 +14,7 @@ from finance.application.queries import list_billing_entities as query_list
 from finance.application.queries import search_billing_entities as query_search
 from finance.domain.billing_entity import BillingEntity, BillingEntityCreate, BillingEntityUpdate
 from shared.api.deps import AdminDep
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.db import get_org_id
 
 router = APIRouter(prefix="/billing-entities", tags=["billing-entities"])
 

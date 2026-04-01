@@ -5,35 +5,31 @@ from datetime import datetime
 from operations.domain.enums import PaymentStatus
 from operations.domain.withdrawal import MaterialWithdrawal
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
-async def _hydrate_items(conn, withdrawal_id: str) -> list[dict]:
+async def _hydrate_items(withdrawal_id: str) -> list[dict]:
     """Fetch normalized line items for a withdrawal."""
-    cursor = await conn.execute(
+    res = await sql_execute(
         "SELECT sku_id, sku, name, quantity, unit_price, cost, unit, sell_uom, sell_cost"
         " FROM withdrawal_items WHERE withdrawal_id = $1 ORDER BY id",
         (withdrawal_id,),
     )
-    return [dict(r) for r in await cursor.fetchall()]
+    return [dict(r) for r in res.rows]
 
 
-async def _row_to_model(row, conn=None) -> MaterialWithdrawal | None:
+async def _row_to_model(row) -> MaterialWithdrawal | None:
     if row is None:
         return None
     d = dict(row)
     d.pop("items", None)
-    if conn is not None:
-        d["items"] = await _hydrate_items(conn, d["id"])
-    else:
-        d["items"] = []
+    d["items"] = await _hydrate_items(d["id"])
     return MaterialWithdrawal.model_validate(d)
 
 
 async def insert(withdrawal: MaterialWithdrawal) -> None:
-    conn = get_connection()
     org_id = withdrawal.organization_id or get_org_id()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO withdrawals (id, job_id, service_address, notes, subtotal, tax, tax_rate, total, cost_total,
            contractor_id, contractor_name, contractor_company, billing_entity, billing_entity_id, payment_status, invoice_id, paid_at,
            processed_by_id, processed_by_name, organization_id, created_at)
@@ -66,7 +62,7 @@ async def insert(withdrawal: MaterialWithdrawal) -> None:
         qty = item.quantity
         price = item.unit_price
         cost = item.cost
-        await conn.execute(
+        await sql_execute(
             """INSERT INTO withdrawal_items
                (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total, sell_uom, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)""",
@@ -87,8 +83,6 @@ async def insert(withdrawal: MaterialWithdrawal) -> None:
             ),
         )
 
-    await conn.commit()
-
 
 async def list_withdrawals(
     contractor_id: str | None = None,
@@ -99,7 +93,6 @@ async def list_withdrawals(
     limit: int = 10000,
     offset: int = 0,
 ) -> list[MaterialWithdrawal]:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     query = f"SELECT * FROM withdrawals WHERE organization_id = ${n}"
@@ -127,20 +120,19 @@ async def list_withdrawals(
         n += 1
     query += f" ORDER BY created_at DESC LIMIT ${n} OFFSET ${n + 1}"
     params.extend([limit, offset])
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
-    return [await _row_to_model(r, conn) for r in rows]
+    res = await sql_execute(query, params)
+    rows = res.rows
+    return [await _row_to_model(r) for r in rows]
 
 
 async def get_by_id(withdrawal_id: str) -> MaterialWithdrawal | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    res = await sql_execute(
         "SELECT * FROM withdrawals WHERE id = $1 AND organization_id = $2",
         (withdrawal_id, org_id),
     )
-    row = await cursor.fetchone()
-    return await _row_to_model(row, conn)
+    row = res.rows[0] if res.rows else None
+    return await _row_to_model(row)
 
 
 async def mark_paid(
@@ -151,9 +143,8 @@ async def mark_paid(
     Only transitions from 'unpaid' — invoiced withdrawals must be paid via the
     invoice payment flow to keep invoice state consistent.
     """
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    res = await sql_execute(
         "UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
         "WHERE id = $3 AND payment_status != $4 AND organization_id = $5",
         (
@@ -164,8 +155,7 @@ async def mark_paid(
             org_id,
         ),
     )
-    await conn.commit()
-    return await get_by_id(withdrawal_id), cursor.rowcount > 0
+    return await get_by_id(withdrawal_id), res.row_count > 0
 
 
 async def bulk_mark_paid(
@@ -174,13 +164,12 @@ async def bulk_mark_paid(
     """Mark withdrawals paid. Returns IDs that were actually changed (previously unpaid)."""
     if not withdrawal_ids:
         return []
-    conn = get_connection()
     org_id = get_org_id()
     n = len(withdrawal_ids)
     id_placeholders = ",".join(f"${i}" for i in range(3, 3 + n))
     exclude_idx = 3 + n
     org_idx = exclude_idx + 1
-    cursor = await conn.execute(
+    res = await sql_execute(
         f"UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
         f"WHERE id IN ({id_placeholders}) AND payment_status != ${exclude_idx} "
         f"AND organization_id = ${org_idx} RETURNING id",
@@ -192,9 +181,7 @@ async def bulk_mark_paid(
             org_id,
         ],
     )
-    await conn.commit()
-    rows = await cursor.fetchall()
-    return [row[0] for row in rows]
+    return [row[0] for row in res.rows]
 
 
 async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> bool:
@@ -203,9 +190,8 @@ async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> bool:
     Guards against: already linked to another invoice, already marked paid.
     Called by finance context via facade. Org-scoped to prevent cross-tenant mutation.
     """
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    res = await sql_execute(
         "UPDATE withdrawals SET invoice_id = $1, payment_status = $2 "
         "WHERE id = $3 AND invoice_id IS NULL AND payment_status = $4 "
         "AND organization_id = $5",
@@ -217,8 +203,7 @@ async def link_to_invoice(withdrawal_id: str, invoice_id: str) -> bool:
             org_id,
         ),
     )
-    await conn.commit()
-    return cursor.rowcount > 0
+    return res.row_count > 0
 
 
 async def unlink_from_invoice(withdrawal_ids: list[str]) -> None:
@@ -228,17 +213,15 @@ async def unlink_from_invoice(withdrawal_ids: list[str]) -> None:
     """
     if not withdrawal_ids:
         return
-    conn = get_connection()
     org_id = get_org_id()
     placeholders = ",".join(f"${i}" for i in range(1, 1 + len(withdrawal_ids)))
     org_idx = len(withdrawal_ids) + 1
     status_idx = org_idx + 1
-    await conn.execute(
+    await sql_execute(
         f"UPDATE withdrawals SET invoice_id = NULL, payment_status = ${status_idx} "
         f"WHERE id IN ({placeholders}) AND organization_id = ${org_idx}",
         [*withdrawal_ids, org_id, PaymentStatus.UNPAID],
     )
-    await conn.commit()
 
 
 async def mark_paid_by_invoice(invoice_id: str, paid_at: datetime) -> None:
@@ -246,14 +229,12 @@ async def mark_paid_by_invoice(invoice_id: str, paid_at: datetime) -> None:
 
     Org-scoped to prevent cross-tenant mutation.
     """
-    conn = get_connection()
     org_id = get_org_id()
-    await conn.execute(
+    await sql_execute(
         "UPDATE withdrawals SET payment_status = $1, paid_at = $2 "
         "WHERE invoice_id = $3 AND organization_id = $4",
         (PaymentStatus.PAID, paid_at, invoice_id, org_id),
     )
-    await conn.commit()
 
 
 async def units_sold_by_product(
@@ -261,7 +242,6 @@ async def units_sold_by_product(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Sum of quantities sold per sku_id from withdrawal_items."""
-    conn = get_connection()
     org_id = get_org_id()
     params: list = [org_id]
     n = 2
@@ -282,8 +262,8 @@ async def units_sold_by_product(
     )
     query += date_filter
     query += " GROUP BY wi.sku_id"
-    cursor = await conn.execute(query, params)
-    return {row[0]: row[1] for row in await cursor.fetchall()}
+    res = await sql_execute(query, params)
+    return {row[0]: row[1] for row in res.rows}
 
 
 async def payment_status_breakdown(
@@ -291,7 +271,6 @@ async def payment_status_breakdown(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Revenue breakdown by payment status: {Paid: X, Invoiced: Y, Unpaid: Z}."""
-    conn = get_connection()
     org_id = get_org_id()
     params: list = [org_id]
     n = 2
@@ -317,8 +296,8 @@ async def payment_status_breakdown(
     )
     query += date_filter
     query += " GROUP BY status"
-    cursor = await conn.execute(query, params)
-    return {row[0]: row[1] for row in await cursor.fetchall()}
+    res = await sql_execute(query, params)
+    return {row[0]: row[1] for row in res.rows}
 
 
 class WithdrawalRepo:

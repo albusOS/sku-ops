@@ -191,7 +191,7 @@ async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
 
 
 async def _run(interval: int, minutes: int, limit: int, once: bool):
-    from shared.infrastructure.database import close_db, init_db
+    from shared.infrastructure.db import close_db, init_db
 
     await init_db()
 

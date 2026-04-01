@@ -22,7 +22,7 @@ from shared.infrastructure.config import (
     is_test,
     startup_summary,
 )
-from shared.infrastructure.database import close_db, init_db
+from shared.infrastructure.db import close_db, init_db
 from shared.infrastructure.redis import (
     close_redis,
     init_redis,
@@ -155,10 +155,9 @@ async def lifespan(app: FastAPI):
     assert has_chat_ws, "Chat streaming WebSocket not mounted"
     logger.info("WebSocket endpoints verified: %s", ws_routes)
 
-    from shared.infrastructure.database import transaction
+    from shared.infrastructure.db import sql_execute
 
-    async with transaction() as conn:
-        await conn.execute("SELECT 1")
+    await sql_execute("SELECT 1", read_only=True, max_rows=1)
     logger.info("Database connectivity verified")
 
     sync_task = None

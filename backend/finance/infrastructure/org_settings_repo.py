@@ -3,18 +3,19 @@
 from datetime import UTC, datetime
 
 from finance.domain.org_settings import OrgSettings
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 async def get_org_settings() -> OrgSettings:
     """Return org settings, or defaults if not yet configured."""
     org_id = get_org_id()
-    conn = get_connection()
-    cursor = await conn.execute(
+    res = await sql_execute(
         "SELECT * FROM org_settings WHERE organization_id = $1",
         (org_id,),
+        read_only=True,
+        max_rows=2,
     )
-    row = await cursor.fetchone()
+    row = res.rows[0] if res.rows else None
     if row is None:
         return OrgSettings(organization_id=org_id)
     return OrgSettings(**dict(row))
@@ -22,9 +23,8 @@ async def get_org_settings() -> OrgSettings:
 
 async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
     """Insert or replace org settings."""
-    conn = get_connection()
     now = datetime.now(UTC)
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO org_settings (
                organization_id, auto_invoice, default_tax_rate,
                xero_tenant_id, xero_access_token, xero_refresh_token,
@@ -64,24 +64,23 @@ async def upsert_org_settings(settings: OrgSettings) -> OrgSettings:
             settings.xero_tax_type,
             now,
         ),
+        read_only=False,
     )
-    await conn.commit()
     return await get_org_settings()
 
 
 async def clear_xero_tokens() -> None:
     """Remove Xero OAuth tokens for an org (disconnect)."""
     org_id = get_org_id()
-    conn = get_connection()
-    await conn.execute(
+    await sql_execute(
         """UPDATE org_settings
            SET xero_access_token = NULL, xero_refresh_token = NULL,
                xero_tenant_id = NULL, xero_token_expiry = NULL,
                updated_at = $1
            WHERE organization_id = $2""",
         (datetime.now(UTC), org_id),
+        read_only=False,
     )
-    await conn.commit()
 
 
 class OrgSettingsRepo:

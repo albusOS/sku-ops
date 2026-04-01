@@ -23,6 +23,7 @@ from operations.application.queries import (
     list_withdrawals,
     payment_status_breakdown,
 )
+from shared.infrastructure.db import get_org_id
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
     """Withdrawal history for a contractor (by name)."""
     name = name.strip()
     limit = min(limit, 100)
-    all_withdrawals = await list_withdrawals(limit=500)
+    all_withdrawals = await list_withdrawals(get_org_id(), limit=500)
     name_lower = name.lower()
     matched = [
         w
@@ -56,7 +57,9 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
         for w in matched[:limit]
     ]
     total_spent = sum(float(w.total) for w in matched)
-    unpaid = sum(float(w.total) for w in matched if w.payment_status == "unpaid")
+    unpaid = sum(
+        float(w.total) for w in matched if w.payment_status == "unpaid"
+    )
     return ContractorHistoryResult(
         contractor_search=name,
         count=len(details),
@@ -69,12 +72,20 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
 async def _get_job_materials(job_id: str = "") -> str:
     """All materials pulled for a specific job ID."""
     job_id = job_id.strip()
-    all_withdrawals = await list_withdrawals(limit=1000)
-    job_withdrawals = [w for w in all_withdrawals if (w.job_id or "").lower() == job_id.lower()]
+    all_withdrawals = await list_withdrawals(get_org_id(), limit=1000)
+    job_withdrawals = [
+        w for w in all_withdrawals if (w.job_id or "").lower() == job_id.lower()
+    ]
     if not job_withdrawals:
-        job_withdrawals = [w for w in all_withdrawals if job_id.lower() in (w.job_id or "").lower()]
+        job_withdrawals = [
+            w
+            for w in all_withdrawals
+            if job_id.lower() in (w.job_id or "").lower()
+        ]
     if not job_withdrawals:
-        return ErrorResult(error=f"No withdrawals found for job '{job_id}'").serialize()
+        return ErrorResult(
+            error=f"No withdrawals found for job '{job_id}'"
+        ).serialize()
     item_map: dict[str, JobMaterialItem] = {}
     for w in job_withdrawals:
         for item in w.items:
@@ -115,7 +126,9 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
     days = min(days, 365)
     limit = min(limit, 100)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(start_date=since, limit=limit)
+    withdrawals = await list_withdrawals(
+        get_org_id(), start_date=since, limit=limit
+    )
     summaries = [
         WithdrawalSummary(
             date=w.created_at.strftime("%Y-%m-%d")
@@ -142,7 +155,7 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
 async def _list_pending_material_requests(limit: int = 20) -> str:
     """Material requests from contractors awaiting approval."""
     limit = min(limit, 100)
-    rows = await list_pending_material_requests(limit=limit)
+    rows = await list_pending_material_requests(get_org_id(), limit=limit)
     requests = [
         PendingRequest(
             id=r.id,
@@ -155,10 +168,14 @@ async def _list_pending_material_requests(limit: int = 20) -> str:
         )
         for r in rows
     ]
-    return PendingRequestsResult(count=len(requests), pending_requests=requests).serialize()
+    return PendingRequestsResult(
+        count=len(requests), pending_requests=requests
+    ).serialize()
 
 
-async def _get_daily_withdrawal_activity(days: int = 30, sku_id: str = "") -> str:
+async def _get_daily_withdrawal_activity(
+    days: int = 30, sku_id: str = ""
+) -> str:
     """Daily withdrawal volume over the last N days."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
@@ -176,7 +193,9 @@ async def _get_payment_status_breakdown(days: int = 30) -> str:
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
     end = datetime.now(UTC)
-    breakdown = await payment_status_breakdown(since, end)
+    breakdown = await payment_status_breakdown(
+        get_org_id(), start_date=since, end_date=end
+    )
     total = round(sum(float(v) for v in breakdown.values()), 2)
     return PaymentStatusResult(
         period_days=days,
@@ -193,7 +212,12 @@ _reg(
     _get_contractor_history,
     use_cases=["contractor", "withdrawal history"],
 )
-_reg("get_job_materials", "ops", _get_job_materials, use_cases=["job materials", "job details"])
+_reg(
+    "get_job_materials",
+    "ops",
+    _get_job_materials,
+    use_cases=["job materials", "job details"],
+)
 _reg(
     "list_recent_withdrawals",
     "ops",

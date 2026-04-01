@@ -50,7 +50,7 @@ from assistant.agents.procurement_analyst import agent as _procurement_agent_mod
 from assistant.agents.trend_analyst import agent as _trend_agent_mod
 from assistant.application.workflows.registry import run_workflow
 from assistant.application.workflows.types import WorkflowDeps
-from shared.infrastructure.database import get_org_id
+from shared.infrastructure.db import get_org_id
 from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)

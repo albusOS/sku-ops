@@ -35,7 +35,9 @@ async def create_material_return(
     Contractors may only return their own withdrawals.
     """
     if current_user.role == "contractor":
-        withdrawal = await _get_withdrawal_by_id(data.withdrawal_id)
+        withdrawal = await _get_withdrawal_by_id(
+            current_user.organization_id, data.withdrawal_id
+        )
         if not withdrawal or withdrawal.contractor_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not your withdrawal")
 
@@ -73,6 +75,7 @@ async def list_returns(
         contractor_id = current_user.id
 
     return await _list_returns(
+        current_user.organization_id,
         contractor_id=contractor_id,
         withdrawal_id=withdrawal_id,
         start_date=start_date,
@@ -85,9 +88,12 @@ async def get_return(
     return_id: str,
     current_user: CurrentUserDep,
 ):
-    ret = await _get_return_by_id(return_id)
+    ret = await _get_return_by_id(current_user.organization_id, return_id)
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")
-    if current_user.role == "contractor" and ret.contractor_id != current_user.id:
+    if (
+        current_user.role == "contractor"
+        and ret.contractor_id != current_user.id
+    ):
         raise HTTPException(status_code=403, detail="Not your return")
     return ret

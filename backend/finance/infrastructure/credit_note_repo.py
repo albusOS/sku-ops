@@ -5,25 +5,23 @@ from datetime import UTC, datetime
 from finance.domain.credit_note import CreditNote, CreditNoteLineItem
 from finance.domain.enums import CreditNoteStatus, InvoiceStatus
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 async def _next_credit_note_number() -> str:
-    conn = get_connection()
     org_id = get_org_id()
     key = "cn"
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO invoice_counters (organization_id, key, counter) VALUES ($1, $2, 1)
            ON CONFLICT(organization_id, key)
            DO UPDATE SET counter = invoice_counters.counter + 1""",
         (org_id, key),
     )
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT counter FROM invoice_counters WHERE organization_id = $1 AND key = $2",
         (org_id, key),
     )
-    row = await cursor.fetchone()
-    await conn.commit()
+    row = cursor.rows[0] if cursor.rows else None
     num = row[0] if row else 1
     return f"CN-{str(num).zfill(5)}"
 
@@ -53,7 +51,6 @@ async def insert_credit_note(
     Pure persistence — does NOT update the return record (that's cross-context
     orchestration owned by credit_note_service).
     """
-    conn = get_connection()
     org_id = get_org_id()
     cn_id = new_uuid7_str()
     now = datetime.now(UTC)
@@ -61,15 +58,15 @@ async def insert_credit_note(
 
     billing_entity = ""
     if invoice_id:
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT billing_entity FROM invoices WHERE id = $1 AND organization_id = $2",
             (invoice_id, org_id),
         )
-        inv_row = await cursor.fetchone()
+        inv_row = cursor.rows[0] if cursor.rows else None
         if inv_row:
             billing_entity = dict(inv_row).get("billing_entity", "")
 
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO credit_notes (id, credit_note_number, invoice_id, return_id,
            billing_entity, status, subtotal, tax, total, notes,
            xero_credit_note_id, organization_id, created_at, updated_at)
@@ -96,7 +93,7 @@ async def insert_credit_note(
         qty = item.get("quantity", 1)
         price = float(item.get("unit_price") or item.get("price") or 0)
         amt = round(qty * price, 2)
-        await conn.execute(
+        await sql_execute(
             """INSERT INTO credit_note_line_items
                (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
@@ -112,9 +109,7 @@ async def insert_credit_note(
             ),
         )
 
-    await conn.commit()
-
-    result = await get_by_id(cn_id)
+        result = await get_by_id(cn_id)
     if not result:
         raise RuntimeError(
             f"Credit note {cn_id} missing immediately after insert"
@@ -123,24 +118,23 @@ async def insert_credit_note(
 
 
 async def get_by_id(credit_note_id: str) -> CreditNote | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM credit_notes WHERE id = $1 AND organization_id = $2",
         (credit_note_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = cursor.rows[0] if cursor.rows else None
     if not row:
         return None
     cn = _row_to_model(row)
     if cn is None:
         return None
 
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM credit_note_line_items WHERE credit_note_id = $1 ORDER BY id",
         (credit_note_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     cn.line_items = [_row_to_line_item(r) for r in rows]
     return cn
 
@@ -153,7 +147,6 @@ async def list_credit_notes(
     end_date: str | None = None,
     limit: int = 500,
 ) -> list[CreditNote]:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     query = f"SELECT * FROM credit_notes WHERE organization_id = ${n}"
@@ -181,8 +174,8 @@ async def list_credit_notes(
         n += 1
     query += f" ORDER BY created_at DESC LIMIT ${n}"
     params.append(limit)
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(query, params)
+    rows = cursor.rows
     return [_row_to_model(r) for r in rows]
 
 
@@ -222,13 +215,12 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
     inv_id = cn.invoice_id
     cn_total = cn.total
 
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT total, amount_credited, status FROM invoices WHERE id = $1 AND organization_id = $2",
         (inv_id, org_id),
     )
-    inv_row = await cursor.fetchone()
+    inv_row = cursor.rows[0] if cursor.rows else None
     if not inv_row:
         raise ValueError(f"Linked invoice {inv_id} not found")
     inv = dict(inv_row)
@@ -236,20 +228,20 @@ async def apply_credit_note(credit_note_id: str) -> ApplyCreditNoteResult:
     balance_due = round(inv["total"] - new_credited, 2)
     now = datetime.now(UTC)
 
-    await conn.execute(
+    await sql_execute(
         "UPDATE invoices SET amount_credited = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (new_credited, now, inv_id, org_id),
     )
 
     auto_paid = False
     if balance_due <= 0 and inv.get("status") != InvoiceStatus.PAID:
-        await conn.execute(
+        await sql_execute(
             "UPDATE invoices SET status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
             (InvoiceStatus.PAID, now, inv_id, org_id),
         )
         auto_paid = True
 
-    await conn.execute(
+    await sql_execute(
         "UPDATE credit_notes SET status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (CreditNoteStatus.APPLIED, now, credit_note_id, org_id),
     )
@@ -266,32 +258,27 @@ async def set_xero_credit_note_id(
     credit_note_id: str, xero_credit_note_id: str
 ) -> None:
     """Store the Xero credit note ID and mark as synced after a successful sync."""
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
-    await conn.execute(
+    await sql_execute(
         "UPDATE credit_notes SET xero_credit_note_id = $1, xero_sync_status = 'synced', updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (xero_credit_note_id, now, credit_note_id, org_id),
     )
-    await conn.commit()
 
 
 async def set_credit_note_sync_status(credit_note_id: str, status: str) -> None:
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
-    await conn.execute(
+    await sql_execute(
         "UPDATE credit_notes SET xero_sync_status = $1, updated_at = $2 WHERE id = $3 AND organization_id = $4",
         (status, now, credit_note_id, org_id),
     )
-    await conn.commit()
 
 
 async def list_unsynced_credit_notes() -> list[CreditNote]:
     """Return applied credit notes not yet synced to Xero."""
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, credit_note_number, billing_entity, total, status, organization_id, created_at
            FROM credit_notes
            WHERE organization_id = $1
@@ -300,15 +287,14 @@ async def list_unsynced_credit_notes() -> list[CreditNote]:
            ORDER BY created_at""",
         (org_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [_row_to_model(r) for r in rows]
 
 
 async def list_credit_notes_needing_reconciliation() -> list[CreditNote]:
     """Return credit notes that have a Xero ID and are not already flagged as mismatch."""
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT cn.id, cn.credit_note_number, cn.billing_entity, cn.total,
                   cn.xero_credit_note_id, cn.xero_sync_status, cn.organization_id,
                   (SELECT COUNT(*) FROM credit_note_line_items WHERE credit_note_id = cn.id) AS line_count
@@ -319,14 +305,13 @@ async def list_credit_notes_needing_reconciliation() -> list[CreditNote]:
            ORDER BY cn.created_at""",
         (org_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [_row_to_model(r) for r in rows]
 
 
 async def list_failed_credit_notes() -> list[CreditNote]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, credit_note_number, billing_entity, total, status, organization_id, created_at
            FROM credit_notes
            WHERE organization_id = $1
@@ -334,14 +319,13 @@ async def list_failed_credit_notes() -> list[CreditNote]:
            ORDER BY created_at""",
         (org_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [_row_to_model(r) for r in rows]
 
 
 async def list_mismatch_credit_notes() -> list[CreditNote]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, credit_note_number, billing_entity, total, xero_credit_note_id, organization_id, created_at
            FROM credit_notes
            WHERE organization_id = $1
@@ -349,7 +333,7 @@ async def list_mismatch_credit_notes() -> list[CreditNote]:
            ORDER BY created_at""",
         (org_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [_row_to_model(r) for r in rows]
 
 

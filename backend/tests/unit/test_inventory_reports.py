@@ -9,7 +9,9 @@ from reports.application.inventory_reports import product_performance_report
 
 
 @pytest.mark.asyncio
-async def test_product_performance_report_handles_mixed_numeric_types(monkeypatch):
+async def test_product_performance_report_handles_mixed_numeric_types(
+    monkeypatch,
+):
     async def _product_margins(*, start_date=None, end_date=None, limit=200):
         return [
             {
@@ -34,20 +36,24 @@ async def test_product_performance_report_handles_mixed_numeric_types(monkeypatc
             )
         ]
 
-    async def _units_sold_by_product(*, start_date=None, end_date=None):
+    async def _units_sold_by_product(
+        _org_id: str, *, start_date=None, end_date=None
+    ):
         return {"sku-1": 2.0}
 
     monkeypatch.setattr(
         "reports.application.inventory_reports.ledger_repo.product_margins",
         _product_margins,
     )
-    monkeypatch.setattr("reports.application.inventory_reports.list_skus", _list_skus)
+    monkeypatch.setattr(
+        "reports.application.inventory_reports.list_skus", _list_skus
+    )
     monkeypatch.setattr(
         "reports.application.inventory_reports.ledger_repo.units_sold_by_product",
         _units_sold_by_product,
     )
 
-    report = await product_performance_report()
+    report = await product_performance_report(org_id="org-test")
 
     assert report.total == 1
     row = report.products[0]

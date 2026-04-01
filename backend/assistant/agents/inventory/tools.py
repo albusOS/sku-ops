@@ -65,6 +65,7 @@ from inventory.application.queries import (
 )
 from operations.application.queries import list_withdrawals
 from shared.infrastructure.config import OPENAI_API_KEY
+from shared.infrastructure.db import get_org_id
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,9 @@ async def _search_semantic(query: str = "", limit: int = 10) -> str:
     limit = min(limit, 30)
     index = await get_index()
     if OPENAI_API_KEY and index._embeddings is not None:
-        results = await index.search_semantic(query, limit=limit, api_key=OPENAI_API_KEY)
+        results = await index.search_semantic(
+            query, limit=limit, api_key=OPENAI_API_KEY
+        )
         method = "embedding"
     else:
         results = index.search_bm25(query, limit=limit)
@@ -129,7 +132,9 @@ async def _get_sku_details(sku: str = "") -> str:
         sell_uom=p.sell_uom,
         pack_qty=float(p.pack_qty) if p.pack_qty else None,
         purchase_uom=p.purchase_uom,
-        purchase_pack_qty=float(p.purchase_pack_qty) if p.purchase_pack_qty else None,
+        purchase_pack_qty=float(p.purchase_pack_qty)
+        if p.purchase_pack_qty
+        else None,
     ).serialize()
 
 
@@ -193,7 +198,9 @@ async def _get_usage_velocity(sku: str = "", days: int = 30) -> str:
     vel = await withdrawal_velocity([p.id], since)
     total_used = float(vel.get(p.id, 0))
     avg_daily = round(total_used / days, 2)
-    days_until_zero = round(float(p.quantity) / avg_daily, 1) if avg_daily > 0 else None
+    days_until_zero = (
+        round(float(p.quantity) / avg_daily, 1) if avg_daily > 0 else None
+    )
     return UsageVelocityResult(
         sku=sku,
         name=p.name,
@@ -248,7 +255,9 @@ async def _get_reorder_suggestions(limit: int = 20) -> str:
     suggestions.sort(
         key=lambda x: (
             x.days_until_stockout is None,
-            x.days_until_stockout if x.days_until_stockout is not None else 9999,
+            x.days_until_stockout
+            if x.days_until_stockout is not None
+            else 9999,
         )
     )
     return ReorderSuggestionsResult(
@@ -269,7 +278,9 @@ async def _get_department_health() -> str:
     for d in depts:
         dept_skus = by_dept.get(d.id, [])
         out_of_stock = sum(1 for p in dept_skus if p.quantity == 0)
-        low = sum(1 for p in dept_skus if p.quantity > 0 and p.quantity <= p.min_stock)
+        low = sum(
+            1 for p in dept_skus if p.quantity > 0 and p.quantity <= p.min_stock
+        )
         healthy = sum(1 for p in dept_skus if p.quantity > p.min_stock)
         rows.append(
             DepartmentHealth(
@@ -285,14 +296,18 @@ async def _get_department_health() -> str:
     return DepartmentHealthResult(departments=rows).serialize()
 
 
-async def _get_top_skus(days: int = 30, by: str = "revenue", limit: int = 10) -> str:
+async def _get_top_skus(
+    days: int = 30, by: str = "revenue", limit: int = 10
+) -> str:
     """Top SKUs by volume or revenue over a period."""
     days = min(days, 365)
     if by not in ("volume", "revenue"):
         by = "revenue"
     limit = min(limit, 50)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(start_date=since, limit=10000)
+    withdrawals = await list_withdrawals(
+        get_org_id(), start_date=since, limit=10000
+    )
     sku_map: dict[str, dict] = {}
     for w in withdrawals:
         for item in w.items:
@@ -301,11 +316,18 @@ async def _get_top_skus(days: int = 30, by: str = "revenue", limit: int = 10) ->
             qty = float(item.quantity)
             revenue = float(item.subtotal)
             if sku not in sku_map:
-                sku_map[sku] = {"sku": sku, "name": name, "total_units": 0.0, "total_revenue": 0.0}
+                sku_map[sku] = {
+                    "sku": sku,
+                    "name": name,
+                    "total_units": 0.0,
+                    "total_revenue": 0.0,
+                }
             sku_map[sku]["total_units"] += qty
             sku_map[sku]["total_revenue"] += revenue
     sort_key = "total_revenue" if by == "revenue" else "total_units"
-    ranked_dicts = sorted(sku_map.values(), key=lambda x: x[sort_key], reverse=True)[:limit]
+    ranked_dicts = sorted(
+        sku_map.values(), key=lambda x: x[sort_key], reverse=True
+    )[:limit]
     ranked = [
         SkuRanked(
             sku=r["sku"],
@@ -330,10 +352,14 @@ async def _get_department_activity(dept_code: str = "", days: int = 30) -> str:
     since = datetime.now(UTC) - timedelta(days=days)
     dept = await catalog_get_dept_by_code(dept_code)
     if not dept:
-        return ErrorResult(error=f"Department '{dept_code}' not found or has no SKUs").serialize()
+        return ErrorResult(
+            error=f"Department '{dept_code}' not found or has no SKUs"
+        ).serialize()
     skus = await catalog_list_skus(category_id=dept.id)
     if not skus:
-        return ErrorResult(error=f"Department '{dept_code}' not found or has no SKUs").serialize()
+        return ErrorResult(
+            error=f"Department '{dept_code}' not found or has no SKUs"
+        ).serialize()
     sku_ids = [p.id for p in skus]
     vel = await withdrawal_velocity(sku_ids, since)
     total_withdrawn = sum(float(v) for v in vel.values())
@@ -400,7 +426,9 @@ async def _get_slow_movers(limit: int = 20, days: int = 30) -> str:
     skus = await catalog_list_skus()
     in_stock = [s for s in skus if s.quantity > 0]
     if not in_stock:
-        return SlowMoversResult(period_days=days, count=0, slow_movers=[]).serialize()
+        return SlowMoversResult(
+            period_days=days, count=0, slow_movers=[]
+        ).serialize()
     sku_ids = [p.id for p in in_stock]
     velocity_map = await withdrawal_velocity(sku_ids, since)
     ranked = []
@@ -419,7 +447,9 @@ async def _get_slow_movers(limit: int = 20, days: int = 30) -> str:
         )
         for _, _, p, withdrawn in ranked[:limit]
     ]
-    return SlowMoversResult(period_days=days, count=len(movers), slow_movers=movers).serialize()
+    return SlowMoversResult(
+        period_days=days, count=len(movers), slow_movers=movers
+    ).serialize()
 
 
 async def _search_vendors_semantic(query: str = "", limit: int = 10) -> str:
@@ -428,8 +458,13 @@ async def _search_vendors_semantic(query: str = "", limit: int = 10) -> str:
     limit = min(limit, 30)
     index = await get_index()
     results = await index.search_entity(query, "vendor", limit=limit)
-    items = [{"id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
-    return SemanticEntityResult(count=len(items), items=items, entity_type="vendor").serialize()
+    items = [
+        {"id": r.entity_id, "score": round(r.score, 3), **r.data}
+        for r in results
+    ]
+    return SemanticEntityResult(
+        count=len(items), items=items, entity_type="vendor"
+    ).serialize()
 
 
 async def _search_pos_semantic(query: str = "", limit: int = 10) -> str:
@@ -438,7 +473,10 @@ async def _search_pos_semantic(query: str = "", limit: int = 10) -> str:
     limit = min(limit, 30)
     index = await get_index()
     results = await index.search_entity(query, "purchase_order", limit=limit)
-    items = [{"id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
+    items = [
+        {"id": r.entity_id, "score": round(r.score, 3), **r.data}
+        for r in results
+    ]
     return SemanticEntityResult(
         count=len(items), items=items, entity_type="purchase_order"
     ).serialize()
@@ -450,8 +488,13 @@ async def _search_jobs_semantic(query: str = "", limit: int = 10) -> str:
     limit = min(limit, 30)
     index = await get_index()
     results = await index.search_entity(query, "job", limit=limit)
-    items = [{"job_id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
-    return SemanticEntityResult(count=len(items), items=items, entity_type="job").serialize()
+    items = [
+        {"job_id": r.entity_id, "score": round(r.score, 3), **r.data}
+        for r in results
+    ]
+    return SemanticEntityResult(
+        count=len(items), items=items, entity_type="job"
+    ).serialize()
 
 
 async def _get_demand_profile(sku: str = "", days: int = 60) -> str:
@@ -490,7 +533,10 @@ async def _get_seasonal_pattern(sku: str = "", months: int = 12) -> str:
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 _reg(
-    "search_skus", "inventory", _search_skus, use_cases=["find SKU", "lookup SKU", "barcode search"]
+    "search_skus",
+    "inventory",
+    _search_skus,
+    use_cases=["find SKU", "lookup SKU", "barcode search"],
 )
 _reg(
     "search_semantic",
@@ -516,8 +562,18 @@ _reg(
     _list_low_stock,
     use_cases=["low stock", "reorder point", "needs reorder"],
 )
-_reg("list_departments", "inventory", _list_departments, use_cases=["departments", "categories"])
-_reg("list_vendors", "inventory", _list_vendors, use_cases=["vendors", "suppliers"])
+_reg(
+    "list_departments",
+    "inventory",
+    _list_departments,
+    use_cases=["departments", "categories"],
+)
+_reg(
+    "list_vendors",
+    "inventory",
+    _list_vendors,
+    use_cases=["vendors", "suppliers"],
+)
 _reg(
     "get_usage_velocity",
     "inventory",
@@ -536,7 +592,12 @@ _reg(
     _get_department_health,
     use_cases=["department health", "stock health by dept"],
 )
-_reg("get_slow_movers", "inventory", _get_slow_movers, use_cases=["slow movers", "dead stock"])
+_reg(
+    "get_slow_movers",
+    "inventory",
+    _get_slow_movers,
+    use_cases=["slow movers", "dead stock"],
+)
 _reg(
     "get_top_skus",
     "inventory",
@@ -568,7 +629,10 @@ _reg(
     use_cases=["find PO", "purchase order search"],
 )
 _reg(
-    "search_jobs_semantic", "inventory", _search_jobs_semantic, use_cases=["find job", "job search"]
+    "search_jobs_semantic",
+    "inventory",
+    _search_jobs_semantic,
+    use_cases=["find job", "job search"],
 )
 _reg(
     "get_demand_profile",

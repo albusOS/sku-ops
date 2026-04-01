@@ -9,6 +9,7 @@ import pytest
 from tests.e2e.helpers import (
     create_material_request,
     create_product,
+    e2e_job_id,
     process_material_request,
 )
 from tests.helpers.auth import (
@@ -150,7 +151,10 @@ class TestMaterialRequestPipeline:
 
         resp = client.post(
             f"/api/beta/operations/material-requests/{mr['id']}/process",
-            json={"job_id": "JOB-DOUBLE", "service_address": "Double St"},
+            json={
+                "job_id": e2e_job_id("DOUBLE"),
+                "service_address": "Double St",
+            },
             headers=headers,
         )
         assert resp.status_code == 400, "Double process should be rejected"

@@ -1,55 +1,20 @@
-"""Cycle count repository — persistence for cycle_counts and cycle_count_items."""
+"""Cycle count repository — delegates to InventoryDatabaseService."""
+
+from datetime import datetime
 
 from inventory.domain.cycle_count import CycleCount, CycleCountItem
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 
 async def insert_count(count: CycleCount) -> None:
-    conn = get_connection()
-    d = count.model_dump()
-    await conn.execute(
-        """INSERT INTO cycle_counts
-           (id, organization_id, status, scope, created_by_id, created_by_name,
-            committed_by_id, committed_at, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-        (
-            d["id"],
-            d["organization_id"],
-            d["status"],
-            d.get("scope"),
-            d["created_by_id"],
-            d.get("created_by_name", ""),
-            d.get("committed_by_id"),
-            d.get("committed_at"),
-            d["created_at"],
-        ),
-    )
-    await conn.commit()
+    db = get_database_manager()
+    await db.inventory.insert_cycle_count(count)
 
 
 async def insert_item(item: CycleCountItem) -> None:
-    conn = get_connection()
-    d = item.model_dump()
-    await conn.execute(
-        """INSERT INTO cycle_count_items
-           (id, cycle_count_id, sku_id, sku, product_name,
-            snapshot_qty, counted_qty, variance, unit, notes, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
-        (
-            d["id"],
-            d["cycle_count_id"],
-            d["sku_id"],
-            d["sku"],
-            d.get("product_name", ""),
-            d["snapshot_qty"],
-            d.get("counted_qty"),
-            d.get("variance"),
-            d.get("unit", "each"),
-            d.get("notes"),
-            d["created_at"],
-        ),
-    )
-    await conn.commit()
+    db = get_database_manager()
+    await db.inventory.insert_cycle_count_item(item)
 
 
 async def update_item_counted(
@@ -58,90 +23,58 @@ async def update_item_counted(
     variance: float,
     notes: str | None,
 ) -> CycleCountItem | None:
-    conn = get_connection()
-    org_id = get_org_id()
-    # Verify the parent cycle count belongs to this org before mutating the item.
-    cursor = await conn.execute(
-        """UPDATE cycle_count_items
-           SET counted_qty = $1, variance = $2, notes = $3
-           WHERE id = $4
-             AND cycle_count_id IN (SELECT id FROM cycle_counts WHERE organization_id = $5)
-           RETURNING *""",
-        (counted_qty, variance, notes, item_id, org_id),
+    db = get_database_manager()
+    return await db.inventory.update_cycle_count_item_counted(
+        get_org_id(),
+        item_id,
+        counted_qty,
+        variance,
+        notes,
     )
-    row = await cursor.fetchone()
-    await conn.commit()
-    return CycleCountItem.model_validate(dict(row)) if row else None
 
 
 async def commit_count(
     count_id: str,
     committed_by_id: str,
-    committed_at: str,
+    committed_at: datetime | str,
 ) -> bool:
     """Atomically transition status open -> committed. Returns False if already committed."""
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """UPDATE cycle_counts
-           SET status = 'committed', committed_by_id = $1, committed_at = $2
-           WHERE id = $3 AND status = 'open' AND organization_id = $4""",
-        (committed_by_id, committed_at, count_id, org_id),
+    db = get_database_manager()
+    ts = committed_at
+    if isinstance(ts, str):
+        ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return await db.inventory.commit_cycle_count(
+        get_org_id(), count_id, committed_by_id, ts
     )
-    await conn.commit()
-    return cursor.rowcount > 0
 
 
 async def get_count(count_id: str) -> CycleCount | None:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        "SELECT * FROM cycle_counts WHERE id = $1 AND organization_id = $2",
-        (count_id, org_id),
-    )
-    row = await cursor.fetchone()
-    return CycleCount.model_validate(dict(row)) if row else None
+    db = get_database_manager()
+    got = await db.inventory.get_cycle_count(get_org_id(), count_id)
+    if got is None:
+        return None
+    return CycleCount.model_validate(got.model_dump())
 
 
 async def list_counts(status: str | None = None) -> list[CycleCount]:
-    conn = get_connection()
-    org_id = get_org_id()
-    if status:
-        cursor = await conn.execute(
-            "SELECT * FROM cycle_counts WHERE organization_id = $1 AND status = $2 ORDER BY created_at DESC",
-            (org_id, status),
-        )
-    else:
-        cursor = await conn.execute(
-            "SELECT * FROM cycle_counts WHERE organization_id = $1 ORDER BY created_at DESC",
-            (org_id,),
-        )
-    rows = await cursor.fetchall()
-    return [CycleCount.model_validate(dict(r)) for r in rows]
+    db = get_database_manager()
+    rows = await db.inventory.list_cycle_counts(get_org_id(), status=status)
+    return [CycleCount.model_validate(r.model_dump()) for r in rows]
 
 
 async def list_items(cycle_count_id: str) -> list[CycleCountItem]:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT cci.* FROM cycle_count_items cci
-           JOIN cycle_counts cc ON cc.id = cci.cycle_count_id
-           WHERE cci.cycle_count_id = $1 AND cc.organization_id = $2
-           ORDER BY cci.sku ASC""",
-        (cycle_count_id, org_id),
+    db = get_database_manager()
+    rows = await db.inventory.list_cycle_count_items(
+        get_org_id(), cycle_count_id
     )
-    rows = await cursor.fetchall()
-    return [CycleCountItem.model_validate(dict(r)) for r in rows]
+    return [CycleCountItem.model_validate(r.model_dump()) for r in rows]
 
 
 async def get_item(item_id: str, cycle_count_id: str) -> CycleCountItem | None:
-    conn = get_connection()
-    org_id = get_org_id()
-    cursor = await conn.execute(
-        """SELECT cci.* FROM cycle_count_items cci
-           JOIN cycle_counts cc ON cc.id = cci.cycle_count_id
-           WHERE cci.id = $1 AND cci.cycle_count_id = $2 AND cc.organization_id = $3""",
-        (item_id, cycle_count_id, org_id),
+    db = get_database_manager()
+    got = await db.inventory.get_cycle_count_item(
+        get_org_id(), item_id, cycle_count_id
     )
-    row = await cursor.fetchone()
-    return CycleCountItem.model_validate(dict(row)) if row else None
+    if got is None:
+        return None
+    return CycleCountItem.model_validate(got.model_dump())

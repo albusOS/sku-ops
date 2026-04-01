@@ -33,7 +33,7 @@ from operations.application.queries import (
     unlink_withdrawals_from_invoice,
 )
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import (
     InvoiceApproved,
@@ -87,6 +87,7 @@ async def mark_paid_for_withdrawal(
 
 
 async def _validate_withdrawals_for_invoice(
+    org_id: str,
     withdrawal_ids: list[str],
 ):
     """Fetch and validate withdrawals. Returns (withdrawals, billing_entity, contact_name)."""
@@ -95,7 +96,7 @@ async def _validate_withdrawals_for_invoice(
     withdrawals: list[dict] = []
 
     for wid in withdrawal_ids:
-        w = await get_withdrawal_by_id(wid)
+        w = await get_withdrawal_by_id(org_id, wid)
         if not w:
             raise ValueError(f"Withdrawal {wid} not found")
         if w.payment_status != "unpaid":
@@ -143,11 +144,12 @@ async def create_invoice_from_withdrawals(
     if not withdrawal_ids:
         raise ValueError("At least one withdrawal required")
 
+    org_id = get_org_id()
     (
         withdrawals,
         billing_entity,
         contact_name,
-    ) = await _validate_withdrawals_for_invoice(withdrawal_ids)
+    ) = await _validate_withdrawals_for_invoice(org_id, withdrawal_ids)
 
     inv_id = new_uuid7_str()
     now = datetime.now(UTC)
@@ -183,7 +185,7 @@ async def create_invoice_from_withdrawals(
 
         for wid in withdrawal_ids:
             await link_withdrawal(inv_id, wid)
-            linked = await link_withdrawal_to_invoice(wid, inv_id)
+            linked = await link_withdrawal_to_invoice(org_id, wid, inv_id)
             if not linked:
                 raise ValueError(
                     f"Withdrawal {wid} was already linked to another invoice"
@@ -191,7 +193,7 @@ async def create_invoice_from_withdrawals(
 
     await dispatch(
         InvoiceCreated(
-            org_id=get_org_id(),
+            org_id=org_id,
             invoice_id=inv_id,
             withdrawal_ids=tuple(withdrawal_ids),
         )
@@ -207,11 +209,12 @@ async def add_withdrawals_to_invoice(
     if not withdrawal_ids:
         return await _default_invoice_repo.get_by_id(invoice_id)
 
+    org_id = get_org_id()
     (
         withdrawals,
         billing_entity,
         contact_name,
-    ) = await _validate_withdrawals_for_invoice(withdrawal_ids)
+    ) = await _validate_withdrawals_for_invoice(org_id, withdrawal_ids)
 
     inv = await _default_invoice_repo.get_by_id(invoice_id)
     if not inv:
@@ -244,7 +247,7 @@ async def add_withdrawals_to_invoice(
 
         for wid in withdrawal_ids:
             await link_withdrawal(invoice_id, wid)
-            linked = await link_withdrawal_to_invoice(wid, invoice_id)
+            linked = await link_withdrawal_to_invoice(org_id, wid, invoice_id)
             if not linked:
                 raise ValueError(
                     f"Withdrawal {wid} was already linked to another invoice"
@@ -365,7 +368,7 @@ async def delete_draft_invoice(
 
     async with transaction():
         wids = await unlink_withdrawals(invoice_id)
-        await unlink_withdrawals_from_invoice(wids)
+        await unlink_withdrawals_from_invoice(get_org_id(), wids)
         await soft_delete(invoice_id)
 
     await dispatch(

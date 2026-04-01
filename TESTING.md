@@ -62,7 +62,7 @@ Backend test files import production code with bare module names:
 
 ```python
 from catalog.application.product_lifecycle import create_product
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
 from shared.kernel.types import CurrentUser
 ```
 

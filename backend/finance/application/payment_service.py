@@ -6,12 +6,17 @@ import logging
 from datetime import UTC, datetime
 
 from finance.application.invoice_service import mark_paid_for_withdrawal
-from finance.application.ledger_service import record_payment as _record_ledger_payment
+from finance.application.ledger_service import (
+    record_payment as _record_ledger_payment,
+)
 from finance.domain.payment import Payment, PaymentCreate
 from finance.infrastructure.invoice_repo import get_by_id as get_invoice_by_id
 from finance.infrastructure.payment_repo import payment_repo
-from operations.application.queries import get_withdrawal_by_id, mark_withdrawal_paid
-from shared.infrastructure.database import get_org_id, transaction
+from operations.application.queries import (
+    get_withdrawal_by_id,
+    mark_withdrawal_paid,
+)
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import PaymentRecorded
 
@@ -47,8 +52,9 @@ async def create_payment_for_withdrawals(
     billing_entity_id = None
     contractor_id = ""
 
+    org_id = get_org_id()
     for wid in withdrawal_ids:
-        w = await get_withdrawal_by_id(wid)
+        w = await get_withdrawal_by_id(org_id, wid)
         if not w:
             raise ValueError(f"Withdrawal {wid} not found")
         total_amount += w.total
@@ -67,19 +73,18 @@ async def create_payment_for_withdrawals(
         payment_date=data.payment_date or now,
         notes=data.notes,
         recorded_by_id=recorded_by_id,
-        organization_id=get_org_id(),
+        organization_id=org_id,
     )
 
     paid_at = data.payment_date or now
-    org_id = get_org_id()
 
     async with transaction():
         await payment_repo.insert(payment, withdrawal_ids=withdrawal_ids)
 
         for wid in withdrawal_ids:
-            await mark_withdrawal_paid(wid, paid_at)
+            await mark_withdrawal_paid(org_id, wid, paid_at)
             await mark_paid_for_withdrawal(wid)
-            w = await get_withdrawal_by_id(wid)
+            w = await get_withdrawal_by_id(org_id, wid)
             if w:
                 await _record_ledger_payment(
                     withdrawal_id=wid,

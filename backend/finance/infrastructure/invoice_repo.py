@@ -43,7 +43,7 @@ from finance.infrastructure.invoice_xero_queries import (
     set_xero_sync_status,
 )
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 # ---------------------------------------------------------------------------
 # Core CRUD
@@ -52,28 +52,25 @@ from shared.infrastructure.database import get_connection, get_org_id
 
 async def next_invoice_number() -> str:
     """Generate next invoice number: INV-00001, INV-00002, etc. Org-scoped counter."""
-    conn = get_connection()
     org_id = get_org_id()
     key = "inv"
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO invoice_counters (organization_id, key, counter) VALUES ($1, $2, 1)
            ON CONFLICT(organization_id, key)
            DO UPDATE SET counter = invoice_counters.counter + 1""",
         (org_id, key),
     )
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT counter FROM invoice_counters WHERE organization_id = $1 AND key = $2",
         (org_id, key),
     )
-    row = await cursor.fetchone()
-    await conn.commit()
+    row = cursor.rows[0] if cursor.rows else None
     num = row[0] if row else 1
     return f"INV-{str(num).zfill(5)}"
 
 
 async def insert(invoice: Invoice) -> InvoiceWithDetails | None:
     invoice_dict = invoice.model_dump()
-    conn = get_connection()
     org_id = get_org_id()
     invoice_id = invoice_dict.get("id") or new_uuid7_str()
     invoice_number = (
@@ -85,7 +82,7 @@ async def insert(invoice: Invoice) -> InvoiceWithDetails | None:
     due_date = invoice_dict.get("due_date") or compute_due_date(
         inv_date, payment_terms
     )
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO invoices (id, invoice_number, billing_entity, contact_name, contact_email,
            status, subtotal, tax, tax_rate, total, amount_credited, notes,
            invoice_date, due_date, payment_terms, billing_address, po_reference, currency,
@@ -119,7 +116,6 @@ async def insert(invoice: Invoice) -> InvoiceWithDetails | None:
             invoice_dict.get("updated_at") or now,
         ),
     )
-    await conn.commit()
     return await get_by_id(invoice_id)
 
 
@@ -130,7 +126,6 @@ async def list_invoices(
     end_date: str | None = None,
     limit: int = 1000,
 ) -> list:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     query = f"SELECT * FROM invoices WHERE organization_id = ${n} AND deleted_at IS NULL"
@@ -155,8 +150,8 @@ async def list_invoices(
     query += f" ORDER BY created_at DESC LIMIT ${n}"
     params.append(limit)
     n += 1
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(query, params)
+    rows = cursor.rows
 
     invoice_ids: list[str] = []
     result: list[InvoiceWithDetails] = []
@@ -174,9 +169,9 @@ async def list_invoices(
             + placeholders
             + ")"
         )
-        wid_cursor = await conn.execute(wid_q, invoice_ids)
+        wid_cursor = await sql_execute(wid_q, invoice_ids)
         wid_map: dict[str, list[str]] = {}
-        for r in await wid_cursor.fetchall():
+        for r in wid_cursor.rows:
             wid_map.setdefault(r[0], []).append(r[1])
         for inv in result:
             wids = wid_map.get(inv.id, [])

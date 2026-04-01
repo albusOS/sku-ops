@@ -43,21 +43,30 @@ async def _get_invoice_summary() -> str:
 async def _get_outstanding_balances(limit: int = 20) -> str:
     """Unpaid balances by billing entity."""
     limit = min(limit, 100)
-    withdrawals = await list_withdrawals(payment_status="unpaid", limit=10000)
+    withdrawals = await list_withdrawals(
+        get_org_id(), payment_status="unpaid", limit=10000
+    )
     entity_map: dict[str, dict] = {}
     for w in withdrawals:
         entity = w.billing_entity or w.contractor_name or "Unknown"
         created = w.created_at or ""
         if entity not in entity_map:
-            entity_map[entity] = {"balance": 0.0, "withdrawal_count": 0, "oldest": created}
+            entity_map[entity] = {
+                "balance": 0.0,
+                "withdrawal_count": 0,
+                "oldest": created,
+            }
         else:
             if created and (
-                not entity_map[entity]["oldest"] or created < entity_map[entity]["oldest"]
+                not entity_map[entity]["oldest"]
+                or created < entity_map[entity]["oldest"]
             ):
                 entity_map[entity]["oldest"] = created
         entity_map[entity]["balance"] += float(w.total)
         entity_map[entity]["withdrawal_count"] += 1
-    sorted_entities = sorted(entity_map.items(), key=lambda x: x[1]["balance"], reverse=True)
+    sorted_entities = sorted(
+        entity_map.items(), key=lambda x: x[1]["balance"], reverse=True
+    )
     balances = [
         EntityBalance(
             entity=entity,
@@ -79,12 +88,20 @@ async def _get_revenue_summary(days: int = 30) -> str:
     """Revenue breakdown by payment status over a period."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(start_date=since, limit=10000)
+    withdrawals = await list_withdrawals(
+        get_org_id(), start_date=since, limit=10000
+    )
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_tax = sum(float(w.tax) for w in withdrawals)
-    paid = sum(float(w.total) for w in withdrawals if w.payment_status == "paid")
-    unpaid = sum(float(w.total) for w in withdrawals if w.payment_status == "unpaid")
-    invoiced = sum(float(w.total) for w in withdrawals if w.payment_status == "invoiced")
+    paid = sum(
+        float(w.total) for w in withdrawals if w.payment_status == "paid"
+    )
+    unpaid = sum(
+        float(w.total) for w in withdrawals if w.payment_status == "unpaid"
+    )
+    invoiced = sum(
+        float(w.total) for w in withdrawals if w.payment_status == "invoiced"
+    )
     return RevenueSummaryResult(
         period_days=days,
         transaction_count=len(withdrawals),
@@ -101,11 +118,17 @@ async def _get_pl_summary(days: int = 30) -> str:
     """Profit & loss: revenue, COGS, gross profit and margin."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(start_date=since, limit=10000)
+    withdrawals = await list_withdrawals(
+        get_org_id(), start_date=since, limit=10000
+    )
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_cost = sum(float(w.cost_total) for w in withdrawals)
     gross_profit = total_revenue - total_cost
-    margin_pct = round((gross_profit / total_revenue * 100), 1) if total_revenue > 0 else 0
+    margin_pct = (
+        round((gross_profit / total_revenue * 100), 1)
+        if total_revenue > 0
+        else 0
+    )
     return PlSummaryResult(
         period_days=days,
         transaction_count=len(withdrawals),
@@ -119,7 +142,10 @@ async def _get_pl_summary(days: int = 30) -> str:
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 _reg(
-    "get_invoice_summary", "finance", _get_invoice_summary, use_cases=["invoices", "invoice status"]
+    "get_invoice_summary",
+    "finance",
+    _get_invoice_summary,
+    use_cases=["invoices", "invoice status"],
 )
 _reg(
     "get_outstanding_balances",
@@ -127,5 +153,15 @@ _reg(
     _get_outstanding_balances,
     use_cases=["outstanding", "unpaid balances"],
 )
-_reg("get_revenue_summary", "finance", _get_revenue_summary, use_cases=["revenue", "sales summary"])
-_reg("get_pl_summary", "finance", _get_pl_summary, use_cases=["P&L", "profit loss", "margin"])
+_reg(
+    "get_revenue_summary",
+    "finance",
+    _get_revenue_summary,
+    use_cases=["revenue", "sales summary"],
+)
+_reg(
+    "get_pl_summary",
+    "finance",
+    _get_pl_summary,
+    use_cases=["P&L", "profit loss", "margin"],
+)

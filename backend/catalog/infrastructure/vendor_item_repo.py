@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 from catalog.domain.vendor_item import VendorItem
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 def _row_to_model(row) -> VendorItem | None:
@@ -17,9 +17,8 @@ def _row_to_model(row) -> VendorItem | None:
 
 async def insert(item: VendorItem) -> None:
     d = item.model_dump()
-    conn = get_connection()
     org_id = d.get("organization_id") or get_org_id()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, vendor_name,
            purchase_uom, purchase_pack_qty, cost, lead_time_days, moq, is_preferred, notes,
            organization_id, created_at, updated_at)
@@ -45,26 +44,24 @@ async def insert(item: VendorItem) -> None:
 
 
 async def get_by_id(item_id: str) -> VendorItem | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM vendor_items WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (item_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_model(row)
 
 
 async def list_by_sku(sku_id: str) -> list[VendorItem]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT * FROM vendor_items
            WHERE sku_id = $1 AND organization_id = $2 AND deleted_at IS NULL
            ORDER BY is_preferred DESC, vendor_name""",
         (sku_id, org_id),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [vi for r in rows if (vi := _row_to_model(r)) is not None]
 
 
@@ -72,9 +69,8 @@ async def list_by_skus(sku_ids: list[str]) -> list[VendorItem]:
     """Return vendor items for multiple SKUs in a single query."""
     if not sku_ids:
         return []
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT * FROM vendor_items
            WHERE sku_id = ANY($1::text[])
              AND organization_id = $2
@@ -82,20 +78,19 @@ async def list_by_skus(sku_ids: list[str]) -> list[VendorItem]:
            ORDER BY sku_id, is_preferred DESC, cost ASC NULLS LAST, vendor_name""",
         (sku_ids, org_id),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [vi for r in rows if (vi := _row_to_model(r)) is not None]
 
 
 async def list_by_vendor(vendor_id: str) -> list[VendorItem]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT * FROM vendor_items
            WHERE vendor_id = $1 AND organization_id = $2 AND deleted_at IS NULL
            ORDER BY vendor_sku""",
         (vendor_id, org_id),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [vi for r in rows if (vi := _row_to_model(r)) is not None]
 
 
@@ -104,34 +99,31 @@ async def find_by_vendor_and_vendor_sku(vendor_id: str, vendor_sku: str) -> Vend
     if not vendor_sku or not str(vendor_sku).strip() or not vendor_id:
         return None
     norm = str(vendor_sku).strip().lower()
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT * FROM vendor_items
            WHERE vendor_id = $1 AND TRIM(LOWER(COALESCE(vendor_sku, ''))) = $2
            AND organization_id = $3 AND deleted_at IS NULL""",
         (vendor_id, norm, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_model(row)
 
 
 async def find_by_sku_and_vendor(sku_id: str, vendor_id: str) -> VendorItem | None:
     """Find the VendorItem for a specific SKU + vendor combination."""
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT * FROM vendor_items
            WHERE sku_id = $1 AND vendor_id = $2
            AND organization_id = $3 AND deleted_at IS NULL""",
         (sku_id, vendor_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_model(row)
 
 
 async def update(item_id: str, updates: dict) -> VendorItem | None:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     set_parts = [f"updated_at = ${n}"]
@@ -160,15 +152,14 @@ async def update(item_id: str, updates: dict) -> VendorItem | None:
     values.append(item_id)
     values.append(org_id)
     query = f"UPDATE vendor_items SET {', '.join(set_parts)} WHERE id = ${n} AND organization_id = ${n + 1}"
-    await conn.execute(query, values)
+    await sql_execute(query, values)
     return await get_by_id(item_id)
 
 
 async def soft_delete(item_id: str) -> int:
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "UPDATE vendor_items SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, item_id, org_id),
     )
@@ -177,10 +168,9 @@ async def soft_delete(item_id: str) -> int:
 
 async def soft_delete_by_sku(sku_id: str) -> int:
     """Soft-delete all vendor items for a given SKU."""
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "UPDATE vendor_items SET deleted_at = $1 WHERE sku_id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, sku_id, org_id),
     )
@@ -189,9 +179,8 @@ async def soft_delete_by_sku(sku_id: str) -> int:
 
 async def clear_preferred_for_sku(sku_id: str) -> None:
     """Clear is_preferred flag on all vendor items for a SKU."""
-    conn = get_connection()
     org_id = get_org_id()
-    await conn.execute(
+    await sql_execute(
         "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (sku_id, org_id),
     )

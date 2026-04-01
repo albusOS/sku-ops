@@ -75,28 +75,31 @@ def _app_client():
 
 async def _truncate_and_seed():
     """Truncate all tables and seed minimal data for test isolation."""
-    from shared.infrastructure.database import transaction
+    from shared.infrastructure.db import transaction
     from shared.infrastructure.logging_config import org_id_var, user_id_var
 
     org_id_var.set(DEFAULT_ORG_ID)
     user_id_var.set("0195f2c0-89ac-7f42-8b11-000000000002")
 
-    async with transaction() as conn:
-        await conn.execute(
+    from shared.infrastructure.db import sql_execute
+
+    async with transaction():
+        await sql_execute(
             """DO $$
             DECLARE r RECORD;
             BEGIN
                 FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
                     EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
                 END LOOP;
-            END $$"""
+            END $$""",
+            read_only=False,
         )
         for stmt in _seed_sql_statements("supabase/seeds/pytest_minimal.sql"):
-            await conn.execute(stmt)
+            await sql_execute(stmt, read_only=False)
         from catalog.application.uom_seed import uom_seed_sql
 
         for stmt in uom_seed_sql(DEFAULT_ORG_ID):
-            await conn.execute(stmt)
+            await sql_execute(stmt, read_only=False)
 
 
 # ── Shared fixtures ──────────────────────────────────────────────────────────

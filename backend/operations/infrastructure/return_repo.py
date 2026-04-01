@@ -2,35 +2,31 @@
 
 from operations.domain.returns import MaterialReturn
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
-async def _hydrate_items(conn, return_id: str) -> list[dict]:
+async def _hydrate_items(return_id: str) -> list[dict]:
     """Fetch normalized line items for a return."""
-    cursor = await conn.execute(
+    res = await sql_execute(
         "SELECT sku_id, sku, name, quantity, unit_price, cost, unit, sell_uom, sell_cost"
         " FROM return_items WHERE return_id = $1 ORDER BY id",
         (return_id,),
     )
-    return [dict(r) for r in await cursor.fetchall()]
+    return [dict(r) for r in res.rows]
 
 
-async def _row_to_model(row, conn=None) -> MaterialReturn | None:
+async def _row_to_model(row) -> MaterialReturn | None:
     if row is None:
         return None
     d = dict(row)
     d.pop("items", None)
-    if conn is not None:
-        d["items"] = await _hydrate_items(conn, d["id"])
-    else:
-        d["items"] = []
+    d["items"] = await _hydrate_items(d["id"])
     return MaterialReturn.model_validate(d)
 
 
 async def insert(ret: MaterialReturn) -> None:
-    conn = get_connection()
     org_id = ret.organization_id or get_org_id()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO returns (id, withdrawal_id, contractor_id, contractor_name,
            billing_entity, job_id, subtotal, tax, total, cost_total,
            reason, notes, credit_note_id, processed_by_id, processed_by_name,
@@ -61,7 +57,7 @@ async def insert(ret: MaterialReturn) -> None:
         qty = item.quantity
         price = item.unit_price
         cost = item.cost
-        await conn.execute(
+        await sql_execute(
             """INSERT INTO return_items
                (id, return_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total, sell_uom, sell_cost)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)""",
@@ -82,18 +78,15 @@ async def insert(ret: MaterialReturn) -> None:
             ),
         )
 
-    await conn.commit()
-
 
 async def get_by_id(return_id: str) -> MaterialReturn | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    res = await sql_execute(
         "SELECT * FROM returns WHERE id = $1 AND organization_id = $2",
         (return_id, org_id),
     )
-    row = await cursor.fetchone()
-    return await _row_to_model(row, conn)
+    row = res.rows[0] if res.rows else None
+    return await _row_to_model(row)
 
 
 async def list_returns(
@@ -103,7 +96,6 @@ async def list_returns(
     end_date: str | None = None,
     limit: int = 500,
 ) -> list[MaterialReturn]:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     query = f"SELECT * FROM returns WHERE organization_id = ${n}"
@@ -127,31 +119,28 @@ async def list_returns(
         n += 1
     query += f" ORDER BY created_at DESC LIMIT ${n}"
     params.append(limit)
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
-    return [await _row_to_model(r, conn) for r in rows]
+    res = await sql_execute(query, params)
+    rows = res.rows
+    return [await _row_to_model(r) for r in rows]
 
 
 async def list_by_withdrawal(withdrawal_id: str) -> list[MaterialReturn]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    res = await sql_execute(
         "SELECT * FROM returns WHERE withdrawal_id = $1 AND organization_id = $2 ORDER BY created_at DESC",
         (withdrawal_id, org_id),
     )
-    rows = await cursor.fetchall()
-    return [await _row_to_model(r, conn) for r in rows]
+    rows = res.rows
+    return [await _row_to_model(r) for r in rows]
 
 
 async def link_credit_note(return_id: str, credit_note_id: str) -> None:
     """Set the credit_note_id on a return. Called by finance context via facade."""
-    conn = get_connection()
     org_id = get_org_id()
-    await conn.execute(
+    await sql_execute(
         "UPDATE returns SET credit_note_id = $1 WHERE id = $2 AND organization_id = $3",
         (credit_note_id, return_id, org_id),
     )
-    await conn.commit()
 
 
 class ReturnRepo:

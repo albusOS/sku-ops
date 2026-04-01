@@ -42,19 +42,17 @@ async def main(
     org_id: str,
     password: str = "",
 ) -> None:
-    from shared.infrastructure.db import close_db, get_connection, init_db
+    from shared.infrastructure.db import close_db, init_db, sql_execute
     from shared.kernel.constants import DEFAULT_ORG_ID
 
     resolved_org = org_id or DEFAULT_ORG_ID
     await init_db()
 
     try:
-        conn = get_connection()
-
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "SELECT id, role FROM users WHERE email = $1", (email,)
         )
-        existing = await cursor.fetchone()
+        existing = cursor.rows[0] if cursor.rows else None
 
         if existing:
             n = 1
@@ -69,11 +67,10 @@ async def main(
                 params.append(user_id_arg)
                 n += 1
             params.append(email)
-            await conn.execute(
+            await sql_execute(
                 f"UPDATE users SET {', '.join(updates)} WHERE email = ${n}",
                 tuple(params),
             )
-            await conn.commit()
             print(f"Updated existing user {existing['id']}")
             if user_id_arg and existing["id"] != user_id_arg:
                 print(f"  id:    {existing['id']} -> {user_id_arg}")
@@ -98,7 +95,7 @@ async def main(
                 ).decode("utf-8")
             else:
                 hashed_pw = "!supabase-managed"
-            await conn.execute(
+            await sql_execute(
                 "INSERT INTO users "
                 "(id, email, password, name, role, company, billing_entity, phone, "
                 "is_active, organization_id, created_at) "
@@ -116,7 +113,6 @@ async def main(
                     now,
                 ),
             )
-            await conn.commit()
             print(f"Created user {user_id}")
             print(f"  email: {email}")
             print(f"  role:  {role}")

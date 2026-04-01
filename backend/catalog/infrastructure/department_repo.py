@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 from catalog.domain.department import Department
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 def _row_to_model(row) -> Department | None:
@@ -14,47 +14,43 @@ def _row_to_model(row) -> Department | None:
 
 
 async def list_all() -> list[Department]:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
            WHERE organization_id = $1 AND deleted_at IS NULL""",
         (org_id,),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     return [d for r in rows if (d := _row_to_model(r)) is not None]
 
 
 async def get_by_id(dept_id: str) -> Department | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
            WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL""",
         (dept_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_model(row)
 
 
 async def get_by_code(code: str) -> Department | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         """SELECT id, name, code, description, sku_count, organization_id, created_at FROM departments
            WHERE code = $1 AND organization_id = $2 AND deleted_at IS NULL""",
         (code.upper(), org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_model(row)
 
 
 async def insert(department: Department) -> None:
     dept_dict = department.model_dump()
     dept_dict["organization_id"] = dept_dict.get("organization_id") or get_org_id()
-    conn = get_connection()
     org_id = dept_dict["organization_id"]
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7)""",
         (
@@ -70,19 +66,18 @@ async def insert(department: Department) -> None:
 
 
 async def update(dept_id: str, name: str, description: str) -> Department | None:
-    conn = get_connection()
     org_id = get_org_id()
     params: list = [name, description or "", dept_id]
     where = "WHERE id = $3 AND organization_id = $4"
     params.append(org_id)
     query = "UPDATE departments SET name = $1, description = $2 "
     query += where
-    await conn.execute(query, params)
-    await conn.execute(
+    await sql_execute(query, params)
+    await sql_execute(
         "UPDATE skus SET category_name = $1 WHERE category_id = $2 AND organization_id = $3",
         (name, dept_id, org_id),
     )
-    await conn.execute(
+    await sql_execute(
         "UPDATE products SET category_name = $1 WHERE category_id = $2 AND organization_id = $3",
         (name, dept_id, org_id),
     )
@@ -90,18 +85,16 @@ async def update(dept_id: str, name: str, description: str) -> Department | None
 
 
 async def count_skus_by_department(dept_id: str) -> int:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT COUNT(*) FROM skus WHERE category_id = $1 AND deleted_at IS NULL AND organization_id = $2",
         (dept_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return row[0] if row else 0
 
 
 async def delete(dept_id: str) -> int:
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
     params: list = [now, dept_id]
@@ -109,19 +102,18 @@ async def delete(dept_id: str) -> int:
     params.append(org_id)
     query = "UPDATE departments SET deleted_at = $1 "
     query += where
-    cursor = await conn.execute(query, params)
+    cursor = await sql_execute(query, params)
     return cursor.rowcount
 
 
 async def increment_sku_count(dept_id: str, delta: int) -> None:
-    conn = get_connection()
     org_id = get_org_id()
     params: list = [delta, dept_id]
     where = "WHERE id = $2 AND organization_id = $3"
     params.append(org_id)
     query = "UPDATE departments SET sku_count = sku_count + $1 "
     query += where
-    await conn.execute(query, params)
+    await sql_execute(query, params)
 
 
 class DepartmentRepo:

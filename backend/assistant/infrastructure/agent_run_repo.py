@@ -5,11 +5,7 @@ import logging
 from datetime import UTC, datetime
 
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import (
-    get_connection,
-    get_org_id,
-    transaction,
-)
+from shared.infrastructure.db import get_org_id, sql_execute, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +37,7 @@ async def log_agent_run(
     now = datetime.now(UTC)
     org_id = get_org_id()
     async with transaction():
-        conn = get_connection()
-        await conn.execute(
+        await sql_execute(
             """INSERT INTO agent_runs
                (id, session_id, org_id, user_id, agent_name, model, mode,
                 user_message, response_text, tool_calls,
@@ -75,6 +70,7 @@ async def log_agent_run(
                 json.dumps(validation_failures or []),
                 json.dumps(validation_scores or {}),
             ),
+            read_only=False,
         )
     return run_id
 
@@ -87,7 +83,6 @@ async def list_runs(
     limit: int = 50,
     validation_failed_only: bool = False,
 ) -> list[dict]:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     clauses = [
@@ -113,8 +108,8 @@ async def list_runs(
     params.append(limit)
     query = "SELECT * FROM agent_runs WHERE " + " AND ".join(clauses)
     query += f" ORDER BY created_at DESC LIMIT ${n}"
-    cur = await conn.execute(query, params)
-    rows = [dict(r) for r in await cur.fetchall()]
+    res = await sql_execute(query, params, read_only=True, max_rows=limit + 1)
+    rows = list(res.rows)
     for r in rows:
         if isinstance(r.get("tool_calls"), str):
             r["tool_calls"] = json.loads(r["tool_calls"])
@@ -126,11 +121,10 @@ async def list_runs(
 
 
 async def get_stats(*, hours: int = 24) -> dict:
-    conn = get_connection()
     org_id = get_org_id()
     since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours'"
 
-    cur = await conn.execute(
+    res_agent = await sql_execute(
         "SELECT"
         " agent_name,"
         " COUNT(*) as runs,"
@@ -144,10 +138,12 @@ async def get_stats(*, hours: int = 24) -> dict:
         " WHERE " + since_expr + " GROUP BY agent_name"
         " ORDER BY runs DESC",
         [org_id],
+        read_only=True,
+        max_rows=500,
     )
-    by_agent = await cur.fetchall()
+    by_agent = res_agent.rows
 
-    cur = await conn.execute(
+    res_totals = await sql_execute(
         "SELECT"
         " COUNT(*) as total_runs,"
         " SUM(input_tokens) as total_input_tokens,"
@@ -158,17 +154,21 @@ async def get_stats(*, hours: int = 24) -> dict:
         " FROM agent_runs"
         " WHERE " + since_expr,
         [org_id],
+        read_only=True,
+        max_rows=2,
     )
-    totals = await cur.fetchone()
+    totals = res_totals.rows[0] if res_totals.rows else None
 
-    cur = await conn.execute(
+    res_model = await sql_execute(
         "SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost"
         " FROM agent_runs WHERE "
         + since_expr
         + " GROUP BY model ORDER BY cost DESC",
         [org_id],
+        read_only=True,
+        max_rows=500,
     )
-    by_model = await cur.fetchall()
+    by_model = res_model.rows
 
     return {
         "period_hours": hours,
@@ -179,13 +179,14 @@ async def get_stats(*, hours: int = 24) -> dict:
 
 
 async def get_session_trace(session_id: str) -> list[dict]:
-    conn = get_connection()
     org_id = get_org_id()
-    cur = await conn.execute(
+    res = await sql_execute(
         "SELECT * FROM agent_runs WHERE session_id = $1 AND org_id = $2 ORDER BY created_at ASC",
         (session_id, org_id),
+        read_only=True,
+        max_rows=2000,
     )
-    rows: list[dict] = [dict(r) for r in await cur.fetchall()]
+    rows: list[dict] = list(res.rows)
     for r in rows:
         for key in ("tool_calls", "validation_failures", "validation_scores"):
             if isinstance(r.get(key), str):
@@ -195,11 +196,10 @@ async def get_session_trace(session_id: str) -> list[dict]:
 
 async def get_validation_summary(*, hours: int = 24) -> dict:
     """Validation pass/fail rates and most common failure types per agent."""
-    conn = get_connection()
     org_id = get_org_id()
     since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours' AND validation_passed IS NOT NULL"
 
-    cur = await conn.execute(
+    res_ba = await sql_execute(
         "SELECT agent_name,"
         " COUNT(*) as runs,"
         " SUM(CASE WHEN validation_passed THEN 1 ELSE 0 END) as passed,"
@@ -208,19 +208,24 @@ async def get_validation_summary(*, hours: int = 24) -> dict:
         + since_expr
         + " GROUP BY agent_name ORDER BY failed DESC",
         [org_id],
+        read_only=True,
+        max_rows=500,
     )
-    by_agent = [dict(r) for r in await cur.fetchall()]
+    by_agent = list(res_ba.rows)
     for r in by_agent:
         total = r["runs"] or 1
         r["pass_rate"] = round(r["passed"] / total, 3)
 
-    cur = await conn.execute(
+    res_fail = await sql_execute(
         "SELECT validation_failures FROM agent_runs"
         " WHERE " + since_expr + " AND validation_passed = FALSE",
         [org_id],
+        read_only=True,
+        max_rows=5000,
     )
     failure_counts: dict[str, int] = {}
-    for (raw,) in await cur.fetchall():
+    for row in res_fail.rows:
+        raw = row["validation_failures"]
         try:
             failures = json.loads(raw) if isinstance(raw, str) else (raw or [])
             for f in failures:
@@ -241,7 +246,6 @@ async def get_validation_summary(*, hours: int = 24) -> dict:
 async def get_cost_breakdown(
     *, days: int = 7, group_by: str = "agent"
 ) -> list[dict]:
-    conn = get_connection()
     org_id = get_org_id()
     since_expr = f"org_id = $1 AND created_at::timestamptz >= NOW() - INTERVAL '{days} days'"
     day_expr = "(created_at::timestamptz)::date"
@@ -268,5 +272,5 @@ async def get_cost_breakdown(
     query += ", "
     query += day_expr
     query += " ORDER BY day DESC, cost DESC"
-    cur = await conn.execute(query, [org_id])
-    return [dict(r) for r in await cur.fetchall()]
+    res = await sql_execute(query, [org_id], read_only=True, max_rows=5000)
+    return list(res.rows)

@@ -11,7 +11,7 @@ import logging
 from catalog.domain.vendor_item import VendorItem
 from catalog.infrastructure.vendor_item_repo import vendor_item_repo
 from catalog.infrastructure.vendor_repo import vendor_repo
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
 from shared.kernel.errors import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)

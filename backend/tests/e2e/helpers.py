@@ -4,6 +4,14 @@ import uuid
 
 from tests.helpers.auth import CONTRACTOR_USER_ID, SEEDED_JOB_ID
 
+# Namespace for deterministic job UUIDs (withdrawals.job_id is UUID in Postgres).
+_E2E_JOB_NAMESPACE = uuid.UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69e2e1")
+
+
+def e2e_job_id(unique_key: str) -> str:
+    """Return a stable UUID string for an e2e job label."""
+    return str(uuid.uuid5(_E2E_JOB_NAMESPACE, unique_key))
+
 
 def _unique_suffix() -> str:
     return uuid.uuid4().hex[:8]

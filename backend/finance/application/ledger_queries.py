@@ -32,7 +32,7 @@ from operations.application.queries import (
 from operations.application.queries import (
     units_sold_by_product as _ops_units_sold,
 )
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 from shared.kernel.types import round_money
 
 
@@ -89,7 +89,6 @@ async def summary_by_account(
     billing_entity: str | None = None,
 ) -> dict[str, float]:
     """P&L summary: {account_name: total_amount}."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -101,7 +100,10 @@ async def summary_by_account(
         date_filter += f" AND created_at <= ${n}"
         params.append(end_date)
     dim_filter = _build_dimension_filter(
-        params, job_id=job_id, department=department, billing_entity=billing_entity
+        params,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
     )
 
     query = (
@@ -111,8 +113,8 @@ async def summary_by_account(
     )
     query += date_filter + dim_filter
     query += " GROUP BY account"
-    cursor = await conn.execute(query, params)
-    return {row[0]: row[1] for row in await cursor.fetchall()}
+    cursor = await sql_execute(query, params)
+    return {row[0]: row[1] for row in cursor.rows}
 
 
 async def summary_by_department(
@@ -120,7 +122,6 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[DepartmentSummaryRow]:
     """Per-department revenue, cogs, shrinkage."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -144,8 +145,8 @@ async def summary_by_department(
     )
     query += date_filter
     query += " GROUP BY department"
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(query, params)
+    rows = cursor.rows
     result = []
     for r in rows:
         row = dict(r)
@@ -160,7 +161,9 @@ async def summary_by_department(
                 shrinkage=row["shrinkage"],
                 profit=profit,
                 # float for JSON-friendly percentage
-                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
+                margin_pct=round(float(profit / revenue * 100), 1)
+                if revenue > 0
+                else 0.0,
             )
         )
     return result
@@ -174,7 +177,6 @@ async def summary_by_job(
     search: str | None = None,
 ) -> JobSummaryResult:
     """Per-job P&L with pagination and search. Returns {rows, total}."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -205,23 +207,25 @@ async def summary_by_job(
     if search:
         term = f"%{search}%"
         sn = len(params) + 1
-        search_clause = f" HAVING job_id LIKE ${sn} OR billing_entity LIKE ${sn + 1}"
+        search_clause = (
+            f" HAVING job_id LIKE ${sn} OR billing_entity LIKE ${sn + 1}"
+        )
         search_params = [term, term]
 
     all_count_params = [*params, *search_params]
     count_query = f"SELECT COUNT(*) AS cnt, COALESCE(SUM(revenue), 0) AS total_revenue, COALESCE(SUM(cost), 0) AS total_cost FROM ({base}{search_clause})"
-    count_cursor = await conn.execute(count_query, all_count_params)
-    agg = dict(await count_cursor.fetchone())
+    count_cursor = await sql_execute(count_query, all_count_params)
+    agg = dict(count_cursor.rows[0]) if count_cursor.rows else {}
     total = agg["cnt"]
     all_revenue = agg["total_revenue"]
     all_cost = agg["total_cost"]
 
     limit_n = len(all_count_params) + 1
-    data_query = (
-        f"{base}{search_clause} ORDER BY revenue DESC LIMIT ${limit_n} OFFSET ${limit_n + 1}"
+    data_query = f"{base}{search_clause} ORDER BY revenue DESC LIMIT ${limit_n} OFFSET ${limit_n + 1}"
+    cursor = await sql_execute(
+        data_query, [*params, *search_params, limit, offset]
     )
-    cursor = await conn.execute(data_query, [*params, *search_params, limit, offset])
-    rows = await cursor.fetchall()
+    rows = cursor.rows
 
     result = []
     for r in rows:
@@ -237,11 +241,15 @@ async def summary_by_job(
                 cost=cost,
                 profit=profit,
                 # float for JSON-friendly percentage
-                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
+                margin_pct=round(float(profit / revenue * 100), 1)
+                if revenue > 0
+                else 0.0,
                 withdrawal_count=row["transaction_count"],
             )
         )
-    return JobSummaryResult(rows=result, total=total, all_revenue=all_revenue, all_cost=all_cost)
+    return JobSummaryResult(
+        rows=result, total=total, all_revenue=all_revenue, all_cost=all_cost
+    )
 
 
 async def summary_by_billing_entity(
@@ -249,7 +257,6 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[BillingEntitySummaryRow]:
     """Per-entity AR balances and revenue."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -273,8 +280,8 @@ async def summary_by_billing_entity(
     )
     query += date_filter
     query += " GROUP BY billing_entity"
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(query, params)
+    rows = cursor.rows
     result = []
     for r in rows:
         row = dict(r)
@@ -299,7 +306,6 @@ async def summary_by_contractor(
     end_date: str | None = None,
 ) -> list[ContractorSummaryRow]:
     """Per-contractor spend totals."""
-    conn = get_connection()
     params: list = [get_org_id()]
     date_filter = ""
     if start_date:
@@ -322,8 +328,8 @@ async def summary_by_contractor(
     )
     query += date_filter
     query += " GROUP BY fl.contractor_id"
-    cursor = await conn.execute(query, params)
-    rows = [dict(r) for r in await cursor.fetchall()]
+    cursor = await sql_execute(query, params)
+    rows = [dict(r) for r in cursor.rows]
 
     contractor_ids = [r["contractor_id"] for r in rows]
     user_map = await get_users_by_ids(contractor_ids)
@@ -334,7 +340,9 @@ async def summary_by_contractor(
             revenue=row["revenue"],
             ar_balance=row["ar_balance"],
             transaction_count=row["transaction_count"],
-            name=user_map[row["contractor_id"]].name if row["contractor_id"] in user_map else "",
+            name=user_map[row["contractor_id"]].name
+            if row["contractor_id"] in user_map
+            else "",
             company=user_map[row["contractor_id"]].company
             if row["contractor_id"] in user_map
             else "",
@@ -344,16 +352,20 @@ async def summary_by_contractor(
 
 
 async def units_sold_by_product(
+    org_id: str,
+    *,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _ops_units_sold(start_date, end_date)
+    return await _ops_units_sold(org_id, start_date, end_date)
 
 
 async def payment_status_breakdown(
+    org_id: str,
+    *,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _ops_pmt_status(start_date, end_date)
+    return await _ops_pmt_status(org_id, start_date, end_date)

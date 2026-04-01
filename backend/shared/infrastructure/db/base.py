@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from shared.infrastructure.config import DATABASE_URL
+from shared.infrastructure.db import uow
 from shared.infrastructure.db.postgres import PostgresBackend
 from shared.infrastructure.db.supabase import get_async_supabase, get_supabase
 
@@ -18,8 +19,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from sqlalchemy.ext.asyncio import AsyncSession
-
-    from shared.infrastructure.db.protocol import Connection
 
 logger = logging.getLogger(__name__)
 
@@ -67,15 +66,10 @@ class BaseDatabaseService:
             await self._backend.connect(self._url)
             self._connected = True
 
-    def connection(self) -> Connection:
-        return self._backend.connection()
-
     @asynccontextmanager
-    async def transaction_bundle(
-        self,
-    ) -> AsyncIterator[tuple[Connection, AsyncSession]]:
-        async with self._backend.transaction_bundle() as bundle:
-            yield bundle
+    async def transaction_bundle(self) -> AsyncIterator[AsyncSession]:
+        async with self._backend.transaction_bundle() as session:
+            yield session
 
     @asynccontextmanager
     async def get_session(self) -> AsyncIterator[AsyncSession]:
@@ -122,22 +116,65 @@ class RealtimeServiceProxy:
 
 
 class TransactionContext:
-    """Shared transaction and session scope for multi-service writes."""
+    """Opens one DB transaction and ORM session; sets ``_tx_session`` contextvar."""
 
     def __init__(self, db_service: BaseDatabaseService) -> None:
         self._db_service = db_service
         self._cm = None
-        self.connection = None
+        self._nested = False
+        self._sess_token = None
         self.session = None
 
     async def __aenter__(self) -> Self:
+        if uow._tx_session.get() is not None:
+            self._nested = True
+            self.session = uow._tx_session.get()
+            return self
+        self._nested = False
         self._cm = self._db_service.transaction_bundle()
-        self.connection, self.session = await self._cm.__aenter__()
+        self.session = await self._cm.__aenter__()
+        self._sess_token = uow._tx_session.set(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
-        if self._cm is not None:
-            await self._cm.__aexit__(exc_type, exc, tb)
+        if self._nested:
+            return None
+        try:
+            if self._cm is not None:
+                return await self._cm.__aexit__(exc_type, exc, tb)
+        finally:
+            if self._sess_token is not None:
+                uow._tx_session.reset(self._sess_token)
+                self._sess_token = None
+        return None
+
+
+class TransactionScope:
+    """Atomic multi-step API: ``async with db.transaction() as tx: await tx.finance.*``.
+
+    ``tx.<name>`` delegates to the same lazy services as ``DatabaseManager``; ORM and
+    raw SQL use ambient session via ``get_session()`` / ``db.sql``.
+    """
+
+    __slots__ = ("_ctx", "_manager")
+
+    def __init__(self, manager: DatabaseManager) -> None:
+        self._manager = manager
+        self._ctx = TransactionContext(manager.db_service)
+
+    @property
+    def session(self):
+        return self._ctx.session
+
+    async def __aenter__(self) -> Self:
+        await self._ctx.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self._ctx.__aexit__(exc_type, exc, tb)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._manager, name)
 
 
 class DatabaseManager:
@@ -150,15 +187,16 @@ class DatabaseManager:
         self._load_stats: dict[str, int] = {}
         self._loading_locks: dict[str, asyncio.Lock] = {}
         self._service_paths = {
-            "shared": "shared.infrastructure.db.services.SharedDatabaseService",
-            "catalog": "shared.infrastructure.db.services.CatalogDatabaseService",
-            "inventory": "shared.infrastructure.db.services.InventoryDatabaseService",
-            "operations": "shared.infrastructure.db.services.OperationsDatabaseService",
-            "finance": "shared.infrastructure.db.services.FinanceDatabaseService",
-            "purchasing": "shared.infrastructure.db.services.PurchasingDatabaseService",
-            "documents": "shared.infrastructure.db.services.DocumentsDatabaseService",
-            "jobs": "shared.infrastructure.db.services.JobsDatabaseService",
-            "assistant": "shared.infrastructure.db.services.AssistantDatabaseService",
+            "shared": "shared.infrastructure.db.services.shared.SharedDatabaseService",
+            "catalog": "shared.infrastructure.db.services.catalog.CatalogDatabaseService",
+            "inventory": "shared.infrastructure.db.services.inventory.InventoryDatabaseService",
+            "operations": "shared.infrastructure.db.services.operations.OperationsDatabaseService",
+            "finance": "shared.infrastructure.db.services.finance.FinanceDatabaseService",
+            "purchasing": "shared.infrastructure.db.services.purchasing.PurchasingDatabaseService",
+            "documents": "shared.infrastructure.db.services.documents.DocumentsDatabaseService",
+            "jobs": "shared.infrastructure.db.services.jobs.JobsDatabaseService",
+            "assistant": "shared.infrastructure.db.services.assistant.AssistantDatabaseService",
+            "sql": "shared.infrastructure.db.services.raw_sql.RawSQLService",
             "realtime": "shared.infrastructure.db.base.RealtimeServiceProxy",
         }
 
@@ -186,8 +224,8 @@ class DatabaseManager:
             return service_class()
         return service_class(self.db_service)
 
-    def transaction(self) -> TransactionContext:
-        return TransactionContext(self.db_service)
+    def transaction(self) -> TransactionScope:
+        return TransactionScope(self)
 
     async def warmup(self) -> None:
         await self.connect()

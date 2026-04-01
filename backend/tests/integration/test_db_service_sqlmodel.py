@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 
 def test_get_session_outside_transaction_opens_working_session(call):
-    from shared.infrastructure.database import get_session
+    from shared.infrastructure.db import get_session
 
     async def _body():
         async with get_session() as session:
@@ -15,7 +15,7 @@ def test_get_session_outside_transaction_opens_working_session(call):
 
 
 def test_get_session_inside_transaction_reuses_shared_session(call):
-    from shared.infrastructure.database import get_session, transaction
+    from shared.infrastructure.db import get_session, transaction
 
     async def _body():
         async with transaction():

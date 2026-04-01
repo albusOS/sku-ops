@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 from catalog.domain.product_family import ProductFamily
-from shared.infrastructure.database import get_connection, get_org_id
+from shared.infrastructure.db import get_org_id, sql_execute
 
 
 def _row_to_product(row) -> ProductFamily | None:
@@ -15,9 +15,8 @@ def _row_to_product(row) -> ProductFamily | None:
 
 async def insert(product: ProductFamily) -> None:
     p = product.model_dump()
-    conn = get_connection()
     org_id = p.get("organization_id") or get_org_id()
-    await conn.execute(
+    await sql_execute(
         """INSERT INTO products (id, name, description, category_id, category_name,
            sku_count, organization_id, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
@@ -36,13 +35,12 @@ async def insert(product: ProductFamily) -> None:
 
 
 async def get_by_id(product_id: str) -> ProductFamily | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT * FROM products WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
         (product_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = (cursor.rows[0] if cursor.rows else None)
     return _row_to_product(row)
 
 
@@ -52,7 +50,6 @@ async def list_all(
     limit: int | None = None,
     offset: int = 0,
 ) -> list[ProductFamily]:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     base = f"SELECT * FROM products WHERE organization_id = ${n} AND deleted_at IS NULL"
@@ -71,8 +68,8 @@ async def list_all(
         base += f" LIMIT ${n} OFFSET ${n + 1}"
         params.extend([limit, offset])
         n += 2
-    cursor = await conn.execute(base, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(base, params)
+    rows = cursor.rows
     return [p for r in rows if (p := _row_to_product(r)) is not None]
 
 
@@ -80,7 +77,6 @@ async def count(
     category_id: str | None = None,
     search: str | None = None,
 ) -> int:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     query = f"SELECT COUNT(*) FROM products WHERE organization_id = ${n} AND deleted_at IS NULL"
@@ -94,13 +90,12 @@ async def count(
         query += f" AND name LIKE ${n}"
         params.append(f"%{search}%")
         n += 1
-    cursor = await conn.execute(query, params)
-    row = await cursor.fetchone()
+    cursor = await sql_execute(query, params)
+    row = (cursor.rows[0] if cursor.rows else None)
     return row[0] if row else 0
 
 
 async def update(product_id: str, updates: dict) -> ProductFamily | None:
-    conn = get_connection()
     org_id = get_org_id()
     n = 1
     set_parts = [f"updated_at = ${n}"]
@@ -118,15 +113,14 @@ async def update(product_id: str, updates: dict) -> ProductFamily | None:
     query = (
         f"UPDATE products SET {', '.join(set_parts)} WHERE id = ${n} AND organization_id = ${n + 1}"
     )
-    await conn.execute(query, values)
+    await sql_execute(query, values)
     return await get_by_id(product_id)
 
 
 async def soft_delete(product_id: str) -> int:
-    conn = get_connection()
     org_id = get_org_id()
     now = datetime.now(UTC)
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "UPDATE products SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL AND organization_id = $3",
         (now, product_id, org_id),
     )
@@ -134,9 +128,8 @@ async def soft_delete(product_id: str) -> int:
 
 
 async def increment_sku_count(product_id: str, delta: int) -> None:
-    conn = get_connection()
     org_id = get_org_id()
-    await conn.execute(
+    await sql_execute(
         "UPDATE products SET sku_count = sku_count + $1 WHERE id = $2 AND organization_id = $3",
         (delta, product_id, org_id),
     )

@@ -78,16 +78,13 @@ async def _create_po_with_item(
     purchase_uom="each",
     purchase_pack_qty=1,
 ):
-    from shared.infrastructure.database import get_connection
-
-    conn = get_connection()
-    await conn.execute(
+    from shared.infrastructure.db import sql_execute
+    await sql_execute(
         """INSERT INTO vendors (id, name, organization_id, created_at)
            VALUES ($1, $2, $3, NOW())
            ON CONFLICT (id) DO NOTHING""",
         ("0195f2c0-89af-7000-8000-000000000051", "Acme Corp", DEFAULT_ORG_ID),
     )
-    await conn.commit()
     po = PurchaseOrder(
         vendor_id="0195f2c0-89af-7000-8000-000000000051",
         vendor_name="Acme Corp",
@@ -200,10 +197,8 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
     """
 
     async def _body():
-        from shared.infrastructure.database import get_connection
-
-        conn = get_connection()
-        await conn.execute(
+        from shared.infrastructure.db import sql_execute
+        await sql_execute(
             """INSERT INTO vendors (id, name, organization_id, created_at)
                VALUES ($1, $2, $3, NOW())
                ON CONFLICT (id) DO NOTHING""",
@@ -213,7 +208,6 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
                 DEFAULT_ORG_ID,
             ),
         )
-        await conn.commit()
         po = PurchaseOrder(
             vendor_id="0195f2c0-89af-7000-8000-000000000052",
             vendor_name="Acme Corp",

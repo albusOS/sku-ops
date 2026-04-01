@@ -10,7 +10,7 @@ from operations.application.queries import (
     link_credit_note_to_return,
     mark_withdrawals_paid_by_invoice,
 )
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import CreditNoteApplied
 
@@ -35,7 +35,7 @@ async def insert_credit_note(
             tax=tax,
             total=total,
         )
-        await link_credit_note_to_return(return_id, cn.id)
+        await link_credit_note_to_return(get_org_id(), return_id, cn.id)
     logger.info(
         "credit_note.created",
         extra={
@@ -64,7 +64,9 @@ async def apply_credit_note(
 
         if result.auto_paid and result.invoice_id:
             now = datetime.now(UTC)
-            await mark_withdrawals_paid_by_invoice(result.invoice_id, now)
+            await mark_withdrawals_paid_by_invoice(
+                get_org_id(), result.invoice_id, now
+            )
 
         await record_credit_note_application(
             credit_note_id=credit_note_id,

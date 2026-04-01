@@ -28,7 +28,7 @@ from inventory.infrastructure.stock_repo import (
 )
 from inventory.ports.stock_repo_port import StockRepoPort
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
