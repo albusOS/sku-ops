@@ -20,6 +20,27 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from shared.infrastructure.db.services.assistant import (
+        AssistantDatabaseService,
+    )
+    from shared.infrastructure.db.services.catalog import CatalogDatabaseService
+    from shared.infrastructure.db.services.documents import (
+        DocumentsDatabaseService,
+    )
+    from shared.infrastructure.db.services.finance import FinanceDatabaseService
+    from shared.infrastructure.db.services.inventory import (
+        InventoryDatabaseService,
+    )
+    from shared.infrastructure.db.services.jobs import JobsDatabaseService
+    from shared.infrastructure.db.services.operations import (
+        OperationsDatabaseService,
+    )
+    from shared.infrastructure.db.services.purchasing import (
+        PurchasingDatabaseService,
+    )
+    from shared.infrastructure.db.services.raw_sql import RawSQLService
+    from shared.infrastructure.db.services.shared import SharedDatabaseService
+
 logger = logging.getLogger(__name__)
 
 
@@ -156,14 +177,27 @@ class TransactionScope:
     raw SQL use ambient session via ``get_session()`` / ``db.sql``.
     """
 
-    __slots__ = ("_ctx", "_manager")
+    # Keep TYPE_CHECKING attributes in sync with DatabaseManager.
+    if TYPE_CHECKING:
+        shared: SharedDatabaseService
+        catalog: CatalogDatabaseService
+        inventory: InventoryDatabaseService
+        operations: OperationsDatabaseService
+        finance: FinanceDatabaseService
+        purchasing: PurchasingDatabaseService
+        documents: DocumentsDatabaseService
+        jobs: JobsDatabaseService
+        assistant: AssistantDatabaseService
+        sql: RawSQLService
+        realtime: RealtimeServiceProxy
+        session: AsyncSession | None
 
     def __init__(self, manager: DatabaseManager) -> None:
         self._manager = manager
         self._ctx = TransactionContext(manager.db_service)
 
     @property
-    def session(self):
+    def session(self) -> AsyncSession | None:
         return self._ctx.session
 
     async def __aenter__(self) -> Self:
@@ -180,12 +214,24 @@ class TransactionScope:
 class DatabaseManager:
     """Application-facing facade for lazy domain database services."""
 
+    if TYPE_CHECKING:
+        shared: SharedDatabaseService
+        catalog: CatalogDatabaseService
+        inventory: InventoryDatabaseService
+        operations: OperationsDatabaseService
+        finance: FinanceDatabaseService
+        purchasing: PurchasingDatabaseService
+        documents: DocumentsDatabaseService
+        jobs: JobsDatabaseService
+        assistant: AssistantDatabaseService
+        sql: RawSQLService
+        realtime: RealtimeServiceProxy
+
     def __init__(self, db_service: BaseDatabaseService | None = None) -> None:
         self.db_service = db_service or BaseDatabaseService(DATABASE_URL)
         self._services: dict[str, object] = {}
         self._service_health: dict[str, str] = {}
         self._load_stats: dict[str, int] = {}
-        self._loading_locks: dict[str, asyncio.Lock] = {}
         self._service_paths = {
             "shared": "shared.infrastructure.db.services.shared.SharedDatabaseService",
             "catalog": "shared.infrastructure.db.services.catalog.CatalogDatabaseService",

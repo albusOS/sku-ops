@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
@@ -11,9 +10,11 @@ from shared.infrastructure.db.uow import _tx_session
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Sequence
 
     from sqlalchemy.ext.asyncio import AsyncSession
+
+from shared.infrastructure.db.base import TransactionScope
 
 _state: dict[str, object | None] = {"manager": None}
 
@@ -58,17 +59,15 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 @asynccontextmanager
-async def transaction() -> AsyncIterator[None]:
+async def transaction() -> AsyncIterator[TransactionScope]:
     """Open a unit of work (commits on success, rolls back on error).
 
     Nested calls reuse the ambient session without opening a new transaction.
     Use ``get_session()`` or ``get_database_manager().sql`` inside the block.
     """
-    if _tx_session.get() is not None:
-        yield
-        return
-    async with _manager().transaction():
-        yield
+    scope = TransactionScope(_manager())
+    async with scope:
+        yield scope
 
 
 async def close_db() -> None:
@@ -111,6 +110,7 @@ async def sql_execute_many(
 
 __all__ = [
     "ExecutionResult",
+    "TransactionScope",
     "_tx_session",
     "close_db",
     "get_org_id",
