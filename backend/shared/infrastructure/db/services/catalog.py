@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from catalog.domain.department import Department
 from catalog.domain.product_family import ProductFamily
@@ -20,6 +20,7 @@ from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.types.public_sql_model_models import (
     Departments,
+    Skus,
     VendorItems,
 )
 from shared.kernel.errors import ResourceNotFoundError
@@ -103,48 +104,40 @@ class CatalogDatabaseService(DomainDatabaseService):
     async def list_departments(self, org_id: str) -> list[Department]:
         """List departments with live sku_count from skus (denormalized column can be stale after bulk import)."""
         oid = as_uuid_required(org_id)
-        async with self.session() as session:
-            result = await session.execute(
-                text(
-                    """
-                    SELECT d.id,
-                           d.organization_id,
-                           d.created_at,
-                           d.name,
-                           d.code,
-                           d.description,
-                           COALESCE(
-                               (
-                                   SELECT COUNT(*)::integer
-                                   FROM skus s
-                                   WHERE s.category_id = d.id
-                                     AND s.deleted_at IS NULL
-                                     AND s.organization_id = d.organization_id
-                               ),
-                               0
-                           ) AS sku_count
-                    FROM departments d
-                    WHERE d.organization_id = :oid
-                      AND d.deleted_at IS NULL
-                    ORDER BY d.name ASC
-                    """
-                ),
-                {"oid": oid},
+        live_sku_count = (
+            select(func.count())
+            .select_from(Skus)
+            .where(
+                Skus.category_id == Departments.id,
+                Skus.organization_id == Departments.organization_id,
+                Skus.deleted_at.is_(None),
             )
+            .scalar_subquery()
+        )
+        stmt = (
+            select(Departments, live_sku_count.label("live_sku_count"))
+            .where(
+                Departments.organization_id == oid,
+                Departments.deleted_at.is_(None),
+            )
+            .order_by(Departments.name.asc())
+        )
+        async with self.session() as session:
+            result = await session.execute(stmt)
             out: list[Department] = []
-            for row in result.mappings().all():
-                rid = row["id"]
-                roid = row["organization_id"]
+            for dept_row, count in result.all():
                 out.append(
                     Department.model_validate(
                         {
-                            "id": str(rid),
-                            "organization_id": str(roid) if roid else "",
-                            "created_at": row["created_at"],
-                            "name": row["name"],
-                            "code": row["code"],
-                            "description": row["description"] or "",
-                            "sku_count": int(row["sku_count"] or 0),
+                            "id": str(dept_row.id),
+                            "organization_id": str(dept_row.organization_id)
+                            if dept_row.organization_id
+                            else "",
+                            "created_at": dept_row.created_at,
+                            "name": dept_row.name,
+                            "code": dept_row.code,
+                            "description": dept_row.description or "",
+                            "sku_count": int(count or 0),
                         }
                     )
                 )
