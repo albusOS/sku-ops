@@ -93,7 +93,14 @@ export const AuthProvider = ({ children }) => {
 
       const {
         data: { subscription: sub },
-      } = sb.auth.onAuthStateChange(async (_event, session) => {
+      } = sb.auth.onAuthStateChange(async (event, session) => {
+        if (event === "TOKEN_REFRESHED" && !session) {
+          // Refresh token was revoked/expired — force clean logout
+          _setAxiosToken(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
         if (session?.access_token) {
           _setAxiosToken(session.access_token);
           await _fetchProfile();
@@ -105,15 +112,25 @@ export const AuthProvider = ({ children }) => {
       });
       supabaseSubRef.current = sub;
 
-      sb.auth.getSession().then(({ data: { session } }) => {
-        if (cancelled) return;
-        if (session?.access_token) {
-          _setAxiosToken(session.access_token);
-          _fetchProfile().finally(() => setLoading(false));
-        } else {
-          setLoading(false);
-        }
-      });
+      sb.auth
+        .getSession()
+        .then(({ data: { session } }) => {
+          if (cancelled) return;
+          if (session?.access_token) {
+            _setAxiosToken(session.access_token);
+            _fetchProfile().finally(() => setLoading(false));
+          } else {
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          // Stale/revoked refresh token in localStorage — clear and show login
+          if (!cancelled) {
+            _setAxiosToken(null);
+            setUser(null);
+            setLoading(false);
+          }
+        });
     });
 
     return () => {
