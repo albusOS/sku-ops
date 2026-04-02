@@ -609,7 +609,7 @@ class Invoices(SQLModel, table=True):
     organization: Optional["Organizations"] = Relationship(back_populates="invoices")
     credit_notes: list["CreditNotes"] = Relationship(back_populates="invoice")
     invoice_line_items: list["InvoiceLineItems"] = Relationship(back_populates="invoice")
-    withdrawals: list["Withdrawals"] = Relationship(
+    withdrawals_rel: list["Withdrawals"] = Relationship(
         back_populates="invoices", link_model=InvoiceWithdrawals
     )
     payments: list["Payments"] = Relationship(back_populates="invoice")
@@ -661,7 +661,7 @@ class Withdrawals(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "Withdrawals.processed_by_id"},
     )
     invoices: list["Invoices"] = Relationship(
-        back_populates="withdrawals", link_model=InvoiceWithdrawals
+        back_populates="withdrawals_rel", link_model=InvoiceWithdrawals
     )
     material_requests: list["MaterialRequests"] = Relationship(back_populates="withdrawal")
     payments: list["Payments"] = Relationship(

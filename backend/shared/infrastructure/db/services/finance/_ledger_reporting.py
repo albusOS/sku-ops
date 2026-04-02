@@ -12,6 +12,7 @@ from finance.domain.ledger_analytics_rows import (
     ProductMarginRow,
     TrendPoint,
 )
+from shared.infrastructure.db.orm_utils import parse_date_param
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:
@@ -40,6 +41,26 @@ def _build_dimension_sql(
     return frag
 
 
+def _ledger_date_sql(
+    params: dict[str, Any],
+    *,
+    start_date: str | None,
+    end_date: str | None,
+    column: str = "created_at",
+) -> str:
+    """Bind ISO date strings as datetimes so asyncpg encodes ``timestamptz`` params."""
+    frag = ""
+    start_bound = parse_date_param(start_date)
+    if start_bound is not None:
+        params["start_date"] = start_bound
+        frag += f" AND {column} >= CAST(:start_date AS timestamptz)"
+    end_bound = parse_date_param(end_date)
+    if end_bound is not None:
+        params["end_date"] = end_bound
+        frag += f" AND {column} <= CAST(:end_date AS timestamptz)"
+    return frag
+
+
 async def summary_by_account(
     session: AsyncSession,
     org_id: uuid.UUID,
@@ -51,13 +72,9 @@ async def summary_by_account(
     billing_entity: str | None = None,
 ) -> dict[str, float]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -94,13 +111,9 @@ async def trend_series(
     else:
         period_expr = "to_char(created_at::date, 'YYYY-MM-DD')"
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -148,13 +161,12 @@ async def ar_aging(
     end_date: str | None = None,
 ) -> list[ArAgingRow]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND fl.created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND fl.created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params,
+        start_date=start_date,
+        end_date=end_date,
+        column="fl.created_at",
+    )
     fallback = "fl.created_at::timestamp + INTERVAL '30 days'"
     due = f"COALESCE(inv.due_date::timestamp, {fallback})"
     age = f"EXTRACT(EPOCH FROM (NOW() - {due})) / 86400.0"
@@ -191,13 +203,9 @@ async def product_margins(
     billing_entity: str | None = None,
 ) -> list[ProductMarginRow]:
     params: dict[str, Any] = {"org_id": org_id, "lim": limit}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -245,13 +253,9 @@ async def purchase_spend(
     end_date: str | None = None,
 ) -> float:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     sql = (
         "SELECT ROUND(CAST(COALESCE(SUM(amount), 0) AS NUMERIC), 2) AS total"
         " FROM financial_ledger"
@@ -272,13 +276,9 @@ async def reference_counts(
     end_date: str | None = None,
 ) -> dict[str, int]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     sql = (
         "SELECT reference_type, COUNT(DISTINCT reference_id) AS cnt"
         " FROM financial_ledger"
@@ -301,13 +301,9 @@ async def returns_total(
     billing_entity: str | None = None,
 ) -> float:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -334,13 +330,9 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     sql = (
         "SELECT department,"
         " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
@@ -363,13 +355,9 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     sql = (
         "SELECT billing_entity,"
         " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
@@ -394,13 +382,12 @@ async def summary_by_contractor_raw(
     end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND fl.created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND fl.created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params,
+        start_date=start_date,
+        end_date=end_date,
+        column="fl.created_at",
+    )
     sql = (
         "SELECT fl.contractor_id::text AS contractor_id,"
         " ROUND(CAST(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
@@ -428,13 +415,9 @@ async def summary_by_job_aggregate(
 ) -> tuple[list[dict[str, Any]], int, float, float]:
     """Returns (page rows, total count, all_revenue, all_cost)."""
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = ""
-    if start_date:
-        params["start_date"] = start_date
-        date_sql += " AND created_at >= CAST(:start_date AS timestamptz)"
-    if end_date:
-        params["end_date"] = end_date
-        date_sql += " AND created_at <= CAST(:end_date AS timestamptz)"
+    date_sql = _ledger_date_sql(
+        params, start_date=start_date, end_date=end_date
+    )
     base = (
         "SELECT job_id::text AS job_id,"
         " billing_entity,"

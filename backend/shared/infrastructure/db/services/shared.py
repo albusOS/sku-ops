@@ -13,7 +13,11 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import defer
 
-from shared.infrastructure.db.orm_utils import as_uuid_required, uuid_str
+from shared.infrastructure.db.orm_utils import (
+    as_uuid_required,
+    parse_date_param,
+    uuid_str,
+)
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.types.public_sql_model_models import (
     Addresses,
@@ -331,10 +335,12 @@ class SharedDatabaseService(DomainDatabaseService):
             conds.append(AuditLog.resource_type == resource_type)
         if resource_id:
             conds.append(AuditLog.resource_id == resource_id)
-        if start_date:
-            conds.append(AuditLog.created_at >= start_date)
-        if end_date:
-            conds.append(AuditLog.created_at <= end_date)
+        start_bound = parse_date_param(start_date)
+        if start_bound is not None:
+            conds.append(AuditLog.created_at >= start_bound)
+        end_bound = parse_date_param(end_date)
+        if end_bound is not None:
+            conds.append(AuditLog.created_at <= end_bound)
 
         async with self.session() as session:
             count_result = await session.execute(

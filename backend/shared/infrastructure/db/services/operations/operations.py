@@ -13,7 +13,10 @@ from operations.domain.enums import MaterialRequestStatus, PaymentStatus
 from operations.domain.material_request import MaterialRequest
 from operations.domain.returns import MaterialReturn
 from operations.domain.withdrawal import MaterialWithdrawal
-from shared.infrastructure.db.orm_utils import as_uuid_required
+from shared.infrastructure.db.orm_utils import (
+    as_uuid_required,
+    parse_date_param,
+)
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.db.services.operations._helpers import (
     build_material_request_item_row,
@@ -88,10 +91,12 @@ class OperationsDatabaseService(DomainDatabaseService):
                 stmt = stmt.where(Withdrawals.payment_status == payment_status)
             if billing_entity:
                 stmt = stmt.where(Withdrawals.billing_entity == billing_entity)
-            if start_date:
-                stmt = stmt.where(Withdrawals.created_at >= start_date)
-            if end_date:
-                stmt = stmt.where(Withdrawals.created_at <= end_date)
+            start_bound = parse_date_param(start_date)
+            if start_bound is not None:
+                stmt = stmt.where(Withdrawals.created_at >= start_bound)
+            end_bound = parse_date_param(end_date)
+            if end_bound is not None:
+                stmt = stmt.where(Withdrawals.created_at <= end_bound)
             stmt = (
                 stmt.order_by(Withdrawals.created_at.desc())
                 .limit(limit)
@@ -244,10 +249,12 @@ class OperationsDatabaseService(DomainDatabaseService):
                 .where(Withdrawals.organization_id == oid)
                 .group_by(WithdrawalItems.sku_id)
             )
-            if start_date:
-                stmt = stmt.where(Withdrawals.created_at >= start_date)
-            if end_date:
-                stmt = stmt.where(Withdrawals.created_at <= end_date)
+            start_bound = parse_date_param(start_date)
+            if start_bound is not None:
+                stmt = stmt.where(Withdrawals.created_at >= start_bound)
+            end_bound = parse_date_param(end_date)
+            if end_bound is not None:
+                stmt = stmt.where(Withdrawals.created_at <= end_bound)
             result = await session.execute(stmt)
             return {str(row[0]): float(row[1]) for row in result.all()}
 
@@ -277,10 +284,12 @@ class OperationsDatabaseService(DomainDatabaseService):
                 .where(Withdrawals.organization_id == oid)
                 .group_by(status_label)
             )
-            if start_date:
-                stmt = stmt.where(Withdrawals.created_at >= start_date)
-            if end_date:
-                stmt = stmt.where(Withdrawals.created_at <= end_date)
+            start_bound = parse_date_param(start_date)
+            if start_bound is not None:
+                stmt = stmt.where(Withdrawals.created_at >= start_bound)
+            end_bound = parse_date_param(end_date)
+            if end_bound is not None:
+                stmt = stmt.where(Withdrawals.created_at <= end_bound)
             result = await session.execute(stmt)
             return {row[0]: float(row[1]) for row in result.all()}
 
@@ -435,10 +444,12 @@ class OperationsDatabaseService(DomainDatabaseService):
                 stmt = stmt.where(
                     Returns.withdrawal_id == as_uuid_required(withdrawal_id)
                 )
-            if start_date:
-                stmt = stmt.where(Returns.created_at >= start_date)
-            if end_date:
-                stmt = stmt.where(Returns.created_at <= end_date)
+            start_bound = parse_date_param(start_date)
+            if start_bound is not None:
+                stmt = stmt.where(Returns.created_at >= start_bound)
+            end_bound = parse_date_param(end_date)
+            if end_bound is not None:
+                stmt = stmt.where(Returns.created_at <= end_bound)
             stmt = stmt.order_by(Returns.created_at.desc()).limit(limit)
             result = await session.execute(stmt)
             rows = list(result.scalars().all())

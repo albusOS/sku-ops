@@ -404,3 +404,85 @@ class TestModelOrdering:
         link_pos = code.index("class InvoiceWithdrawals")
         inv_pos = code.index("class Invoices")
         assert link_pos < inv_pos
+
+
+class TestM2MPlusDirectFK:
+    """When a table has both a direct FK and an M2M link to the same target,
+    the generated relationship names must not collide."""
+
+    def test_no_duplicate_attribute_names(self, sample_ts_m2m_plus_direct_fk):
+        pydantic_content = textwrap.dedent("""
+            from pydantic import BaseModel, Field
+
+            class PublicInvoices(BaseModel):
+                id: str = Field(alias="id")
+                total: float = Field(alias="total")
+
+            class PublicWithdrawals(BaseModel):
+                id: str = Field(alias="id")
+                amount: float = Field(alias="amount")
+                invoice_id: str | None = Field(alias="invoice_id")
+
+            class PublicInvoiceWithdrawals(BaseModel):
+                invoice_id: str = Field(alias="invoice_id")
+                withdrawal_id: str = Field(alias="withdrawal_id")
+        """)
+
+        models = parse_pydantic_types(pydantic_content, "public", "Public")
+        rels = parse_ts_relationships(sample_ts_m2m_plus_direct_fk, "public")
+        pk_map = {
+            ("public", "invoices"): ["id"],
+            ("public", "withdrawals"): ["id"],
+            ("public", "invoice_withdrawals"): ["invoice_id", "withdrawal_id"],
+        }
+
+        code = generate_sqlmodel_code("public", models, rels, pk_map)
+
+        inv_block_start = code.index("class Invoices(")
+        inv_block_end = code.index("\n\n\nclass ", inv_block_start + 1)
+        inv_block = code[inv_block_start:inv_block_end]
+
+        attr_lines = [
+            line.strip().split(":")[0]
+            for line in inv_block.split("\n")
+            if "Relationship(" in line
+        ]
+        assert len(attr_lines) == len(set(attr_lines)), (
+            f"Duplicate relationship attribute names on Invoices: {attr_lines}"
+        )
+
+    def test_back_populates_symmetric(self, sample_ts_m2m_plus_direct_fk):
+        pydantic_content = textwrap.dedent("""
+            from pydantic import BaseModel, Field
+
+            class PublicInvoices(BaseModel):
+                id: str = Field(alias="id")
+                total: float = Field(alias="total")
+
+            class PublicWithdrawals(BaseModel):
+                id: str = Field(alias="id")
+                amount: float = Field(alias="amount")
+                invoice_id: str | None = Field(alias="invoice_id")
+
+            class PublicInvoiceWithdrawals(BaseModel):
+                invoice_id: str = Field(alias="invoice_id")
+                withdrawal_id: str = Field(alias="withdrawal_id")
+        """)
+
+        models = parse_pydantic_types(pydantic_content, "public", "Public")
+        rels = parse_ts_relationships(sample_ts_m2m_plus_direct_fk, "public")
+        pk_map = {
+            ("public", "invoices"): ["id"],
+            ("public", "withdrawals"): ["id"],
+            ("public", "invoice_withdrawals"): ["invoice_id", "withdrawal_id"],
+        }
+
+        code = generate_sqlmodel_code("public", models, rels, pk_map)
+
+        import re
+
+        bp_pairs = re.findall(r'back_populates="(\w+)"', code)
+        for name in bp_pairs:
+            assert f"{name}:" in code or f"{name} :" in code, (
+                f'back_populates="{name}" has no matching attribute in the code'
+            )

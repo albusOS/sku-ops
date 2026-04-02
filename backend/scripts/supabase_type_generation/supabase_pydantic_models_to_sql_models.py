@@ -176,6 +176,7 @@ def generate_sqlmodel_code(
     )
     sa_imports: set[str] = set()
     needs_relationship = False
+    m2m_name_map: dict[tuple[str, str, str], str] = {}
 
     class_blocks: list[str] = []
 
@@ -212,6 +213,7 @@ def generate_sqlmodel_code(
             schema,
             relationship_plan,
             field_names,
+            m2m_name_map,
         )
         if rel_lines:
             needs_relationship = True
@@ -398,11 +400,14 @@ def _generate_relationships(
     schema: str,
     relationship_plan: RelationshipPlan,
     column_names: set[str] | None = None,
+    m2m_name_map: dict[tuple[str, str, str], str] | None = None,
 ) -> list[str]:
     """Generate Relationship() lines for a model."""
     lines: list[str] = []
     if column_names is None:
         column_names = set()
+    if m2m_name_map is None:
+        m2m_name_map = {}
 
     if table in link_tables:
         return lines
@@ -437,6 +442,11 @@ def _generate_relationships(
 
     used_names: set[str] = set()
     for fk in fk_by_target.get(table, []):
+        if fk.constraint_name in relationship_plan.target_name_by_constraint:
+            used_names.add(
+                relationship_plan.target_name_by_constraint[fk.constraint_name]
+            )
+    for fk in fk_by_target.get(table, []):
         if len(fk.source_columns) != 1:
             continue
         if fk.source_table not in all_tables:
@@ -455,6 +465,7 @@ def _generate_relationships(
                 all_tables,
                 used_names,
                 column_names,
+                m2m_name_map,
             )
             continue
 
@@ -492,12 +503,15 @@ def _add_m2m_relationship(
     all_tables: set[str],
     used_names: set[str] | None = None,
     column_names: set[str] | None = None,
+    m2m_name_map: dict[tuple[str, str, str], str] | None = None,
 ) -> None:
     """Add M2M relationship through a link table."""
     if used_names is None:
         used_names = set()
     if column_names is None:
         column_names = set()
+    if m2m_name_map is None:
+        m2m_name_map = {}
 
     link_table = fk.source_table
     link_class = _table_to_class(link_table)
@@ -513,7 +527,10 @@ def _add_m2m_relationship(
         rel_name = _dedupe_name(
             _pluralize(other_table), used_names, column_names
         )
-        back_name = _pluralize(table)
+        m2m_name_map[(link_table, table, other_table)] = rel_name
+        back_name = m2m_name_map.get(
+            (link_table, other_table, table), _pluralize(table)
+        )
 
         lines.append(
             f"{rel_name}: {_collection_annotation(other_class)} = Relationship("

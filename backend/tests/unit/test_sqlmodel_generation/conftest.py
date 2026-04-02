@@ -134,6 +134,90 @@ export type Database = {
 }
 """
 
+SAMPLE_TS_M2M_PLUS_DIRECT_FK = """
+export type Database = {
+  public: {
+    Tables: {
+      invoices: {
+        Row: {
+          id: string
+          total: number
+        }
+        Insert: {
+          id: string
+          total: number
+        }
+        Update: {
+          id?: string
+          total?: number
+        }
+        Relationships: []
+      }
+      withdrawals: {
+        Row: {
+          id: string
+          amount: number
+          invoice_id: string | null
+        }
+        Insert: {
+          id: string
+          amount: number
+          invoice_id?: string | null
+        }
+        Update: {
+          id?: string
+          amount?: number
+          invoice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawals_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_withdrawals: {
+        Row: {
+          invoice_id: string
+          withdrawal_id: string
+        }
+        Insert: {
+          invoice_id: string
+          withdrawal_id: string
+        }
+        Update: {
+          invoice_id?: string
+          withdrawal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_withdrawals_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_withdrawals_withdrawal_id_fkey"
+            columns: ["withdrawal_id"]
+            isOneToOne: false
+            referencedRelation: "withdrawals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {}
+    Functions: {}
+    Enums: {}
+    CompositeTypes: {}
+  }
+}
+"""
+
 SAMPLE_TS_EMPTY_RELS = """
 export type Database = {
   public: {
@@ -230,6 +314,11 @@ def sample_ts_single_fk():
 @pytest.fixture
 def sample_ts_m2m():
     return SAMPLE_TS_M2M
+
+
+@pytest.fixture
+def sample_ts_m2m_plus_direct_fk():
+    return SAMPLE_TS_M2M_PLUS_DIRECT_FK
 
 
 @pytest.fixture
