@@ -16,12 +16,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from assistant.application.llm import generate_with_image, generate_with_pdf
-from catalog.application.queries import (
-    find_product_by_name_and_vendor,
-    find_vendor_by_name,
-    find_vendor_item_by_vendor_and_sku_code,
-    list_product_families,
-)
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
@@ -45,24 +39,6 @@ def _get_parse_system_prompt() -> str:
             _PROMPT_DIR / "document_parse_prompt.md"
         ).read_text(encoding="utf-8")
     return _DOCUMENT_PARSE_SYSTEM
-
-
-async def persist_parsed_document(
-    extracted: dict,
-    filename: str,
-    content_type: str,
-    file_size: int,
-    current_user: CurrentUser,
-) -> dict:
-    """Save parsed document to the archive and return the extracted data with document_id."""
-    return await get_database_manager().documents.insert_parsed_document(
-        get_org_id(),
-        extracted,
-        filename,
-        content_type,
-        file_size,
-        current_user.id,
-    )
 
 
 async def parse_document_with_ai(
@@ -171,8 +147,13 @@ async def parse_document_with_ai(
     if products:
         await _match_vendor_skus(products, extracted.get("vendor_name"))
 
-    return await persist_parsed_document(
-        extracted, filename, content_type, len(contents), current_user
+    return await get_database_manager().documents.insert_parsed_document(
+        get_org_id(),
+        extracted,
+        filename,
+        content_type,
+        len(contents),
+        current_user.id,
     )
 
 
@@ -205,7 +186,9 @@ async def _match_vendor_skus(
     vendor_id = None
     if vendor_name:
         try:
-            vendor = await find_vendor_by_name(vendor_name)
+            vendor = await get_database_manager().catalog.find_vendor_by_name(
+                get_org_id(), vendor_name
+            )
             if vendor:
                 vendor_id = vendor.id
         except Exception as e:
@@ -225,8 +208,8 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
         original_sku = product.get("original_sku")
         if original_sku:
             try:
-                vi = await find_vendor_item_by_vendor_and_sku_code(
-                    vendor_id, original_sku
+                vi = await get_database_manager().catalog.find_vendor_item_by_vendor_and_sku(
+                    get_org_id(), vendor_id, original_sku
                 )
                 if vi:
                     sku_id = vi.sku_id
@@ -238,8 +221,8 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             clean_name = product.get("name", "")
             if clean_name:
                 try:
-                    sku = await find_product_by_name_and_vendor(
-                        clean_name, vendor_id
+                    sku = await get_database_manager().catalog.find_sku_by_name_and_vendor(
+                        get_org_id(), clean_name, vendor_id
                     )
                     if sku:
                         sku_id = sku.id
@@ -253,7 +236,11 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             query = f"{brand} {query}"
         if query:
             try:
-                families = await list_product_families(search=query, limit=3)
+                families = (
+                    await get_database_manager().catalog.list_product_families(
+                        get_org_id(), search=query, limit=3
+                    )
+                )
                 family_candidates = [
                     {
                         "family_id": f.id,

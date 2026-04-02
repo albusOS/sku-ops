@@ -9,11 +9,6 @@ from finance.domain.invoice import (
     InvoiceWithDetails,
     compute_due_date,
 )
-from operations.application.queries import (
-    get_withdrawal_by_id,
-    link_withdrawal_to_invoice,
-    unlink_withdrawals_from_invoice,
-)
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
@@ -38,6 +33,10 @@ __all__ = [
 
 def _finance():
     return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +75,7 @@ async def _validate_withdrawals_for_invoice(
     withdrawals: list[dict] = []
 
     for wid in withdrawal_ids:
-        w = await get_withdrawal_by_id(org_id, wid)
+        w = await _db_operations().get_withdrawal_by_id(org_id, wid)
         if not w:
             raise ValueError(f"Withdrawal {wid} not found")
         if w.payment_status != "unpaid":
@@ -173,7 +172,9 @@ async def create_invoice_from_withdrawals(
 
         for wid in withdrawal_ids:
             await fin.invoice_link_withdrawal(org_id, inv_id, wid)
-            linked = await link_withdrawal_to_invoice(org_id, wid, inv_id)
+            linked = await _db_operations().link_withdrawal_to_invoice(
+                org_id, wid, inv_id
+            )
             if not linked:
                 raise ValueError(
                     f"Withdrawal {wid} was already linked to another invoice"
@@ -244,7 +245,9 @@ async def add_withdrawals_to_invoice(
 
         for wid in withdrawal_ids:
             await fin.invoice_link_withdrawal(org_id, invoice_id, wid)
-            linked = await link_withdrawal_to_invoice(org_id, wid, invoice_id)
+            linked = await _db_operations().link_withdrawal_to_invoice(
+                org_id, wid, invoice_id
+            )
             if not linked:
                 raise ValueError(
                     f"Withdrawal {wid} was already linked to another invoice"
@@ -375,7 +378,7 @@ async def delete_draft_invoice(
 
     async with transaction():
         wids = await fin.invoice_unlink_withdrawals(org_id, invoice_id)
-        await unlink_withdrawals_from_invoice(org_id, wids)
+        await _db_operations().unlink_withdrawals_from_invoice(org_id, wids)
         await fin.invoice_soft_delete(org_id, invoice_id)
 
     await dispatch(

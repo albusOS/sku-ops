@@ -11,11 +11,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
 
-from catalog.application.queries import list_low_stock, list_skus
-from finance.application import ledger_queries as ledger_repo
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.types import round_money
+
+
+def _db_catalog():
+    return get_database_manager().catalog
 
 
 class DepartmentInventory(TypedDict):
@@ -59,7 +61,7 @@ class ProductActivityReport:
 
 
 async def inventory_report() -> InventoryReport:
-    products = await list_skus()
+    products = await _db_catalog().list_skus(get_org_id())
 
     total_products = len(products)
     total_retail = round_money(sum(p.price * p.quantity for p in products))
@@ -114,11 +116,14 @@ async def product_performance_report(
     limit: int = 200,
 ) -> ProductPerformanceReport:
     margin_data, products_data, units_sold_map = await asyncio.gather(
-        ledger_repo.product_margins(
-            start_date=start_date, end_date=end_date, limit=limit
+        get_database_manager().finance.analytics_product_margins(
+            get_org_id(),
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
         ),
-        list_skus(),
-        ledger_repo.units_sold_by_product(
+        _db_catalog().list_skus(get_org_id()),
+        get_database_manager().operations.units_sold_by_product(
             org_id, start_date=start_date, end_date=end_date
         ),
     )
@@ -173,8 +178,8 @@ async def reorder_urgency_report(
     since = datetime.now(UTC) - timedelta(days=min(days, 365))
 
     low_stock, _all_products = await asyncio.gather(
-        list_low_stock(limit=200),
-        list_skus(),
+        _db_catalog().list_low_stock_skus(get_org_id(), limit=200),
+        _db_catalog().list_skus(get_org_id()),
     )
 
     sku_ids = [p.id for p in low_stock]

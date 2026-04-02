@@ -1,6 +1,6 @@
 """Financial reports: sales, trends, margins, P&L, AR aging, KPI summary.
 
-All read from the financial_ledger via ledger_queries.
+All read from the financial_ledger via ``get_database_manager().finance``.
 """
 
 from __future__ import annotations
@@ -10,16 +10,24 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from catalog.application.queries import list_skus
-from finance.application import ledger_queries as ledger_repo
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:
-    from finance.application.ledger_queries import (
+    from finance.domain.ledger_analytics_rows import (
         ArAgingRow,
         ProductMarginRow,
         TrendPoint,
     )
+
+
+def _db_finance():
+    return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
 
 
 @dataclass(frozen=True)
@@ -123,19 +131,31 @@ async def sales_report(
         payment_status,
         ret_total,
     ) = await asyncio.gather(
-        ledger_repo.summary_by_account(
-            start_date=start_date, end_date=end_date, **dim_kw
+        _db_finance().ledger_summary_by_account(
+            get_org_id(),
+            start_date=start_date,
+            end_date=end_date,
+            **dim_kw,
         ),
-        ledger_repo.product_margins(
-            start_date=start_date, end_date=end_date, limit=10, **dim_kw
+        _db_finance().analytics_product_margins(
+            get_org_id(),
+            start_date=start_date,
+            end_date=end_date,
+            limit=10,
+            **dim_kw,
         ),
-        ledger_repo.reference_counts(start_date=start_date, end_date=end_date),
-        list_skus(),
-        ledger_repo.payment_status_breakdown(
+        _db_finance().analytics_reference_counts(
+            get_org_id(), start_date=start_date, end_date=end_date
+        ),
+        get_database_manager().catalog.list_skus(get_org_id()),
+        _db_operations().payment_status_breakdown(
             org_id, start_date=start_date, end_date=end_date
         ),
-        ledger_repo.returns_total(
-            start_date=start_date, end_date=end_date, **dim_kw
+        _db_finance().analytics_returns_total(
+            get_org_id(),
+            start_date=start_date,
+            end_date=end_date,
+            **dim_kw,
         ),
     )
     product_map = {p.id: p for p in catalog}
@@ -190,7 +210,8 @@ async def trends_report(
     department: str | None = None,
     billing_entity: str | None = None,
 ) -> TrendsReport:
-    series = await ledger_repo.trend_series(
+    series = await _db_finance().analytics_trend_series(
+        get_org_id(),
         start_date=start_date,
         end_date=end_date,
         group_by=group_by,
@@ -218,7 +239,8 @@ async def product_margins_report(
     billing_entity: str | None = None,
 ) -> ProductMarginsReport:
     margin_data, catalog = await asyncio.gather(
-        ledger_repo.product_margins(
+        _db_finance().analytics_product_margins(
+            get_org_id(),
             start_date=start_date,
             end_date=end_date,
             limit=limit,
@@ -226,7 +248,7 @@ async def product_margins_report(
             department=department,
             billing_entity=billing_entity,
         ),
-        list_skus(),
+        get_database_manager().catalog.list_skus(get_org_id()),
     )
     product_map = {p.id: p for p in catalog}
     enriched = []
@@ -251,7 +273,8 @@ async def job_pl_report(
     offset: int = 0,
     search: str | None = None,
 ) -> JobPlReport:
-    result = await ledger_repo.summary_by_job(
+    result = await _db_finance().ledger_summary_by_job(
+        get_org_id(),
         start_date=start_date,
         end_date=end_date,
         limit=limit,
@@ -300,7 +323,9 @@ async def pl_report(
     total_rows = None
 
     if group_by == "overall":
-        accounts = await ledger_repo.summary_by_account(**date_kw, **dim_kw)
+        accounts = await _db_finance().ledger_summary_by_account(
+            get_org_id(), **date_kw, **dim_kw
+        )
         revenue = accounts.get("revenue", 0.0)
         cogs = accounts.get("cogs", 0.0)
         tax = accounts.get("tax_collected", 0.0)
@@ -327,8 +352,8 @@ async def pl_report(
     all_cost_override = None
 
     if group_by == "job":
-        result = await ledger_repo.summary_by_job(
-            **date_kw, limit=limit, offset=offset, search=search
+        result = await _db_finance().ledger_summary_by_job(
+            get_org_id(), **date_kw, limit=limit, offset=offset, search=search
         )
         rows = result["rows"]
         total_rows = result["total"]
@@ -336,18 +361,26 @@ async def pl_report(
         all_cost_override = result["all_cost"]
         label_key = "job_id"
     elif group_by == "contractor":
-        rows = await ledger_repo.summary_by_contractor(**date_kw)
+        rows = await _db_finance().ledger_summary_by_contractor(
+            get_org_id(), **date_kw
+        )
         label_key = "contractor_id"
     elif group_by == "department":
-        rows = await ledger_repo.summary_by_department(**date_kw)
+        rows = await _db_finance().ledger_summary_by_department(
+            get_org_id(), **date_kw
+        )
         label_key = "department"
     elif group_by == "entity":
-        rows = await ledger_repo.summary_by_billing_entity(**date_kw)
+        rows = await _db_finance().ledger_summary_by_billing_entity(
+            get_org_id(), **date_kw
+        )
         label_key = "billing_entity"
     elif group_by == "product":
         margin_rows, catalog = await asyncio.gather(
-            ledger_repo.product_margins(**date_kw, limit=limit),
-            list_skus(),
+            _db_finance().analytics_product_margins(
+                get_org_id(), **date_kw, limit=limit
+            ),
+            get_database_manager().catalog.list_skus(get_org_id()),
         )
         pmap = {p.id: p for p in catalog}
         rows = [
@@ -401,7 +434,9 @@ async def ar_aging_report(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> list[ArAgingRow]:
-    return await ledger_repo.ar_aging(start_date=start_date, end_date=end_date)
+    return await _db_finance().analytics_ar_aging(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
 
 
 async def kpi_report(
@@ -414,15 +449,16 @@ async def kpi_report(
     billing_entity: str | None = None,
 ) -> KpiReport:
     accounts, products_data, units_sold_map = await asyncio.gather(
-        ledger_repo.summary_by_account(
+        _db_finance().ledger_summary_by_account(
+            get_org_id(),
             start_date=start_date,
             end_date=end_date,
             job_id=job_id,
             department=department,
             billing_entity=billing_entity,
         ),
-        list_skus(),
-        ledger_repo.units_sold_by_product(
+        get_database_manager().catalog.list_skus(get_org_id()),
+        _db_operations().units_sold_by_product(
             org_id, start_date=start_date, end_date=end_date
         ),
     )

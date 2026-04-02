@@ -4,14 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from assistant.application.llm import generate_text_sync as _generate_text
 from catalog.api.schemas import SuggestUomRequest
-from catalog.application.queries import (
-    count_skus,
-    find_sku_by_barcode,
-    get_department_by_id,
-    get_known_unit_codes,
-    get_sku_by_id,
-    list_skus,
-)
+from catalog.application.queries import get_known_unit_codes
 from catalog.application.sku_lifecycle import (
     create_product_with_sku as lifecycle_create,
 )
@@ -21,18 +14,29 @@ from catalog.application.sku_lifecycle import (
 from catalog.application.sku_lifecycle import (
     update_sku as lifecycle_update,
 )
-from catalog.domain.errors import DuplicateBarcodeError, DuplicateSkuError, InvalidBarcodeError
+from catalog.domain.errors import (
+    DuplicateBarcodeError,
+    DuplicateSkuError,
+    InvalidBarcodeError,
+)
 from catalog.domain.sku import SkuCreate, SkuUpdate
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.config import ANTHROPIC_AVAILABLE as LLM_AVAILABLE
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 from shared.kernel.barcode import validate_barcode
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.units import compute_sell_fields
 
 router = APIRouter(prefix="/skus", tags=["catalog-skus"])
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
 
 _CONTRACTOR_HIDDEN_FIELDS = {
     "cost",
@@ -76,7 +80,8 @@ async def get_products(
     offset: int = Query(0, ge=0),
 ):
     is_contractor = current_user.role == "contractor"
-    items = await list_skus(
+    items = await _db_catalog().list_skus(
+        get_org_id(),
         category_id=category_id,
         search=search,
         low_stock=low_stock,
@@ -87,7 +92,8 @@ async def get_products(
     if is_contractor:
         items = [_strip_for_contractor(p) for p in items]
     if limit is not None:
-        total = await count_skus(
+        total = await _db_catalog().count_skus(
+            get_org_id(),
             category_id=category_id,
             search=search,
             low_stock=low_stock,
@@ -109,7 +115,7 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUserDep):
                 detail={"code": "invalid_check_digit", "barcode": code},
             )
 
-    sku = await find_sku_by_barcode(code)
+    sku = await _db_catalog().find_sku_by_barcode(get_org_id(), code)
     if not sku:
         raise HTTPException(
             status_code=404,
@@ -124,7 +130,7 @@ async def get_product_by_barcode(barcode: str, current_user: CurrentUserDep):
 
 @router.get("/{sku_id}", response_model=None)
 async def get_product(sku_id: str, current_user: CurrentUserDep):
-    sku = await get_sku_by_id(sku_id)
+    sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not sku:
         raise HTTPException(status_code=404, detail="Product not found")
     result = sku.model_dump()
@@ -147,7 +153,9 @@ async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
 
 @router.post("")
 async def create_product(data: SkuCreate, current_user: AdminDep):
-    department = await get_department_by_id(data.category_id)
+    department = await _db_catalog().get_department_by_id(
+        data.category_id, get_org_id()
+    )
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
 
@@ -184,7 +192,7 @@ async def create_product(data: SkuCreate, current_user: AdminDep):
 
 @router.put("/{sku_id}")
 async def update_product(sku_id: str, data: SkuUpdate, current_user: AdminDep):
-    sku = await get_sku_by_id(sku_id)
+    sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not sku:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -203,7 +211,7 @@ async def update_product(sku_id: str, data: SkuUpdate, current_user: AdminDep):
 
 @router.delete("/{sku_id}")
 async def delete_product(sku_id: str, request: Request, current_user: AdminDep):
-    sku = await get_sku_by_id(sku_id)
+    sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not sku:
         raise HTTPException(status_code=404, detail="Product not found")
 

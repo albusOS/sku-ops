@@ -3,12 +3,13 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from catalog.application.queries import get_sku_by_id
 from inventory.application.inventory_service import (
     get_stock_history,
     process_adjustment_stock_changes,
 )
 from shared.api.deps import AdminDep
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/stock", tags=["stock"])
@@ -25,7 +26,9 @@ async def get_product_stock_history(
     current_user: AdminDep,
     limit: int = Query(50, ge=1, le=500),
 ):
-    product = await get_sku_by_id(sku_id)
+    product = await get_database_manager().catalog.get_sku_by_id(
+        sku_id, get_org_id()
+    )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     history = await get_stock_history(sku_id=sku_id, limit=limit)

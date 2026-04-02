@@ -17,11 +17,10 @@ from typing import Protocol
 
 import numpy as np
 
-from catalog.application.queries import list_skus
-from catalog.application.queries import list_vendors as _list_vendors
 from purchasing.application.queries import list_pos
 from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var
 
 logger = logging.getLogger(__name__)
@@ -138,7 +137,9 @@ class DomainSearchIndex:
     # ── SKUs (primary, backward-compatible) ───────────────────────────────
 
     async def _rebuild_skus(self) -> None:
-        skus = await list_skus(limit=10000)
+        skus = await get_database_manager().catalog.list_skus(
+            get_org_id(), limit=10000
+        )
         if not skus:
             self._skus = []
             self._sku_embeddings = None
@@ -188,7 +189,9 @@ class DomainSearchIndex:
 
     async def _rebuild_vendors(self) -> None:
         try:
-            vendors = await _list_vendors()
+            vendors = await get_database_manager().catalog.list_vendors(
+                get_org_id()
+            )
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Vendor index build failed: %s", e)
             return
@@ -269,10 +272,14 @@ class DomainSearchIndex:
         try:
             from pydantic import ValidationError
 
-            from operations.application.queries import list_withdrawals
             from shared.infrastructure.db import get_org_id
+            from shared.infrastructure.db.base import get_database_manager
 
-            withdrawals = await list_withdrawals(get_org_id(), limit=2000)
+            withdrawals = (
+                await get_database_manager().operations.list_withdrawals(
+                    get_org_id(), limit=2000
+                )
+            )
         except (RuntimeError, OSError, ValueError, Exception) as e:
             logger.warning("Job index build failed: %s", e)
             return

@@ -16,6 +16,7 @@ from purchasing.domain.purchase_order import (
     PurchaseOrderItem,
     VendorPerformance,
 )
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.db.services.purchasing._helpers import (
@@ -676,13 +677,9 @@ class PurchasingDatabaseService(DomainDatabaseService):
         sku_ids = [i.sku_id for i in items if i.sku_id]
         if not sku_ids:
             return items
-        from catalog.application.queries import (
-            get_sku_by_id,
-        )
-
         products: dict[str, Any] = {}
         for pid in set(sku_ids):
-            p = await get_sku_by_id(pid)
+            p = await get_database_manager().catalog.get_sku_by_id(pid, org_id)
             if p:
                 products[pid] = p
         enriched = []

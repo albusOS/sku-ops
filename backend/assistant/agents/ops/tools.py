@@ -17,11 +17,6 @@ from assistant.agents.tools.models import (
     WithdrawalSummary,
 )
 from assistant.agents.tools.registry import register as _reg
-from operations.application.queries import (
-    list_pending_material_requests,
-    list_withdrawals,
-    payment_status_breakdown,
-)
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -32,7 +27,9 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
     """Withdrawal history for a contractor (by name)."""
     name = name.strip()
     limit = min(limit, 100)
-    all_withdrawals = await list_withdrawals(get_org_id(), limit=500)
+    all_withdrawals = await get_database_manager().operations.list_withdrawals(
+        get_org_id(), limit=500
+    )
     name_lower = name.lower()
     matched = [
         w
@@ -72,7 +69,9 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
 async def _get_job_materials(job_id: str = "") -> str:
     """All materials pulled for a specific job ID."""
     job_id = job_id.strip()
-    all_withdrawals = await list_withdrawals(get_org_id(), limit=1000)
+    all_withdrawals = await get_database_manager().operations.list_withdrawals(
+        get_org_id(), limit=1000
+    )
     job_withdrawals = [
         w for w in all_withdrawals if (w.job_id or "").lower() == job_id.lower()
     ]
@@ -126,7 +125,7 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
     days = min(days, 365)
     limit = min(limit, 100)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(
+    withdrawals = await get_database_manager().operations.list_withdrawals(
         get_org_id(), start_date=since, limit=limit
     )
     summaries = [
@@ -155,7 +154,11 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
 async def _list_pending_material_requests(limit: int = 20) -> str:
     """Material requests from contractors awaiting approval."""
     limit = min(limit, 100)
-    rows = await list_pending_material_requests(get_org_id(), limit=limit)
+    rows = (
+        await get_database_manager().operations.list_pending_material_requests(
+            get_org_id(), limit=limit
+        )
+    )
     requests = [
         PendingRequest(
             id=r.id,
@@ -195,8 +198,10 @@ async def _get_payment_status_breakdown(days: int = 30) -> str:
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
     end = datetime.now(UTC)
-    breakdown = await payment_status_breakdown(
-        get_org_id(), start_date=since, end_date=end
+    breakdown = (
+        await get_database_manager().operations.payment_status_breakdown(
+            get_org_id(), start_date=since, end_date=end
+        )
     )
     total = round(sum(float(v) for v in breakdown.values()), 2)
     return PaymentStatusResult(

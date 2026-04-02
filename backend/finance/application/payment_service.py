@@ -10,10 +10,6 @@ from finance.application.ledger_service import (
     record_payment as _record_ledger_payment,
 )
 from finance.domain.payment import Payment, PaymentCreate
-from operations.application.queries import (
-    get_withdrawal_by_id,
-    mark_withdrawal_paid,
-)
 from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
@@ -42,6 +38,7 @@ async def create_payment_for_withdrawals(
     withdrawal_ids = list(data.withdrawal_ids)
     org_id = get_org_id()
     fin = _finance()
+    ops = get_database_manager().operations
 
     if not withdrawal_ids and data.invoice_id:
         invoice = await fin.invoice_get_by_id(org_id, data.invoice_id)
@@ -58,7 +55,7 @@ async def create_payment_for_withdrawals(
     contractor_id = ""
 
     for wid in withdrawal_ids:
-        w = await get_withdrawal_by_id(org_id, wid)
+        w = await ops.get_withdrawal_by_id(org_id, wid)
         if not w:
             raise ValueError(f"Withdrawal {wid} not found")
         total_amount += w.total
@@ -86,9 +83,9 @@ async def create_payment_for_withdrawals(
         await fin.payment_insert(org_id, payment, withdrawal_ids)
 
         for wid in withdrawal_ids:
-            await mark_withdrawal_paid(org_id, wid, paid_at)
+            await ops.mark_withdrawal_paid(org_id, wid, paid_at)
             await mark_paid_for_withdrawal(wid)
-            w = await get_withdrawal_by_id(org_id, wid)
+            w = await ops.get_withdrawal_by_id(org_id, wid)
             if w:
                 await _record_ledger_payment(
                     withdrawal_id=wid,

@@ -28,3 +28,47 @@ class ProductMarginRow(TypedDict):
     cost: float
     profit: float
     margin_pct: float
+
+
+class DepartmentSummaryRow(TypedDict):
+    department: str
+    revenue: float
+    cost: float
+    shrinkage: float
+    profit: float
+    margin_pct: float
+
+
+class JobSummaryRow(TypedDict):
+    job_id: str
+    billing_entity: str
+    revenue: float
+    cost: float
+    profit: float
+    margin_pct: float
+    withdrawal_count: int
+
+
+class JobSummaryResult(TypedDict):
+    rows: list[JobSummaryRow]
+    total: int
+    all_revenue: float
+    all_cost: float
+
+
+class BillingEntitySummaryRow(TypedDict):
+    billing_entity: str
+    revenue: float
+    cost: float
+    profit: float
+    ar_balance: float
+    transaction_count: int
+
+
+class ContractorSummaryRow(TypedDict):
+    contractor_id: str
+    revenue: float
+    ar_balance: float
+    transaction_count: int
+    name: str
+    company: str

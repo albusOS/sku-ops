@@ -3,7 +3,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from catalog.application.queries import get_sku_by_id
 from catalog.application.vendor_item_lifecycle import (
     add_vendor_item,
     remove_vendor_item,
@@ -43,7 +42,9 @@ class VendorItemUpdateRequest(BaseModel):
 
 @router.get("/{sku_id}/vendors")
 async def list_sku_vendors(sku_id: str, current_user: CurrentUserDep):
-    sku = await get_sku_by_id(sku_id)
+    sku = await get_database_manager().catalog.get_sku_by_id(
+        sku_id, get_org_id()
+    )
     if not sku:
         raise HTTPException(status_code=404, detail="SKU not found")
     items = await get_database_manager().catalog.list_vendor_items_by_sku(
@@ -56,7 +57,9 @@ async def list_sku_vendors(sku_id: str, current_user: CurrentUserDep):
 async def add_sku_vendor(
     sku_id: str, data: VendorItemCreateRequest, current_user: AdminDep
 ):
-    sku = await get_sku_by_id(sku_id)
+    sku = await get_database_manager().catalog.get_sku_by_id(
+        sku_id, get_org_id()
+    )
     if not sku:
         raise HTTPException(status_code=404, detail="SKU not found")
     item = await add_vendor_item(

@@ -10,12 +10,12 @@ from operations.application.material_request_service import (
 from operations.application.material_request_service import (
     process_material_request as _process_request,
 )
-from operations.application.queries import get_material_request_by_id
 from operations.domain.material_request import (
     MaterialRequestCreate,
     MaterialRequestProcess,
 )
 from shared.api.deps import AdminDep, CurrentUserDep
+from shared.infrastructure.db.base import get_database_manager
 
 router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
@@ -43,7 +43,7 @@ async def list_material_requests_route(current_user: CurrentUserDep):
 
 @router.get("/{request_id}")
 async def get_material_request(request_id: str, current_user: CurrentUserDep):
-    req = await get_material_request_by_id(
+    req = await get_database_manager().operations.get_material_request_by_id(
         current_user.organization_id, request_id
     )
     if not req:

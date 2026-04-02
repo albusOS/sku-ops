@@ -5,10 +5,6 @@ from datetime import UTC, datetime
 
 from finance.application.ledger_service import record_credit_note_application
 from finance.domain.credit_note import CreditNote
-from operations.application.queries import (
-    link_credit_note_to_return,
-    mark_withdrawals_paid_by_invoice,
-)
 from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
@@ -42,7 +38,9 @@ async def insert_credit_note(
             tax,
             total,
         )
-        await link_credit_note_to_return(org_id, return_id, cn.id)
+        await get_database_manager().operations.link_return_credit_note(
+            org_id, return_id, cn.id
+        )
     logger.info(
         "credit_note.created",
         extra={
@@ -73,7 +71,7 @@ async def apply_credit_note(
 
         if result.auto_paid and result.invoice_id:
             now = datetime.now(UTC)
-            await mark_withdrawals_paid_by_invoice(
+            await get_database_manager().operations.mark_withdrawals_paid_by_invoice(
                 org_id, result.invoice_id, now
             )
 

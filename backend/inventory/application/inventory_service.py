@@ -8,12 +8,6 @@ Unit conversion happens here — stock is always stored in the product's base_un
 
 from datetime import UTC, datetime
 
-from catalog.application.queries import (
-    add_sku_quantity,
-    atomic_adjust_sku,
-    atomic_decrement_sku,
-    get_sku_by_id,
-)
 from finance.application.ledger_service import (
     record_adjustment as _record_ledger_adjustment,
 )
@@ -27,6 +21,12 @@ from inventory.ports.stock_repo_port import StockRepoPort
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
@@ -109,7 +109,7 @@ async def process_withdrawal_stock_changes(
     # Resolve UOM conversions before entering the transaction (read-only, no side effects).
     resolved: list[tuple[StockDecrement, float, str]] = []
     for item in items:
-        product = await get_sku_by_id(item.sku_id)
+        product = await _db_catalog().get_sku_by_id(item.sku_id, get_org_id())
         base_unit = (product.base_unit if product else "each").lower()
         requested_unit = (item.unit or "each").lower()
         pack_qty = product.pack_qty if product else 1
@@ -131,8 +131,13 @@ async def process_withdrawal_stock_changes(
 
     async with transaction():
         for item, canonical_qty, base_unit in resolved:
-            product = await get_sku_by_id(item.sku_id)
-            result = await atomic_decrement_sku(item.sku_id, canonical_qty, now)
+            product = await _db_catalog().get_sku_by_id(
+                item.sku_id, get_org_id()
+            )
+            async with transaction():
+                result = await _db_catalog().sku_atomic_decrement(
+                    item.sku_id, get_org_id(), canonical_qty, now
+                )
 
             if not result:
                 available = product.quantity if product else 0
@@ -175,7 +180,7 @@ async def process_receiving_stock_changes(
     Converts from the supplied unit to the product's base_unit before adding.
     The quantity increment and ledger entry are committed atomically.
     """
-    product = await get_sku_by_id(sku_id)
+    product = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     base_unit = (product.base_unit if product else "each").lower()
     incoming_unit = (unit or "each").lower()
 
@@ -186,7 +191,9 @@ async def process_receiving_stock_changes(
 
     now = datetime.now(UTC)
     async with transaction():
-        result = await add_sku_quantity(sku_id, canonical_qty, now)
+        result = await _db_catalog().sku_add_quantity(
+            sku_id, get_org_id(), canonical_qty, now
+        )
         if not result:
             raise ResourceNotFoundError("Product", sku_id)
 
@@ -255,13 +262,15 @@ async def process_adjustment_stock_changes(
     if quantity_delta == 0:
         raise ValueError("quantity_delta must not be zero")
     now = datetime.now(UTC)
-    product = await get_sku_by_id(sku_id)
+    product = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not product:
         raise ResourceNotFoundError("Product", sku_id)
 
     base_unit = product.base_unit.lower()
     async with transaction():
-        result = await atomic_adjust_sku(sku_id, quantity_delta, now)
+        result = await _db_catalog().sku_atomic_adjust(
+            sku_id, get_org_id(), quantity_delta, now
+        )
         if not result:
             raise NegativeStockError(
                 sku_id, current=product.quantity, delta=quantity_delta

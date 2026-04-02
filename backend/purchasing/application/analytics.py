@@ -6,10 +6,7 @@ for demand velocity and SKU data.
 
 from __future__ import annotations
 
-from catalog.application.queries import (
-    get_vendor_items_for_skus,
-    list_low_stock,
-)
+from catalog.application.queries import get_vendor_items_for_skus
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -39,7 +36,9 @@ async def reorder_point_smart(
     actual_vendor_lead_time * safety_factor. Flags where the current min_stock
     is miscalibrated.
     """
-    low_stock = await list_low_stock(limit=100)
+    low_stock = await get_database_manager().catalog.list_low_stock_skus(
+        get_org_id(), limit=100
+    )
     if not low_stock:
         return []
 

@@ -13,8 +13,8 @@ from assistant.agents.tools.models import (
 )
 from assistant.agents.tools.registry import register as _reg
 from finance.application.invoice_service import list_invoices
-from operations.application.queries import list_withdrawals
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def _get_invoice_summary() -> str:
 async def _get_outstanding_balances(limit: int = 20) -> str:
     """Unpaid balances by billing entity."""
     limit = min(limit, 100)
-    withdrawals = await list_withdrawals(
+    withdrawals = await get_database_manager().operations.list_withdrawals(
         get_org_id(), payment_status="unpaid", limit=10000
     )
     entity_map: dict[str, dict] = {}
@@ -88,7 +88,7 @@ async def _get_revenue_summary(days: int = 30) -> str:
     """Revenue breakdown by payment status over a period."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(
+    withdrawals = await get_database_manager().operations.list_withdrawals(
         get_org_id(), start_date=since, limit=10000
     )
     total_revenue = sum(float(w.total) for w in withdrawals)
@@ -118,7 +118,7 @@ async def _get_pl_summary(days: int = 30) -> str:
     """Profit & loss: revenue, COGS, gross profit and margin."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await list_withdrawals(
+    withdrawals = await get_database_manager().operations.list_withdrawals(
         get_org_id(), start_date=since, limit=10000
     )
     total_revenue = sum(float(w.total) for w in withdrawals)

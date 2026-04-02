@@ -3,13 +3,6 @@
 from datetime import UTC, datetime
 
 from operations.application.contractor_service import get_contractor_by_id
-from operations.application.queries import (
-    get_material_request_by_id,
-    insert_material_request,
-    list_material_requests_by_contractor,
-    list_pending_material_requests,
-    mark_material_request_processed,
-)
 from operations.application.withdrawal_service import create_withdrawal_wired
 from operations.domain.enums import MaterialRequestStatus
 from operations.domain.material_request import (
@@ -22,12 +15,17 @@ from operations.domain.withdrawal import (
     MaterialWithdrawalCreate,
 )
 from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import (
     MaterialRequestCreated,
     MaterialRequestProcessed,
 )
 from shared.kernel.types import CurrentUser
+
+
+def _db_operations():
+    return get_database_manager().operations
 
 
 class MaterialRequestError(Exception):
@@ -61,8 +59,10 @@ async def create_material_request(
         notes=data.notes,
         organization_id=current_user.organization_id,
     )
-    await insert_material_request(current_user.organization_id, mat_request)
-    fetched = await get_material_request_by_id(
+    await _db_operations().insert_material_request(
+        current_user.organization_id, mat_request
+    )
+    fetched = await _db_operations().get_material_request_by_id(
         current_user.organization_id, mat_request.id
     )
     result = fetched or mat_request
@@ -84,11 +84,11 @@ async def list_material_requests(current_user: CurrentUser) -> list:
     Raises MaterialRequestError(403) for unknown roles.
     """
     if current_user.role == "contractor":
-        return await list_material_requests_by_contractor(
+        return await _db_operations().list_material_requests_by_contractor(
             current_user.organization_id, current_user.id
         )
     if current_user.role == "admin":
-        return await list_pending_material_requests(
+        return await _db_operations().list_pending_material_requests(
             current_user.organization_id
         )
     raise MaterialRequestError("Insufficient permissions", 403)
@@ -107,7 +107,7 @@ async def process_material_request(
     Raises MaterialRequestError on validation failure.
     """
     org_id = get_org_id()
-    req = await get_material_request_by_id(org_id, request_id)
+    req = await _db_operations().get_material_request_by_id(org_id, request_id)
     if not req:
         raise MaterialRequestError("Material request not found", 404)
     if req.status != MaterialRequestStatus.PENDING:
@@ -157,7 +157,7 @@ async def process_material_request(
         withdrawal = await create_withdrawal_wired(
             withdrawal_data, contractor_ctx, current_user
         )
-        await mark_material_request_processed(
+        await _db_operations().mark_material_request_processed(
             org_id,
             request_id=request_id,
             withdrawal_id=withdrawal.id,

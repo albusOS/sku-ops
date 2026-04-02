@@ -337,14 +337,16 @@ class TestInventoryCarryingCost:
 
     def test_basic_carrying_cost(self, call):
         async def _body():
-            from finance.application.ledger_queries import (
-                inventory_carrying_cost,
-            )
+            from shared.infrastructure.db import get_org_id
+            from shared.infrastructure.db.base import get_database_manager
 
             sku_id = await _seed_sku(quantity=100.0, cost=20.0)
             await _seed_receiving_txn(sku_id, qty=100, days_ago=30)
 
-            results = await inventory_carrying_cost(holding_rate_pct=25.0)
+            fin = get_database_manager().finance
+            results = await fin.analytics_inventory_carrying_cost(
+                get_org_id(), holding_rate_pct=25.0
+            )
             assert len(results) >= 1
             match = [r for r in results if r["sku_id"] == sku_id]
             assert len(match) == 1
@@ -358,15 +360,15 @@ class TestInventoryCarryingCost:
 
     def test_zero_cost_excluded(self, call):
         async def _body():
-            from finance.application.ledger_queries import (
-                inventory_carrying_cost,
-            )
+            from shared.infrastructure.db import get_org_id
+            from shared.infrastructure.db.base import get_database_manager
 
             sku_id = str(uuid.uuid4())
             await _seed_sku(
                 sku_id=sku_id, sku_code="HDW-FREE-01", quantity=100, cost=0
             )
-            results = await inventory_carrying_cost()
+            fin = get_database_manager().finance
+            results = await fin.analytics_inventory_carrying_cost(get_org_id())
             free_matches = [r for r in results if r["sku_id"] == sku_id]
             assert len(free_matches) == 0
 
@@ -374,15 +376,15 @@ class TestInventoryCarryingCost:
 
     def test_zero_stock_excluded(self, call):
         async def _body():
-            from finance.application.ledger_queries import (
-                inventory_carrying_cost,
-            )
+            from shared.infrastructure.db import get_org_id
+            from shared.infrastructure.db.base import get_database_manager
 
             sku_id = str(uuid.uuid4())
             await _seed_sku(
                 sku_id=sku_id, sku_code="HDW-EMPTY-01", quantity=0, cost=10
             )
-            results = await inventory_carrying_cost()
+            fin = get_database_manager().finance
+            results = await fin.analytics_inventory_carrying_cost(get_org_id())
             empty_matches = [r for r in results if r["sku_id"] == sku_id]
             assert len(empty_matches) == 0
 

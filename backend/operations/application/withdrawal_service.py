@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from catalog.application.queries import list_skus
 from finance.application.invoice_service import (
     create_invoice_from_withdrawals as _create_invoice,
 )
@@ -18,7 +17,6 @@ from finance.application.ledger_service import (
 from finance.application.ledger_service import (
     record_withdrawal as _record_withdrawal_ledger,
 )
-from finance.application.org_settings_service import get_org_settings
 from inventory.application.inventory_service import (
     process_withdrawal_stock_changes,
 )
@@ -28,7 +26,7 @@ from operations.domain.withdrawal import (
     MaterialWithdrawal,
     MaterialWithdrawalCreate,
 )
-from shared.infrastructure.db import transaction
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import (
@@ -89,7 +87,7 @@ async def create_withdrawal(
     db = get_database_manager().operations
     if data.job_id:
         await get_database_manager().jobs.ensure_job(data.job_id, org_id)
-    products = await list_skus()
+    products = await get_database_manager().catalog.list_skus(get_org_id())
     product_map = {p.id: p for p in products}
     dept_map = {p.id: p.category_name for p in products}
     enriched_items = []
@@ -247,7 +245,9 @@ async def create_withdrawal_wired(
     current_user: CurrentUser,
 ) -> MaterialWithdrawal:
     """Wired version that resolves org settings before delegating to create_withdrawal."""
-    settings = await get_org_settings()
+    settings = await get_database_manager().finance.org_settings_get(
+        get_org_id()
+    )
     return await create_withdrawal(
         data,
         contractor,

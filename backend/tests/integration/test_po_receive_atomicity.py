@@ -8,8 +8,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from catalog.application.queries import list_departments
+from catalog.application.queries import insert_vendor
 from catalog.application.sku_lifecycle import create_product_with_sku
+from catalog.domain.sku import SkuUpdate
 from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_receiving_stock_changes,
@@ -25,6 +26,7 @@ from purchasing.domain.purchase_order import (
     PurchaseOrderItem,
     ReceiveItemUpdate,
 )
+from shared.infrastructure.db import transaction
 from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
@@ -119,16 +121,45 @@ async def _create_po_with_item(
 
 
 def _stub_deps(**overrides):
-    from catalog.application.queries import (
-        find_product_by_name_and_vendor,
-        find_vendor_by_name,
-        find_vendor_item_by_vendor_and_sku_code,
-        get_department_by_code,
-        get_sku_by_id,
-        insert_vendor,
-        update_sku,
-    )
     from catalog.application.vendor_item_lifecycle import add_vendor_item
+
+    async def _list_departments():
+        return await get_database_manager().catalog.list_departments(
+            DEFAULT_ORG_ID
+        )
+
+    async def _get_department_by_code(code: str):
+        return await get_database_manager().catalog.get_department_by_code(
+            code, DEFAULT_ORG_ID
+        )
+
+    async def _find_vendor_by_name(name: str):
+        return await get_database_manager().catalog.find_vendor_by_name(
+            DEFAULT_ORG_ID, name
+        )
+
+    async def _get_sku_by_id(sku_id: str):
+        return await get_database_manager().catalog.get_sku_by_id(
+            sku_id, DEFAULT_ORG_ID
+        )
+
+    async def _find_vendor_item(vendor_id: str, vendor_sku: str):
+        return await get_database_manager().catalog.find_vendor_item_by_vendor_and_sku(
+            DEFAULT_ORG_ID, vendor_id, vendor_sku
+        )
+
+    async def _find_sku_by_name_and_vendor(name: str, vendor_id: str):
+        return await get_database_manager().catalog.find_sku_by_name_and_vendor(
+            DEFAULT_ORG_ID, name, vendor_id
+        )
+
+    async def _update_sku(sku_id: str, updates: SkuUpdate):
+        async with transaction():
+            return await get_database_manager().catalog.update_sku(
+                sku_id,
+                DEFAULT_ORG_ID,
+                updates.model_dump(exclude_none=True),
+            )
 
     async def _noop_create(**kw):
         return await create_product_with_sku(
@@ -136,14 +167,14 @@ def _stub_deps(**overrides):
         )
 
     defaults = {
-        "list_departments": list_departments,
-        "get_department_by_code": get_department_by_code,
-        "find_vendor_by_name": find_vendor_by_name,
+        "list_departments": _list_departments,
+        "get_department_by_code": _get_department_by_code,
+        "find_vendor_by_name": _find_vendor_by_name,
         "insert_vendor": insert_vendor,
-        "get_sku_by_id": get_sku_by_id,
-        "find_vendor_item_by_vendor_and_sku_code": find_vendor_item_by_vendor_and_sku_code,
-        "find_sku_by_name_and_vendor": find_product_by_name_and_vendor,
-        "update_sku": update_sku,
+        "get_sku_by_id": _get_sku_by_id,
+        "find_vendor_item_by_vendor_and_sku_code": _find_vendor_item,
+        "find_sku_by_name_and_vendor": _find_sku_by_name_and_vendor,
+        "update_sku": _update_sku,
         "create_product_with_sku": _noop_create,
         "add_vendor_item": add_vendor_item,
         "process_receiving_stock_changes": process_receiving_stock_changes,

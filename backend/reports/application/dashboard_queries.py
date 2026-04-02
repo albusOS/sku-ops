@@ -7,21 +7,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
 
-from catalog.application.queries import (
-    count_all_skus,
-    count_low_stock,
-    count_vendors,
-    list_low_stock,
-    list_skus,
-)
-from finance.application import ledger_queries as ledger_repo
 from operations.application.contractor_service import count_contractors
-from operations.application.queries import (
-    list_pending_material_requests,
-    list_withdrawals,
-)
 from purchasing.application.queries import po_summary_by_status
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.types import round_money
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
+def _db_catalog():
+    return get_database_manager().catalog
 
 
 class DailyPoint(TypedDict):
@@ -130,7 +128,7 @@ async def contractor_dashboard(
     end_date: str | None = None,
 ) -> ContractorDashboard:
     sd, ed = _parse_date_range(start_date, end_date)
-    my_withdrawals = await list_withdrawals(
+    my_withdrawals = await _db_operations().list_withdrawals(
         org_id,
         contractor_id=contractor_id,
         start_date=sd,
@@ -170,29 +168,33 @@ async def admin_dashboard(
         by_department,
         pending_requests,
     ) = await asyncio.gather(
-        list_withdrawals(org_id, start_date=sd, end_date=ed, limit=10000),
-        list_withdrawals(
+        _db_operations().list_withdrawals(
+            org_id, start_date=sd, end_date=ed, limit=10000
+        ),
+        _db_operations().list_withdrawals(
             org_id,
             payment_status="unpaid",
             start_date=sd,
             end_date=ed,
             limit=10000,
         ),
-        list_withdrawals(
+        _db_operations().list_withdrawals(
             org_id,
             payment_status="invoiced",
             start_date=sd,
             end_date=ed,
             limit=10000,
         ),
-        list_skus(),
-        count_all_skus(),
-        count_low_stock(),
-        count_vendors(),
+        _db_catalog().list_skus(get_org_id()),
+        _db_catalog().count_all_skus(get_org_id()),
+        _db_catalog().count_low_stock_skus(get_org_id()),
+        _db_catalog().count_vendors(get_org_id()),
         count_contractors(),
-        list_low_stock(10),
-        ledger_repo.summary_by_department(start_date=sd, end_date=ed),
-        list_pending_material_requests(org_id, limit=10),
+        _db_catalog().list_low_stock_skus(get_org_id(), limit=10),
+        get_database_manager().finance.ledger_summary_by_department(
+            get_org_id(), start_date=sd, end_date=ed
+        ),
+        _db_operations().list_pending_material_requests(org_id, limit=10),
     )
 
     range_revenue = sum(w.total for w in range_withdrawals)
@@ -286,7 +288,7 @@ async def dashboard_transactions(
 ) -> DashboardTransactions:
     sd, ed = _parse_date_range(start_date, end_date)
     fetch_limit = limit + 1
-    rows = await list_withdrawals(
+    rows = await _db_operations().list_withdrawals(
         org_id,
         start_date=sd,
         end_date=ed,

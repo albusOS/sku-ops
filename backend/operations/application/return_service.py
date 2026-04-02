@@ -7,11 +7,9 @@ from sqlalchemy import select
 from finance.application.ledger_service import (
     record_return as _record_return_ledger,
 )
-from finance.application.org_settings_service import get_org_settings
 from inventory.application.inventory_service import restock_as_return
-from operations.application.queries import get_withdrawal_by_id
 from operations.domain.returns import MaterialReturn, ReturnCreate, ReturnItem
-from shared.infrastructure.db import get_session, transaction
+from shared.infrastructure.db import get_org_id, get_session, transaction
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.domain_events import dispatch
@@ -35,10 +33,12 @@ async def create_return(
     """
     org_id = current_user.organization_id
     db = get_database_manager().operations
-    settings = await get_org_settings()
+    settings = await get_database_manager().finance.org_settings_get(
+        get_org_id()
+    )
     tax_rate = settings.default_tax_rate
 
-    withdrawal = await get_withdrawal_by_id(org_id, data.withdrawal_id)
+    withdrawal = await db.get_withdrawal_by_id(org_id, data.withdrawal_id)
     if not withdrawal:
         raise ResourceNotFoundError("Withdrawal", data.withdrawal_id)
 

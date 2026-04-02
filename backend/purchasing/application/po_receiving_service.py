@@ -6,7 +6,7 @@ Split from purchase_order_service to keep each module under 300 lines.
 import logging
 from datetime import UTC, datetime
 
-from catalog.application.queries import SkuUpdate
+from catalog.domain.sku import SkuUpdate
 from finance.application.ledger_service import (
     record_po_receipt as _record_po_receipt_ledger,
 )

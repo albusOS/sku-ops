@@ -6,10 +6,6 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from operations.application.contractor_service import get_contractor_by_id
-from operations.application.queries import (
-    get_withdrawal_by_id,
-    list_withdrawals,
-)
 from operations.application.withdrawal_service import (
     bulk_mark_withdrawals_paid,
     create_withdrawal_wired,
@@ -21,6 +17,7 @@ from operations.domain.withdrawal import (
     MaterialWithdrawalCreate,
 )
 from shared.api.deps import AdminDep, CurrentUserDep
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
 router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
@@ -113,7 +110,7 @@ async def get_withdrawals(
     cid = (
         current_user.id if current_user.role == "contractor" else contractor_id
     )
-    return await list_withdrawals(
+    return await get_database_manager().operations.list_withdrawals(
         current_user.organization_id,
         contractor_id=cid,
         payment_status=payment_status,
@@ -126,7 +123,7 @@ async def get_withdrawals(
 
 @router.get("/{withdrawal_id}")
 async def get_withdrawal(withdrawal_id: str, current_user: CurrentUserDep):
-    withdrawal = await get_withdrawal_by_id(
+    withdrawal = await get_database_manager().operations.get_withdrawal_by_id(
         current_user.organization_id, withdrawal_id
     )
     if not withdrawal:

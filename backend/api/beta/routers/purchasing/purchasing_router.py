@@ -4,48 +4,91 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from catalog.application.queries import (
-    find_product_by_name_and_vendor,
-    find_vendor_by_name,
-    find_vendor_item_by_vendor_and_sku_code,
-    get_department_by_code,
-    get_sku_by_id,
-    insert_vendor,
-    list_departments,
-    update_sku,
+from catalog.application.queries import insert_vendor
+from catalog.application.sku_lifecycle import (
+    create_product_with_sku as lifecycle_create,
 )
-from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
 from catalog.application.vendor_item_lifecycle import add_vendor_item
+from catalog.domain.sku import SkuUpdate
 from finance.application.po_sync_service import queue_po_for_sync
-from inventory.application.inventory_service import process_receiving_stock_changes
+from inventory.application.inventory_service import (
+    process_receiving_stock_changes,
+)
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
     create_purchase_order,
     mark_delivery_received,
     receive_po_items,
 )
-from purchasing.application.queries import get_po, get_po_items, list_pos_with_counts
+from purchasing.application.queries import (
+    get_po,
+    get_po_items,
+    list_pos_with_counts,
+)
 from purchasing.domain.purchase_order import (
     CreatePORequest,
     MarkDeliveryRequest,
     ReceiveItemsRequest,
 )
 from shared.api.deps import AdminDep
+from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
 logger = logging.getLogger(__name__)
 
 
+def _cat():
+    return get_database_manager().catalog
+
+
+async def _list_departments():
+    return await _cat().list_departments(get_org_id())
+
+
+async def _get_department_by_code(code: str):
+    return await _cat().get_department_by_code(code, get_org_id())
+
+
+async def _find_vendor_by_name(name: str):
+    return await _cat().find_vendor_by_name(get_org_id(), name)
+
+
+async def _get_sku_by_id(sku_id: str):
+    return await _cat().get_sku_by_id(sku_id, get_org_id())
+
+
+async def _find_vendor_item_by_vendor_and_sku_code(
+    vendor_id: str, vendor_sku: str
+):
+    return await _cat().find_vendor_item_by_vendor_and_sku(
+        get_org_id(), vendor_id, vendor_sku
+    )
+
+
+async def _find_product_by_name_and_vendor(name: str, vendor_id: str):
+    return await _cat().find_sku_by_name_and_vendor(
+        get_org_id(), name, vendor_id
+    )
+
+
+async def _update_sku(sku_id: str, updates: SkuUpdate):
+    async with transaction():
+        return await _cat().update_sku(
+            sku_id, get_org_id(), updates.model_dump(exclude_none=True)
+        )
+
+
 def _build_deps() -> PurchasingDeps:
     return PurchasingDeps(
-        list_departments=list_departments,
-        get_department_by_code=get_department_by_code,
-        find_vendor_by_name=find_vendor_by_name,
+        list_departments=_list_departments,
+        get_department_by_code=_get_department_by_code,
+        find_vendor_by_name=_find_vendor_by_name,
         insert_vendor=insert_vendor,
-        get_sku_by_id=get_sku_by_id,
-        find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
-        find_sku_by_name_and_vendor=find_product_by_name_and_vendor,
-        update_sku=update_sku,
+        get_sku_by_id=_get_sku_by_id,
+        find_vendor_item_by_vendor_and_sku_code=_find_vendor_item_by_vendor_and_sku_code,
+        find_sku_by_name_and_vendor=_find_product_by_name_and_vendor,
+        update_sku=_update_sku,
         create_product_with_sku=lambda **kw: lifecycle_create(
             **kw, on_stock_import=process_receiving_stock_changes
         ),
@@ -54,7 +97,9 @@ def _build_deps() -> PurchasingDeps:
     )
 
 
-router = APIRouter(prefix="/purchasing/purchase-orders", tags=["purchase-orders"])
+router = APIRouter(
+    prefix="/purchasing/purchase-orders", tags=["purchase-orders"]
+)
 
 
 @router.post("")
@@ -103,7 +148,9 @@ async def get_purchase_order(
     """Get a purchase order with all its items."""
     po = await get_po(po_id)
     if not po:
-        raise HTTPException(status_code=404, detail=f"Purchase order not found: {po_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Purchase order not found: {po_id}"
+        )
     items = await get_po_items(po_id)
     return po.model_copy(update={"items": items})
 

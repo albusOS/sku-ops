@@ -11,12 +11,6 @@ from finance.domain.ledger_analytics_rows import (
     ProductMarginRow,
     TrendPoint,
 )
-from operations.application.queries import (
-    payment_status_breakdown as _ops_pmt_status,
-)
-from operations.application.queries import (
-    units_sold_by_product as _ops_units_sold,
-)
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -243,7 +237,9 @@ async def units_sold_by_product(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _ops_units_sold(org_id, start_date, end_date)
+    return await get_database_manager().operations.units_sold_by_product(
+        org_id, start_date=start_date, end_date=end_date
+    )
 
 
 async def payment_status_breakdown(
@@ -253,4 +249,6 @@ async def payment_status_breakdown(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _ops_pmt_status(org_id, start_date, end_date)
+    return await get_database_manager().operations.payment_status_breakdown(
+        org_id, start_date=start_date, end_date=end_date
+    )

@@ -13,7 +13,6 @@ Inventory is only touched at commit — never during the counting phase.
 
 from datetime import UTC, datetime
 
-from catalog.application.queries import list_skus
 from inventory.application.inventory_service import (
     process_adjustment_stock_changes,
 )
@@ -50,7 +49,7 @@ async def open_cycle_count(
     scope=None counts everything; scope=<category_name> limits to that category.
     Returns the new CycleCount.
     """
-    products = await list_skus()
+    products = await get_database_manager().catalog.list_skus(get_org_id())
     if scope:
         products = [p for p in products if p.category_name == scope]
 

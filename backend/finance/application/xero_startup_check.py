@@ -8,15 +8,27 @@ misconfiguration immediately at boot, not at the moment the first sync fires.
 import logging
 from datetime import UTC, datetime
 
-from finance.application.org_settings_service import get_org_settings
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
 _REQUIRED_ACCOUNT_CODES = [
-    ("xero_sales_account_code", "Sales account code", "invoices will post to wrong account"),
-    ("xero_cogs_account_code", "COGS account code", "COGS journal will be skipped"),
-    ("xero_inventory_account_code", "Inventory account code", "PO Bills will fail"),
+    (
+        "xero_sales_account_code",
+        "Sales account code",
+        "invoices will post to wrong account",
+    ),
+    (
+        "xero_cogs_account_code",
+        "COGS account code",
+        "COGS journal will be skipped",
+    ),
+    (
+        "xero_inventory_account_code",
+        "Inventory account code",
+        "PO Bills will fail",
+    ),
 ]
 
 
@@ -31,9 +43,13 @@ async def check_xero_configuration() -> list[str]:
     """Return a list of warning strings. Empty list means configuration is clean."""
     warnings: list[str] = []
     try:
-        settings = await get_org_settings()
+        settings = await get_database_manager().finance.org_settings_get(
+            get_org_id()
+        )
     except (RuntimeError, OSError, ValueError) as e:
-        warnings.append(f"XERO: Could not load org settings for {get_org_id()}: {e}")
+        warnings.append(
+            f"XERO: Could not load org settings for {get_org_id()}: {e}"
+        )
         return warnings
 
     if not settings.xero_access_token:
@@ -49,7 +65,9 @@ async def check_xero_configuration() -> list[str]:
             "All API calls will fail with 403. Re-authorise Xero."
         )
 
-    if settings.xero_token_expiry and _is_token_expired(settings.xero_token_expiry):
+    if settings.xero_token_expiry and _is_token_expired(
+        settings.xero_token_expiry
+    ):
         warnings.append(
             "XERO: Access token is expired. The first sync will attempt a refresh. "
             "If refresh_token is also expired, re-authorise Xero immediately."

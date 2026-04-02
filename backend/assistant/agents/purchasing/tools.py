@@ -20,13 +20,7 @@ from assistant.agents.tools.models import (
     VendorPerformanceResult,
 )
 from assistant.agents.tools.registry import register as _reg
-from catalog.application.queries import (
-    find_sku_by_sku_code,
-    find_vendor_by_name,
-    get_vendor_by_id,
-    list_vendors,
-    sku_vendor_options,
-)
+from catalog.application.queries import sku_vendor_options
 from purchasing.application.analytics import (
     reorder_point_smart,
     vendor_lead_time_actual,
@@ -38,18 +32,26 @@ from purchasing.application.queries import (
     vendor_catalog,
     vendor_performance,
 )
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
 
-async def _resolve_vendor_id(vendor_id: str, name: str) -> tuple[str | None, str | None]:
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+async def _resolve_vendor_id(
+    vendor_id: str, name: str
+) -> tuple[str | None, str | None]:
     """Resolve vendor_id from name if needed. Returns (vendor_id, error_json) — one is always None."""
     vendor_id = vendor_id.strip()
     if vendor_id:
         return vendor_id, None
     name = name.strip()
     if name:
-        vendor = await find_vendor_by_name(name)
+        vendor = await _db_catalog().find_vendor_by_name(get_org_id(), name)
         if vendor:
             return vendor.id, None
         return None, ErrorResult(error=f"Vendor '{name}' not found").serialize()
@@ -61,7 +63,7 @@ async def _get_vendor_catalog(vendor_id: str = "", name: str = "") -> str:
     vid, err = await _resolve_vendor_id(vendor_id, name)
     if err:
         return err
-    vendor = await get_vendor_by_id(vid)
+    vendor = await _db_catalog().get_vendor_by_id(vid, get_org_id())
     items = await vendor_catalog(vid)
     return VendorCatalogResult(
         vendor_id=vid,
@@ -71,14 +73,18 @@ async def _get_vendor_catalog(vendor_id: str = "", name: str = "") -> str:
     ).serialize()
 
 
-async def _get_vendor_performance(vendor_id: str = "", name: str = "", days: int = 90) -> str:
+async def _get_vendor_performance(
+    vendor_id: str = "", name: str = "", days: int = 90
+) -> str:
     """Vendor scorecard. Use for vendor quality, spend, fill-rate, and reliability questions."""
     days = min(days, 365)
     vid, err = await _resolve_vendor_id(vendor_id, name)
     if err:
         return err
-    vendor = await get_vendor_by_id(vid)
-    perf = await vendor_performance(vid, days, vendor_name=vendor.name if vendor else "")
+    vendor = await _db_catalog().get_vendor_by_id(vid, get_org_id())
+    perf = await vendor_performance(
+        vid, days, vendor_name=vendor.name if vendor else ""
+    )
     return VendorPerformanceResult(
         vendor_id=perf.vendor_id,
         vendor_name=perf.vendor_name,
@@ -99,7 +105,7 @@ async def _get_sku_vendor_options(sku_id: str = "") -> str:
     if not sku_id:
         return ErrorResult(error="sku_id required").serialize()
     if "-" not in sku_id:
-        sku = await find_sku_by_sku_code(sku_id.upper())
+        sku = await _db_catalog().find_sku_by_code(get_org_id(), sku_id.upper())
         if not sku:
             return ErrorResult(error=f"SKU '{sku_id}' not found").serialize()
         sku_id = sku.id
@@ -120,7 +126,7 @@ async def _get_purchase_history(
     vid, err = await _resolve_vendor_id(vendor_id, name)
     if err:
         return err
-    vendor = await get_vendor_by_id(vid)
+    vendor = await _db_catalog().get_vendor_by_id(vid, get_org_id())
     history = await purchase_history(vid, days, limit)
     return PurchaseHistoryResult(
         vendor_id=vid,
@@ -152,7 +158,7 @@ async def _get_reorder_with_vendor_context(limit: int = 30) -> str:
 
 async def _list_all_vendors() -> str:
     """List all vendors with contact details."""
-    vendors = await list_vendors()
+    vendors = await _db_catalog().list_vendors(get_org_id())
     details = [
         VendorDetail(
             id=v.id,
@@ -163,16 +169,20 @@ async def _list_all_vendors() -> str:
         )
         for v in vendors
     ]
-    return VendorDirectoryResult(count=len(details), vendors=details).serialize()
+    return VendorDirectoryResult(
+        count=len(details), vendors=details
+    ).serialize()
 
 
-async def _get_vendor_lead_times(vendor_id: str = "", name: str = "", days: int = 180) -> str:
+async def _get_vendor_lead_times(
+    vendor_id: str = "", name: str = "", days: int = 180
+) -> str:
     """Vendor lead-time lookup. Use for actual lead times, P90 risk, and drift detection."""
     days = min(days, 365)
     vid, err = await _resolve_vendor_id(vendor_id, name)
     if err:
         return err
-    vendor = await get_vendor_by_id(vid)
+    vendor = await _db_catalog().get_vendor_by_id(vid, get_org_id())
     data = await vendor_lead_time_actual(vid, days)
     data["vendor_name"] = vendor.name if vendor else ""
     return VendorLeadTimesResult(data=data).serialize()
@@ -198,7 +208,9 @@ async def _get_procurement_snapshot(limit: int = 20) -> str:
     stockout_data = json.loads(stockout_raw)
 
     smart_by_sku = {item["sku"]: item for item in smart_data.get("items", [])}
-    stockout_by_sku = {item["sku"]: item for item in stockout_data.get("forecast", [])}
+    stockout_by_sku = {
+        item["sku"]: item for item in stockout_data.get("forecast", [])
+    }
 
     snapshot: list[dict] = []
     seen_skus: set[str] = set()
@@ -211,7 +223,9 @@ async def _get_procurement_snapshot(limit: int = 20) -> str:
         smart = smart_by_sku.get(sku, {})
         stockout = stockout_by_sku.get(sku, {})
         vendor_options = item.get("vendor_options", [])[:2]
-        preferred = next((opt for opt in vendor_options if opt.get("is_preferred")), None)
+        preferred = next(
+            (opt for opt in vendor_options if opt.get("is_preferred")), None
+        )
         top_vendor = preferred or (vendor_options[0] if vendor_options else {})
         snapshot.append(
             {
@@ -280,7 +294,12 @@ _reg(
     "get_vendor_catalog",
     "purchasing",
     _get_vendor_catalog,
-    use_cases=["vendor catalog", "what does vendor sell", "vendor assortment", "items from vendor"],
+    use_cases=[
+        "vendor catalog",
+        "what does vendor sell",
+        "vendor assortment",
+        "items from vendor",
+    ],
 )
 _reg(
     "get_vendor_performance",
@@ -298,7 +317,12 @@ _reg(
     "get_sku_vendor_options",
     "purchasing",
     _get_sku_vendor_options,
-    use_cases=["vendor options", "alternative vendors", "best vendor for sku", "source this sku"],
+    use_cases=[
+        "vendor options",
+        "alternative vendors",
+        "best vendor for sku",
+        "source this sku",
+    ],
 )
 _reg(
     "get_purchase_history",
@@ -311,12 +335,22 @@ _reg(
         "recent orders from vendor",
     ],
 )
-_reg("get_po_summary", "purchasing", _get_po_summary, use_cases=["PO summary", "order status"])
+_reg(
+    "get_po_summary",
+    "purchasing",
+    _get_po_summary,
+    use_cases=["PO summary", "order status"],
+)
 _reg(
     "get_reorder_with_vendor_context",
     "purchasing",
     _get_reorder_with_vendor_context,
-    use_cases=["reorder plan", "what to buy", "low stock with vendors", "raw order candidates"],
+    use_cases=[
+        "reorder plan",
+        "what to buy",
+        "low stock with vendors",
+        "raw order candidates",
+    ],
 )
 _reg(
     "list_all_vendors",
@@ -328,13 +362,24 @@ _reg(
     "get_vendor_lead_times",
     "purchasing",
     _get_vendor_lead_times,
-    use_cases=["lead times", "delivery time", "vendor delay", "delivery drift", "p90 lead time"],
+    use_cases=[
+        "lead times",
+        "delivery time",
+        "vendor delay",
+        "delivery drift",
+        "p90 lead time",
+    ],
 )
 _reg(
     "get_smart_reorder_points",
     "purchasing",
     _get_smart_reorder_points,
-    use_cases=["smart reorder", "reorder calibration", "min stock too low", "reorder policy"],
+    use_cases=[
+        "smart reorder",
+        "reorder calibration",
+        "min stock too low",
+        "reorder policy",
+    ],
 )
 _reg(
     "get_procurement_snapshot",

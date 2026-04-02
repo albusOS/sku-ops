@@ -6,9 +6,6 @@ Other bounded contexts import from here, never from purchasing.infrastructure di
 from datetime import datetime
 from typing import TypedDict
 
-from catalog.application.queries import (
-    get_sku_by_id as _get_product,
-)
 from purchasing.domain.purchase_order import POItemRow, PORow, VendorPerformance
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
@@ -55,26 +52,30 @@ class ReorderRow(TypedDict):
     deficit: float
 
 
-def _purchasing():
+def _db_purchasing():
     return get_database_manager().purchasing
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 async def get_po_with_cost(po_id: str) -> dict | None:
-    return await _purchasing().get_po_with_cost(get_org_id(), po_id)
+    return await _db_purchasing().get_po_with_cost(get_org_id(), po_id)
 
 
 async def list_unsynced_po_bills() -> list[dict]:
-    return await _purchasing().list_unsynced_po_bills(get_org_id())
+    return await _db_purchasing().list_unsynced_po_bills(get_org_id())
 
 
 async def list_failed_po_bills() -> list[dict]:
-    return await _purchasing().list_failed_po_bills(get_org_id())
+    return await _db_purchasing().list_failed_po_bills(get_org_id())
 
 
 async def set_xero_sync_status(
     po_id: str, status: str, updated_at: datetime
 ) -> None:
-    await _purchasing().set_po_xero_sync_status(
+    await _db_purchasing().set_po_xero_sync_status(
         get_org_id(), po_id, status, updated_at
     )
 
@@ -82,36 +83,38 @@ async def set_xero_sync_status(
 async def set_xero_bill_id(
     po_id: str, xero_bill_id: str, updated_at: datetime
 ) -> None:
-    await _purchasing().set_po_xero_bill_id(
+    await _db_purchasing().set_po_xero_bill_id(
         get_org_id(), po_id, xero_bill_id, updated_at
     )
 
 
 async def po_summary_by_status() -> dict[str, dict]:
     """PO count and total grouped by status. Used by dashboard."""
-    return await _purchasing().po_summary_by_status(get_org_id())
+    return await _db_purchasing().po_summary_by_status(get_org_id())
 
 
 async def list_pos(status: str | None = None) -> list[PORow]:
-    return await _purchasing().list_pos(get_org_id(), status=status)
+    return await _db_purchasing().list_pos(get_org_id(), status=status)
 
 
 async def list_pos_with_counts(status: str | None = None) -> list[PORow]:
-    return await _purchasing().list_pos_with_counts(get_org_id(), status=status)
+    return await _db_purchasing().list_pos_with_counts(
+        get_org_id(), status=status
+    )
 
 
 async def get_po(po_id: str) -> PORow | None:
-    return await _purchasing().get_po(get_org_id(), po_id)
+    return await _db_purchasing().get_po(get_org_id(), po_id)
 
 
 async def get_po_items(po_id: str) -> list[POItemRow]:
-    items = await _purchasing().get_po_items(get_org_id(), po_id)
+    items = await _db_purchasing().get_po_items(get_org_id(), po_id)
     sku_ids = [i.sku_id for i in items if i.sku_id]
     if not sku_ids:
         return items
     products = {}
     for pid in set(sku_ids):
-        p = await _get_product(pid)
+        p = await _db_catalog().get_sku_by_id(pid, get_org_id())
         if p:
             products[pid] = p
     enriched = []
@@ -139,14 +142,14 @@ async def get_po_items(po_id: str) -> list[POItemRow]:
 
 async def vendor_catalog(vendor_id: str) -> list[VendorCatalogRow]:
     """SKUs supplied by a vendor with cost, lead time, moq, preferred status."""
-    return await _purchasing().vendor_catalog(get_org_id(), vendor_id)
+    return await _db_purchasing().vendor_catalog(get_org_id(), vendor_id)
 
 
 async def vendor_performance(
     vendor_id: str, days: int = 90, vendor_name: str = ""
 ) -> VendorPerformance:
     """PO count, total spend, avg lead time, fill rate for a vendor."""
-    return await _purchasing().vendor_performance(
+    return await _db_purchasing().vendor_performance(
         get_org_id(), vendor_id, days=days, vendor_name=vendor_name
     )
 
@@ -155,13 +158,13 @@ async def purchase_history(
     vendor_id: str, days: int = 90, limit: int = 20
 ) -> list[PurchaseHistoryItem]:
     """Recent POs for a vendor with item summaries."""
-    return await _purchasing().purchase_history(
+    return await _db_purchasing().purchase_history(
         get_org_id(), vendor_id, days=days, limit=limit
     )
 
 
 async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
     """Low-stock SKUs enriched with vendor options for procurement planning."""
-    return await _purchasing().reorder_with_vendor_context(
+    return await _db_purchasing().reorder_with_vendor_context(
         get_org_id(), limit=limit
     )
