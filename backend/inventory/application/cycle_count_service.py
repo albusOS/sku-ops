@@ -30,12 +30,16 @@ from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
 
 
-def _inv():
+def _db_inventory():
     return get_database_manager().inventory
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 async def _get_count(count_id: str) -> CycleCount | None:
-    return await _inv().get_cycle_count(get_org_id(), count_id)
+    return await _db_inventory().get_cycle_count(get_org_id(), count_id)
 
 
 async def open_cycle_count(
@@ -49,7 +53,7 @@ async def open_cycle_count(
     scope=None counts everything; scope=<category_name> limits to that category.
     Returns the new CycleCount.
     """
-    products = await get_database_manager().catalog.list_skus(get_org_id())
+    products = await _db_catalog().list_skus(get_org_id())
     if scope:
         products = [p for p in products if p.category_name == scope]
 
@@ -67,7 +71,7 @@ async def open_cycle_count(
     )
 
     async with transaction():
-        await _inv().insert_cycle_count(count)
+        await _db_inventory().insert_cycle_count(count)
         for p in products:
             item = CycleCountItem(
                 cycle_count_id=count.id,
@@ -77,7 +81,7 @@ async def open_cycle_count(
                 snapshot_qty=p.quantity,
                 unit=p.base_unit or "each",
             )
-            await _inv().insert_cycle_count_item(item)
+            await _db_inventory().insert_cycle_count_item(item)
 
     return count
 
@@ -99,12 +103,14 @@ async def update_counted_qty(
     if count.status != CycleCountStatus.OPEN:
         raise ValueError("Cannot update a committed cycle count.")
 
-    item = await _inv().get_cycle_count_item(get_org_id(), item_id, count_id)
+    item = await _db_inventory().get_cycle_count_item(
+        get_org_id(), item_id, count_id
+    )
     if item is None:
         raise ResourceNotFoundError("CycleCountItem", item_id)
 
     variance = counted_qty - item.snapshot_qty
-    updated = await _inv().update_cycle_count_item_counted(
+    updated = await _db_inventory().update_cycle_count_item_counted(
         get_org_id(),
         item_id,
         counted_qty,
@@ -122,7 +128,7 @@ async def get_count_detail(count_id: str) -> CycleCountDetail:
     if not count:
         raise ResourceNotFoundError("CycleCount", count_id)
 
-    items = await _inv().list_cycle_count_items(get_org_id(), count_id)
+    items = await _db_inventory().list_cycle_count_items(get_org_id(), count_id)
     return CycleCountDetail(
         id=count.id,
         organization_id=count.organization_id,
@@ -157,7 +163,7 @@ async def commit_cycle_count(
     if count.status != CycleCountStatus.OPEN:
         raise ValueError("Cycle count is already committed.")
 
-    items = await _inv().list_cycle_count_items(get_org_id(), count_id)
+    items = await _db_inventory().list_cycle_count_items(get_org_id(), count_id)
     items_to_adjust = [
         i
         for i in items
@@ -171,7 +177,7 @@ async def commit_cycle_count(
         # Flip status first — if another request already committed, abort before
         # touching stock. Stock adjustments only proceed if this transaction wins
         # the conditional UPDATE.
-        committed = await _inv().commit_cycle_count(
+        committed = await _db_inventory().commit_cycle_count(
             get_org_id(),
             count_id,
             committed_by_id,
@@ -214,4 +220,4 @@ async def commit_cycle_count(
 
 
 async def list_cycle_counts(status: str | None = None) -> list[CycleCount]:
-    return await _inv().list_cycle_counts(get_org_id(), status=status)
+    return await _db_inventory().list_cycle_counts(get_org_id(), status=status)

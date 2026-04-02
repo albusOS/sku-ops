@@ -1,7 +1,7 @@
 """Org Xero settings projection — application-layer facade.
 
 Safe for cross-context import. Callers use `get_xero_settings` for the Xero
-integration shape; direct org_settings CRUD uses `get_database_manager().finance`
+integration shape; direct org_settings CRUD uses the finance database service
 at call sites.
 """
 
@@ -12,6 +12,10 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 
+def _db_finance():
+    return get_database_manager().finance
+
+
 async def get_xero_settings() -> XeroSettings:
     """Return org settings projected to the XeroSettings shape.
 
@@ -19,7 +23,5 @@ async def get_xero_settings() -> XeroSettings:
     means callers never touch OrgSettings directly and never perform the
     model_validate(model_dump()) cast themselves.
     """
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    settings = await _db_finance().org_settings_get(get_org_id())
     return XeroSettings.model_validate(settings.model_dump())

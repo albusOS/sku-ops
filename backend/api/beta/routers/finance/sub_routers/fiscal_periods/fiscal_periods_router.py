@@ -12,6 +12,11 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
+
+def _db_finance():
+    return get_database_manager().finance
+
+
 router = APIRouter(prefix="/fiscal-periods", tags=["fiscal-periods"])
 
 
@@ -20,9 +25,7 @@ async def list_periods(
     current_user: AdminDep,
     status: str | None = None,
 ):
-    return await get_database_manager().finance.fiscal_list_periods(
-        get_org_id(), status=status
-    )
+    return await _db_finance().fiscal_list_periods(get_org_id(), status=status)
 
 
 @router.post("")

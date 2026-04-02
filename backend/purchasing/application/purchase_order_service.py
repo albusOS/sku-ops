@@ -28,6 +28,10 @@ from shared.kernel.types import CurrentUser
 logger = logging.getLogger(__name__)
 
 
+def _db_purchasing():
+    return get_database_manager().purchasing
+
+
 @dataclass
 class PurchasingDeps:
     """Cross-domain dependencies injected by the API layer."""
@@ -160,7 +164,7 @@ async def create_purchase_order(
             )
         )
 
-    db = get_database_manager().purchasing
+    db = _db_purchasing()
     async with transaction():
         await db.insert_po(org_id, po)
         await db.insert_po_items(org_id, po_items)

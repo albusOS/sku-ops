@@ -13,6 +13,11 @@ from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
+
+def _db_finance():
+    return get_database_manager().finance
+
+
 _REQUIRED_ACCOUNT_CODES = [
     (
         "xero_sales_account_code",
@@ -43,9 +48,7 @@ async def check_xero_configuration() -> list[str]:
     """Return a list of warning strings. Empty list means configuration is clean."""
     warnings: list[str] = []
     try:
-        settings = await get_database_manager().finance.org_settings_get(
-            get_org_id()
-        )
+        settings = await _db_finance().org_settings_get(get_org_id())
     except (RuntimeError, OSError, ValueError) as e:
         warnings.append(
             f"XERO: Could not load org settings for {get_org_id()}: {e}"

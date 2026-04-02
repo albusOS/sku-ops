@@ -25,6 +25,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+def _db_documents():
+    return get_database_manager().documents
+
+
 _PARSE_MAX_RETRIES = 2
 _PARSE_RETRY_DELAYS = (5, 15)
 
@@ -147,7 +156,7 @@ async def parse_document_with_ai(
     if products:
         await _match_vendor_skus(products, extracted.get("vendor_name"))
 
-    return await get_database_manager().documents.insert_parsed_document(
+    return await _db_documents().insert_parsed_document(
         get_org_id(),
         extracted,
         filename,
@@ -186,7 +195,7 @@ async def _match_vendor_skus(
     vendor_id = None
     if vendor_name:
         try:
-            vendor = await get_database_manager().catalog.find_vendor_by_name(
+            vendor = await _db_catalog().find_vendor_by_name(
                 get_org_id(), vendor_name
             )
             if vendor:
@@ -208,7 +217,7 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
         original_sku = product.get("original_sku")
         if original_sku:
             try:
-                vi = await get_database_manager().catalog.find_vendor_item_by_vendor_and_sku(
+                vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(
                     get_org_id(), vendor_id, original_sku
                 )
                 if vi:
@@ -221,7 +230,7 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             clean_name = product.get("name", "")
             if clean_name:
                 try:
-                    sku = await get_database_manager().catalog.find_sku_by_name_and_vendor(
+                    sku = await _db_catalog().find_sku_by_name_and_vendor(
                         get_org_id(), clean_name, vendor_id
                     )
                     if sku:
@@ -236,10 +245,8 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             query = f"{brand} {query}"
         if query:
             try:
-                families = (
-                    await get_database_manager().catalog.list_product_families(
-                        get_org_id(), search=query, limit=3
-                    )
+                families = await _db_catalog().list_product_families(
+                    get_org_id(), search=query, limit=3
                 )
                 family_candidates = [
                     {

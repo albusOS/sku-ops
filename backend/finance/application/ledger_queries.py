@@ -1,7 +1,7 @@
 """Ledger read queries — dimension summaries, analytics, and cross-context delegations.
 
 Cross-context consumers import from here, never from finance.infrastructure directly.
-Write operations use ``get_database_manager().finance`` (see ``ledger_service``).
+Write operations use the finance database service (see ``ledger_service``).
 """
 
 from typing import TypedDict
@@ -15,6 +15,14 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 
+def _db_finance():
+    return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
 async def trend_series(
     start_date: str | None = None,
     end_date: str | None = None,
@@ -25,7 +33,7 @@ async def trend_series(
     billing_entity: str | None = None,
 ) -> list[TrendPoint]:
     """Time-series of revenue, cost, profit."""
-    return await get_database_manager().finance.analytics_trend_series(
+    return await _db_finance().analytics_trend_series(
         get_org_id(),
         start_date=start_date,
         end_date=end_date,
@@ -41,7 +49,7 @@ async def ar_aging(
     end_date: str | None = None,
 ) -> list[ArAgingRow]:
     """AR aging buckets by billing entity based on invoice due_date."""
-    return await get_database_manager().finance.analytics_ar_aging(
+    return await _db_finance().analytics_ar_aging(
         get_org_id(), start_date=start_date, end_date=end_date
     )
 
@@ -56,7 +64,7 @@ async def product_margins(
     billing_entity: str | None = None,
 ) -> list[ProductMarginRow]:
     """Per-product revenue, COGS, profit, margin."""
-    return await get_database_manager().finance.analytics_product_margins(
+    return await _db_finance().analytics_product_margins(
         get_org_id(),
         start_date=start_date,
         end_date=end_date,
@@ -72,7 +80,7 @@ async def purchase_spend(
     end_date: str | None = None,
 ) -> float:
     """Total inventory additions from PO receipts in the period."""
-    return await get_database_manager().finance.analytics_purchase_spend(
+    return await _db_finance().analytics_purchase_spend(
         get_org_id(), start_date=start_date, end_date=end_date
     )
 
@@ -82,7 +90,7 @@ async def reference_counts(
     end_date: str | None = None,
 ) -> dict[str, int]:
     """Count distinct references by type (withdrawal, return, etc.)."""
-    return await get_database_manager().finance.analytics_reference_counts(
+    return await _db_finance().analytics_reference_counts(
         get_org_id(), start_date=start_date, end_date=end_date
     )
 
@@ -96,7 +104,7 @@ async def returns_total(
     billing_entity: str | None = None,
 ) -> float:
     """Sum of revenue reversed by returns (positive number)."""
-    return await get_database_manager().finance.analytics_returns_total(
+    return await _db_finance().analytics_returns_total(
         get_org_id(),
         start_date=start_date,
         end_date=end_date,
@@ -110,10 +118,8 @@ async def inventory_carrying_cost(
     holding_rate_pct: float = 25.0,
 ) -> list[dict]:
     """Estimated carrying cost per SKU with stock > 0."""
-    return (
-        await get_database_manager().finance.analytics_inventory_carrying_cost(
-            get_org_id(), holding_rate_pct=holding_rate_pct
-        )
+    return await _db_finance().analytics_inventory_carrying_cost(
+        get_org_id(), holding_rate_pct=holding_rate_pct
     )
 
 
@@ -170,7 +176,7 @@ async def summary_by_account(
     billing_entity: str | None = None,
 ) -> dict[str, float]:
     """P&L summary: {account_name: total_amount}."""
-    return await get_database_manager().finance.ledger_summary_by_account(
+    return await _db_finance().ledger_summary_by_account(
         get_org_id(),
         start_date=start_date,
         end_date=end_date,
@@ -185,7 +191,7 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[DepartmentSummaryRow]:
     """Per-department revenue, cogs, shrinkage."""
-    return await get_database_manager().finance.ledger_summary_by_department(
+    return await _db_finance().ledger_summary_by_department(
         get_org_id(), start_date=start_date, end_date=end_date
     )
 
@@ -198,7 +204,7 @@ async def summary_by_job(
     search: str | None = None,
 ) -> JobSummaryResult:
     """Per-job P&L with pagination and search. Returns {rows, total}."""
-    return await get_database_manager().finance.ledger_summary_by_job(
+    return await _db_finance().ledger_summary_by_job(
         get_org_id(),
         start_date=start_date,
         end_date=end_date,
@@ -213,10 +219,8 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[BillingEntitySummaryRow]:
     """Per-entity AR balances and revenue."""
-    return (
-        await get_database_manager().finance.ledger_summary_by_billing_entity(
-            get_org_id(), start_date=start_date, end_date=end_date
-        )
+    return await _db_finance().ledger_summary_by_billing_entity(
+        get_org_id(), start_date=start_date, end_date=end_date
     )
 
 
@@ -225,7 +229,7 @@ async def summary_by_contractor(
     end_date: str | None = None,
 ) -> list[ContractorSummaryRow]:
     """Per-contractor spend totals."""
-    return await get_database_manager().finance.ledger_summary_by_contractor(
+    return await _db_finance().ledger_summary_by_contractor(
         get_org_id(), start_date=start_date, end_date=end_date
     )
 
@@ -237,7 +241,7 @@ async def units_sold_by_product(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await get_database_manager().operations.units_sold_by_product(
+    return await _db_operations().units_sold_by_product(
         org_id, start_date=start_date, end_date=end_date
     )
 
@@ -249,6 +253,6 @@ async def payment_status_breakdown(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await get_database_manager().operations.payment_status_breakdown(
+    return await _db_operations().payment_status_breakdown(
         org_id, start_date=start_date, end_date=end_date
     )

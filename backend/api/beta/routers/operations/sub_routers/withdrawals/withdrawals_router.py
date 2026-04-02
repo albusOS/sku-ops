@@ -20,6 +20,11 @@ from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
+
+def _db_operations():
+    return get_database_manager().operations
+
+
 router = APIRouter(prefix="/withdrawals", tags=["withdrawals"])
 
 
@@ -110,7 +115,7 @@ async def get_withdrawals(
     cid = (
         current_user.id if current_user.role == "contractor" else contractor_id
     )
-    return await get_database_manager().operations.list_withdrawals(
+    return await _db_operations().list_withdrawals(
         current_user.organization_id,
         contractor_id=cid,
         payment_status=payment_status,
@@ -123,7 +128,7 @@ async def get_withdrawals(
 
 @router.get("/{withdrawal_id}")
 async def get_withdrawal(withdrawal_id: str, current_user: CurrentUserDep):
-    withdrawal = await get_database_manager().operations.get_withdrawal_by_id(
+    withdrawal = await _db_operations().get_withdrawal_by_id(
         current_user.organization_id, withdrawal_id
     )
     if not withdrawal:

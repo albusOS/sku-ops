@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 _TOTAL_TOLERANCE = 0.02  # allow 2 cent rounding drift before flagging mismatch
 
 
-def _finance():
+def _db_finance():
     return get_database_manager().finance
 
 
 async def _sync_outbound_invoices() -> SyncPassResult:
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     unsynced = await fin.invoice_list_unsynced(org_id)
     result = SyncPassResult()
     for inv in unsynced:
@@ -74,7 +74,7 @@ async def _sync_outbound_invoices() -> SyncPassResult:
 
 async def _sync_outbound_credit_notes(gateway, settings) -> SyncPassResult:
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     unsynced = await fin.credit_note_list_unsynced(org_id)
     result = SyncPassResult()
     for cn in unsynced:
@@ -146,7 +146,7 @@ async def _sync_outbound_po_bills() -> SyncPassResult:
 async def _repost_stale_cogs() -> SyncPassResult:
     """Pass 1b — re-post COGS journals for invoices whose line items changed after sync."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     stale = await fin.invoice_list_stale_cogs(org_id)
     result = SyncPassResult()
     for inv in stale:
@@ -184,7 +184,7 @@ async def _repost_stale_cogs() -> SyncPassResult:
 
 async def _reconcile_invoices(gateway, settings) -> ReconcilePassResult:
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     to_reconcile = await fin.invoice_list_needing_reconciliation(org_id)
     result = ReconcilePassResult()
     for inv in to_reconcile:
@@ -233,7 +233,7 @@ async def _reconcile_invoices(gateway, settings) -> ReconcilePassResult:
 
 async def _reconcile_credit_notes(gateway, settings) -> ReconcilePassResult:
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     to_reconcile = await fin.credit_note_list_needing_reconciliation(org_id)
     result = ReconcilePassResult()
     for cn in to_reconcile:

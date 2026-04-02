@@ -21,12 +21,6 @@ from inventory.ports.stock_repo_port import StockRepoPort
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
-
-
-def _db_catalog():
-    return get_database_manager().catalog
-
-
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
@@ -35,16 +29,24 @@ from shared.kernel.units import are_compatible, convert_quantity
 _DISCRETE_SELL_UOMS = frozenset({"pack", "box", "case", "bag", "roll", "kit"})
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+def _db_inventory():
+    return get_database_manager().inventory
+
+
 class _DefaultStockRepo:
     """Production stock persistence via InventoryDatabaseService."""
 
     async def insert_transaction(self, tx: StockTransaction) -> None:
-        await get_database_manager().inventory.insert_stock_transaction(tx)
+        await _db_inventory().insert_stock_transaction(tx)
 
     async def list_by_product(
         self, sku_id: str, limit: int = 50
     ) -> list[StockTransaction]:
-        return await get_database_manager().inventory.list_stock_transactions_by_product(
+        return await _db_inventory().list_stock_transactions_by_product(
             get_org_id(), sku_id, limit=limit
         )
 

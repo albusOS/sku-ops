@@ -19,6 +19,10 @@ from shared.kernel.errors import ResourceNotFoundError
 logger = logging.getLogger(__name__)
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 async def create_product(
     name: str,
     category_id: str,
@@ -27,7 +31,7 @@ async def create_product(
 ) -> ProductFamily:
     """Create a product parent record."""
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     dept = await cat.get_department_by_id(category_id, org_id)
     if not dept:
         raise ResourceNotFoundError("Department", category_id)
@@ -63,7 +67,7 @@ async def update_product(
 ) -> ProductFamily:
     """Update a product parent record."""
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     product = await cat.get_product_family_by_id(product_id, org_id)
     if not product:
         raise ResourceNotFoundError("Product", product_id)
@@ -96,7 +100,7 @@ async def update_product(
 async def delete_product(product_id: str) -> None:
     """Soft-delete a product and cascade to all child SKUs and their vendor items."""
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     product = await cat.get_product_family_by_id(product_id, org_id)
     if not product:
         raise ResourceNotFoundError("Product", product_id)

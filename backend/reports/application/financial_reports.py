@@ -1,6 +1,6 @@
 """Financial reports: sales, trends, margins, P&L, AR aging, KPI summary.
 
-All read from the financial_ledger via ``get_database_manager().finance``.
+All read from the financial_ledger via the finance database service.
 """
 
 from __future__ import annotations
@@ -28,6 +28,10 @@ def _db_finance():
 
 def _db_operations():
     return get_database_manager().operations
+
+
+def _db_catalog():
+    return get_database_manager().catalog
 
 
 @dataclass(frozen=True)
@@ -147,7 +151,7 @@ async def sales_report(
         _db_finance().analytics_reference_counts(
             get_org_id(), start_date=start_date, end_date=end_date
         ),
-        get_database_manager().catalog.list_skus(get_org_id()),
+        _db_catalog().list_skus(get_org_id()),
         _db_operations().payment_status_breakdown(
             org_id, start_date=start_date, end_date=end_date
         ),
@@ -248,7 +252,7 @@ async def product_margins_report(
             department=department,
             billing_entity=billing_entity,
         ),
-        get_database_manager().catalog.list_skus(get_org_id()),
+        _db_catalog().list_skus(get_org_id()),
     )
     product_map = {p.id: p for p in catalog}
     enriched = []
@@ -380,7 +384,7 @@ async def pl_report(
             _db_finance().analytics_product_margins(
                 get_org_id(), **date_kw, limit=limit
             ),
-            get_database_manager().catalog.list_skus(get_org_id()),
+            _db_catalog().list_skus(get_org_id()),
         )
         pmap = {p.id: p for p in catalog}
         rows = [
@@ -457,7 +461,7 @@ async def kpi_report(
             department=department,
             billing_entity=billing_entity,
         ),
-        get_database_manager().catalog.list_skus(get_org_id()),
+        _db_catalog().list_skus(get_org_id()),
         _db_operations().units_sold_by_product(
             org_id, start_date=start_date, end_date=end_date
         ),

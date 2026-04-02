@@ -12,6 +12,11 @@ from shared.kernel.errors import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)
 
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 router = APIRouter(prefix="/skus", tags=["catalog-vendor-items"])
 
 
@@ -40,14 +45,10 @@ class VendorItemUpdateRequest(BaseModel):
 
 @router.get("/{sku_id}/vendors")
 async def list_sku_vendors(sku_id: str, current_user: CurrentUserDep):
-    sku = await get_database_manager().catalog.get_sku_by_id(
-        sku_id, get_org_id()
-    )
+    sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not sku:
         raise HTTPException(status_code=404, detail="SKU not found")
-    items = await get_database_manager().catalog.list_vendor_items_by_sku(
-        sku_id, get_org_id()
-    )
+    items = await _db_catalog().list_vendor_items_by_sku(sku_id, get_org_id())
     return [vi.model_dump() for vi in items]
 
 
@@ -55,12 +56,10 @@ async def list_sku_vendors(sku_id: str, current_user: CurrentUserDep):
 async def add_sku_vendor(
     sku_id: str, data: VendorItemCreateRequest, current_user: AdminDep
 ):
-    sku = await get_database_manager().catalog.get_sku_by_id(
-        sku_id, get_org_id()
-    )
+    sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not sku:
         raise HTTPException(status_code=404, detail="SKU not found")
-    item = await get_database_manager().catalog.add_vendor_item(
+    item = await _db_catalog().add_vendor_item(
         get_org_id(),
         sku_id=sku_id,
         vendor_id=data.vendor_id,
@@ -85,7 +84,7 @@ async def update_sku_vendor(
 ):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     try:
-        result = await get_database_manager().catalog.modify_vendor_item(
+        result = await _db_catalog().modify_vendor_item(
             get_org_id(), item_id, update_data
         )
     except ResourceNotFoundError as e:
@@ -96,7 +95,7 @@ async def update_sku_vendor(
 @router.delete("/{sku_id}/vendors/{item_id}")
 async def remove_sku_vendor(sku_id: str, item_id: str, current_user: AdminDep):
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     existing = await cat.get_vendor_item_by_id(item_id, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Vendor item not found")
@@ -118,7 +117,7 @@ async def set_sku_preferred_vendor(
     sku_id: str, item_id: str, current_user: AdminDep
 ):
     try:
-        await get_database_manager().catalog.set_preferred_vendor_item(
+        await _db_catalog().set_preferred_vendor_item(
             get_org_id(), sku_id, item_id
         )
     except ResourceNotFoundError as e:

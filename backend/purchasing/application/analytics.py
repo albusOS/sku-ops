@@ -10,6 +10,18 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 
+def _db_purchasing():
+    return get_database_manager().purchasing
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+def _db_inventory():
+    return get_database_manager().inventory
+
+
 async def vendor_lead_time_actual(
     vendor_id: str,
     days: int = 180,
@@ -19,7 +31,7 @@ async def vendor_lead_time_actual(
     Computes median and P90 from fully received POs. Detects trend drift
     by comparing the most recent 3 POs against all prior POs.
     """
-    return await get_database_manager().purchasing.vendor_lead_time_actual(
+    return await _db_purchasing().vendor_lead_time_actual(
         get_org_id(), vendor_id, days=days
     )
 
@@ -35,21 +47,17 @@ async def reorder_point_smart(
     actual_vendor_lead_time * safety_factor. Flags where the current min_stock
     is miscalibrated.
     """
-    low_stock = await get_database_manager().catalog.list_low_stock_skus(
-        get_org_id(), limit=100
-    )
+    low_stock = await _db_catalog().list_low_stock_skus(get_org_id(), limit=100)
     if not low_stock:
         return []
 
     sku_ids = [s.id for s in low_stock]
     org_id = get_org_id()
-    vel_map = await get_database_manager().inventory.demand_normalized_velocity(
+    vel_map = await _db_inventory().demand_normalized_velocity(
         org_id, sku_ids, days=velocity_days
     )
-    vendor_items_by_sku = (
-        await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
-            org_id, sku_ids
-        )
+    vendor_items_by_sku = await _db_catalog().list_vendor_items_by_skus_grouped(
+        org_id, sku_ids
     )
     lead_time_cache: dict[str, float | None] = {}
 

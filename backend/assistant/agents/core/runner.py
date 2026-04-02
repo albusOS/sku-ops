@@ -35,6 +35,11 @@ from shared.infrastructure.metrics import llm_usage, tool_call
 
 logger = logging.getLogger(__name__)
 
+
+def _db_assistant():
+    return get_database_manager().assistant
+
+
 AGENT_TIMEOUT_SECONDS = 60
 _MAX_RETRIES = 3
 _OVERLOAD_MAX_RETRIES = 1
@@ -391,7 +396,7 @@ def _log_success(
                 tool_calls,
                 intent=intent,
             )
-            await get_database_manager().assistant.log_agent_run(
+            await _db_assistant().log_agent_run(
                 get_org_id(),
                 session_id=session_id,
                 user_id=user_id,
@@ -447,7 +452,7 @@ def _log_failure(
 
     async def _write():
         try:
-            await get_database_manager().assistant.log_agent_run(
+            await _db_assistant().log_agent_run(
                 get_org_id(),
                 session_id=session_id,
                 user_id=user_id,
@@ -573,7 +578,7 @@ async def run_specialist(
                 tool_calls_det,
                 intent=intent,
             )
-            await get_database_manager().assistant.log_agent_run(
+            await _db_assistant().log_agent_run(
                 get_org_id(),
                 session_id=session_id,
                 user_id=getattr(deps, "user_id", ""),

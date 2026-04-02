@@ -1,7 +1,7 @@
 """Catalog application queries — cross-context compositors only.
 
-Single-context reads and writes use ``get_database_manager().catalog`` (and
-``transaction``) at the call site with ``get_org_id()``.
+Single-context reads and writes use the catalog and purchasing database
+services (and ``transaction``) at the call site with ``get_org_id()``.
 """
 
 from __future__ import annotations
@@ -10,11 +10,19 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+def _db_purchasing():
+    return get_database_manager().purchasing
+
+
 async def sku_vendor_options(sku_id: str) -> list[dict]:
     """All vendors for a SKU with cost, lead time, moq, preferred, and last PO date."""
     org_id = get_org_id()
-    cat = get_database_manager().catalog
-    pur = get_database_manager().purchasing
+    cat = _db_catalog()
+    pur = _db_purchasing()
     items = await cat.list_vendor_items_by_sku(sku_id, org_id)
     if not items:
         return []

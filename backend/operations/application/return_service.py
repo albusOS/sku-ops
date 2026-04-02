@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import select
 
 from finance.application.ledger_service import (
@@ -17,7 +19,17 @@ from shared.infrastructure.types.public_sql_model_models import Withdrawals
 from shared.kernel.domain_events import InventoryChanged, ReturnCreated
 from shared.kernel.errors import DomainError, ResourceNotFoundError
 from shared.kernel.event_payloads import LedgerItem
-from shared.kernel.types import CurrentUser
+
+if TYPE_CHECKING:
+    from shared.kernel.types import CurrentUser
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
+def _db_finance():
+    return get_database_manager().finance
 
 
 async def create_return(
@@ -32,10 +44,8 @@ async def create_return(
     Post-commit (best-effort): credit note creation, WS push.
     """
     org_id = current_user.organization_id
-    db = get_database_manager().operations
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    db = _db_operations()
+    settings = await _db_finance().org_settings_get(get_org_id())
     tax_rate = settings.default_tax_rate
 
     withdrawal = await db.get_withdrawal_by_id(org_id, data.withdrawal_id)

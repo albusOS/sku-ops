@@ -16,6 +16,11 @@ from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
+
+def _db_assistant():
+    return get_database_manager().assistant
+
+
 _EXTRACT_SYSTEM = load_prompt(__file__, "prompt.md")
 
 
@@ -63,7 +68,7 @@ async def extract_and_save(
 
         artifacts = json.loads(stripped)
         if isinstance(artifacts, list) and artifacts and len(artifacts) <= 50:
-            await get_database_manager().assistant.memory_save(
+            await _db_assistant().memory_save(
                 get_org_id(), user_id, session_id, artifacts
             )
 

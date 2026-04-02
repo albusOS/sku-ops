@@ -13,8 +13,12 @@ from shared.kernel.domain_events import CreditNoteApplied
 logger = logging.getLogger(__name__)
 
 
-def _finance():
+def _db_finance():
     return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
 
 
 async def insert_credit_note(
@@ -27,7 +31,7 @@ async def insert_credit_note(
 ) -> CreditNote:
     """Create a credit note and link it to the return (operations-owned mutation)."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     async with transaction():
         cn = await fin.credit_note_insert(
             org_id,
@@ -38,9 +42,7 @@ async def insert_credit_note(
             tax,
             total,
         )
-        await get_database_manager().operations.link_return_credit_note(
-            org_id, return_id, cn.id
-        )
+        await _db_operations().link_return_credit_note(org_id, return_id, cn.id)
     logger.info(
         "credit_note.created",
         extra={
@@ -65,13 +67,13 @@ async def apply_credit_note(
     invoice, withdrawal, and ledger state stay consistent.
     """
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     async with transaction():
         result = await fin.credit_note_apply(org_id, credit_note_id)
 
         if result.auto_paid and result.invoice_id:
             now = datetime.now(UTC)
-            await get_database_manager().operations.mark_withdrawals_paid_by_invoice(
+            await _db_operations().mark_withdrawals_paid_by_invoice(
                 org_id, result.invoice_id, now
             )
 

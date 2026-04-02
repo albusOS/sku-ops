@@ -37,49 +37,43 @@ from shared.infrastructure.middleware.audit import audit_log
 logger = logging.getLogger(__name__)
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 def _build_deps() -> PurchasingDeps:
     async def list_departments():
-        return await get_database_manager().catalog.list_departments(
-            get_org_id()
-        )
+        return await _db_catalog().list_departments(get_org_id())
 
     async def get_department_by_code(code: str):
-        return await get_database_manager().catalog.get_department_by_code(
-            code, get_org_id()
-        )
+        return await _db_catalog().get_department_by_code(code, get_org_id())
 
     async def find_vendor_by_name(name: str):
-        return await get_database_manager().catalog.find_vendor_by_name(
-            get_org_id(), name
-        )
+        return await _db_catalog().find_vendor_by_name(get_org_id(), name)
 
     async def get_sku_by_id(sku_id: str):
-        return await get_database_manager().catalog.get_sku_by_id(
-            sku_id, get_org_id()
-        )
+        return await _db_catalog().get_sku_by_id(sku_id, get_org_id())
 
     async def find_vendor_item_by_vendor_and_sku_code(
         vendor_id: str, vendor_sku: str
     ):
-        return await get_database_manager().catalog.find_vendor_item_by_vendor_and_sku(
+        return await _db_catalog().find_vendor_item_by_vendor_and_sku(
             get_org_id(), vendor_id, vendor_sku
         )
 
     async def find_sku_by_name_and_vendor(name: str, vendor_id: str):
-        return await get_database_manager().catalog.find_sku_by_name_and_vendor(
+        return await _db_catalog().find_sku_by_name_and_vendor(
             get_org_id(), name, vendor_id
         )
 
     async def update_sku(sku_id: str, updates: SkuUpdate):
         async with transaction():
-            return await get_database_manager().catalog.update_sku(
+            return await _db_catalog().update_sku(
                 sku_id, get_org_id(), updates.model_dump(exclude_none=True)
             )
 
     async def add_vendor_item(**kw):
-        return await get_database_manager().catalog.add_vendor_item(
-            get_org_id(), **kw
-        )
+        return await _db_catalog().add_vendor_item(get_org_id(), **kw)
 
     async def insert_vendor_row(vendor: Vendor | dict) -> None:
         v = (
@@ -88,7 +82,7 @@ def _build_deps() -> PurchasingDeps:
             else vendor
         )
         async with transaction():
-            await get_database_manager().catalog.insert_vendor(v)
+            await _db_catalog().insert_vendor(v)
 
     return PurchasingDeps(
         list_departments=list_departments,

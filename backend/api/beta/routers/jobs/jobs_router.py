@@ -7,6 +7,11 @@ from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
+
+def _db_jobs():
+    return get_database_manager().jobs
+
+
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
@@ -18,7 +23,7 @@ async def list_jobs(
     limit: int = 200,
     offset: int = 0,
 ):
-    return await get_database_manager().jobs.list_jobs(
+    return await _db_jobs().list_jobs(
         get_org_id(),
         status=status,
         q=q,
@@ -35,23 +40,21 @@ async def search_jobs(
 ):
     """Autocomplete endpoint for job pickers (all authenticated users including contractors)."""
     if not q.strip():
-        return await get_database_manager().jobs.list_jobs(
+        return await _db_jobs().list_jobs(
             get_org_id(),
             status="active",
             limit=limit,
         )
-    return await get_database_manager().jobs.search_jobs(
-        get_org_id(), q, limit=limit
-    )
+    return await _db_jobs().search_jobs(get_org_id(), q, limit=limit)
 
 
 @router.get("/{job_id}")
 async def get_job(job_id: str, current_user: CurrentUserDep):
-    db = get_database_manager()
+    jobs_svc = _db_jobs()
     oid = get_org_id()
-    job = await db.jobs.get_job_by_id(job_id, oid)
+    job = await jobs_svc.get_job_by_id(job_id, oid)
     if not job:
-        job = await db.jobs.get_job_by_code(job_id, oid)
+        job = await jobs_svc.get_job_by_code(job_id, oid)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
@@ -66,9 +69,7 @@ async def create_job(
     if not code:
         raise HTTPException(status_code=400, detail="Job code is required")
 
-    existing = await get_database_manager().jobs.get_job_by_code(
-        code, get_org_id()
-    )
+    existing = await _db_jobs().get_job_by_code(code, get_org_id())
     if existing:
         raise HTTPException(
             status_code=409, detail=f"Job with code '{code}' already exists"
@@ -81,7 +82,7 @@ async def create_job(
         notes=data.notes,
         organization_id=current_user.organization_id,
     )
-    await get_database_manager().jobs.insert_job(job)
+    await _db_jobs().insert_job(job)
     return job.model_dump()
 
 
@@ -92,7 +93,7 @@ async def update_job(
     current_user: AdminDep,
 ):
     oid = get_org_id()
-    existing = await get_database_manager().jobs.get_job_by_id(job_id, oid)
+    existing = await _db_jobs().get_job_by_id(job_id, oid)
     if not existing:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -105,5 +106,5 @@ async def update_job(
                 detail=f"Invalid status. Must be one of: {', '.join(valid)}",
             )
 
-    result = await get_database_manager().jobs.update_job(job_id, oid, updates)
+    result = await _db_jobs().update_job(job_id, oid, updates)
     return result

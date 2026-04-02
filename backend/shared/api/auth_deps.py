@@ -30,6 +30,11 @@ from shared.infrastructure.logging_config import org_id_var, user_id_var
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
 
+
+def _db_shared():
+    return get_database_manager().shared
+
+
 security = HTTPBearer()
 
 BearerToken = Annotated[HTTPAuthorizationCredentials, Depends(security)]
@@ -56,7 +61,7 @@ async def get_current_user(
             detail="Invalid token: missing organization_id claim",
         )
 
-    if not await get_database_manager().shared.is_user_active(claims.user_id):
+    if not await _db_shared().is_user_active(claims.user_id):
         raise HTTPException(status_code=401, detail="Account deactivated")
 
     org_id = claims.organization_id or DEFAULT_ORG_ID

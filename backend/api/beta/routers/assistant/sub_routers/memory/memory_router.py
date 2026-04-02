@@ -11,6 +11,12 @@ from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
+
+
+def _db_assistant():
+    return get_database_manager().assistant
+
+
 router = APIRouter(prefix="/memory", tags=["assistant-memory"])
 
 
@@ -66,7 +72,7 @@ async def save_corrections(
             }
         )
 
-    await get_database_manager().assistant.memory_save(
+    await _db_assistant().memory_save(
         get_org_id(), user.id, session_id, artifacts
     )
     logger.info(

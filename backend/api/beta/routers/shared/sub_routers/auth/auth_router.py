@@ -9,6 +9,11 @@ from shared.api.deps import CurrentUserDep
 from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.constants import DEFAULT_ORG_ID
 
+
+def _db_shared():
+    return get_database_manager().shared
+
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -68,11 +73,11 @@ async def me(current_user: CurrentUserDep) -> UserResponse:
     users not yet in the local profile table) or if the DB is not initialised
     (e.g. smoke-test context).
     """
-    db = get_database_manager()
+    shared_svc = _db_shared()
     try:
-        row = await db.shared.fetch_user_safe_by_id(current_user.id)
+        row = await shared_svc.fetch_user_safe_by_id(current_user.id)
         if not row and current_user.email:
-            row = await db.shared.fetch_user_by_email(current_user.email)
+            row = await shared_svc.fetch_user_by_email(current_user.email)
     except RuntimeError:
         return _user_from_claims(current_user)
     if not row:

@@ -33,6 +33,11 @@ from shared.infrastructure.redis import get_redis, is_redis_available
 
 logger = logging.getLogger(__name__)
 
+
+def _db_finance():
+    return get_database_manager().finance
+
+
 router = APIRouter(prefix="/xero", tags=["xero"])
 
 XERO_AUTH_URL = "https://login.xero.com/identity/connect/authorize"
@@ -60,7 +65,7 @@ async def xero_connect(current_user: AdminDep):
     """Initiate Xero OAuth 2.0 Authorization Code flow. Redirects to Xero consent page."""
     _require_xero_configured()
     state = secrets.token_urlsafe(32)
-    await get_database_manager().finance.oauth_save_state(get_org_id(), state)
+    await _db_finance().oauth_save_state(get_org_id(), state)
 
     params = {
         "response_type": "code",
@@ -82,7 +87,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
             status_code=400, detail=f"Xero OAuth error: {error}"
         )
 
-    org_id = await get_database_manager().finance.oauth_pop_state("", state)
+    org_id = await _db_finance().oauth_pop_state("", state)
     if not org_id:
         raise HTTPException(
             status_code=400, detail="Invalid or expired OAuth state"
@@ -112,7 +117,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     )
     expiry_dt = datetime.fromtimestamp(expiry_ts, tz=UTC)
 
-    settings = await get_database_manager().finance.org_settings_get(org_id)
+    settings = await _db_finance().org_settings_get(org_id)
     updated = settings.model_copy(
         update={
             "xero_access_token": token_data["access_token"],
@@ -120,7 +125,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
             "xero_token_expiry": expiry_dt,
         }
     )
-    await get_database_manager().finance.org_settings_upsert(org_id, updated)
+    await _db_finance().org_settings_upsert(org_id, updated)
 
     redirect_target = (
         f"{FRONTEND_URL}/settings?xero=connected"
@@ -133,9 +138,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
 @router.get("/tenants")
 async def list_xero_tenants(current_user: AdminDep):
     """List Xero organisations the connected token can access. Use to select tenant_id."""
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    settings = await _db_finance().org_settings_get(get_org_id())
     if not settings.xero_access_token:
         raise HTTPException(
             status_code=400, detail="Xero not connected for this org"
@@ -157,35 +160,27 @@ async def select_xero_tenant(
     current_user: AdminDep,
 ):
     """Save the chosen Xero tenant (organisation) ID for this org."""
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    settings = await _db_finance().org_settings_get(get_org_id())
     if not settings.xero_access_token:
         raise HTTPException(
             status_code=400, detail="Xero not connected for this org"
         )
     updated = settings.model_copy(update={"xero_tenant_id": tenant_id})
-    saved = await get_database_manager().finance.org_settings_upsert(
-        get_org_id(), updated
-    )
+    saved = await _db_finance().org_settings_upsert(get_org_id(), updated)
     return {"xero_tenant_id": saved.xero_tenant_id}
 
 
 @router.post("/disconnect")
 async def xero_disconnect(current_user: AdminDep):
     """Remove Xero OAuth tokens for this org."""
-    await get_database_manager().finance.org_settings_clear_xero_tokens(
-        get_org_id()
-    )
+    await _db_finance().org_settings_clear_xero_tokens(get_org_id())
     return {"disconnected": True}
 
 
 @router.get("/tracking-categories")
 async def list_tracking_categories(current_user: AdminDep):
     """List Xero tracking categories for the connected org."""
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    settings = await _db_finance().org_settings_get(get_org_id())
     if not settings.xero_access_token:
         raise HTTPException(
             status_code=400, detail="Xero not connected for this org"
@@ -208,15 +203,11 @@ async def select_tracking_category(
     current_user: AdminDep,
 ):
     """Save the chosen Xero tracking category ID for job_id tagging on invoice lines."""
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    settings = await _db_finance().org_settings_get(get_org_id())
     updated = settings.model_copy(
         update={"xero_tracking_category_id": tracking_category_id}
     )
-    saved = await get_database_manager().finance.org_settings_upsert(
-        get_org_id(), updated
-    )
+    saved = await _db_finance().org_settings_upsert(get_org_id(), updated)
     return {"xero_tracking_category_id": saved.xero_tracking_category_id}
 
 

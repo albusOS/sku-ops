@@ -94,6 +94,11 @@ from shared.infrastructure.metrics import (
 
 logger = logging.getLogger(__name__)
 
+
+def _db_assistant():
+    return get_database_manager().assistant
+
+
 HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
 
@@ -415,7 +420,7 @@ async def _run_generation(
                                 _v=_snap_val,
                             ):
                                 try:
-                                    await get_database_manager().assistant.log_agent_run(
+                                    await _db_assistant().log_agent_run(
                                         get_org_id(),
                                         session_id=session_id,
                                         user_id=user_id,

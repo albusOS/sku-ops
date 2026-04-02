@@ -31,6 +31,11 @@ from shared.kernel.errors import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)
 
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 StockChangesFn = Callable[..., Awaitable[None]] | None
 
 
@@ -65,7 +70,7 @@ async def create_sku(
     and optionally records initial stock. All in a single transaction.
     """
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     department = await cat.get_department_by_id(category_id, org_id)
     if not department:
         raise ResourceNotFoundError("Department", category_id)
@@ -213,7 +218,7 @@ async def update_sku(
 ) -> Sku:
     """Update a SKU. Resolves category name changes and adjusts counters."""
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     sku = current_sku or await cat.get_sku_by_id(sku_id, org_id)
     if not sku:
         raise ResourceNotFoundError("Sku", sku_id)
@@ -295,7 +300,7 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
     on both the old and new families.
     """
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     sku = await cat.get_sku_by_id(sku_id, org_id)
     if not sku:
         raise ResourceNotFoundError("Sku", sku_id)
@@ -350,7 +355,7 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
 async def delete_sku(sku_id: str) -> None:
     """Delete a SKU, update counters, and soft-delete associated vendor items."""
     org_id = get_org_id()
-    cat = get_database_manager().catalog
+    cat = _db_catalog()
     sku = await cat.get_sku_by_id(sku_id, org_id)
     if not sku:
         raise ResourceNotFoundError("Sku", sku_id)

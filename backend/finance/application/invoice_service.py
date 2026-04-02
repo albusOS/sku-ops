@@ -31,7 +31,7 @@ __all__ = [
 ]
 
 
-def _finance():
+def _db_finance():
     return get_database_manager().finance
 
 
@@ -47,15 +47,15 @@ def _db_operations():
 async def list_invoices(**kwargs):
     org_id = get_org_id()
     kwargs.pop("organization_id", None)
-    return await _finance().invoice_list(org_id, **kwargs)
+    return await _db_finance().invoice_list(org_id, **kwargs)
 
 
 async def get_invoice(invoice_id: str) -> InvoiceWithDetails | None:
-    return await _finance().invoice_get_by_id(get_org_id(), invoice_id)
+    return await _db_finance().invoice_get_by_id(get_org_id(), invoice_id)
 
 
 async def mark_paid_for_withdrawal(withdrawal_id: str) -> None:
-    await _finance().invoice_mark_paid_for_withdrawal(
+    await _db_finance().invoice_mark_paid_for_withdrawal(
         get_org_id(), withdrawal_id
     )
 
@@ -124,7 +124,7 @@ async def create_invoice_from_withdrawals(
         raise ValueError("At least one withdrawal required")
 
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     (
         withdrawals,
         billing_entity,
@@ -199,7 +199,7 @@ async def add_withdrawals_to_invoice(
 ) -> InvoiceWithDetails | None:
     """Link additional withdrawals to an existing invoice."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     if not withdrawal_ids:
         return await fin.invoice_get_by_id(org_id, invoice_id)
 
@@ -274,7 +274,7 @@ async def update_invoice(
 ) -> InvoiceWithDetails | None:
     """Update invoice fields and/or replace line items."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     inv = await fin.invoice_get_by_id(org_id, invoice_id)
     if not inv:
         return None
@@ -342,7 +342,7 @@ async def approve_invoice(
 ) -> InvoiceWithDetails | None:
     """Approve a draft invoice, locking it for Xero sync."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     inv = await fin.invoice_get_by_id(org_id, invoice_id)
     if not inv:
         return None
@@ -369,7 +369,7 @@ async def delete_draft_invoice(
 ) -> bool:
     """Soft-delete draft invoice and unlink withdrawals."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     inv = await fin.invoice_get_by_id(org_id, invoice_id)
     if not inv:
         return False

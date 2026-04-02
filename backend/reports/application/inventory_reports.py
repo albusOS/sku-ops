@@ -20,6 +20,18 @@ def _db_catalog():
     return get_database_manager().catalog
 
 
+def _db_finance():
+    return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
+def _db_inventory():
+    return get_database_manager().inventory
+
+
 class DepartmentInventory(TypedDict):
     count: int
     retail_value: float
@@ -116,14 +128,14 @@ async def product_performance_report(
     limit: int = 200,
 ) -> ProductPerformanceReport:
     margin_data, products_data, units_sold_map = await asyncio.gather(
-        get_database_manager().finance.analytics_product_margins(
+        _db_finance().analytics_product_margins(
             get_org_id(),
             start_date=start_date,
             end_date=end_date,
             limit=limit,
         ),
         _db_catalog().list_skus(get_org_id()),
-        get_database_manager().operations.units_sold_by_product(
+        _db_operations().units_sold_by_product(
             org_id, start_date=start_date, end_date=end_date
         ),
     )
@@ -186,7 +198,7 @@ async def reorder_urgency_report(
     if not sku_ids:
         return ReorderUrgencyReport(products=[], total=0)
 
-    velocity_map = await get_database_manager().inventory.withdrawal_velocity(
+    velocity_map = await _db_inventory().withdrawal_velocity(
         get_org_id(), sku_ids, since
     )
 
@@ -240,7 +252,7 @@ async def product_activity_report(
     days: int = 365,
 ) -> ProductActivityReport:
     since = datetime.now(UTC) - timedelta(days=min(days, 730))
-    rows = await get_database_manager().inventory.daily_withdrawal_activity(
+    rows = await _db_inventory().daily_withdrawal_activity(
         get_org_id(), since, sku_id=sku_id
     )
     return ProductActivityReport(series=rows, sku_id=sku_id, days=days)

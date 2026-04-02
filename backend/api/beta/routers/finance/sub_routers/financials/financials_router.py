@@ -20,6 +20,15 @@ from shared.kernel.types import round_money
 
 logger = logging.getLogger(__name__)
 
+
+def _db_finance():
+    return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
 router = APIRouter(prefix="/financials", tags=["financials"])
 
 
@@ -32,7 +41,7 @@ async def get_financial_summary(
     """P&L summary sourced from the financial ledger."""
     try:
         org_id = get_org_id()
-        fin = get_database_manager().finance
+        fin = _db_finance()
         date_kw = {"start_date": start_date, "end_date": end_date}
         (
             accounts,
@@ -112,7 +121,7 @@ async def export_financials(
 ):
     """Export financial data as CSV (line-level, from operational tables)."""
     try:
-        ops = get_database_manager().operations
+        ops = _db_operations()
         withdrawals = await ops.list_withdrawals(
             current_user.organization_id,
             payment_status=payment_status,

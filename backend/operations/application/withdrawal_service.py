@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from finance.application.invoice_service import (
     create_invoice_from_withdrawals as _create_invoice,
@@ -36,14 +37,24 @@ from shared.kernel.domain_events import (
 )
 from shared.kernel.event_payloads import LedgerItem
 from shared.kernel.stock import StockDecrement
-from shared.kernel.types import CurrentUser
 from shared.kernel.units import (
     are_compatible,
     convert_quantity,
     cost_per_sell_unit,
 )
 
+if TYPE_CHECKING:
+    from shared.kernel.types import CurrentUser
+
 logger = logging.getLogger(__name__)
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
+def _db_finance():
+    return get_database_manager().finance
 
 
 def _convert_price_per_unit(
@@ -84,10 +95,11 @@ async def create_withdrawal(
         raise ValueError("contractor.id must not be empty")
 
     org_id = current_user.organization_id
-    db = get_database_manager().operations
+    dbm = get_database_manager()
+    db = dbm.operations
     if data.job_id:
-        await get_database_manager().jobs.ensure_job(data.job_id, org_id)
-    products = await get_database_manager().catalog.list_skus(get_org_id())
+        await dbm.jobs.ensure_job(data.job_id, org_id)
+    products = await dbm.catalog.list_skus(get_org_id())
     product_map = {p.id: p for p in products}
     dept_map = {p.id: p.category_name for p in products}
     enriched_items = []
@@ -140,7 +152,7 @@ async def create_withdrawal(
     billing_entity_name = contractor.billing_entity
     billing_entity_id = contractor.billing_entity_id
     if billing_entity_name and not billing_entity_id:
-        be = await get_database_manager().finance.billing_entity_ensure(
+        be = await dbm.finance.billing_entity_ensure(
             org_id, billing_entity_name
         )
         billing_entity_id = be.id if be else None
@@ -245,9 +257,7 @@ async def create_withdrawal_wired(
     current_user: CurrentUser,
 ) -> MaterialWithdrawal:
     """Wired version that resolves org settings before delegating to create_withdrawal."""
-    settings = await get_database_manager().finance.org_settings_get(
-        get_org_id()
-    )
+    settings = await _db_finance().org_settings_get(get_org_id())
     return await create_withdrawal(
         data,
         contractor,
@@ -269,7 +279,7 @@ async def mark_single_withdrawal_paid(
 
     Post-commit (best-effort): WithdrawalPaid dispatched for WS notification.
     """
-    db = get_database_manager().operations
+    db = _db_operations()
     withdrawal = await db.get_withdrawal_by_id(organization_id, withdrawal_id)
     if not withdrawal:
         raise ValueError(f"Withdrawal {withdrawal_id} not found")
@@ -325,7 +335,7 @@ async def bulk_mark_withdrawals_paid(
 
     paid_at = datetime.now(UTC)
 
-    db = get_database_manager().operations
+    db = _db_operations()
     # Fetch before the transaction so we have the data needed for ledger entries
     withdrawals = []
     for wid in withdrawal_ids:

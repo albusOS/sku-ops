@@ -35,6 +35,10 @@ from shared.kernel.types import CurrentUser
 logger = logging.getLogger(__name__)
 
 
+def _db_purchasing():
+    return get_database_manager().purchasing
+
+
 async def mark_delivery_received(
     po_id: str,
     item_ids: list[str],
@@ -46,7 +50,7 @@ async def mark_delivery_received(
     All item transitions run inside a single transaction so partial
     updates cannot occur.
     """
-    db = get_database_manager().purchasing
+    db = _db_purchasing()
     org_id = current_user.organization_id
     po = await db.get_po(org_id, po_id)
     if not po:
@@ -89,7 +93,7 @@ async def receive_po_items(
     New SKUs are created for unmatched items; existing SKUs get a
     RECEIVING transaction.
     """
-    db = get_database_manager().purchasing
+    db = _db_purchasing()
     org_id = current_user.organization_id
     po = await db.get_po(org_id, po_id)
     if not po:
@@ -459,7 +463,7 @@ async def _recompute_po_status(
     partial  — some items arrived, some still outstanding
     received — all items arrived
     """
-    db = get_database_manager().purchasing
+    db = _db_purchasing()
     all_items = await db.get_po_items(org_id, po_id)
     arrived_count = sum(
         1 for i in all_items if i.status == POItemStatus.ARRIVED.value

@@ -14,6 +14,11 @@ from shared.api.deps import AdminDep
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
+
+def _db_finance():
+    return get_database_manager().finance
+
+
 router = APIRouter(prefix="/billing-entities", tags=["billing-entities"])
 
 
@@ -66,9 +71,7 @@ async def create_billing_entity(
         raise HTTPException(status_code=400, detail="Name is required")
 
     oid = get_org_id()
-    existing = await get_database_manager().finance.billing_entity_get_by_name(
-        oid, name
-    )
+    existing = await _db_finance().billing_entity_get_by_name(oid, name)
     if existing:
         raise HTTPException(
             status_code=409, detail=f"Billing entity '{name}' already exists"
@@ -82,7 +85,7 @@ async def create_billing_entity(
         payment_terms=data.payment_terms,
         organization_id=oid,
     )
-    await get_database_manager().finance.billing_entity_insert(oid, entity)
+    await _db_finance().billing_entity_insert(oid, entity)
     return entity.model_dump()
 
 
@@ -97,6 +100,6 @@ async def update_billing_entity(
         raise HTTPException(status_code=404, detail="Billing entity not found")
 
     oid = get_org_id()
-    return await get_database_manager().finance.billing_entity_update(
+    return await _db_finance().billing_entity_update(
         oid, entity_id, data.model_dump(exclude_none=True)
     )

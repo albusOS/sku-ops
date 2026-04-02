@@ -23,6 +23,11 @@ from shared.infrastructure.db.services.raw_sql import ExecutionResult
 
 logger = logging.getLogger(__name__)
 
+
+def _db_sql():
+    return get_database_manager().sql
+
+
 MAX_ROWS = 500
 TIMEOUT_MS = 10_000
 
@@ -56,9 +61,8 @@ async def execute_sandboxed(sql: str) -> ExecutionResult:
     sql_named = re.sub(r"\$1\b", ":org_id", sql)
 
     t0 = time.monotonic()
-    db = get_database_manager()
     try:
-        result = await db.sql.execute(
+        result = await _db_sql().execute(
             sql_named,
             {"org_id": org_id},
             read_only=True,

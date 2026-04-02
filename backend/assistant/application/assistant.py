@@ -31,6 +31,10 @@ from shared.infrastructure.db.base import get_database_manager
 logger = logging.getLogger(__name__)
 
 
+def _db_assistant():
+    return get_database_manager().assistant
+
+
 LLM_NOT_CONFIGURED_MSG = (
     "Chat assistant requires an API key. Set OPENROUTER_API_KEY (preferred) or "
     f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {LLM_SETUP_URL}"
@@ -171,7 +175,7 @@ async def recall_memory(user_id: str, query: str | None = None) -> str:
     When *query* is provided, uses semantic recall (hybrid scoring).
     Returns empty string if no artifacts exist.
     """
-    return await get_database_manager().assistant.memory_recall(
+    return await _db_assistant().memory_recall(
         get_org_id(), user_id, query=query
     )
 

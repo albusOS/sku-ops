@@ -12,6 +12,11 @@ from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
 
+
+def _db_documents():
+    return get_database_manager().documents
+
+
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
@@ -61,7 +66,7 @@ async def list_documents(
     offset: int = 0,
 ):
     """List uploaded/parsed documents."""
-    return await get_database_manager().documents.list_documents(
+    return await _db_documents().list_documents(
         get_org_id(),
         status=status,
         vendor_name=vendor_name,
@@ -73,9 +78,7 @@ async def list_documents(
 
 @router.get("/{doc_id}")
 async def get_document(doc_id: str, current_user: AdminDep):
-    doc = await get_database_manager().documents.get_document_by_id(
-        doc_id, get_org_id()
-    )
+    doc = await _db_documents().get_document_by_id(doc_id, get_org_id())
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return doc

@@ -16,14 +16,16 @@ from shared.kernel.domain_events import InventoryChanged, LowStockDetected
 logger = logging.getLogger(__name__)
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 @on(InventoryChanged)
 async def check_reorder_points(event: InventoryChanged) -> None:
     """Evaluate reorder points for every product affected by a stock change."""
     for sku_id in event.sku_ids:
         try:
-            product = await get_database_manager().catalog.get_sku_by_id(
-                sku_id, event.org_id
-            )
+            product = await _db_catalog().get_sku_by_id(sku_id, event.org_id)
             if not product:
                 continue
             if product.quantity <= product.min_stock:

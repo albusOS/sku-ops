@@ -21,6 +21,10 @@ from shared.infrastructure.db import (
 from shared.infrastructure.db.base import get_database_manager
 
 
+def _db_finance():
+    return get_database_manager().finance
+
+
 def _make_id() -> str:
     return new_uuid7_str()
 
@@ -192,9 +196,7 @@ async def create_contractor(
             raise ValueError("Email already registered")
 
         billing_name = billing_entity_name or company or "Independent"
-        be = await get_database_manager().finance.billing_entity_ensure(
-            org_id, billing_name
-        )
+        be = await _db_finance().billing_entity_ensure(org_id, billing_name)
 
         contractor_id = _make_id()
         now = _now()
@@ -270,7 +272,7 @@ async def update_contractor(
 
     async with transaction():
         if billing_name_changed:
-            be = await get_database_manager().finance.billing_entity_ensure(
+            be = await _db_finance().billing_entity_ensure(
                 org_id, updates.billing_entity
             )
             set_clauses.append(f"billing_entity_id = ${n}")

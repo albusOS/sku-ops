@@ -22,6 +22,10 @@ def _db_catalog():
     return get_database_manager().catalog
 
 
+def _db_finance():
+    return get_database_manager().finance
+
+
 class DailyPoint(TypedDict):
     date: str
     revenue: float
@@ -191,7 +195,7 @@ async def admin_dashboard(
         _db_catalog().count_vendors(get_org_id()),
         count_contractors(),
         _db_catalog().list_low_stock_skus(get_org_id(), limit=10),
-        get_database_manager().finance.ledger_summary_by_department(
+        _db_finance().ledger_summary_by_department(
             get_org_id(), start_date=sd, end_date=ed
         ),
         _db_operations().list_pending_material_requests(org_id, limit=10),

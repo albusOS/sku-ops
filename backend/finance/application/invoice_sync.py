@@ -17,7 +17,7 @@ def _xero_status(status: str | XeroSyncStatus) -> str:
     return status if isinstance(status, str) else status.value
 
 
-def _finance():
+def _db_finance():
     return get_database_manager().finance
 
 
@@ -29,7 +29,7 @@ def _finance():
 async def sync_invoice(inv_id: str) -> InvoiceSyncResult:
     """Sync a single invoice to Xero."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     inv = await fin.invoice_get_by_id(org_id, inv_id)
     if not inv:
         return InvoiceSyncResult(
@@ -91,7 +91,7 @@ async def _gateway_fetch_existing(
 ) -> InvoiceSyncResult | None:
     """Check Xero for an existing invoice matching our number (idempotency guard)."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     xero_settings = await get_xero_settings()
     gateway = get_invoicing_gateway(xero_settings)
     existing = await gateway.fetch_invoice_by_number(
@@ -114,7 +114,7 @@ async def _gateway_fetch_existing(
 async def repost_cogs_for_invoice(inv_id: str) -> InvoiceSyncResult:
     """Re-post the COGS manual journal for an invoice whose line items changed after sync."""
     org_id = get_org_id()
-    fin = _finance()
+    fin = _db_finance()
     inv = await fin.invoice_get_by_id(org_id, inv_id)
     if not inv:
         return InvoiceSyncResult(

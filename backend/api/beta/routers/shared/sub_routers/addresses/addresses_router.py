@@ -10,6 +10,11 @@ from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.db.services.shared import StoredAddress
 
+
+def _db_shared():
+    return get_database_manager().shared
+
+
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 
 
@@ -34,7 +39,7 @@ async def list_addresses(
     limit: int = 100,
     offset: int = 0,
 ):
-    return await get_database_manager().shared.list_addresses(
+    return await _db_shared().list_addresses(
         current_user.organization_id,
         billing_entity_id=billing_entity_id,
         job_id=job_id,
@@ -53,17 +58,13 @@ async def search_addresses(
     """Autocomplete endpoint for address pickers."""
     oid = current_user.organization_id
     if not q.strip():
-        return await get_database_manager().shared.list_addresses(
-            oid, limit=limit
-        )
-    return await get_database_manager().shared.search_addresses(
-        oid, q, limit=limit
-    )
+        return await _db_shared().list_addresses(oid, limit=limit)
+    return await _db_shared().search_addresses(oid, q, limit=limit)
 
 
 @router.get("/{address_id}")
 async def get_address(address_id: str, current_user: AdminDep):
-    addr = await get_database_manager().shared.get_address_by_id(
+    addr = await _db_shared().get_address_by_id(
         address_id, current_user.organization_id
     )
     if not addr:
@@ -95,5 +96,5 @@ async def create_address(
         organization_id=current_user.organization_id,
         created_at=datetime.now(UTC),
     )
-    await get_database_manager().shared.insert_address(address)
+    await _db_shared().insert_address(address)
     return address

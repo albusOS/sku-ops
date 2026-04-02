@@ -17,6 +17,11 @@ from operations.domain.material_request import (
 from shared.api.deps import AdminDep, CurrentUserDep
 from shared.infrastructure.db.base import get_database_manager
 
+
+def _db_operations():
+    return get_database_manager().operations
+
+
 router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 
@@ -43,7 +48,7 @@ async def list_material_requests_route(current_user: CurrentUserDep):
 
 @router.get("/{request_id}")
 async def get_material_request(request_id: str, current_user: CurrentUserDep):
-    req = await get_database_manager().operations.get_material_request_by_id(
+    req = await _db_operations().get_material_request_by_id(
         current_user.organization_id, request_id
     )
     if not req:

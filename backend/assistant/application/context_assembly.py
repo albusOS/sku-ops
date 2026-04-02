@@ -31,6 +31,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _db_assistant():
+    return get_database_manager().assistant
+
+
 @dataclass
 class AssembledContext:
     """Rich context assembled from multiple sources."""
@@ -207,8 +211,7 @@ async def _vector_search(
             return []
 
         org_id = get_org_id()
-        db = get_database_manager()
-        hits = await db.assistant.embedding_search(
+        hits = await _db_assistant().embedding_search(
             org_id,
             qvec,
             entity_types=["sku", "vendor", "purchase_order", "job"],
@@ -228,7 +231,7 @@ async def _recall_memory(
 ) -> str:
     """Recall semantic memory. Returns empty string on failure."""
     try:
-        return await get_database_manager().assistant.memory_recall(
+        return await _db_assistant().memory_recall(
             get_org_id(),
             user_id,
             query=query,

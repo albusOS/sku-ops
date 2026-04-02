@@ -38,6 +38,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _db_shared():
+    return get_database_manager().shared
+
+
 async def audit_log(
     *,
     user_id: str,
@@ -61,8 +65,7 @@ async def audit_log(
     now = datetime.now(UTC)
 
     try:
-        db = get_database_manager()
-        await db.shared.insert_audit_row(
+        await _db_shared().insert_audit_row(
             audit_id=as_uuid_required(new_uuid7_str()),
             user_id=user_id,
             action=action,

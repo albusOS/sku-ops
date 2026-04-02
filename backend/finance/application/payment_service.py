@@ -18,8 +18,12 @@ from shared.kernel.domain_events import PaymentRecorded
 logger = logging.getLogger(__name__)
 
 
-def _finance():
+def _db_finance():
     return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
 
 
 async def create_payment_for_withdrawals(
@@ -37,8 +41,8 @@ async def create_payment_for_withdrawals(
 
     withdrawal_ids = list(data.withdrawal_ids)
     org_id = get_org_id()
-    fin = _finance()
-    ops = get_database_manager().operations
+    fin = _db_finance()
+    ops = _db_operations()
 
     if not withdrawal_ids and data.invoice_id:
         invoice = await fin.invoice_get_by_id(org_id, data.invoice_id)
