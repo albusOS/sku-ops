@@ -6,11 +6,20 @@ for demand velocity and SKU data.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
-from catalog.application.queries import get_vendor_items_for_skus, list_low_stock
-from inventory.application.queries import demand_normalized_velocity
-from shared.infrastructure.database import get_connection, get_org_id
+
+def _db_purchasing():
+    return get_database_manager().purchasing
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+def _db_inventory():
+    return get_database_manager().inventory
 
 
 async def vendor_lead_time_actual(
@@ -22,76 +31,9 @@ async def vendor_lead_time_actual(
     Computes median and P90 from fully received POs. Detects trend drift
     by comparing the most recent 3 POs against all prior POs.
     """
-    conn = get_connection()
-    org_id = get_org_id()
-    since = datetime.now(UTC) - timedelta(days=days)
-
-    cur = await conn.execute(
-        """SELECT po.id,
-                  EXTRACT(EPOCH FROM (
-                      po.received_at::timestamp - po.created_at::timestamp
-                  )) / 86400.0 AS lead_days
-           FROM purchase_orders po
-           WHERE po.vendor_id = $1
-             AND po.organization_id = $2
-             AND po.created_at >= $3
-             AND po.received_at IS NOT NULL
-           ORDER BY po.received_at""",
-        (vendor_id, org_id, since),
+    return await _db_purchasing().vendor_lead_time_actual(
+        get_org_id(), vendor_id, days=days
     )
-    rows = [dict(r) for r in await cur.fetchall()]
-
-    if not rows:
-        return {
-            "vendor_id": vendor_id,
-            "po_count": 0,
-            "actual_median_days": None,
-            "actual_p90_days": None,
-            "stated_days": None,
-            "trend": "no_data",
-        }
-
-    lead_days = [float(r["lead_days"]) for r in rows]
-    lead_days_sorted = sorted(lead_days)
-    n = len(lead_days_sorted)
-    median_days = lead_days_sorted[n // 2]
-    p90_idx = min(int(n * 0.9), n - 1)
-    p90_days = lead_days_sorted[p90_idx]
-
-    trend = "stable"
-    if n >= 4:
-        recent_3 = lead_days[-3:]
-        prior = lead_days[:-3]
-        recent_avg = sum(recent_3) / len(recent_3)
-        prior_avg = sum(prior) / len(prior)
-        if prior_avg > 0:
-            drift_pct = (recent_avg - prior_avg) / prior_avg * 100
-            if drift_pct > 20:
-                trend = "degrading"
-            elif drift_pct < -20:
-                trend = "improving"
-
-    # Get stated lead time from vendor_items (median across SKUs for this vendor)
-    stated_cur = await conn.execute(
-        """SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lead_time_days) AS stated
-           FROM vendor_items
-           WHERE vendor_id = $1
-             AND lead_time_days IS NOT NULL
-             AND organization_id = $2
-             AND deleted_at IS NULL""",
-        (vendor_id, org_id),
-    )
-    stated_row = await stated_cur.fetchone()
-    stated_days = float(stated_row["stated"]) if stated_row and stated_row["stated"] else None
-
-    return {
-        "vendor_id": vendor_id,
-        "po_count": n,
-        "actual_median_days": round(median_days, 1),
-        "actual_p90_days": round(p90_days, 1),
-        "stated_days": round(stated_days, 1) if stated_days else None,
-        "trend": trend,
-    }
 
 
 async def reorder_point_smart(
@@ -105,13 +47,18 @@ async def reorder_point_smart(
     actual_vendor_lead_time * safety_factor. Flags where the current min_stock
     is miscalibrated.
     """
-    low_stock = await list_low_stock(limit=100)
+    low_stock = await _db_catalog().list_low_stock_skus(get_org_id(), limit=100)
     if not low_stock:
         return []
 
     sku_ids = [s.id for s in low_stock]
-    vel_map = await demand_normalized_velocity(sku_ids, velocity_days)
-    vendor_items_by_sku = await get_vendor_items_for_skus(sku_ids)
+    org_id = get_org_id()
+    vel_map = await _db_inventory().demand_normalized_velocity(
+        org_id, sku_ids, days=velocity_days
+    )
+    vendor_items_by_sku = await _db_catalog().list_vendor_items_by_skus_grouped(
+        org_id, sku_ids
+    )
     lead_time_cache: dict[str, float | None] = {}
 
     results = []
@@ -128,8 +75,12 @@ async def reorder_point_smart(
         actual_lead = None
         if preferred:
             if preferred.vendor_id not in lead_time_cache:
-                lt_data = await vendor_lead_time_actual(preferred.vendor_id, days=180)
-                lead_time_cache[preferred.vendor_id] = lt_data.get("actual_median_days")
+                lt_data = await vendor_lead_time_actual(
+                    preferred.vendor_id, days=180
+                )
+                lead_time_cache[preferred.vendor_id] = lt_data.get(
+                    "actual_median_days"
+                )
             actual_lead = lead_time_cache[preferred.vendor_id]
 
         lead_days = actual_lead or 7.0

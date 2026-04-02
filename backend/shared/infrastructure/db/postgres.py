@@ -1,210 +1,157 @@
-"""PostgreSQL backend using asyncpg with connection pooling."""
+"""PostgreSQL backend using SQLAlchemy async engine and session factory."""
 
 from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-import asyncpg
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger(__name__)
 
-from shared.infrastructure.db.protocol import Connection, DictRow
-
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
-
-
-# ── Cursor wrapper ────────────────────────────────────────────────────────────
-
-
-class PgCursor:
-    __slots__ = ("_rows", "_status")
-
-    def __init__(self, rows: list[asyncpg.Record], status: str = ""):
-        self._rows = rows
-        self._status = status
-
-    @property
-    def rowcount(self) -> int:
-        parts = self._status.split()
-        if len(parts) >= 2 and parts[-1].isdigit():
-            return int(parts[-1])
-        return len(self._rows)
-
-    async def fetchone(self) -> DictRow | None:
-        if not self._rows:
-            return None
-        return DictRow(dict(self._rows[0]))
-
-    async def fetchall(self) -> list[DictRow]:
-        return [DictRow(dict(r)) for r in self._rows]
-
-
-# ── Pool proxy (auto-acquire per statement) ───────────────────────────────────
-
-
-class PgPoolProxy:
-    """Returned by ``get_connection()`` — acquires per-execute, auto-commits."""
-
-    __slots__ = ("_acquire_timeout", "_pool")
-
-    def __init__(self, pool: asyncpg.Pool, acquire_timeout: float):
-        self._pool = pool
-        self._acquire_timeout = acquire_timeout
-
-    async def execute(self, sql: str, params: tuple | list = ()) -> PgCursor:
-        async with self._pool.acquire(timeout=self._acquire_timeout) as conn:
-            head = sql.lstrip().upper()
-            if head.startswith(("SELECT", "WITH")) or "RETURNING" in head:
-                rows = await conn.fetch(sql, *params)
-                return PgCursor(rows)
-            status = await conn.execute(sql, *params)
-            return PgCursor([], status or "")
-
-    async def executemany(self, sql: str, params_list: Sequence[tuple | list]) -> None:
-        async with self._pool.acquire(timeout=self._acquire_timeout) as conn:
-            await conn.executemany(sql, params_list)
-
-    async def commit(self) -> None:
-        pass  # autocommit outside transactions
-
-    async def rollback(self) -> None:
-        pass
-
-
-# ── Transaction proxy (holds single connection) ──────────────────────────────
-
-
-class PgTransactionProxy:
-    """Used inside ``transaction()`` context — single connection, explicit commit.
-
-    commit() and rollback() are intentional no-ops here; the context manager in
-    PostgresBackend.transaction() owns the transaction lifecycle.
-    """
-
-    __slots__ = ("_conn",)
-
-    def __init__(self, conn: asyncpg.Connection):
-        self._conn = conn
-
-    async def execute(self, sql: str, params: tuple | list = ()) -> PgCursor:
-        if sql.lstrip().upper().startswith("SELECT") or "RETURNING" in sql.upper():
-            rows = await self._conn.fetch(sql, *params)
-            return PgCursor(rows)
-        status = await self._conn.execute(sql, *params)
-        return PgCursor([], status or "")
-
-    async def executemany(self, sql: str, params_list: Sequence[tuple | list]) -> None:
-        await self._conn.executemany(sql, params_list)
-
-    async def commit(self) -> None:
-        pass
-
-    async def rollback(self) -> None:
-        pass
-
-
-# ── Backend lifecycle ─────────────────────────────────────────────────────────
+    from collections.abc import AsyncIterator
 
 
 class PostgresBackend:
     dialect = "postgresql"
 
     def __init__(self) -> None:
-        self._pool: asyncpg.Pool | None = None
-        self._acquire_timeout: float = 30.0
+        self._engine: AsyncEngine | None = None
+        self._session_factory: async_sessionmaker[AsyncSession] | None = None
+
+    @property
+    def engine(self) -> AsyncEngine:
+        if self._engine is None:
+            raise RuntimeError(
+                "Database not initialized. Call connect() at startup."
+            )
+        return self._engine
+
+    @property
+    def session_factory(self) -> async_sessionmaker[AsyncSession]:
+        if self._session_factory is None:
+            raise RuntimeError(
+                "Database not initialized. Call connect() at startup."
+            )
+        return self._session_factory
 
     async def connect(self, url: str) -> None:
-        import os
 
         from shared.infrastructure.config import (
             PG_ACQUIRE_TIMEOUT,
             PG_COMMAND_TIMEOUT,
             PG_POOL_MAX,
             PG_POOL_MIN,
+            is_deployed,
+            is_test,
         )
 
-        min_size = PG_POOL_MIN
-        max_size = PG_POOL_MAX
-        command_timeout = PG_COMMAND_TIMEOUT
-        self._acquire_timeout = PG_ACQUIRE_TIMEOUT
-
         if ":6543" in url:
-            from shared.infrastructure.config import is_deployed
-
             msg = (
                 "DATABASE_URL uses port 6543 (Supabase pgbouncer). "
-                "asyncpg uses prepared statements which are incompatible with "
-                "pgbouncer in transaction mode. Use the direct connection on "
-                "port 5432 instead."
+                "Use the direct Postgres connection on port 5432 instead."
             )
             if is_deployed:
                 raise RuntimeError(msg)
             logger.warning(msg)
 
-        from urllib.parse import urlparse
+        pool_size = max(PG_POOL_MIN, 1)
+        max_overflow = max(PG_POOL_MAX - pool_size, 0)
+        async_url = url
+        if async_url.startswith("postgresql://"):
+            async_url = async_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        elif async_url.startswith("postgres://"):
+            async_url = async_url.replace(
+                "postgres://", "postgresql+asyncpg://", 1
+            )
 
-        _host = (urlparse(url).hostname or "").lower()
-        _is_supavisor = "pooler.supabase.com" in _host
+        engine_kwargs: dict[str, Any] = {
+            "pool_pre_ping": True,
+            "connect_args": {"command_timeout": PG_COMMAND_TIMEOUT},
+        }
+        if is_test:
+            engine_kwargs["poolclass"] = NullPool
+        else:
+            engine_kwargs["pool_size"] = pool_size
+            engine_kwargs["max_overflow"] = max_overflow
+            engine_kwargs["pool_timeout"] = PG_ACQUIRE_TIMEOUT
 
-        # Supabase Supavisor Session mode has a hard connection limit (~15 on
-        # free/pro). With multiple uvicorn workers each pool competes for those
-        # slots.  Clamp per-worker pool size so total connections stay safe.
-        if _is_supavisor:
-            workers = int(os.environ.get("WORKERS", "1"))
-            supavisor_limit = int(os.environ.get("SUPAVISOR_MAX_CONNECTIONS", "15"))
-            safe_per_worker = max(1, supavisor_limit // workers - 1)
-            if max_size > safe_per_worker:
-                logger.warning(
-                    "PG_POOL_MAX=%d × %d workers = %d total connections, but "
-                    "Supabase Supavisor session-mode limit is ~%d. "
-                    "Clamping per-worker pool to %d.",
-                    max_size,
-                    workers,
-                    max_size * workers,
-                    supavisor_limit,
-                    safe_per_worker,
-                )
-                max_size = safe_per_worker
-                min_size = min(min_size, max_size)
-
-        # asyncpg >=0.31 defaults to sslmode=prefer, which tries SSL first.
-        # Local Docker / localhost Postgres doesn't support SSL, so append
-        # sslmode=disable to the URL for local hosts.
-        _local_hosts = {"localhost", "127.0.0.1", "::1", "db"}
-        if _host in _local_hosts and "sslmode=" not in url:
-            sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}sslmode=disable"
-
-        self._pool = await asyncpg.create_pool(
-            url,
-            min_size=min_size,
-            max_size=max_size,
-            command_timeout=command_timeout,
+        self._engine = create_async_engine(async_url, **engine_kwargs)
+        self._session_factory = async_sessionmaker(
+            self._engine, expire_on_commit=False
         )
+        self._register_pool_events()
 
-    def connection(self) -> Connection:
-        if self._pool is None:
-            raise RuntimeError("Database not initialized. Call connect() at startup.")
-        return PgPoolProxy(self._pool, self._acquire_timeout)
+    def _register_pool_events(self) -> None:
+        if self._engine is None:
+            return
+        pool = self._engine.sync_engine.pool
+
+        event.listen(pool, "checkout", self._on_checkout)
+        event.listen(pool, "checkin", self._on_checkin)
+        event.listen(pool, "invalidate", self._on_invalidate)
+
+    @staticmethod
+    def _on_checkout(*_args: object) -> None:
+        logger.debug("DB pool checkout")
+
+    @staticmethod
+    def _on_checkin(*_args: object) -> None:
+        logger.debug("DB pool checkin")
+
+    @staticmethod
+    def _on_invalidate(*_args: object) -> None:
+        logger.warning("DB connection invalidated")
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncIterator[Connection]:
-        if self._pool is None:
-            raise RuntimeError("Database not initialized. Call connect() at startup.")
-        async with self._pool.acquire(timeout=self._acquire_timeout) as conn:
-            tx = conn.transaction()
-            await tx.start()
-            try:
-                yield PgTransactionProxy(conn)
-                await tx.commit()
-            except Exception:
-                await tx.rollback()
-                raise
+    async def session(self) -> AsyncIterator[AsyncSession]:
+        session = self.session_factory()
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+    @asynccontextmanager
+    async def transaction_bundle(self) -> AsyncIterator[AsyncSession]:
+        async with self.engine.connect() as conn:
+            async with conn.begin():
+                session = AsyncSession(bind=conn, expire_on_commit=False)
+                try:
+                    yield session
+                except Exception:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
+
+    async def health_check(self) -> bool:
+        try:
+            async with self.engine.connect() as conn:
+                await conn.exec_driver_sql("SELECT 1")
+            return True
+        except Exception:
+            logger.exception("Database health check failed")
+            return False
+
+    def get_pool_status(self) -> dict[str, str]:
+        return {"status": self.engine.sync_engine.pool.status()}
 
     async def close(self) -> None:
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
+        if self._engine is not None:
+            await self._engine.dispose()
+            self._engine = None
+            self._session_factory = None

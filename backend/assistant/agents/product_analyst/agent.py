@@ -18,7 +18,11 @@ from pydantic_ai import Agent, RunContext
 
 from assistant.agents.core.config import load_agent_config
 from assistant.agents.core.contracts import UsageInfo
-from assistant.agents.core.model_registry import calc_cost, get_model, get_model_name
+from assistant.agents.core.model_registry import (
+    calc_cost,
+    get_model,
+    get_model_name,
+)
 from assistant.agents.core.tokens import budget_tool_result
 from assistant.agents.tools.models import (
     CatalogSearchResult,
@@ -26,15 +30,16 @@ from assistant.agents.tools.models import (
     FamilySkusResult,
     VendorItemMatch,
 )
-from catalog.application.queries import (
-    find_vendor_item_by_vendor_and_sku_code,
-    list_departments,
-    list_product_families,
-    list_skus,
-)
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
 
 _SYSTEM_PROMPT: str | None = None
 
@@ -42,7 +47,9 @@ _SYSTEM_PROMPT: str | None = None
 def _get_system_prompt() -> str:
     global _SYSTEM_PROMPT
     if _SYSTEM_PROMPT is None:
-        from catalog.application.product_intelligence import _ensure_rules_partial
+        from catalog.application.product_intelligence import (
+            _ensure_rules_partial,
+        )
 
         _ensure_rules_partial()
         _SYSTEM_PROMPT = load_prompt(__file__, "prompt.md")
@@ -92,7 +99,9 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         family_items: list[dict[str, Any]] = []
 
         try:
-            skus = await list_skus(search=query, limit=5)
+            skus = await _db_catalog().list_skus(
+                get_org_id(), search=query, limit=5
+            )
             sku_items = [
                 {
                     "id": s.id,
@@ -112,7 +121,9 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
             logger.warning("Catalog SKU search failed: %s", e)
 
         try:
-            families = await list_product_families(search=query, limit=5)
+            families = await _db_catalog().list_product_families(
+                get_org_id(), search=query, limit=5
+            )
             family_items = [
                 {
                     "id": f.id,
@@ -126,7 +137,9 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
             logger.warning("Catalog family search failed: %s", e)
 
         return budget_tool_result(
-            CatalogSearchResult(skus=sku_items, families=family_items).serialize()
+            CatalogSearchResult(
+                skus=sku_items, families=family_items
+            ).serialize()
         )
 
     @_agent.tool
@@ -140,7 +153,9 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         so you can determine if the new product is a new variant.
         """
         try:
-            skus = await list_skus(product_family_id=family_id, limit=20)
+            skus = await _db_catalog().list_skus(
+                get_org_id(), product_family_id=family_id, limit=20
+            )
             items = [
                 {
                     "sku": s.sku,
@@ -171,9 +186,13 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         """
         vendor_id = ctx.deps.vendor_id
         if not vendor_id:
-            return VendorItemMatch(match=None, reason="no vendor_id provided").serialize()
+            return VendorItemMatch(
+                match=None, reason="no vendor_id provided"
+            ).serialize()
         try:
-            vi = await find_vendor_item_by_vendor_and_sku_code(vendor_id, vendor_sku)
+            vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(
+                get_org_id(), vendor_id, vendor_sku
+            )
             if vi:
                 return VendorItemMatch(
                     match={
@@ -193,13 +212,17 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
     async def get_departments(ctx: RunContext[ProductAnalystDeps]) -> str:
         """Get all valid department codes for classification."""
         try:
-            depts = await list_departments()
+            depts = await _db_catalog().list_departments(get_org_id())
             return DepartmentCodesResult(
-                departments=[{"code": d.code, "name": d.name, "id": d.id} for d in depts]
+                departments=[
+                    {"code": d.code, "name": d.name, "id": d.id} for d in depts
+                ]
             ).serialize()
         except Exception as e:
             logger.warning("Department lookup failed: %s", e)
-            return DepartmentCodesResult(departments=[], error=str(e)).serialize()
+            return DepartmentCodesResult(
+                departments=[], error=str(e)
+            ).serialize()
 
     @_agent.tool
     async def submit_analysis(

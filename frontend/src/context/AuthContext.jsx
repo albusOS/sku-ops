@@ -1,32 +1,16 @@
-/**
- * Auth context — supports two modes:
- *
- * 1. Supabase mode (production + any env with VITE_SUPABASE_URL set):
- *    - Login/logout via supabase.auth.*
- *    - Session managed by Supabase SDK (auto-refresh, localStorage)
- *    - Token extracted from Supabase session, attached to axios
- *    - /api/auth/me called on session change to hydrate enriched profile
- *
- * 2. Bridge mode (dev without Supabase credentials):
- *    - Login via POST /api/auth/login (local users table, bcrypt)
- *    - Token stored in sessionStorage
- *    - /api/auth/me called on load to restore session
- *
- * The rest of the app is identical in both modes — it reads from `user` and
- * calls `login(email, password)` / `logout()` regardless of which mode is active.
- */
+/** Auth context - Supabase session management plus backend profile hydration. */
 
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import api from "@/lib/api-client";
-import { isSupabaseConfigured, getSupabase } from "@/lib/supabase";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const AuthContext = createContext(null);
 
 const isAuthEndpoint = (url) => {
   if (!url) return false;
-  return url.includes("/auth/login") || url.includes("/auth/register");
+  return false;
 };
 
 export const AuthProvider = ({ children }) => {
@@ -34,8 +18,6 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const logoutRef = useRef(null);
-
-  // ── Shared helpers ──────────────────────────────────────────────────────────
 
   const _setAxiosToken = (t) => {
     if (t) {
@@ -64,10 +46,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ── 401 interceptor (shared) ────────────────────────────────────────────────
+  const _supabaseLogout = async () => {
+    if (!isSupabaseConfigured) {
+      _setAxiosToken(null);
+      setUser(null);
+      return;
+    }
+    const sb = await getSupabase();
+    await sb.auth.signOut();
+    _setAxiosToken(null);
+    setUser(null);
+  };
 
   useEffect(() => {
-    logoutRef.current = isSupabaseConfigured ? _supabaseLogout : _bridgeLogout;
+    logoutRef.current = _supabaseLogout;
   });
 
   useEffect(() => {
@@ -84,19 +76,16 @@ export const AuthProvider = ({ children }) => {
     return () => axios.interceptors.response.eject(interceptor);
   }, []);
 
-  // ── Supabase mode ───────────────────────────────────────────────────────────
-
-  const _supabaseLogout = async () => {
-    const sb = await getSupabase();
-    await sb.auth.signOut();
-    _setAxiosToken(null);
-    setUser(null);
-  };
-
   const supabaseSubRef = useRef(null);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      toast.error(
+        "Supabase auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (see frontend/.env.example).",
+      );
+      return;
+    }
 
     let cancelled = false;
     getSupabase().then((sb) => {
@@ -150,16 +139,28 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const _supabaseLogin = async (email, password) => {
+  const login = async (email, password) => {
+    if (!isSupabaseConfigured) {
+      throw new Error("Supabase auth is not configured.");
+    }
     const sb = await getSupabase();
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     _setAxiosToken(data.session.access_token);
     const profile = await _fetchProfile();
+    if (!profile) {
+      await _supabaseLogout();
+      throw new Error(
+        "Could not load your profile from the server. Is the API up and the database seeded?",
+      );
+    }
     return profile;
   };
 
-  const _supabaseRegister = async (email, password, name) => {
+  const register = async (email, password, name) => {
+    if (!isSupabaseConfigured) {
+      throw new Error("Supabase auth is not configured.");
+    }
     const sb = await getSupabase();
     const { data, error } = await sb.auth.signUp({
       email,
@@ -169,101 +170,20 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
     if (data.session?.access_token) {
       _setAxiosToken(data.session.access_token);
-      return await _fetchProfile();
+      const profile = await _fetchProfile();
+      if (!profile) {
+        await _supabaseLogout();
+        throw new Error(
+          "Could not load your profile from the server. Is the API up and the database seeded?",
+        );
+      }
+      return profile;
     }
     return null;
   };
 
-  // ── Bridge mode (dev, no Supabase) ──────────────────────────────────────────
-
-  const refreshTimerRef = useRef(null);
-  const scheduleBridgeRefreshRef = useRef(null);
-
-  scheduleBridgeRefreshRef.current = (jwt) => {
-    clearTimeout(refreshTimerRef.current);
-    try {
-      const payload = JSON.parse(atob(jwt.split(".")[1]));
-      const expiresAt = payload.exp * 1000;
-      // Refresh 2 minutes before expiry, minimum 30 seconds from now
-      const refreshAt = Math.max(expiresAt - 2 * 60 * 1000, Date.now() + 30_000);
-      const delay = refreshAt - Date.now();
-      refreshTimerRef.current = setTimeout(async () => {
-        try {
-          const { token: newJwt } = await api.auth.refresh();
-          sessionStorage.setItem("token", newJwt);
-          _setAxiosToken(newJwt);
-          scheduleBridgeRefreshRef.current?.(newJwt);
-        } catch {
-          toast.error("Session expired — please log in again.");
-          logoutRef.current?.();
-        }
-      }, delay);
-    } catch {
-      /* malformed token — will fail on next API call and trigger logout */
-    }
-  };
-
-  const _bridgeLogout = () => {
-    clearTimeout(refreshTimerRef.current);
-    sessionStorage.removeItem("token");
-    _setAxiosToken(null);
-    setUser(null);
-  };
-
-  useEffect(() => {
-    if (isSupabaseConfigured) return;
-
-    const saved = sessionStorage.getItem("token");
-    if (saved) {
-      _setAxiosToken(saved);
-      scheduleBridgeRefreshRef.current?.(saved);
-      _fetchProfile().finally(() => setLoading(false));
-      return () => clearTimeout(refreshTimerRef.current);
-    }
-
-    // Dev-only: auto-login with dev user to bypass manual login (see frontend/.env.example)
-    const bypassAuth =
-      import.meta.env.VITE_BYPASS_AUTH === "1" || import.meta.env.VITE_BYPASS_AUTH === "true";
-    if (bypassAuth) {
-      _bridgeLogin("dev@supply-yard.local", "dev123")
-        .then(() => scheduleBridgeRefreshRef.current?.(sessionStorage.getItem("token")))
-        .catch(() => {})
-        .finally(() => setLoading(false));
-      return () => clearTimeout(refreshTimerRef.current);
-    }
-
-    setLoading(false);
-    return () => clearTimeout(refreshTimerRef.current);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only init; _bridgeLogin is stable
-
-  const _bridgeLogin = async (email, password) => {
-    const { token: jwt, user: userData } = await api.auth.login({ email, password });
-    sessionStorage.setItem("token", jwt);
-    _setAxiosToken(jwt);
-    scheduleBridgeRefreshRef.current?.(jwt);
-    setUser(userData);
-    return userData;
-  };
-
-  const _bridgeRegister = async (email, password, name) => {
-    const { token: jwt, user: userData } = await api.auth.register({ email, password, name });
-    sessionStorage.setItem("token", jwt);
-    _setAxiosToken(jwt);
-    scheduleBridgeRefreshRef.current?.(jwt);
-    setUser(userData);
-    return userData;
-  };
-
-  // ── Public API ──────────────────────────────────────────────────────────────
-
-  const login = isSupabaseConfigured ? _supabaseLogin : _bridgeLogin;
-  const register = isSupabaseConfigured ? _supabaseRegister : _bridgeRegister;
   const logout = () => {
-    if (isSupabaseConfigured) {
-      _supabaseLogout();
-    } else {
-      _bridgeLogout();
-    }
+    void _supabaseLogout();
   };
 
   return (

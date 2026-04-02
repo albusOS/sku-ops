@@ -25,10 +25,15 @@ from shared.infrastructure.config import (
     decode_token,
     is_deployed,
 )
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var, user_id_var
-from shared.infrastructure.user_repo import is_user_active
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import CurrentUser
+
+
+def _db_shared():
+    return get_database_manager().shared
+
 
 security = HTTPBearer()
 
@@ -42,7 +47,9 @@ async def get_current_user(
         payload = decode_token(credentials.credentials)
         claims = resolve_claims(payload)
     except ValueError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {e}") from e
+        raise HTTPException(
+            status_code=401, detail=f"Invalid token: {e}"
+        ) from e
     except jwt.ExpiredSignatureError as e:
         raise HTTPException(status_code=401, detail="Token expired") from e
     except jwt.InvalidTokenError as e:
@@ -54,7 +61,7 @@ async def get_current_user(
             detail="Invalid token: missing organization_id claim",
         )
 
-    if not await is_user_active(claims.user_id):
+    if not await _db_shared().is_user_active(claims.user_id):
         raise HTTPException(status_code=401, detail="Account deactivated")
 
     org_id = claims.organization_id or DEFAULT_ORG_ID
@@ -76,7 +83,9 @@ def require_role(*roles):
         current_user: Annotated[CurrentUser, Depends(get_current_user)],
     ) -> CurrentUser:
         if current_user.role not in roles:
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
+            raise HTTPException(
+                status_code=403, detail="Insufficient permissions"
+            )
         return current_user
 
     return role_checker

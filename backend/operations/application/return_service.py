@@ -4,28 +4,37 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from finance.application.ledger_service import record_return as _record_return_ledger
-from finance.application.org_settings_service import get_org_settings
+from sqlalchemy import select
+
+from finance.application.ledger_service import (
+    record_return as _record_return_ledger,
+)
 from inventory.application.inventory_service import restock_as_return
-from operations.application.queries import get_withdrawal_by_id
 from operations.domain.returns import MaterialReturn, ReturnCreate, ReturnItem
-from operations.infrastructure.return_repo import return_repo as _default_return_repo
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from shared.infrastructure.db import get_org_id, get_session, transaction
+from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.domain_events import dispatch
+from shared.infrastructure.types.public_sql_model_models import Withdrawals
 from shared.kernel.domain_events import InventoryChanged, ReturnCreated
 from shared.kernel.errors import DomainError, ResourceNotFoundError
 from shared.kernel.event_payloads import LedgerItem
 
 if TYPE_CHECKING:
-    from operations.ports.return_repo_port import ReturnRepoPort
     from shared.kernel.types import CurrentUser
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
+def _db_finance():
+    return get_database_manager().finance
 
 
 async def create_return(
     data: ReturnCreate,
     current_user: CurrentUser,
-    *,
-    return_repo: ReturnRepoPort = _default_return_repo,
 ) -> MaterialReturn:
     """Process a return against a previous withdrawal.
 
@@ -34,11 +43,12 @@ async def create_return(
 
     Post-commit (best-effort): credit note creation, WS push.
     """
-    org_id = get_org_id()
-    settings = await get_org_settings()
+    org_id = current_user.organization_id
+    db = _db_operations()
+    settings = await _db_finance().org_settings_get(get_org_id())
     tax_rate = settings.default_tax_rate
 
-    withdrawal = await get_withdrawal_by_id(data.withdrawal_id)
+    withdrawal = await db.get_withdrawal_by_id(org_id, data.withdrawal_id)
     if not withdrawal:
         raise ResourceNotFoundError("Withdrawal", data.withdrawal_id)
 
@@ -48,9 +58,13 @@ async def create_return(
             w_item_map[wi.sku_id] = wi
         else:
             prev = w_item_map[wi.sku_id]
-            w_item_map[wi.sku_id] = wi.model_copy(update={"quantity": prev.quantity + wi.quantity})
+            w_item_map[wi.sku_id] = wi.model_copy(
+                update={"quantity": prev.quantity + wi.quantity}
+            )
 
-    w_dept_map = {wi.sku_id: getattr(wi, "category_name", None) for wi in withdrawal.items}
+    w_dept_map = {
+        wi.sku_id: getattr(wi, "category_name", None) for wi in withdrawal.items
+    }
 
     ret = MaterialReturn(
         withdrawal_id=data.withdrawal_id,
@@ -72,26 +86,38 @@ async def create_return(
 
     async with transaction():
         # Lock the withdrawal row to serialize concurrent returns for the same withdrawal.
-        conn = get_connection()
-        await conn.execute(
-            "SELECT id FROM withdrawals WHERE id = $1 FOR UPDATE",
-            (data.withdrawal_id,),
-        )
+        async with get_session() as session:
+            await session.execute(
+                select(Withdrawals.id)
+                .where(
+                    Withdrawals.id == as_uuid_required(data.withdrawal_id),
+                    Withdrawals.organization_id == as_uuid_required(org_id),
+                )
+                .with_for_update()
+            )
 
         # Re-read already-returned quantities inside the transaction (after lock).
-        existing_returns = await return_repo.list_by_withdrawal(data.withdrawal_id)
+        existing_returns = await db.list_returns_by_withdrawal(
+            org_id, data.withdrawal_id
+        )
         already_returned: dict[str, float] = {}
         for er in existing_returns:
             for ri in er.items:
-                already_returned[ri.sku_id] = already_returned.get(ri.sku_id, 0) + ri.quantity
+                already_returned[ri.sku_id] = (
+                    already_returned.get(ri.sku_id, 0) + ri.quantity
+                )
 
         enriched_items = []
         for item in data.items:
             original = w_item_map.get(item.sku_id)
             if not original:
-                raise DomainError(f"Product {item.sku_id} ({item.sku}) not on original withdrawal")
+                raise DomainError(
+                    f"Product {item.sku_id} ({item.sku}) not on original withdrawal"
+                )
 
-            max_returnable = original.quantity - already_returned.get(item.sku_id, 0)
+            max_returnable = original.quantity - already_returned.get(
+                item.sku_id, 0
+            )
             if item.quantity > max_returnable:
                 raise DomainError(
                     f"Cannot return {item.quantity} of {item.name} — "
@@ -135,7 +161,7 @@ async def create_return(
                 reference_id=ret.id,
                 unit=item.unit,
             )
-        await return_repo.insert(ret)
+        await db.insert_return(org_id, ret)
         await _record_return_ledger(
             return_id=ret.id,
             items=list(ledger_items),

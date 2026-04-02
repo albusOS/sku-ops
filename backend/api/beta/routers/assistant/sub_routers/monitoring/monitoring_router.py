@@ -2,14 +2,14 @@
 
 from fastapi import APIRouter, Query
 
-from assistant.application.queries import (
-    get_cost_breakdown,
-    get_session_trace,
-    get_stats,
-    get_validation_summary,
-    list_runs,
-)
 from shared.api.deps import AdminDep
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
+
+
+def _db_assistant():
+    return get_database_manager().assistant
+
 
 router = APIRouter(prefix="/admin/agents", tags=["agent-monitoring"])
 
@@ -24,7 +24,8 @@ async def agent_runs(
     validation_failed_only: bool = Query(False),
 ):
     """Recent agent runs with full details. Pass validation_failed_only=true to filter to runs that failed grounding checks."""
-    return await list_runs(
+    return await _db_assistant().list_agent_runs(
+        get_org_id(),
         agent_name=agent,
         session_id=session_id,
         minutes=minutes,
@@ -39,7 +40,7 @@ async def agent_stats(
     hours: int = Query(24, ge=1, le=720),
 ):
     """Aggregate stats: runs per agent, total tokens, total cost, avg duration, error rate."""
-    return await get_stats(hours=hours)
+    return await _db_assistant().agent_run_stats(get_org_id(), hours=hours)
 
 
 @router.get("/sessions/{session_id}")
@@ -48,7 +49,7 @@ async def session_trace(
     _current_user: AdminDep,
 ):
     """Full trace of a session: every agent run, tool calls, tokens, in order."""
-    return await get_session_trace(session_id)
+    return await _db_assistant().agent_session_trace(get_org_id(), session_id)
 
 
 @router.get("/costs")
@@ -58,7 +59,9 @@ async def cost_breakdown(
     group_by: str = Query("agent", pattern="^(agent|model|org)$"),
 ):
     """Cost breakdown by agent, model, or org."""
-    return await get_cost_breakdown(days=days, group_by=group_by)
+    return await _db_assistant().agent_cost_breakdown(
+        get_org_id(), days=days, group_by=group_by
+    )
 
 
 @router.get("/validation")
@@ -73,4 +76,6 @@ async def validation_summary(
     - ungrounded_numbers: numbers in response not found in tool results
     - domain_mismatch: tools used don't match the question domain
     """
-    return await get_validation_summary(hours=hours)
+    return await _db_assistant().agent_validation_summary(
+        get_org_id(), hours=hours
+    )

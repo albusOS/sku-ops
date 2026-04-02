@@ -15,7 +15,7 @@ from shared.infrastructure.config import (
     OPENROUTER_AVAILABLE,
     REDIS_URL,
 )
-from shared.infrastructure.database import transaction
+from shared.infrastructure.db import sql_execute
 
 router = APIRouter(tags=["health"])
 
@@ -50,8 +50,7 @@ async def ready(request: Request):
     try:
         t0 = time.perf_counter()
         async with asyncio.timeout(_DB_TIMEOUT_S):
-            async with transaction() as conn:
-                await conn.execute("SELECT 1")
+            await sql_execute("SELECT 1", read_only=True, max_rows=1)
         checks["database"] = {
             "status": "ok",
             "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
@@ -66,10 +65,16 @@ async def ready(request: Request):
     # --- redis (only when configured) ---
     if REDIS_URL:
         try:
-            from shared.infrastructure.redis import get_redis, is_redis_available
+            from shared.infrastructure.redis import (
+                get_redis,
+                is_redis_available,
+            )
 
             if not is_redis_available():
-                checks["redis"] = {"status": "unavailable", "error": "not initialised"}
+                checks["redis"] = {
+                    "status": "unavailable",
+                    "error": "not initialised",
+                }
                 overall = "unavailable"
             else:
                 t0 = time.perf_counter()
@@ -88,7 +93,9 @@ async def ready(request: Request):
     checks["ai"] = {"status": "ok" if ai_ok else "unconfigured"}
 
     expected_ws = {"/api/beta/shared/ws", "/api/beta/assistant/ws/chat"}
-    mounted_ws = [r.path for r in request.app.routes if isinstance(r, WebSocketRoute)]
+    mounted_ws = [
+        r.path for r in request.app.routes if isinstance(r, WebSocketRoute)
+    ]
     ws_ok = expected_ws.issubset(set(mounted_ws))
     checks["websocket"] = {
         "status": "ok" if ws_ok else "missing",

@@ -10,10 +10,16 @@ import json
 import logging
 
 from assistant.agents.core.model_registry import get_model_name
-from assistant.agents.memory.store import save
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
+
+
+def _db_assistant():
+    return get_database_manager().assistant
+
 
 _EXTRACT_SYSTEM = load_prompt(__file__, "prompt.md")
 
@@ -62,7 +68,15 @@ async def extract_and_save(
 
         artifacts = json.loads(stripped)
         if isinstance(artifacts, list) and artifacts and len(artifacts) <= 50:
-            await save(user_id, session_id, artifacts)
+            await _db_assistant().memory_save(
+                get_org_id(), user_id, session_id, artifacts
+            )
 
-    except (json.JSONDecodeError, ValueError, TypeError, RuntimeError, OSError) as e:
+    except (
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+        RuntimeError,
+        OSError,
+    ) as e:
         logger.warning("Memory extraction failed (non-critical): %s", e)

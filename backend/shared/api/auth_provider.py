@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from shared.helpers.uuid import parse_uuid_str
+
 
 @dataclass(frozen=True)
 class ResolvedClaims:
@@ -37,9 +39,10 @@ def resolve_claims(payload: dict) -> ResolvedClaims:
     user_meta = payload.get("user_metadata") or {}
 
     # User ID: Supabase uses 'sub', internal uses 'user_id' (accept both)
-    user_id = payload.get("sub") or payload.get("user_id") or ""
-    if not user_id:
+    raw_user_id = payload.get("sub") or payload.get("user_id") or ""
+    if not raw_user_id:
         raise ValueError("missing user id")
+    user_id = parse_uuid_str("user id", str(raw_user_id))
 
     # Role: prefer app_metadata.role (Supabase custom claim), fall back to top-level.
     # Supabase sets a system role "authenticated" on every token — filter it out.
@@ -51,7 +54,11 @@ def resolve_claims(payload: dict) -> ResolvedClaims:
 
     email = payload.get("email") or ""
     name = payload.get("name") or user_meta.get("name") or ""
-    org_id = app_meta.get("organization_id") or payload.get("organization_id") or None
+    org_id = (
+        app_meta.get("organization_id")
+        or payload.get("organization_id")
+        or None
+    )
 
     return ResolvedClaims(
         user_id=user_id,

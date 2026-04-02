@@ -5,16 +5,20 @@ from datetime import UTC, datetime
 
 from finance.application.ledger_service import record_credit_note_application
 from finance.domain.credit_note import CreditNote
-from finance.infrastructure.credit_note_repo import credit_note_repo as _repo
-from operations.application.queries import (
-    link_credit_note_to_return,
-    mark_withdrawals_paid_by_invoice,
-)
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import CreditNoteApplied
 
 logger = logging.getLogger(__name__)
+
+
+def _db_finance():
+    return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
 
 
 async def insert_credit_note(
@@ -26,20 +30,23 @@ async def insert_credit_note(
     total: float = 0,
 ) -> CreditNote:
     """Create a credit note and link it to the return (operations-owned mutation)."""
+    org_id = get_org_id()
+    fin = _db_finance()
     async with transaction():
-        cn = await _repo.insert_credit_note(
-            return_id=return_id,
-            invoice_id=invoice_id,
-            items=items,
-            subtotal=subtotal,
-            tax=tax,
-            total=total,
+        cn = await fin.credit_note_insert(
+            org_id,
+            return_id,
+            invoice_id,
+            items,
+            subtotal,
+            tax,
+            total,
         )
-        await link_credit_note_to_return(return_id, cn.id)
+        await _db_operations().link_return_credit_note(org_id, return_id, cn.id)
     logger.info(
         "credit_note.created",
         extra={
-            "org_id": get_org_id(),
+            "org_id": org_id,
             "credit_note_id": cn.id,
             "return_id": return_id,
             "invoice_id": invoice_id,
@@ -59,12 +66,16 @@ async def apply_credit_note(
     via the operations facade. All steps run in a single transaction so
     invoice, withdrawal, and ledger state stay consistent.
     """
+    org_id = get_org_id()
+    fin = _db_finance()
     async with transaction():
-        result = await _repo.apply_credit_note(credit_note_id)
+        result = await fin.credit_note_apply(org_id, credit_note_id)
 
         if result.auto_paid and result.invoice_id:
             now = datetime.now(UTC)
-            await mark_withdrawals_paid_by_invoice(result.invoice_id, now)
+            await _db_operations().mark_withdrawals_paid_by_invoice(
+                org_id, result.invoice_id, now
+            )
 
         await record_credit_note_application(
             credit_note_id=credit_note_id,
@@ -74,7 +85,6 @@ async def apply_credit_note(
             performed_by_user_id=performed_by_user_id,
         )
 
-    org_id = get_org_id()
     await dispatch(
         CreditNoteApplied(
             org_id=org_id,
@@ -93,23 +103,3 @@ async def apply_credit_note(
         },
     )
     return result.credit_note
-
-
-async def list_credit_notes(
-    invoice_id: str | None = None,
-    billing_entity: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> list[CreditNote]:
-    return await _repo.list_credit_notes(
-        invoice_id=invoice_id,
-        billing_entity=billing_entity,
-        start_date=start_date,
-        end_date=end_date,
-    )
-
-
-async def get_credit_note_by_id(
-    credit_note_id: str,
-) -> CreditNote | None:
-    return await _repo.get_by_id(credit_note_id)

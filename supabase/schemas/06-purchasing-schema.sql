@@ -1,0 +1,52 @@
+-- Purchasing: purchase_orders, purchase_order_items.
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+        id UUID PRIMARY KEY,
+        vendor_id UUID REFERENCES vendors(id),
+        vendor_name TEXT NOT NULL DEFAULT '',
+        document_date TEXT,
+        total REAL,
+        status TEXT NOT NULL DEFAULT 'ordered',
+        notes TEXT,
+        created_by_id UUID NOT NULL REFERENCES users(id),
+        created_by_name TEXT NOT NULL DEFAULT '',
+        received_at TIMESTAMPTZ,
+        received_by_id UUID REFERENCES users(id),
+        received_by_name TEXT,
+        document_id UUID,
+        xero_bill_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ,
+        organization_id UUID REFERENCES organizations(id)
+    );
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+        id UUID PRIMARY KEY,
+        po_id UUID NOT NULL REFERENCES purchase_orders(id),
+        name TEXT NOT NULL,
+        original_sku TEXT,
+        ordered_qty REAL NOT NULL DEFAULT 1,
+        delivered_qty REAL,
+        unit_price REAL NOT NULL DEFAULT 0,
+        cost REAL NOT NULL DEFAULT 0,
+        base_unit TEXT NOT NULL DEFAULT 'each',
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        pack_qty INTEGER NOT NULL DEFAULT 1,
+        purchase_uom TEXT NOT NULL DEFAULT 'each',
+        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
+        suggested_department TEXT NOT NULL DEFAULT 'HDW',
+        status TEXT NOT NULL DEFAULT 'ordered',
+        sku_id UUID,
+        organization_id UUID REFERENCES organizations(id)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_po_org_status ON purchase_orders(organization_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_po_created ON purchase_orders(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items(po_id);
+
+CREATE INDEX IF NOT EXISTS idx_po_items_status ON purchase_order_items(status);
+
+CREATE INDEX IF NOT EXISTS idx_po_xero_sync ON purchase_orders(xero_sync_status, xero_bill_id);

@@ -22,7 +22,7 @@ from shared.infrastructure.config import (
     is_test,
     startup_summary,
 )
-from shared.infrastructure.database import close_db, init_db
+from shared.infrastructure.db import close_db, init_db
 from shared.infrastructure.redis import (
     close_redis,
     init_redis,
@@ -34,9 +34,9 @@ logger = logging.getLogger(__name__)
 
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
-    from shared.infrastructure.org_repo import list_all
+    from shared.infrastructure.db.base import get_database_manager
 
-    orgs = await list_all()
+    orgs = await get_database_manager().shared.list_organizations()
     return [o.id for o in orgs] if orgs else []
 
 
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
         _host = urlparse(DATABASE_URL).hostname or "<unknown>"
         logger.warning(
             "DATABASE_URL points at a non-local host ('%s') while ENV=development. "
-            "Development mode enables ALLOW_RESET and public auth endpoints. "
+            "Development mode uses permissive settings; production hardening is stricter. "
             "If this is intentional, set ENV=production instead.",
             _host,
         )
@@ -115,13 +115,19 @@ async def lifespan(app: FastAPI):
 
                 await get_index()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning("BM25 index warm-up skipped for org '%s': %s", oid, e)
+                logger.warning(
+                    "BM25 index warm-up skipped for org '%s': %s", oid, e
+                )
             try:
-                from finance.application.xero_startup_check import run_startup_check
+                from finance.application.xero_startup_check import (
+                    run_startup_check,
+                )
 
                 await run_startup_check()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning("Xero startup check failed for org '%s': %s", oid, e)
+                logger.warning(
+                    "Xero startup check failed for org '%s': %s", oid, e
+                )
             finally:
                 org_id_var.reset(token)
 
@@ -141,16 +147,17 @@ async def lifespan(app: FastAPI):
         )
 
     ws_routes = [r.path for r in app.routes if hasattr(r, "path")]
-    has_domain_ws = any("shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes)
+    has_domain_ws = any(
+        "shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes
+    )
     has_chat_ws = any("assistant/ws" in p or "ws/chat" in p for p in ws_routes)
     assert has_domain_ws, "Domain event WebSocket not mounted"
     assert has_chat_ws, "Chat streaming WebSocket not mounted"
     logger.info("WebSocket endpoints verified: %s", ws_routes)
 
-    from shared.infrastructure.database import transaction
+    from shared.infrastructure.db import sql_execute
 
-    async with transaction() as conn:
-        await conn.execute("SELECT 1")
+    await sql_execute("SELECT 1", read_only=True, max_rows=1)
     logger.info("Database connectivity verified")
 
     sync_task = None

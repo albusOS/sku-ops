@@ -3,8 +3,6 @@ import { toast } from "sonner";
 
 const base = import.meta.env.VITE_BACKEND_URL || "";
 export const API = base ? `${base}/api/beta` : "/api/beta";
-/** Legacy base for non-versioned endpoints (e.g. seed). */
-const LEGACY_API = base ? `${base}/api` : "/api";
 
 /**
  * Extract a human-readable error message from an Axios error.
@@ -276,16 +274,9 @@ const api = {
       axios.post(`${API}/assistant/memory/corrections`, data).then((r) => r.data),
   },
 
-  // ── Auth / Seed ─────────────────────────────────────────────────────
+  // ── Auth ───────────────────────────────────────────────────────────
   auth: {
     me: () => axios.get(`${API}/shared/auth/me`).then((r) => r.data),
-    login: (data) => axios.post(`${API}/shared/auth/login`, data).then((r) => r.data),
-    register: (data) => axios.post(`${API}/shared/auth/register`, data).then((r) => r.data),
-    refresh: () => axios.post(`${API}/shared/auth/refresh`).then((r) => r.data),
-  },
-
-  seed: {
-    departments: () => axios.post(`${LEGACY_API}/seed/departments`).then((r) => r.data),
   },
 
   // ── Org Settings ────────────────────────────────────────────────────

@@ -9,15 +9,15 @@ from datetime import UTC, datetime
 
 from finance.application.xero_sync_job import run_sync
 from shared.infrastructure.config import XERO_SYNC_HOUR
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var
-from shared.infrastructure.org_repo import list_all
 
 logger = logging.getLogger(__name__)
 
 
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
-    orgs = await list_all()
+    orgs = await get_database_manager().shared.list_organizations()
     from shared.kernel.constants import DEFAULT_ORG_ID
 
     return [o.id for o in orgs] if orgs else [DEFAULT_ORG_ID]
@@ -30,7 +30,10 @@ async def xero_sync_loop() -> None:
     fires run_sync for each active org exactly once per calendar day.
     """
     last_run_date = None
-    logger.info("Xero nightly sync scheduler started (fires at %02d:00 UTC)", XERO_SYNC_HOUR)
+    logger.info(
+        "Xero nightly sync scheduler started (fires at %02d:00 UTC)",
+        XERO_SYNC_HOUR,
+    )
     while True:
         try:
             await asyncio.sleep(60)
@@ -41,7 +44,9 @@ async def xero_sync_loop() -> None:
                 for oid in org_ids:
                     token = org_id_var.set(oid)
                     try:
-                        logger.info("Xero nightly sync starting for org '%s'", oid)
+                        logger.info(
+                            "Xero nightly sync starting for org '%s'", oid
+                        )
                         summary = await run_sync()
                         logger.info(
                             "Xero nightly sync complete for org '%s': %s",
@@ -56,7 +61,9 @@ async def xero_sync_loop() -> None:
                                 summary["errors"],
                             )
                     except Exception:
-                        logger.exception("Xero nightly sync failed for org '%s'", oid)
+                        logger.exception(
+                            "Xero nightly sync failed for org '%s'", oid
+                        )
                     finally:
                         org_id_var.reset(token)
         except asyncio.CancelledError:

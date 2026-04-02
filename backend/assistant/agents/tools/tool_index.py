@@ -15,7 +15,9 @@ from assistant.agents.tools.descriptors import get_unified_tool_descriptors
 from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
 
 logger = logging.getLogger(__name__)
-DELEGATION_TOOLS = frozenset({"analyze_procurement", "analyze_trends", "assess_business_health"})
+DELEGATION_TOOLS = frozenset(
+    {"analyze_procurement", "analyze_trends", "assess_business_health"}
+)
 DEFAULT_TOP_K = 15
 
 _tool_index: ToolIndex | None = None
@@ -37,13 +39,15 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
         batch_size = 256
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            resp = await client.embeddings.create(
+                model=EMBEDDING_MODEL, input=batch
+            )
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         norms = np.linalg.norm(mat, axis=1, keepdims=True)
         norms = np.where(norms == 0, 1, norms)
         return mat / norms
-    except (ValueError, RuntimeError, OSError, TypeError) as e:
+    except Exception as e:
         logger.warning("Tool index embedding batch failed: %s", e)
         return None
 
@@ -53,13 +57,15 @@ async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(api_key=api_key)
-        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+        resp = await client.embeddings.create(
+            model=EMBEDDING_MODEL, input=[query]
+        )
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:
             qvec /= norm
         return qvec
-    except (ValueError, RuntimeError, OSError, TypeError) as e:
+    except Exception as e:
         logger.warning("Tool index query embedding failed: %s", e)
         return None
 
@@ -78,7 +84,8 @@ class ToolIndex:
         descriptors = get_unified_tool_descriptors()
         self._names = list(descriptors.keys())
         self._texts = [
-            f"{d.name} {d.description} {' '.join(d.use_cases)}" for d in descriptors.values()
+            f"{d.name} {d.description} {' '.join(d.use_cases)}"
+            for d in descriptors.values()
         ]
         if not self._texts:
             self._embeddings = None
@@ -101,7 +108,9 @@ class ToolIndex:
             corpus = [_tokenize(t) for t in self._texts]
             self._bm25 = BM25Okapi(corpus)
         except ImportError:
-            logger.warning("rank_bm25 not installed; tool retrieval will fall back to no filtering")
+            logger.warning(
+                "rank_bm25 not installed; tool retrieval will fall back to no filtering"
+            )
             self._bm25 = None
 
     async def search(self, query: str, top_k: int = DEFAULT_TOP_K) -> list[str]:
@@ -154,7 +163,9 @@ def get_tool_index() -> ToolIndex:
     return _tool_index
 
 
-async def retrieve_tools_for_query(query: str, top_k: int = DEFAULT_TOP_K) -> list[str] | None:
+async def retrieve_tools_for_query(
+    query: str, top_k: int = DEFAULT_TOP_K
+) -> list[str] | None:
     """Return top-K tool names for query, or None to use all tools (fallback)."""
     index = get_tool_index()
     if not index._names:

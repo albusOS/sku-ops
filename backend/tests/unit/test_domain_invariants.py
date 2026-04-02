@@ -14,7 +14,12 @@ import pytest
 
 from inventory.domain.errors import InsufficientStockError
 from inventory.domain.stock import StockDecrement
-from operations.domain.withdrawal import ContractorContext, MaterialWithdrawal, WithdrawalItem
+from operations.domain.withdrawal import (
+    ContractorContext,
+    MaterialWithdrawal,
+    WithdrawalItem,
+)
+from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.types import LineItem
 from shared.kernel.units import (
     ALLOWED_BASE_UNITS,
@@ -120,13 +125,17 @@ class TestUnitFamilyCompleteness:
     def test_every_allowed_unit_has_a_family(self):
         all_family_units = {u for fam in UNIT_FAMILIES.values() for u in fam}
         orphans = ALLOWED_BASE_UNITS - all_family_units
-        assert not orphans, f"Units in ALLOWED_BASE_UNITS but no family: {orphans}"
+        assert not orphans, (
+            f"Units in ALLOWED_BASE_UNITS but no family: {orphans}"
+        )
 
     def test_no_unit_in_multiple_families(self):
         seen: dict[str, str] = {}
         for family, units in UNIT_FAMILIES.items():
             for unit in units:
-                assert unit not in seen, f"'{unit}' in both '{seen[unit]}' and '{family}'"
+                assert unit not in seen, (
+                    f"'{unit}' in both '{seen[unit]}' and '{family}'"
+                )
                 seen[unit] = family
 
     def test_family_for_unit_returns_correct_family(self):
@@ -137,7 +146,9 @@ class TestUnitFamilyCompleteness:
     def test_conversion_factors_are_positive(self):
         for family, units in UNIT_FAMILIES.items():
             for unit, factor in units.items():
-                assert factor > 0, f"{unit} in {family} has non-positive factor {factor}"
+                assert factor > 0, (
+                    f"{unit} in {family} has non-positive factor {factor}"
+                )
 
 
 # ── 3. LineItem computed fields ───────────────────────────────────────────────
@@ -145,7 +156,9 @@ class TestUnitFamilyCompleteness:
 
 class TestLineItemArithmetic:
     def test_subtotal_with_fractional_quantity(self):
-        li = LineItem(sku_id="p1", sku="S", name="Pipe", quantity=2.5, unit_price=4.0)
+        li = LineItem(
+            sku_id="p1", sku="S", name="Pipe", quantity=2.5, unit_price=4.0
+        )
         assert li.subtotal == 10.0
 
     def test_cost_total_with_fractional_quantity(self):
@@ -175,7 +188,9 @@ class TestStockDecrementInvariants:
         assert sd.unit == "each"
 
     def test_custom_unit_preserved(self):
-        sd = StockDecrement(sku_id="p1", sku="S", name="X", quantity=5, unit="inch")
+        sd = StockDecrement(
+            sku_id="p1", sku="S", name="X", quantity=5, unit="inch"
+        )
         assert sd.unit == "inch"
 
 
@@ -205,14 +220,26 @@ class TestWithdrawalInvariants:
             cost_total=0,
             contractor_id="c1",
             processed_by_id="u1",
-            organization_id="supply-yard",
+            organization_id=DEFAULT_ORG_ID,
         )
 
     def test_compute_totals_with_fractional_items(self):
         items = [
-            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0),
             WithdrawalItem(
-                sku_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0
+                sku_id="p1",
+                sku="S1",
+                name="A",
+                quantity=2.5,
+                unit_price=4.0,
+                cost=2.0,
+            ),
+            WithdrawalItem(
+                sku_id="p2",
+                sku="S2",
+                name="B",
+                quantity=0.75,
+                unit_price=10.0,
+                cost=6.0,
             ),
         ]
         w = self._make_withdrawal(items)
@@ -224,7 +251,14 @@ class TestWithdrawalInvariants:
 
     def test_compute_totals_with_zero_tax(self):
         items = [
-            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=5, unit_price=10.0, cost=4.0),
+            WithdrawalItem(
+                sku_id="p1",
+                sku="S1",
+                name="A",
+                quantity=5,
+                unit_price=10.0,
+                cost=4.0,
+            ),
         ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.0)
@@ -235,7 +269,12 @@ class TestWithdrawalInvariants:
     def test_compute_totals_single_item(self):
         items = [
             WithdrawalItem(
-                sku_id="p1", sku="S1", name="A", quantity=1, unit_price=99.99, cost=50.0
+                sku_id="p1",
+                sku="S1",
+                name="A",
+                quantity=1,
+                unit_price=99.99,
+                cost=50.0,
             ),
         ]
         w = self._make_withdrawal(items)
@@ -249,10 +288,20 @@ class TestWithdrawalInvariants:
         """Invariant: total = subtotal + tax for any combination."""
         items = [
             WithdrawalItem(
-                sku_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0
+                sku_id="p1",
+                sku="S1",
+                name="A",
+                quantity=3.33,
+                unit_price=7.77,
+                cost=3.0,
             ),
             WithdrawalItem(
-                sku_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0
+                sku_id="p2",
+                sku="S2",
+                name="B",
+                quantity=1.11,
+                unit_price=22.22,
+                cost=10.0,
             ),
         ]
         w = self._make_withdrawal(items)
@@ -289,18 +338,31 @@ class TestContractorContext:
         import asyncio
 
         from operations.application.withdrawal_service import create_withdrawal
-        from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
+        from operations.domain.withdrawal import (
+            MaterialWithdrawalCreate,
+            WithdrawalItem,
+        )
         from shared.kernel.types import CurrentUser
 
         data = MaterialWithdrawalCreate(
-            items=[WithdrawalItem(sku_id="p1", sku="X", name="A", quantity=1, unit_price=10.0)],
+            items=[
+                WithdrawalItem(
+                    sku_id="p1", sku="X", name="A", quantity=1, unit_price=10.0
+                )
+            ],
             job_id="J1",
             service_address="123 Main",
         )
         ctx = ContractorContext(id="")
         user = CurrentUser(
-            id="u1", email="a@b.com", name="A", role="admin", organization_id="supply-yard"
+            id="u1",
+            email="a@b.com",
+            name="A",
+            role="admin",
+            organization_id=DEFAULT_ORG_ID,
         )
 
         with pytest.raises(ValueError, match=r"contractor\.id"):
-            asyncio.get_event_loop().run_until_complete(create_withdrawal(data, ctx, user))
+            asyncio.get_event_loop().run_until_complete(
+                create_withdrawal(data, ctx, user)
+            )

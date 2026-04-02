@@ -1,82 +1,41 @@
-"""Database package — PostgreSQL via asyncpg.
-
-Public API:
-    init_db()        — call once at startup
-    get_connection() — returns a Connection (protocol)
-    transaction()    — async context manager yielding a Connection
-    close_db()       — call once at shutdown
-    get_org_id()     — ambient org_id for current request / job
-    get_user_id()    — ambient user_id for current request / job
-
-Unit of Work: a contextvar stores the ambient transactional connection.
-get_connection() returns it when inside a transaction() block, so repos
-that call get_connection() automatically participate in the ambient
-transaction without explicit conn threading.
-
-Request context: org_id_var / user_id_var are set by auth middleware and
-read by get_org_id() / get_user_id().  Repos call these instead of
-accepting organization_id parameters.
-"""
+"""Central DB API - async session access and transaction scope."""
 
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from shared.infrastructure.config import DATABASE_URL
+from shared.infrastructure.db.services.raw_sql import ExecutionResult
+from shared.infrastructure.db.uow import _tx_session
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
-    from shared.infrastructure.db.protocol import Connection, DatabaseBackend
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-_state: dict[str, DatabaseBackend | None] = {"backend": None}
+from shared.infrastructure.db.base import TransactionScope
 
-_tx_conn: ContextVar[Connection | None] = ContextVar("_tx_conn", default=None)
-
-
-class _ManagedTxProxy:
-    """Wraps a transactional connection to suppress commit/rollback calls.
-
-    Repos that still call ``conn.commit()`` or ``conn.rollback()`` will
-    silently no-op when running inside a ``transaction()`` block — the
-    context manager owns the commit/rollback lifecycle.
-    """
-
-    __slots__ = ("_conn",)
-
-    def __init__(self, conn: Connection):
-        self._conn = conn
-
-    async def execute(self, sql: str, params: tuple | list = ()):
-        return await self._conn.execute(sql, params)
-
-    async def executemany(self, sql: str, params_list: Sequence[tuple | list]) -> None:
-        return await self._conn.executemany(sql, params_list)
-
-    async def commit(self) -> None:
-        pass
-
-    async def rollback(self) -> None:
-        pass
+_state: dict[str, object | None] = {"manager": None}
 
 
-def _make_backend() -> DatabaseBackend:
-    from shared.infrastructure.db.postgres import PostgresBackend
+def _manager():
+    from shared.infrastructure.db.base import get_database_manager
 
-    return PostgresBackend()
+    manager = _state["manager"]
+    if manager is None:
+        manager = get_database_manager()
+        _state["manager"] = manager
+    return manager
 
 
 async def init_db() -> None:
-    """Open connection pool and run pending migrations."""
-    _state["backend"] = _make_backend()
-    await _state["backend"].connect(DATABASE_URL)
+    """Open connection pool using the externally managed Supabase schema."""
+    from shared.infrastructure.db.base import get_database_manager
 
-    from shared.infrastructure.migrations.runner import run_schema
-
-    await run_schema(_state["backend"])
+    manager = get_database_manager()
+    _state["manager"] = manager
+    await manager.connect()
 
 
 def get_org_id() -> str:
@@ -89,42 +48,76 @@ def get_user_id() -> str:
     return user_id_var.get("")
 
 
-def get_connection() -> Connection:
-    """Return the ambient transactional connection if inside a transaction(),
-    otherwise fall back to the pool proxy."""
-    tx = _tx_conn.get()
-    if tx is not None:
-        return tx
-    if _state["backend"] is None:
-        raise RuntimeError("Database not initialized. Call init_db() at startup.")
-    return _state["backend"].connection()
+@asynccontextmanager
+async def get_session() -> AsyncIterator[AsyncSession]:
+    tx_session = _tx_session.get()
+    if tx_session is not None:
+        yield tx_session
+        return
+    async with _manager().db_service.get_session() as session:
+        yield session
 
 
 @asynccontextmanager
-async def transaction() -> AsyncIterator[Connection]:
-    """Async context manager — commits on success, rolls back on exception.
+async def transaction() -> AsyncIterator[TransactionScope]:
+    """Open a unit of work (commits on success, rolls back on error).
 
-    Stores the transactional connection in a contextvar so that
-    get_connection() returns it for the duration of the block.
-    Nested calls reuse the existing ambient connection.
+    Nested calls reuse the ambient session without opening a new transaction.
+    Use ``get_session()`` or ``get_database_manager().sql`` inside the block.
     """
-    existing = _tx_conn.get()
-    if existing is not None:
-        yield existing
-        return
-    if _state["backend"] is None:
-        raise RuntimeError("Database not initialized. Call init_db() at startup.")
-    async with _state["backend"].transaction() as conn:
-        proxy = _ManagedTxProxy(conn)
-        token = _tx_conn.set(proxy)
-        try:
-            yield proxy
-        finally:
-            _tx_conn.reset(token)
+    scope = TransactionScope(_manager())
+    async with scope:
+        yield scope
 
 
 async def close_db() -> None:
     """Close connection pool on shutdown."""
-    if _state["backend"]:
-        await _state["backend"].close()
-        _state["backend"] = None
+    manager = _state["manager"]
+    if manager is not None:
+        await manager.close()
+        _state["manager"] = None
+
+
+async def sql_execute(
+    sql: str,
+    params: dict[str, Any] | Sequence[Any] | None = None,
+    *,
+    read_only: bool = False,
+    timeout_ms: int = 10_000,
+    max_rows: int = 500,
+) -> ExecutionResult:
+    """Run a single raw SQL statement via :named or ``$1``-style parameters."""
+    return await _manager().sql.execute(
+        sql,
+        params,
+        read_only=read_only,
+        timeout_ms=timeout_ms,
+        max_rows=max_rows,
+    )
+
+
+async def sql_execute_many(
+    sql: str,
+    params_list: list[dict[str, Any]] | list[Sequence[Any]],
+    *,
+    read_only: bool = False,
+) -> int:
+    """Execute the same statement for many parameter rows; returns rows affected."""
+    return await _manager().sql.execute_many(
+        sql, params_list, read_only=read_only
+    )
+
+
+__all__ = [
+    "ExecutionResult",
+    "TransactionScope",
+    "_tx_session",
+    "close_db",
+    "get_org_id",
+    "get_session",
+    "get_user_id",
+    "init_db",
+    "sql_execute",
+    "sql_execute_many",
+    "transaction",
+]

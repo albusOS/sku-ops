@@ -1,206 +1,38 @@
-"""Catalog application queries — safe for cross-context import.
+"""Catalog application queries — cross-context compositors only.
 
-Other bounded contexts import from here, never from catalog.infrastructure directly.
-Thin delegation layer that decouples consumers from infrastructure details.
+Single-context reads and writes use the catalog and purchasing database
+services (and ``transaction``) at the call site with ``get_org_id()``.
 """
 
-from datetime import datetime
+from __future__ import annotations
 
-from catalog.domain.department import Department
-from catalog.domain.product_family import ProductFamily
-from catalog.domain.sku import Sku, SkuUpdate
-from catalog.domain.unit_of_measure import UnitOfMeasure
-from catalog.domain.vendor import Vendor
-from catalog.domain.vendor_item import VendorItem
-from catalog.infrastructure.department_repo import department_repo as _dept_repo
-from catalog.infrastructure.product_family_repo import product_family_repo as _prod_repo
-from catalog.infrastructure.sku_counter_repo import sku_counter_repo as _counter_repo
-from catalog.infrastructure.sku_repo import sku_repo as _sku_repo
-from catalog.infrastructure.uom_repo import uom_repo as _uom_repo
-from catalog.infrastructure.vendor_item_repo import vendor_item_repo as _vi_repo
-from catalog.infrastructure.vendor_repo import vendor_repo as _vendor_repo
-from shared.infrastructure.database import get_connection, get_org_id, transaction
-
-# ── Product family (parent) queries ──────────────────────────────────────────
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 
-async def list_product_families(
-    category_id: str | None = None,
-    search: str | None = None,
-    limit: int | None = None,
-    offset: int = 0,
-) -> list[ProductFamily]:
-    return await _prod_repo.list_all(
-        category_id=category_id,
-        search=search,
-        limit=limit,
-        offset=offset,
-    )
+def _db_catalog():
+    return get_database_manager().catalog
 
 
-async def count_product_families(
-    category_id: str | None = None,
-    search: str | None = None,
-) -> int:
-    return await _prod_repo.count(category_id=category_id, search=search)
-
-
-async def get_product_family_by_id(product_id: str) -> ProductFamily | None:
-    return await _prod_repo.get_by_id(product_id)
-
-
-# ── SKU queries ──────────────────────────────────────────────────────────────
-
-
-async def list_skus(
-    category_id: str | None = None,
-    search: str | None = None,
-    low_stock: bool = False,
-    limit: int | None = None,
-    offset: int = 0,
-    product_family_id: str | None = None,
-) -> list[Sku]:
-    return await _sku_repo.list_skus(
-        category_id=category_id,
-        search=search,
-        low_stock=low_stock,
-        limit=limit,
-        offset=offset,
-        product_family_id=product_family_id,
-    )
-
-
-async def count_skus(
-    category_id: str | None = None,
-    search: str | None = None,
-    low_stock: bool = False,
-    product_family_id: str | None = None,
-) -> int:
-    return await _sku_repo.count_skus(
-        category_id=category_id,
-        search=search,
-        low_stock=low_stock,
-        product_family_id=product_family_id,
-    )
-
-
-async def get_sku_by_id(sku_id: str) -> Sku | None:
-    return await _sku_repo.get_by_id(sku_id)
-
-
-async def find_sku_by_sku_code(sku: str) -> Sku | None:
-    return await _sku_repo.find_by_sku(sku)
-
-
-async def find_sku_by_barcode(
-    barcode: str,
-    exclude_sku_id: str | None = None,
-) -> Sku | None:
-    return await _sku_repo.find_by_barcode(barcode, exclude_sku_id=exclude_sku_id)
-
-
-async def list_skus_by_product_family(product_family_id: str) -> list[Sku]:
-    return await _sku_repo.find_by_product_family_id(product_family_id)
-
-
-async def count_all_skus() -> int:
-    return await _sku_repo.count_all()
-
-
-async def count_low_stock() -> int:
-    return await _sku_repo.count_low_stock()
-
-
-async def list_low_stock(limit: int = 10) -> list[Sku]:
-    return await _sku_repo.list_low_stock(limit=limit)
-
-
-# ── SKU commands (used by inventory / purchasing / documents) ────────────────
-
-
-async def update_sku(sku_id: str, updates: SkuUpdate) -> Sku | None:
-    async with transaction():
-        return await _sku_repo.update(sku_id, updates.model_dump(exclude_none=True))
-
-
-async def atomic_decrement_sku(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
-    async with transaction():
-        return await _sku_repo.atomic_decrement(sku_id, quantity, updated_at)
-
-
-async def increment_sku_quantity(sku_id: str, quantity: float, updated_at: datetime) -> None:
-    async with transaction():
-        return await _sku_repo.increment_quantity(sku_id, quantity, updated_at)
-
-
-async def add_sku_quantity(sku_id: str, quantity: float, updated_at: datetime) -> Sku | None:
-    async with transaction():
-        return await _sku_repo.add_quantity(sku_id, quantity, updated_at)
-
-
-async def atomic_adjust_sku(sku_id: str, quantity_delta: float, updated_at: datetime) -> Sku | None:
-    async with transaction():
-        return await _sku_repo.atomic_adjust(sku_id, quantity_delta, updated_at)
-
-
-# ── VendorItem queries ───────────────────────────────────────────────────────
-
-
-async def get_vendor_items_for_sku(sku_id: str) -> list[VendorItem]:
-    return await _vi_repo.list_by_sku(sku_id)
-
-
-async def get_vendor_items_for_skus(sku_ids: list[str]) -> dict[str, list[VendorItem]]:
-    items = await _vi_repo.list_by_skus(sku_ids)
-    grouped: dict[str, list[VendorItem]] = {}
-    for item in items:
-        grouped.setdefault(item.sku_id, []).append(item)
-    return grouped
-
-
-async def find_vendor_item_by_vendor_and_sku_code(
-    vendor_id: str, vendor_sku: str
-) -> VendorItem | None:
-    return await _vi_repo.find_by_vendor_and_vendor_sku(vendor_id, vendor_sku)
-
-
-async def find_vendor_item_by_sku_and_vendor(sku_id: str, vendor_id: str) -> VendorItem | None:
-    return await _vi_repo.find_by_sku_and_vendor(sku_id, vendor_id)
-
-
-async def find_product_by_original_sku_and_vendor(original_sku: str, vendor_id: str) -> Sku | None:
-    """Resolve vendor part number → VendorItem → SKU."""
-    vi = await _vi_repo.find_by_vendor_and_vendor_sku(vendor_id, original_sku)
-    if not vi:
-        return None
-    return await _sku_repo.get_by_id(vi.sku_id)
-
-
-async def find_product_by_name_and_vendor(name: str, vendor_id: str) -> Sku | None:
-    """Name-based fallback for PO matching."""
-    return await _sku_repo.find_by_name_and_vendor(name, vendor_id)
+def _db_purchasing():
+    return get_database_manager().purchasing
 
 
 async def sku_vendor_options(sku_id: str) -> list[dict]:
     """All vendors for a SKU with cost, lead time, moq, preferred, and last PO date."""
-    items = await _vi_repo.list_by_sku(sku_id)
+    org_id = get_org_id()
+    cat = _db_catalog()
+    pur = _db_purchasing()
+    items = await cat.list_vendor_items_by_sku(sku_id, org_id)
     if not items:
         return []
 
-    conn = get_connection()
-    org_id = get_org_id()
+    last_by_vendor = await pur.last_po_created_at_by_vendor_for_sku(
+        org_id, sku_id
+    )
     result = []
     for vi in items:
-        vendor = await _vendor_repo.get_by_id(vi.vendor_id)
-        cursor = await conn.execute(
-            """SELECT MAX(po.created_at) AS last_po_date
-               FROM purchase_orders po
-               JOIN purchase_order_items poi ON poi.po_id = po.id
-               WHERE po.vendor_id = $1 AND po.organization_id = $2
-                 AND poi.sku_id = $3""",
-            (vi.vendor_id, org_id, sku_id),
-        )
-        row = await cursor.fetchone()
+        vendor = await cat.get_vendor_by_id(vi.vendor_id, org_id)
         result.append(
             {
                 "vendor_id": vi.vendor_id,
@@ -212,126 +44,7 @@ async def sku_vendor_options(sku_id: str) -> list[dict]:
                 "is_preferred": vi.is_preferred,
                 "purchase_uom": vi.purchase_uom,
                 "purchase_pack_qty": vi.purchase_pack_qty,
-                "last_po_date": row["last_po_date"] if row else None,
+                "last_po_date": last_by_vendor.get(vi.vendor_id),
             }
         )
     return result
-
-
-# ── Department queries ───────────────────────────────────────────────────────
-
-
-async def list_departments() -> list[Department]:
-    return await _dept_repo.list_all()
-
-
-async def get_department_by_id(dept_id: str) -> Department | None:
-    return await _dept_repo.get_by_id(dept_id)
-
-
-async def get_department_by_code(code: str) -> Department | None:
-    return await _dept_repo.get_by_code(code)
-
-
-async def insert_department(department: Department | dict) -> None:
-    async with transaction():
-        return await _dept_repo.insert(department)
-
-
-async def update_department(
-    dept_id: str,
-    name: str,
-    description: str,
-) -> Department | None:
-    async with transaction():
-        return await _dept_repo.update(dept_id, name, description)
-
-
-async def delete_department(dept_id: str) -> int:
-    async with transaction():
-        return await _dept_repo.delete(dept_id)
-
-
-async def count_skus_by_department(dept_id: str) -> int:
-    return await _dept_repo.count_skus_by_department(dept_id)
-
-
-# ── Unit of measure queries ──────────────────────────────────────────────
-
-
-async def list_units_of_measure() -> list[UnitOfMeasure]:
-    return await _uom_repo.list_all()
-
-
-async def get_unit_by_code(code: str) -> UnitOfMeasure | None:
-    return await _uom_repo.get_by_code(code)
-
-
-async def get_unit_by_id(uom_id: str) -> UnitOfMeasure | None:
-    return await _uom_repo.get_by_id(uom_id)
-
-
-async def insert_unit(uom: UnitOfMeasure) -> None:
-    async with transaction():
-        return await _uom_repo.insert(uom)
-
-
-async def delete_unit(uom_id: str) -> int:
-    async with transaction():
-        return await _uom_repo.delete(uom_id)
-
-
-async def get_known_unit_codes() -> frozenset[str]:
-    """Return all active unit codes visible to the current org (global + org-specific)."""
-    units = await _uom_repo.list_all()
-    return frozenset(u.code for u in units)
-
-
-# ── Vendor queries ───────────────────────────────────────────────────────────
-
-
-async def list_vendors() -> list[Vendor]:
-    return await _vendor_repo.list_all()
-
-
-async def get_vendor_by_id(vendor_id: str) -> Vendor | None:
-    return await _vendor_repo.get_by_id(vendor_id)
-
-
-async def find_vendor_by_name(name: str) -> Vendor | None:
-    return await _vendor_repo.find_by_name(name)
-
-
-async def insert_vendor(vendor: Vendor | dict) -> None:
-    if isinstance(vendor, dict):
-        vendor = Vendor.model_validate(vendor)
-    async with transaction():
-        return await _vendor_repo.insert(vendor)
-
-
-async def update_vendor(
-    vendor_id: str,
-    vendor_dict: dict,
-) -> Vendor | None:
-    async with transaction():
-        return await _vendor_repo.update(vendor_id, vendor_dict)
-
-
-async def delete_vendor(vendor_id: str) -> int:
-    async with transaction():
-        return await _vendor_repo.delete(vendor_id)
-
-
-async def count_vendors() -> int:
-    return await _vendor_repo.count()
-
-
-# ── SKU counter queries ─────────────────────────────────────────────────────
-
-
-async def get_sku_counters() -> dict:
-    return await _counter_repo.get_all_counters()
-
-
-async def get_next_sku_number(product_family_id: str) -> int:
-    return await _counter_repo.get_next_number(product_family_id)

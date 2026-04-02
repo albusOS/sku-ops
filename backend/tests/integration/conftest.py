@@ -9,7 +9,8 @@ one client's close_db() races with another's active queries.
 
 import pytest
 
-from tests.helpers.auth import admin_headers, contractor_headers
+from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import ADMIN_USER_ID, admin_headers, contractor_headers
 
 
 @pytest.fixture(autouse=True)
@@ -54,10 +55,13 @@ def call(_app_client):
 
     def _call(async_fn):
         async def _with_ctx():
-            from shared.infrastructure.logging_config import org_id_var, user_id_var
+            from shared.infrastructure.logging_config import (
+                org_id_var,
+                user_id_var,
+            )
 
-            org_id_var.set("supply-yard")
-            user_id_var.set("user-1")
+            org_id_var.set(DEFAULT_ORG_ID)
+            user_id_var.set(ADMIN_USER_ID)
             return await async_fn()
 
         return _app_client.portal.call(_with_ctx)

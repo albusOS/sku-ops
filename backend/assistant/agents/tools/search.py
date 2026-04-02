@@ -17,16 +17,17 @@ from typing import Protocol
 
 import numpy as np
 
-from catalog.application.queries import list_skus
-from catalog.application.queries import list_vendors as _list_vendors
 from purchasing.application.queries import list_pos
 from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
 from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_DIM = 1536  # text-embedding-3-small; adjust if switching to larger model
+EMBEDDING_DIM = (
+    1536  # text-embedding-3-small; adjust if switching to larger model
+)
 
 
 class SkuLike(Protocol):
@@ -55,7 +56,12 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _sku_text(p: SkuLike) -> str:
-    parts = [p.name or "", p.description or "", p.category_name or "", p.sku or ""]
+    parts = [
+        p.name or "",
+        p.description or "",
+        p.category_name or "",
+        p.sku or "",
+    ]
     return " ".join(filter(None, parts))
 
 
@@ -71,7 +77,9 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
         batch_size = 500
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            resp = await client.embeddings.create(
+                model=EMBEDDING_MODEL, input=batch
+            )
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         norms = np.linalg.norm(mat, axis=1, keepdims=True)
@@ -87,7 +95,9 @@ async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(api_key=api_key)
-        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+        resp = await client.embeddings.create(
+            model=EMBEDDING_MODEL, input=[query]
+        )
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:
@@ -127,7 +137,9 @@ class DomainSearchIndex:
     # ── SKUs (primary, backward-compatible) ───────────────────────────────
 
     async def _rebuild_skus(self) -> None:
-        skus = await list_skus(limit=10000)
+        skus = await get_database_manager().catalog.list_skus(
+            get_org_id(), limit=10000
+        )
         if not skus:
             self._skus = []
             self._sku_embeddings = None
@@ -150,18 +162,25 @@ class DomainSearchIndex:
             entity_type="sku",
             ids=[sk.sku for sk in skus],
             texts=texts,
-            data=[{"sku": sk.sku, "name": sk.name, "department": sk.category_name} for sk in skus],
+            data=[
+                {"sku": sk.sku, "name": sk.name, "department": sk.category_name}
+                for sk in skus
+            ],
             embeddings=self._sku_embeddings,
         )
         self._slices["sku"] = s
-        self._slices["product"] = s  # backward compat for entity_graph "product" alias
+        self._slices["product"] = (
+            s  # backward compat for entity_graph "product" alias
+        )
         logger.info("SKU index: %d items", len(skus))
 
     def _build_sku_bm25(self, skus: list[SkuLike]) -> None:
         try:
             from rank_bm25 import BM25Okapi
         except ImportError:
-            logger.warning("rank-bm25 not installed — keyword search unavailable")
+            logger.warning(
+                "rank-bm25 not installed — keyword search unavailable"
+            )
             return
         corpus = [_tokenize(_sku_text(s)) or ["_"] for s in skus]
         self._sku_bm25 = BM25Okapi(corpus)
@@ -170,7 +189,9 @@ class DomainSearchIndex:
 
     async def _rebuild_vendors(self) -> None:
         try:
-            vendors = await _list_vendors()
+            vendors = await get_database_manager().catalog.list_vendors(
+                get_org_id()
+            )
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Vendor index build failed: %s", e)
             return
@@ -179,15 +200,23 @@ class DomainSearchIndex:
             return
 
         texts = [
-            f"{v.name} {v.contact_name} {v.email} {v.phone} {v.address}".strip() for v in vendors
+            f"{v.name} {v.contact_name} {v.email} {v.phone} {v.address}".strip()
+            for v in vendors
         ]
-        embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
+        embeddings = (
+            await _embed_batch(texts, OPENAI_API_KEY)
+            if OPENAI_API_KEY
+            else None
+        )
 
         self._slices["vendor"] = _EntitySlice(
             entity_type="vendor",
             ids=[v.id for v in vendors],
             texts=texts,
-            data=[{"id": v.id, "name": v.name, "contact": v.contact_name} for v in vendors],
+            data=[
+                {"id": v.id, "name": v.name, "contact": v.contact_name}
+                for v in vendors
+            ],
             embeddings=embeddings,
         )
         logger.info("Vendor index: %d items", len(vendors))
@@ -222,7 +251,11 @@ class DomainSearchIndex:
                 }
             )
 
-        embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
+        embeddings = (
+            await _embed_batch(texts, OPENAI_API_KEY)
+            if OPENAI_API_KEY
+            else None
+        )
 
         self._slices["purchase_order"] = _EntitySlice(
             entity_type="purchase_order",
@@ -239,9 +272,14 @@ class DomainSearchIndex:
         try:
             from pydantic import ValidationError
 
-            from operations.application.queries import list_withdrawals
+            from shared.infrastructure.db import get_org_id
+            from shared.infrastructure.db.base import get_database_manager
 
-            withdrawals = await list_withdrawals(limit=2000)
+            withdrawals = (
+                await get_database_manager().operations.list_withdrawals(
+                    get_org_id(), limit=2000
+                )
+            )
         except (RuntimeError, OSError, ValueError, Exception) as e:
             logger.warning("Job index build failed: %s", e)
             return
@@ -263,9 +301,13 @@ class DomainSearchIndex:
             except (ValidationError, AttributeError, TypeError) as e:
                 skipped += 1
                 if skipped <= 3:
-                    logger.warning("Skipping malformed withdrawal in job index: %s", e)
+                    logger.warning(
+                        "Skipping malformed withdrawal in job index: %s", e
+                    )
         if skipped:
-            logger.warning("Job index: skipped %d malformed withdrawal(s)", skipped)
+            logger.warning(
+                "Job index: skipped %d malformed withdrawal(s)", skipped
+            )
 
         if not job_map:
             return
@@ -279,7 +321,11 @@ class DomainSearchIndex:
             ids.append(jid)
             data_list.append(jdata)
 
-        embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
+        embeddings = (
+            await _embed_batch(texts, OPENAI_API_KEY)
+            if OPENAI_API_KEY
+            else None
+        )
 
         self._slices["job"] = _EntitySlice(
             entity_type="job",
@@ -336,7 +382,9 @@ class DomainSearchIndex:
             )
         return results
 
-    def _bm25_entity_search(self, query: str, entity_type: str, limit: int) -> list[SearchResult]:
+    def _bm25_entity_search(
+        self, query: str, entity_type: str, limit: int
+    ) -> list[SearchResult]:
         """BM25 fallback for entity search."""
         s = self._slices.get(entity_type)
         if not s or not s.texts:
@@ -351,7 +399,9 @@ class DomainSearchIndex:
         corpus = [_tokenize(t) or ["_"] for t in s.texts]
         bm25 = BM25Okapi(corpus)
         bm25_scores = bm25.get_scores(tokens)
-        ranked = sorted(enumerate(bm25_scores), key=lambda x: x[1], reverse=True)
+        ranked = sorted(
+            enumerate(bm25_scores), key=lambda x: x[1], reverse=True
+        )
         results = []
         for idx, score in ranked[:limit]:
             if score <= 0:
@@ -375,7 +425,11 @@ class DomainSearchIndex:
             return []
         scores = self._sku_bm25.get_scores(tokens)
         ranked = sorted(
-            ((score, s) for score, s in zip(scores, self._skus, strict=False) if score > 0),
+            (
+                (score, s)
+                for score, s in zip(scores, self._skus, strict=False)
+                if score > 0
+            ),
             key=lambda x: x[0],
             reverse=True,
         )
@@ -439,9 +493,13 @@ async def _debounced_rebuild(org_id: str, trigger: str) -> None:
         try:
             org_id_var.set(org_id)
             await refresh_index(org_id)
-            logger.info("Search index rebuilt for org=%s after %s", org_id, trigger)
+            logger.info(
+                "Search index rebuilt for org=%s after %s", org_id, trigger
+            )
         except (RuntimeError, OSError, ValueError) as exc:
-            logger.warning("Search index rebuild failed for org=%s: %s", org_id, exc)
+            logger.warning(
+                "Search index rebuild failed for org=%s: %s", org_id, exc
+            )
 
     _pending_rebuilds[org_id] = asyncio.create_task(_do_rebuild())
 

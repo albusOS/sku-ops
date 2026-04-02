@@ -101,22 +101,21 @@ def _query_ledger_entries(client, reference_id, account, reference_type=None):
     """Query financial_ledger via the app portal."""
 
     async def _query():
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
         if reference_type:
-            cursor = await conn.execute(
+            cursor = await sql_execute(
                 "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger "
                 "WHERE reference_id = $1 AND account = $2 AND reference_type = $3",
                 (reference_id, account, reference_type),
             )
         else:
-            cursor = await conn.execute(
+            cursor = await sql_execute(
                 "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger "
                 "WHERE reference_id = $1 AND account = $2",
                 (reference_id, account),
             )
-        row = await cursor.fetchone()
+        row = (cursor.rows[0] if cursor.rows else None)
         return row[0], float(row[1])
 
     return client.portal.call(_query)

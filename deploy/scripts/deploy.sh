@@ -59,7 +59,7 @@ fi
 
 # Frontend vars are baked into the JS bundle at build time.
 # Without these, the frontend falls back to bridge auth (broken in production).
-FRONTEND_VARS=(VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY)
+FRONTEND_VARS=(VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY)
 FE_MISSING=()
 for var in "${FRONTEND_VARS[@]}"; do
   if [ -z "${!var:-}" ]; then

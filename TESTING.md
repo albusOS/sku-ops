@@ -62,7 +62,7 @@ Backend test files import production code with bare module names:
 
 ```python
 from catalog.application.product_lifecycle import create_product
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
 from shared.kernel.types import CurrentUser
 ```
 
@@ -70,11 +70,11 @@ This works because `pythonpath = ["backend"]` in the root `pyproject.toml` pytes
 
 ## Shared test infrastructure
 
-All backend tests run against a real Postgres database (`sku_ops_test`). The test database is created automatically by `./bin/dev db` (docker-compose.dev.yml binds host port 5433 to container port 5432).
+All backend tests run against a real Postgres database provided by the local Supabase stack. `./bin/dev test` and `./bin/dev test:be` reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
 
-A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables and seeds minimal data: an organization (`supply-yard`), a department (`dept-1`), an admin user (`user-1`), and a contractor user (`contractor-1`).
+A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables then applies `supabase/seeds/pytest_minimal.sql` plus org-scoped UOM rows from `supabase/seeds/02_units_of_measure.sql` (via `catalog.application.uom_seed.uom_seed_sql`).
 
-**To extend seed data:** edit `_truncate_and_seed()` in `backend/tests/conftest.py`. All backend tests inherit from it. Do not create duplicate seed fixtures in sub-conftest files.
+**To extend test fixture data:** edit `supabase/seeds/pytest_minimal.sql` and/or `backend/tests/conftest.py`. Do not create duplicate seed fixtures in sub-conftest files.
 
 ## Test structure
 
@@ -148,12 +148,12 @@ Create `e2e/specs/<name>.spec.ts`. Uses Playwright. Server starts automatically.
 ## Seeds and evals
 
 ```bash
-./bin/dev seed               # seed realistic demo data
+./bin/dev db:reset           # migrations + supabase/seeds (full local demo)
 ./bin/dev eval --suite all   # run all LLM evals
 ./bin/dev eval --suite routing --model anthropic/claude-haiku-4-5
 ```
 
-Seeds and evals live in `devtools/` at the workspace root. They import backend production code via `PYTHONPATH=backend:.` (set by `bin/dev`).
+Canonical SQL seeds live under `supabase/seeds/` (edit there, then `./bin/dev db:reset` or `supabase db reset --local`). Evals live in `devtools/`. They import backend production code via `PYTHONPATH=backend:.` (set by `bin/dev`).
 
 ## Linting
 

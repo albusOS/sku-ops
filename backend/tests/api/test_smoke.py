@@ -60,8 +60,9 @@ def test_all_context_routers_mounted(client):
         if resp.status_code == 404:
             not_mounted.append(f"{ctx}: {method} {path}")
 
-    assert not not_mounted, "These context routers appear unmounted (got 404):\n" + "\n".join(
-        f"  {m}" for m in not_mounted
+    assert not not_mounted, (
+        "These context routers appear unmounted (got 404):\n"
+        + "\n".join(f"  {m}" for m in not_mounted)
     )
 
 
@@ -76,22 +77,22 @@ def test_auth_me_requires_auth(client):
     )
 
 
-def test_auth_login_endpoint_exists(client):
-    """POST /api/beta/shared/auth/login must be mounted (returns 4xx, not 404)."""
+def test_auth_login_endpoint_removed(client):
+    """POST /api/beta/shared/auth/login must not be mounted anymore."""
     resp = client.post(
         "/api/beta/shared/auth/login",
         json={"email": "x@x.com", "password": "wrong"},
     )
-    assert resp.status_code != 404, "POST /api/beta/shared/auth/login is not mounted"
+    assert resp.status_code == 404
 
 
-def test_auth_register_endpoint_exists(client):
-    """POST /api/beta/shared/auth/register must be mounted (returns 4xx, not 404)."""
+def test_auth_register_endpoint_removed(client):
+    """POST /api/beta/shared/auth/register must not be mounted anymore."""
     resp = client.post(
         "/api/beta/shared/auth/register",
         json={"email": "x@x.com", "password": "pw", "name": "X"},
     )
-    assert resp.status_code != 404, "POST /api/beta/shared/auth/register is not mounted"
+    assert resp.status_code == 404
 
 
 def test_auth_me_with_valid_token(client):

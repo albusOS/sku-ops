@@ -8,17 +8,17 @@ alwaysApply: true
 ## Two modes — know which one you need
 
 ### Mode 1: Daily development (default)
-Use this for all feature work. Hot-reload, Postgres via Docker, seed scripts work.
+Use this for all feature work. Hot-reload, local Supabase, and seed scripts work.
 
 ```bash
-./bin/dev db             # start dev Postgres (first time only — persists via volume)
+./bin/dev db             # start local Supabase stack
 npm run dev              # from project root — starts backend + frontend together
 ```
 
 - Backend: uvicorn with `--reload` on http://localhost:8000
 - Frontend: Vite dev server on http://localhost:3000
-- DB: Postgres via `docker-compose.dev.yml` on localhost:5432
-- `./bin/dev server` auto-starts Postgres if not running
+- DB: Supabase local Postgres on localhost:54322
+- `./bin/dev server` auto-starts local Supabase if not running
 - Provision data (run once after first start):
 
 ```bash
@@ -43,7 +43,7 @@ docker compose up --build    # nginx/certbot excluded via override profile
 |----------|-----------------|-----------------|
 | Backend  | :8000           | :8000           |
 | Frontend | :3000           | —               |
-| Postgres | :5432           | :5433           |
+| Postgres | :54322          | :5433           |
 
 ## Common dev commands
 
@@ -63,8 +63,8 @@ All commands run from the project root via `./bin/dev`:
 ./bin/dev ui               # frontend only (no backend)
 ./bin/dev provision [args] # provision org, departments, dev users
 ./bin/dev eval [args]      # run LLM evals
-./bin/dev db               # start dev Postgres only
-./bin/dev db:stop          # stop dev Postgres
+./bin/dev db               # start local Supabase stack
+./bin/dev db:stop          # stop local Supabase stack
 ```
 
 Never suggest `pip`, `python -m pytest`, or `ruff` directly. All Python execution goes through `uv` (via `./bin/dev`). The project uses `uv` workspaces — the root `pyproject.toml` manages dev deps, `backend/pyproject.toml` has production deps only.

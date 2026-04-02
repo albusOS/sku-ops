@@ -13,9 +13,9 @@
 VITE_BACKEND_URL=https://your-app.up.railway.app
 
 # Supabase project URL.
-# Find at: Supabase Dashboard > Settings > API > Project URL
+# Find at: Supabase Dashboard > Settings > API > Project URL (or Connect dialog)
 VITE_SUPABASE_URL=https://your-project.supabase.co
 
-# Supabase anonymous key (public, safe for frontend).
-# Find at: Supabase Dashboard > Settings > API > anon public key
-VITE_SUPABASE_ANON_KEY=eyJ...
+# Supabase publishable key (public, safe for frontend). Format: sb_publishable_...
+# Find at: Supabase Dashboard > Settings > API keys > Publishable key
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...

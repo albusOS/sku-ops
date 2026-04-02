@@ -8,28 +8,34 @@ These tests enforce that:
   4. Normalized child-table items (withdrawal_items, material_request_items) survive round-trip
 
 These would have caught:
-  - The price->unit_price column mapping bug in po_repo
+  - The price->unit_price column mapping bug in the purchasing PO service
   - Missing float coercion in credit_note_repo
   - Any schema drift between domain models and SQL columns
 """
 
+import uuid
+
 import pytest
 
 from catalog.application.sku_lifecycle import create_product_with_sku
-from catalog.infrastructure.sku_repo import sku_repo
 from finance.application.invoice_service import create_invoice_from_withdrawals
-from finance.infrastructure.credit_note_repo import credit_note_repo
 from inventory.application.inventory_service import process_import_stock_changes
-from inventory.infrastructure.stock_repo import stock_repo
-from operations.infrastructure.material_request_repo import material_request_repo
 from purchasing.domain.purchase_order import (
     POItemStatus,
     POStatus,
     PurchaseOrder,
     PurchaseOrderItem,
 )
-from purchasing.infrastructure.po_repo import po_repo
-from shared.infrastructure.database import get_connection
+from shared.infrastructure.db import sql_execute
+from shared.infrastructure.db.base import get_database_manager
+from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import (
+    ADMIN_USER_ID,
+    CONTRACTOR_USER_ID,
+    SEEDED_DEPT_ID,
+    SEEDED_JOB_ID,
+    SEEDED_VENDOR_ID,
+)
 
 # -- Product repo -------------------------------------------------------------
 
@@ -40,7 +46,7 @@ class TestProductRepoContract:
 
         async def _body():
             sku = await create_product_with_sku(
-                category_id="dept-1",
+                category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
                 name="Round Trip Widget",
                 quantity=7.25,
@@ -48,14 +54,18 @@ class TestProductRepoContract:
                 cost=6.75,
                 base_unit="foot",
                 sell_uom="inch",
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            row = await sku_repo.get_by_id(sku.id)
+            row = await get_database_manager().catalog.get_sku_by_id(
+                sku.id, DEFAULT_ORG_ID
+            )
             assert row is not None
 
-            assert isinstance(row.quantity, float), f"quantity is {type(row.quantity)}"
+            assert isinstance(row.quantity, float), (
+                f"quantity is {type(row.quantity)}"
+            )
             assert row.quantity == pytest.approx(7.25)
 
             assert isinstance(row.price, float), f"price is {type(row.price)}"
@@ -74,15 +84,17 @@ class TestProductRepoContract:
 
         async def _body():
             await create_product_with_sku(
-                category_id="dept-1",
+                category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
                 name="List Test",
                 quantity=3.5,
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            skus = await sku_repo.list_skus(limit=10)
+            skus = await get_database_manager().catalog.list_skus(
+                DEFAULT_ORG_ID, limit=10
+            )
             assert len(skus) >= 1
             for s in skus:
                 assert isinstance(s.quantity, float), (
@@ -101,16 +113,18 @@ class TestStockRepoContract:
 
         async def _body():
             product = await create_product_with_sku(
-                category_id="dept-1",
+                category_id=SEEDED_DEPT_ID,
                 category_name="Hardware",
                 name="Stock Repo Test",
                 quantity=15.75,
                 base_unit="gallon",
-                user_id="user-1",
+                user_id=ADMIN_USER_ID,
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            txs = await stock_repo.list_by_product(product.id, limit=10)
+            txs = await get_database_manager().inventory.list_stock_transactions_by_product(
+                DEFAULT_ORG_ID, product.id, limit=10
+            )
             assert len(txs) >= 1
             tx = txs[0]
 
@@ -119,7 +133,11 @@ class TestStockRepoContract:
             assert tx.user_id is not None
             assert tx.unit is not None
 
-            for field in ("quantity_delta", "quantity_before", "quantity_after"):
+            for field in (
+                "quantity_delta",
+                "quantity_before",
+                "quantity_after",
+            ):
                 assert isinstance(getattr(tx, field), float), (
                     f"stock_transaction.{field} is {type(getattr(tx, field)).__name__}, expected float"
                 )
@@ -137,15 +155,22 @@ class TestPORepoContract:
         """PO items read from DB must use 'unit_price', not the raw column name 'price'."""
 
         async def _body():
+            await sql_execute(
+                """INSERT INTO vendors (id, name, organization_id, created_at)
+                   VALUES ($1, $2, $3, NOW())
+                   ON CONFLICT (id) DO NOTHING""",
+                (SEEDED_VENDOR_ID, "Acme", DEFAULT_ORG_ID),
+            )
             po = PurchaseOrder(
-                vendor_id="v1",
+                vendor_id=SEEDED_VENDOR_ID,
                 vendor_name="Acme",
                 status=POStatus.ORDERED,
-                created_by_id="user-1",
+                created_by_id=ADMIN_USER_ID,
                 created_by_name="Test",
-                organization_id="supply-yard",
+                organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_po(po)
+            pdb = get_database_manager().purchasing
+            await pdb.insert_po(DEFAULT_ORG_ID, po)
 
             item = PurchaseOrderItem(
                 po_id=po.id,
@@ -159,11 +184,11 @@ class TestPORepoContract:
                 pack_qty=1,
                 suggested_department="PLU",
                 status=POItemStatus.ORDERED,
-                organization_id="supply-yard",
+                organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_items([item])
+            await pdb.insert_po_items(DEFAULT_ORG_ID, [item])
 
-            items = await po_repo.get_po_items(po.id)
+            items = await pdb.get_po_items(DEFAULT_ORG_ID, po.id)
             assert len(items) == 1
             read_item = items[0]
 
@@ -180,15 +205,22 @@ class TestPORepoContract:
         """PO item quantities must be float after read-back."""
 
         async def _body():
+            await sql_execute(
+                """INSERT INTO vendors (id, name, organization_id, created_at)
+                   VALUES ($1, $2, $3, NOW())
+                   ON CONFLICT (id) DO NOTHING""",
+                (SEEDED_VENDOR_ID, "Acme", DEFAULT_ORG_ID),
+            )
             po = PurchaseOrder(
-                vendor_id="v1",
+                vendor_id=SEEDED_VENDOR_ID,
                 vendor_name="Acme",
                 status=POStatus.ORDERED,
-                created_by_id="user-1",
+                created_by_id=ADMIN_USER_ID,
                 created_by_name="Test",
-                organization_id="supply-yard",
+                organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_po(po)
+            pdb = get_database_manager().purchasing
+            await pdb.insert_po(DEFAULT_ORG_ID, po)
 
             item = PurchaseOrderItem(
                 po_id=po.id,
@@ -202,11 +234,11 @@ class TestPORepoContract:
                 pack_qty=1,
                 suggested_department="HDW",
                 status=POItemStatus.PENDING,
-                organization_id="supply-yard",
+                organization_id=DEFAULT_ORG_ID,
             )
-            await po_repo.insert_items([item])
+            await pdb.insert_po_items(DEFAULT_ORG_ID, [item])
 
-            items = await po_repo.get_po_items(po.id)
+            items = await pdb.get_po_items(DEFAULT_ORG_ID, po.id)
             read_item = items[0]
 
             for field in ("ordered_qty", "delivered_qty", "unit_price", "cost"):
@@ -225,10 +257,12 @@ class TestCreditNoteRepoContract:
         """Credit note line items must have float quantity, unit_price, amount, cost."""
 
         async def _body():
-            cn = await credit_note_repo.insert_credit_note(
-                return_id="ret-1",
-                invoice_id=None,
-                items=[
+            fin = get_database_manager().finance
+            cn = await fin.credit_note_insert(
+                DEFAULT_ORG_ID,
+                str(uuid.uuid4()),
+                None,
+                [
                     {
                         "description": "Widget return",
                         "quantity": 2.5,
@@ -237,13 +271,13 @@ class TestCreditNoteRepoContract:
                         "sku_id": None,
                     },
                 ],
-                subtotal=25.0,
-                tax=2.50,
-                total=27.50,
+                25.0,
+                2.50,
+                27.50,
             )
             assert cn is not None
 
-            cn_read = await credit_note_repo.get_by_id(cn.id)
+            cn_read = await fin.credit_note_get_by_id(DEFAULT_ORG_ID, cn.id)
             assert cn_read is not None
             assert len(cn_read.line_items) == 1
 
@@ -266,8 +300,8 @@ class TestInvoiceRepoContract:
         """Invoice line items must have float quantity and amounts."""
 
         async def _body():
-            conn = get_connection()
-            await conn.execute(
+            withdrawal_id = "0195f2c0-89af-7000-8000-000000000001"
+            await sql_execute(
                 """INSERT INTO withdrawals
                    (id, items, job_id, service_address, subtotal, tax, total, cost_total,
                     contractor_id, contractor_name, contractor_company, billing_entity,
@@ -275,32 +309,32 @@ class TestInvoiceRepoContract:
                     organization_id, created_at, invoice_id, paid_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NULL, NULL)""",
                 (
-                    "w-inv-test",
+                    withdrawal_id,
                     None,
-                    "JOB-1",
+                    SEEDED_JOB_ID,
                     "123 Main St",
                     25.0,
                     2.50,
                     27.50,
                     12.50,
-                    "contractor-1",
+                    CONTRACTOR_USER_ID,
                     "Contractor",
                     "ACME",
                     "ACME Inc",
                     "unpaid",
-                    "user-1",
+                    ADMIN_USER_ID,
                     "Test",
-                    "supply-yard",
+                    DEFAULT_ORG_ID,
                 ),
             )
-            await conn.execute(
+            await sql_execute(
                 """INSERT INTO withdrawal_items
                    (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
                 (
-                    "wi-inv-test-1",
-                    "w-inv-test",
-                    "p1",
+                    "0195f2c0-89af-7000-8000-000000000002",
+                    withdrawal_id,
+                    str(uuid.uuid4()),
                     "S",
                     "X",
                     2.5,
@@ -311,9 +345,7 @@ class TestInvoiceRepoContract:
                     12.5,
                 ),
             )
-            await conn.commit()
-
-            inv = await create_invoice_from_withdrawals(["w-inv-test"])
+            inv = await create_invoice_from_withdrawals([withdrawal_id])
             assert inv is not None
             assert len(inv.line_items) >= 1
 
@@ -338,11 +370,11 @@ class TestMaterialRequestRepoContract:
             from operations.domain.withdrawal import WithdrawalItem
 
             mr = MaterialRequest(
-                contractor_id="contractor-1",
+                contractor_id=CONTRACTOR_USER_ID,
                 contractor_name="Contractor User",
                 items=[
                     WithdrawalItem(
-                        sku_id="p1",
+                        sku_id=str(uuid.uuid4()),
                         sku="HDW-001",
                         name="Widget",
                         quantity=2.5,
@@ -352,13 +384,14 @@ class TestMaterialRequestRepoContract:
                     ),
                 ],
                 status="pending",
-                job_id="JOB-TEST",
+                job_id=SEEDED_JOB_ID,
                 service_address="456 Oak",
-                organization_id="supply-yard",
+                organization_id=DEFAULT_ORG_ID,
             )
-            await material_request_repo.insert(mr)
+            db = get_database_manager().operations
+            await db.insert_material_request(DEFAULT_ORG_ID, mr)
 
-            read = await material_request_repo.get_by_id(mr.id)
+            read = await db.get_material_request_by_id(DEFAULT_ORG_ID, mr.id)
             assert read is not None
             assert len(read.items) == 1
             item = read.items[0]

@@ -12,21 +12,29 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
-from catalog.application.product_family_lifecycle import create_product as create_product_parent
+from catalog.application.product_family_lifecycle import (
+    create_product as create_product_parent,
+)
 from catalog.application.sku_service import generate_sku
-from catalog.domain.errors import DuplicateBarcodeError, DuplicateSkuError, InvalidBarcodeError
+from catalog.domain.errors import (
+    DuplicateBarcodeError,
+    DuplicateSkuError,
+    InvalidBarcodeError,
+)
 from catalog.domain.sku import Sku, SkuUpdate
-from catalog.infrastructure.department_repo import department_repo
-from catalog.infrastructure.product_family_repo import product_family_repo
-from catalog.infrastructure.sku_repo import sku_repo
-from catalog.infrastructure.vendor_item_repo import vendor_item_repo
-from shared.infrastructure.database import get_org_id, transaction
+from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.barcode import validate_barcode
 from shared.kernel.domain_events import CatalogChanged
 from shared.kernel.errors import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
 
 StockChangesFn = Callable[..., Awaitable[None]] | None
 
@@ -62,13 +70,20 @@ async def create_sku(
     and optionally records initial stock. All in a single transaction.
     """
     org_id = get_org_id()
-    department = await department_repo.get_by_id(category_id)
+    cat = _db_catalog()
+    department = await cat.get_department_by_id(category_id, org_id)
     if not department:
         raise ResourceNotFoundError("Department", category_id)
 
-    family = await product_family_repo.get_by_id(product_family_id) if product_family_id else None
+    family = (
+        await cat.get_product_family_by_id(product_family_id, org_id)
+        if product_family_id
+        else None
+    )
     family_name = family.name if family else name
-    sku_code = await generate_sku(department.code, product_family_id, family_name)
+    sku_code = await generate_sku(
+        department.code, product_family_id, family_name
+    )
     barcode_val = (barcode or "").strip() or sku_code
 
     if barcode_val and barcode_val.isdigit():
@@ -78,7 +93,7 @@ async def create_sku(
                 barcode_val,
                 "Invalid UPC (12 digits) or EAN-13 (13 digits) check digit",
             )
-    existing = await sku_repo.find_by_barcode(barcode_val)
+    existing = await cat.find_sku_by_barcode(org_id, barcode_val)
     if existing:
         raise DuplicateBarcodeError(barcode_val, existing.name)
 
@@ -107,9 +122,9 @@ async def create_sku(
     )
 
     async with transaction():
-        await sku_repo.insert(sku)
-        await department_repo.increment_sku_count(category_id, 1)
-        await product_family_repo.increment_sku_count(product_family_id, 1)
+        await cat.insert_sku(sku)
+        await cat.increment_department_sku_count(category_id, org_id, 1)
+        await cat.increment_product_sku_count(product_family_id, org_id, 1)
         if quantity > 0 and user_id and on_stock_import:
             await on_stock_import(
                 sku_id=sku.id,
@@ -120,7 +135,9 @@ async def create_sku(
                 user_name=user_name,
             )
 
-    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku.id,), change_type="created"))
+    await dispatch(
+        CatalogChanged(org_id=org_id, sku_ids=(sku.id,), change_type="created")
+    )
     logger.info(
         "sku.created",
         extra={
@@ -200,7 +217,9 @@ async def update_sku(
     current_sku: Sku | None = None,
 ) -> Sku:
     """Update a SKU. Resolves category name changes and adjusts counters."""
-    sku = current_sku or await sku_repo.get_by_id(sku_id)
+    org_id = get_org_id()
+    cat = _db_catalog()
+    sku = current_sku or await cat.get_sku_by_id(sku_id, org_id)
     if not sku:
         raise ResourceNotFoundError("Sku", sku_id)
 
@@ -224,14 +243,20 @@ async def update_sku(
                         update_data["barcode"],
                         "Invalid UPC (12 digits) or EAN-13 (13 digits) check digit",
                     )
-            existing = await sku_repo.find_by_barcode(update_data["barcode"], exclude_sku_id=sku_id)
+            existing = await cat.find_sku_by_barcode(
+                org_id,
+                update_data["barcode"],
+                exclude_sku_id=sku_id,
+            )
             if existing:
-                raise DuplicateBarcodeError(update_data["barcode"], existing.name)
+                raise DuplicateBarcodeError(
+                    update_data["barcode"], existing.name
+                )
 
     if "sku" in update_data:
         new_code = update_data["sku"].strip()
         if new_code and new_code != sku.sku:
-            existing = await sku_repo.find_by_sku(new_code)
+            existing = await cat.find_sku_by_code(org_id, new_code)
             if existing:
                 raise DuplicateSkuError(new_code, existing.name)
             update_data["sku"] = new_code
@@ -239,7 +264,9 @@ async def update_sku(
             update_data.pop("sku")
 
     if "category_id" in update_data:
-        department = await department_repo.get_by_id(update_data["category_id"])
+        department = await cat.get_department_by_id(
+            update_data["category_id"], org_id
+        )
         if department:
             update_data["category_name"] = department.name
 
@@ -249,16 +276,19 @@ async def update_sku(
             new_cat = update_data["category_id"]
             if old_cat != new_cat:
                 if old_cat:
-                    await department_repo.increment_sku_count(old_cat, -1)
+                    await cat.increment_department_sku_count(
+                        old_cat, org_id, -1
+                    )
                 if new_cat:
-                    await department_repo.increment_sku_count(new_cat, 1)
+                    await cat.increment_department_sku_count(new_cat, org_id, 1)
 
-        result = await sku_repo.update(sku_id, update_data)
+        result = await cat.update_sku(sku_id, org_id, update_data)
     if not result:
         raise ResourceNotFoundError("Sku", sku_id)
 
-    org_id = get_org_id()
-    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated"))
+    await dispatch(
+        CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated")
+    )
     logger.info("sku.updated", extra={"org_id": org_id, "sku_id": sku_id})
     return result
 
@@ -269,19 +299,22 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
     Atomically updates the SKU's product_family_id and adjusts sku_count
     on both the old and new families.
     """
-    sku = await sku_repo.get_by_id(sku_id)
+    org_id = get_org_id()
+    cat = _db_catalog()
+    sku = await cat.get_sku_by_id(sku_id, org_id)
     if not sku:
         raise ResourceNotFoundError("Sku", sku_id)
 
-    new_family = await product_family_repo.get_by_id(new_family_id)
+    new_family = await cat.get_product_family_by_id(new_family_id, org_id)
     if not new_family:
         raise ResourceNotFoundError("ProductFamily", new_family_id)
 
     old_family_id = sku.product_family_id
 
     async with transaction():
-        result = await sku_repo.update(
+        result = await cat.update_sku(
             sku_id,
+            org_id,
             {
                 "product_family_id": new_family_id,
                 "category_id": new_family.category_id,
@@ -290,14 +323,21 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
             },
         )
         if old_family_id:
-            await product_family_repo.increment_sku_count(old_family_id, -1)
-        await product_family_repo.increment_sku_count(new_family_id, 1)
+            await cat.increment_product_sku_count(old_family_id, org_id, -1)
+        await cat.increment_product_sku_count(new_family_id, org_id, 1)
         if old_family_id and sku.category_id != new_family.category_id:
-            await department_repo.increment_sku_count(sku.category_id, -1)
-            await department_repo.increment_sku_count(new_family.category_id, 1)
+            if sku.category_id:
+                await cat.increment_department_sku_count(
+                    sku.category_id, org_id, -1
+                )
+            if new_family.category_id:
+                await cat.increment_department_sku_count(
+                    new_family.category_id, org_id, 1
+                )
 
-    org_id = get_org_id()
-    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated"))
+    await dispatch(
+        CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated")
+    )
     logger.info(
         "sku.adopted",
         extra={
@@ -307,22 +347,32 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
             "new_family_id": new_family_id,
         },
     )
+    if not result:
+        raise ResourceNotFoundError("Sku", sku_id)
     return result
 
 
 async def delete_sku(sku_id: str) -> None:
     """Delete a SKU, update counters, and soft-delete associated vendor items."""
-    sku = await sku_repo.get_by_id(sku_id)
+    org_id = get_org_id()
+    cat = _db_catalog()
+    sku = await cat.get_sku_by_id(sku_id, org_id)
     if not sku:
         raise ResourceNotFoundError("Sku", sku_id)
 
     async with transaction():
-        await vendor_item_repo.soft_delete_by_sku(sku_id)
-        await sku_repo.delete(sku_id)
-        await department_repo.increment_sku_count(sku.category_id, -1)
+        await cat.soft_delete_vendor_items_by_sku(sku_id, org_id)
+        await cat.soft_delete_sku(sku_id, org_id)
+        if sku.category_id:
+            await cat.increment_department_sku_count(
+                sku.category_id, org_id, -1
+            )
         if sku.product_family_id:
-            await product_family_repo.increment_sku_count(sku.product_family_id, -1)
+            await cat.increment_product_sku_count(
+                sku.product_family_id, org_id, -1
+            )
 
-    org_id = get_org_id()
-    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="deleted"))
+    await dispatch(
+        CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="deleted")
+    )
     logger.info("sku.deleted", extra={"org_id": org_id, "sku_id": sku_id})

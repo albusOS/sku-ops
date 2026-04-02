@@ -2,7 +2,7 @@
   "name": "sku-ops",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"./bin/dev server\" \"./bin/dev ui\"",
+    "dev": "npx concurrently \"./bin/dev server\" \"./bin/dev ui\"",
     "test": "./bin/dev test",
     "test:backend": "./bin/dev test:be",
     "test:frontend": "./bin/dev test:fe"
