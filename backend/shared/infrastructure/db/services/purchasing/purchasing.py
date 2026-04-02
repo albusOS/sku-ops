@@ -644,12 +644,8 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 )
                 for r in result.all()
             ]
-        from catalog.application.queries import (
-            get_vendor_items_for_skus,
-        )
-
-        vendor_items_by_sku = await get_vendor_items_for_skus(
-            [item["sku_id"] for item in low_stock]
+        vendor_items_by_sku = await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
+            org_id, [item["sku_id"] for item in low_stock]
         )
         for item in low_stock:
             vendor_items = vendor_items_by_sku.get(item["sku_id"], [])

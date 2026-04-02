@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -21,6 +22,9 @@ from shared.infrastructure.types.public_sql_model_models import (
     Departments,
     VendorItems,
 )
+from shared.kernel.errors import ResourceNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_uuid_mapping(d: dict[str, Any]) -> dict[str, Any]:
@@ -1080,6 +1084,115 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
+    async def add_vendor_item(
+        self,
+        org_id: str,
+        sku_id: str,
+        vendor_id: str,
+        vendor_sku: str | None = None,
+        purchase_uom: str = "each",
+        purchase_pack_qty: int = 1,
+        cost: float = 0.0,
+        lead_time_days: int | None = None,
+        moq: float | None = None,
+        is_preferred: bool = False,
+        notes: str | None = None,
+    ) -> VendorItem:
+        """Add a vendor relationship to a SKU (preferred flag clears others in same txn)."""
+        vendor = await self.get_vendor_by_id(vendor_id, org_id)
+        vendor_name = vendor.name if vendor else ""
+
+        item = VendorItem(
+            vendor_id=vendor_id,
+            vendor_name=vendor_name,
+            sku_id=sku_id,
+            vendor_sku=vendor_sku,
+            purchase_uom=purchase_uom,
+            purchase_pack_qty=purchase_pack_qty,
+            cost=cost,
+            lead_time_days=lead_time_days,
+            moq=moq,
+            is_preferred=is_preferred,
+            notes=notes,
+            organization_id=org_id,
+        )
+
+        # Lazy import: ``shared.infrastructure.db`` imports this module via services.
+        from shared.infrastructure.db import transaction as db_transaction
+
+        async with db_transaction():
+            if is_preferred:
+                await self.clear_preferred_vendor_items_for_sku(sku_id, org_id)
+            await self.insert_vendor_item(item)
+
+        logger.info(
+            "vendor_item.added",
+            extra={
+                "org_id": org_id,
+                "vendor_item_id": item.id,
+                "sku_id": sku_id,
+                "vendor_id": vendor_id,
+                "is_preferred": is_preferred,
+            },
+        )
+        return item
+
+    async def modify_vendor_item(
+        self, org_id: str, item_id: str, updates: dict
+    ) -> VendorItem:
+        """Update a vendor item; setting preferred clears other preferred for the SKU."""
+        existing = await self.get_vendor_item_by_id(item_id, org_id)
+        if not existing:
+            raise ResourceNotFoundError("VendorItem", item_id)
+
+        payload = {
+            **updates,
+            "updated_at": updates.get("updated_at") or datetime.now(UTC),
+        }
+        # Lazy import: ``shared.infrastructure.db`` imports this module via services.
+        from shared.infrastructure.db import transaction as db_transaction
+
+        async with db_transaction():
+            if updates.get("is_preferred"):
+                await self.clear_preferred_vendor_items_for_sku(
+                    existing.sku_id, org_id
+                )
+            result = await self.update_vendor_item(item_id, org_id, payload)
+        if not result:
+            raise ResourceNotFoundError("VendorItem", item_id)
+        logger.info(
+            "vendor_item.updated",
+            extra={"org_id": org_id, "vendor_item_id": item_id},
+        )
+        return result
+
+    async def set_preferred_vendor_item(
+        self, org_id: str, sku_id: str, vendor_item_id: str
+    ) -> None:
+        """Set one vendor item preferred for a SKU (clears others)."""
+        item = await self.get_vendor_item_by_id(vendor_item_id, org_id)
+        if not item or item.sku_id != sku_id:
+            raise ResourceNotFoundError("VendorItem", vendor_item_id)
+
+        # Lazy import: ``shared.infrastructure.db`` imports this module via services.
+        from shared.infrastructure.db import transaction as db_transaction
+
+        async with db_transaction():
+            await self.clear_preferred_vendor_items_for_sku(sku_id, org_id)
+            await self.update_vendor_item(
+                vendor_item_id,
+                org_id,
+                {"is_preferred": True, "updated_at": datetime.now(UTC)},
+            )
+        logger.info(
+            "vendor_item.preferred_set",
+            extra={
+                "org_id": org_id,
+                "vendor_item_id": vendor_item_id,
+                "sku_id": sku_id,
+            },
+        )
+
     async def get_vendor_item_by_id(
         self, item_id: str, org_id: str
     ) -> VendorItem | None:
@@ -1143,6 +1256,15 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
         )
         return out
+
+    async def list_vendor_items_by_skus_grouped(
+        self, org_id: str, sku_ids: list[str]
+    ) -> dict[str, list[VendorItem]]:
+        items = await self.list_vendor_items_by_skus(org_id, sku_ids)
+        grouped: dict[str, list[VendorItem]] = {}
+        for item in items:
+            grouped.setdefault(item.sku_id, []).append(item)
+        return grouped
 
     async def list_vendor_items_by_vendor(
         self, vendor_id: str, org_id: str

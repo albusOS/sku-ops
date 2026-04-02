@@ -4,7 +4,6 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from assistant.application.llm import generate_text_sync as _generate_text
 from catalog.api.schemas import SuggestUomRequest
-from catalog.application.queries import get_known_unit_codes
 from catalog.application.sku_lifecycle import (
     create_product_with_sku as lifecycle_create,
 )
@@ -144,7 +143,8 @@ async def get_product(sku_id: str, current_user: CurrentUserDep):
 async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
     gen_text = _generate_text if LLM_AVAILABLE else None
-    known = await get_known_unit_codes()
+    units = await _db_catalog().list_uoms(get_org_id())
+    known = frozenset(u.code for u in units)
     result = await classify_uom(
         data.name, data.description, generate_text=gen_text, known_units=known
     )

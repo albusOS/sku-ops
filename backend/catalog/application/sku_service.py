@@ -8,7 +8,8 @@ SKU format: DEPT-FAMILYSLUG-NN
 
 import re
 
-from catalog.application import queries as catalog_queries
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.errors import ResourceNotFoundError
 
 SKU_FORMAT = "DEPT-FAMILYSLUG-NN"
@@ -29,6 +30,10 @@ def slug_from_name(name: str, max_len: int = 6) -> str:
     return s[:max_len] if len(s) > max_len else s
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 async def generate_sku(
     department_code: str,
     product_family_id: str,
@@ -40,8 +45,9 @@ async def generate_sku(
     already exists (slug collision between different families), appends
     a hash suffix to disambiguate.
     """
-    number = await catalog_queries.increment_sku_counter_and_get(
-        product_family_id
+    org_id = get_org_id()
+    number = await _db_catalog().sku_counter_increment(
+        org_id, product_family_id
     )
     raw_slug = (
         slug_from_name(family_name or "", max_len=8)
@@ -51,7 +57,7 @@ async def generate_sku(
     candidate = f"{department_code}-{raw_slug}-{str(number).zfill(2)}"
 
     # Check for collision and disambiguate if needed
-    existing = await catalog_queries.find_sku_by_sku_code(candidate)
+    existing = await _db_catalog().find_sku_by_code(org_id, candidate)
     if existing is None:
         return candidate
 
@@ -71,7 +77,8 @@ async def preview_sku(
     family_name: str | None = None,
 ) -> dict:
     """Preview the next SKU for a family without consuming the counter."""
-    department = await catalog_queries.get_department_by_id(category_id)
+    org_id = get_org_id()
+    department = await _db_catalog().get_department_by_id(category_id, org_id)
     if not department:
         raise ResourceNotFoundError("Category", category_id)
     code = department.code
@@ -81,7 +88,9 @@ async def preview_sku(
         else _DEFAULT_SLUG
     )
     if product_family_id:
-        next_num = await catalog_queries.get_next_sku_number(product_family_id)
+        next_num = await _db_catalog().sku_counter_next_preview(
+            org_id, product_family_id
+        )
     else:
         next_num = 1
     return {
@@ -94,7 +103,8 @@ async def preview_sku(
 
 async def sku_overview(family_name: str | None = None) -> dict:
     """Return SKU format info and example SKU for every department."""
-    departments = await catalog_queries.list_departments()
+    org_id = get_org_id()
+    departments = await _db_catalog().list_departments(org_id)
     slug = (
         slug_from_name(family_name or "", max_len=8)
         if family_name

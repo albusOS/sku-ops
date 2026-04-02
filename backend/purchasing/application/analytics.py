@@ -6,7 +6,6 @@ for demand velocity and SKU data.
 
 from __future__ import annotations
 
-from catalog.application.queries import get_vendor_items_for_skus
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -43,10 +42,15 @@ async def reorder_point_smart(
         return []
 
     sku_ids = [s.id for s in low_stock]
+    org_id = get_org_id()
     vel_map = await get_database_manager().inventory.demand_normalized_velocity(
-        get_org_id(), sku_ids, days=velocity_days
+        org_id, sku_ids, days=velocity_days
     )
-    vendor_items_by_sku = await get_vendor_items_for_skus(sku_ids)
+    vendor_items_by_sku = (
+        await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
+            org_id, sku_ids
+        )
+    )
     lead_time_cache: dict[str, float | None] = {}
 
     results = []

@@ -1,18 +1,16 @@
 """VendorItem CRUD routes - manage vendor-to-SKU relationships."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from catalog.application.vendor_item_lifecycle import (
-    add_vendor_item,
-    remove_vendor_item,
-    set_preferred_vendor,
-    update_vendor_item,
-)
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db import get_org_id, transaction
 from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.errors import ResourceNotFoundError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/skus", tags=["catalog-vendor-items"])
 
@@ -62,7 +60,8 @@ async def add_sku_vendor(
     )
     if not sku:
         raise HTTPException(status_code=404, detail="SKU not found")
-    item = await add_vendor_item(
+    item = await get_database_manager().catalog.add_vendor_item(
+        get_org_id(),
         sku_id=sku_id,
         vendor_id=data.vendor_id,
         vendor_sku=data.vendor_sku,
@@ -86,7 +85,9 @@ async def update_sku_vendor(
 ):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     try:
-        result = await update_vendor_item(item_id, update_data)
+        result = await get_database_manager().catalog.modify_vendor_item(
+            get_org_id(), item_id, update_data
+        )
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return result.model_dump()
@@ -94,10 +95,21 @@ async def update_sku_vendor(
 
 @router.delete("/{sku_id}/vendors/{item_id}")
 async def remove_sku_vendor(sku_id: str, item_id: str, current_user: AdminDep):
-    try:
-        await remove_vendor_item(item_id)
-    except ResourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    org_id = get_org_id()
+    cat = get_database_manager().catalog
+    existing = await cat.get_vendor_item_by_id(item_id, org_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Vendor item not found")
+    async with transaction():
+        await cat.soft_delete_vendor_item(item_id, org_id)
+    logger.info(
+        "vendor_item.removed",
+        extra={
+            "org_id": org_id,
+            "vendor_item_id": item_id,
+            "sku_id": existing.sku_id,
+        },
+    )
     return {"message": "Vendor item removed"}
 
 
@@ -106,7 +118,9 @@ async def set_sku_preferred_vendor(
     sku_id: str, item_id: str, current_user: AdminDep
 ):
     try:
-        await set_preferred_vendor(sku_id, item_id)
+        await get_database_manager().catalog.set_preferred_vendor_item(
+            get_org_id(), sku_id, item_id
+        )
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return {"message": "Preferred vendor set"}

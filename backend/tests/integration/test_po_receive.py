@@ -2,9 +2,9 @@
 
 import pytest
 
-from catalog.application.queries import insert_vendor
 from catalog.application.sku_lifecycle import create_product_with_sku
 from catalog.domain.sku import SkuUpdate
+from catalog.domain.vendor import Vendor
 from inventory.application.inventory_service import (
     process_import_stock_changes,
     process_receiving_stock_changes,
@@ -101,7 +101,6 @@ async def _create_po_with_item(
 
 def _stub_deps():
     """Build PurchasingDeps that wire through to real repos for integration tests."""
-    from catalog.application.vendor_item_lifecycle import add_vendor_item
 
     async def _list_departments():
         return await get_database_manager().catalog.list_departments(
@@ -146,17 +145,31 @@ def _stub_deps():
             **kw, on_stock_import=process_receiving_stock_changes
         )
 
+    async def _add_vendor_item(**kw):
+        return await get_database_manager().catalog.add_vendor_item(
+            DEFAULT_ORG_ID, **kw
+        )
+
+    async def _insert_vendor(vendor: Vendor | dict) -> None:
+        v = (
+            Vendor.model_validate(vendor)
+            if isinstance(vendor, dict)
+            else vendor
+        )
+        async with transaction():
+            await get_database_manager().catalog.insert_vendor(v)
+
     return PurchasingDeps(
         list_departments=_list_departments,
         get_department_by_code=_get_department_by_code,
         find_vendor_by_name=_find_vendor_by_name,
-        insert_vendor=insert_vendor,
+        insert_vendor=_insert_vendor,
         get_sku_by_id=_get_sku_by_id,
         find_vendor_item_by_vendor_and_sku_code=_find_vendor_item,
         find_sku_by_name_and_vendor=_find_sku_by_name_and_vendor,
         update_sku=_update_sku,
         create_product_with_sku=_noop_create,
-        add_vendor_item=add_vendor_item,
+        add_vendor_item=_add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
     )
 

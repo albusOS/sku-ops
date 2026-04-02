@@ -4,12 +4,11 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from catalog.application.queries import insert_vendor
 from catalog.application.sku_lifecycle import (
     create_product_with_sku as lifecycle_create,
 )
-from catalog.application.vendor_item_lifecycle import add_vendor_item
 from catalog.domain.sku import SkuUpdate
+from catalog.domain.vendor import Vendor
 from finance.application.po_sync_service import queue_po_for_sync
 from inventory.application.inventory_service import (
     process_receiving_stock_changes,
@@ -38,57 +37,68 @@ from shared.infrastructure.middleware.audit import audit_log
 logger = logging.getLogger(__name__)
 
 
-def _cat():
-    return get_database_manager().catalog
-
-
-async def _list_departments():
-    return await _cat().list_departments(get_org_id())
-
-
-async def _get_department_by_code(code: str):
-    return await _cat().get_department_by_code(code, get_org_id())
-
-
-async def _find_vendor_by_name(name: str):
-    return await _cat().find_vendor_by_name(get_org_id(), name)
-
-
-async def _get_sku_by_id(sku_id: str):
-    return await _cat().get_sku_by_id(sku_id, get_org_id())
-
-
-async def _find_vendor_item_by_vendor_and_sku_code(
-    vendor_id: str, vendor_sku: str
-):
-    return await _cat().find_vendor_item_by_vendor_and_sku(
-        get_org_id(), vendor_id, vendor_sku
-    )
-
-
-async def _find_product_by_name_and_vendor(name: str, vendor_id: str):
-    return await _cat().find_sku_by_name_and_vendor(
-        get_org_id(), name, vendor_id
-    )
-
-
-async def _update_sku(sku_id: str, updates: SkuUpdate):
-    async with transaction():
-        return await _cat().update_sku(
-            sku_id, get_org_id(), updates.model_dump(exclude_none=True)
+def _build_deps() -> PurchasingDeps:
+    async def list_departments():
+        return await get_database_manager().catalog.list_departments(
+            get_org_id()
         )
 
+    async def get_department_by_code(code: str):
+        return await get_database_manager().catalog.get_department_by_code(
+            code, get_org_id()
+        )
 
-def _build_deps() -> PurchasingDeps:
+    async def find_vendor_by_name(name: str):
+        return await get_database_manager().catalog.find_vendor_by_name(
+            get_org_id(), name
+        )
+
+    async def get_sku_by_id(sku_id: str):
+        return await get_database_manager().catalog.get_sku_by_id(
+            sku_id, get_org_id()
+        )
+
+    async def find_vendor_item_by_vendor_and_sku_code(
+        vendor_id: str, vendor_sku: str
+    ):
+        return await get_database_manager().catalog.find_vendor_item_by_vendor_and_sku(
+            get_org_id(), vendor_id, vendor_sku
+        )
+
+    async def find_sku_by_name_and_vendor(name: str, vendor_id: str):
+        return await get_database_manager().catalog.find_sku_by_name_and_vendor(
+            get_org_id(), name, vendor_id
+        )
+
+    async def update_sku(sku_id: str, updates: SkuUpdate):
+        async with transaction():
+            return await get_database_manager().catalog.update_sku(
+                sku_id, get_org_id(), updates.model_dump(exclude_none=True)
+            )
+
+    async def add_vendor_item(**kw):
+        return await get_database_manager().catalog.add_vendor_item(
+            get_org_id(), **kw
+        )
+
+    async def insert_vendor_row(vendor: Vendor | dict) -> None:
+        v = (
+            Vendor.model_validate(vendor)
+            if isinstance(vendor, dict)
+            else vendor
+        )
+        async with transaction():
+            await get_database_manager().catalog.insert_vendor(v)
+
     return PurchasingDeps(
-        list_departments=_list_departments,
-        get_department_by_code=_get_department_by_code,
-        find_vendor_by_name=_find_vendor_by_name,
-        insert_vendor=insert_vendor,
-        get_sku_by_id=_get_sku_by_id,
-        find_vendor_item_by_vendor_and_sku_code=_find_vendor_item_by_vendor_and_sku_code,
-        find_sku_by_name_and_vendor=_find_product_by_name_and_vendor,
-        update_sku=_update_sku,
+        list_departments=list_departments,
+        get_department_by_code=get_department_by_code,
+        find_vendor_by_name=find_vendor_by_name,
+        insert_vendor=insert_vendor_row,
+        get_sku_by_id=get_sku_by_id,
+        find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
+        find_sku_by_name_and_vendor=find_sku_by_name_and_vendor,
+        update_sku=update_sku,
         create_product_with_sku=lambda **kw: lifecycle_create(
             **kw, on_stock_import=process_receiving_stock_changes
         ),
