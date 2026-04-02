@@ -1,8 +1,13 @@
 """Integration tests for the analyst SQL executor — verifies sandbox against real Postgres."""
 
+import uuid
+
 import pytest
 
-from assistant.agents.analyst.sql_executor import AnalystQueryError, execute_sandboxed
+from assistant.agents.analyst.sql_executor import (
+    AnalystQueryError,
+    execute_sandboxed,
+)
 
 
 class TestSandboxedExecution:
@@ -81,8 +86,9 @@ class TestSandboxedExecution:
         """Queries that return zero rows produce an empty result, not an error."""
 
         async def _body():
+            missing = str(uuid.uuid4())
             result = await execute_sandboxed(
-                "SELECT id FROM departments WHERE organization_id = $1 AND id = 'nonexistent'"
+                f"SELECT id FROM departments WHERE organization_id = $1 AND id = '{missing}'"
             )
             assert result.row_count == 0
             assert result.rows == []

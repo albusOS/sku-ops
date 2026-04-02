@@ -1,39 +1,126 @@
-"""Ledger read queries — dimension summaries and cross-context delegations.
+"""Ledger read queries — dimension summaries, analytics, and cross-context delegations.
 
 Cross-context consumers import from here, never from finance.infrastructure directly.
-Write operations (insert_entries, entries_exist) remain in finance.infrastructure.ledger_repo.
-
-Analytics queries (trend_series, ar_aging, product_margins, purchase_spend,
-reference_counts) live in ledger_analytics.py and are re-exported below.
+Write operations use the finance database service (see ``ledger_service``).
 """
 
-# Re-export write-path helpers that some callers (tests, ledger_service) need via this module.
-# Re-export analytics so callers using `from finance.application import ledger_queries` see everything.
-# _build_dimension_filter is the canonical copy (lives in ledger_analytics); imported here for local use.
 from typing import TypedDict
 
-from finance.application.ledger_analytics import (  # noqa: F401
+from finance.domain.ledger_analytics_rows import (
     ArAgingRow,
     ProductMarginRow,
     TrendPoint,
-    _build_dimension_filter,
-    ar_aging,
-    product_margins,
-    purchase_spend,
-    reference_counts,
-    returns_total,
-    trend_series,
 )
-from finance.infrastructure.ledger_repo import get_journal  # noqa: F401
-from operations.application.contractor_service import get_users_by_ids
-from operations.application.queries import (
-    payment_status_breakdown as _ops_pmt_status,
-)
-from operations.application.queries import (
-    units_sold_by_product as _ops_units_sold,
-)
-from shared.infrastructure.database import get_connection, get_org_id
-from shared.kernel.types import round_money
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
+
+
+def _db_finance():
+    return get_database_manager().finance
+
+
+def _db_operations():
+    return get_database_manager().operations
+
+
+async def trend_series(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    group_by: str = "day",
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> list[TrendPoint]:
+    """Time-series of revenue, cost, profit."""
+    return await _db_finance().analytics_trend_series(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        group_by=group_by,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
+    )
+
+
+async def ar_aging(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[ArAgingRow]:
+    """AR aging buckets by billing entity based on invoice due_date."""
+    return await _db_finance().analytics_ar_aging(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
+
+
+async def product_margins(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 50,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> list[ProductMarginRow]:
+    """Per-product revenue, COGS, profit, margin."""
+    return await _db_finance().analytics_product_margins(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
+    )
+
+
+async def purchase_spend(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> float:
+    """Total inventory additions from PO receipts in the period."""
+    return await _db_finance().analytics_purchase_spend(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
+
+
+async def reference_counts(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, int]:
+    """Count distinct references by type (withdrawal, return, etc.)."""
+    return await _db_finance().analytics_reference_counts(
+        get_org_id(), start_date=start_date, end_date=end_date
+    )
+
+
+async def returns_total(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    *,
+    job_id: str | None = None,
+    department: str | None = None,
+    billing_entity: str | None = None,
+) -> float:
+    """Sum of revenue reversed by returns (positive number)."""
+    return await _db_finance().analytics_returns_total(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
+    )
+
+
+async def inventory_carrying_cost(
+    holding_rate_pct: float = 25.0,
+) -> list[dict]:
+    """Estimated carrying cost per SKU with stock > 0."""
+    return await _db_finance().analytics_inventory_carrying_cost(
+        get_org_id(), holding_rate_pct=holding_rate_pct
+    )
 
 
 class DepartmentSummaryRow(TypedDict):
@@ -89,30 +176,14 @@ async def summary_by_account(
     billing_entity: str | None = None,
 ) -> dict[str, float]:
     """P&L summary: {account_name: total_amount}."""
-    conn = get_connection()
-    params: list = [get_org_id()]
-    date_filter = ""
-    if start_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at >= ${n}"
-        params.append(start_date)
-    if end_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at <= ${n}"
-        params.append(end_date)
-    dim_filter = _build_dimension_filter(
-        params, job_id=job_id, department=department, billing_entity=billing_entity
+    return await _db_finance().ledger_summary_by_account(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        job_id=job_id,
+        department=department,
+        billing_entity=billing_entity,
     )
-
-    query = (
-        "SELECT account, ROUND(CAST(SUM(amount) AS NUMERIC), 2) AS total"
-        " FROM financial_ledger"
-        " WHERE organization_id = $1"
-    )
-    query += date_filter + dim_filter
-    query += " GROUP BY account"
-    cursor = await conn.execute(query, params)
-    return {row[0]: row[1] for row in await cursor.fetchall()}
 
 
 async def summary_by_department(
@@ -120,50 +191,9 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[DepartmentSummaryRow]:
     """Per-department revenue, cogs, shrinkage."""
-    conn = get_connection()
-    params: list = [get_org_id()]
-    date_filter = ""
-    if start_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at >= ${n}"
-        params.append(start_date)
-    if end_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at <= ${n}"
-        params.append(end_date)
-
-    query = (
-        "SELECT department,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END) AS NUMERIC), 2) AS shrinkage"
-        " FROM financial_ledger"
-        " WHERE organization_id = $1"
-        " AND account IN ('revenue', 'cogs', 'shrinkage')"
-        " AND department IS NOT NULL"
+    return await _db_finance().ledger_summary_by_department(
+        get_org_id(), start_date=start_date, end_date=end_date
     )
-    query += date_filter
-    query += " GROUP BY department"
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
-    result = []
-    for r in rows:
-        row = dict(r)
-        revenue = row["revenue"]
-        cost = row["cost"]
-        profit = round_money(revenue - cost)
-        result.append(
-            DepartmentSummaryRow(
-                department=row["department"],
-                revenue=revenue,
-                cost=cost,
-                shrinkage=row["shrinkage"],
-                profit=profit,
-                # float for JSON-friendly percentage
-                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
-            )
-        )
-    return result
 
 
 async def summary_by_job(
@@ -174,74 +204,14 @@ async def summary_by_job(
     search: str | None = None,
 ) -> JobSummaryResult:
     """Per-job P&L with pagination and search. Returns {rows, total}."""
-    conn = get_connection()
-    params: list = [get_org_id()]
-    date_filter = ""
-    if start_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at >= ${n}"
-        params.append(start_date)
-    if end_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at <= ${n}"
-        params.append(end_date)
-
-    base = (
-        "SELECT job_id,"
-        " billing_entity,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
-        " COUNT(DISTINCT reference_id) AS transaction_count"
-        " FROM financial_ledger"
-        " WHERE organization_id = $1"
-        " AND account IN ('revenue', 'cogs')"
-        " AND job_id IS NOT NULL"
+    return await _db_finance().ledger_summary_by_job(
+        get_org_id(),
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
+        search=search,
     )
-    base += date_filter
-    base += " GROUP BY job_id, billing_entity"
-
-    search_clause = ""
-    search_params: list = []
-    if search:
-        term = f"%{search}%"
-        sn = len(params) + 1
-        search_clause = f" HAVING job_id LIKE ${sn} OR billing_entity LIKE ${sn + 1}"
-        search_params = [term, term]
-
-    all_count_params = [*params, *search_params]
-    count_query = f"SELECT COUNT(*) AS cnt, COALESCE(SUM(revenue), 0) AS total_revenue, COALESCE(SUM(cost), 0) AS total_cost FROM ({base}{search_clause})"
-    count_cursor = await conn.execute(count_query, all_count_params)
-    agg = dict(await count_cursor.fetchone())
-    total = agg["cnt"]
-    all_revenue = agg["total_revenue"]
-    all_cost = agg["total_cost"]
-
-    limit_n = len(all_count_params) + 1
-    data_query = (
-        f"{base}{search_clause} ORDER BY revenue DESC LIMIT ${limit_n} OFFSET ${limit_n + 1}"
-    )
-    cursor = await conn.execute(data_query, [*params, *search_params, limit, offset])
-    rows = await cursor.fetchall()
-
-    result = []
-    for r in rows:
-        row = dict(r)
-        revenue = row["revenue"]
-        cost = row["cost"]
-        profit = round_money(revenue - cost)
-        result.append(
-            JobSummaryRow(
-                job_id=row["job_id"],
-                billing_entity=row["billing_entity"],
-                revenue=revenue,
-                cost=cost,
-                profit=profit,
-                # float for JSON-friendly percentage
-                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
-                withdrawal_count=row["transaction_count"],
-            )
-        )
-    return JobSummaryResult(rows=result, total=total, all_revenue=all_revenue, all_cost=all_cost)
 
 
 async def summary_by_billing_entity(
@@ -249,49 +219,9 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[BillingEntitySummaryRow]:
     """Per-entity AR balances and revenue."""
-    conn = get_connection()
-    params: list = [get_org_id()]
-    date_filter = ""
-    if start_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at >= ${n}"
-        params.append(start_date)
-    if end_date:
-        n = len(params) + 1
-        date_filter += f" AND created_at <= ${n}"
-        params.append(end_date)
-
-    query = (
-        "SELECT billing_entity,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END) AS NUMERIC), 2) AS ar_balance,"
-        " COUNT(DISTINCT reference_id) AS transaction_count"
-        " FROM financial_ledger"
-        " WHERE organization_id = $1"
-        " AND billing_entity IS NOT NULL"
+    return await _db_finance().ledger_summary_by_billing_entity(
+        get_org_id(), start_date=start_date, end_date=end_date
     )
-    query += date_filter
-    query += " GROUP BY billing_entity"
-    cursor = await conn.execute(query, params)
-    rows = await cursor.fetchall()
-    result = []
-    for r in rows:
-        row = dict(r)
-        revenue = row["revenue"]
-        cost = row["cost"]
-        profit = round_money(revenue - cost)
-        result.append(
-            BillingEntitySummaryRow(
-                billing_entity=row["billing_entity"],
-                revenue=revenue,
-                cost=cost,
-                profit=profit,
-                ar_balance=row["ar_balance"],
-                transaction_count=row["transaction_count"],
-            )
-        )
-    return result
 
 
 async def summary_by_contractor(
@@ -299,61 +229,30 @@ async def summary_by_contractor(
     end_date: str | None = None,
 ) -> list[ContractorSummaryRow]:
     """Per-contractor spend totals."""
-    conn = get_connection()
-    params: list = [get_org_id()]
-    date_filter = ""
-    if start_date:
-        n = len(params) + 1
-        date_filter += f" AND fl.created_at >= ${n}"
-        params.append(start_date)
-    if end_date:
-        n = len(params) + 1
-        date_filter += f" AND fl.created_at <= ${n}"
-        params.append(end_date)
-
-    query = (
-        "SELECT fl.contractor_id,"
-        " ROUND(CAST(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS ar_balance,"
-        " COUNT(DISTINCT fl.reference_id) AS transaction_count"
-        " FROM financial_ledger fl"
-        " WHERE fl.organization_id = $1"
-        " AND fl.contractor_id IS NOT NULL"
+    return await _db_finance().ledger_summary_by_contractor(
+        get_org_id(), start_date=start_date, end_date=end_date
     )
-    query += date_filter
-    query += " GROUP BY fl.contractor_id"
-    cursor = await conn.execute(query, params)
-    rows = [dict(r) for r in await cursor.fetchall()]
-
-    contractor_ids = [r["contractor_id"] for r in rows]
-    user_map = await get_users_by_ids(contractor_ids)
-
-    return [
-        ContractorSummaryRow(
-            contractor_id=row["contractor_id"],
-            revenue=row["revenue"],
-            ar_balance=row["ar_balance"],
-            transaction_count=row["transaction_count"],
-            name=user_map[row["contractor_id"]].name if row["contractor_id"] in user_map else "",
-            company=user_map[row["contractor_id"]].company
-            if row["contractor_id"] in user_map
-            else "",
-        )
-        for row in rows
-    ]
 
 
 async def units_sold_by_product(
+    org_id: str,
+    *,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _ops_units_sold(start_date, end_date)
+    return await _db_operations().units_sold_by_product(
+        org_id, start_date=start_date, end_date=end_date
+    )
 
 
 async def payment_status_breakdown(
+    org_id: str,
+    *,
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _ops_pmt_status(start_date, end_date)
+    return await _db_operations().payment_status_breakdown(
+        org_id, start_date=start_date, end_date=end_date
+    )

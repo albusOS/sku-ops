@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import UTC, datetime
 
 import numpy as np
 
@@ -37,14 +36,14 @@ async def is_pgvector_available() -> bool:
     if _pgvector_ok is not None:
         return _pgvector_ok
     try:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db import sql_execute
 
-        conn = get_connection()
-        cur = await conn.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = 'embeddings' LIMIT 1"
+        res = await sql_execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = 'embeddings' LIMIT 1",
+            read_only=True,
+            max_rows=1,
         )
-        row = await cur.fetchone()
-        _pgvector_ok = row is not None
+        _pgvector_ok = len(res.rows) > 0
     except Exception:
         _pgvector_ok = False
     logger.info("pgvector available: %s", _pgvector_ok)
@@ -83,7 +82,9 @@ async def embed_texts(
         all_vectors: list[list[float]] = []
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            resp = await client.embeddings.create(
+                model=EMBEDDING_MODEL, input=batch
+            )
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         return _normalize(mat)
@@ -104,7 +105,9 @@ async def embed_query(
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(api_key=key)
-        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+        resp = await client.embeddings.create(
+            model=EMBEDDING_MODEL, input=[query]
+        )
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:
@@ -123,179 +126,9 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-# ── pgvector persistence ─────────────────────────────────────────────────────
+# ── pgvector literal formatting (used by AssistantDatabaseService) ───────────
 
 
 def _vec_to_pgvector(vec: np.ndarray) -> str:
     """Format a numpy vector as a pgvector literal string."""
     return "[" + ",".join(f"{x:.6f}" for x in vec) + "]"
-
-
-async def upsert(
-    org_id: str,
-    entity_type: str,
-    entity_id: str,
-    content: str,
-    embedding: np.ndarray,
-) -> bool:
-    """Persist an embedding. Returns True if written, False if unchanged or unavailable."""
-    if not await is_pgvector_available():
-        return False
-    try:
-        from shared.infrastructure.database import get_connection
-
-        conn = get_connection()
-        chash = content_hash(content)
-
-        # Check if content is unchanged
-        cur = await conn.execute(
-            "SELECT content_hash FROM embeddings "
-            "WHERE org_id = $1 AND entity_type = $2 AND entity_id = $3",
-            (org_id, entity_type, entity_id),
-        )
-        existing = await cur.fetchone()
-        if existing and existing["content_hash"] == chash:
-            return False
-
-        now = datetime.now(UTC)
-        vec_str = _vec_to_pgvector(embedding)
-        row_id = f"{entity_type}:{entity_id}"
-
-        if existing:
-            await conn.execute(
-                "UPDATE embeddings SET content = $1, content_hash = $2, "
-                "embedding = $3::vector, updated_at = $4 "
-                "WHERE org_id = $5 AND entity_type = $6 AND entity_id = $7",
-                (content, chash, vec_str, now, org_id, entity_type, entity_id),
-            )
-        else:
-            await conn.execute(
-                "INSERT INTO embeddings (id, org_id, entity_type, entity_id, "
-                "content, content_hash, embedding, updated_at) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8)",
-                (row_id, org_id, entity_type, entity_id, content, chash, vec_str, now),
-            )
-        await conn.commit()
-        return True
-    except Exception as e:
-        logger.warning("embedding upsert failed: %s", e)
-        return False
-
-
-async def upsert_batch(
-    org_id: str,
-    entity_type: str,
-    items: list[tuple[str, str, np.ndarray]],
-) -> int:
-    """Batch upsert embeddings. items = [(entity_id, content, vector), ...].
-
-    Returns count of rows written (skips unchanged content).
-    """
-    if not await is_pgvector_available() or not items:
-        return 0
-    try:
-        from shared.infrastructure.database import get_connection
-
-        conn = get_connection()
-        now = datetime.now(UTC)
-        written = 0
-
-        # Fetch existing hashes for diff
-        ids = [i[0] for i in items]
-        # Build a lookup of existing content hashes
-        existing_hashes: dict[str, str] = {}
-        # Query in batches to avoid huge IN clauses
-        for batch_start in range(0, len(ids), 200):
-            batch_ids = ids[batch_start : batch_start + 200]
-            placeholders = ", ".join(f"${i + 3}" for i in range(len(batch_ids)))
-            cur = await conn.execute(
-                f"SELECT entity_id, content_hash FROM embeddings "
-                f"WHERE org_id = $1 AND entity_type = $2 AND entity_id IN ({placeholders})",
-                (org_id, entity_type, *batch_ids),
-            )
-            for row in await cur.fetchall():
-                existing_hashes[row["entity_id"]] = row["content_hash"]
-
-        rows_to_upsert: list[tuple] = []
-        for entity_id, content_text, vec in items:
-            chash = content_hash(content_text)
-            if existing_hashes.get(entity_id) == chash:
-                continue
-            row_id = f"{entity_type}:{entity_id}"
-            vec_str = _vec_to_pgvector(vec)
-            rows_to_upsert.append(
-                (row_id, org_id, entity_type, entity_id, content_text, chash, vec_str, now)
-            )
-
-        if rows_to_upsert:
-            await conn.executemany(
-                "INSERT INTO embeddings (id, org_id, entity_type, entity_id, "
-                "content, content_hash, embedding, updated_at) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8) "
-                "ON CONFLICT (org_id, entity_type, entity_id) DO UPDATE SET "
-                "content = EXCLUDED.content, content_hash = EXCLUDED.content_hash, "
-                "embedding = EXCLUDED.embedding, updated_at = EXCLUDED.updated_at",
-                rows_to_upsert,
-            )
-            await conn.commit()
-            written = len(rows_to_upsert)
-
-        return written
-    except Exception as e:
-        logger.warning("embedding batch upsert failed: %s", e)
-        return 0
-
-
-async def search(
-    query_embedding: np.ndarray,
-    org_id: str,
-    entity_types: list[str] | None = None,
-    limit: int = 10,
-) -> list[dict]:
-    """Semantic search via pgvector cosine distance.
-
-    Returns list of {entity_type, entity_id, content, similarity}.
-    Falls back to empty list if pgvector unavailable.
-    """
-    if not await is_pgvector_available():
-        return []
-    try:
-        from shared.infrastructure.database import get_connection
-
-        conn = get_connection()
-        vec_str = _vec_to_pgvector(query_embedding)
-
-        if entity_types:
-            placeholders = ", ".join(f"${i + 3}" for i in range(len(entity_types)))
-            cur = await conn.execute(
-                f"SELECT entity_type, entity_id, content, "
-                f"1 - (embedding <=> $1::vector) AS similarity "
-                f"FROM embeddings "
-                f"WHERE org_id = $2 AND entity_type IN ({placeholders}) "
-                f"ORDER BY embedding <=> $1::vector "
-                f"LIMIT ${len(entity_types) + 3}",
-                (vec_str, org_id, *entity_types, limit),
-            )
-        else:
-            cur = await conn.execute(
-                "SELECT entity_type, entity_id, content, "
-                "1 - (embedding <=> $1::vector) AS similarity "
-                "FROM embeddings "
-                "WHERE org_id = $2 "
-                "ORDER BY embedding <=> $1::vector "
-                "LIMIT $3",
-                (vec_str, org_id, limit),
-            )
-        rows = await cur.fetchall()
-        return [
-            {
-                "entity_type": r["entity_type"],
-                "entity_id": r["entity_id"],
-                "content": r["content"],
-                "similarity": float(r["similarity"]),
-            }
-            for r in rows
-        ]
-    except Exception as e:
-        logger.warning("embedding search failed: %s", e)
-        return []

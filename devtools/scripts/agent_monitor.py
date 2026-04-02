@@ -86,7 +86,9 @@ def _build_stats_panel(stats: dict) -> Panel:
 
 
 def _build_agent_breakdown(stats: dict) -> Panel:
-    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+    table = Table(
+        show_header=True, header_style="bold", box=None, padding=(0, 1)
+    )
     table.add_column("Agent", style="bold")
     table.add_column("Runs", justify="right")
     table.add_column("Tokens (in→out)", justify="right")
@@ -100,18 +102,24 @@ def _build_agent_breakdown(stats: dict) -> Panel:
             Text(name, style=_agent_color(name)),
             str(row.get("runs", 0)),
             _format_tokens(
-                row.get("total_input_tokens", 0) or 0, row.get("total_output_tokens", 0) or 0
+                row.get("total_input_tokens", 0) or 0,
+                row.get("total_output_tokens", 0) or 0,
             ),
             _format_cost(row.get("total_cost", 0) or 0),
             str(int(row.get("avg_duration_ms", 0) or 0)),
-            Text(str(row.get("errors", 0) or 0), style="red" if row.get("errors") else "green"),
+            Text(
+                str(row.get("errors", 0) or 0),
+                style="red" if row.get("errors") else "green",
+            ),
         )
 
     return Panel(table, title="[bold]By Agent[/]", border_style="bright_blue")
 
 
 def _build_runs_table(runs: list[dict]) -> Panel:
-    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+    table = Table(
+        show_header=True, header_style="bold", box=None, padding=(0, 1)
+    )
     table.add_column("Time", width=8)
     table.add_column("Agent", width=16)
     table.add_column("Mode", width=5)
@@ -138,13 +146,21 @@ def _build_runs_table(runs: list[dict]) -> Panel:
             except (json.JSONDecodeError, TypeError):
                 tool_calls = []
 
-        tools_str = ", ".join(tc.get("tool", "?") for tc in tool_calls) if tool_calls else "-"
+        tools_str = (
+            ", ".join(tc.get("tool", "?") for tc in tool_calls)
+            if tool_calls
+            else "-"
+        )
         if len(tools_str) > 30:
             tools_str = tools_str[:27] + "..."
 
         msg = (r.get("user_message") or "")[:40]
         error = r.get("error")
-        status = Text("ERR", style="bold red") if error else Text("OK", style="green")
+        status = (
+            Text("ERR", style="bold red")
+            if error
+            else Text("OK", style="green")
+        )
 
         table.add_row(
             time_str,
@@ -158,7 +174,11 @@ def _build_runs_table(runs: list[dict]) -> Panel:
             status,
         )
 
-    return Panel(table, title=f"[bold]Recent Runs ({len(runs)})[/]", border_style="bright_blue")
+    return Panel(
+        table,
+        title=f"[bold]Recent Runs ({len(runs)})[/]",
+        border_style="bright_blue",
+    )
 
 
 def _build_display(stats: dict, runs: list[dict]) -> Layout:
@@ -183,15 +203,20 @@ def _build_display(stats: dict, runs: list[dict]) -> Layout:
 
 
 async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
-    from assistant.infrastructure.agent_run_repo import get_stats, list_runs
+    from shared.infrastructure.db import get_org_id
+    from shared.infrastructure.db.base import get_database_manager
 
-    stats = await get_stats(hours=max(1, minutes // 60) or 1)
-    runs = await list_runs(minutes=minutes, limit=limit)
+    oid = get_org_id()
+    db = get_database_manager()
+    stats = await db.assistant.agent_run_stats(
+        oid, hours=max(1, minutes // 60) or 1
+    )
+    runs = await db.assistant.list_agent_runs(oid, minutes=minutes, limit=limit)
     return stats, runs
 
 
 async def _run(interval: int, minutes: int, limit: int, once: bool):
-    from shared.infrastructure.database import close_db, init_db
+    from shared.infrastructure.db import close_db, init_db
 
     await init_db()
 
@@ -214,15 +239,27 @@ async def _run(interval: int, minutes: int, limit: int, once: bool):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Live agent monitoring dashboard")
-    parser.add_argument(
-        "--interval", type=int, default=5, help="Refresh interval in seconds (default: 5)"
+    parser = argparse.ArgumentParser(
+        description="Live agent monitoring dashboard"
     )
     parser.add_argument(
-        "--minutes", type=int, default=60, help="Show runs from last N minutes (default: 60)"
+        "--interval",
+        type=int,
+        default=5,
+        help="Refresh interval in seconds (default: 5)",
     )
-    parser.add_argument("--limit", type=int, default=30, help="Max runs to show (default: 30)")
-    parser.add_argument("--once", action="store_true", help="Single snapshot, no live refresh")
+    parser.add_argument(
+        "--minutes",
+        type=int,
+        default=60,
+        help="Show runs from last N minutes (default: 60)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=30, help="Max runs to show (default: 30)"
+    )
+    parser.add_argument(
+        "--once", action="store_true", help="Single snapshot, no live refresh"
+    )
     args = parser.parse_args()
     try:
         asyncio.run(_run(args.interval, args.minutes, args.limit, args.once))

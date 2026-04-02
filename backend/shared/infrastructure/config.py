@@ -78,9 +78,10 @@ ENV = _ENV
 is_deployed = is_production
 
 # ── Database ──────────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops"
+_local_supabase_db_url = (
+    "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 )
+DATABASE_URL = os.environ.get("DATABASE_URL", _local_supabase_db_url)
 
 if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
     raise RuntimeError(
@@ -96,7 +97,9 @@ try:
     _db_host = urlparse(DATABASE_URL).hostname or ""
     db_is_local = _db_host in ("localhost", "127.0.0.1", "::1", "db")
 except Exception:
-    db_is_local = True  # parse failure: assume local to avoid false-positive warning
+    db_is_local = (
+        True  # parse failure: assume local to avoid false-positive warning
+    )
 
 # PostgreSQL connection pool
 PG_POOL_MIN = int(os.environ.get("PG_POOL_MIN", "2"))
@@ -114,21 +117,38 @@ _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
 def _resolve_jwt_secret() -> str:
     raw = os.environ.get("JWT_SECRET", "").strip()
     if is_production and (not raw or raw == _DEV_JWT_FALLBACK):
-        raise RuntimeError("JWT_SECRET must be set in production. Do not use default.")
+        raise RuntimeError(
+            "JWT_SECRET must be set in production. Do not use default."
+        )
     return raw or _DEV_JWT_FALLBACK
 
 
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
-_default_token_expiry = "15" if is_production else "480"  # 8 hours in dev, 15 min in prod
+_default_token_expiry = (
+    "15" if is_production else "480"
+)  # 8 hours in dev, 15 min in prod
 JWT_ACCESS_EXPIRATION_MINUTES = int(
     os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", _default_token_expiry)
 )
-REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
+REFRESH_TOKEN_EXPIRATION_DAYS = int(
+    os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "7")
+)
 
 # ── Supabase JWKS (ES256 token verification) ─────────────────────────────────
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
-_SUPABASE_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
+_local_supabase_url = (
+    "http://127.0.0.1:54321" if is_development or is_test else ""
+)
+SUPABASE_URL = (
+    os.environ.get("SUPABASE_URL", _local_supabase_url).strip().rstrip("/")
+)
+PUBLIC_SUPABASE_PUBLISHABLE_KEY = os.environ.get(
+    "PUBLIC_SUPABASE_PUBLISHABLE_KEY", ""
+).strip()
+SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+_SUPABASE_JWKS_URL = (
+    f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
+)
 # Expected issuer for Supabase tokens: {project_url}/auth/v1
 _SUPABASE_ISSUER = f"{SUPABASE_URL}/auth/v1" if SUPABASE_URL else ""
 
@@ -160,24 +180,31 @@ def decode_token(token: str) -> dict:
     """Decode a JWT using the strategy matching the current environment.
 
     Production: ES256 via Supabase JWKS with issuer verification.
-    Dev/test:   HS256 with local secret (no JWKS call).
+    Development: Supabase local issues ES256 (JWKS); pytest still uses HS256.
+    Test:        HS256 with JWT_SECRET only (no Supabase in unit API tests).
 
     Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError on failure.
     """
     import jwt as _jwt
 
-    if is_production:
+    def _decode_es256() -> dict:
         jwks = _get_jwks_client()
         if jwks is None:
-            raise _jwt.InvalidTokenError("SUPABASE_URL not configured for production")
+            raise _jwt.InvalidTokenError(
+                "SUPABASE_URL not configured for JWKS token verification"
+            )
         try:
             signing_key = jwks.get_signing_key_from_jwt(token)
         except _jwt.PyJWKClientError as e:
             logger.warning("JWKS key fetch failed: %s", e)
-            raise _jwt.InvalidTokenError("Unable to verify token signing key") from e
+            raise _jwt.InvalidTokenError(
+                "Unable to verify token signing key"
+            ) from e
         except Exception as e:
             logger.warning("JWKS key fetch failed unexpectedly: %s", e)
-            raise _jwt.InvalidTokenError("Unable to verify token signing key") from e
+            raise _jwt.InvalidTokenError(
+                "Unable to verify token signing key"
+            ) from e
         return _jwt.decode(
             token,
             signing_key.key,
@@ -186,6 +213,17 @@ def decode_token(token: str) -> dict:
             options={"verify_aud": False, "verify_iss": True},
         )
 
+    if is_production:
+        return _decode_es256()
+
+    if not is_test:
+        try:
+            header = _jwt.get_unverified_header(token)
+        except _jwt.InvalidTokenError:
+            header = {}
+        if header.get("alg") == "ES256" and _SUPABASE_JWKS_URL:
+            return _decode_es256()
+
     return _jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
 
@@ -193,7 +231,9 @@ def decode_token(token: str) -> dict:
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
 cors_is_permissive = (
-    not CORS_ORIGINS.strip() or CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
+    not CORS_ORIGINS.strip()
+    or CORS_ORIGINS == "*"
+    or "*" in CORS_ORIGINS.split(",")
 )
 cors_warn_in_deployed = is_deployed and cors_is_permissive
 
@@ -211,60 +251,37 @@ _enforce_cors()
 # ── Sentry ────────────────────────────────────────────────────────────────────
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 
-# ── Dangerous feature flags ───────────────────────────────────────────────────
-# These flags are ON by default in development/test and OFF in production.
-# Setting them to true in production is a hard startup error — not a warning —
-# because forgetting to remove them after a one-time use is a common mistake.
-
-_allow_reset_raw = os.environ.get("ALLOW_RESET", "").lower()
-_allow_reset_explicit = _allow_reset_raw in ("1", "true")
-
-if is_production and _allow_reset_explicit:
-    raise RuntimeError(
-        "ALLOW_RESET=true is set in production. "
-        "This exposes seed/reset endpoints that can destroy all application data. "
-        "Remove ALLOW_RESET from the environment and redeploy."
-    )
-
-ALLOW_RESET = _allow_reset_explicit or is_development or is_test
-
-_allow_public_auth_raw = os.environ.get("ALLOW_PUBLIC_AUTH", "").lower()
-_allow_public_auth_explicit = _allow_public_auth_raw in ("1", "true")
-
-if is_production and _allow_public_auth_explicit:
-    raise RuntimeError(
-        "ALLOW_PUBLIC_AUTH=true is set in production. "
-        "This exposes login/register endpoints that bypass Supabase auth. "
-        "Remove ALLOW_PUBLIC_AUTH from the environment and redeploy."
-    )
-
-ALLOW_PUBLIC_AUTH = _allow_public_auth_explicit or is_development or is_test
+ALLOW_PUBLIC_AUTH = False
 
 # ── Auth provider ─────────────────────────────────────────────────────────────
-# Supabase in production, internal (flat JWT claims) in dev/test.
-# No runtime flag — the environment determines the provider automatically.
+# Supabase is the auth provider in every environment.
 
 # ── AI providers ──────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
 ANTHROPIC_MODEL = (
-    os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+    os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+    or "claude-sonnet-4-6"
 )
 ANTHROPIC_FAST_MODEL = (
-    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip()
+    or "claude-sonnet-4-6"
 )
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 OPENAI_AVAILABLE = bool(OPENAI_API_KEY)
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
+OPENROUTER_BASE_URL = os.environ.get(
+    "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
+).strip()
 OPENROUTER_AVAILABLE = bool(OPENROUTER_API_KEY)
 
 # Embeddings (OpenAI-compatible API: tool index, domain search, query router).
 # Set EMBEDDING_MODEL to change model; default text-embedding-3-small.
 EMBEDDING_MODEL = (
-    os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small").strip() or "text-embedding-3-small"
+    os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small").strip()
+    or "text-embedding-3-small"
 )
 
 
@@ -366,16 +383,12 @@ def startup_summary() -> dict:
         db_display = "<unparseable>"
 
     flags: list[str] = []
-    if ALLOW_RESET:
-        flags.append("ALLOW_RESET")
-    if ALLOW_PUBLIC_AUTH:
-        flags.append("ALLOW_PUBLIC_AUTH")
     if cors_is_permissive:
         flags.append("CORS=*")
 
     return {
         "env": ENV,
-        "auth_provider": "supabase" if is_production else "internal",
+        "auth_provider": "supabase",
         "db": db_display,
         "cors": CORS_ORIGINS if not cors_is_permissive else "*",
         "redis": "yes" if REDIS_URL else "no",

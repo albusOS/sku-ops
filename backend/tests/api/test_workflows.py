@@ -4,7 +4,14 @@ Each test exercises a full business workflow through the API layer,
 including negative cases and invariant checks.
 """
 
-from tests.helpers.auth import admin_headers, contractor_headers
+import uuid
+
+from tests.helpers.auth import (
+    SEEDED_DEPT_ID,
+    SEEDED_JOB_ID,
+    admin_headers,
+    contractor_headers,
+)
 
 
 def _create_product(client, headers, **overrides):
@@ -14,7 +21,7 @@ def _create_product(client, headers, **overrides):
         "price": 10.00,
         "cost": 4.00,
         "quantity": 100,
-        "category_id": "dept-1",
+        "category_id": SEEDED_DEPT_ID,
         **overrides,
     }
     resp = client.post("/api/beta/catalog/skus", json=data, headers=headers)
@@ -27,7 +34,9 @@ class TestWithdrawalWorkflow:
 
     def test_withdrawal_decrements_stock(self, db, client):
         headers = admin_headers()
-        product = _create_product(client, headers, quantity=50, name="WD-Decrement")
+        product = _create_product(
+            client, headers, quantity=50, name="WD-Decrement"
+        )
 
         resp = client.post(
             "/api/beta/operations/withdrawals",
@@ -42,7 +51,7 @@ class TestWithdrawalWorkflow:
                         "cost": 4.00,
                     }
                 ],
-                "job_id": "JOB-001",
+                "job_id": SEEDED_JOB_ID,
                 "service_address": "123 Test St",
             },
             headers=headers,
@@ -51,12 +60,16 @@ class TestWithdrawalWorkflow:
         withdrawal = resp.json()
         assert withdrawal["total"] > 0
 
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.json()["quantity"] == 45
 
     def test_withdrawal_with_insufficient_stock_fails(self, db, client):
         headers = admin_headers()
-        product = _create_product(client, headers, quantity=3, name="WD-Insufficient")
+        product = _create_product(
+            client, headers, quantity=3, name="WD-Insufficient"
+        )
 
         resp = client.post(
             "/api/beta/operations/withdrawals",
@@ -71,15 +84,21 @@ class TestWithdrawalWorkflow:
                         "cost": 4.00,
                     }
                 ],
-                "job_id": "JOB-002",
+                "job_id": SEEDED_JOB_ID,
                 "service_address": "456 Fail St",
             },
             headers=headers,
         )
-        assert resp.status_code in (400, 422), f"Expected rejection, got {resp.status_code}"
+        assert resp.status_code in (400, 422), (
+            f"Expected rejection, got {resp.status_code}"
+        )
 
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
-        assert resp.json()["quantity"] == 3, "Stock should be unchanged after failed withdrawal"
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
+        assert resp.json()["quantity"] == 3, (
+            "Stock should be unchanged after failed withdrawal"
+        )
 
     def test_withdrawal_requires_items(self, db, client):
         headers = admin_headers()
@@ -88,7 +107,7 @@ class TestWithdrawalWorkflow:
             "/api/beta/operations/withdrawals",
             json={
                 "items": [],
-                "job_id": "JOB-003",
+                "job_id": SEEDED_JOB_ID,
                 "service_address": "789 Empty St",
             },
             headers=headers,
@@ -127,7 +146,7 @@ class TestMaterialRequestWorkflow:
 
         resp = client.post(
             f"/api/beta/operations/material-requests/{mat_req['id']}/process",
-            json={"job_id": "JOB-004", "service_address": "456 Site Rd"},
+            json={"job_id": SEEDED_JOB_ID, "service_address": "456 Site Rd"},
             headers=admin_h,
         )
         assert resp.status_code == 200
@@ -164,7 +183,9 @@ class TestProductWorkflow:
         headers = admin_headers()
         product = _create_product(client, headers, name="PW-Create")
 
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.status_code == 200
         assert resp.json()["name"] == "PW-Create"
 
@@ -187,7 +208,7 @@ class TestProductWorkflow:
                 "name": "Bad Dept",
                 "price": 10.00,
                 "quantity": 1,
-                "category_id": "nonexistent-dept",
+                "category_id": str(uuid.uuid4()),
             },
             headers=headers,
         )

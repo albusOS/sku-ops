@@ -17,17 +17,24 @@ npm run dev                           # starts backend + frontend
 
 ## Dev Credentials
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | dev@supply-yard.local | dev123 |
-| Contractor | contractor@supply-yard.local | dev123 |
+All seeded accounts use password **dev123** (Supabase Auth + matching `public.users` ids).
 
-Dev users are created via provisioning:
+| Role | Email |
+|------|-------|
+| Admin (demo) | admin@supplyyard.com |
+| Contractor (demo) | mike@rivridge.com |
+| Contractor (demo) | sarah@summitpm.com |
+| Admin (local) | dev@supply-yard.local |
+| Contractor (local) | contractor@supply-yard.local |
+
+Login uses **Supabase Auth** (`signInWithPassword`). `./bin/dev db:reset` runs `supabase/seeds/04_users.sql`, which seeds **`auth.users` + `auth.identities`** first, then **`public.users`** with the same ids for profile data (company, billing, etc.).
+
+Frontend env: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (from `supabase status` or `./bin/dev ui`, which exports them from `supabase status -o env`). See `frontend/.env.example`.
 
 ```bash
-./bin/dev provision --dev        # org + 58 departments + dev users
-./bin/dev import --vendors       # 7 vendors from Hike POS
-./bin/dev import --products      # 1,294 products from Hike POS
+./bin/dev db:reset               # migrations + seeds (org, departments, demo, dev + auth users)
+./bin/dev import --vendors       # optional: Hike POS vendors
+./bin/dev import --products      # optional: Hike POS products
 ```
 
 ## Features
@@ -77,7 +84,7 @@ Configuration is environment-aware (`ENV=development|test|production`). See `bac
 |---|---|---|---|
 | JWT_SECRET | default | default | required |
 | CORS | permissive (*) | permissive (*) | required |
-| Provisioning | via bin/dev | conftest fixtures | via provision script |
+| Provisioning | `supabase/seeds/` + `./bin/dev db:reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
 | Database | Postgres (Docker) | Postgres | Postgres |
 | Redis | optional | required | required |
 | WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |
@@ -101,7 +108,7 @@ backend/
 ├── reports/          # Dashboard analytics, P&L, trends
 ├── jobs/             # Job definitions
 ├── shared/           # Config, DB, logging, metrics, middleware, health, WebSocket
-├── devtools/         # Seed data, evals, dev-only endpoints (excluded from Docker)
+├── devtools/         # Import scripts, evals (excluded from Docker)
 └── kernel/           # Shared types, errors
 
 frontend/

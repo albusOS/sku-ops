@@ -8,14 +8,16 @@ auto-invoice created.
 import pytest
 
 from tests.e2e.helpers import create_product, create_withdrawal
-from tests.helpers.auth import admin_headers
+from tests.helpers.auth import CONTRACTOR_USER_ID, SEEDED_JOB_ID, admin_headers
 
 
 @pytest.mark.timeout(30)
 class TestWithdrawalPipeline:
     """Full withdrawal lifecycle through the live HTTP API."""
 
-    def test_withdrawal_creates_stock_ledger_and_events(self, client, ws_events, seed_dept_id):
+    def test_withdrawal_creates_stock_ledger_and_events(
+        self, client, ws_events, seed_dept_id
+    ):
         headers = admin_headers()
         product = create_product(
             client,
@@ -30,7 +32,9 @@ class TestWithdrawalPipeline:
         assert withdrawal["contractor_id"]
 
         # Stock decremented
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.status_code == 200
         assert resp.json()["quantity"] == 45
 
@@ -88,7 +92,7 @@ class TestWithdrawalPipeline:
         )
 
         resp = client.post(
-            "/api/beta/operations/withdrawals/for-contractor?contractor_id=contractor-1",
+            f"/api/beta/operations/withdrawals/for-contractor?contractor_id={CONTRACTOR_USER_ID}",
             json={
                 "items": [
                     {
@@ -100,7 +104,7 @@ class TestWithdrawalPipeline:
                         "cost": product["cost"],
                     }
                 ],
-                "job_id": "JOB-FAIL",
+                "job_id": SEEDED_JOB_ID,
                 "service_address": "Fail St",
             },
             headers=headers,
@@ -108,7 +112,9 @@ class TestWithdrawalPipeline:
         assert resp.status_code in (400, 422)
 
         # Stock unchanged
-        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/catalog/skus/{product['id']}", headers=headers
+        )
         assert resp.json()["quantity"] == 2
 
     def test_dashboard_revenue_matches_withdrawal(self, client, seed_dept_id):

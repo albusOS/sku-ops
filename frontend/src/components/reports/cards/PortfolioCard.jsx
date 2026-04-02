@@ -44,7 +44,12 @@ function QuadrantStats({ products }) {
 
 export function PortfolioCard({ dateParams, onProductClick }) {
   const [open, setOpen] = useState(false);
-  const { data: perfData } = useReportProductPerformance(dateParams);
+  const {
+    data: perfData,
+    isPending,
+    isError,
+    error,
+  } = useReportProductPerformance(dateParams);
   const products = useMemo(() => perfData?.products || [], [perfData]);
 
   const quadrants = useMemo(() => {
@@ -70,13 +75,23 @@ export function PortfolioCard({ dateParams, onProductClick }) {
     return items;
   }, [products, quadrants]);
 
-  const insight =
-    products.length > 0
-      ? `${products.length} products · ${quadrants.stars} stars · ${quadrants.review} need review`
-      : "Loading...";
+  const insight = useMemo(() => {
+    if (isPending) return "Loading...";
+    if (isError) return error?.message || "Could not load product performance.";
+    if (products.length === 0)
+      return "No products with performance data for this range.";
+    return `${products.length} products · ${quadrants.stars} stars · ${quadrants.review} need review`;
+  }, [isPending, isError, error, products.length, quadrants]);
+
+  const metric = useMemo(() => {
+    if (isPending) return "—";
+    if (isError) return "Unavailable";
+    if (products.length === 0) return "0 products";
+    return `${products.length} products`;
+  }, [isPending, isError, products.length]);
 
   const portfolioStatus =
-    products.length > 0
+    !isPending && !isError && products.length > 0
       ? quadrants.review > quadrants.stars
         ? "warn"
         : quadrants.stars > 0
@@ -88,13 +103,21 @@ export function PortfolioCard({ dateParams, onProductClick }) {
     <>
       <BentoCard
         title="Product Portfolio"
-        metric={products.length > 0 ? `${products.length} products` : "—"}
+        metric={metric}
         insight={insight}
         status={portfolioStatus}
         size="large"
         onClick={() => setOpen(true)}
       >
-        {products.length > 0 ? (
+        {isPending ? (
+          <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">
+            Loading...
+          </div>
+        ) : isError ? (
+          <div className="h-[180px] flex items-center justify-center text-sm text-destructive">
+            Failed to load chart
+          </div>
+        ) : products.length > 0 ? (
           <ProductBubblePlot products={products} height={180} />
         ) : (
           <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">

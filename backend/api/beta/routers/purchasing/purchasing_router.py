@@ -4,47 +4,94 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from catalog.application.queries import (
-    find_product_by_name_and_vendor,
-    find_vendor_by_name,
-    find_vendor_item_by_vendor_and_sku_code,
-    get_department_by_code,
-    get_sku_by_id,
-    insert_vendor,
-    list_departments,
-    update_sku,
+from catalog.application.sku_lifecycle import (
+    create_product_with_sku as lifecycle_create,
 )
-from catalog.application.sku_lifecycle import create_product_with_sku as lifecycle_create
-from catalog.application.vendor_item_lifecycle import add_vendor_item
+from catalog.domain.sku import SkuUpdate
+from catalog.domain.vendor import Vendor
 from finance.application.po_sync_service import queue_po_for_sync
-from inventory.application.inventory_service import process_receiving_stock_changes
+from inventory.application.inventory_service import (
+    process_receiving_stock_changes,
+)
 from purchasing.application.purchase_order_service import (
     PurchasingDeps,
     create_purchase_order,
     mark_delivery_received,
     receive_po_items,
 )
-from purchasing.application.queries import get_po, get_po_items, list_pos_with_counts
+from purchasing.application.queries import (
+    get_po,
+    get_po_items,
+    list_pos_with_counts,
+)
 from purchasing.domain.purchase_order import (
     CreatePORequest,
     MarkDeliveryRequest,
     ReceiveItemsRequest,
 )
 from shared.api.deps import AdminDep
+from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
 
 logger = logging.getLogger(__name__)
 
 
+def _db_catalog():
+    return get_database_manager().catalog
+
+
 def _build_deps() -> PurchasingDeps:
+    async def list_departments():
+        return await _db_catalog().list_departments(get_org_id())
+
+    async def get_department_by_code(code: str):
+        return await _db_catalog().get_department_by_code(code, get_org_id())
+
+    async def find_vendor_by_name(name: str):
+        return await _db_catalog().find_vendor_by_name(get_org_id(), name)
+
+    async def get_sku_by_id(sku_id: str):
+        return await _db_catalog().get_sku_by_id(sku_id, get_org_id())
+
+    async def find_vendor_item_by_vendor_and_sku_code(
+        vendor_id: str, vendor_sku: str
+    ):
+        return await _db_catalog().find_vendor_item_by_vendor_and_sku(
+            get_org_id(), vendor_id, vendor_sku
+        )
+
+    async def find_sku_by_name_and_vendor(name: str, vendor_id: str):
+        return await _db_catalog().find_sku_by_name_and_vendor(
+            get_org_id(), name, vendor_id
+        )
+
+    async def update_sku(sku_id: str, updates: SkuUpdate):
+        async with transaction():
+            return await _db_catalog().update_sku(
+                sku_id, get_org_id(), updates.model_dump(exclude_none=True)
+            )
+
+    async def add_vendor_item(**kw):
+        return await _db_catalog().add_vendor_item(get_org_id(), **kw)
+
+    async def insert_vendor_row(vendor: Vendor | dict) -> None:
+        v = (
+            Vendor.model_validate(vendor)
+            if isinstance(vendor, dict)
+            else vendor
+        )
+        async with transaction():
+            await _db_catalog().insert_vendor(v)
+
     return PurchasingDeps(
         list_departments=list_departments,
         get_department_by_code=get_department_by_code,
         find_vendor_by_name=find_vendor_by_name,
-        insert_vendor=insert_vendor,
+        insert_vendor=insert_vendor_row,
         get_sku_by_id=get_sku_by_id,
         find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
-        find_sku_by_name_and_vendor=find_product_by_name_and_vendor,
+        find_sku_by_name_and_vendor=find_sku_by_name_and_vendor,
         update_sku=update_sku,
         create_product_with_sku=lambda **kw: lifecycle_create(
             **kw, on_stock_import=process_receiving_stock_changes
@@ -54,7 +101,9 @@ def _build_deps() -> PurchasingDeps:
     )
 
 
-router = APIRouter(prefix="/purchasing/purchase-orders", tags=["purchase-orders"])
+router = APIRouter(
+    prefix="/purchasing/purchase-orders", tags=["purchase-orders"]
+)
 
 
 @router.post("")
@@ -103,7 +152,9 @@ async def get_purchase_order(
     """Get a purchase order with all its items."""
     po = await get_po(po_id)
     if not po:
-        raise HTTPException(status_code=404, detail=f"Purchase order not found: {po_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Purchase order not found: {po_id}"
+        )
     items = await get_po_items(po_id)
     return po.model_copy(update={"items": items})
 

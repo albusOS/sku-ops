@@ -25,16 +25,21 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from shared.infrastructure.database import get_connection
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.db.orm_utils import as_uuid_required
 
 if TYPE_CHECKING:
     from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
+
+
+def _db_shared():
+    return get_database_manager().shared
 
 
 async def audit_log(
@@ -54,27 +59,22 @@ async def audit_log(
         if not ip and request.client:
             ip = request.client.host
 
-    details_str = json.dumps(details) if isinstance(details, dict) else (details or "")
+    details_str = (
+        json.dumps(details) if isinstance(details, dict) else (details or "")
+    )
     now = datetime.now(UTC)
 
     try:
-        conn = get_connection()
-        await conn.execute(
-            """INSERT INTO audit_log (id, user_id, action, resource_type, resource_id,
-               details, ip_address, organization_id, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-            (
-                str(uuid.uuid4()),
-                user_id,
-                action,
-                resource_type,
-                resource_id,
-                details_str,
-                ip,
-                org_id or "",
-                now,
-            ),
+        await _db_shared().insert_audit_row(
+            audit_id=as_uuid_required(new_uuid7_str()),
+            user_id=user_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            details=details_str,
+            ip_address=ip,
+            organization_id=org_id,
+            created_at=now,
         )
-        await conn.commit()
     except Exception:
         logger.exception("Failed to write audit log entry")

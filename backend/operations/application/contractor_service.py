@@ -7,18 +7,26 @@ from here for contractor lookups. When Supabase arrives, the auth parts
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 
 import bcrypt
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from finance.application.billing_entity_service import ensure_billing_entity
-from shared.infrastructure.database import get_connection, get_org_id, transaction
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.db import (
+    get_org_id,
+    sql_execute,
+    transaction,
+)
+from shared.infrastructure.db.base import get_database_manager
+
+
+def _db_finance():
+    return get_database_manager().finance
 
 
 def _make_id() -> str:
-    return str(uuid.uuid4())
+    return new_uuid7_str()
 
 
 def _now() -> datetime:
@@ -94,7 +102,9 @@ _SELECT_COLS = (
 
 
 def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
+        "utf-8"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -103,13 +113,12 @@ def _hash_password(password: str) -> str:
 
 
 async def get_contractor_by_id(user_id: str) -> Contractor | None:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         f"SELECT {_SELECT_COLS} FROM users WHERE id = $1 AND organization_id = $2",
         (user_id, org_id),
     )
-    row = await cursor.fetchone()
+    row = cursor.rows[0] if cursor.rows else None
     return _row_to_model(row)
 
 
@@ -117,14 +126,13 @@ async def get_users_by_ids(user_ids: list[str]) -> dict[str, Contractor]:
     """Return {user_id: Contractor} for a batch of IDs. Missing IDs are omitted."""
     if not user_ids:
         return {}
-    conn = get_connection()
     org_id = get_org_id()
     placeholders = ",".join(f"${i}" for i in range(1, 1 + len(user_ids)))
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         f"SELECT {_SELECT_COLS} FROM users WHERE id IN ({placeholders}) AND organization_id = ${1 + len(user_ids)}",
         (*user_ids, org_id),
     )
-    rows = await cursor.fetchall()
+    rows = cursor.rows
     result: dict[str, Contractor] = {}
     for row in rows:
         user = _row_to_model(row)
@@ -134,7 +142,6 @@ async def get_users_by_ids(user_ids: list[str]) -> dict[str, Contractor]:
 
 
 async def list_contractors(search: str | None = None) -> list[Contractor]:
-    conn = get_connection()
     org_id = get_org_id()
     base = f"SELECT {_SELECT_COLS} FROM users WHERE role = 'contractor' AND organization_id = $1"
     params: list = [org_id]
@@ -146,19 +153,18 @@ async def list_contractors(search: str | None = None) -> list[Contractor]:
         )
         params.extend([term, term, term, term, term])
     base += " ORDER BY name"
-    cursor = await conn.execute(base, params)
-    rows = await cursor.fetchall()
+    cursor = await sql_execute(base, params)
+    rows = cursor.rows
     return [u for r in rows if (u := _row_to_model(r)) is not None]
 
 
 async def count_contractors() -> int:
-    conn = get_connection()
     org_id = get_org_id()
-    cursor = await conn.execute(
+    cursor = await sql_execute(
         "SELECT COUNT(*) FROM users WHERE role = 'contractor' AND organization_id = $1",
         (org_id,),
     )
-    row = await cursor.fetchone()
+    row = cursor.rows[0] if cursor.rows else None
     return row[0] if row else 0
 
 
@@ -183,13 +189,14 @@ async def create_contractor(
     org_id = get_org_id()
 
     async with transaction():
-        conn = get_connection()
-        cursor = await conn.execute("SELECT id FROM users WHERE email = $1", (email,))
-        if await cursor.fetchone():
+        dup = await sql_execute(
+            "SELECT id FROM users WHERE email = $1", (email,)
+        )
+        if dup.rows:
             raise ValueError("Email already registered")
 
         billing_name = billing_entity_name or company or "Independent"
-        be = await ensure_billing_entity(billing_name)
+        be = await _db_finance().billing_entity_ensure(org_id, billing_name)
 
         contractor_id = _make_id()
         now = _now()
@@ -200,7 +207,7 @@ async def create_contractor(
             "id, email, password, name, role, company, billing_entity, billing_entity_id, "
             "phone, is_active, organization_id, created_at"
         )
-        await conn.execute(
+        await sql_execute(
             f"INSERT INTO users ({cols}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
             (
                 contractor_id,
@@ -259,19 +266,21 @@ async def update_contractor(
         return contractor
 
     billing_name_changed = (
-        updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
+        updates.billing_entity is not None
+        and updates.billing_entity != contractor.billing_entity
     )
 
     async with transaction():
         if billing_name_changed:
-            be = await ensure_billing_entity(updates.billing_entity)
+            be = await _db_finance().billing_entity_ensure(
+                org_id, updates.billing_entity
+            )
             set_clauses.append(f"billing_entity_id = ${n}")
             values.append(be.id if be else None)
             n += 1
 
-        conn = get_connection()
         values.extend([contractor_id, org_id])
-        await conn.execute(
+        await sql_execute(
             f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ${n} AND organization_id = ${n + 1}",
             values,
         )
@@ -289,8 +298,7 @@ async def delete_contractor(contractor_id: str) -> int:
         return 0
 
     async with transaction():
-        conn = get_connection()
-        cursor = await conn.execute(
+        cursor = await sql_execute(
             "DELETE FROM users WHERE id = $1 AND role = 'contractor' AND organization_id = $2",
             (contractor_id, org_id),
         )

@@ -2,6 +2,16 @@
 
 import uuid
 
+from tests.helpers.auth import CONTRACTOR_USER_ID, SEEDED_JOB_ID
+
+# Namespace for deterministic job UUIDs (withdrawals.job_id is UUID in Postgres).
+_E2E_JOB_NAMESPACE = uuid.UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69e2e1")
+
+
+def e2e_job_id(unique_key: str) -> str:
+    """Return a stable UUID string for an e2e job label."""
+    return str(uuid.uuid5(_E2E_JOB_NAMESPACE, unique_key))
+
 
 def _unique_suffix() -> str:
     return uuid.uuid4().hex[:8]
@@ -38,8 +48,8 @@ def create_withdrawal(
     *,
     quantity=5,
     unit=None,
-    job_id="JOB-E2E",
-    contractor_id="contractor-1",
+    job_id=SEEDED_JOB_ID,
+    contractor_id=CONTRACTOR_USER_ID,
 ) -> dict:
     """Create a withdrawal via the API (admin creates for contractor). Returns the JSON body."""
     item = {
@@ -108,7 +118,9 @@ def create_po(
 
 def receive_po(client, headers, po_id: str) -> dict:
     """Mark delivery on all items and then receive them. Returns the receive result."""
-    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers)
+    po_resp = client.get(
+        f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers
+    )
     assert po_resp.status_code == 200
     po = po_resp.json()
     items = po.get("items", [])
@@ -122,7 +134,9 @@ def receive_po(client, headers, po_id: str) -> dict:
         )
         assert resp.status_code == 200, f"Delivery mark failed: {resp.text}"
 
-    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers)
+    po_resp = client.get(
+        f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers
+    )
     items = po_resp.json().get("items", [])
     pending_items = [
         {
@@ -161,7 +175,9 @@ def update_cycle_count_item(
         json={"counted_qty": counted_qty},
         headers=headers,
     )
-    assert resp.status_code == 200, f"Cycle count item update failed: {resp.text}"
+    assert resp.status_code == 200, (
+        f"Cycle count item update failed: {resp.text}"
+    )
     return resp.json()
 
 
@@ -176,7 +192,9 @@ def commit_cycle_count(client, headers, count_id: str) -> dict:
     return resp.json()
 
 
-def create_material_request(client, contractor_headers, product, *, quantity=3) -> dict:
+def create_material_request(
+    client, contractor_headers, product, *, quantity=3
+) -> dict:
     """Create a material request as a contractor. Returns the request JSON."""
     resp = client.post(
         "/api/beta/operations/material-requests",
@@ -194,7 +212,9 @@ def create_material_request(client, contractor_headers, product, *, quantity=3) 
         },
         headers=contractor_headers,
     )
-    assert resp.status_code == 200, f"Material request create failed: {resp.text}"
+    assert resp.status_code == 200, (
+        f"Material request create failed: {resp.text}"
+    )
     return resp.json()
 
 
@@ -203,7 +223,7 @@ def process_material_request(
     admin_headers,
     request_id: str,
     *,
-    job_id="JOB-MR",
+    job_id=SEEDED_JOB_ID,
     service_address="200 MR Lane",
 ) -> dict:
     """Process a material request as admin (converts to withdrawal)."""
@@ -212,5 +232,7 @@ def process_material_request(
         json={"job_id": job_id, "service_address": service_address},
         headers=admin_headers,
     )
-    assert resp.status_code == 200, f"Material request process failed: {resp.text}"
+    assert resp.status_code == 200, (
+        f"Material request process failed: {resp.text}"
+    )
     return resp.json()

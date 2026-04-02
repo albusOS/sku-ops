@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import logging
 
-from catalog.application.queries import get_sku_by_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch, on
 from shared.kernel.domain_events import InventoryChanged, LowStockDetected
 
 logger = logging.getLogger(__name__)
+
+
+def _db_catalog():
+    return get_database_manager().catalog
 
 
 @on(InventoryChanged)
@@ -21,7 +25,7 @@ async def check_reorder_points(event: InventoryChanged) -> None:
     """Evaluate reorder points for every product affected by a stock change."""
     for sku_id in event.sku_ids:
         try:
-            product = await get_sku_by_id(sku_id)
+            product = await _db_catalog().get_sku_by_id(sku_id, event.org_id)
             if not product:
                 continue
             if product.quantity <= product.min_stock:
@@ -36,7 +40,9 @@ async def check_reorder_points(event: InventoryChanged) -> None:
                     )
                 )
         except (RuntimeError, OSError, ValueError):
-            logger.warning("Reorder check failed for sku %s", sku_id, exc_info=True)
+            logger.warning(
+                "Reorder check failed for sku %s", sku_id, exc_info=True
+            )
 
 
 @on(LowStockDetected)

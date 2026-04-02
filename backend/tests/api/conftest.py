@@ -6,7 +6,8 @@ for proper isolation.
 
 import pytest
 
-from tests.helpers.auth import admin_headers, contractor_headers
+from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import BCRYPT_USER_ID, admin_headers, contractor_headers
 
 
 @pytest.fixture(autouse=True)
@@ -40,19 +41,17 @@ def _db_with_bcrypt_user(db, _app_client):
     """DB with a user whose password is a real bcrypt hash."""
     import bcrypt
 
-    from shared.infrastructure.database import get_connection
+    from shared.infrastructure.db import sql_execute
 
     async def _seed():
         hashed = bcrypt.hashpw(b"secret123", bcrypt.gensalt()).decode("utf-8")
-        conn = get_connection()
-        await conn.execute(
+        await sql_execute(
             "INSERT INTO users "
             "(id, email, password, name, role, is_active, organization_id, created_at) "
-            "VALUES ('bcrypt-user-1', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, 'supply-yard', NOW()) "
+            f"VALUES ('{BCRYPT_USER_ID}', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, $2, NOW()) "
             "ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password",
-            (hashed,),
+            (hashed, DEFAULT_ORG_ID),
         )
-        await conn.commit()
 
     _app_client.portal.call(_seed)
 

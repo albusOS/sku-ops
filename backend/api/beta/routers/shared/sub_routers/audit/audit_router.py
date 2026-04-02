@@ -9,7 +9,12 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from shared.api.deps import AdminDep
-from shared.infrastructure.audit_repo import distinct_actions, query_audit_log
+from shared.infrastructure.db.base import get_database_manager
+
+
+def _db_shared():
+    return get_database_manager().shared
+
 
 router = APIRouter(prefix="/audit-log", tags=["audit-log"])
 
@@ -27,7 +32,8 @@ async def list_audit_log(
     offset: int = Query(0, ge=0),
 ):
     """List audit log entries with optional filters. Admin only."""
-    entries, total = await query_audit_log(
+    entries, total = await _db_shared().query_audit_log(
+        current_user.organization_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,
@@ -48,7 +54,9 @@ async def list_audit_log(
 @router.get("/actions")
 async def list_audit_actions(current_user: AdminDep):
     """Return distinct action names for filter dropdowns."""
-    return await distinct_actions()
+    return await _db_shared().audit_distinct_actions(
+        current_user.organization_id
+    )
 
 
 @router.get("/export")
@@ -61,7 +69,8 @@ async def export_audit_log(
     end_date: str | None = None,
 ):
     """Export audit log as CSV. Admin only."""
-    entries, _ = await query_audit_log(
+    entries, _ = await _db_shared().query_audit_log(
+        current_user.organization_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,

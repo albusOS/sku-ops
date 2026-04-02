@@ -49,9 +49,9 @@ export async function apiPut(request: APIRequestContext, token: string, path: st
 export async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.waitForLoadState("networkidle");
-  await page.getByTestId("admin-login-email-input").fill("dev@supply-yard.local");
-  await page.getByTestId("admin-login-password-input").fill("dev123");
-  await page.getByTestId("admin-login-submit-btn").click();
+  await page.getByTestId("login-email-input").fill("dev@supply-yard.local");
+  await page.getByTestId("login-password-input").fill("dev123");
+  await page.getByTestId("login-submit-btn").click();
   await page.waitForLoadState("networkidle");
   await expect(page.getByTestId("app-layout")).toBeVisible();
 }

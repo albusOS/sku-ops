@@ -67,7 +67,7 @@ class SmokeTestRunner:
     # ── Setup ─────────────────────────────────────────────────────────────────
 
     async def _load(self):
-        from shared.infrastructure.database import init_db
+        from shared.infrastructure.db import init_db
 
         await init_db()
         from finance.application.org_settings_service import get_org_settings
@@ -401,7 +401,7 @@ class SmokeTestRunner:
 
 
 async def _main(org_id: str) -> int:
-    from shared.infrastructure.database import close_db
+    from shared.infrastructure.db import close_db
 
     runner = SmokeTestRunner(org_id)
     exit_code = await runner.run()

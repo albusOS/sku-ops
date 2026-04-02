@@ -1,14 +1,19 @@
 """Address book routes — CRUD and autocomplete for saved addresses."""
 
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure.address_repo import StoredAddress, address_repo
-from shared.infrastructure.database import get_org_id
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.db.services.shared import StoredAddress
+
+
+def _db_shared():
+    return get_database_manager().shared
+
 
 router = APIRouter(prefix="/addresses", tags=["addresses"])
 
@@ -34,7 +39,8 @@ async def list_addresses(
     limit: int = 100,
     offset: int = 0,
 ):
-    return await address_repo.list_addresses(
+    return await _db_shared().list_addresses(
+        current_user.organization_id,
         billing_entity_id=billing_entity_id,
         job_id=job_id,
         q=q,
@@ -50,16 +56,17 @@ async def search_addresses(
     limit: int = 20,
 ):
     """Autocomplete endpoint for address pickers."""
+    oid = current_user.organization_id
     if not q.strip():
-        return await address_repo.list_addresses(
-            limit=limit,
-        )
-    return await address_repo.search(q, limit=limit)
+        return await _db_shared().list_addresses(oid, limit=limit)
+    return await _db_shared().search_addresses(oid, q, limit=limit)
 
 
 @router.get("/{address_id}")
 async def get_address(address_id: str, current_user: AdminDep):
-    addr = await address_repo.get_by_id(address_id)
+    addr = await _db_shared().get_address_by_id(
+        address_id, current_user.organization_id
+    )
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
     return addr
@@ -71,10 +78,12 @@ async def create_address(
     current_user: AdminDep,
 ):
     if not data.line1.strip():
-        raise HTTPException(status_code=400, detail="Address line 1 is required")
+        raise HTTPException(
+            status_code=400, detail="Address line 1 is required"
+        )
 
     address = StoredAddress(
-        id=str(uuid4()),
+        id=new_uuid7_str(),
         label=data.label or data.line1[:80],
         line1=data.line1,
         line2=data.line2,
@@ -84,8 +93,8 @@ async def create_address(
         country=data.country,
         billing_entity_id=data.billing_entity_id,
         job_id=data.job_id,
-        organization_id=get_org_id(),
+        organization_id=current_user.organization_id,
         created_at=datetime.now(UTC),
     )
-    await address_repo.insert(address)
+    await _db_shared().insert_address(address)
     return address

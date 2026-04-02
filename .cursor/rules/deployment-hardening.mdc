@@ -73,6 +73,7 @@ There are three environments: `development`, `test`, `production`. There is no s
 ```
 ENV=production
 DATABASE_URL=postgresql://...          # Supabase direct, port 5432
+SUPABASE_URL=https://xxx.supabase.co   # Same project URL; JWKS / auth
 JWT_SECRET=<supabase-jwt-secret>       # Must match Supabase project
 CORS_ORIGINS=https://your.vercel.app   # All stable Vercel domains
 REDIS_URL=redis://...                  # Required for WORKERS > 1
@@ -84,5 +85,5 @@ WORKERS=2                              # Recommended. Requires Redis.
 ```
 VITE_BACKEND_URL=https://your.railway.app
 VITE_SUPABASE_URL=https://xxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```

@@ -2,11 +2,11 @@
 
 from datetime import datetime, timedelta
 from typing import ClassVar
-from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from finance.domain.enums import InvoiceStatus, XeroSyncStatus
+from shared.helpers.uuid import new_uuid7_str
 from shared.kernel.entity import AuditedEntity
 from shared.kernel.types import LineItem
 
@@ -20,10 +20,16 @@ PAYMENT_TERMS_DAYS: dict[str, int] = {
 }
 
 
-def compute_due_date(invoice_date: str | datetime, payment_terms: str) -> datetime:
+def compute_due_date(
+    invoice_date: str | datetime, payment_terms: str
+) -> datetime:
     """Return due-date datetime from invoice_date + payment_terms."""
     days = PAYMENT_TERMS_DAYS.get(payment_terms, 30)
-    dt = datetime.fromisoformat(invoice_date) if isinstance(invoice_date, str) else invoice_date
+    dt = (
+        datetime.fromisoformat(invoice_date)
+        if isinstance(invoice_date, str)
+        else invoice_date
+    )
     return dt + timedelta(days=days)
 
 
@@ -36,7 +42,7 @@ class InvoiceLineItem(BaseModel):
     """
 
     model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid4()))
+    id: str = Field(default_factory=new_uuid7_str)
     invoice_id: str = ""
     description: str = ""
     quantity: float = 1.0
@@ -126,7 +132,11 @@ class Invoice(AuditedEntity):
     line_count: int = 0
 
     ALLOWED_TRANSITIONS: ClassVar[dict[InvoiceStatus, set[InvoiceStatus]]] = {
-        InvoiceStatus.DRAFT: {InvoiceStatus.APPROVED, InvoiceStatus.SENT, InvoiceStatus.PAID},
+        InvoiceStatus.DRAFT: {
+            InvoiceStatus.APPROVED,
+            InvoiceStatus.SENT,
+            InvoiceStatus.PAID,
+        },
         InvoiceStatus.APPROVED: {InvoiceStatus.SENT, InvoiceStatus.PAID},
         InvoiceStatus.SENT: {InvoiceStatus.PAID},
         InvoiceStatus.PAID: set(),

@@ -7,19 +7,16 @@ contractor_id (for list) and checking the return's contractor_id (for detail).
 
 from fastapi import APIRouter, HTTPException, Request
 
-from operations.application.queries import (
-    get_return_by_id as _get_return_by_id,
-)
-from operations.application.queries import (
-    get_withdrawal_by_id as _get_withdrawal_by_id,
-)
-from operations.application.queries import (
-    list_returns as _list_returns,
-)
 from operations.application.return_service import create_return
 from operations.domain.returns import ReturnCreate
 from shared.api.deps import CurrentUserDep
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
+
+
+def _db_operations():
+    return get_database_manager().operations
+
 
 router = APIRouter(prefix="/returns", tags=["returns"])
 
@@ -35,7 +32,9 @@ async def create_material_return(
     Contractors may only return their own withdrawals.
     """
     if current_user.role == "contractor":
-        withdrawal = await _get_withdrawal_by_id(data.withdrawal_id)
+        withdrawal = await _db_operations().get_withdrawal_by_id(
+            current_user.organization_id, data.withdrawal_id
+        )
         if not withdrawal or withdrawal.contractor_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not your withdrawal")
 
@@ -72,7 +71,8 @@ async def list_returns(
     if current_user.role == "contractor":
         contractor_id = current_user.id
 
-    return await _list_returns(
+    return await _db_operations().list_returns(
+        current_user.organization_id,
         contractor_id=contractor_id,
         withdrawal_id=withdrawal_id,
         start_date=start_date,
@@ -85,9 +85,14 @@ async def get_return(
     return_id: str,
     current_user: CurrentUserDep,
 ):
-    ret = await _get_return_by_id(return_id)
+    ret = await _db_operations().get_return_by_id(
+        current_user.organization_id, return_id
+    )
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")
-    if current_user.role == "contractor" and ret.contractor_id != current_user.id:
+    if (
+        current_user.role == "contractor"
+        and ret.contractor_id != current_user.id
+    ):
         raise HTTPException(status_code=403, detail="Not your return")
     return ret

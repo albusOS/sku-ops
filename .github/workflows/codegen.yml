@@ -1,0 +1,66 @@
+name: Codegen
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "supabase/**"
+      - "backend/scripts/supabase_type_generation/**"
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "supabase/**"
+      - "backend/scripts/supabase_type_generation/**"
+
+concurrency:
+  group: codegen-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-codegen:
+    name: Check SQLModel generation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install project deps
+        run: uv sync --dev
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Generate types and models
+        run: uv run python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local
+        env:
+          PYTHONPATH: backend:.
+
+      - name: Check for uncommitted changes
+        run: |
+          git diff --exit-code backend/shared/infrastructure/types/ || {
+            echo "::error::Generated types are out of date. Run the codegen pipeline locally and commit the changes."
+            echo ""
+            echo "To fix:"
+            echo "  PYTHONPATH=backend:. uv run python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local"
+            echo "  git add backend/shared/infrastructure/types/"
+            echo "  git commit -m 'chore: regenerate SQLModel types'"
+            exit 1
+          }
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop

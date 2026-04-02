@@ -1,21 +1,11 @@
-"""
-Schema single-source-of-truth tests.
+"""Supabase migration source-of-truth tests."""
 
-Verifies that the context schema.py files (aggregated via full_schema.py)
-produce a valid, complete database - every expected table is present and
-has the columns its context defines.
-
-Uses a temporary Postgres schema to avoid polluting the test database.
-"""
-
-import contextlib
-import uuid
+from pathlib import Path
 
 import asyncpg
 import pytest
 
 from shared.infrastructure.config import DATABASE_URL
-from shared.infrastructure.full_schema import FULL_SCHEMA
 
 EXPECTED_TABLES = {
     "organizations",
@@ -35,6 +25,7 @@ EXPECTED_TABLES = {
     "withdrawals",
     "withdrawal_items",
     "material_requests",
+    "material_request_items",
     "returns",
     "return_items",
     "invoices",
@@ -62,23 +53,13 @@ EXPECTED_TABLES = {
 
 
 async def _bootstrap() -> dict[str, list[str]]:
-    """Create tables in a temporary Postgres schema, return {table: [col_names]}."""
-    schema_name = f"test_schema_{uuid.uuid4().hex[:8]}"
+    """Inspect the live schema created by the Supabase migration."""
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        await conn.execute(f"CREATE SCHEMA {schema_name}")
-        await conn.execute(f"SET search_path TO {schema_name}")
-
-        for stmt in FULL_SCHEMA:
-            with contextlib.suppress(asyncpg.exceptions.PostgresError):
-                await conn.execute(
-                    stmt
-                )  # pgvector not installed locally — skip extension/dependent objects
-
         rows = await conn.fetch(
             "SELECT table_name FROM information_schema.tables"
             " WHERE table_schema = $1 ORDER BY table_name",
-            schema_name,
+            "public",
         )
         tables = [r["table_name"] for r in rows]
 
@@ -88,53 +69,37 @@ async def _bootstrap() -> dict[str, list[str]]:
                 "SELECT column_name FROM information_schema.columns"
                 " WHERE table_schema = $1 AND table_name = $2"
                 " ORDER BY ordinal_position",
-                schema_name,
+                "public",
                 table,
             )
             schema[table] = [r["column_name"] for r in col_rows]
 
         return schema
     finally:
-        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
         await conn.close()
 
 
+def test_supabase_migration_file_exists():
+    repo_root = Path(__file__).resolve().parents[3]
+    migrations = sorted((repo_root / "supabase" / "migrations").glob("*.sql"))
+    assert migrations, "Expected at least one Supabase migration file."
+
+
 @pytest.mark.asyncio
-async def test_full_schema_creates_all_expected_tables():
-    """Every expected table must be present after bootstrapping."""
+async def test_live_schema_creates_all_expected_tables():
+    """Every expected table must be present after Supabase reset."""
     schema = await _bootstrap()
     actual = set(schema.keys())
     missing = EXPECTED_TABLES - actual
-    # embeddings requires pgvector extension — skip if not available locally
-    missing.discard("embeddings")
     assert not missing, f"Tables missing from context schemas: {missing}"
 
 
 @pytest.mark.asyncio
-async def test_full_schema_tables_have_columns():
-    """Every table must have at least an 'id' or primary key column (not empty)."""
+async def test_live_schema_tables_have_columns():
+    """Every table must have at least one column after migration apply."""
     schema = await _bootstrap()
     empty = [t for t, cols in schema.items() if not cols]
     assert not empty, f"Tables with no columns: {empty}"
-
-
-@pytest.mark.asyncio
-async def test_full_schema_is_idempotent():
-    """Running the schema twice must not raise errors (IF NOT EXISTS)."""
-    schema_name = f"test_schema_{uuid.uuid4().hex[:8]}"
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        await conn.execute(f"CREATE SCHEMA {schema_name}")
-        await conn.execute(f"SET search_path TO {schema_name}")
-        for stmt in FULL_SCHEMA:
-            with contextlib.suppress(asyncpg.exceptions.PostgresError):
-                await conn.execute(stmt)
-        for stmt in FULL_SCHEMA:
-            with contextlib.suppress(asyncpg.exceptions.PostgresError):
-                await conn.execute(stmt)
-    finally:
-        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
-        await conn.close()
 
 
 # ── Xero sync column assertions ──────────────────────────────────────────────

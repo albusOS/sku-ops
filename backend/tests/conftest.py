@@ -9,21 +9,49 @@ specific to their scope (e.g. DB seeding, auth helpers).
 import os
 
 os.environ["ENV"] = "test"
-# CI injects DATABASE_URL (:5432). Local dev: docker-compose binds host :5433→container :5432.
-os.environ.setdefault("DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops_test")
+# CI injects DATABASE_URL. Local dev defaults to the Supabase local DB.
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+)
 os.environ.setdefault("REDIS_URL", "")
 os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
-os.environ.setdefault(
-    "ANTHROPIC_API_KEY", ""
-)  # intentionally empty — ANTHROPIC_AVAILABLE=False in tests
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = ""
 
+
+from pathlib import Path
 
 import pytest
 
 import finance.application.event_handlers  # noqa: F401 — registers domain event handlers
 import inventory.application.event_handlers  # noqa: F401
 import shared.infrastructure.ws_bridge  # noqa: F401
+from shared.kernel.constants import DEFAULT_ORG_ID
+from tests.helpers.auth import ADMIN_USER_ID
 from tests.helpers.events import EventCollector
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests that require the local Supabase Postgres stack.",
+    )
+
+
+def _seed_sql_statements(relative_path: str) -> list[str]:
+    path = _REPO_ROOT / relative_path
+    stmts: list[str] = []
+    for line in path.read_text().splitlines():
+        stmt = line.strip()
+        if not stmt or stmt.startswith("--"):
+            continue
+        stmts.append(stmt)
+    return stmts
+
 
 # ── Session-scoped app client ────────────────────────────────────────────────
 
@@ -48,55 +76,31 @@ def _app_client():
 
 async def _truncate_and_seed():
     """Truncate all tables and seed minimal data for test isolation."""
-    from shared.infrastructure.database import transaction
+    from shared.infrastructure.db import transaction
     from shared.infrastructure.logging_config import org_id_var, user_id_var
 
-    org_id_var.set("supply-yard")
-    user_id_var.set("user-1")
+    org_id_var.set(DEFAULT_ORG_ID)
+    user_id_var.set(ADMIN_USER_ID)
 
-    async with transaction() as conn:
-        await conn.execute(
+    from shared.infrastructure.db import sql_execute
+
+    async with transaction():
+        await sql_execute(
             """DO $$
             DECLARE r RECORD;
             BEGIN
                 FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
                     EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
                 END LOOP;
-            END $$"""
+            END $$""",
+            read_only=False,
         )
-        await conn.execute(
-            """INSERT INTO organizations (id, name, slug, created_at)
-               VALUES ('supply-yard', 'Default', 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug"""
-        )
-        await conn.execute(
-            """INSERT INTO departments (id, name, code, description, sku_count, organization_id, created_at)
-               VALUES ('dept-1', 'Hardware', 'HDW', 'Hardware dept', 0, 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code,
-               description = EXCLUDED.description, sku_count = EXCLUDED.sku_count,
-               organization_id = EXCLUDED.organization_id"""
-        )
-        await conn.execute(
-            """INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at)
-               VALUES ('user-1', 'test@test.com', 'hash', 'Test User', 'admin', TRUE, 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
-               name = EXCLUDED.name, role = EXCLUDED.role, is_active = EXCLUDED.is_active,
-               organization_id = EXCLUDED.organization_id"""
-        )
-        await conn.execute(
-            """INSERT INTO users (id, email, password, name, role, company, billing_entity,
-               is_active, organization_id, created_at)
-               VALUES ('contractor-1', 'contractor@test.com', 'hash', 'Contractor User',
-               'contractor', 'ACME', 'ACME Inc', TRUE, 'supply-yard', NOW())
-               ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password,
-               name = EXCLUDED.name, role = EXCLUDED.role, company = EXCLUDED.company,
-               billing_entity = EXCLUDED.billing_entity, is_active = EXCLUDED.is_active,
-               organization_id = EXCLUDED.organization_id"""
-        )
-        from catalog.infrastructure.schema import uom_seed_sql
+        for stmt in _seed_sql_statements("supabase/seeds/pytest_minimal.sql"):
+            await sql_execute(stmt, read_only=False)
+        from catalog.application.uom_seed import uom_seed_sql
 
-        for stmt in uom_seed_sql("supply-yard"):
-            await conn.execute(stmt)
+        for stmt in uom_seed_sql(DEFAULT_ORG_ID):
+            await sql_execute(stmt, read_only=False)
 
 
 # ── Shared fixtures ──────────────────────────────────────────────────────────
@@ -119,5 +123,8 @@ def event_collector():
         await collector.capture(event)
         await real_dispatch(event)
 
-    with patch("shared.infrastructure.domain_events.dispatch", side_effect=_capturing_dispatch):
+    with patch(
+        "shared.infrastructure.domain_events.dispatch",
+        side_effect=_capturing_dispatch,
+    ):
         yield collector

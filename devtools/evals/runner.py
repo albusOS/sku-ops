@@ -21,7 +21,7 @@ import yaml
 from assistant.agents.tools.registry import init_tools
 from assistant.application.assistant import chat
 from devtools.evals.scorer import score_case
-from shared.infrastructure.database import init_db
+from shared.infrastructure.db import init_db
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 
 logger = logging.getLogger(__name__)

@@ -18,7 +18,6 @@ import assistant.agents.unified.agent as _unified_agent
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.memory.extract import extract_and_save
-from assistant.agents.memory.store import recall
 from assistant.application.context_assembly import assemble_context
 from assistant.application.session_state import SessionState
 from shared.infrastructure.config import (
@@ -26,8 +25,14 @@ from shared.infrastructure.config import (
     LLM_SETUP_URL,
     OPENROUTER_AVAILABLE,
 )
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 
 logger = logging.getLogger(__name__)
+
+
+def _db_assistant():
+    return get_database_manager().assistant
 
 
 LLM_NOT_CONFIGURED_MSG = (
@@ -46,7 +51,12 @@ async def chat(
 ) -> dict:
     """Route message to specialist or unified agent based on explicit mode selection."""
     if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
-        return {"response": LLM_NOT_CONFIGURED_MSG, "tool_calls": [], "history": [], "agent": None}
+        return {
+            "response": LLM_NOT_CONFIGURED_MSG,
+            "tool_calls": [],
+            "history": [],
+            "agent": None,
+        }
 
     ctx = ctx or {}
     user_id = ctx.get("user_id", "")
@@ -90,9 +100,13 @@ async def chat(
 
     context_block = assembled.format_for_agent()
     if context_block:
-        history = [{"role": "system", "content": context_block}] + (history or [])
+        history = [{"role": "system", "content": context_block}] + (
+            history or []
+        )
 
-    logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
+    logger.info(
+        "Agent mode: %s for message='%s...'", route, (user_message or "")[:50]
+    )
 
     if route in specialist_agents:
         enriched = _enrich_specialist_message(user_message, context_block)
@@ -112,7 +126,9 @@ async def chat(
                 "agent": route,
                 "routed_to": [route],
             }
-        return _specialist_result(user_message, spec_result, route, history or [])
+        return _specialist_result(
+            user_message, spec_result, route, history or []
+        )
 
     result = await _unified_agent.run(
         user_message, history=history, deps=deps, session_id=session_id
@@ -159,7 +175,9 @@ async def recall_memory(user_id: str, query: str | None = None) -> str:
     When *query* is provided, uses semantic recall (hybrid scoring).
     Returns empty string if no artifacts exist.
     """
-    return await recall(user_id=user_id, query=query)
+    return await _db_assistant().memory_recall(
+        get_org_id(), user_id, query=query
+    )
 
 
 def schedule_memory_extraction(

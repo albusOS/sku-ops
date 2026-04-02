@@ -7,26 +7,51 @@ Unit conversion happens here — stock is always stored in the product's base_un
 """
 
 from datetime import UTC, datetime
-from uuid import uuid4
 
-from catalog.application.queries import (
-    add_sku_quantity,
-    atomic_adjust_sku,
-    atomic_decrement_sku,
-    get_sku_by_id,
+from finance.application.ledger_service import (
+    record_adjustment as _record_ledger_adjustment,
 )
-from finance.application.ledger_service import record_adjustment as _record_ledger_adjustment
 from inventory.domain.errors import InsufficientStockError, NegativeStockError
-from inventory.domain.stock import StockDecrement, StockTransaction, StockTransactionType
-from inventory.infrastructure.stock_repo import stock_repo as _default_stock_repo
+from inventory.domain.stock import (
+    StockDecrement,
+    StockTransaction,
+    StockTransactionType,
+)
 from inventory.ports.stock_repo_port import StockRepoPort
-from shared.infrastructure.database import get_org_id, transaction
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.db import get_org_id, transaction
+from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import dispatch
 from shared.kernel.domain_events import InventoryChanged
 from shared.kernel.errors import ResourceNotFoundError
 from shared.kernel.units import are_compatible, convert_quantity
 
 _DISCRETE_SELL_UOMS = frozenset({"pack", "box", "case", "bag", "roll", "kit"})
+
+
+def _db_catalog():
+    return get_database_manager().catalog
+
+
+def _db_inventory():
+    return get_database_manager().inventory
+
+
+class _DefaultStockRepo:
+    """Production stock persistence via InventoryDatabaseService."""
+
+    async def insert_transaction(self, tx: StockTransaction) -> None:
+        await _db_inventory().insert_stock_transaction(tx)
+
+    async def list_by_product(
+        self, sku_id: str, limit: int = 50
+    ) -> list[StockTransaction]:
+        return await _db_inventory().list_stock_transactions_by_product(
+            get_org_id(), sku_id, limit=limit
+        )
+
+
+_default_stock_repo = _DefaultStockRepo()
 
 
 async def _record_stock_transaction(
@@ -86,22 +111,35 @@ async def process_withdrawal_stock_changes(
     # Resolve UOM conversions before entering the transaction (read-only, no side effects).
     resolved: list[tuple[StockDecrement, float, str]] = []
     for item in items:
-        product = await get_sku_by_id(item.sku_id)
+        product = await _db_catalog().get_sku_by_id(item.sku_id, get_org_id())
         base_unit = (product.base_unit if product else "each").lower()
         requested_unit = (item.unit or "each").lower()
         pack_qty = product.pack_qty if product else 1
-        if requested_unit != base_unit and are_compatible(requested_unit, base_unit):
-            canonical_qty = convert_quantity(item.quantity, requested_unit, base_unit)
+        if requested_unit != base_unit and are_compatible(
+            requested_unit, base_unit
+        ):
+            canonical_qty = convert_quantity(
+                item.quantity, requested_unit, base_unit
+            )
         else:
             canonical_qty = item.quantity
-        if pack_qty > 1 and requested_unit != base_unit and requested_unit in _DISCRETE_SELL_UOMS:
+        if (
+            pack_qty > 1
+            and requested_unit != base_unit
+            and requested_unit in _DISCRETE_SELL_UOMS
+        ):
             canonical_qty = canonical_qty * pack_qty
         resolved.append((item, canonical_qty, base_unit))
 
     async with transaction():
         for item, canonical_qty, base_unit in resolved:
-            product = await get_sku_by_id(item.sku_id)
-            result = await atomic_decrement_sku(item.sku_id, canonical_qty, now)
+            product = await _db_catalog().get_sku_by_id(
+                item.sku_id, get_org_id()
+            )
+            async with transaction():
+                result = await _db_catalog().sku_atomic_decrement(
+                    item.sku_id, get_org_id(), canonical_qty, now
+                )
 
             if not result:
                 available = product.quantity if product else 0
@@ -144,7 +182,7 @@ async def process_receiving_stock_changes(
     Converts from the supplied unit to the product's base_unit before adding.
     The quantity increment and ledger entry are committed atomically.
     """
-    product = await get_sku_by_id(sku_id)
+    product = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     base_unit = (product.base_unit if product else "each").lower()
     incoming_unit = (unit or "each").lower()
 
@@ -155,7 +193,9 @@ async def process_receiving_stock_changes(
 
     now = datetime.now(UTC)
     async with transaction():
-        result = await add_sku_quantity(sku_id, canonical_qty, now)
+        result = await _db_catalog().sku_add_quantity(
+            sku_id, get_org_id(), canonical_qty, now
+        )
         if not result:
             raise ResourceNotFoundError("Product", sku_id)
 
@@ -224,19 +264,23 @@ async def process_adjustment_stock_changes(
     if quantity_delta == 0:
         raise ValueError("quantity_delta must not be zero")
     now = datetime.now(UTC)
-    product = await get_sku_by_id(sku_id)
+    product = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not product:
         raise ResourceNotFoundError("Product", sku_id)
 
     base_unit = product.base_unit.lower()
     async with transaction():
-        result = await atomic_adjust_sku(sku_id, quantity_delta, now)
+        result = await _db_catalog().sku_atomic_adjust(
+            sku_id, get_org_id(), quantity_delta, now
+        )
         if not result:
-            raise NegativeStockError(sku_id, current=product.quantity, delta=quantity_delta)
+            raise NegativeStockError(
+                sku_id, current=product.quantity, delta=quantity_delta
+            )
 
         quantity_after = result.quantity
         quantity_before = quantity_after - quantity_delta
-        adjustment_id = str(uuid4())
+        adjustment_id = new_uuid7_str()
         await _record_stock_transaction(
             sku_id=sku_id,
             sku=product.sku,

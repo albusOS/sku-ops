@@ -1,0 +1,1408 @@
+-- Squashed baseline: concatenation of supabase/schemas/01-..10-*.sql (declarative source).
+-- Supabase CLI requires migrations named <timestamp>_name.sql (not plain initial_schema.sql).
+
+-- Shared context: vector extension, tenancy, auth-adjacent tables, audit, billing_entities,
+-- addresses, fiscal_periods, processed_events.
+-- Declarative slice; migrations remain authoritative for apply order.
+
+create extension if not exists vector with schema extensions;
+
+CREATE TABLE IF NOT EXISTS organizations (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        company TEXT,
+        billing_entity TEXT,
+        billing_entity_id UUID,
+        phone TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS org_settings (
+        organization_id UUID PRIMARY KEY REFERENCES organizations(id),
+        auto_invoice BOOLEAN NOT NULL DEFAULT FALSE,
+        default_tax_rate REAL NOT NULL DEFAULT 0.10,
+        xero_tenant_id TEXT,
+        xero_access_token TEXT,
+        xero_refresh_token TEXT,
+        xero_token_expiry TEXT,
+        xero_sales_account_code TEXT NOT NULL DEFAULT '200',
+        xero_cogs_account_code TEXT NOT NULL DEFAULT '500',
+        xero_inventory_account_code TEXT NOT NULL DEFAULT '630',
+        xero_ap_account_code TEXT NOT NULL DEFAULT '800',
+        xero_tracking_category_id TEXT,
+        xero_tax_type TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id UUID PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id),
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS oauth_states (
+        state TEXT PRIMARY KEY,
+        org_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+        id UUID PRIMARY KEY,
+        user_id UUID REFERENCES users(id),
+        action TEXT NOT NULL,
+        resource_type TEXT,
+        resource_id TEXT,
+        details TEXT,
+        ip_address TEXT,
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS billing_entities (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        contact_name TEXT NOT NULL DEFAULT '',
+        contact_email TEXT NOT NULL DEFAULT '',
+        billing_address TEXT NOT NULL DEFAULT '',
+        payment_terms TEXT NOT NULL DEFAULT 'net_30',
+        xero_contact_id TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        UNIQUE(organization_id, name)
+    );
+
+CREATE TABLE IF NOT EXISTS addresses (
+        id UUID PRIMARY KEY,
+        label TEXT NOT NULL DEFAULT '',
+        line1 TEXT NOT NULL DEFAULT '',
+        line2 TEXT NOT NULL DEFAULT '',
+        city TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL DEFAULT '',
+        postal_code TEXT NOT NULL DEFAULT '',
+        country TEXT NOT NULL DEFAULT 'US',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        job_id UUID,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS fiscal_periods (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        closed_by_id UUID REFERENCES users(id),
+        closed_at TIMESTAMPTZ,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS processed_events (
+        event_id UUID NOT NULL,
+        handler_name TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        processed_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (event_id, handler_name)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_users_org_role ON users(organization_id, role);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(organization_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_billing_entities_org ON billing_entities(organization_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_billing_entities_name ON billing_entities(organization_id, name);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_org ON addresses(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_entity ON addresses(billing_entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_job ON addresses(job_id);
+
+CREATE INDEX IF NOT EXISTS idx_fiscal_periods_org ON fiscal_periods(organization_id, status);
+
+-- Catalog: departments, UOM, vendors, products, skus, vendor_items, sku_counters.
+
+CREATE TABLE IF NOT EXISTS departments (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        sku_count INTEGER NOT NULL DEFAULT 0,
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ,
+        UNIQUE(organization_id, code)
+    );
+
+CREATE TABLE IF NOT EXISTS units_of_measure (
+        id UUID PRIMARY KEY,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        family TEXT NOT NULL DEFAULT 'discrete',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ,
+        UNIQUE(organization_id, code)
+    );
+
+CREATE TABLE IF NOT EXISTS vendors (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        contact_name TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL DEFAULT '',
+        phone TEXT NOT NULL DEFAULT '',
+        address TEXT NOT NULL DEFAULT '',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS products (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        category_id UUID NOT NULL REFERENCES departments(id),
+        category_name TEXT NOT NULL DEFAULT '',
+        sku_count INTEGER NOT NULL DEFAULT 0,
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS skus (
+        id UUID PRIMARY KEY,
+        sku TEXT NOT NULL,
+        product_family_id UUID NOT NULL REFERENCES products(id),
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        price REAL NOT NULL,
+        cost REAL NOT NULL DEFAULT 0,
+        quantity REAL NOT NULL DEFAULT 0,
+        min_stock INTEGER NOT NULL DEFAULT 5,
+        category_id UUID NOT NULL REFERENCES departments(id),
+        category_name TEXT NOT NULL DEFAULT '',
+        barcode TEXT,
+        vendor_barcode TEXT,
+        base_unit TEXT NOT NULL DEFAULT 'each',
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        pack_qty INTEGER NOT NULL DEFAULT 1,
+        purchase_uom TEXT NOT NULL DEFAULT 'each',
+        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
+        variant_label TEXT NOT NULL DEFAULT '',
+        spec TEXT NOT NULL DEFAULT '',
+        grade TEXT NOT NULL DEFAULT '',
+        variant_attrs TEXT NOT NULL DEFAULT '{}',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS vendor_items (
+        id UUID PRIMARY KEY,
+        vendor_id UUID NOT NULL REFERENCES vendors(id),
+        sku_id UUID NOT NULL REFERENCES skus(id),
+        vendor_sku TEXT,
+        vendor_name TEXT NOT NULL DEFAULT '',
+        purchase_uom TEXT NOT NULL DEFAULT 'each',
+        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
+        cost REAL NOT NULL DEFAULT 0,
+        lead_time_days INTEGER,
+        moq REAL,
+        is_preferred BOOLEAN NOT NULL DEFAULT FALSE,
+        notes TEXT,
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ,
+        UNIQUE(vendor_id, sku_id)
+    );
+
+CREATE TABLE IF NOT EXISTS sku_counters (
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        product_family_id UUID NOT NULL REFERENCES products(id),
+        counter INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (organization_id, product_family_id)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_departments_org ON departments(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_uom_org ON units_of_measure(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendors_org ON vendors(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+
+CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_sku ON skus(sku);
+
+CREATE INDEX IF NOT EXISTS idx_skus_product_family ON skus(product_family_id);
+
+CREATE INDEX IF NOT EXISTS idx_skus_category ON skus(category_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skus_barcode ON skus(barcode) WHERE barcode IS NOT NULL AND TRIM(barcode) != '';
+
+CREATE INDEX IF NOT EXISTS idx_skus_vendor_barcode ON skus(vendor_barcode) WHERE vendor_barcode IS NOT NULL AND TRIM(vendor_barcode) != '';
+
+CREATE INDEX IF NOT EXISTS idx_skus_org ON skus(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_sku ON vendor_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_vendor ON vendor_items(vendor_id);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_vendor_sku ON vendor_items(vendor_id, vendor_sku);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_items_org ON vendor_items(organization_id);
+
+-- Inventory: stock_transactions, cycle_counts, cycle_count_items.
+
+CREATE TABLE IF NOT EXISTS stock_transactions (
+        id UUID PRIMARY KEY,
+        sku_id UUID NOT NULL REFERENCES skus(id),
+        sku TEXT NOT NULL,
+        product_name TEXT NOT NULL DEFAULT '',
+        quantity_delta REAL NOT NULL,
+        quantity_before REAL NOT NULL,
+        quantity_after REAL NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'each',
+        transaction_type TEXT NOT NULL,
+        reference_id TEXT,
+        reference_type TEXT,
+        reason TEXT,
+        original_quantity REAL,
+        original_unit TEXT,
+        user_id UUID NOT NULL REFERENCES users(id),
+        user_name TEXT NOT NULL DEFAULT '',
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS cycle_counts (
+        id UUID PRIMARY KEY,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        status TEXT NOT NULL DEFAULT 'open',
+        scope TEXT,
+        created_by_id UUID NOT NULL REFERENCES users(id),
+        created_by_name TEXT NOT NULL DEFAULT '',
+        committed_by_id UUID REFERENCES users(id),
+        committed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS cycle_count_items (
+        id UUID PRIMARY KEY,
+        cycle_count_id UUID NOT NULL REFERENCES cycle_counts(id),
+        sku_id UUID NOT NULL REFERENCES skus(id),
+        sku TEXT NOT NULL,
+        product_name TEXT NOT NULL DEFAULT '',
+        snapshot_qty REAL NOT NULL,
+        counted_qty REAL,
+        variance REAL,
+        unit TEXT NOT NULL DEFAULT 'each',
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_transactions(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_transactions(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_transactions(sku_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_stock_transactions_org ON stock_transactions(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_counts_org ON cycle_counts(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_counts_status ON cycle_counts(status);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_count_items_count ON cycle_count_items(cycle_count_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_count_items_product ON cycle_count_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_cycle_counts_org_status_created ON cycle_counts(organization_id, status, created_at);
+
+-- Operations: withdrawals, material_requests, material_request_items, returns,
+-- withdrawal_items, return_items.
+
+CREATE TABLE IF NOT EXISTS withdrawals (
+        id UUID PRIMARY KEY,
+        items TEXT,
+        job_id UUID NOT NULL,
+        service_address TEXT NOT NULL,
+        notes TEXT,
+        subtotal NUMERIC(18,2) NOT NULL,
+        tax NUMERIC(18,2) NOT NULL,
+        tax_rate NUMERIC(9,4) NOT NULL DEFAULT 0.0,
+        total NUMERIC(18,2) NOT NULL,
+        cost_total NUMERIC(18,2) NOT NULL,
+        contractor_id UUID NOT NULL REFERENCES users(id),
+        contractor_name TEXT NOT NULL DEFAULT '',
+        contractor_company TEXT NOT NULL DEFAULT '',
+        billing_entity TEXT NOT NULL DEFAULT '',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        payment_status TEXT NOT NULL DEFAULT 'unpaid',
+        invoice_id UUID,
+        paid_at TIMESTAMPTZ,
+        processed_by_id UUID NOT NULL REFERENCES users(id),
+        processed_by_name TEXT NOT NULL DEFAULT '',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS material_requests (
+        id UUID PRIMARY KEY,
+        contractor_id UUID NOT NULL REFERENCES users(id),
+        contractor_name TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending',
+        withdrawal_id UUID REFERENCES withdrawals(id),
+        job_id UUID,
+        service_address TEXT,
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        processed_at TIMESTAMPTZ,
+        processed_by_id UUID REFERENCES users(id),
+        organization_id UUID NOT NULL REFERENCES organizations(id)
+    );
+
+CREATE TABLE IF NOT EXISTS material_request_items (
+        id UUID PRIMARY KEY,
+        material_request_id UUID NOT NULL REFERENCES material_requests(id),
+        sku_id UUID NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL DEFAULT 0,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each'
+    );
+
+CREATE TABLE IF NOT EXISTS returns (
+        id UUID PRIMARY KEY,
+        withdrawal_id UUID NOT NULL REFERENCES withdrawals(id),
+        contractor_id UUID NOT NULL REFERENCES users(id),
+        contractor_name TEXT NOT NULL DEFAULT '',
+        billing_entity TEXT NOT NULL DEFAULT '',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        job_id UUID NOT NULL,
+        subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
+        tax NUMERIC(18,2) NOT NULL DEFAULT 0,
+        total NUMERIC(18,2) NOT NULL DEFAULT 0,
+        cost_total NUMERIC(18,2) NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL DEFAULT 'other',
+        notes TEXT,
+        credit_note_id UUID,
+        processed_by_id UUID NOT NULL REFERENCES users(id),
+        processed_by_name TEXT NOT NULL DEFAULT '',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS withdrawal_items (
+        id UUID PRIMARY KEY,
+        withdrawal_id UUID NOT NULL REFERENCES withdrawals(id),
+        sku_id UUID NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL DEFAULT 0,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each',
+        amount NUMERIC(18,2) NOT NULL DEFAULT 0,
+        cost_total NUMERIC(18,2) NOT NULL DEFAULT 0,
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
+    );
+
+CREATE TABLE IF NOT EXISTS return_items (
+        id UUID PRIMARY KEY,
+        return_id UUID NOT NULL REFERENCES returns(id),
+        sku_id UUID NOT NULL,
+        sku TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL DEFAULT 0,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        unit TEXT NOT NULL DEFAULT 'each',
+        amount NUMERIC(18,2) NOT NULL DEFAULT 0,
+        cost_total NUMERIC(18,2) NOT NULL DEFAULT 0,
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
+    );
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_contractor ON withdrawals(contractor_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_created ON withdrawals(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(payment_status);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_billing ON withdrawals(billing_entity);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_org ON withdrawals(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_requests_contractor ON material_requests(contractor_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_requests_status ON material_requests(status);
+
+CREATE INDEX IF NOT EXISTS idx_material_requests_org ON material_requests(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_request_items_mrid ON material_request_items(material_request_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_request_items_sku ON material_request_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_withdrawal ON returns(withdrawal_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_contractor ON returns(contractor_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_org ON returns(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_created ON returns(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawal_items_wid ON withdrawal_items(withdrawal_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawal_items_sku ON withdrawal_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_return_items_rid ON return_items(return_id);
+
+CREATE INDEX IF NOT EXISTS idx_return_items_sku ON return_items(sku_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_invoice ON withdrawals(invoice_id);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_job ON withdrawals(organization_id, job_id);
+
+CREATE INDEX IF NOT EXISTS idx_returns_credit_note ON returns(organization_id, credit_note_id);
+
+-- Finance: invoices, credit notes, payments, ledger, join tables, counters.
+
+CREATE TABLE IF NOT EXISTS invoices (
+        id UUID PRIMARY KEY,
+        invoice_number TEXT UNIQUE NOT NULL,
+        billing_entity TEXT NOT NULL DEFAULT '',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        contact_name TEXT NOT NULL DEFAULT '',
+        contact_email TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'draft',
+        subtotal NUMERIC(18,2) NOT NULL,
+        tax NUMERIC(18,2) NOT NULL,
+        tax_rate NUMERIC(9,4) NOT NULL DEFAULT 0.0,
+        total NUMERIC(18,2) NOT NULL,
+        amount_credited NUMERIC(18,2) NOT NULL DEFAULT 0,
+        notes TEXT,
+        invoice_date TIMESTAMPTZ,
+        due_date TIMESTAMPTZ,
+        payment_terms TEXT NOT NULL DEFAULT 'net_30',
+        billing_address TEXT NOT NULL DEFAULT '',
+        po_reference TEXT NOT NULL DEFAULT '',
+        currency TEXT NOT NULL DEFAULT 'USD',
+        approved_by_id UUID REFERENCES users(id),
+        approved_at TIMESTAMPTZ,
+        xero_invoice_id TEXT,
+        xero_cogs_journal_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        deleted_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS invoice_withdrawals (
+        invoice_id UUID NOT NULL REFERENCES invoices(id),
+        withdrawal_id UUID NOT NULL REFERENCES withdrawals(id),
+        PRIMARY KEY (invoice_id, withdrawal_id)
+    );
+
+CREATE TABLE IF NOT EXISTS invoice_line_items (
+        id UUID PRIMARY KEY,
+        invoice_id UUID NOT NULL REFERENCES invoices(id),
+        description TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL,
+        amount NUMERIC(18,2) NOT NULL,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        sku_id UUID,
+        job_id UUID,
+        unit TEXT NOT NULL DEFAULT 'each',
+        sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
+    );
+
+CREATE TABLE IF NOT EXISTS invoice_counters (
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        key TEXT NOT NULL,
+        counter INTEGER NOT NULL DEFAULT 0
+        ,
+        PRIMARY KEY (organization_id, key)
+    );
+
+CREATE TABLE IF NOT EXISTS credit_notes (
+        id UUID PRIMARY KEY,
+        credit_note_number TEXT UNIQUE NOT NULL,
+        invoice_id UUID REFERENCES invoices(id),
+        return_id UUID,
+        billing_entity TEXT NOT NULL DEFAULT '',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        status TEXT NOT NULL DEFAULT 'draft',
+        subtotal NUMERIC(18,2) NOT NULL DEFAULT 0,
+        tax NUMERIC(18,2) NOT NULL DEFAULT 0,
+        total NUMERIC(18,2) NOT NULL DEFAULT 0,
+        notes TEXT,
+        xero_credit_note_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
+        organization_id UUID REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS credit_note_line_items (
+        id UUID PRIMARY KEY,
+        credit_note_id UUID NOT NULL REFERENCES credit_notes(id),
+        description TEXT NOT NULL DEFAULT '',
+        quantity NUMERIC(18,4) NOT NULL,
+        unit_price NUMERIC(18,4) NOT NULL,
+        amount NUMERIC(18,2) NOT NULL,
+        cost NUMERIC(18,4) NOT NULL DEFAULT 0,
+        sku_id UUID,
+        unit TEXT NOT NULL DEFAULT 'each',
+        sell_cost NUMERIC(18,4) NOT NULL DEFAULT 0
+    );
+
+CREATE TABLE IF NOT EXISTS payments (
+        id UUID PRIMARY KEY,
+        invoice_id UUID REFERENCES invoices(id),
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        amount NUMERIC(18,2) NOT NULL,
+        method TEXT NOT NULL DEFAULT 'bank_transfer',
+        reference TEXT NOT NULL DEFAULT '',
+        payment_date TIMESTAMPTZ NOT NULL,
+        notes TEXT,
+        recorded_by_id UUID NOT NULL REFERENCES users(id),
+        xero_payment_id TEXT,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS payment_withdrawals (
+        payment_id UUID NOT NULL REFERENCES payments(id),
+        withdrawal_id UUID NOT NULL REFERENCES withdrawals(id),
+        PRIMARY KEY (payment_id, withdrawal_id)
+    );
+
+CREATE TABLE IF NOT EXISTS financial_ledger (
+        id UUID PRIMARY KEY,
+        journal_id UUID,
+        account TEXT NOT NULL,
+        amount NUMERIC(18,2) NOT NULL,
+        quantity NUMERIC(18,4),
+        unit TEXT,
+        unit_cost NUMERIC(18,4),
+        department TEXT,
+        job_id UUID,
+        billing_entity TEXT,
+        billing_entity_id UUID,
+        contractor_id UUID,
+        vendor_name TEXT,
+        sku_id UUID,
+        performed_by_user_id UUID,
+        reference_type TEXT NOT NULL,
+        reference_id TEXT NOT NULL,
+        organization_id UUID,
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_billing ON invoices(billing_entity);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_org ON invoices(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_line_items_invoice ON invoice_line_items(invoice_id);
+
+CREATE INDEX IF NOT EXISTS idx_cn_invoice ON credit_notes(invoice_id);
+
+CREATE INDEX IF NOT EXISTS idx_cn_org ON credit_notes(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_cn_status ON credit_notes(status);
+
+CREATE INDEX IF NOT EXISTS idx_cn_line_items_cn ON credit_note_line_items(credit_note_id);
+
+CREATE INDEX IF NOT EXISTS idx_fl_account ON financial_ledger(account);
+
+CREATE INDEX IF NOT EXISTS idx_fl_created ON financial_ledger(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_fl_org_account ON financial_ledger(organization_id, account, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_fl_ref ON financial_ledger(reference_type, reference_id);
+
+CREATE INDEX IF NOT EXISTS idx_fl_dept ON financial_ledger(department, account);
+
+CREATE INDEX IF NOT EXISTS idx_fl_job ON financial_ledger(job_id, account);
+
+CREATE INDEX IF NOT EXISTS idx_fl_entity ON financial_ledger(billing_entity, account);
+
+CREATE INDEX IF NOT EXISTS idx_fl_journal ON financial_ledger(journal_id);
+
+CREATE INDEX IF NOT EXISTS idx_payments_org ON payments(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
+
+CREATE INDEX IF NOT EXISTS idx_payments_entity ON payments(billing_entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date);
+
+CREATE INDEX IF NOT EXISTS idx_payment_withdrawals_wid ON payment_withdrawals(withdrawal_id);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_xero_sync ON invoices(xero_sync_status, xero_invoice_id);
+
+CREATE INDEX IF NOT EXISTS idx_cn_xero_sync ON credit_notes(xero_sync_status, xero_credit_note_id);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_withdrawals_withdrawal ON invoice_withdrawals(withdrawal_id);
+
+-- Purchasing: purchase_orders, purchase_order_items.
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+        id UUID PRIMARY KEY,
+        vendor_id UUID REFERENCES vendors(id),
+        vendor_name TEXT NOT NULL DEFAULT '',
+        document_date TEXT,
+        total REAL,
+        status TEXT NOT NULL DEFAULT 'ordered',
+        notes TEXT,
+        created_by_id UUID NOT NULL REFERENCES users(id),
+        created_by_name TEXT NOT NULL DEFAULT '',
+        received_at TIMESTAMPTZ,
+        received_by_id UUID REFERENCES users(id),
+        received_by_name TEXT,
+        document_id UUID,
+        xero_bill_id TEXT,
+        xero_sync_status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ,
+        organization_id UUID REFERENCES organizations(id)
+    );
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+        id UUID PRIMARY KEY,
+        po_id UUID NOT NULL REFERENCES purchase_orders(id),
+        name TEXT NOT NULL,
+        original_sku TEXT,
+        ordered_qty REAL NOT NULL DEFAULT 1,
+        delivered_qty REAL,
+        unit_price REAL NOT NULL DEFAULT 0,
+        cost REAL NOT NULL DEFAULT 0,
+        base_unit TEXT NOT NULL DEFAULT 'each',
+        sell_uom TEXT NOT NULL DEFAULT 'each',
+        pack_qty INTEGER NOT NULL DEFAULT 1,
+        purchase_uom TEXT NOT NULL DEFAULT 'each',
+        purchase_pack_qty INTEGER NOT NULL DEFAULT 1,
+        suggested_department TEXT NOT NULL DEFAULT 'HDW',
+        status TEXT NOT NULL DEFAULT 'ordered',
+        sku_id UUID,
+        organization_id UUID REFERENCES organizations(id)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_po_org_status ON purchase_orders(organization_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_po_created ON purchase_orders(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items(po_id);
+
+CREATE INDEX IF NOT EXISTS idx_po_items_status ON purchase_order_items(status);
+
+CREATE INDEX IF NOT EXISTS idx_po_xero_sync ON purchase_orders(xero_sync_status, xero_bill_id);
+
+-- Documents: documents archive.
+
+CREATE TABLE IF NOT EXISTS documents (
+        id UUID PRIMARY KEY,
+        filename TEXT NOT NULL,
+        document_type TEXT NOT NULL DEFAULT 'other',
+        vendor_name TEXT,
+        file_hash TEXT NOT NULL DEFAULT '',
+        file_size INTEGER NOT NULL DEFAULT 0,
+        mime_type TEXT NOT NULL DEFAULT '',
+        parsed_data TEXT,
+        po_id UUID REFERENCES purchase_orders(id),
+        status TEXT NOT NULL DEFAULT 'parsed',
+        uploaded_by_id UUID NOT NULL REFERENCES users(id),
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE INDEX IF NOT EXISTS idx_documents_org ON documents(organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_documents_po ON documents(po_id);
+
+CREATE INDEX IF NOT EXISTS idx_documents_vendor ON documents(vendor_name);
+
+CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
+
+-- Jobs: job master data.
+
+CREATE TABLE IF NOT EXISTS jobs (
+        id UUID PRIMARY KEY,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        billing_entity_id UUID REFERENCES billing_entities(id),
+        status TEXT NOT NULL DEFAULT 'active',
+        service_address TEXT NOT NULL DEFAULT '',
+        notes TEXT,
+        organization_id UUID NOT NULL REFERENCES organizations(id),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        UNIQUE(organization_id, code)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_jobs_org_code ON jobs(organization_id, code);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_org_status ON jobs(organization_id, status);
+
+-- Assistant: memory_artifacts, agent_runs, embeddings (pgvector).
+
+CREATE TABLE IF NOT EXISTS memory_artifacts (
+        id UUID PRIMARY KEY,
+        org_id UUID NOT NULL REFERENCES organizations(id),
+        user_id UUID NOT NULL REFERENCES users(id),
+        session_id UUID NOT NULL,
+        type TEXT NOT NULL DEFAULT 'entity_fact',
+        subject TEXT NOT NULL DEFAULT 'general',
+        content TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '[]',
+        created_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ
+    );
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+        id UUID PRIMARY KEY,
+        session_id UUID NOT NULL,
+        org_id UUID NOT NULL REFERENCES organizations(id),
+        user_id UUID REFERENCES users(id),
+        agent_name TEXT NOT NULL,
+        model TEXT NOT NULL,
+        mode TEXT,
+        user_message TEXT,
+        response_text TEXT,
+        tool_calls TEXT NOT NULL DEFAULT '[]',
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        attempts INTEGER NOT NULL DEFAULT 1,
+        error TEXT,
+        error_kind TEXT,
+        parent_run_id UUID REFERENCES agent_runs(id),
+        handoff_from TEXT,
+        validation_passed BOOLEAN,
+        validation_failures TEXT NOT NULL DEFAULT '[]',
+        validation_scores TEXT NOT NULL DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE TABLE IF NOT EXISTS embeddings (
+        id UUID PRIMARY KEY,
+        org_id UUID NOT NULL REFERENCES organizations(id),
+        entity_type TEXT NOT NULL,
+        entity_id UUID NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        embedding vector(1536) NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+    );
+
+CREATE INDEX IF NOT EXISTS idx_memory_user ON memory_artifacts(org_id, user_id, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_memory_session ON memory_artifacts(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_org ON agent_runs(org_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_agent ON agent_runs(agent_name, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_created ON agent_runs(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_embeddings_org_type ON embeddings(org_id, entity_type);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_entity ON embeddings(org_id, entity_type, entity_id);
+
+-- Cross-context graph view for assistant / analytics.
+
+CREATE OR REPLACE VIEW entity_edges WITH (security_invoker = true) AS
+    -- sku → vendor (via vendor_items)
+    SELECT vi.sku_id       AS source_id,
+           'sku'           AS source_type,
+           vi.vendor_id    AS target_id,
+           'vendor'        AS target_type,
+           'supplied_by'   AS relation,
+           vi.organization_id AS org_id
+    FROM vendor_items vi
+    UNION ALL
+    -- vendor → sku (reverse)
+    SELECT vi.vendor_id    AS source_id,
+           'vendor'        AS source_type,
+           vi.sku_id       AS target_id,
+           'sku'           AS target_type,
+           'supplies'      AS relation,
+           vi.organization_id AS org_id
+    FROM vendor_items vi
+    UNION ALL
+    -- sku → department
+    SELECT s.id            AS source_id,
+           'sku'           AS source_type,
+           s.category_id   AS target_id,
+           'department'    AS target_type,
+           'in_department' AS relation,
+           s.organization_id AS org_id
+    FROM skus s WHERE s.category_id IS NOT NULL
+    UNION ALL
+    -- po → vendor
+    SELECT po.id           AS source_id,
+           'po'            AS source_type,
+           po.vendor_id    AS target_id,
+           'vendor'        AS target_type,
+           'from_vendor'   AS relation,
+           po.organization_id AS org_id
+    FROM purchase_orders po WHERE po.vendor_id IS NOT NULL
+    UNION ALL
+    -- po_item → sku
+    SELECT poi.po_id       AS source_id,
+           'po'            AS source_type,
+           poi.sku_id  AS target_id,
+           'sku'           AS target_type,
+           'contains_sku'  AS relation,
+           poi.organization_id AS org_id
+    FROM purchase_order_items poi WHERE poi.sku_id IS NOT NULL
+    UNION ALL
+    -- withdrawal → job
+    SELECT w.id            AS source_id,
+           'withdrawal'    AS source_type,
+           w.job_id        AS target_id,
+           'job'           AS target_type,
+           'for_job'       AS relation,
+           w.organization_id AS org_id
+    FROM withdrawals w WHERE w.job_id IS NOT NULL
+    UNION ALL
+    -- job → withdrawal (reverse)
+    SELECT w.job_id        AS source_id,
+           'job'           AS source_type,
+           w.id            AS target_id,
+           'withdrawal'    AS target_type,
+           'has_withdrawal' AS relation,
+           w.organization_id AS org_id
+    FROM withdrawals w WHERE w.job_id IS NOT NULL
+    UNION ALL
+    -- withdrawal → invoice (via join table)
+    SELECT iw.withdrawal_id AS source_id,
+           'withdrawal'     AS source_type,
+           iw.invoice_id    AS target_id,
+           'invoice'        AS target_type,
+           'invoiced_in'    AS relation,
+           i.organization_id AS org_id
+    FROM invoice_withdrawals iw
+    JOIN invoices i ON i.id = iw.invoice_id
+    UNION ALL
+    -- invoice → withdrawal (reverse)
+    SELECT iw.invoice_id    AS source_id,
+           'invoice'        AS source_type,
+           iw.withdrawal_id AS target_id,
+           'withdrawal'     AS target_type,
+           'from_withdrawal' AS relation,
+           i.organization_id AS org_id
+    FROM invoice_withdrawals iw
+    JOIN invoices i ON i.id = iw.invoice_id
+    UNION ALL
+    -- invoice → billing_entity
+    SELECT i.id             AS source_id,
+           'invoice'        AS source_type,
+           i.billing_entity_id AS target_id,
+           'billing_entity' AS target_type,
+           'billed_to'      AS relation,
+           i.organization_id AS org_id
+    FROM invoices i WHERE i.billing_entity_id IS NOT NULL
+    UNION ALL
+    -- invoice → payment
+    SELECT p.invoice_id    AS source_id,
+           'invoice'       AS source_type,
+           p.id            AS target_id,
+           'payment'       AS target_type,
+           'has_payment'   AS relation,
+           p.organization_id AS org_id
+    FROM payments p WHERE p.invoice_id IS NOT NULL
+    UNION ALL
+    -- invoice → credit_note
+    SELECT cn.invoice_id   AS source_id,
+           'invoice'       AS source_type,
+           cn.id           AS target_id,
+           'credit_note'   AS target_type,
+           'has_credit_note' AS relation,
+           cn.organization_id AS org_id
+    FROM credit_notes cn WHERE cn.invoice_id IS NOT NULL
+    UNION ALL
+    -- withdrawal_item → sku
+    SELECT wi.withdrawal_id AS source_id,
+           'withdrawal'     AS source_type,
+           wi.sku_id        AS target_id,
+           'sku'            AS target_type,
+           'contains_sku'   AS relation,
+           w.organization_id AS org_id
+    FROM withdrawal_items wi
+    JOIN withdrawals w ON w.id = wi.withdrawal_id
+    WHERE wi.sku_id IS NOT NULL
+    UNION ALL
+    -- job → billing_entity
+    SELECT j.id            AS source_id,
+           'job'           AS source_type,
+           j.billing_entity_id AS target_id,
+           'billing_entity' AS target_type,
+           'billed_to'     AS relation,
+           j.organization_id AS org_id
+    FROM jobs j WHERE j.billing_entity_id IS NOT NULL
+    UNION ALL
+    -- job → invoice (via line items)
+    SELECT DISTINCT ili.job_id AS source_id,
+           'job'           AS source_type,
+           ili.invoice_id  AS target_id,
+           'invoice'       AS target_type,
+           'has_invoice'   AS relation,
+           i.organization_id AS org_id
+    FROM invoice_line_items ili
+    JOIN invoices i ON i.id = ili.invoice_id
+    WHERE ili.job_id IS NOT NULL;
+
+-- Deferred FK constraints for columns that reference tables defined in later schema files.
+-- These cannot be inline REFERENCES because the target table does not exist yet at CREATE TABLE time.
+
+ALTER TABLE users ADD CONSTRAINT users_billing_entity_id_fkey
+    FOREIGN KEY (billing_entity_id) REFERENCES billing_entities(id);
+
+ALTER TABLE withdrawals ADD CONSTRAINT withdrawals_invoice_id_fkey
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id);
+
+-- NOTE: returns.credit_note_id <-> credit_notes.return_id is a bidirectional
+-- link with circular dependency. Enforced at application level, not via FK.
+
+-- Row-level security for PostgREST / Supabase client (role authenticated).
+-- organization_id is read from JWT app_metadata or top-level (matches shared/api/auth_provider.py).
+-- Application backend uses a DB role that bypasses RLS.
+
+CREATE OR REPLACE FUNCTION public.jwt_organization_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public, auth
+AS $$
+  SELECT NULLIF(COALESCE(
+    (SELECT auth.jwt()->'app_metadata'->>'organization_id'),
+    (SELECT auth.jwt()->>'organization_id')
+  ), '')::uuid;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.jwt_organization_id() TO authenticated, anon;
+
+-- organizations
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON organizations
+  FOR ALL TO authenticated
+  USING (id = public.jwt_organization_id())
+  WITH CHECK (id = public.jwt_organization_id());
+
+-- users
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON users
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- org_settings
+ALTER TABLE org_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON org_settings
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- refresh_tokens
+ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON refresh_tokens
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.id = refresh_tokens.user_id
+        AND u.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.id = refresh_tokens.user_id
+        AND u.organization_id = public.jwt_organization_id()
+    )
+  );
+
+-- oauth_states
+ALTER TABLE oauth_states ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON oauth_states
+  FOR ALL TO authenticated
+  USING (org_id = public.jwt_organization_id())
+  WITH CHECK (org_id = public.jwt_organization_id());
+
+-- audit_log
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON audit_log
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- billing_entities
+ALTER TABLE billing_entities ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON billing_entities
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- addresses
+ALTER TABLE addresses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON addresses
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- fiscal_periods
+ALTER TABLE fiscal_periods ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON fiscal_periods
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- processed_events: RLS on, no policy (deny authenticated)
+ALTER TABLE processed_events ENABLE ROW LEVEL SECURITY;
+
+-- catalog
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON departments
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE units_of_measure ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON units_of_measure
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON vendors
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON products
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE skus ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON skus
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE vendor_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON vendor_items
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE sku_counters ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON sku_counters
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- inventory
+ALTER TABLE stock_transactions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON stock_transactions
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE cycle_counts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON cycle_counts
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE cycle_count_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON cycle_count_items
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM cycle_counts cc
+      WHERE cc.id = cycle_count_items.cycle_count_id
+        AND cc.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM cycle_counts cc
+      WHERE cc.id = cycle_count_items.cycle_count_id
+        AND cc.organization_id = public.jwt_organization_id()
+    )
+  );
+
+-- operations
+ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON withdrawals
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE withdrawal_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON withdrawal_items
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM withdrawals w
+      WHERE w.id = withdrawal_items.withdrawal_id
+        AND w.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM withdrawals w
+      WHERE w.id = withdrawal_items.withdrawal_id
+        AND w.organization_id = public.jwt_organization_id()
+    )
+  );
+
+ALTER TABLE material_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON material_requests
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE material_request_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON material_request_items
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM material_requests mr
+      WHERE mr.id = material_request_items.material_request_id
+        AND mr.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM material_requests mr
+      WHERE mr.id = material_request_items.material_request_id
+        AND mr.organization_id = public.jwt_organization_id()
+    )
+  );
+
+ALTER TABLE returns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON returns
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE return_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON return_items
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM returns r
+      WHERE r.id = return_items.return_id
+        AND r.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM returns r
+      WHERE r.id = return_items.return_id
+        AND r.organization_id = public.jwt_organization_id()
+    )
+  );
+
+-- finance
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON invoices
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE invoice_withdrawals ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON invoice_withdrawals
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoices i
+      WHERE i.id = invoice_withdrawals.invoice_id
+        AND i.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM invoices i
+      WHERE i.id = invoice_withdrawals.invoice_id
+        AND i.organization_id = public.jwt_organization_id()
+    )
+  );
+
+ALTER TABLE invoice_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON invoice_line_items
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM invoices i
+      WHERE i.id = invoice_line_items.invoice_id
+        AND i.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM invoices i
+      WHERE i.id = invoice_line_items.invoice_id
+        AND i.organization_id = public.jwt_organization_id()
+    )
+  );
+
+ALTER TABLE invoice_counters ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON invoice_counters
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE credit_notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON credit_notes
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE credit_note_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON credit_note_line_items
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM credit_notes cn
+      WHERE cn.id = credit_note_line_items.credit_note_id
+        AND cn.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM credit_notes cn
+      WHERE cn.id = credit_note_line_items.credit_note_id
+        AND cn.organization_id = public.jwt_organization_id()
+    )
+  );
+
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON payments
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE payment_withdrawals ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON payment_withdrawals
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.id = payment_withdrawals.payment_id
+        AND p.organization_id = public.jwt_organization_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.id = payment_withdrawals.payment_id
+        AND p.organization_id = public.jwt_organization_id()
+    )
+  );
+
+ALTER TABLE financial_ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON financial_ledger
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- purchasing
+ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON purchase_orders
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+ALTER TABLE purchase_order_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON purchase_order_items
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- documents
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON documents
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- jobs
+ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON jobs
+  FOR ALL TO authenticated
+  USING (organization_id = public.jwt_organization_id())
+  WITH CHECK (organization_id = public.jwt_organization_id());
+
+-- assistant
+ALTER TABLE memory_artifacts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON memory_artifacts
+  FOR ALL TO authenticated
+  USING (org_id = public.jwt_organization_id())
+  WITH CHECK (org_id = public.jwt_organization_id());
+
+ALTER TABLE agent_runs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON agent_runs
+  FOR ALL TO authenticated
+  USING (org_id = public.jwt_organization_id())
+  WITH CHECK (org_id = public.jwt_organization_id());
+
+ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON embeddings
+  FOR ALL TO authenticated
+  USING (org_id = public.jwt_organization_id())
+  WITH CHECK (org_id = public.jwt_organization_id());

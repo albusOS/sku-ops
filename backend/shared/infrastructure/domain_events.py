@@ -18,7 +18,6 @@ import logging
 import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from shared.kernel.domain_events import DomainEvent
@@ -67,7 +66,9 @@ def on(*event_types: type[DomainEvent]):
     Usage::
 
         @on(WithdrawalCreated)
-        async def handle_withdrawal_created(event: WithdrawalCreated) -> None: ...
+        async def handle_withdrawal_created(
+            event: WithdrawalCreated,
+        ) -> None: ...
 
 
         @on(WithdrawalCreated, ReturnCreated)
@@ -92,7 +93,11 @@ def idempotent(fn: Handler) -> Handler:
     async def wrapper(event: DomainEvent) -> None:
         handler_key = f"{fn.__module__}.{fn.__qualname__}"
         if await _already_processed(event.event_id, handler_key):
-            logger.debug("Skipping duplicate event_id=%s for %s", event.event_id, handler_key)
+            logger.debug(
+                "Skipping duplicate event_id=%s for %s",
+                event.event_id,
+                handler_key,
+            )
             return
         await fn(event)
         await _mark_processed(event.event_id, handler_key, type(event).__name__)
@@ -115,31 +120,29 @@ def retryable(max_retries: int = 2, base_delay: float = 0.1):
 async def _already_processed(event_id: str, handler_name: str) -> bool:
     """Check the processed_events table for a prior run."""
     try:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db.base import get_database_manager
 
-        conn = get_connection()
-        cursor = await conn.execute(
-            "SELECT 1 FROM processed_events WHERE event_id = $1 AND handler_name = $2",
-            (event_id, handler_name),
+        return await get_database_manager().shared.event_already_processed(
+            event_id, handler_name
         )
-        return (await cursor.fetchone()) is not None
     except Exception:
-        logger.debug("processed_events lookup failed, treating as not processed", exc_info=True)
+        logger.debug(
+            "processed_events lookup failed, treating as not processed",
+            exc_info=True,
+        )
         return False
 
 
-async def _mark_processed(event_id: str, handler_name: str, event_type: str) -> None:
+async def _mark_processed(
+    event_id: str, handler_name: str, event_type: str
+) -> None:
     """Record a successful handler execution for future dedup."""
     try:
-        from shared.infrastructure.database import get_connection
+        from shared.infrastructure.db.base import get_database_manager
 
-        conn = get_connection()
-        await conn.execute(
-            "INSERT INTO processed_events (event_id, handler_name, event_type, processed_at) "
-            "VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-            (event_id, handler_name, event_type, datetime.now(UTC)),
+        await get_database_manager().shared.mark_event_processed(
+            event_id, handler_name, event_type
         )
-        await conn.commit()
     except Exception:
         logger.debug("processed_events insert failed", exc_info=True)
 
@@ -220,7 +223,9 @@ async def dispatch(event: DomainEvent) -> None:
                 event_type,
             )
             if _handler_errors_total and _handler_errors_total is not False:
-                _handler_errors_total.labels(event_type=event_type, handler=handler_name).inc()
+                _handler_errors_total.labels(
+                    event_type=event_type, handler=handler_name
+                ).inc()
 
     elapsed_ms = round((time.monotonic() - start) * 1000, 1)
     logger.info(

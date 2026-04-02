@@ -12,22 +12,25 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
-from finance.application.fiscal_period_service import check_period_open
 from finance.domain.ledger import Account, FinancialEntry, ReferenceType
-from finance.infrastructure.ledger_repo import entries_exist, insert_entries
-from shared.infrastructure.database import get_org_id
+from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.db import get_org_id
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:
     from shared.kernel.event_payloads import LedgerItem, ReceivedItemSummary
 
 
+def _db_finance():
+    return get_database_manager().finance
+
+
 async def _check_fiscal_period() -> None:
     """Check that the current date is not in a closed fiscal period."""
     now = datetime.now(UTC)
-    await check_period_open(now)
+    await _db_finance().fiscal_check_period_open(get_org_id(), now)
 
 
 async def _record_sale_event(
@@ -49,10 +52,12 @@ async def _record_sale_event(
     Entries per event: TAX_COLLECTED, ACCOUNTS_RECEIVABLE.
     All entries share one journal_id.
     """
-    if await entries_exist(reference_type.value, reference_id):
+    if await _db_finance().ledger_entries_exist(
+        get_org_id(), reference_type.value, reference_id
+    ):
         return
     await _check_fiscal_period()
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     common = {
         "journal_id": journal_id,
         "job_id": job_id,
@@ -129,7 +134,7 @@ async def _record_sale_event(
         for e in entries:
             e.created_at = created_at
 
-    await insert_entries(entries)
+    await _db_finance().ledger_insert_entries(get_org_id(), entries)
 
 
 async def record_withdrawal(
@@ -194,10 +199,12 @@ async def record_po_receipt(
     created_at: datetime | None = None,
 ) -> None:
     """Write inventory + AP entries for each received PO line item."""
-    if await entries_exist(ReferenceType.PO_RECEIPT.value, po_id):
+    if await _db_finance().ledger_entries_exist(
+        get_org_id(), ReferenceType.PO_RECEIPT.value, po_id
+    ):
         return
     await _check_fiscal_period()
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     org_id = get_org_id()
     entries: list[FinancialEntry] = []
 
@@ -249,7 +256,7 @@ async def record_po_receipt(
         for e in entries:
             e.created_at = created_at
     if entries:
-        await insert_entries(entries)
+        await _db_finance().ledger_insert_entries(get_org_id(), entries)
 
 
 _DAMAGE_REASONS = {"damage"}
@@ -279,7 +286,9 @@ async def record_adjustment(
     Positive delta: INVENTORY increases, offset account decreases (found stock).
     The offset account is determined by reason: 'damage' → DAMAGE, everything else → SHRINKAGE.
     """
-    if await entries_exist(ReferenceType.ADJUSTMENT.value, adjustment_ref_id):
+    if await _db_finance().ledger_entries_exist(
+        get_org_id(), ReferenceType.ADJUSTMENT.value, adjustment_ref_id
+    ):
         return
     await _check_fiscal_period()
     amount = round_money(abs(quantity_delta) * product_cost)
@@ -287,7 +296,7 @@ async def record_adjustment(
         return
 
     org_id = get_org_id()
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     sign = -1 if quantity_delta < 0 else 1
     offset_account = _offset_account_for_reason(reason)
     entries = [
@@ -317,7 +326,7 @@ async def record_adjustment(
     if created_at:
         for e in entries:
             e.created_at = created_at
-    await insert_entries(entries)
+    await _db_finance().ledger_insert_entries(get_org_id(), entries)
 
 
 async def record_payment(
@@ -329,9 +338,11 @@ async def record_payment(
     created_at: datetime | None = None,
 ) -> None:
     """Write AR reduction when a withdrawal is marked paid."""
-    if await entries_exist(ReferenceType.PAYMENT.value, withdrawal_id):
+    if await _db_finance().ledger_entries_exist(
+        get_org_id(), ReferenceType.PAYMENT.value, withdrawal_id
+    ):
         return
-    journal_id = str(uuid4())
+    journal_id = new_uuid7_str()
     entry = FinancialEntry(
         account=Account.ACCOUNTS_RECEIVABLE,
         amount=-round_money(amount),
@@ -345,7 +356,7 @@ async def record_payment(
     )
     if created_at:
         entry.created_at = created_at
-    await insert_entries([entry])
+    await _db_finance().ledger_insert_entries(get_org_id(), [entry])
 
 
 async def record_credit_note_application(
@@ -356,10 +367,13 @@ async def record_credit_note_application(
     performed_by_user_id: str | None = None,
 ) -> None:
     """Write AR reduction when a credit note is applied to an invoice."""
-    if await entries_exist(ReferenceType.CREDIT_NOTE.value, credit_note_id):
+    if await _db_finance().ledger_entries_exist(
+        get_org_id(), ReferenceType.CREDIT_NOTE.value, credit_note_id
+    ):
         return
-    journal_id = str(uuid4())
-    await insert_entries(
+    journal_id = new_uuid7_str()
+    await _db_finance().ledger_insert_entries(
+        get_org_id(),
         [
             FinancialEntry(
                 account=Account.ACCOUNTS_RECEIVABLE,

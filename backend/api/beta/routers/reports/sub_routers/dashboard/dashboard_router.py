@@ -25,9 +25,16 @@ async def get_dashboard_stats(
     try:
         if current_user.role == "contractor":
             return await contractor_dashboard(
-                current_user.id, start_date=start_date, end_date=end_date
+                current_user.organization_id,
+                current_user.id,
+                start_date=start_date,
+                end_date=end_date,
             )
-        return await admin_dashboard(start_date=start_date, end_date=end_date)
+        return await admin_dashboard(
+            current_user.organization_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception:
@@ -48,6 +55,7 @@ async def get_dashboard_transactions(
     """Paginated transactions for the dashboard. Supports date range + filters."""
     try:
         return await dashboard_transactions(
+            org_id=current_user.organization_id,
             limit=limit,
             offset=offset,
             start_date=start_date,
