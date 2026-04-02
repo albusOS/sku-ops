@@ -82,6 +82,14 @@ export default function ProductDetailPage() {
   );
 
   const skus = useMemo(() => family?.skus ?? [], [family]);
+
+  const resolvedFamilyId = useMemo(() => {
+    if (isFamilyFound && familyData?.id) return familyData.id;
+    const fid = standaloneSku?.product_family_id;
+    if (fid) return fid;
+    return familyId ?? "";
+  }, [isFamilyFound, familyData?.id, standaloneSku?.product_family_id, familyId]);
+
   const initialSkuId = searchParams.get("sku");
   const [selectedSkuId, setSelectedSkuId] = useState(initialSkuId);
 
@@ -97,8 +105,6 @@ export default function ProductDetailPage() {
     () => skus.find((s) => s.id === selectedSkuId) || skus[0] || null,
     [skus, selectedSkuId],
   );
-
-  const isSingleSku = skus.length <= 1;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -239,27 +245,27 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Variant grid */}
-      {!isSingleSku && (
-        <div className="px-8 mt-6 shrink-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-3">
-            Variants
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {skus.map((sku) => (
-              <VariantCard
-                key={sku.id}
-                sku={sku}
-                isSelected={sku.id === selectedSku?.id}
-                onClick={(s) => setSelectedSkuId(s.id)}
-              />
-            ))}
-            <AddVariantCard
-              onClick={() => openDialog(null, { familyId, categoryId: family.category_id })}
+      {/* Variant grid (single-SKU families still show Add variant) */}
+      <div className="px-8 mt-6 shrink-0">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground mb-3">
+          Variants
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {skus.map((sku) => (
+            <VariantCard
+              key={sku.id}
+              sku={sku}
+              isSelected={sku.id === selectedSku?.id}
+              onClick={(s) => setSelectedSkuId(s.id)}
             />
-          </div>
+          ))}
+          <AddVariantCard
+            onClick={() =>
+              openDialog(null, { familyId: resolvedFamilyId, categoryId: family.category_id })
+            }
+          />
         </div>
-      )}
+      </div>
 
       {/* Selected variant details */}
       {selectedSku && (

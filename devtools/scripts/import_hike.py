@@ -30,9 +30,9 @@ def _strip_html(text: str | None) -> str:
 async def import_vendors(file_path: Path | None = None) -> dict[str, str]:
     """Import vendors from Supplier.xlsx. Returns {company_name: vendor_id}."""
     import openpyxl
+    from catalog.infrastructure.vendor_repo import vendor_repo
 
     from catalog.domain.vendor import Vendor
-    from catalog.infrastructure.vendor_repo import vendor_repo
     from shared.infrastructure.logging_config import org_id_var
 
     path = file_path or DATA_DIR / "Supplier.xlsx"
@@ -92,12 +92,12 @@ async def import_products(
 ) -> None:
     """Import products from Products 2.xlsx."""
     import openpyxl
-
-    from catalog.application.sku_lifecycle import create_product_with_sku
-    from catalog.domain.vendor_item import VendorItem
     from catalog.infrastructure.department_repo import department_repo
     from catalog.infrastructure.vendor_item_repo import vendor_item_repo
     from catalog.infrastructure.vendor_repo import vendor_repo
+
+    from catalog.application.sku_lifecycle import create_product_with_sku
+    from catalog.domain.vendor_item import VendorItem
     from documents.application.import_parser import infer_uom
     from shared.infrastructure.logging_config import org_id_var
 
@@ -133,12 +133,16 @@ async def import_products(
         product_type = (data.get("Product type") or "").strip()
         dept = dept_by_name.get(product_type)
         if not dept:
-            errors.append(f"Row {i}: unknown department '{product_type}' for '{name}'")
+            errors.append(
+                f"Row {i}: unknown department '{product_type}' for '{name}'"
+            )
             continue
 
         # Price/cost
         cost = float(data.get("Pittsburgh Store_Cost price") or 0)
-        price_ex_tax = float(data.get("Pittsburgh Store_Price Excluding Tax") or 0)
+        price_ex_tax = float(
+            data.get("Pittsburgh Store_Price Excluding Tax") or 0
+        )
         price = (
             price_ex_tax
             if price_ex_tax > 0
@@ -147,7 +151,9 @@ async def import_products(
 
         # Stock
         qty = float(
-            data.get("Pittsburgh Store_Stock on hand") or data.get("Pittsburgh Store_Stock") or 0
+            data.get("Pittsburgh Store_Stock on hand")
+            or data.get("Pittsburgh Store_Stock")
+            or 0
         )
         min_stock = int(float(data.get("Pittsburgh Store_Reorder level") or 0))
 
@@ -239,6 +245,14 @@ async def main(do_vendors: bool, do_products: bool) -> None:
 
         if do_products:
             await import_products(vendor_map=vendor_map)
+            from shared.infrastructure.db.base import get_database_manager
+
+            await (
+                get_database_manager().catalog.recompute_department_sku_counts(
+                    ORG.id
+                )
+            )
+            print("Recomputed department SKU counts.")
 
         print("\nDone.")
     finally:
@@ -247,9 +261,15 @@ async def main(do_vendors: bool, do_products: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import Hike POS data")
-    parser.add_argument("--vendors", action="store_true", help="Import vendors from Supplier.xlsx")
     parser.add_argument(
-        "--products", action="store_true", help="Import products from Products 2.xlsx"
+        "--vendors",
+        action="store_true",
+        help="Import vendors from Supplier.xlsx",
+    )
+    parser.add_argument(
+        "--products",
+        action="store_true",
+        help="Import products from Products 2.xlsx",
     )
     args = parser.parse_args()
 

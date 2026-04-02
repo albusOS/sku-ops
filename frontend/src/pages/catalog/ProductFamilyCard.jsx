@@ -48,7 +48,8 @@ export function ProductFamilyCard({ group, onAddVariant }) {
 
   const handleAddVariant = (e) => {
     e.stopPropagation();
-    onAddVariant?.(familyId, skus[0]?.category_id);
+    const fid = skus[0]?.product_family_id || familyId;
+    onAddVariant?.(fid, skus[0]?.category_id);
   };
 
   if (!isMulti) {
@@ -73,8 +74,23 @@ export function ProductFamilyCard({ group, onAddVariant }) {
           )}
         </div>
 
-        <div className="flex items-center justify-between mt-3">
-          <span className="font-mono text-sm">${(sku.price || 0).toFixed(2)}</span>
+        <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono text-sm">${(sku.price || 0).toFixed(2)}</span>
+            <button
+              type="button"
+              onClick={handleAddVariant}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg border border-dashed border-border/60",
+                "px-2 py-1.5 text-xs text-muted-foreground transition-all shrink-0",
+                "opacity-0 group-hover:opacity-100",
+                "hover:border-accent hover:text-accent hover:bg-accent/5",
+              )}
+            >
+              <Plus className="w-3 h-3" />
+              Add variant
+            </button>
+          </div>
           {mostRecent && (
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
               <Clock className="w-3 h-3" />

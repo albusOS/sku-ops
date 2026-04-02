@@ -79,12 +79,13 @@ async def import_classified(
     classified_path: Path, dry_run: bool = False
 ) -> None:
     """Import classified products, creating families then SKUs."""
-    from catalog.application.product_family_lifecycle import create_product
-    from catalog.application.sku_lifecycle import create_sku
-    from catalog.domain.vendor_item import VendorItem
     from catalog.infrastructure.department_repo import department_repo
     from catalog.infrastructure.vendor_item_repo import vendor_item_repo
     from catalog.infrastructure.vendor_repo import vendor_repo
+
+    from catalog.application.product_family_lifecycle import create_product
+    from catalog.application.sku_lifecycle import create_sku
+    from catalog.domain.vendor_item import VendorItem
     from inventory.application.inventory_service import (
         process_import_stock_changes,
     )
@@ -273,6 +274,13 @@ async def import_classified(
     print(f"  Families created:     {families_created}")
     print(f"  SKUs created:         {skus_created}")
     print(f"  Vendor items linked:  {vendor_items_created}")
+
+    from shared.infrastructure.db.base import get_database_manager
+
+    await get_database_manager().catalog.recompute_department_sku_counts(
+        org_id_var.get()
+    )
+    print("  Department SKU counts: recomputed")
 
     if errors:
         print(f"\nErrors ({len(errors)}):")

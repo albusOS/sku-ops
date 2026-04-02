@@ -101,15 +101,54 @@ def _dept_row_to_domain(row: Departments) -> Department:
 class CatalogDatabaseService(DomainDatabaseService):
     # --- Departments ---
     async def list_departments(self, org_id: str) -> list[Department]:
+        """List departments with live sku_count from skus (denormalized column can be stale after bulk import)."""
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                select(Departments).where(
-                    Departments.organization_id == oid,
-                    Departments.deleted_at.is_(None),
-                )
+                text(
+                    """
+                    SELECT d.id,
+                           d.organization_id,
+                           d.created_at,
+                           d.name,
+                           d.code,
+                           d.description,
+                           COALESCE(
+                               (
+                                   SELECT COUNT(*)::integer
+                                   FROM skus s
+                                   WHERE s.category_id = d.id
+                                     AND s.deleted_at IS NULL
+                                     AND s.organization_id = d.organization_id
+                               ),
+                               0
+                           ) AS sku_count
+                    FROM departments d
+                    WHERE d.organization_id = :oid
+                      AND d.deleted_at IS NULL
+                    ORDER BY d.name ASC
+                    """
+                ),
+                {"oid": oid},
             )
-            return [_dept_row_to_domain(r) for r in result.scalars().all()]
+            out: list[Department] = []
+            for row in result.mappings().all():
+                rid = row["id"]
+                roid = row["organization_id"]
+                out.append(
+                    Department.model_validate(
+                        {
+                            "id": str(rid),
+                            "organization_id": str(roid) if roid else "",
+                            "created_at": row["created_at"],
+                            "name": row["name"],
+                            "code": row["code"],
+                            "description": row["description"] or "",
+                            "sku_count": int(row["sku_count"] or 0),
+                        }
+                    )
+                )
+            return out
 
     async def get_department_by_id(
         self, dept_id: str, org_id: str
@@ -230,6 +269,38 @@ class CatalogDatabaseService(DomainDatabaseService):
                 {"delta": delta, "did": did, "oid": oid},
             )
             await self.end_write_session(session)
+
+    async def recompute_department_sku_counts(self, org_id: str) -> None:
+        """Set departments.sku_count from live SKU rows (fixes stale denormalized counts)."""
+        oid = as_uuid_required(org_id)
+        async with self.session() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE departments d
+                    SET sku_count = COALESCE(
+                        (
+                            SELECT COUNT(*)::integer FROM skus s
+                            WHERE s.category_id = d.id
+                              AND s.deleted_at IS NULL
+                              AND s.organization_id = d.organization_id
+                        ),
+                        0
+                    )
+                    WHERE d.organization_id = :oid
+                      AND d.deleted_at IS NULL
+                    """
+                ),
+                {"oid": oid},
+            )
+            await self.end_write_session(session)
+        logger.info(
+            "department_sku_counts_recomputed",
+            extra={
+                "org_id": org_id,
+                "action": "recompute_department_sku_counts",
+            },
+        )
 
     # --- SKUs (list uses joined SQL for parity with legacy repo) ---
     async def list_skus(
