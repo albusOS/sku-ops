@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@pages/*": ["./pages/*"],
+      "@api/*": ["./api/*"],
+      "@support/*": ["./support/*"],
+      "@fixtures": ["./fixtures/base.fixture.ts"]
+    },
+    "baseUrl": "."
+  },
+  "include": ["**/*.ts"]
+}

@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { SharedApi } from "@api/shared.api";
 
 test("health endpoint returns ok", async ({ request }) => {
-  const response = await request.get("/api/beta/shared/health");
-  expect(response.ok()).toBeTruthy();
-  const body = await response.json();
+  const shared = new SharedApi(request);
+  const body = await shared.health();
   expect(body.status).toBe("ok");
 });

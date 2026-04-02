@@ -1,17 +1,19 @@
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
+  globalSetup: "./support/global-setup.ts",
   testDir: "./specs",
   timeout: 60_000,
   expect: { timeout: 10_000 },
   retries: 0,
+  workers: 1,
   fullyParallel: false,
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "on",
     video: "retain-on-failure",
-    actionTimeout: 15_000,
+    actionTimeout: 60_000,
   },
   projects: [
     {

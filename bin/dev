@@ -59,8 +59,9 @@ case "${1:-help}" in
     npm run test:run --prefix frontend
     ;;
   test:e2e)
+    _ensure_supabase
     echo "Running e2e tests..."
-    npx --prefix e2e playwright test --config=e2e/playwright.config.ts "${@:2}"
+    (cd e2e && npx playwright test "${@:2}")
     ;;
   fmt)
     echo "Formatting code..."
