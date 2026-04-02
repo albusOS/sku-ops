@@ -200,6 +200,7 @@ async def get_kpis(
 ):
     try:
         return await kpi_report(
+            org_id=current_user.organization_id,
             start_date=start_date,
             end_date=end_date,
             job_id=job_id,
