@@ -16,6 +16,7 @@ import { StatusBadge } from "./StatusBadge";
  *   loading?: boolean,
  *   actions?: React.ReactNode,
  *   width?: "sm" | "md" | "lg" | "xl",
+ *   dataTestId?: string,
  *   children: React.ReactNode,
  * }} props
  */
@@ -29,6 +30,7 @@ export function DetailPanel({
   loading,
   actions,
   width = "md",
+  dataTestId,
   children,
 }) {
   const widthClass =
@@ -41,7 +43,11 @@ export function DetailPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className={`${widthClass} w-full p-0 flex flex-col`}>
+      <SheetContent
+        side="right"
+        className={`${widthClass} w-full p-0 flex flex-col`}
+        data-testid={dataTestId}
+      >
         <div className="px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 min-w-0">

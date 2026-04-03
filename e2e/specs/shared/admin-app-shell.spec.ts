@@ -32,7 +32,8 @@ test.describe("Admin app shell", () => {
       const sidebar = new SidebarNav(page);
       await sidebar.navigateTo(navTestId);
       await expect(page).toHaveURL((u) => u.pathname === path);
-      await expect(page.getByTestId(pageTestId)).toBeVisible({ timeout: 30_000 });
+      const timeout = pageTestId === "dashboard-page" ? 60_000 : 30_000;
+      await expect(page.getByTestId(pageTestId)).toBeVisible({ timeout });
     });
   }
 

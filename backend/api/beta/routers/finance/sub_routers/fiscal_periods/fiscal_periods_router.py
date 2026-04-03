@@ -55,8 +55,8 @@ async def close_period(
         resource_id=period_id,
         details={
             "name": result.name,
-            "start_date": result.start_date,
-            "end_date": result.end_date,
+            "start_date": result.start_date.isoformat(),
+            "end_date": result.end_date.isoformat(),
         },
         request=request,
         org_id=current_user.organization_id,

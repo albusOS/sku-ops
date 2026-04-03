@@ -50,7 +50,10 @@ class JobsDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
 
     async def get_job_by_id(self, job_id: str, org_id: str) -> Job | None:
-        jid = as_uuid_required(job_id)
+        try:
+            jid = as_uuid_required(job_id)
+        except ValueError:
+            return None
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(

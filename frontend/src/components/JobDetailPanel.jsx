@@ -41,6 +41,7 @@ export function JobDetailPanel({ jobId, open, onOpenChange }) {
     <DetailPanel
       open={open}
       onOpenChange={onOpenChange}
+      dataTestId="job-detail-panel"
       title={job?.code || "Job"}
       subtitle={job?.name && job.name !== job.code ? job.name : undefined}
       status={job?.status}

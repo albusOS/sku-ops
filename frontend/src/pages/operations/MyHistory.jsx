@@ -204,6 +204,7 @@ const MyHistory = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-8 text-xs bg-muted/50"
+                data-testid="my-history-order-search"
               />
             </div>
 

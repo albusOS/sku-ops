@@ -1,6 +1,6 @@
 """Job master data routes."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from jobs.domain.job import Job, JobCreate, JobStatus, JobUpdate
 from shared.api.deps import AdminDep, CurrentUserDep
@@ -20,8 +20,8 @@ async def list_jobs(
     current_user: AdminDep,
     status: str | None = None,
     q: str | None = None,
-    limit: int = 200,
-    offset: int = 0,
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
 ):
     return await _db_jobs().list_jobs(
         get_org_id(),
@@ -36,7 +36,7 @@ async def list_jobs(
 async def search_jobs(
     current_user: CurrentUserDep,
     q: str = "",
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=100),
 ):
     """Autocomplete endpoint for job pickers (all authenticated users including contractors)."""
     if not q.strip():

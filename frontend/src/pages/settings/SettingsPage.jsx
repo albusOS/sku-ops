@@ -258,6 +258,7 @@ function InvoicingSection({ settings }) {
           checked={settings?.auto_invoice === true}
           onCheckedChange={handleAutoInvoiceChange}
           disabled={update.isPending}
+          data-testid="settings-auto-invoice-switch"
         />
       </div>
     </Panel>

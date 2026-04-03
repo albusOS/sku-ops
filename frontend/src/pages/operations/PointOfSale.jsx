@@ -255,7 +255,7 @@ export default function PointOfSale() {
         </div>
 
         {/* Process sales section */}
-        <section className="mb-10">
+        <section className="mb-10" data-testid="pos-process-sales">
           <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-base font-semibold text-foreground">Process Sales</h2>
@@ -283,7 +283,7 @@ export default function PointOfSale() {
         </section>
 
         {/* Transaction history + invoices */}
-        <section>
+        <section data-testid="pos-invoices-section">
           <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-foreground">Invoices</h2>

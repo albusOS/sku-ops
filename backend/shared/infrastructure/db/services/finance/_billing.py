@@ -333,9 +333,15 @@ async def fiscal_list_periods(
     ]
 
 
-def _parse_period_date(value: str) -> date:
+def _parse_period_date(value: str | date | datetime) -> date:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).date() if value.tzinfo else value.date()
+    if isinstance(value, date):
+        return value
+    assert isinstance(value, str)
     if "T" in value:
-        return datetime.fromisoformat(value).date()
+        normalized = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized).date()
     return date.fromisoformat(value)
 
 
@@ -344,8 +350,8 @@ async def fiscal_insert_period(
     org_id: uuid.UUID,
     period_id: str,
     name: str,
-    start_date: str,
-    end_date: str,
+    start_date: str | date | datetime,
+    end_date: str | date | datetime,
     created_at: datetime,
 ) -> None:
     sd = _parse_period_date(start_date)

@@ -297,6 +297,7 @@ const Contractors = () => {
             onClick={() => setCreateBillingEntityOpen(true)}
             variant="outline"
             className="gap-2 h-9"
+            data-testid="contractors-new-billing-entity-btn"
           >
             <Plus className="w-4 h-4" />
             New Entity

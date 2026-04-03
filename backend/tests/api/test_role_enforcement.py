@@ -7,7 +7,13 @@ from AdminDep endpoints with 403.
 
 import pytest
 
-from tests.helpers.auth import admin_headers, contractor_headers, expired_token, make_token
+from tests.helpers.auth import (
+    SEEDED_JOB_ID,
+    admin_headers,
+    contractor_headers,
+    expired_token,
+    make_token,
+)
 
 # ── Admin-only endpoints (AdminDep) — contractors must get 403 ───────────────
 
@@ -20,6 +26,12 @@ ADMIN_ONLY_ENDPOINTS = [
     ("POST", "/api/beta/catalog/vendors", {"name": "Test Vendor"}),
     ("GET", "/api/beta/finance/invoices"),
     ("GET", "/api/beta/operations/contractors"),
+    ("GET", "/api/beta/jobs"),
+    ("POST", "/api/beta/jobs", {"code": "ROLE-TEST-JOB", "name": "role test"}),
+    ("PUT", f"/api/beta/jobs/{SEEDED_JOB_ID}", {"name": "Role test name"}),
+    ("GET", "/api/beta/finance/billing-entities"),
+    ("GET", "/api/beta/shared/addresses"),
+    ("GET", "/api/beta/documents"),
 ]
 
 
@@ -56,6 +68,9 @@ CONTRACTOR_ACCESSIBLE_ENDPOINTS = [
     ("GET", "/api/beta/operations/material-requests"),
     ("GET", "/api/beta/operations/withdrawals"),
     ("GET", "/api/beta/catalog/skus"),
+    ("GET", "/api/beta/jobs/search"),
+    ("GET", f"/api/beta/jobs/{SEEDED_JOB_ID}"),
+    ("GET", "/api/beta/shared/addresses/search"),
 ]
 
 

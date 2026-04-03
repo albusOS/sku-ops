@@ -478,8 +478,8 @@ class FinanceDatabaseService(DomainDatabaseService):
         org_id: str,
         period_id: str,
         name: str,
-        start_date: str,
-        end_date: str,
+        start_date,
+        end_date,
         created_at,
     ):
         oid = as_uuid_required(org_id)

@@ -45,6 +45,7 @@ export function BillingEntityDetailPanel({ entityId, open, onOpenChange }) {
     <DetailPanel
       open={open}
       onOpenChange={onOpenChange}
+      dataTestId="billing-entity-detail-panel"
       title={entity?.name || "Billing Entity"}
       status={entity?.is_active === false ? "inactive" : "active"}
       icon={Building2}

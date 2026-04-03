@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from reports.application.financial_reports import (
     ar_aging_report,
@@ -94,7 +94,7 @@ async def get_product_margins(
     current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=500),
     job_id: str | None = None,
     department: str | None = None,
     billing_entity: str | None = None,
@@ -120,8 +120,8 @@ async def get_job_pl(
     current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     search: str | None = None,
 ):
     """Per-job P&L from the ledger."""
@@ -146,8 +146,8 @@ async def get_pl(
     group_by: str = "overall",
     start_date: str | None = None,
     end_date: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     search: str | None = None,
     job_id: str | None = None,
     department: str | None = None,
@@ -219,7 +219,7 @@ async def get_product_performance(
     current_user: AdminDep,
     start_date: str | None = None,
     end_date: str | None = None,
-    limit: int = 200,
+    limit: int = Query(200, ge=1, le=2000),
 ):
     try:
         return await product_performance_report(
@@ -238,8 +238,8 @@ async def get_product_performance(
 @router.get("/reorder-urgency")
 async def get_reorder_urgency(
     current_user: AdminDep,
-    days: int = 30,
-    limit: int = 50,
+    days: int = Query(30, ge=1, le=3650),
+    limit: int = Query(50, ge=1, le=500),
 ):
     """Products ranked by days-until-stockout using withdrawal velocity."""
     try:
@@ -255,7 +255,7 @@ async def get_reorder_urgency(
 async def get_product_activity(
     current_user: AdminDep,
     sku_id: str | None = None,
-    days: int = 365,
+    days: int = Query(365, ge=1, le=3650),
 ):
     """Daily withdrawal activity heatmap data. Optional sku_id filter."""
     try:

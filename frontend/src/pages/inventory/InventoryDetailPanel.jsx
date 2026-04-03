@@ -239,7 +239,10 @@ export function InventoryDetailPanel({ product, open, onClose, onAdjust, onViewH
       transition={SPRING}
       className="h-full shrink-0 overflow-hidden"
     >
-      <div className="flex flex-col h-full bg-card border-l border-border/60 overflow-hidden shadow-xl">
+      <div
+        className="flex flex-col h-full bg-card border-l border-border/60 overflow-hidden shadow-xl"
+        data-testid="inventory-detail-panel"
+      >
         {/* Header — stock gauge + actions */}
         <div className="px-5 pt-5 pb-4 border-b border-border/50 shrink-0">
           <div className="flex items-start justify-between gap-3">
