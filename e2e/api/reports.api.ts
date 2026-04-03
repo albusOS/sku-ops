@@ -1,5 +1,5 @@
 import { type APIRequestContext } from "@playwright/test";
-import { apiGet } from "@support/api-client";
+import { apiGet, apiGetWithRetry } from "@support/api-client";
 
 export type DateRange = { startDate: string; endDate: string };
 
@@ -14,7 +14,7 @@ export class ReportsApi {
       range != null
         ? `?start_date=${encodeURIComponent(range.startDate)}&end_date=${encodeURIComponent(range.endDate)}`
         : "";
-    return apiGet(this.request, this.token, `/api/beta/reports/dashboard/stats${qs}`);
+    return apiGetWithRetry(this.request, this.token, `/api/beta/reports/dashboard/stats${qs}`);
   }
 
   async profitAndLoss(range?: DateRange) {

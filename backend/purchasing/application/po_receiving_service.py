@@ -6,7 +6,7 @@ Split from purchase_order_service to keep each module under 300 lines.
 import logging
 from datetime import UTC, datetime
 
-from catalog.domain.sku import SkuUpdate
+from catalog.application.sku_lifecycle import sku_cost_update
 from finance.application.ledger_service import (
     record_po_receipt as _record_po_receipt_ledger,
 )
@@ -213,7 +213,7 @@ async def receive_po_items(
 
                     if new_cost is not None:
                         await deps.update_sku(
-                            existing.id, SkuUpdate(cost=new_cost)
+                            existing.id, sku_cost_update(new_cost)
                         )
 
                     updated = await deps.get_sku_by_id(existing.id)

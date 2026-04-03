@@ -1,5 +1,6 @@
 """Material request service — creation, listing, and processing use cases."""
 
+import uuid
 from datetime import UTC, datetime
 
 from operations.application.contractor_service import get_contractor_by_id
@@ -28,6 +29,27 @@ def _db_operations():
     return get_database_manager().operations
 
 
+def _db_jobs():
+    return get_database_manager().jobs
+
+
+async def _resolve_job_uuid_for_storage(
+    job_id: str | None,
+    organization_id: str,
+) -> str | None:
+    """Persisted ``material_requests.job_id`` is a UUID FK; UI sends job code or UUID string."""
+    if not job_id or not str(job_id).strip():
+        return None
+    s = str(job_id).strip()
+    try:
+        return str(uuid.UUID(s))
+    except ValueError:
+        job = await _db_jobs().get_job_by_code(s, organization_id)
+        if job is None:
+            raise MaterialRequestError(f"Unknown job: {s}", 400) from None
+        return str(job.id)
+
+
 class MaterialRequestError(Exception):
     def __init__(self, detail: str, status_code: int = 400):
         self.detail = detail
@@ -50,11 +72,15 @@ async def create_material_request(
     if not data.items:
         raise MaterialRequestError("At least one item is required", 400)
 
+    resolved_job_id = await _resolve_job_uuid_for_storage(
+        data.job_id,
+        current_user.organization_id,
+    )
     mat_request = MaterialRequest(
         contractor_id=current_user.id,
         contractor_name=current_user.name,
         items=data.items,
-        job_id=data.job_id,
+        job_id=resolved_job_id,
         service_address=data.service_address,
         notes=data.notes,
         organization_id=current_user.organization_id,
@@ -121,18 +147,32 @@ async def process_material_request(
             "Contractor belongs to different organization", 403
         )
 
-    job_id = (job_id_override or req.job_id or "").strip()
+    raw_job = (job_id_override or req.job_id or "").strip()
     service_address = (
         service_address_override or req.service_address or ""
     ).strip()
-    if not job_id:
+    if not raw_job:
         raise MaterialRequestError("Job ID is required")
     if not service_address:
         raise MaterialRequestError("Service address is required")
 
+    # Withdrawals persist ``job_id`` as the jobs.id UUID FK, not the human code.
+    resolved_job = None
+    try:
+        uuid.UUID(raw_job)
+        resolved_job = await _db_jobs().get_job_by_id(raw_job, org_id)
+    except ValueError:
+        pass
+    if resolved_job is None:
+        resolved_job = await _db_jobs().get_job_by_code(raw_job, org_id)
+    if resolved_job is None:
+        raise MaterialRequestError("Job not found", 404)
+
+    job_uuid_for_withdrawal = str(resolved_job.id)
+
     withdrawal_data = MaterialWithdrawalCreate(
         items=list(req.items),
-        job_id=job_id,
+        job_id=job_uuid_for_withdrawal,
         service_address=service_address,
         notes=notes,
     )

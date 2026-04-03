@@ -47,7 +47,10 @@ const ProductScanLanding = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+      <div
+        className="min-h-[60vh] flex flex-col items-center justify-center gap-4"
+        data-testid="product-scan-landing"
+      >
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Looking up product…</p>
       </div>
@@ -56,7 +59,10 @@ const ProductScanLanding = () => {
 
   if (error || !product) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <div
+        className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"
+        data-testid="product-scan-landing"
+      >
         <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
           <AlertCircle className="w-7 h-7 text-destructive" />
         </div>
@@ -80,7 +86,10 @@ const ProductScanLanding = () => {
   const isContractor = user?.role === ROLES.CONTRACTOR;
 
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6 px-6 text-center">
+    <div
+      className="min-h-[60vh] flex flex-col items-center justify-center gap-6 px-6 text-center"
+      data-testid="product-scan-landing"
+    >
       <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center">
         <Package className="w-7 h-7 text-accent" />
       </div>

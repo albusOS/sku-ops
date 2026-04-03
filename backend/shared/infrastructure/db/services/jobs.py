@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import func, or_, select
@@ -153,11 +154,20 @@ class JobsDatabaseService(DomainDatabaseService):
             return [self._row_to_job(r) for r in rows]
 
     async def ensure_job(self, code: str, org_id: str) -> Job:
-        existing = await self.get_job_by_code(code, org_id)
+        """Resolve an existing job by UUID or human code; otherwise create a stub keyed by ``code``."""
+        key = str(code).strip()
+        try:
+            uuid.UUID(key)
+            by_id = await self.get_job_by_id(key, org_id)
+            if by_id:
+                return by_id
+        except ValueError:
+            pass
+        existing = await self.get_job_by_code(key, org_id)
         if existing:
             return existing
-        job = Job(code=code, name=code, organization_id=org_id)
+        job = Job(code=key, name=key, organization_id=org_id)
         await self.insert_job(job)
-        got = await self.get_job_by_code(code, org_id)
+        got = await self.get_job_by_code(key, org_id)
         assert got is not None
         return got

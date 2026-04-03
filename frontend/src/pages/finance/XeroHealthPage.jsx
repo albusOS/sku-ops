@@ -133,7 +133,10 @@ export default function XeroHealthPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 p-6 flex items-center justify-center text-muted-foreground text-sm">
+      <div
+        className="flex-1 p-6 flex items-center justify-center text-muted-foreground text-sm"
+        data-testid="xero-health-page"
+      >
         Loading…
       </div>
     );
@@ -141,7 +144,10 @@ export default function XeroHealthPage() {
 
   if (error) {
     return (
-      <div className="flex-1 p-6 flex items-center justify-center text-destructive text-sm">
+      <div
+        className="flex-1 p-6 flex items-center justify-center text-destructive text-sm"
+        data-testid="xero-health-page"
+      >
         Failed to load Xero status
       </div>
     );
@@ -154,7 +160,7 @@ export default function XeroHealthPage() {
   const hasProblems = failedRows.length > 0 || mismatchRows.length > 0;
 
   return (
-    <div className="flex-1 p-6 space-y-6">
+    <div className="flex-1 p-6 space-y-6" data-testid="xero-health-page">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Xero Status</h1>

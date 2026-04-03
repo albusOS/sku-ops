@@ -41,16 +41,33 @@ async def test_product_performance_report_handles_mixed_numeric_types(
     ):
         return {"sku-1": 2.0}
 
+    class FakeFinance:
+        async def analytics_product_margins(self, _org_id, **kwargs):
+            return await _product_margins(**kwargs)
+
+    class FakeCatalog:
+        async def list_skus(self, _org_id):
+            return await _list_skus()
+
+    class FakeOperations:
+        async def units_sold_by_product(self, _org_id, **kwargs):
+            return await _units_sold_by_product(_org_id, **kwargs)
+
     monkeypatch.setattr(
-        "reports.application.inventory_reports.ledger_repo.product_margins",
-        _product_margins,
+        "reports.application.inventory_reports.get_org_id",
+        lambda: "org-test",
     )
     monkeypatch.setattr(
-        "reports.application.inventory_reports.list_skus", _list_skus
+        "reports.application.inventory_reports._db_finance",
+        lambda: FakeFinance(),
     )
     monkeypatch.setattr(
-        "reports.application.inventory_reports.ledger_repo.units_sold_by_product",
-        _units_sold_by_product,
+        "reports.application.inventory_reports._db_catalog",
+        lambda: FakeCatalog(),
+    )
+    monkeypatch.setattr(
+        "reports.application.inventory_reports._db_operations",
+        lambda: FakeOperations(),
     )
 
     report = await product_performance_report(org_id="org-test")

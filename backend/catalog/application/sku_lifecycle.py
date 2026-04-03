@@ -211,6 +211,11 @@ async def create_product_with_sku(
     )
 
 
+def sku_cost_update(cost: float) -> SkuUpdate:
+    """Build a catalog update for weighted-average cost changes (e.g. PO receive)."""
+    return SkuUpdate(cost=cost)
+
+
 async def update_sku(
     sku_id: str,
     updates: SkuUpdate,

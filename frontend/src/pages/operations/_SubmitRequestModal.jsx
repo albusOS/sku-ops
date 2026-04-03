@@ -21,7 +21,7 @@ export function SubmitRequestModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" data-testid="submit-request-modal">
         <DialogHeader>
           <DialogTitle>Submit material request</DialogTitle>
         </DialogHeader>
@@ -55,7 +55,12 @@ export function SubmitRequestModal({
               className="mt-1.5"
             />
           </div>
-          <Button onClick={onSubmit} disabled={isPending || !canSubmit} className="w-full h-11">
+          <Button
+            onClick={onSubmit}
+            disabled={isPending || !canSubmit}
+            className="w-full h-11"
+            data-testid="confirm-material-request-btn"
+          >
             {isPending ? "Submitting…" : "Submit Request"}
           </Button>
           {!canSubmit && (

@@ -159,7 +159,7 @@ const ScanModePage = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-muted/50">
+    <div className="flex flex-col h-screen bg-muted/50" data-testid="scan-mode-page">
       {/* ── Header: Job + Address ── */}
       <div className="flex-shrink-0 bg-card border-b border-border px-6 pt-5 pb-4">
         <div className="max-w-2xl mx-auto">

@@ -163,14 +163,14 @@ export default function CycleCountDetailPage() {
 
   if (error || !count) {
     return (
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6" data-testid="cycle-count-not-found">
         <p className="text-muted-foreground">Count not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 p-6 space-y-5">
+    <div className="flex-1 p-6 space-y-5" data-testid="cycle-count-detail-page">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">

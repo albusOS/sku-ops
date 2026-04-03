@@ -125,7 +125,7 @@ export default function CycleCountsPage() {
   if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
-    <div className="flex-1 p-6 space-y-4">
+    <div className="flex-1 p-6 space-y-4" data-testid="cycle-counts-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Cycle Counts</h1>

@@ -426,7 +426,10 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 p-6 flex items-center justify-center text-muted-foreground text-sm">
+      <div
+        className="flex-1 p-6 flex items-center justify-center text-muted-foreground text-sm"
+        data-testid="settings-page"
+      >
         Loading settings...
       </div>
     );
@@ -434,7 +437,7 @@ export default function SettingsPage() {
   if (isError) return <QueryError error={error} onRetry={refetch} />;
 
   return (
-    <div className="flex-1 p-6 md:p-8 space-y-6 max-w-4xl">
+    <div className="flex-1 p-6 md:p-8 space-y-6 max-w-4xl" data-testid="settings-page">
       <div>
         <h1 className="text-2xl font-semibold text-foreground tracking-tight">Settings</h1>
         <p className="text-muted-foreground mt-1 text-sm">

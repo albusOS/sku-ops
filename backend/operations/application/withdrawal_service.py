@@ -97,8 +97,10 @@ async def create_withdrawal(
     org_id = current_user.organization_id
     dbm = get_database_manager()
     db = dbm.operations
+    job_uuid = data.job_id
     if data.job_id:
-        await dbm.jobs.ensure_job(data.job_id, org_id)
+        row = await dbm.jobs.ensure_job(data.job_id, org_id)
+        job_uuid = str(row.id)
     products = await dbm.catalog.list_skus(get_org_id())
     product_map = {p.id: p for p in products}
     dept_map = {p.id: p.category_name for p in products}
@@ -147,7 +149,7 @@ async def create_withdrawal(
 
         item = item.model_copy(update=updates)
         enriched_items.append(item)
-    data = data.model_copy(update={"items": enriched_items})
+    data = data.model_copy(update={"items": enriched_items, "job_id": job_uuid})
 
     billing_entity_name = contractor.billing_entity
     billing_entity_id = contractor.billing_entity_id
@@ -159,7 +161,7 @@ async def create_withdrawal(
 
     withdrawal = MaterialWithdrawal(
         items=data.items,
-        job_id=data.job_id,
+        job_id=job_uuid,
         service_address=data.service_address,
         notes=data.notes,
         subtotal=0,
