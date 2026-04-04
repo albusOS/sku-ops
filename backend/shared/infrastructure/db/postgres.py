@@ -15,6 +15,15 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from shared.infrastructure.config import (
+    PG_ACQUIRE_TIMEOUT,
+    PG_COMMAND_TIMEOUT,
+    PG_POOL_MAX,
+    PG_POOL_MIN,
+    is_deployed,
+    is_test,
+)
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -41,16 +50,6 @@ class PostgresBackend:
         return self._session_factory
 
     async def connect(self, url: str) -> None:
-
-        from shared.infrastructure.config import (
-            PG_ACQUIRE_TIMEOUT,
-            PG_COMMAND_TIMEOUT,
-            PG_POOL_MAX,
-            PG_POOL_MIN,
-            is_deployed,
-            is_test,
-        )
-
         if ":6543" in url:
             msg = (
                 "DATABASE_URL uses port 6543 (Supabase pgbouncer). "

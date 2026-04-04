@@ -1121,8 +1121,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             organization_id=org_id,
         )
 
-        # Lazy import: ``shared.infrastructure.db`` imports this module via services.
-        from shared.infrastructure.db import transaction as db_transaction
+        from shared.infrastructure.db import transaction as db_transaction  # noqa: PLC0415
 
         async with db_transaction():
             if is_preferred:
@@ -1151,8 +1150,8 @@ class CatalogDatabaseService(DomainDatabaseService):
             **updates,
             "updated_at": updates.get("updated_at") or datetime.now(UTC),
         }
-        # Lazy import: ``shared.infrastructure.db`` imports this module via services.
-        from shared.infrastructure.db import transaction as db_transaction
+
+        from shared.infrastructure.db import transaction as db_transaction  # noqa: PLC0415
 
         async with db_transaction():
             if updates.get("is_preferred"):
@@ -1174,8 +1173,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         if not item or item.sku_id != sku_id:
             raise ResourceNotFoundError("VendorItem", vendor_item_id)
 
-        # Lazy import: ``shared.infrastructure.db`` imports this module via services.
-        from shared.infrastructure.db import transaction as db_transaction
+        from shared.infrastructure.db import transaction as db_transaction  # noqa: PLC0415
 
         async with db_transaction():
             await self.clear_preferred_vendor_items_for_sku(sku_id, org_id)

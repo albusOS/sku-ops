@@ -10,18 +10,28 @@ The index is rebuilt automatically via domain event handlers registered on
 ``InventoryChanged``, ``CatalogUpdated``, etc. No background task is required.
 """
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
+from openai import AsyncOpenAI
+from pydantic import ValidationError
 
 from purchasing.application.queries import list_pos
-from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
+from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY, is_test
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.domain_events import on
 from shared.infrastructure.logging_config import org_id_var
+from shared.kernel.domain_events import CatalogChanged, InventoryChanged
+
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None  # type: ignore[misc, assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +78,6 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
     if not texts:
         return None
     try:
-        from openai import AsyncOpenAI
-
         client = AsyncOpenAI(api_key=api_key)
         all_vectors: list[list[float]] = []
         batch_size = 500
@@ -88,8 +96,6 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
 
 async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
     try:
-        from openai import AsyncOpenAI
-
         client = AsyncOpenAI(api_key=api_key)
         resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
@@ -162,9 +168,7 @@ class DomainSearchIndex:
         logger.info("SKU index: %d items", len(skus))
 
     def _build_sku_bm25(self, skus: list[SkuLike]) -> None:
-        try:
-            from rank_bm25 import BM25Okapi
-        except ImportError:
+        if BM25Okapi is None:
             logger.warning("rank-bm25 not installed — keyword search unavailable")
             return
         corpus = [_tokenize(_sku_text(s)) or ["_"] for s in skus]
@@ -241,11 +245,6 @@ class DomainSearchIndex:
 
     async def _rebuild_jobs(self) -> None:
         try:
-            from pydantic import ValidationError
-
-            from shared.infrastructure.db import get_org_id
-            from shared.infrastructure.db.base import get_database_manager
-
             withdrawals = await get_database_manager().operations.list_withdrawals(
                 get_org_id(), limit=2000
             )
@@ -351,9 +350,7 @@ class DomainSearchIndex:
         tokens = _tokenize(query)
         if not tokens:
             return []
-        try:
-            from rank_bm25 import BM25Okapi
-        except ImportError:
+        if BM25Okapi is None:
             return []
         corpus = [_tokenize(t) or ["_"] for t in s.texts]
         bm25 = BM25Okapi(corpus)
@@ -424,8 +421,6 @@ async def refresh_index(org_id: str | None = None) -> None:
 # each event triggers a full rebuild: 4 DB queries + 4 embedding batches.
 # The debouncer coalesces events within a window so only one rebuild runs.
 
-import asyncio
-
 _DEBOUNCE_SECONDS = 5.0
 _pending_rebuilds: dict[str, asyncio.Task] = {}
 
@@ -458,10 +453,6 @@ def _register_invalidation_handler() -> None:
 
     Called once at module import time. Skipped in test environments.
     """
-    from shared.infrastructure.config import is_test
-    from shared.infrastructure.domain_events import on
-    from shared.kernel.domain_events import CatalogChanged, InventoryChanged
-
     if is_test:
         return
 

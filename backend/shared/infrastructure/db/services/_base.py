@@ -30,7 +30,8 @@ class DomainDatabaseService:
 
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:
-        from shared.infrastructure.db import get_session
+        # Deferred import: package __init__ imports this module during startup.
+        from shared.infrastructure.db import get_session  # noqa: PLC0415
 
         async with get_session() as session:
             yield session

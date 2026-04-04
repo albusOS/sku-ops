@@ -16,6 +16,8 @@ import sys
 from contextvars import ContextVar
 from typing import ClassVar
 
+from shared.infrastructure.config import is_deployed
+
 _BaseJsonFormatter: type
 try:
     from pythonjsonlogger.json import JsonFormatter
@@ -103,8 +105,6 @@ class DevFormatter(logging.Formatter):
 
 def setup_logging() -> None:
     """Configure root logger. Call once at startup before any other logging."""
-    from shared.infrastructure.config import is_deployed
-
     level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
 

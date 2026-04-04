@@ -19,6 +19,7 @@ import hashlib
 import logging
 
 import numpy as np
+from openai import AsyncOpenAI
 
 from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
 
@@ -36,7 +37,7 @@ async def is_pgvector_available() -> bool:
     if _pgvector_ok is not None:
         return _pgvector_ok
     try:
-        from shared.infrastructure.db import sql_execute
+        from shared.infrastructure.db import sql_execute  # noqa: PLC0415
 
         res = await sql_execute(
             "SELECT 1 FROM information_schema.tables WHERE table_name = 'embeddings' LIMIT 1",
@@ -76,8 +77,6 @@ async def embed_texts(
     if not key or not texts:
         return None
     try:
-        from openai import AsyncOpenAI
-
         client = AsyncOpenAI(api_key=key)
         all_vectors: list[list[float]] = []
         for i in range(0, len(texts), batch_size):
@@ -100,8 +99,6 @@ async def embed_query(
     if not key or not query:
         return None
     try:
-        from openai import AsyncOpenAI
-
         client = AsyncOpenAI(api_key=key)
         resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)

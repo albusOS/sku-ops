@@ -17,12 +17,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator
 
 from shared.helpers.uuid import new_uuid7_str
+from shared.infrastructure.redis import get_redis, is_redis_available
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +51,10 @@ class ChatJob:
 
 
 def _use_redis() -> bool:
-    from shared.infrastructure.redis import is_redis_available
-
     return is_redis_available()
 
 
 def _redis():
-    from shared.infrastructure.redis import get_redis
-
     return get_redis()
 
 

@@ -7,9 +7,15 @@ generate_with_pdf     — OpenRouter (primary) or Anthropic SDK (fallback).
 
 import asyncio
 import base64
+import concurrent.futures
 import logging
+import threading
 
-from assistant.agents.core.model_registry import get_model_name
+import anthropic
+from openai import OpenAI
+from pydantic_ai import Agent
+
+from assistant.agents.core.model_registry import get_fallback_model, get_model_name
 from shared.infrastructure.config import (
     ANTHROPIC_API_KEY,
     ANTHROPIC_AVAILABLE,
@@ -31,8 +37,6 @@ def _get_openrouter_client():
     if not OPENROUTER_AVAILABLE:
         return None
     try:
-        from openai import OpenAI
-
         return OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
     except ImportError:
         logger.warning("openai package not installed — cannot use OpenRouter for multimodal")
@@ -44,8 +48,6 @@ def _get_anthropic_client():
     if not ANTHROPIC_AVAILABLE:
         return None
     try:
-        import anthropic
-
         return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     except ImportError:
         logger.warning("anthropic package not installed")
@@ -64,10 +66,6 @@ async def generate_text(
     Returns None on failure (never raises).
     """
     try:
-        from pydantic_ai import Agent
-
-        from assistant.agents.core.model_registry import get_fallback_model
-
         model = model_id or get_model_name("infra:synthesis")
         agent: Agent[None, str] = Agent(model, system_prompt=system_instruction or "")
         try:
@@ -103,8 +101,6 @@ def _get_sync_pool():
     without unbounded thread growth.
     """
     global _sync_pool, _sync_pool_lock
-    import concurrent.futures
-    import threading
 
     if _sync_pool_lock is None:
         _sync_pool_lock = threading.Lock()

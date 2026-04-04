@@ -10,6 +10,8 @@ import json
 import logging
 
 from assistant.agents.core.model_registry import get_model_name
+from assistant.application.llm import generate_text
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.prompt_loader import load_prompt
@@ -36,13 +38,6 @@ async def extract_and_save(
     if not history or len(history) < 4:
         return
     try:
-        from assistant.application.llm import generate_text
-        from shared.infrastructure.config import (
-            ANTHROPIC_AVAILABLE,
-            OPENROUTER_AVAILABLE,
-            is_test,
-        )
-
         if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
             return
 

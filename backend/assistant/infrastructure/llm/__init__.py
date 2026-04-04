@@ -13,6 +13,14 @@ from __future__ import annotations
 
 import logging
 
+from assistant.infrastructure.llm.cost import calc_cost
+from shared.infrastructure.config import (
+    ANTHROPIC_API_KEY,
+    OPENAI_API_KEY,
+    OPENROUTER_API_KEY,
+    is_test,
+)
+
 logger = logging.getLogger(__name__)
 
 _initialized = False
@@ -21,12 +29,6 @@ _initialized = False
 def init_llm() -> None:
     """Validate LLM provider availability. Call once at startup."""
     global _initialized
-    from shared.infrastructure.config import (
-        ANTHROPIC_API_KEY,
-        OPENAI_API_KEY,
-        OPENROUTER_API_KEY,
-        is_test,
-    )
 
     providers: list[str] = []
     if is_test:
@@ -52,8 +54,6 @@ def get_model(model_id: str) -> str:
     In test mode, prefixes bare model IDs with 'test:' so PydanticAI
     uses its built-in test model.
     """
-    from shared.infrastructure.config import is_test
-
     if is_test and not model_id.startswith("test:"):
         return f"test:{model_id}"
     return model_id
@@ -61,6 +61,4 @@ def get_model(model_id: str) -> str:
 
 def estimate_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate cost in USD for the given token counts."""
-    from assistant.infrastructure.llm.cost import calc_cost
-
     return calc_cost(model_id, input_tokens, output_tokens)

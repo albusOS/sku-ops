@@ -14,6 +14,10 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
+import jwt
+import yaml
+from dotenv import load_dotenv
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,8 +43,6 @@ _ENV = _requested_env or "development"
 # Load .env for local-style runs. Root .env first (shared: API keys, Docker vars),
 # then backend/.env (backend-specific overrides). Production relies on injected vars.
 if _ENV in {"development", "test"}:
-    from dotenv import load_dotenv
-
     _repo_root = PROJECT_ROOT.parent
     _root_env = _repo_root / ".env"
     if _root_env.exists():
@@ -147,9 +149,7 @@ def _get_jwks_client():
     """Lazy-init a PyJWKClient for Supabase ES256 token verification."""
     global _jwks_client
     if _jwks_client is None and _SUPABASE_JWKS_URL:
-        import jwt as _jwt
-
-        _jwks_client = _jwt.PyJWKClient(
+        _jwks_client = jwt.PyJWKClient(
             _SUPABASE_JWKS_URL,
             cache_keys=True,
             lifespan=3600,
@@ -167,21 +167,20 @@ def decode_token(token: str) -> dict:
 
     Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError on failure.
     """
-    import jwt as _jwt
 
     def _decode_es256() -> dict:
         jwks = _get_jwks_client()
         if jwks is None:
-            raise _jwt.InvalidTokenError("SUPABASE_URL not configured for JWKS token verification")
+            raise jwt.InvalidTokenError("SUPABASE_URL not configured for JWKS token verification")
         try:
             signing_key = jwks.get_signing_key_from_jwt(token)
-        except _jwt.PyJWKClientError as e:
+        except jwt.PyJWKClientError as e:
             logger.warning("JWKS key fetch failed: %s", e)
-            raise _jwt.InvalidTokenError("Unable to verify token signing key") from e
+            raise jwt.InvalidTokenError("Unable to verify token signing key") from e
         except Exception as e:
             logger.warning("JWKS key fetch failed unexpectedly: %s", e)
-            raise _jwt.InvalidTokenError("Unable to verify token signing key") from e
-        return _jwt.decode(
+            raise jwt.InvalidTokenError("Unable to verify token signing key") from e
+        return jwt.decode(
             token,
             signing_key.key,
             algorithms=["ES256"],
@@ -194,13 +193,13 @@ def decode_token(token: str) -> dict:
 
     if not is_test:
         try:
-            header = _jwt.get_unverified_header(token)
-        except _jwt.InvalidTokenError:
+            header = jwt.get_unverified_header(token)
+        except jwt.InvalidTokenError:
             header = {}
         if header.get("alg") == "ES256" and _SUPABASE_JWKS_URL:
             return _decode_es256()
 
-    return _jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -260,8 +259,6 @@ def _load_agent_model() -> str:
     if env_override:
         return env_override
     try:
-        import yaml
-
         _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
         if _yaml_path.exists():
             data = yaml.safe_load(_yaml_path.read_text()) or {}
@@ -284,8 +281,6 @@ def _load_synthesis_model() -> str:
     if env_override:
         return env_override
     try:
-        import yaml
-
         _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
         if _yaml_path.exists():
             data = yaml.safe_load(_yaml_path.read_text()) or {}
@@ -308,8 +303,6 @@ def _load_classifier_model() -> str:
     if env_override:
         return env_override
     try:
-        import yaml
-
         _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
         if _yaml_path.exists():
             data = yaml.safe_load(_yaml_path.read_text()) or {}

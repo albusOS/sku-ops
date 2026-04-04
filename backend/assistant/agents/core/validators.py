@@ -30,6 +30,11 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import lru_cache
 
+from assistant.agents.core.model_registry import get_model_name
+from assistant.agents.tools.registry import all_tools
+from assistant.application.llm import generate_text
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
+
 logger = logging.getLogger(__name__)
 
 # ── Number extraction ──────────────────────────────────────────────────────────
@@ -118,10 +123,6 @@ async def classify_intent(user_message: str) -> IntentClassification:
         return _intent_cache[cache_key]
 
     try:
-        from assistant.agents.core.model_registry import get_model_name
-        from assistant.application.llm import generate_text
-        from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
-
         if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
             return _FALLBACK_INTENT
 
@@ -162,8 +163,6 @@ _domain_tool_cache: dict[str, dict[str, set[str]]] = {}
 @lru_cache(maxsize=1)
 def _get_domain_tool_sets() -> dict[str, set[str]]:
     """Derive domain-to-tool-name mapping from the tool registry."""
-    from assistant.agents.tools.registry import all_tools
-
     mapping: dict[str, set[str]] = {}
     for entry in all_tools().values():
         mapping.setdefault(entry.domain, set()).add(entry.name)

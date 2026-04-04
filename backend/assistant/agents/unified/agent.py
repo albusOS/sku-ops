@@ -14,6 +14,8 @@ from pydantic_ai import Agent, RunContext
 
 from assistant.agents.analyst import agent as _analyst_agent_mod
 from assistant.agents.core.config import load_agent_config
+from assistant.application.entity_graph import neighbors as _graph_neighbors
+from assistant.application.workflows.registry import response_agent_label
 from assistant.agents.core.deps import AgentDeps
 from assistant.agents.core.messages import build_message_history
 from assistant.agents.core.model_registry import get_model
@@ -240,8 +242,6 @@ def _get_agent() -> Agent[AgentDeps, str]:
     ) -> str:
         """Follow relationships from any entity (sku, vendor, job, invoice, po).
         Returns connected entities. entity_type: 'sku', 'vendor', 'job', 'invoice', 'po'."""
-        from assistant.application.entity_graph import neighbors as _graph_neighbors
-
         result = await _graph_neighbors(entity_type, entity_id)
         if not result:
             return f"No graph data found for {entity_type}:{entity_id}"
@@ -333,7 +333,6 @@ async def run(
         session_id=session_id,
         history=history,
     )
-    from assistant.application.workflows.registry import response_agent_label
 
     result["agent"] = response_agent_label(result.get("agent", "unified"), result.get("tool_calls"))
     return result

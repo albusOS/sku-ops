@@ -469,25 +469,25 @@ class OperationsDatabaseService(DomainDatabaseService):
     # --- Contractors (application service still owns business rules) --------
 
     async def get_contractor_by_id(self, org_id: str, user_id: str):
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.get_contractor_by_id(user_id)
 
     async def get_contractors_by_ids(self, org_id: str, user_ids: list[str]):
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.get_users_by_ids(user_ids)
 
     async def list_contractors(self, org_id: str, search: str | None = None):
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.list_contractors(search=search)
 
     async def count_contractors(self, org_id: str) -> int:
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.count_contractors()
@@ -502,7 +502,7 @@ class OperationsDatabaseService(DomainDatabaseService):
         billing_entity_name: str | None = None,
         phone: str | None = None,
     ):
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.create_contractor(
@@ -515,13 +515,13 @@ class OperationsDatabaseService(DomainDatabaseService):
             )
 
     async def update_contractor(self, org_id: str, contractor_id: str, updates):
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.update_contractor(contractor_id, updates)
 
     async def delete_contractor(self, org_id: str, contractor_id: str) -> int:
-        from operations.application import contractor_service
+        from operations.application import contractor_service  # noqa: PLC0415
 
         async with _scoped_org(org_id):
             return await contractor_service.delete_contractor(contractor_id)

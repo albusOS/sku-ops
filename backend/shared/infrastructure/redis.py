@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import logging
 
+import redis.asyncio as aioredis
+
+from shared.infrastructure.config import REDIS_URL
+
 logger = logging.getLogger(__name__)
 
 _state: dict[str, object] = {"client": None}
@@ -16,13 +20,9 @@ _state: dict[str, object] = {"client": None}
 
 async def init_redis() -> None:
     """Open a Redis connection.  No-op when ``REDIS_URL`` is not set."""
-    from shared.infrastructure.config import REDIS_URL
-
     if not REDIS_URL:
         logger.info("REDIS_URL not set — running in local-only mode (no Redis)")
         return
-
-    import redis.asyncio as aioredis
 
     client = aioredis.from_url(REDIS_URL, decode_responses=True)
     await client.ping()

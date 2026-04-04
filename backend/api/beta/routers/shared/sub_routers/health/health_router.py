@@ -16,6 +16,7 @@ from shared.infrastructure.config import (
     REDIS_URL,
 )
 from shared.infrastructure.db import sql_execute
+from shared.infrastructure.redis import get_redis, is_redis_available
 
 router = APIRouter(tags=["health"])
 
@@ -65,11 +66,6 @@ async def ready(request: Request):
     # --- redis (only when configured) ---
     if REDIS_URL:
         try:
-            from shared.infrastructure.redis import (
-                get_redis,
-                is_redis_available,
-            )
-
             if not is_redis_available():
                 checks["redis"] = {
                     "status": "unavailable",

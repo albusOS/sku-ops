@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from supabase import acreate_client, create_client
+
 from shared.infrastructure.config import (
     PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SECRET_KEY,
@@ -21,7 +23,6 @@ def _get_key(admin: bool) -> str:
 def _build_sync(admin: bool):
     if not SUPABASE_URL or not _get_key(admin):
         return None
-    from supabase import create_client
 
     return create_client(SUPABASE_URL, _get_key(admin))
 
@@ -29,7 +30,6 @@ def _build_sync(admin: bool):
 def _build_async(admin: bool):
     if not SUPABASE_URL or not _get_key(admin):
         return None
-    from supabase import acreate_client
 
     return acreate_client(SUPABASE_URL, _get_key(admin))
 

@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from urllib.parse import urlparse
 
 import asyncpg
@@ -27,9 +29,6 @@ err = Console(stderr=True)
 
 
 def _resolve_db_url() -> str:
-    import os
-    from pathlib import Path
-
     backend_env = Path(__file__).resolve().parent / ".env"
     root_env = Path(__file__).resolve().parent.parent / ".env"
 

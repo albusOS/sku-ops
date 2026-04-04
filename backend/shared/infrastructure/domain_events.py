@@ -20,9 +20,15 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
+from shared.infrastructure.db.base import get_database_manager
 from shared.kernel.domain_events import DomainEvent
 
 logger = logging.getLogger(__name__)
+
+try:
+    from prometheus_client import Counter
+except ImportError:
+    Counter = None  # type: ignore[misc, assignment]
 
 T = TypeVar("T", bound=DomainEvent)
 
@@ -43,21 +49,19 @@ def _ensure_metrics() -> None:
     global _events_dispatched_total, _handler_errors_total
     if _events_dispatched_total is not None:
         return
-    try:
-        from prometheus_client import Counter
-
-        _events_dispatched_total = Counter(
-            "domain_events_dispatched_total",
-            "Total domain events dispatched",
-            ["event_type"],
-        )
-        _handler_errors_total = Counter(
-            "domain_event_handler_errors_total",
-            "Domain event handler failures",
-            ["event_type", "handler"],
-        )
-    except ImportError:
+    if Counter is None:
         _events_dispatched_total = False
+        return
+    _events_dispatched_total = Counter(
+        "domain_events_dispatched_total",
+        "Total domain events dispatched",
+        ["event_type"],
+    )
+    _handler_errors_total = Counter(
+        "domain_event_handler_errors_total",
+        "Domain event handler failures",
+        ["event_type", "handler"],
+    )
 
 
 def on(*event_types: type[DomainEvent]):
@@ -120,8 +124,6 @@ def retryable(max_retries: int = 2, base_delay: float = 0.1):
 async def _already_processed(event_id: str, handler_name: str) -> bool:
     """Check the processed_events table for a prior run."""
     try:
-        from shared.infrastructure.db.base import get_database_manager
-
         return await get_database_manager().shared.event_already_processed(event_id, handler_name)
     except Exception:
         logger.debug(
@@ -134,8 +136,6 @@ async def _already_processed(event_id: str, handler_name: str) -> bool:
 async def _mark_processed(event_id: str, handler_name: str, event_type: str) -> None:
     """Record a successful handler execution for future dedup."""
     try:
-        from shared.infrastructure.db.base import get_database_manager
-
         await get_database_manager().shared.mark_event_processed(event_id, handler_name, event_type)
     except Exception:
         logger.debug("processed_events insert failed", exc_info=True)

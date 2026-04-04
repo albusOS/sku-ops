@@ -10,9 +10,15 @@ import logging
 import re
 
 import numpy as np
+from openai import AsyncOpenAI
 
 from assistant.agents.tools.descriptors import get_unified_tool_descriptors
 from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
+
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None  # type: ignore[misc, assignment]
 
 logger = logging.getLogger(__name__)
 DELEGATION_TOOLS = frozenset(
@@ -32,8 +38,6 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
     if not texts:
         return None
     try:
-        from openai import AsyncOpenAI
-
         client = AsyncOpenAI(api_key=api_key)
         all_vectors: list[list[float]] = []
         batch_size = 256
@@ -54,8 +58,6 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
 
 async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
     try:
-        from openai import AsyncOpenAI
-
         client = AsyncOpenAI(api_key=api_key)
         resp = await client.embeddings.create(
             model=EMBEDDING_MODEL, input=[query]
@@ -105,16 +107,14 @@ class ToolIndex:
             self._build_bm25()
 
     def _build_bm25(self) -> None:
-        try:
-            from rank_bm25 import BM25Okapi
-
-            corpus = [_tokenize(t) for t in self._texts]
-            self._bm25 = BM25Okapi(corpus)
-        except ImportError:
+        if BM25Okapi is None:
             logger.warning(
                 "rank_bm25 not installed; tool retrieval will fall back to no filtering"
             )
             self._bm25 = None
+            return
+        corpus = [_tokenize(t) for t in self._texts]
+        self._bm25 = BM25Okapi(corpus)
 
     async def search(self, query: str, top_k: int = DEFAULT_TOP_K) -> list[str]:
         """Return tool names most relevant to query. Always includes delegation tools."""

@@ -14,14 +14,12 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infrastructure.db.base import TransactionScope
+from shared.infrastructure.db.base import TransactionScope, get_database_manager
 
 _state: dict[str, object | None] = {"manager": None}
 
 
 def _manager():
-    from shared.infrastructure.db.base import get_database_manager
-
     manager = _state["manager"]
     if manager is None:
         manager = get_database_manager()
@@ -31,8 +29,6 @@ def _manager():
 
 async def init_db() -> None:
     """Open connection pool using the externally managed Supabase schema."""
-    from shared.infrastructure.db.base import get_database_manager
-
     manager = get_database_manager()
     _state["manager"] = manager
     await manager.connect()

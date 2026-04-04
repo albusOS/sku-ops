@@ -17,6 +17,7 @@ from typing import Any
 from pydantic_ai import Agent, RunContext
 
 from assistant.agents.core.config import load_agent_config
+from catalog.application.product_intelligence import _ensure_rules_partial
 from assistant.agents.core.contracts import UsageInfo
 from assistant.agents.core.model_registry import (
     calc_cost,
@@ -47,10 +48,6 @@ _SYSTEM_PROMPT: str | None = None
 def _get_system_prompt() -> str:
     global _SYSTEM_PROMPT
     if _SYSTEM_PROMPT is None:
-        from catalog.application.product_intelligence import (
-            _ensure_rules_partial,
-        )
-
         _ensure_rules_partial()
         _SYSTEM_PROMPT = load_prompt(__file__, "prompt.md")
     return _SYSTEM_PROMPT

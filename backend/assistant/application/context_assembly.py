@@ -17,16 +17,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+
+import numpy as np
 
 from assistant.application.entity_graph import GraphContext, multi_neighbors
+from assistant.application.session_state import EntityRef, SessionState
+from assistant.infrastructure.embedding_store import (
+    embed_query,
+    is_pgvector_available,
+)
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
-
-if TYPE_CHECKING:
-    import numpy as np
-
-    from assistant.application.session_state import EntityRef, SessionState
 
 logger = logging.getLogger(__name__)
 
@@ -170,8 +171,6 @@ async def _get_query_embedding(query: str):
     if not query or not query.strip():
         return None
     try:
-        from assistant.infrastructure.embedding_store import embed_query
-
         return await embed_query(query)
     except Exception as e:
         logger.debug("Query embedding failed (non-critical): %s", e)
@@ -185,11 +184,6 @@ async def _vector_search(
 ) -> list[dict]:
     """Search embeddings for relevant entities. Returns empty list on failure."""
     try:
-        from assistant.infrastructure.embedding_store import (
-            embed_query,
-            is_pgvector_available,
-        )
-
         if not await is_pgvector_available():
             return []
 

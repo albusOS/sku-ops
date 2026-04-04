@@ -9,6 +9,10 @@ import logging
 
 import tiktoken
 
+from assistant.agents.core.model_registry import get_model_name
+from assistant.application.llm import generate_text
+from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
+
 logger = logging.getLogger(__name__)
 
 _enc = tiktoken.get_encoding("cl100k_base")
@@ -246,10 +250,6 @@ async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> 
     Returns None if LLM is unavailable. Never raises.
     """
     try:
-        from assistant.agents.core.model_registry import get_model_name
-        from assistant.application.llm import generate_text
-        from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
-
         if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
             return None
 

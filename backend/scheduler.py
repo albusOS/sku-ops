@@ -11,6 +11,7 @@ from finance.application.xero_sync_job import run_sync
 from shared.infrastructure.config import XERO_SYNC_HOUR
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var
+from shared.kernel.constants import DEFAULT_ORG_ID
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
     orgs = await get_database_manager().shared.list_organizations()
-    from shared.kernel.constants import DEFAULT_ORG_ID
 
     return [o.id for o in orgs] if orgs else [DEFAULT_ORG_ID]
 

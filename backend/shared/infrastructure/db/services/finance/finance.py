@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
+from datetime import datetime
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
 from shared.infrastructure.db.services.finance import _billing as billing_ops
@@ -18,9 +17,7 @@ from shared.infrastructure.db.services.finance._ledger_orm import (
     ledger_get_journal_rows,
     ledger_insert_entries_in_session,
 )
-
-if TYPE_CHECKING:
-    from datetime import datetime
+from shared.kernel.types import round_money
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +109,6 @@ class FinanceDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
 
     async def invoice_insert_row(self, org_id: str, row: dict):
-        from datetime import datetime
-
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             now = datetime.fromisoformat(row["now"]) if isinstance(row["now"], str) else row["now"]
@@ -504,7 +499,6 @@ class FinanceDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             raw = await lr_rep.summary_by_department(session, oid, **kwargs)
-        from shared.kernel.types import round_money
 
         out = []
         for row in raw:
@@ -545,7 +539,6 @@ class FinanceDatabaseService(DomainDatabaseService):
                 limit=limit,
                 offset=offset,
             )
-        from shared.kernel.types import round_money
 
         result = []
         for row in rows:
@@ -575,7 +568,6 @@ class FinanceDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             raw = await lr_rep.summary_by_billing_entity(session, oid, **kwargs)
-        from shared.kernel.types import round_money
 
         result = []
         for row in raw:
@@ -595,7 +587,9 @@ class FinanceDatabaseService(DomainDatabaseService):
         return result
 
     async def ledger_summary_by_contractor(self, org_id: str, **kwargs):
-        from operations.application.contractor_service import get_users_by_ids
+        from operations.application.contractor_service import (  # noqa: PLC0415
+            get_users_by_ids,
+        )
 
         oid = as_uuid_required(org_id)
         async with self.session() as session:

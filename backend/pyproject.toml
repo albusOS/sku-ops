@@ -142,7 +142,10 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# Tests use deferred imports for optional stacks and heavy fixtures.
+"tests/**" = ["S101", "PLC0415"]
+# Scripts defer imports so CLI tools can run with minimal deps loaded first.
+"scripts/**" = ["PLC0415"]
 # Deployment self-check; asserts are intentional checkpoints
 "scripts/verify_deploy.py" = ["S101"]
 

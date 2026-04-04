@@ -14,11 +14,14 @@ from __future__ import annotations
 import logging
 import os
 
+from assistant.agents.core.config import load_agent_config
+from assistant.infrastructure.llm import get_model as _llm_get_model
 from assistant.infrastructure.llm.cost import calc_cost as _cost_calc
 from shared.infrastructure.config import (
     AGENT_PRIMARY_MODEL,
     INFRA_CLASSIFIER_MODEL,
     INFRA_SYNTHESIS_MODEL,
+    OPENROUTER_AVAILABLE,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,8 +66,6 @@ def _resolve(task: str) -> str:
 
     agent_id = _TASK_TO_AGENT_ID.get(task)
     if agent_id:
-        from assistant.agents.core.config import load_agent_config
-
         cfg = load_agent_config(agent_id)
         if cfg.model:
             return cfg.model
@@ -83,8 +84,6 @@ def get_model(task: str) -> str:
     In test mode, the llm package prefixes with 'test:' automatically.
     At runtime, PydanticAI resolves 'anthropic:*', 'openrouter:*', etc. natively.
     """
-    from assistant.infrastructure.llm import get_model as _llm_get_model
-
     return _llm_get_model(get_model_name(task))
 
 
@@ -95,8 +94,6 @@ def get_fallback_model(model_id: str) -> str | None:
     to reach the same model via a different path. Only applies when
     OpenRouter is configured and the original model is an Anthropic one.
     """
-    from shared.infrastructure.config import OPENROUTER_AVAILABLE
-
     if not OPENROUTER_AVAILABLE:
         return None
     if not model_id.startswith("anthropic:"):

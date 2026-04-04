@@ -138,9 +138,8 @@ def setup_prometheus(app: FastAPI) -> None:
             auth = request.headers.get("authorization", "")
             if auth != f"Bearer {_METRICS_TOKEN}":
                 return Response(status_code=403, content="Forbidden")
-        from starlette.responses import Response as StarletteResponse
 
-        return StarletteResponse(
+        return Response(
             content=generate_latest(),
             media_type=CONTENT_TYPE_LATEST,
         )

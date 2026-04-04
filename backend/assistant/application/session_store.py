@@ -12,8 +12,11 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import asdict
+from datetime import UTC, datetime
 
-from assistant.application.session_state import SessionState
+from assistant.application.session_state import EntityRef, SessionState
+from shared.infrastructure.redis import get_redis, is_redis_available
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +45,7 @@ def _state_from_json(raw: str | None) -> SessionState | None:
     if not raw or raw == "{}":
         return None
     try:
-        from datetime import UTC, datetime
-
         data = json.loads(raw)
-        from assistant.application.session_state import EntityRef
 
         entities = [
             EntityRef(type=e["type"], id=e["id"], label=e["label"])
@@ -59,14 +59,10 @@ def _state_from_json(raw: str | None) -> SessionState | None:
 
 
 def _redis():
-    from shared.infrastructure.redis import get_redis
-
     return get_redis()
 
 
 def _use_redis() -> bool:
-    from shared.infrastructure.redis import is_redis_available
-
     return is_redis_available()
 
 
@@ -152,8 +148,6 @@ async def update_state(session_id: str, state: SessionState | None) -> None:
 
 
 def _session_state_to_dict(state) -> dict:
-    from dataclasses import asdict
-
     return {
         "entities": [asdict(e) for e in state.entities],
         "last_topic": state.last_topic,
@@ -162,10 +156,6 @@ def _session_state_to_dict(state) -> dict:
 
 
 def _dict_to_session_state(d: dict):
-    from datetime import UTC, datetime
-
-    from assistant.application.session_state import EntityRef, SessionState
-
     entities = [EntityRef(**e) for e in d.get("entities", [])]
     updated = d.get("updated_at")
     if isinstance(updated, str):

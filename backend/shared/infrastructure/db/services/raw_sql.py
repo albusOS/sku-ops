@@ -8,19 +8,17 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
 
+from shared.infrastructure.db.base import BaseDatabaseService
 from shared.infrastructure.db.services._sql_validation import (
     SQLValidationError,
     ensure_limit,
     validate_sql,
 )
-
-if TYPE_CHECKING:
-    from shared.infrastructure.db.base import BaseDatabaseService
 
 _ISO_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}")
 _STATEMENT_TIMEOUT_MAX_MS = 600_000
@@ -150,7 +148,8 @@ class RawSQLService:
         timeout_ms: int = 10_000,
         max_rows: int = 500,
     ) -> ExecutionResult:
-        from shared.infrastructure.db import get_session, uow
+        # Imported here to avoid circular import (db/__init__ imports this module).
+        from shared.infrastructure.db import get_session, uow  # noqa: PLC0415
 
         work_sql = sql
         if read_only:
@@ -198,7 +197,7 @@ class RawSQLService:
         *,
         read_only: bool = False,
     ) -> int:
-        from shared.infrastructure.db import get_session, uow
+        from shared.infrastructure.db import get_session, uow  # noqa: PLC0415
 
         if read_only:
             validate_sql(sql)

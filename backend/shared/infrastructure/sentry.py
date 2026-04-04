@@ -8,17 +8,27 @@ from __future__ import annotations
 
 import logging
 
+from shared.infrastructure.config import ENV, SENTRY_DSN
+from shared.infrastructure.logging_config import (
+    org_id_var,
+    request_id_var,
+    user_id_var,
+)
+
 logger = logging.getLogger(__name__)
+
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+except ImportError:
+    sentry_sdk = None  # type: ignore[assignment]
+    FastApiIntegration = None  # type: ignore[assignment]
+    StarletteIntegration = None  # type: ignore[assignment]
 
 
 def _sentry_before_send(event: dict, _hint: dict) -> dict:
     """Enrich every Sentry event with request correlation context."""
-    from shared.infrastructure.logging_config import (
-        org_id_var,
-        request_id_var,
-        user_id_var,
-    )
-
     rid = request_id_var.get("")
     uid = user_id_var.get("")
     oid = org_id_var.get("")
@@ -37,16 +47,14 @@ def _sentry_before_send(event: dict, _hint: dict) -> dict:
 
 def setup_sentry() -> None:
     """Initialize Sentry if SENTRY_DSN is configured."""
-    from shared.infrastructure.config import ENV, SENTRY_DSN
-
     if not SENTRY_DSN:
         return
 
-    try:
-        import sentry_sdk
-        from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.starlette import StarletteIntegration
+    if sentry_sdk is None:
+        logger.warning("sentry_sdk not installed — Sentry disabled despite SENTRY_DSN being set")
+        return
 
+    try:
         sentry_sdk.init(
             dsn=SENTRY_DSN,
             environment=ENV,
@@ -60,7 +68,5 @@ def setup_sentry() -> None:
             before_send=_sentry_before_send,
         )
         logger.info("Sentry initialized (env=%s)", ENV)
-    except ImportError:
-        logger.warning("sentry_sdk not installed — Sentry disabled despite SENTRY_DSN being set")
     except Exception:
         logger.exception("Failed to initialize Sentry")

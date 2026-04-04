@@ -24,6 +24,7 @@ import json
 import logging
 from typing import Any
 
+from shared.infrastructure.redis import get_redis
 from shared.kernel.events import SHUTDOWN, Event
 
 logger = logging.getLogger(__name__)
@@ -99,8 +100,6 @@ class _Hub:
 
         if self._use_redis:
             try:
-                from shared.infrastructure.redis import get_redis
-
                 await get_redis().publish(_CHANNEL, _serialize(event))
             except Exception:
                 logger.warning("Redis publish failed — broadcasting in-process only", exc_info=True)
@@ -147,8 +146,6 @@ class _Hub:
 
     async def _redis_reader(self, q: asyncio.Queue[Event]) -> None:
         """Subscribe to the Redis channel and forward messages to *q*."""
-        from shared.infrastructure.redis import get_redis
-
         pubsub = get_redis().pubsub()
         try:
             await pubsub.subscribe(_CHANNEL)
