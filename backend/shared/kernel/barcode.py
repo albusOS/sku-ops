@@ -13,8 +13,7 @@ def _upc_check_digit(first_11: str) -> int:
             total += digit * 3
         else:
             total += digit
-    check = (10 - (total % 10)) % 10
-    return check
+    return (10 - (total % 10)) % 10
 
 
 def _ean13_check_digit(first_12: str) -> int:
@@ -26,8 +25,7 @@ def _ean13_check_digit(first_12: str) -> int:
             total += digit
         else:
             total += digit * 3
-    check = (10 - (total % 10)) % 10
-    return check
+    return (10 - (total % 10)) % 10
 
 
 def validate_upc(value: str) -> bool:

@@ -1,35 +1,37 @@
 from __future__ import annotations
 
-import datetime
-import uuid
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     Literal,
     NotRequired,
-    TypeAlias,
     TypedDict,
 )
 
 from pydantic import BaseModel, Field
 
-NetRequestStatus: TypeAlias = Literal["PENDING", "SUCCESS", "ERROR"]
+if TYPE_CHECKING:
+    import datetime
+    import uuid
 
-RealtimeEqualityOp: TypeAlias = Literal["eq", "neq", "lt", "lte", "gt", "gte", "in"]
+type NetRequestStatus = Literal["PENDING", "SUCCESS", "ERROR"]
 
-RealtimeAction: TypeAlias = Literal["INSERT", "UPDATE", "DELETE", "TRUNCATE", "ERROR"]
+type RealtimeEqualityOp = Literal["eq", "neq", "lt", "lte", "gt", "gte", "in"]
 
-StorageBuckettype: TypeAlias = Literal["STANDARD", "ANALYTICS", "VECTOR"]
+type RealtimeAction = Literal["INSERT", "UPDATE", "DELETE", "TRUNCATE", "ERROR"]
 
-AuthFactorType: TypeAlias = Literal["totp", "webauthn", "phone"]
+type StorageBuckettype = Literal["STANDARD", "ANALYTICS", "VECTOR"]
 
-AuthFactorStatus: TypeAlias = Literal["unverified", "verified"]
+type AuthFactorType = Literal["totp", "webauthn", "phone"]
 
-AuthAalLevel: TypeAlias = Literal["aal1", "aal2", "aal3"]
+type AuthFactorStatus = Literal["unverified", "verified"]
 
-AuthCodeChallengeMethod: TypeAlias = Literal["s256", "plain"]
+type AuthAalLevel = Literal["aal1", "aal2", "aal3"]
 
-AuthOneTimeTokenType: TypeAlias = Literal[
+type AuthCodeChallengeMethod = Literal["s256", "plain"]
+
+type AuthOneTimeTokenType = Literal[
     "confirmation_token",
     "reauthentication_token",
     "recovery_token",
@@ -38,13 +40,13 @@ AuthOneTimeTokenType: TypeAlias = Literal[
     "phone_change_token",
 ]
 
-AuthOauthRegistrationType: TypeAlias = Literal["dynamic", "manual"]
+type AuthOauthRegistrationType = Literal["dynamic", "manual"]
 
-AuthOauthAuthorizationStatus: TypeAlias = Literal["pending", "approved", "denied", "expired"]
+type AuthOauthAuthorizationStatus = Literal["pending", "approved", "denied", "expired"]
 
-AuthOauthResponseType: TypeAlias = Literal["code"]
+type AuthOauthResponseType = Literal["code"]
 
-AuthOauthClientType: TypeAlias = Literal["public", "confidential"]
+type AuthOauthClientType = Literal["public", "confidential"]
 
 
 class PublicOrganizations(BaseModel):

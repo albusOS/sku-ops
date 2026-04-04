@@ -6,8 +6,8 @@ import contextlib
 import json
 import logging
 import time
-import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, or_, select
@@ -26,6 +26,9 @@ from shared.infrastructure.types.public_sql_model_models import (
     ProcessedEvents,
     Users,
 )
+
+if TYPE_CHECKING:
+    import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +147,7 @@ class SharedDatabaseService(DomainDatabaseService):
         return d
 
     def _user_to_safe_dict(self, u: Users) -> dict:
-        d = {
+        return {
             "id": str(u.id),
             "email": u.email,
             "name": u.name,
@@ -156,7 +159,6 @@ class SharedDatabaseService(DomainDatabaseService):
             "is_active": u.is_active,
             "organization_id": uuid_str(u.organization_id),
         }
-        return d
 
     async def get_organization_by_id(self, org_id: str) -> Organization | None:
         oid = as_uuid_required(org_id)

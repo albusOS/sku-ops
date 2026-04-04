@@ -16,14 +16,18 @@ router = APIRouter(prefix="/admin/agents", tags=["agent-monitoring"])
 
 @router.get("/runs")
 async def agent_runs(
-    current_user: AdminDep,
+    _current_user: AdminDep,
     agent: str | None = Query(None),
     session_id: str | None = Query(None),
     minutes: int = Query(60, ge=1, le=10080),
     limit: int = Query(50, ge=1, le=200),
     validation_failed_only: bool = Query(False),
 ):
-    """Recent agent runs with full details. Pass validation_failed_only=true to filter to runs that failed grounding checks."""
+    """Recent agent runs with full details.
+
+    Pass validation_failed_only=true to filter to runs that failed grounding
+    checks.
+    """
     return await _db_assistant().list_agent_runs(
         get_org_id(),
         agent_name=agent,
@@ -59,7 +63,9 @@ async def cost_breakdown(
     group_by: str = Query("agent", pattern="^(agent|model|org)$"),
 ):
     """Cost breakdown by agent, model, or org."""
-    return await _db_assistant().agent_cost_breakdown(get_org_id(), days=days, group_by=group_by)
+    return await _db_assistant().agent_cost_breakdown(
+        get_org_id(), days=days, group_by=group_by
+    )
 
 
 @router.get("/validation")
@@ -74,4 +80,6 @@ async def validation_summary(
     - ungrounded_numbers: numbers in response not found in tool results
     - domain_mismatch: tools used don't match the question domain
     """
-    return await _db_assistant().agent_validation_summary(get_org_id(), hours=hours)
+    return await _db_assistant().agent_validation_summary(
+        get_org_id(), hours=hours
+    )

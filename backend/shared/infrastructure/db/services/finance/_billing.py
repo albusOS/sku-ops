@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +24,8 @@ from shared.infrastructure.types.public_sql_model_models import (
 )
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -159,7 +160,7 @@ async def billing_entity_search(
         select(BillingEntities)
         .where(
             BillingEntities.organization_id == org_id,
-            BillingEntities.is_active == True,
+            BillingEntities.is_active,
             or_(
                 func.lower(BillingEntities.name).like(like),
                 func.lower(BillingEntities.contact_name).like(like),
@@ -242,7 +243,9 @@ async def payment_get_by_id(
     p = _pay_row(row)
     if p:
         wr = await session.execute(
-            select(PaymentWithdrawals.withdrawal_id).where(PaymentWithdrawals.payment_id == pid)
+            select(PaymentWithdrawals.withdrawal_id).where(
+                PaymentWithdrawals.payment_id == pid
+            )
         )
         p.withdrawal_ids = [str(x[0]) for x in wr.all()]
     return p
@@ -263,9 +266,13 @@ async def payment_list(
     if invoice_id:
         conds.append(Payments.invoice_id == as_uuid_required(invoice_id))
     if billing_entity_id:
-        conds.append(Payments.billing_entity_id == as_uuid_required(billing_entity_id))
+        conds.append(
+            Payments.billing_entity_id == as_uuid_required(billing_entity_id)
+        )
     if start_date:
-        conds.append(Payments.payment_date >= datetime.fromisoformat(start_date))
+        conds.append(
+            Payments.payment_date >= datetime.fromisoformat(start_date)
+        )
     if end_date:
         conds.append(Payments.payment_date <= datetime.fromisoformat(end_date))
     r = await session.execute(
@@ -317,7 +324,9 @@ async def fiscal_list_periods(
     if status:
         conds.append(FiscalPeriods.status == status)
     r = await session.execute(
-        select(FiscalPeriods).where(and_(*conds)).order_by(FiscalPeriods.start_date.desc())
+        select(FiscalPeriods)
+        .where(and_(*conds))
+        .order_by(FiscalPeriods.start_date.desc())
     )
     return [
         FiscalPeriod.model_validate(uuids_to_str(x.model_dump(mode="python")))
@@ -330,7 +339,9 @@ def _parse_period_date(value: str | date | datetime) -> date:
         return value.astimezone(UTC).date() if value.tzinfo else value.date()
     if isinstance(value, date):
         return value
-    assert isinstance(value, str)
+    if not isinstance(value, str):
+        msg = f"expected str, date, or datetime, got {type(value).__name__}"
+        raise TypeError(msg)
     if "T" in value:
         normalized = value.replace("Z", "+00:00")
         return datetime.fromisoformat(normalized).date()
@@ -370,7 +381,11 @@ async def fiscal_close_period(
     closed_at: str,
 ) -> None:
     pid = as_uuid_required(period_id)
-    cat = datetime.fromisoformat(closed_at) if isinstance(closed_at, str) else closed_at
+    cat = (
+        datetime.fromisoformat(closed_at)
+        if isinstance(closed_at, str)
+        else closed_at
+    )
     await session.execute(
         update(FiscalPeriods)
         .where(
@@ -389,10 +404,11 @@ async def fiscal_close_period(
 async def fiscal_find_closed_covering(
     session: AsyncSession, org_id: uuid.UUID, entry_date: str | datetime
 ) -> tuple[str, str] | None:
-    if isinstance(entry_date, str):
-        ed = datetime.fromisoformat(entry_date)
-    else:
-        ed = entry_date
+    ed = (
+        datetime.fromisoformat(entry_date)
+        if isinstance(entry_date, str)
+        else entry_date
+    )
     ed_date = ed.date()
     r = await session.execute(
         select(FiscalPeriods.id, FiscalPeriods.name)
@@ -415,14 +431,18 @@ def _org_settings_domain_from_row(row: OrgSettings) -> OrgSettingsDomain:
     te = d.get("xero_token_expiry")
     if isinstance(te, str) and te:
         try:
-            d["xero_token_expiry"] = datetime.fromisoformat(te.replace("Z", "+00:00"))
+            d["xero_token_expiry"] = datetime.fromisoformat(te)
         except ValueError:
             d["xero_token_expiry"] = None
     return OrgSettingsDomain.model_validate(d)
 
 
-async def org_settings_get(session: AsyncSession, org_id: uuid.UUID) -> OrgSettingsDomain:
-    r = await session.execute(select(OrgSettings).where(OrgSettings.organization_id == org_id))
+async def org_settings_get(
+    session: AsyncSession, org_id: uuid.UUID
+) -> OrgSettingsDomain:
+    r = await session.execute(
+        select(OrgSettings).where(OrgSettings.organization_id == org_id)
+    )
     row = r.scalar_one_or_none()
     if row is None:
         return OrgSettingsDomain(organization_id=str(org_id))
@@ -485,7 +505,9 @@ async def org_settings_upsert(
     return await org_settings_get(session, org_id)
 
 
-async def org_settings_clear_xero_tokens(session: AsyncSession, org_id: uuid.UUID) -> None:
+async def org_settings_clear_xero_tokens(
+    session: AsyncSession, org_id: uuid.UUID
+) -> None:
     now = datetime.now(UTC)
     await session.execute(
         update(OrgSettings)
@@ -501,7 +523,9 @@ async def org_settings_clear_xero_tokens(session: AsyncSession, org_id: uuid.UUI
     await session.flush()
 
 
-async def oauth_save_state(session: AsyncSession, org_id: uuid.UUID, state: str) -> None:
+async def oauth_save_state(
+    session: AsyncSession, org_id: uuid.UUID, state: str
+) -> None:
     now = datetime.now(UTC)
     stmt = (
         pg_insert(OauthStates)
@@ -516,7 +540,9 @@ async def oauth_save_state(session: AsyncSession, org_id: uuid.UUID, state: str)
 
 
 async def oauth_pop_state(session: AsyncSession, state: str) -> str | None:
-    r = await session.execute(select(OauthStates.org_id).where(OauthStates.state == state))
+    r = await session.execute(
+        select(OauthStates.org_id).where(OauthStates.state == state)
+    )
     row = r.first()
     if not row:
         return None

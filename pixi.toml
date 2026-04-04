@@ -58,12 +58,12 @@ cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif ta
 [tasks.lint]
 description = "Lint: all (default), backend (ruff), or frontend (ESLint). Usage: pixi run lint [all|backend|frontend]"
 args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
-cmd = "{% if target == \"all\" %}uv run --directory backend ruff check . ../devtools && pnpm --dir frontend run lint{% elif target == \"backend\" %}uv run --directory backend ruff check . ../devtools{% else %}pnpm --dir frontend run lint{% endif %}"
+cmd = "{% if target == \"all\" %}uv run --directory backend ruff check . && pnpm --dir frontend run lint{% elif target == \"backend\" %}uv run --directory backend ruff check .{% else %}pnpm --dir frontend run lint{% endif %}"
 
 [tasks.format]
 description = "Format: all (default), backend (ruff), or frontend (Prettier). Usage: pixi run format [all|backend|frontend]"
 args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
-cmd = "{% if target == \"all\" %}uv run --directory backend ruff format . ../devtools && pnpm --dir frontend run format{% elif target == \"backend\" %}uv run --directory backend ruff format . ../devtools{% else %}pnpm --dir frontend run format{% endif %}"
+cmd = "{% if target == \"all\" %}uv run --directory backend ruff format . && pnpm --dir frontend run format{% elif target == \"backend\" %}uv run --directory backend ruff format .{% else %}pnpm --dir frontend run format{% endif %}"
 
 [tasks.check]
 description = "Lint then format: all (default), backend only, or frontend only. Usage: pixi run check [all|backend|frontend]"

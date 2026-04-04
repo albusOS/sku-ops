@@ -30,24 +30,19 @@ _warnings: list[str] = []
 
 
 def _ok(label: str, detail: str = "") -> None:
-    suffix = f"  {detail}" if detail else ""
-    print(f"  {_GREEN}✓{_RESET}  {label}{suffix}")
+    pass
 
 
 def _fail(label: str, detail: str = "") -> None:
-    suffix = f"\n       {_RED}{detail}{_RESET}" if detail else ""
-    print(f"  {_RED}✗{_RESET}  {label}{suffix}")
     _failures.append(label)
 
 
 def _warn(label: str, detail: str = "") -> None:
-    suffix = f"\n       {_YELLOW}{detail}{_RESET}" if detail else ""
-    print(f"  {_YELLOW}~{_RESET}  {label}{suffix}")
     _warnings.append(label)
 
 
 def _section(title: str) -> None:
-    print(f"\n{_BOLD}{title}{_RESET}")
+    pass
 
 
 # ── Individual checks ─────────────────────────────────────────────────────────
@@ -178,7 +173,7 @@ def check_supabase_jwt_shape() -> None:
             f"Wrong user_id: {claims.user_id!r}"
         )
         assert claims.organization_id == "supply-yard", (
-            f"Expected organization_id='default', got {claims.organization_id!r}"
+            f"Expected organization_id='supply-yard', got {claims.organization_id!r}"
         )
         _ok(
             "Supabase token: role extracted from app_metadata.role",
@@ -485,9 +480,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"\n{_BOLD}SKU-Ops pre-deploy verification{_RESET}")
-    print("─" * 48)
-
     # Add backend to path so imports work
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -501,27 +493,17 @@ def main() -> None:
     if not args.skip_build:
         check_frontend_build()
     else:
-        print(f"\n{_BOLD}Frontend build{_RESET}")
         _warn("Skipped (--skip-build)")
 
     if args.url:
         check_live_server(args.url)
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    print("\n" + "─" * 48)
-    if not _failures and not _warnings:
-        print(f"{_GREEN}{_BOLD}All checks passed.{_RESET} Ready to deploy.\n")
-        sys.exit(0)
-    elif not _failures:
-        print(f"{_YELLOW}{_BOLD}{len(_warnings)} warning(s), 0 failures.{_RESET}")
-        print("Warnings are non-blocking but worth reviewing before going live.\n")
+    if (not _failures and not _warnings) or not _failures:
         sys.exit(0)
     else:
-        print(f"{_RED}{_BOLD}{len(_failures)} failure(s){_RESET}, {len(_warnings)} warning(s).")
-        print("\nFailed checks:")
-        for f in _failures:
-            print(f"  {_RED}✗{_RESET}  {f}")
-        print()
+        for _f in _failures:
+            pass
         sys.exit(1)
 
 

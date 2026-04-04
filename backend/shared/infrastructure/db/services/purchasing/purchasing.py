@@ -214,7 +214,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
         pid = as_uuid_required(po_id)
         ra = received_at
         if isinstance(ra, str):
-            ra = datetime.fromisoformat(ra.replace("Z", "+00:00"))
+            ra = datetime.fromisoformat(ra)
         vals: dict[str, Any] = {"status": status}
         if ra is not None:
             vals["received_at"] = ra

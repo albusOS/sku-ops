@@ -1,338 +1,35 @@
 """Shared fixtures for SQLModel generation tests."""
-
 from __future__ import annotations
-
 import pytest
-
-SAMPLE_TS_SINGLE_FK = """
-export type Database = {
-  public: {
-    Tables: {
-      departments: {
-        Row: {
-          id: string
-          name: string
-          organization_id: string | null
-        }
-        Insert: {
-          id: string
-          name: string
-          organization_id?: string | null
-        }
-        Update: {
-          id?: string
-          name?: string
-          organization_id?: string | null
-        }
-        Relationships: []
-      }
-      products: {
-        Row: {
-          id: string
-          name: string
-          category_id: string
-        }
-        Insert: {
-          id: string
-          name: string
-          category_id: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          category_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "products_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-    }
-    Views: {}
-    Functions: {}
-    Enums: {}
-    CompositeTypes: {}
-  }
-}
-"""
-
-SAMPLE_TS_M2M = """
-export type Database = {
-  public: {
-    Tables: {
-      invoices: {
-        Row: {
-          id: string
-          total: number
-        }
-        Insert: {
-          id: string
-          total: number
-        }
-        Update: {
-          id?: string
-          total?: number
-        }
-        Relationships: []
-      }
-      withdrawals: {
-        Row: {
-          id: string
-          amount: number
-        }
-        Insert: {
-          id: string
-          amount: number
-        }
-        Update: {
-          id?: string
-          amount?: number
-        }
-        Relationships: []
-      }
-      invoice_withdrawals: {
-        Row: {
-          invoice_id: string
-          withdrawal_id: string
-        }
-        Insert: {
-          invoice_id: string
-          withdrawal_id: string
-        }
-        Update: {
-          invoice_id?: string
-          withdrawal_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_withdrawals_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_withdrawals_withdrawal_id_fkey"
-            columns: ["withdrawal_id"]
-            isOneToOne: false
-            referencedRelation: "withdrawals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-    }
-    Views: {}
-    Functions: {}
-    Enums: {}
-    CompositeTypes: {}
-  }
-}
-"""
-
-SAMPLE_TS_M2M_PLUS_DIRECT_FK = """
-export type Database = {
-  public: {
-    Tables: {
-      invoices: {
-        Row: {
-          id: string
-          total: number
-        }
-        Insert: {
-          id: string
-          total: number
-        }
-        Update: {
-          id?: string
-          total?: number
-        }
-        Relationships: []
-      }
-      withdrawals: {
-        Row: {
-          id: string
-          amount: number
-          invoice_id: string | null
-        }
-        Insert: {
-          id: string
-          amount: number
-          invoice_id?: string | null
-        }
-        Update: {
-          id?: string
-          amount?: number
-          invoice_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "withdrawals_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invoice_withdrawals: {
-        Row: {
-          invoice_id: string
-          withdrawal_id: string
-        }
-        Insert: {
-          invoice_id: string
-          withdrawal_id: string
-        }
-        Update: {
-          invoice_id?: string
-          withdrawal_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_withdrawals_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_withdrawals_withdrawal_id_fkey"
-            columns: ["withdrawal_id"]
-            isOneToOne: false
-            referencedRelation: "withdrawals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-    }
-    Views: {}
-    Functions: {}
-    Enums: {}
-    CompositeTypes: {}
-  }
-}
-"""
-
-SAMPLE_TS_EMPTY_RELS = """
-export type Database = {
-  public: {
-    Tables: {
-      simple_table: {
-        Row: {
-          id: string
-          name: string
-        }
-        Insert: {
-          id: string
-          name: string
-        }
-        Update: {
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-    }
-    Views: {}
-    Functions: {}
-    Enums: {}
-    CompositeTypes: {}
-  }
-}
-"""
-
-SAMPLE_PYDANTIC_OUTPUT = """
-from __future__ import annotations
-import datetime
-from pydantic import BaseModel, Field
-
-class PublicDepartments(BaseModel):
-    id: str = Field(alias="id")
-    name: str = Field(alias="name")
-    organization_id: str | None = Field(alias="organization_id")
-
-class PublicDepartmentsInsert(TypedDict):
-    id: str
-    name: str
-
-class PublicDepartmentsUpdate(TypedDict):
-    id: str
-
-class PublicProducts(BaseModel):
-    category_id: str = Field(alias="category_id")
-    id: str = Field(alias="id")
-    name: str = Field(alias="name")
-
-class PublicProductsInsert(TypedDict):
-    category_id: str
-    id: str
-
-class PublicProductsUpdate(TypedDict):
-    category_id: str
-"""
-
-SAMPLE_SQL_MIGRATION = """
-CREATE TABLE IF NOT EXISTS departments (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS products (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    category_id TEXT NOT NULL REFERENCES departments(id)
-);
-
-CREATE TABLE IF NOT EXISTS invoices (
-    id TEXT PRIMARY KEY,
-    total NUMERIC(18,2) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS withdrawals (
-    id TEXT PRIMARY KEY,
-    amount NUMERIC(18,2) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS invoice_withdrawals (
-    invoice_id TEXT NOT NULL REFERENCES invoices(id),
-    withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),
-    PRIMARY KEY (invoice_id, withdrawal_id)
-);
-"""
-
+SAMPLE_TS_SINGLE_FK = '\nexport type Database = {\n  public: {\n    Tables: {\n      departments: {\n        Row: {\n          id: string\n          name: string\n          organization_id: string | null\n        }\n        Insert: {\n          id: string\n          name: string\n          organization_id?: string | null\n        }\n        Update: {\n          id?: string\n          name?: string\n          organization_id?: string | null\n        }\n        Relationships: []\n      }\n      products: {\n        Row: {\n          id: string\n          name: string\n          category_id: string\n        }\n        Insert: {\n          id: string\n          name: string\n          category_id: string\n        }\n        Update: {\n          id?: string\n          name?: string\n          category_id?: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "products_category_id_fkey"\n            columns: ["category_id"]\n            isOneToOne: false\n            referencedRelation: "departments"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
+SAMPLE_TS_M2M = '\nexport type Database = {\n  public: {\n    Tables: {\n      invoices: {\n        Row: {\n          id: string\n          total: number\n        }\n        Insert: {\n          id: string\n          total: number\n        }\n        Update: {\n          id?: string\n          total?: number\n        }\n        Relationships: []\n      }\n      withdrawals: {\n        Row: {\n          id: string\n          amount: number\n        }\n        Insert: {\n          id: string\n          amount: number\n        }\n        Update: {\n          id?: string\n          amount?: number\n        }\n        Relationships: []\n      }\n      invoice_withdrawals: {\n        Row: {\n          invoice_id: string\n          withdrawal_id: string\n        }\n        Insert: {\n          invoice_id: string\n          withdrawal_id: string\n        }\n        Update: {\n          invoice_id?: string\n          withdrawal_id?: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "invoice_withdrawals_invoice_id_fkey"\n            columns: ["invoice_id"]\n            isOneToOne: false\n            referencedRelation: "invoices"\n            referencedColumns: ["id"]\n          },\n          {\n            foreignKeyName: "invoice_withdrawals_withdrawal_id_fkey"\n            columns: ["withdrawal_id"]\n            isOneToOne: false\n            referencedRelation: "withdrawals"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
+SAMPLE_TS_M2M_PLUS_DIRECT_FK = '\nexport type Database = {\n  public: {\n    Tables: {\n      invoices: {\n        Row: {\n          id: string\n          total: number\n        }\n        Insert: {\n          id: string\n          total: number\n        }\n        Update: {\n          id?: string\n          total?: number\n        }\n        Relationships: []\n      }\n      withdrawals: {\n        Row: {\n          id: string\n          amount: number\n          invoice_id: string | null\n        }\n        Insert: {\n          id: string\n          amount: number\n          invoice_id?: string | null\n        }\n        Update: {\n          id?: string\n          amount?: number\n          invoice_id?: string | null\n        }\n        Relationships: [\n          {\n            foreignKeyName: "withdrawals_invoice_id_fkey"\n            columns: ["invoice_id"]\n            isOneToOne: false\n            referencedRelation: "invoices"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n      invoice_withdrawals: {\n        Row: {\n          invoice_id: string\n          withdrawal_id: string\n        }\n        Insert: {\n          invoice_id: string\n          withdrawal_id: string\n        }\n        Update: {\n          invoice_id?: string\n          withdrawal_id?: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "invoice_withdrawals_invoice_id_fkey"\n            columns: ["invoice_id"]\n            isOneToOne: false\n            referencedRelation: "invoices"\n            referencedColumns: ["id"]\n          },\n          {\n            foreignKeyName: "invoice_withdrawals_withdrawal_id_fkey"\n            columns: ["withdrawal_id"]\n            isOneToOne: false\n            referencedRelation: "withdrawals"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
+SAMPLE_TS_EMPTY_RELS = '\nexport type Database = {\n  public: {\n    Tables: {\n      simple_table: {\n        Row: {\n          id: string\n          name: string\n        }\n        Insert: {\n          id: string\n          name: string\n        }\n        Update: {\n          id?: string\n          name?: string\n        }\n        Relationships: []\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
+SAMPLE_PYDANTIC_OUTPUT = '\nfrom __future__ import annotations\nimport datetime\nfrom pydantic import BaseModel, Field\n\nclass PublicDepartments(BaseModel):\n    id: str = Field(alias="id")\n    name: str = Field(alias="name")\n    organization_id: str | None = Field(alias="organization_id")\n\nclass PublicDepartmentsInsert(TypedDict):\n    id: str\n    name: str\n\nclass PublicDepartmentsUpdate(TypedDict):\n    id: str\n\nclass PublicProducts(BaseModel):\n    category_id: str = Field(alias="category_id")\n    id: str = Field(alias="id")\n    name: str = Field(alias="name")\n\nclass PublicProductsInsert(TypedDict):\n    category_id: str\n    id: str\n\nclass PublicProductsUpdate(TypedDict):\n    category_id: str\n'
+SAMPLE_SQL_MIGRATION = '\nCREATE TABLE IF NOT EXISTS departments (\n    id TEXT PRIMARY KEY,\n    name TEXT NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS products (\n    id TEXT PRIMARY KEY,\n    name TEXT NOT NULL,\n    category_id TEXT NOT NULL REFERENCES departments(id)\n);\n\nCREATE TABLE IF NOT EXISTS invoices (\n    id TEXT PRIMARY KEY,\n    total NUMERIC(18,2) NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS withdrawals (\n    id TEXT PRIMARY KEY,\n    amount NUMERIC(18,2) NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS invoice_withdrawals (\n    invoice_id TEXT NOT NULL REFERENCES invoices(id),\n    withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),\n    PRIMARY KEY (invoice_id, withdrawal_id)\n);\n'
 
 @pytest.fixture
 def sample_ts_single_fk():
     return SAMPLE_TS_SINGLE_FK
 
-
 @pytest.fixture
 def sample_ts_m2m():
     return SAMPLE_TS_M2M
-
 
 @pytest.fixture
 def sample_ts_m2m_plus_direct_fk():
     return SAMPLE_TS_M2M_PLUS_DIRECT_FK
 
-
 @pytest.fixture
 def sample_ts_empty_rels():
     return SAMPLE_TS_EMPTY_RELS
-
 
 @pytest.fixture
 def sample_pydantic_output():
     return SAMPLE_PYDANTIC_OUTPUT
 
-
 @pytest.fixture
 def sample_sql_migration(tmp_path):
-    migration_file = tmp_path / "001_test.sql"
+    migration_file = tmp_path / '001_test.sql'
     migration_file.write_text(SAMPLE_SQL_MIGRATION)
     return tmp_path

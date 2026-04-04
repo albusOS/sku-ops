@@ -7,7 +7,10 @@ Does NOT parse FKs, types, or constraints - the TS file handles those.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def extract_primary_keys(

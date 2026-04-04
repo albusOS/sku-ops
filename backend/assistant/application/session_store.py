@@ -132,8 +132,7 @@ async def get_state(session_id: str):
         except (json.JSONDecodeError, TypeError, KeyError):
             return None
     entry = _SESSIONS.get(session_id, {})
-    state = entry.get("state")
-    return state
+    return entry.get("state")
 
 
 async def update_state(session_id: str, state: SessionState | None) -> None:

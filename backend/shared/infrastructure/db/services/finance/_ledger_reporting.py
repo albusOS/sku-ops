@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
@@ -16,6 +15,8 @@ from shared.infrastructure.db.orm_utils import parse_date_param
 from shared.kernel.types import round_money
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 

@@ -69,19 +69,12 @@ async def main(
                 f"UPDATE users SET {', '.join(updates)} WHERE email = ${n}",
                 tuple(params),
             )
-            print(f"Updated existing user {existing['id']}")
             if user_id_arg and existing["id"] != user_id_arg:
-                print(f"  id:    {existing['id']} -> {user_id_arg}")
-            print(f"  email: {email}")
-            print(f"  role:  {existing['role']} -> {role}")
-            print(f"  name:  {name}")
+                pass
         else:
             user_id = user_id_arg or new_uuid7_str()
             if not user_id_arg:
-                print("WARNING: No --id provided. Generating random UUID.")
-                print("         For Supabase auth, pass --id with the Supabase user UUID")
-                print("         so /api/auth/me can find this profile row.")
-                print()
+                pass
             now = datetime.now(UTC)
             if password:
                 import bcrypt
@@ -109,21 +102,9 @@ async def main(
                     now,
                 ),
             )
-            print(f"Created user {user_id}")
-            print(f"  email: {email}")
-            print(f"  role:  {role}")
-            print(f"  name:  {name}")
-            print(f"  org:   {resolved_org}")
 
         if not password:
-            print()
-            print("If using Supabase auth, also run in the Supabase SQL Editor:")
-            print("  UPDATE auth.users")
-            print("  SET raw_app_meta_data = jsonb_set(")
-            print("    COALESCE(raw_app_meta_data, '{}'::jsonb),")
-            print("    '{role}', '\"admin\"'")
-            print("  )")
-            print(f"  WHERE email = '{email}';")
+            pass
     finally:
         await close_db()
 

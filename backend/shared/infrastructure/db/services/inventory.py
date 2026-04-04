@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, text, update
 
@@ -16,6 +15,9 @@ from shared.infrastructure.types.public_sql_model_models import (
     CycleCounts,
     StockTransactions,
 )
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 def _stock_row_to_domain(row: StockTransactions) -> StockTransaction:

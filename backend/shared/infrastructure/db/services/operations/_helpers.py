@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from operations.domain.enums import MaterialRequestStatus, PaymentStatus
 from operations.domain.material_request import MaterialRequest
@@ -29,6 +29,9 @@ from shared.infrastructure.types.public_sql_model_models import (
     WithdrawalItems,
     Withdrawals,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 # Sentinel for line items without a catalog SKU (legacy / free-text rows).
 NIL_SKU_UUID = uuid.UUID(int=0)

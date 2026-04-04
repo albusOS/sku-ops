@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -26,12 +25,13 @@ from shared.infrastructure.types.public_sql_model_models import (
 )
 
 if TYPE_CHECKING:
+    import uuid
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _inv_row_to_domain(inv: Invoices) -> dict[str, Any]:
-    d = uuids_to_str(inv.model_dump(mode="python"))
-    return d
+    return uuids_to_str(inv.model_dump(mode="python"))
 
 
 def _line_to_domain(li: InvoiceLineItems) -> InvoiceLineItem:

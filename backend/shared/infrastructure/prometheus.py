@@ -89,8 +89,7 @@ _NUMERIC_SEGMENT = re.compile(r"/\d+(?=/|$)")
 def _normalize_path(path: str) -> str:
     """Replace UUIDs and numeric IDs with placeholders to bound cardinality."""
     path = _UUID_RE.sub(":id", path)
-    path = _NUMERIC_SEGMENT.sub("/:id", path)
-    return path
+    return _NUMERIC_SEGMENT.sub("/:id", path)
 
 
 class PrometheusMiddleware(BaseHTTPMiddleware):

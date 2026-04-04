@@ -8,17 +8,19 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import text
 
-from shared.infrastructure.db.base import BaseDatabaseService
 from shared.infrastructure.db.services._sql_validation import (
     SQLValidationError,
     ensure_limit,
     validate_sql,
 )
+
+if TYPE_CHECKING:
+    from shared.infrastructure.db.base import BaseDatabaseService
 
 _ISO_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}")
 _STATEMENT_TIMEOUT_MAX_MS = 600_000
@@ -58,7 +60,7 @@ def coerce_bind_value(value: Any) -> Any:
     if not _ISO_DATE_PREFIX.match(value):
         return value
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(value)
     except ValueError:
         return value
 
@@ -171,10 +173,7 @@ class RawSQLService:
                 columns = []
                 db_row_count = int(result.rowcount or 0)
 
-            if read_only:
-                truncated = db_row_count >= max_rows
-            else:
-                truncated = False
+            truncated = db_row_count >= max_rows if read_only else False
 
             ambient = uow._tx_session.get()
             if ambient is not None and ambient is session:

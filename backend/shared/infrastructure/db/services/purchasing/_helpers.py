@@ -122,7 +122,7 @@ def _parse_document_date(raw: str | None) -> datetime | None:
     if isinstance(raw, datetime):
         return raw
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return datetime.fromisoformat(raw)
     except ValueError:
         try:
             return datetime.combine(datetime.strptime(raw, "%Y-%m-%d").date(), datetime.min.time())

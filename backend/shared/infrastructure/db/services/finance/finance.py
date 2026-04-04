@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 from shared.infrastructure.db.orm_utils import as_uuid_required
 from shared.infrastructure.db.services._base import DomainDatabaseService
@@ -18,6 +18,9 @@ from shared.infrastructure.db.services.finance._ledger_orm import (
     ledger_get_journal_rows,
     ledger_insert_entries_in_session,
 )
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

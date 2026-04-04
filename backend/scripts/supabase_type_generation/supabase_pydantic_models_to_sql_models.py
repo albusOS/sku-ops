@@ -12,18 +12,21 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from backend.scripts.supabase_type_generation.pydantic_to_sql_model_type_mapping import (
     map_pydantic_type,
 )
-from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
-    ForeignKeyInfo,
-    RelationshipMetadata,
-)
-from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models import (
-    ParsedField,
-    ParsedModel,
-)
+
+if TYPE_CHECKING:
+    from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
+        ForeignKeyInfo,
+        RelationshipMetadata,
+    )
+    from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models import (
+        ParsedField,
+        ParsedModel,
+    )
 
 
 def _table_to_class(table_name: str) -> str:
@@ -81,10 +84,7 @@ def _safe_attr_name(name: str) -> str:
 
 def _fk_col_to_rel_name(fk_column: str) -> str:
     """Derive relationship attr name from FK column: category_id -> category."""
-    if fk_column.endswith("_id"):
-        base = fk_column[:-3]
-    else:
-        base = fk_column
+    base = fk_column.removesuffix("_id")
     return _safe_attr_name(base)
 
 

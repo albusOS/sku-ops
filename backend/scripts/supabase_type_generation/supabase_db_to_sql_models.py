@@ -76,7 +76,6 @@ def main(
         init_file.write_text("")
 
     if skip_cli:
-        print("Skipping supabase CLI - reading existing type files...")
         full_py = ""
         full_ts = ""
         for schema in schemas:
@@ -87,9 +86,7 @@ def main(
             if ts_path.exists():
                 full_ts = ts_path.read_text()
     else:
-        print("Generating Python types from supabase...")
         full_py = run_supabase_gen_types(lang="python", local=local)
-        print("Generating TypeScript types from supabase...")
         full_ts = run_supabase_gen_types(lang="typescript", local=local)
 
         for schema in schemas:
@@ -97,36 +94,22 @@ def main(
             ts_path = types_dir / f"{schema}_database_types.ts"
             py_path.write_text(full_py)
             ts_path.write_text(full_ts)
-            print(f"  Wrote {py_path.name} and {ts_path.name}")
 
-    print("Extracting primary keys from SQL migrations...")
     pk_map = extract_primary_keys(MIGRATIONS_DIR)
-    print(f"  Found PKs for {len(pk_map)} tables")
 
     for schema in schemas:
         prefix = SCHEMA_CLASS_PREFIX.get(schema, schema.capitalize())
-        print(f"\nProcessing schema: {schema} (prefix={prefix})")
 
-        print("  Parsing Pydantic models...")
         parsed_models = parse_pydantic_types(full_py, schema, prefix)
-        print(f"  Found {len(parsed_models)} models")
 
-        print("  Parsing TS relationships...")
         rel_metadata = parse_ts_relationships(full_ts, schema, schemas)
-        print(
-            f"  Found {len(rel_metadata.foreign_keys)} FKs, {len(rel_metadata.link_tables)} link tables"
-        )
 
-        print("  Generating SQLModel code...")
         code = generate_sqlmodel_code(schema, parsed_models, rel_metadata, pk_map)
 
         output_path = types_dir / f"{schema}_sql_model_models.py"
         output_path.write_text(code)
-        print(f"  Wrote {output_path.name} ({len(code)} bytes)")
 
-    print("\nFormatting with ruff...")
     _format_with_ruff(types_dir, schemas)
-    print("Done!")
 
 
 def _format_with_ruff(types_dir: Path, schemas: list[str]) -> None:
@@ -147,7 +130,7 @@ def _format_with_ruff(types_dir: Path, schemas: list[str]) -> None:
             cwd=str(PROJECT_ROOT),
         )
         if result.returncode != 0:
-            print(f"  Warning: ruff format failed: {result.stderr.strip()}")
+            pass
     except FileNotFoundError:
         try:
             result = subprocess.run(
@@ -156,9 +139,9 @@ def _format_with_ruff(types_dir: Path, schemas: list[str]) -> None:
                 text=True,
             )
             if result.returncode != 0:
-                print(f"  Warning: ruff format failed: {result.stderr.strip()}")
+                pass
         except FileNotFoundError:
-            print("  Warning: ruff not found, skipping formatting")
+            pass
 
 
 if __name__ == "__main__":

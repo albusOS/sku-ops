@@ -145,10 +145,9 @@ async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
     gen_text = _generate_text if LLM_AVAILABLE else None
     units = await _db_catalog().list_uoms(get_org_id())
     known = frozenset(u.code for u in units)
-    result = await classify_uom(
+    return await classify_uom(
         data.name, data.description, generate_text=gen_text, known_units=known
     )
-    return result
 
 
 @router.post("")

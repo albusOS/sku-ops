@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import case, cast, func, select, update
 from sqlalchemy.types import Numeric
 
 from operations.domain.enums import MaterialRequestStatus, PaymentStatus
-from operations.domain.material_request import MaterialRequest
-from operations.domain.returns import MaterialReturn
-from operations.domain.withdrawal import MaterialWithdrawal
 from shared.infrastructure.db.orm_utils import (
     as_uuid_required,
     parse_date_param,
@@ -40,6 +36,14 @@ from shared.infrastructure.types.public_sql_model_models import (
     Withdrawals,
 )
 from shared.kernel.errors import InvalidTransitionError
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+    from datetime import datetime
+
+    from operations.domain.material_request import MaterialRequest
+    from operations.domain.returns import MaterialReturn
+    from operations.domain.withdrawal import MaterialWithdrawal
 
 
 @asynccontextmanager

@@ -12,6 +12,18 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI
 
+import assistant.agents.tools.search  # noqa: F401 — registers index invalidation handler
+import finance.application.event_handlers  # noqa: F401
+import inventory.application.event_handlers  # noqa: F401
+import shared.infrastructure.ws_bridge  # noqa: F401
+from api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router import (
+    shutdown_generation_tasks,
+)
+from assistant.agents.tools.registry import init_tools
+from assistant.agents.tools.search import get_index
+from assistant.agents.tools.tool_index import get_tool_index
+from assistant.infrastructure.llm import init_llm
+from finance.application.xero_startup_check import run_startup_check
 from scheduler import xero_sync_loop
 from shared.infrastructure.config import (
     DATABASE_URL,
@@ -22,7 +34,10 @@ from shared.infrastructure.config import (
     is_test,
     startup_summary,
 )
-from shared.infrastructure.db import close_db, init_db
+from shared.infrastructure.db import close_db, init_db, sql_execute
+from shared.infrastructure.db.base import get_database_manager
+from shared.infrastructure.event_hub import activate_redis
+from shared.infrastructure.logging_config import org_id_var
 from shared.infrastructure.redis import (
     close_redis,
     init_redis,
@@ -31,11 +46,12 @@ from shared.infrastructure.redis import (
 
 logger = logging.getLogger(__name__)
 
+_DOMAIN_WS_MSG = "Domain event WebSocket not mounted"
+_CHAT_WS_MSG = "Chat streaming WebSocket not mounted"
+
 
 async def _get_active_org_ids() -> list[str]:
     """Return org IDs that should run scheduled jobs."""
-    from shared.infrastructure.db.base import get_database_manager
-
     orgs = await get_database_manager().shared.list_organizations()
     return [o.id for o in orgs] if orgs else []
 
@@ -47,8 +63,6 @@ async def lifespan(app: FastAPI):
 
     await init_redis()
     if is_redis_available():
-        from shared.infrastructure.event_hub import activate_redis
-
         activate_redis()
         if worker_count > 1:
             logger.info(
@@ -56,11 +70,12 @@ async def lifespan(app: FastAPI):
                 worker_count,
             )
     elif worker_count > 1:
-        raise RuntimeError(
+        _redis_workers_msg = (
             f"WORKERS={worker_count} but REDIS_URL is not set. "
             "Multi-worker mode requires Redis for event hub, sessions, and sync locks. "
             "Set REDIS_URL or use WORKERS=1."
         )
+        raise RuntimeError(_redis_workers_msg)
 
     if cors_warn_in_deployed:
         logger.warning(
@@ -79,51 +94,37 @@ async def lifespan(app: FastAPI):
             _host,
         )
 
-    import assistant.agents.tools.search  # noqa: F401 — registers index invalidation handler
-    import finance.application.event_handlers  # noqa: F401
-    import inventory.application.event_handlers  # noqa: F401
-    import shared.infrastructure.ws_bridge  # noqa: F401
-
     logger.info("Domain event handlers registered")
-
-    from assistant.infrastructure.llm import init_llm
 
     init_llm()
     logger.info("LLM provider initialized")
-    from assistant.agents.tools.registry import init_tools
 
     init_tools()
     logger.info("Tool registry initialized")
 
     async def _background_warmup() -> None:
         try:
-            from assistant.agents.tools.tool_index import get_tool_index
-
             idx = get_tool_index()
             await idx.rebuild()
-            logger.info("Tool index rebuilt (%d tools)", len(idx._names))
+            logger.info("Tool index rebuilt (%d tools)", len(idx))
         except (RuntimeError, OSError, ValueError) as e:
             logger.warning("Tool index warm-up skipped: %s", e)
-
-        from shared.infrastructure.logging_config import org_id_var
 
         org_ids = await _get_active_org_ids()
         for oid in org_ids:
             token = org_id_var.set(oid)
             try:
-                from assistant.agents.tools.search import get_index
-
                 await get_index()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning("BM25 index warm-up skipped for org '%s': %s", oid, e)
-            try:
-                from finance.application.xero_startup_check import (
-                    run_startup_check,
+                logger.warning(
+                    "BM25 index warm-up skipped for org '%s': %s", oid, e
                 )
-
+            try:
                 await run_startup_check()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning("Xero startup check failed for org '%s': %s", oid, e)
+                logger.warning(
+                    "Xero startup check failed for org '%s': %s", oid, e
+                )
             finally:
                 org_id_var.reset(token)
 
@@ -143,13 +144,15 @@ async def lifespan(app: FastAPI):
         )
 
     ws_routes = [r.path for r in app.routes if hasattr(r, "path")]
-    has_domain_ws = any("shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes)
+    has_domain_ws = any(
+        "shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes
+    )
     has_chat_ws = any("assistant/ws" in p or "ws/chat" in p for p in ws_routes)
-    assert has_domain_ws, "Domain event WebSocket not mounted"
-    assert has_chat_ws, "Chat streaming WebSocket not mounted"
+    if not has_domain_ws:
+        raise RuntimeError(_DOMAIN_WS_MSG)
+    if not has_chat_ws:
+        raise RuntimeError(_CHAT_WS_MSG)
     logger.info("WebSocket endpoints verified: %s", ws_routes)
-
-    from shared.infrastructure.db import sql_execute
 
     await sql_execute("SELECT 1", read_only=True, max_rows=1)
     logger.info("Database connectivity verified")
@@ -159,10 +162,6 @@ async def lifespan(app: FastAPI):
         sync_task = asyncio.create_task(xero_sync_loop())
 
     yield
-
-    from api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router import (
-        shutdown_generation_tasks,
-    )
 
     await shutdown_generation_tasks()
     warmup_task.cancel()

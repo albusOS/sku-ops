@@ -117,16 +117,15 @@ class PostgresBackend:
 
     @asynccontextmanager
     async def transaction_bundle(self) -> AsyncIterator[AsyncSession]:
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                session = AsyncSession(bind=conn, expire_on_commit=False)
-                try:
-                    yield session
-                except Exception:
-                    await session.rollback()
-                    raise
-                finally:
-                    await session.close()
+        async with self.engine.connect() as conn, conn.begin():
+            session = AsyncSession(bind=conn, expire_on_commit=False)
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     async def health_check(self) -> bool:
         try:

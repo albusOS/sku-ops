@@ -104,5 +104,4 @@ async def update_job(
                 detail=f"Invalid status. Must be one of: {', '.join(valid)}",
             )
 
-    result = await _db_jobs().update_job(job_id, oid, updates)
-    return result
+    return await _db_jobs().update_job(job_id, oid, updates)

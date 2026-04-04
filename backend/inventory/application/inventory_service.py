@@ -43,9 +43,7 @@ class _DefaultStockRepo:
     async def insert_transaction(self, tx: StockTransaction) -> None:
         await _db_inventory().insert_stock_transaction(tx)
 
-    async def list_by_product(
-        self, sku_id: str, limit: int = 50
-    ) -> list[StockTransaction]:
+    async def list_by_product(self, sku_id: str, limit: int = 50) -> list[StockTransaction]:
         return await _db_inventory().list_stock_transactions_by_product(
             get_org_id(), sku_id, limit=limit
         )
@@ -115,27 +113,17 @@ async def process_withdrawal_stock_changes(
         base_unit = (product.base_unit if product else "each").lower()
         requested_unit = (item.unit or "each").lower()
         pack_qty = product.pack_qty if product else 1
-        if requested_unit != base_unit and are_compatible(
-            requested_unit, base_unit
-        ):
-            canonical_qty = convert_quantity(
-                item.quantity, requested_unit, base_unit
-            )
+        if requested_unit != base_unit and are_compatible(requested_unit, base_unit):
+            canonical_qty = convert_quantity(item.quantity, requested_unit, base_unit)
         else:
             canonical_qty = item.quantity
-        if (
-            pack_qty > 1
-            and requested_unit != base_unit
-            and requested_unit in _DISCRETE_SELL_UOMS
-        ):
+        if pack_qty > 1 and requested_unit != base_unit and requested_unit in _DISCRETE_SELL_UOMS:
             canonical_qty = canonical_qty * pack_qty
         resolved.append((item, canonical_qty, base_unit))
 
     async with transaction():
         for item, canonical_qty, base_unit in resolved:
-            product = await _db_catalog().get_sku_by_id(
-                item.sku_id, get_org_id()
-            )
+            product = await _db_catalog().get_sku_by_id(item.sku_id, get_org_id())
             async with transaction():
                 result = await _db_catalog().sku_atomic_decrement(
                     item.sku_id, get_org_id(), canonical_qty, now
@@ -193,9 +181,7 @@ async def process_receiving_stock_changes(
 
     now = datetime.now(UTC)
     async with transaction():
-        result = await _db_catalog().sku_add_quantity(
-            sku_id, get_org_id(), canonical_qty, now
-        )
+        result = await _db_catalog().sku_add_quantity(sku_id, get_org_id(), canonical_qty, now)
         if not result:
             raise ResourceNotFoundError("Product", sku_id)
 
@@ -270,13 +256,9 @@ async def process_adjustment_stock_changes(
 
     base_unit = product.base_unit.lower()
     async with transaction():
-        result = await _db_catalog().sku_atomic_adjust(
-            sku_id, get_org_id(), quantity_delta, now
-        )
+        result = await _db_catalog().sku_atomic_adjust(sku_id, get_org_id(), quantity_delta, now)
         if not result:
-            raise NegativeStockError(
-                sku_id, current=product.quantity, delta=quantity_delta
-            )
+            raise NegativeStockError(sku_id, current=product.quantity, delta=quantity_delta)
 
         quantity_after = result.quantity
         quantity_before = quantity_after - quantity_delta

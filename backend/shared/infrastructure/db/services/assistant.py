@@ -490,9 +490,8 @@ class AssistantDatabaseService(DomainDatabaseService):
                     )
                 if rows_to_upsert:
                     await self.end_write_session(session)
-                written = len(rows_to_upsert)
+                return len(rows_to_upsert)
 
-            return written
         except Exception as e:
             logger.warning("embedding batch upsert failed: %s", e)
             return 0

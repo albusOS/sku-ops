@@ -10,7 +10,10 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass
@@ -48,8 +51,7 @@ def _table_name_from_class(class_name: str, prefix: str) -> str:
     """
     name = class_name
     name = name.removeprefix(prefix)
-    snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
-    return snake
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def _is_optional_annotation(node: ast.expr) -> bool:
