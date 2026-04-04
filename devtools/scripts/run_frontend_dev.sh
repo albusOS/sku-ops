@@ -34,4 +34,4 @@ if supabase status -o env >/dev/null 2>&1; then
   _load_supabase_env
 fi
 
-exec npm run dev --prefix frontend
+exec pnpm --dir frontend run dev

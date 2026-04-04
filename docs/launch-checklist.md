@@ -51,17 +51,17 @@ Production readiness checklist for sku-ops. Work through each section before goi
 - [ ] Add branch protection rules for `dev`: require PR, require status checks (Backend, Frontend)
 - [ ] Run `cz bump --dry-run` to verify commitizen config produces correct version tags
 - [ ] Verify `CHANGELOG.md` gets populated on first real bump
-- [ ] Install pre-commit hooks locally: `uv run --directory backend pre-commit install --install-hooks && uv run --directory backend pre-commit install --hook-type commit-msg`
+- [ ] Install pre-commit hooks locally: `pixi run uv run --directory backend pre-commit install --install-hooks && pixi run uv run --directory backend pre-commit install --hook-type commit-msg`
 
 ## Testing
 
-- [ ] All backend tests pass: `uv run --directory backend pytest -v` (currently 421+ tests)
-- [ ] All frontend tests pass: `cd frontend && npm test -- --run`
-- [ ] Ruff lint clean: `uv run --directory backend ruff check .`
-- [ ] Ruff format clean: `uv run --directory backend ruff format --check .`
-- [ ] ESLint clean: `cd frontend && npx eslint src/`
-- [ ] Prettier clean: `cd frontend && npx prettier --check src/`
-- [ ] Architecture tests pass (DDD boundary enforcement): `uv run --directory backend pytest tests/test_architecture.py -v`
+- [ ] All backend tests pass: `pixi run test-backend -- -- -v` (or `pixi run uv run --directory backend pytest -v`)
+- [ ] All frontend tests pass: `pixi run test-frontend`
+- [ ] Ruff lint clean: `pixi run lint-backend`
+- [ ] Ruff format clean: `pixi run uv run --directory backend ruff format --check .`
+- [ ] ESLint clean: `pixi run lint-frontend`
+- [ ] Prettier clean: `pixi run pnpm --dir frontend run format:check`
+- [ ] Architecture tests pass (DDD boundary enforcement): `pixi run test-backend -- -- tests/unit/test_architecture.py -v`
 - [ ] WebSocket edge case tests pass (fan-out, filtering, rapid reconnect)
 - [ ] Integration workflow tests pass (authenticated CRUD flows)
 

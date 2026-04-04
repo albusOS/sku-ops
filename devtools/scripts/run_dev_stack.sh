@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Concurrent backend (uvicorn) + frontend (Vite) for local dev; mirrors legacy npm run dev / bin/dev.
+# Concurrent backend (uvicorn) + frontend (Vite) for local dev; use pixi-managed pnpm.
 set -euo pipefail
 set -m
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -47,5 +47,5 @@ trap cleanup INT TERM
 trap cleanup EXIT
 
 uv run --directory backend uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir . &
-npm run dev --prefix frontend &
+pnpm --dir frontend run dev &
 wait

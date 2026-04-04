@@ -35,26 +35,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: prefix-dev/setup-pixi@v0.9.4
         with:
-          python-version: "3.13"
+          cache: true
 
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
+      - name: Verify dev tools resolve from pixi
+        run: pixi run doctor
 
-      # uv project and lockfile live under backend/
-      - name: Install project and dev deps
-        run: uv sync --dev --directory backend
+      - name: Install backend virtualenv (uv + pixi Python)
+        run: pixi run uv sync --dev --directory backend
 
       - name: Lint
-        run: uv run --directory backend ruff check .
+        run: pixi run lint-backend
 
       - name: Format check
-        run: uv run --directory backend ruff format --check .
+        run: pixi run uv run --directory backend ruff format --check .
 
       - name: Audit dependencies
-        run: uv run --directory backend pip-audit
+        run: pixi run uv run --directory backend pip-audit
 
       - name: Run tests
         env:
@@ -63,37 +61,35 @@ jobs:
           JWT_SECRET: ci-test-secret
           # Leave ANTHROPIC_API_KEY unset — conftest sets it to "" so
           # ANTHROPIC_AVAILABLE=False and no real API calls are made in tests.
-        run: uv run --directory backend pytest --tb=short -q --timeout=60
+        run: pixi run uv run --directory backend pytest --tb=short -q --timeout=60
 
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v6            # v4.1.0
+      - uses: prefix-dev/setup-pixi@v0.9.4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache: true
+
+      - name: Verify dev tools resolve from pixi
+        run: pixi run doctor
 
       - name: Install dependencies
-        run: npm ci
+        run: pixi run pnpm --dir frontend install --frozen-lockfile
 
       - name: Lint
-        run: npx eslint --max-warnings=0 src/
+        run: pixi run pnpm --dir frontend run lint
 
       - name: Format check
-        run: npx prettier --check src/
+        run: pixi run pnpm --dir frontend run format:check
 
       - name: Build
-        run: npm run build
+        run: pixi run pnpm --dir frontend run build
 
       - name: Run tests
-        run: npm test -- --run
+        run: pixi run pnpm --dir frontend run test:run

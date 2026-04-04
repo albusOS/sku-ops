@@ -26,7 +26,7 @@ There are three environments: `development`, `test`, `production`. There is no s
 - Health check: `GET /api/beta/shared/health` (configured in `railway.toml`).
 
 ## Vercel
-- Root `vercel.json` controls monorepo build: `cd frontend && npm ci && npm run build`.
+- Root `vercel.json` controls monorepo build: `cd frontend && pnpm install --frozen-lockfile && pnpm run build`.
 - Output: `frontend/dist`. SPA rewrite: all routes → `index.html`.
 - Three `VITE_*` env vars are build-time (baked into JS). Changing requires redeploy.
 - Security headers set in `vercel.json`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`.

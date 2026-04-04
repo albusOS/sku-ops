@@ -6,4 +6,4 @@ cd "$ROOT_DIR"
 rm -rf backend/.venv backend/.pytest_cache backend/.mypy_cache backend/.ruff_cache backend/.cache || true
 find . -type d -name '__pycache__' -prune -exec rm -rf '{}' + || true
 find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete || true
-echo "✓ cleaned"
+echo "✓ cleaned (recreate backend venv: pixi run uv sync --dev --directory backend && pixi run doctor)"

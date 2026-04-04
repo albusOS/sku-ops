@@ -3,8 +3,21 @@ name = "sku-ops"
 channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
 
+[dependencies]
+python = "3.13.*"
+uv = ">=0.7"
+nodejs = "20.*"
+pnpm = ">=9"
+
+[activation]
+env = { UV_PYTHON_DOWNLOADS = "never", UV_PYTHON_PREFERENCE = "only-system" }
+
+[tasks.doctor]
+cmd = "bash devtools/scripts/pixi_toolchain_doctor.sh"
+description = "Verify python, uv, node, pnpm resolve from pixi and uv targets pixi Python"
+
 [tasks._ensure-db]
-cmd = "supabase status -o env >/dev/null 2>&1 || supabase start"
+cmd = "bash devtools/scripts/ensure_supabase_running.sh"
 description = "Ensure local Supabase stack is running"
 
 [tasks.db]
@@ -43,7 +56,7 @@ env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.
 description = "Run backend tests (pytest; DB reset first)"
 
 [tasks.test-frontend]
-cmd = "npm run test:run --prefix frontend"
+cmd = "pnpm --dir frontend run test:run"
 description = "Run frontend tests (Vitest)"
 
 [tasks.test]
@@ -52,7 +65,7 @@ description = "Run backend then frontend tests"
 
 [tasks.test-e2e]
 depends-on = ["_ensure-db"]
-cmd = "npx playwright test"
+cmd = "pnpm install --frozen-lockfile && pnpx playwright test"
 cwd = "e2e"
 description = "Run Playwright e2e tests"
 
@@ -65,11 +78,11 @@ cmd = "uv run --directory backend ruff format . ../devtools"
 description = "Format Python (ruff)"
 
 [tasks.lint-frontend]
-cmd = "npm run lint --prefix frontend"
+cmd = "pnpm --dir frontend run lint"
 description = "Lint frontend (ESLint)"
 
 [tasks.format-frontend]
-cmd = "npm run format --prefix frontend"
+cmd = "pnpm --dir frontend run format"
 description = "Format frontend (Prettier)"
 
 [tasks.check]

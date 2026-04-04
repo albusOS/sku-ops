@@ -2,26 +2,27 @@
 
 ## Prerequisites
 
-- **Python:** 3.13+ (managed via `.python-version`)
-- **Pixi:** ([install](https://pixi.sh)) - unified dev tasks (`test`, `db`, `dev`, …)
-- **uv:** 0.6+ ([install](https://docs.astral.sh/uv/getting-started/installation/))
-- **Node.js:** 20+ with npm
+- **Pixi:** ([install](https://pixi.sh)) — installs Python 3.13, uv, Node 20, pnpm from [pixi.toml](pixi.toml) / [pixi.lock](pixi.lock)
+- **Supabase CLI:** for local DB (`pixi run db`, `db-reset`) — not bundled by pixi; install per [Supabase CLI docs](https://supabase.com/docs/guides/cli)
 - **Docker:** (optional, for production verification and e2e)
 
 ## Install everything
 
 ```bash
-# Python tooling (backend deps + pytest + ruff + commitizen)
-uv sync --dev --directory backend
+pixi install
+pixi run doctor                                              # tools must resolve from .pixi/envs/default/
+
+# Backend venv (pixi Python + uv.lock)
+pixi run uv sync --dev --directory backend
 
 # Frontend deps
-npm install --prefix frontend
+pixi run pnpm --dir frontend install --frozen-lockfile
 
-# Playwright (optional, for e2e tests)
-cd e2e && npm install && npx playwright install --with-deps chromium && cd ..
+# E2e package (Playwright); install browsers once from repo root: `( cd e2e && pnpx playwright install --with-deps chromium )` using a shell where `pnpx` is the pixi env (e.g. after `pixi shell` or any `pixi run` task)
+pixi run pnpm --dir e2e install --frozen-lockfile
 ```
 
-`uv sync --dev --directory backend` installs the backend package plus all dev dependencies (pytest, ruff, commitizen, rich, etc.). [`backend/uv.lock`](backend/uv.lock) governs Python dependencies; the venv defaults to `backend/.venv`.
+`pixi run uv sync --dev --directory backend` creates `backend/.venv` linked to the pixi-managed interpreter. [`backend/uv.lock`](backend/uv.lock) governs Python packages.
 
 ## Running tests
 
@@ -48,7 +49,7 @@ pixi run test-backend -- -- --tb=short -v              # verbose with short trac
 
 ```bash
 pixi run test-frontend              # single run (vitest run)
-npm run test --prefix frontend      # watch mode (vitest)
+pixi run pnpm --dir frontend run test   # watch mode (vitest)
 ```
 
 ### End-to-end (Playwright)
@@ -57,7 +58,7 @@ npm run test --prefix frontend      # watch mode (vitest)
 pixi run test-e2e
 ```
 
-Playwright will start the backend dev server automatically if not already running.
+`test-e2e` runs `pnpm install --frozen-lockfile` in `e2e/` then Playwright. Ensure browsers are installed if needed.
 
 ## How imports resolve
 

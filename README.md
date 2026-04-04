@@ -5,11 +5,14 @@ Material management for supply yards — contractors, warehouses, and inventory.
 ## Quick Start
 
 ```bash
-curl -fsSL https://pixi.sh/install.sh | sh   # Pixi task runner (once per machine); then open a new terminal or: export PATH="$HOME/.pixi/bin:$PATH"
-uv sync --dev --directory backend          # Python deps + dev tools (optional if you use pixi tasks only)
-npm install --prefix frontend               # frontend deps
-cp backend/.env.example backend/.env      # edit with your keys
-pixi run dev                              # backend + frontend together
+curl -fsSL https://pixi.sh/install.sh | sh   # Pixi (once per machine); new shell or: export PATH="$HOME/.pixi/bin:$PATH"
+cd /path/to/sku-ops
+pixi install                                 # Python 3.13, uv, Node 20, pnpm (locked in pixi.lock)
+pixi run doctor                              # assert tools resolve from .pixi/envs/default/
+pixi run uv sync --dev --directory backend   # backend/.venv from pixi Python + uv.lock
+pixi run pnpm --dir frontend install --frozen-lockfile   # frontend deps (pnpm-lock.yaml)
+cp backend/.env.example backend/.env         # edit with your keys
+pixi run dev                                 # backend + frontend together
 ```
 
 - **Backend:** http://localhost:8000
@@ -52,8 +55,9 @@ pixi run import -- --products              # optional: Hike POS products
 
 ## Tech Stack
 
-- **Backend:** Python 3.13, FastAPI, uv (package manager), PostgreSQL
-- **Frontend:** React 18, Vite, Tailwind CSS, Radix UI, TanStack Query, ECharts
+- **Backend:** Python 3.13, FastAPI, uv (Python env from `backend/`), PostgreSQL
+- **Toolchain:** Pixi installs pinned Python, uv, Node.js, and pnpm for local dev and CI
+- **Frontend:** React 18, Vite, pnpm, Tailwind CSS, Radix UI, TanStack Query, ECharts
 - **AI:** Anthropic Claude (documents, UOM, assistant), OpenAI (embeddings), OpenRouter (agent gateway)
 - **Infra:** Redis (event pub/sub, chat sessions, distributed locks), Prometheus metrics, Sentry error tracking
 - **Quality:** Ruff (Python lint + format), ESLint 9 + Prettier (frontend), commitizen (conventional commits), CI on every push
@@ -64,9 +68,10 @@ pixi run import -- --products              # optional: Hike POS products
 Install [Pixi](https://pixi.sh), then from the project root:
 
 ```bash
-pixi run dev                       # start backend + frontend
-pixi run test                      # backend then frontend tests
-pixi run test-backend -- -- …     # backend tests only (pytest; paths/flags after --)
+pixi run doctor               # verify python, uv, node, pnpm come from pixi (and backend/.venv uses pixi Python)
+pixi run dev                  # start backend + frontend
+pixi run test                 # backend then frontend tests
+pixi run test-backend -- -- … # backend tests only (pytest; paths/flags after --)
 pixi run test-frontend        # frontend unit tests (vitest run)
 pixi run lint-backend         # lint Python (ruff)
 pixi run format-backend       # format Python (ruff)

@@ -47,9 +47,14 @@ docker compose up --build    # nginx/certbot excluded via override profile
 
 ## Common dev commands
 
-Install [Pixi](https://pixi.sh) once (`curl -fsSL https://pixi.sh/install.sh | sh`). The binary lives in `~/.pixi/bin` — use a **new shell** or `export PATH="$HOME/.pixi/bin:$PATH"` until your `~/.zshrc` is sourced. All commands below run from the **project root** via `pixi run <task>` (`pixi task list` for discoverability).
+Install [Pixi](https://pixi.sh) once (`curl -fsSL https://pixi.sh/install.sh | sh`). The binary lives in `~/.pixi/bin` — use a **new shell** or `export PATH="$HOME/.pixi/bin:$PATH"` until your `~/.zshrc` is sourced.
+
+After cloning: `pixi install` (pulls Python 3.13, uv, Node 20, pnpm per [pixi.toml](pixi.toml) / [pixi.lock](pixi.lock)), then `pixi run doctor` to confirm nothing resolves from Homebrew/nvm/globals, then `pixi run uv sync --dev --directory backend` and `pixi run pnpm --dir frontend install --frozen-lockfile`.
+
+All commands below run from the **project root** via `pixi run <task>` (`pixi task list` for discoverability). Do not use global `npm` / `npx` for this repo — use **pnpm** via `pixi run pnpm …` so the binary comes from the pixi env.
 
 ```bash
+pixi run doctor                  # toolchain check (pixi python, uv, node, pnpm)
 pixi run test                    # all tests (backend then frontend)
 pixi run test-backend -- -- …    # backend tests only (pytest; extra args after --)
 pixi run test-frontend           # frontend tests only (vitest)
@@ -70,7 +75,7 @@ pixi run db-reset                # reset local DB from migrations + seeds
 pixi run clean                   # wipe backend venv + Python caches (see devtools/scripts/clean_repo.sh)
 ```
 
-Never suggest `pip`, `python -m pytest`, or `ruff` directly. Python tooling runs through **`uv`**, invoked as **`uv run --directory backend ...`** from `pixi` tasks or from the repo root. Production and dev dependencies, plus Ruff/pytest/commitizen config, live in **`backend/pyproject.toml`**; **`backend/uv.lock`** and **`backend/.venv`** are the uv project artifacts.
+Never suggest `pip`, `python -m pytest`, or `ruff` directly. Python tooling runs through **`uv`** from the **pixi** environment, invoked as **`pixi run uv run --directory backend ...`** or via pixi tasks. After `pixi run clean`, recreate the venv with `pixi run uv sync --dev --directory backend` and re-run `pixi run doctor`. Production and dev dependencies, plus Ruff/pytest/commitizen config, live in **`backend/pyproject.toml`**; **`backend/uv.lock`** and **`backend/.venv`** are the uv project artifacts (`backend/.venv` must reference the interpreter under **`.pixi/envs/default/`**).
 
 ## Monorepo layout
 

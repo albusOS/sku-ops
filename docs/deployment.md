@@ -182,7 +182,7 @@ Redis                   →  Upstash / platform add-on (free tier works)
 
 Deploy `frontend/` as a static site on Render, DigitalOcean App Platform, or similar.
 
-- **Build command:** `npm ci && npm run build`
+- **Build command:** `pnpm install --frozen-lockfile && pnpm run build`
 - **Output directory:** `dist`
 - **Environment variable:** `VITE_BACKEND_URL=https://api.yourdomain.com`
 - **Rewrite rule:** All routes → `index.html` (SPA fallback)

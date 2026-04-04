@@ -117,7 +117,7 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
 1. Import the repo on Vercel. The root `vercel.json` handles the monorepo build:
    ```json
    {
-     "buildCommand": "cd frontend && npm ci && npm run build",
+     "buildCommand": "cd frontend && pnpm install --frozen-lockfile && pnpm run build",
      "outputDirectory": "frontend/dist",
      "installCommand": "echo skip"
    }
@@ -341,7 +341,7 @@ Change in dashboard, then trigger a redeploy (VITE_* vars are baked at build tim
 | Frontend blank / can't reach backend | `VITE_BACKEND_URL` wrong or missing | Set in Vercel env vars, redeploy |
 | DB connection fails | Using port 6543 (pgbouncer) | Switch to port 5432 (direct) in `DATABASE_URL` |
 | Backend crash on startup | Missing required env var | Read the `RuntimeError` message in Railway logs |
-| Auth doesn't work at all | `@supabase/supabase-js` not installed | Run `npm install @supabase/supabase-js` in frontend/ |
+| Auth doesn't work at all | `@supabase/supabase-js` not installed | Run `pixi run pnpm --dir frontend add @supabase/supabase-js` |
 | Preview deploys get CORS errors | Preview URL not in `CORS_ORIGINS` | Set `CORS_ORIGIN_REGEX` to match Vercel preview URLs |
 | Xero OAuth redirect fails | `FRONTEND_URL` not set | Set to your Vercel production URL on Railway |
 

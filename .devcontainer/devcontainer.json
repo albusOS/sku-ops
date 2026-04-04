@@ -3,7 +3,7 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "uv sync --dev --directory backend && npm install --prefix frontend",
+  "postCreateCommand": "pixi install && pixi run doctor && pixi run uv sync --dev --directory backend && pixi run pnpm --dir frontend install --frozen-lockfile",
   "customizations": {
     "vscode": {
       "extensions": [

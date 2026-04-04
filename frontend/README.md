@@ -4,10 +4,20 @@ React app for supply yard material management. Built with [Vite](https://vitejs.
 
 ## Development
 
+From the **repo root**, use Pixi so Node and pnpm come from `.pixi/envs/default/`:
+
 ```bash
-npm run dev        # Start dev server on http://localhost:3000 (proxies API to :8000)
-npm run build      # Production build → dist/
-npm run preview    # Preview production build locally
+pixi install
+pixi run pnpm --dir frontend install --frozen-lockfile
+pixi run frontend              # Vite on http://localhost:3000 (proxies API to :8000)
+```
+
+Or from `frontend/` with pnpm on your PATH (should be pixi's):
+
+```bash
+pnpm run dev        # Start dev server on http://localhost:3000 (proxies API to :8000)
+pnpm run build      # Production build → dist/
+pnpm run preview    # Preview production build locally
 ```
 
 ## Environment

@@ -4,7 +4,7 @@
 #
 # Handles:
 #   1. Env validation
-#   2. Frontend build (npm ci + vite build)
+#   2. Frontend build (pnpm install --frozen-lockfile + vite build)
 #   3. Nginx config rendering (substitutes __DOMAIN__ placeholder)
 #   4. First-time TLS provisioning via Certbot
 #   5. Docker image build + rolling restart
@@ -17,7 +17,7 @@
 # Prerequisites:
 #   - .env file with all required variables (copy from .env.production.example)
 #   - Docker + Docker Compose installed
-#   - Node.js + npm installed (for frontend build, or skip with --skip-build)
+#   - Node.js + pnpm installed (for frontend build, or skip with --skip-build)
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -151,7 +151,7 @@ if [ "$SKIP_BUILD" = true ]; then
   echo "[3/5] Skipping frontend build (--skip-build)."
 else
   echo "[3/5] Building frontend..."
-  (cd frontend && npm ci && npm run build)
+  (cd frontend && pnpm install --frozen-lockfile && pnpm run build)
   echo "    Frontend built to frontend/dist/"
 fi
 
