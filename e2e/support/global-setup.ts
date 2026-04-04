@@ -21,7 +21,7 @@ async function globalSetup(): Promise<void> {
   }
 
   throw new Error(
-    `E2E global setup: backend health check failed after 60s. Is local Supabase running? Try: ./bin/dev db\nLast error: ${String(lastError)}`,
+    `E2E global setup: backend health check failed after 60s. Is local Supabase running? Try: pixi run db\nLast error: ${String(lastError)}`,
   );
 }
 

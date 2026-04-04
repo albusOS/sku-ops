@@ -11,19 +11,19 @@ alwaysApply: true
 Use this for all feature work. Hot-reload, local Supabase, and seed scripts work.
 
 ```bash
-./bin/dev db             # start local Supabase stack
-npm run dev              # from project root — starts backend + frontend together
+pixi run db               # start local Supabase stack
+pixi run dev              # backend + frontend together (from repo root)
 ```
 
 - Backend: uvicorn with `--reload` on http://localhost:8000
 - Frontend: Vite dev server on http://localhost:3000
 - DB: Supabase local Postgres on localhost:54322
-- `./bin/dev server` auto-starts local Supabase if not running
+- `pixi run backend` auto-starts local Supabase if not running (via task dependency)
 - Provision data (run once after first start):
 
 ```bash
-./bin/dev provision --dev        # org + departments + dev users
-./bin/dev import --vendors --products  # real Hike POS data
+pixi run provision -- --dev                 # org + departments + dev users
+pixi run import -- --vendors --products    # real Hike POS data
 ```
 
 ### Mode 2: Production verification (before deploy)
@@ -47,27 +47,30 @@ docker compose up --build    # nginx/certbot excluded via override profile
 
 ## Common dev commands
 
-All commands run from the project root via `./bin/dev`:
+Install [Pixi](https://pixi.sh) once (`curl -fsSL https://pixi.sh/install.sh | sh`). All commands below run from the **project root** via `pixi run <task>` (`pixi task list` for discoverability).
 
 ```bash
-./bin/dev test [args]      # run all tests (backend + frontend)
-./bin/dev test:be [args]   # backend tests only (pytest)
-./bin/dev test:fe          # frontend tests only (vitest)
-./bin/dev test:e2e [args]  # Playwright e2e tests
-./bin/dev lint             # ruff lint all Python
-./bin/dev fmt              # ruff format all Python
-./bin/dev lint:fe          # ESLint frontend
-./bin/dev fmt:fe           # Prettier frontend
-./bin/dev commit           # commitizen conventional commit
-./bin/dev server           # backend only (no frontend)
-./bin/dev ui               # frontend only (no backend)
-./bin/dev provision [args] # provision org, departments, dev users
-./bin/dev eval [args]      # run LLM evals
-./bin/dev db               # start local Supabase stack
-./bin/dev db:stop          # stop local Supabase stack
+pixi run test                    # all tests (backend then frontend)
+pixi run test-backend -- -- …    # backend tests only (pytest; extra args after --)
+pixi run test-frontend           # frontend tests only (vitest)
+pixi run test-e2e -- -- …        # Playwright e2e (cwd e2e/)
+pixi run lint-backend            # ruff lint Python
+pixi run format-backend          # ruff format Python
+pixi run lint-frontend           # ESLint frontend
+pixi run format-frontend         # Prettier frontend
+pixi run check                   # lint + format backend and frontend
+pixi run commit                  # commitizen conventional commit
+pixi run backend                 # backend only
+pixi run frontend                # frontend only
+pixi run provision -- -- …       # devtools provision
+pixi run eval -- -- …           # LLM evals
+pixi run db                      # start local Supabase stack
+pixi run db-stop                 # stop local Supabase stack
+pixi run db-reset                # reset local DB from migrations + seeds
+pixi run clean                   # wipe backend venv + Python caches (see devtools/scripts/clean_repo.sh)
 ```
 
-Never suggest `pip`, `python -m pytest`, or `ruff` directly. All Python execution goes through `uv` (via `./bin/dev`). The project uses `uv` workspaces — the root `pyproject.toml` manages dev deps, `backend/pyproject.toml` has production deps only.
+Never suggest `pip`, `python -m pytest`, or `ruff` directly. Python tooling runs through **`uv`** (`uv run` inside `pixi` tasks or directly at repo root). The project uses **uv workspaces** — the root `pyproject.toml` manages dev deps, `backend/pyproject.toml` has production deps only.
 
 ## Monorepo layout
 
@@ -76,9 +79,9 @@ sku-ops/
 ├── backend/          # deployable app + its tests
 │   └── tests/        # backend unit/integration/api tests
 ├── frontend/         # React SPA (co-located unit tests in src/__tests__/)
-├── tests/e2e/        # cross-stack Playwright tests
+├── e2e/              # cross-stack Playwright tests
 ├── devtools/         # seeds, evals, scripts — not deployed
-├── bin/dev           # unified CLI
+├── pixi.toml         # task runner (dev, test, db, …)
 └── pyproject.toml    # uv workspace root (dev deps, ruff, pytest, commitizen)
 ```
 

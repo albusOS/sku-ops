@@ -6,7 +6,7 @@ Complete walkthrough of all actors and flows in a real day at the Supply Yard. U
 
 ## Auth — Current State
 
-Dev users are created via `./bin/dev provision --dev`:
+Dev users are created via `pixi run provision -- --dev`:
 
 | Role | Email | Password |
 |------|-------|----------|

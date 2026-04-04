@@ -147,9 +147,9 @@ Sarah runs these checks because the numbers need to be defensible.
 Provision demo data and run through the scenes manually or via the backend e2e tests:
 
 ```bash
-./bin/dev provision --dev
-./bin/dev import --vendors --products
-./bin/dev test:be backend/tests/e2e/
+pixi run provision -- --dev
+pixi run import -- --vendors --products
+pixi run test-backend -- -- backend/tests/e2e/
 ```
 
 Each numbered criterion above is a pass/fail check. 46 total criteria across 7 scenes.

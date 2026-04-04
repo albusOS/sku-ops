@@ -1,0 +1,117 @@
+[workspace]
+name = "sku-ops"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tasks._ensure-db]
+cmd = "supabase status -o env >/dev/null 2>&1 || supabase start"
+description = "Ensure local Supabase stack is running"
+
+[tasks.db]
+cmd = "supabase start && echo 'Supabase started. Run supabase status for URLs.'"
+description = "Start local Supabase stack"
+
+[tasks.db-stop]
+cmd = "supabase stop"
+description = "Stop local Supabase stack"
+
+[tasks.db-reset]
+depends-on = ["_ensure-db"]
+cmd = "supabase db reset --local --yes"
+description = "Reset local DB from migrations and seeds"
+
+[tasks.backend]
+depends-on = ["_ensure-db"]
+cmd = "uv run uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir backend"
+env = { PYTHONPATH = "backend:.", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
+description = "Start backend dev server (FastAPI)"
+
+[tasks.frontend]
+depends-on = ["_ensure-db"]
+cmd = "bash devtools/scripts/run_frontend_dev.sh"
+description = "Start frontend dev server (Vite)"
+
+[tasks.dev]
+depends-on = ["_ensure-db"]
+cmd = "bash devtools/scripts/run_dev_stack.sh"
+description = "Start backend and frontend dev servers together"
+
+[tasks.test-backend]
+depends-on = ["db-reset"]
+cmd = "uv run pytest"
+env = { PYTHONPATH = "backend:.", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
+description = "Run backend tests (pytest; DB reset first)"
+
+[tasks.test-frontend]
+cmd = "npm run test:run --prefix frontend"
+description = "Run frontend tests (Vitest)"
+
+[tasks.test]
+depends-on = ["test-backend", "test-frontend"]
+description = "Run backend then frontend tests"
+
+[tasks.test-e2e]
+depends-on = ["_ensure-db"]
+cmd = "npx playwright test"
+cwd = "e2e"
+description = "Run Playwright e2e tests"
+
+[tasks.lint-backend]
+cmd = "uv run ruff check ."
+description = "Lint Python (backend, devtools, root)"
+
+[tasks.format-backend]
+cmd = "uv run ruff format ."
+description = "Format Python (ruff)"
+
+[tasks.lint-frontend]
+cmd = "npm run lint --prefix frontend"
+description = "Lint frontend (ESLint)"
+
+[tasks.format-frontend]
+cmd = "npm run format --prefix frontend"
+description = "Format frontend (Prettier)"
+
+[tasks.check]
+depends-on = ["lint-backend", "lint-frontend", "format-backend", "format-frontend"]
+description = "Lint and format backend and frontend"
+
+[tasks.commit]
+cmd = "uv run cz commit"
+description = "Commitizen conventional commit"
+
+[tasks.container]
+cmd = "docker-compose up -d"
+cwd = ".devcontainer"
+description = "Start devcontainer (docker-compose)"
+
+[tasks.provision]
+depends-on = ["_ensure-db"]
+cmd = "uv run python -m devtools.scripts.provision"
+env = { PYTHONPATH = "backend:." }
+description = "Provision hint / devtools provision entrypoint"
+
+[tasks.import]
+depends-on = ["_ensure-db"]
+cmd = "uv run python -m devtools.scripts.import_hike"
+env = { PYTHONPATH = "backend:." }
+description = "Import Hike POS data (e.g. --vendors --products)"
+
+[tasks.eval]
+cmd = "uv run python -m devtools.evals"
+env = { PYTHONPATH = "backend:." }
+description = "Run LLM evals"
+
+[tasks.create-admin]
+cmd = "uv run python backend/scripts/create_admin.py"
+env = { PYTHONPATH = "backend:." }
+description = "Create or update admin user in DB"
+
+[tasks.verify]
+cmd = "uv run python backend/scripts/verify_deploy.py"
+env = { PYTHONPATH = "backend:." }
+description = "Pre-deploy verification"
+
+[tasks.clean]
+cmd = "bash devtools/scripts/clean_repo.sh"
+description = "Remove local Python caches and backend venv"

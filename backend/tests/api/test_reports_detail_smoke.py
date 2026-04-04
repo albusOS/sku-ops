@@ -2,8 +2,6 @@
 
 import pytest
 
-from tests.helpers.auth import admin_headers
-
 # Previously only /sales had dedicated backend coverage; these assert 200 + JSON body.
 REPORT_PATHS = [
     "/api/beta/reports/trends",

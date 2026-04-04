@@ -5,11 +5,11 @@ Material management for supply yards — contractors, warehouses, and inventory.
 ## Quick Start
 
 ```bash
-npm install                           # root monorepo deps (concurrently)
-cd backend && uv sync --dev && cd ..  # Python deps via uv
-cd frontend && npm install && cd ..   # frontend deps
-cp backend/.env.example backend/.env  # edit with your keys
-npm run dev                           # starts backend + frontend
+curl -fsSL https://pixi.sh/install.sh | sh   # Pixi task runner (once per machine)
+uv sync                                     # Python deps + dev tools (workspace root)
+npm install --prefix frontend               # frontend deps
+cp backend/.env.example backend/.env      # edit with your keys
+pixi run dev                              # backend + frontend together
 ```
 
 - **Backend:** http://localhost:8000
@@ -27,14 +27,14 @@ All seeded accounts use password **dev123** (Supabase Auth + matching `public.us
 | Admin (local) | dev@supply-yard.local |
 | Contractor (local) | contractor@supply-yard.local |
 
-Login uses **Supabase Auth** (`signInWithPassword`). `./bin/dev db:reset` runs `supabase/seeds/04_users.sql`, which seeds **`auth.users` + `auth.identities`** first, then **`public.users`** with the same ids for profile data (company, billing, etc.).
+Login uses **Supabase Auth** (`signInWithPassword`). `pixi run db-reset` runs `supabase/seeds/04_users.sql`, which seeds **`auth.users` + `auth.identities`** first, then **`public.users`** with the same ids for profile data (company, billing, etc.).
 
-Frontend env: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (from `supabase status` or `./bin/dev ui`, which exports them from `supabase status -o env`). See `frontend/.env.example`.
+Frontend env: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (from `supabase status` or `pixi run frontend`, which exports them from `supabase status -o env`). See `frontend/.env.example`.
 
 ```bash
-./bin/dev db:reset               # migrations + seeds (org, departments, demo, dev + auth users)
-./bin/dev import --vendors       # optional: Hike POS vendors
-./bin/dev import --products      # optional: Hike POS products
+pixi run db-reset                          # migrations + seeds (org, departments, demo, dev + auth users)
+pixi run import -- --vendors               # optional: Hike POS vendors
+pixi run import -- --products              # optional: Hike POS products
 ```
 
 ## Features
@@ -61,19 +61,22 @@ Frontend env: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (from 
 
 ## Dev Commands
 
-All commands run from the project root:
+Install [Pixi](https://pixi.sh), then from the project root:
 
 ```bash
-npm run dev              # start backend + frontend (concurrently)
-./bin/dev test [args]    # run pytest
-./bin/dev lint           # lint backend (ruff)
-./bin/dev fmt            # format backend (ruff)
-./bin/dev lint:fe        # lint frontend (ESLint)
-./bin/dev fmt:fe         # format frontend (Prettier)
-./bin/dev commit         # commitizen conventional commit
-./bin/dev server         # start backend only
-./bin/dev ui             # start frontend only
-./bin/dev container      # start devcontainer
+pixi run dev                       # start backend + frontend
+pixi run test                      # backend then frontend tests
+pixi run test-backend -- -- …     # backend tests only (pytest; paths/flags after --)
+pixi run test-frontend        # frontend unit tests (vitest run)
+pixi run lint-backend         # lint Python (ruff)
+pixi run format-backend       # format Python (ruff)
+pixi run lint-frontend        # lint frontend (ESLint)
+pixi run format-frontend      # format frontend (Prettier)
+pixi run commit               # commitizen conventional commit
+pixi run backend              # start backend only
+pixi run frontend             # start frontend only
+pixi run container            # start devcontainer
+pixi task list                # all tasks + descriptions
 ```
 
 ## Environment
@@ -84,7 +87,7 @@ Configuration is environment-aware (`ENV=development|test|production`). See `bac
 |---|---|---|---|
 | JWT_SECRET | default | default | required |
 | CORS | permissive (*) | permissive (*) | required |
-| Provisioning | `supabase/seeds/` + `./bin/dev db:reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
+| Provisioning | `supabase/seeds/` + `pixi run db-reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
 | Database | Postgres (Docker) | Postgres | Postgres |
 | Redis | optional | required | required |
 | WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |

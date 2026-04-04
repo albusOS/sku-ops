@@ -23,8 +23,8 @@ Usage:
     PYTHONPATH=backend:. uv run python backend/scripts/create_admin.py \\
         --id <supabase-user-uuid> --email admin@company.com --name "Admin User"
 
-    # Or via bin/dev:
-    ./bin/dev create-admin --id <supabase-user-uuid> --email admin@company.com --name "Admin User"
+    # Or via pixi:
+    pixi run create-admin -- --id <supabase-user-uuid> --email admin@company.com --name "Admin User"
 """
 
 import argparse

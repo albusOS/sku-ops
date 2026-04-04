@@ -1,7 +1,7 @@
 """Root pytest configuration — environment variables and shared fixtures.
 
 All backend tests run against Postgres. The test database (sku_ops_test)
-is auto-created by ``./bin/dev db``. A single session-scoped TestClient
+is auto-created by ``pixi run db``. A single session-scoped TestClient
 boots the ASGI app once; sub-directory conftest files add fixtures
 specific to their scope (e.g. DB seeding, auth helpers).
 """

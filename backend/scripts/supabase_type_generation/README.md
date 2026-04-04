@@ -4,7 +4,7 @@ Database-first pipeline: Postgres (via Supabase) is the source of truth. This pa
 
 ## How to run
 
-From the **repo root**, with local Supabase up (`./bin/dev db` or `supabase start`):
+From the **repo root**, with local Supabase up (`pixi run db` or `supabase start`):
 
 ```bash
 PYTHONPATH=backend:. uv run python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local

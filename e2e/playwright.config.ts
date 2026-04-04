@@ -23,13 +23,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "cd .. && ./bin/dev server",
+      command: "cd .. && pixi run backend",
       port: 8000,
       reuseExistingServer: true,
       timeout: 30_000,
     },
     {
-      command: "cd .. && ./bin/dev ui",
+      command: "cd .. && pixi run frontend",
       port: 3000,
       reuseExistingServer: true,
       timeout: 30_000,

@@ -76,7 +76,7 @@ Create a row so `/api/auth/me` returns full data:
 
 ```bash
 DATABASE_URL=<production-connection-string> \
-./bin/dev create-admin \
+pixi run create-admin -- \
   --id <supabase-user-uuid> \
   --email admin@clientname.com \
   --name "Client Admin" \
@@ -94,7 +94,7 @@ UPDATE organizations SET name = 'ClientName', slug = 'clientname' WHERE id = 'de
 ## 7. Verify
 
 ```bash
-./bin/dev verify --url https://your-railway-app.up.railway.app
+pixi run verify -- --url https://your-railway-app.up.railway.app
 ```
 
 Check that:
@@ -114,6 +114,6 @@ Check that:
 - [ ] Admin user created in Supabase Auth
 - [ ] `app_metadata.role` set to `"admin"` in Supabase SQL Editor
 - [ ] Local profile row created via `create-admin`
-- [ ] `./bin/dev verify --url <railway-url>` passes
+- [ ] `pixi run verify -- --url <railway-url>` passes
 - [ ] Login works in browser
 - [ ] `/api/auth/me` returns full profile

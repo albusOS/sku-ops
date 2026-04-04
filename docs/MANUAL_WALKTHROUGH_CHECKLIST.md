@@ -11,8 +11,8 @@
 ### 1. Start the Live App
 
 ```bash
-./bin/dev db     # start dev Postgres (first time)
-npm run dev      # starts backend + frontend
+pixi run db     # start dev Postgres (first time)
+pixi run dev      # starts backend + frontend
 ```
 
 - **Backend:** http://localhost:8000  
@@ -21,8 +21,8 @@ npm run dev      # starts backend + frontend
 ### 2. Provision Data
 
 ```bash
-./bin/dev provision --dev              # org + departments + dev users
-./bin/dev import --vendors --products  # vendors + products from Hike POS
+pixi run provision -- --dev                # org + departments + dev users
+pixi run import -- --vendors --products   # vendors + products from Hike POS
 ```
 
 ### 3. Log In
@@ -449,6 +449,6 @@ npm run dev      # starts backend + frontend
 ## Provisioning Commands
 
 ```bash
-./bin/dev provision --dev              # org + departments + dev users
-./bin/dev import --vendors --products  # real Hike POS data
+pixi run provision -- --dev                # org + departments + dev users
+pixi run import -- --vendors --products  # real Hike POS data
 ```

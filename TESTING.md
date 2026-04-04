@@ -3,6 +3,7 @@
 ## Prerequisites
 
 - **Python:** 3.13+ (managed via `.python-version`)
+- **Pixi:** ([install](https://pixi.sh)) - unified dev tasks (`test`, `db`, `dev`, …)
 - **uv:** 0.6+ ([install](https://docs.astral.sh/uv/getting-started/installation/))
 - **Node.js:** 20+ with npm
 - **Docker:** (optional, for production verification and e2e)
@@ -27,31 +28,33 @@ cd e2e && npm install && npx playwright install --with-deps chromium && cd ..
 ### All tests (backend + frontend)
 
 ```bash
-./bin/dev test
+pixi run test
 ```
 
 ### Backend only
 
 ```bash
-./bin/dev test:be                                  # all backend tests
-./bin/dev test:be backend/tests/unit/              # unit tests only
-./bin/dev test:be backend/tests/integration/       # integration tests only
-./bin/dev test:be backend/tests/api/               # API tests only
-./bin/dev test:be -k test_smoke                    # single test by name
-./bin/dev test:be --tb=short -v                    # verbose with short tracebacks
+pixi run test-backend                                   # all backend tests
+pixi run test-backend -- -- backend/tests/unit/         # unit tests only
+pixi run test-backend -- -- backend/tests/integration/  # integration tests only
+pixi run test-backend -- -- backend/tests/api/          # API tests only
+pixi run test-backend -- -- -k test_smoke              # single test by name
+pixi run test-backend -- -- --tb=short -v              # verbose with short tracebacks
 ```
+
+(Pass any pytest args after `--`.)
 
 ### Frontend only
 
 ```bash
-./bin/dev test:fe              # single run (vitest run)
-npm run test --prefix frontend # watch mode (vitest)
+pixi run test-frontend              # single run (vitest run)
+npm run test --prefix frontend      # watch mode (vitest)
 ```
 
 ### End-to-end (Playwright)
 
 ```bash
-./bin/dev test:e2e
+pixi run test-e2e
 ```
 
 Playwright will start the backend dev server automatically if not already running.
@@ -70,7 +73,7 @@ This works because `pythonpath = ["backend"]` in the root `pyproject.toml` pytes
 
 ## Shared test infrastructure
 
-All backend tests run against a real Postgres database provided by the local Supabase stack. `./bin/dev test` and `./bin/dev test:be` reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
+All backend tests run against a real Postgres database provided by the local Supabase stack. `pixi run test` and `pixi run test-backend` reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
 
 A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables then applies `supabase/seeds/pytest_minimal.sql` plus org-scoped UOM rows from `supabase/seeds/02_units_of_measure.sql` (via `catalog.application.uom_seed.uom_seed_sql`).
 
@@ -148,20 +151,21 @@ Create `e2e/specs/<name>.spec.ts`. Uses Playwright. Server starts automatically.
 ## Seeds and evals
 
 ```bash
-./bin/dev db:reset           # migrations + supabase/seeds (full local demo)
-./bin/dev eval --suite all   # run all LLM evals
-./bin/dev eval --suite routing --model anthropic/claude-haiku-4-5
+pixi run db-reset
+pixi run eval -- --suite all
+pixi run eval -- --suite routing --model anthropic/claude-haiku-4-5
 ```
 
-Canonical SQL seeds live under `supabase/seeds/` (edit there, then `./bin/dev db:reset` or `supabase db reset --local`). Evals live in `devtools/`. They import backend production code via `PYTHONPATH=backend:.` (set by `bin/dev`).
+Canonical SQL seeds live under `supabase/seeds/` (edit there, then `pixi run db-reset` or `supabase db reset --local`). Evals live in `devtools/`. They import backend production code via `PYTHONPATH=backend:.` as set by `pixi` Python tasks.
 
 ## Linting
 
 ```bash
-./bin/dev lint     # ruff check all Python (backend + tests + devtools)
-./bin/dev fmt      # ruff format all Python
-./bin/dev lint:fe  # ESLint frontend
-./bin/dev fmt:fe   # Prettier frontend
+pixi run lint-backend
+pixi run format-backend
+pixi run lint-frontend
+pixi run format-frontend
+pixi run check                     # all four
 ```
 
 Ruff config lives in the root `pyproject.toml`. Per-file-ignores are scoped to `backend/tests/**`, `devtools/**`, and specific backend paths.

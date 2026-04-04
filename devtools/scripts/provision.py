@@ -1,7 +1,7 @@
 """Legacy entry point - canonical org/departments/demo data is SQL under ``supabase/seeds/``.
 
 Local workflow:
-    ./bin/dev db:reset
+    pixi run db-reset
 
 That runs migrations and applies ``supabase/config.toml`` ``[db.seed] sql_paths`` (``01_org`` through ``05_demo``).
 
@@ -23,7 +23,7 @@ def main() -> None:
     _ = parser.parse_args()
     print(
         "Provisioning is handled by Supabase seeds. Run:\n"
-        "  ./bin/dev db:reset\n"
+        "  pixi run db-reset\n"
         "or: supabase db reset --local\n"
         "See supabase/seeds/README.md"
     )

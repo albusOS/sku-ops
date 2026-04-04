@@ -6,7 +6,7 @@ const E2E_ADMIN_EMAIL = "dev@supply-yard.local";
 const E2E_ADMIN_PASSWORD = "dev123";
 
 /**
- * Obtains a Supabase access_token (backend verifies JWKS in dev). Run via `./bin/dev test:e2e`
+ * Obtains a Supabase access_token (backend verifies JWKS in dev). Run via `pixi run test-e2e`
  * so SUPABASE_URL and PUBLIC_SUPABASE_PUBLISHABLE_KEY are exported from `supabase status`.
  */
 export async function getAdminToken(request: APIRequestContext): Promise<string> {
@@ -15,7 +15,7 @@ export async function getAdminToken(request: APIRequestContext): Promise<string>
     process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
   if (!supabaseUrl || !anonKey) {
     throw new Error(
-      "E2E auth: set SUPABASE_URL and PUBLIC_SUPABASE_PUBLISHABLE_KEY (e.g. run ./bin/dev test:e2e after ./bin/dev db)",
+      "E2E auth: set SUPABASE_URL and PUBLIC_SUPABASE_PUBLISHABLE_KEY (e.g. run pixi run test-e2e after pixi run db)",
     );
   }
   const tokenUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`;

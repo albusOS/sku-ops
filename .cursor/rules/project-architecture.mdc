@@ -98,7 +98,7 @@ To support a new auth provider: add a branch in `auth_provider.py`. No other fil
 
 - Database schema changes land as SQL migrations under `supabase/migrations/`.
 - The local source of truth is the checked-in Supabase project, not backend Python DDL files.
-- Apply local schema changes with `supabase db reset --local` through `./bin/dev test`, `./bin/dev test:be`, or `./bin/dev db:reset`.
+- Apply local schema changes with `supabase db reset --local` through `pixi run test-backend`, `pixi run test`, or `pixi run db-reset`.
 
 ## File size
 
@@ -111,9 +111,9 @@ sku-ops/
 ├── backend/          # deployable app + its tests
 │   └── tests/        # backend unit/integration/api tests
 ├── frontend/         # React SPA (co-located unit tests in src/__tests__/)
-├── tests/e2e/        # cross-stack Playwright tests
+├── e2e/              # cross-stack Playwright tests
 ├── devtools/         # seeds, evals, scripts — not deployed
-├── bin/dev           # unified CLI
+├── pixi.toml         # unified dev task runner
 └── pyproject.toml    # uv workspace root (dev deps, ruff, pytest, commitizen)
 ```
 

@@ -4,8 +4,8 @@ Runs every check that can be validated locally without live infrastructure.
 Pass/fail per check. Exit 1 if any check fails.
 
 Usage:
-    ./bin/dev verify
-    ./bin/dev verify --url https://your-railway-domain  # also hits a live server
+    pixi run verify
+    pixi run verify -- --url https://your-railway-domain  # also hits a live server
 """
 
 from __future__ import annotations

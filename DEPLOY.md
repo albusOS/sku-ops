@@ -175,7 +175,7 @@ INSERT INTO organizations (id, name, slug, created_at) VALUES ('client2', 'Clien
 4. Create the local profile row so `/api/auth/me` returns enriched data (company, phone, billing_entity):
    ```bash
    DATABASE_URL=<production-db-url> \
-   ./bin/dev create-admin \
+   pixi run create-admin -- \
      --id <supabase-user-uuid> \
      --email admin@clientname.com \
      --name "Client Admin" \
@@ -185,7 +185,7 @@ INSERT INTO organizations (id, name, slug, created_at) VALUES ('client2', 'Clien
 ### 6. Verify
 
 ```bash
-./bin/dev verify --url https://your-railway-app.up.railway.app
+pixi run verify -- --url https://your-railway-app.up.railway.app
 ```
 
 Check that:
@@ -349,10 +349,10 @@ Change in dashboard, then trigger a redeploy (VITE_* vars are baked at build tim
 
 ```bash
 # Pre-deploy verification (local)
-./bin/dev verify --skip-build
+pixi run verify -- --skip-build
 
 # Pre-deploy verification (against live server)
-./bin/dev verify --url https://your-app.up.railway.app
+pixi run verify -- --url https://your-app.up.railway.app
 
 # Check Railway logs
 railway logs

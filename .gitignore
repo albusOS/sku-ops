@@ -46,6 +46,9 @@ dump.rdb
 .DS_Store
 *.pem
 
+# Pixi (local env; lockfile may be added later if conda deps are introduced)
+.pixi/
+
 # Python
 __pycache__/
 *.py[cod]
