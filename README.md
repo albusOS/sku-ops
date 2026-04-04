@@ -152,4 +152,4 @@ docker compose up -d
 
 The stack includes PostgreSQL, Redis, the backend (FastAPI + uvicorn), Nginx (reverse proxy + static frontend), and Certbot (TLS). The backend runs behind Nginx with the frontend served as static files from `frontend/dist`.
 
-See [Deployment Guide](docs/deployment.md) for full VPS and managed-platform deployment guides, and [Launch Checklist](docs/launch-checklist.md) for the production readiness checklist.
+See [Documentation](docs/README.md) for the full index. Quick links: [Deploy playbook](docs/deploy.md) (Railway + Vercel + Supabase), [Deployment Guide](docs/deployment.md) (VPS / self-hosted), [Launch Checklist](docs/launch_checklist.md), and [Testing](docs/testing.md).

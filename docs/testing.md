@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Pixi:** ([install](https://pixi.sh)) — installs Python 3.13, uv, Node 20, pnpm from [pixi.toml](pixi.toml) / [pixi.lock](pixi.lock)
+- **Pixi:** ([install](https://pixi.sh)) — installs Python 3.13, uv, Node 20, pnpm from [pixi.toml](../pixi.toml) / [pixi.lock](../pixi.lock)
 - **Supabase CLI:** for local DB (`pixi run db`, `db-reset`) — not bundled by pixi; install per [Supabase CLI docs](https://supabase.com/docs/guides/cli)
 - **Docker:** (optional, for production verification and e2e)
 
@@ -22,7 +22,7 @@ pixi run pnpm --dir frontend install --frozen-lockfile
 pixi run pnpm --dir e2e install --frozen-lockfile
 ```
 
-`pixi run uv sync --dev --directory backend` creates `backend/.venv` linked to the pixi-managed interpreter. [`backend/uv.lock`](backend/uv.lock) governs Python packages.
+`pixi run uv sync --dev --directory backend` creates `backend/.venv` linked to the pixi-managed interpreter. [`backend/uv.lock`](../backend/uv.lock) governs Python packages.
 
 ## Running tests
 
@@ -70,7 +70,7 @@ from shared.infrastructure.db import sql_execute
 from shared.kernel.types import CurrentUser
 ```
 
-This works because `pythonpath = [".", ".."]` in [`backend/pyproject.toml`](backend/pyproject.toml) adds `backend/` (first-party modules like `shared`) and the repo root (`backend.*` test imports) to `sys.path`. Combined with `--import-mode=importlib`, modules resolve without ad hoc `sys.path` hacks.
+This works because `pythonpath = [".", ".."]` in [`backend/pyproject.toml`](../backend/pyproject.toml) adds `backend/` (first-party modules like `shared`) and the repo root (`backend.*` test imports) to `sys.path`. Combined with `--import-mode=importlib`, modules resolve without ad hoc `sys.path` hacks.
 
 ## Shared test infrastructure
 
@@ -167,7 +167,7 @@ pixi run format [all|backend|frontend]    # default all
 pixi run check [all|backend|frontend]    # lint then format (default all)
 ```
 
-Ruff config lives in [`backend/pyproject.toml`](backend/pyproject.toml). Per-file-ignores are scoped to `tests/**`, `../devtools/**`, and specific paths under `backend/`.
+Ruff config lives in [`backend/pyproject.toml`](../backend/pyproject.toml). Per-file-ignores are scoped to `tests/**`, `../devtools/**`, and specific paths under `backend/`.
 
 ## Docker
 

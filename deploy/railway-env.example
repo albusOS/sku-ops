@@ -3,7 +3,7 @@
 # Copy these into Railway dashboard > Settings > Variables.
 # Lines starting with # are comments — Railway ignores them.
 #
-# See DEPLOY.md for the full deployment guide.
+# See docs/deploy.md for the full deployment guide.
 
 # ── REQUIRED (app won't start without these) ─────────────────────────────────
 

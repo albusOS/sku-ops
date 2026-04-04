@@ -2,7 +2,7 @@
 
 Per-client deployment on Railway + Vercel + Supabase.
 
-For the full deployment guide and architecture diagram, see [DEPLOY.md](../DEPLOY.md).
+For the full deployment guide and architecture diagram, see [deploy.md](deploy.md).
 
 ## Prerequisites
 

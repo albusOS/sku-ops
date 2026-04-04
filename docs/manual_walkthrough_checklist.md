@@ -2,7 +2,7 @@
 
 **Purpose:** Walk through every user activity, user story, workflow, report, and logic as a human user. No automated tests — define examples, expected outcomes, edge cases, then manually execute.
 
-**Reference:** [Day in the Life User Story](./DAY_IN_LIFE_USER_STORY.md)
+**Reference:** [Day in the Life User Story](./day_in_life_user_story.md)
 
 ---
 

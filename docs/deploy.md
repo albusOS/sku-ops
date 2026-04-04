@@ -18,7 +18,7 @@
 - **Auth** (Supabase) — issues JWTs. Backend validates them using Supabase's `JWT_SECRET`.
 - **Database** (Supabase Postgres) — port **5432 (direct)**, NOT 6543 (pooler). asyncpg uses prepared statements which are incompatible with pgbouncer.
 
-There is also a **self-hosted** path via `docker-compose.yml` (Postgres + Redis + backend + nginx + certbot). See `docs/deployment.md` for VPS instructions.
+There is also a **self-hosted** path via `docker-compose.yml` (Postgres + Redis + backend + nginx + certbot). See [deployment.md](deployment.md) for VPS instructions.
 
 ---
 

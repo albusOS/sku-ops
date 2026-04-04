@@ -6,7 +6,7 @@
 # These are build-time variables — they are baked into the JS bundle.
 # Changing them requires a redeploy (Vercel > Deployments > Redeploy).
 #
-# See DEPLOY.md for the full deployment guide.
+# See docs/deploy.md for the full deployment guide.
 
 # Backend API URL — all /api calls go here.
 # Must be the Railway deployment URL with no trailing slash.
