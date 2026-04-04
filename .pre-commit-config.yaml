@@ -5,10 +5,11 @@ repos:
     hooks:
       - id: ruff
         name: ruff lint
-        args: [--fix]
+        args: [--fix, --config, backend/pyproject.toml]
         files: ^(backend|devtools)/
       - id: ruff-format
         name: ruff format
+        args: [--config, backend/pyproject.toml]
         files: ^(backend|devtools)/
 
   # ── JavaScript/JSX (frontend) ─────────────────────────────────────────────

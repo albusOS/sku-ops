@@ -108,23 +108,23 @@ Keep files under 300 lines. Split by responsibility (not by endpoint or alphabet
 
 ```
 sku-ops/
-├── backend/          # deployable app + its tests
+├── backend/          # deployable app + its tests + Python packaging
+│   ├── pyproject.toml # production + dev deps, ruff, pytest, commitizen
+│   ├── uv.lock
 │   └── tests/        # backend unit/integration/api tests
 ├── frontend/         # React SPA (co-located unit tests in src/__tests__/)
 ├── e2e/              # cross-stack Playwright tests
 ├── devtools/         # seeds, evals, scripts — not deployed
-├── pixi.toml         # unified dev task runner
-└── pyproject.toml    # uv workspace root (dev deps, ruff, pytest, commitizen)
+└── pixi.toml         # unified dev task runner
 ```
 
-Each deployable owns its tests. Devtools live at the workspace root. `backend/pyproject.toml` has production deps only; the root `pyproject.toml` manages dev deps via a uv workspace. The Docker image excludes `backend/tests/` via `.dockerignore` and skips dev deps via `uv sync --no-dev`.
+Each deployable owns its tests. Devtools live at the workspace root. All Python dependencies and tool config live in `backend/pyproject.toml` (production under `[project.dependencies]`, tooling under `[dependency-groups].dev`). The Docker image excludes `backend/tests/` via `.dockerignore` and skips dev deps via `uv sync --no-dev --directory backend`.
 
 ## Dependency hygiene
 
 - Never install packages speculatively. Only add what the current feature requires.
 - Before creating anything, check what already exists.
-- Python deps go in `backend/pyproject.toml` (production) or root `pyproject.toml` dev group (tooling).
-- Never add test or dev deps to `backend/pyproject.toml`.
+- Python deps go in `backend/pyproject.toml` only: production in `[project.dependencies]`, tooling (pytest, ruff, commitizen, etc.) in `[dependency-groups].dev`.
 
 ## Commit conventions
 

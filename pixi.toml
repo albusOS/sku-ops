@@ -22,8 +22,8 @@ description = "Reset local DB from migrations and seeds"
 
 [tasks.backend]
 depends-on = ["_ensure-db"]
-cmd = "uv run uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir backend"
-env = { PYTHONPATH = "backend:.", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
+cmd = "uv run --directory backend uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir ."
+env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
 description = "Start backend dev server (FastAPI)"
 
 [tasks.frontend]
@@ -38,8 +38,8 @@ description = "Start backend and frontend dev servers together"
 
 [tasks.test-backend]
 depends-on = ["db-reset"]
-cmd = "uv run pytest"
-env = { PYTHONPATH = "backend:.", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
+cmd = "uv run --directory backend pytest"
+env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
 description = "Run backend tests (pytest; DB reset first)"
 
 [tasks.test-frontend]
@@ -57,11 +57,11 @@ cwd = "e2e"
 description = "Run Playwright e2e tests"
 
 [tasks.lint-backend]
-cmd = "uv run ruff check ."
-description = "Lint Python (backend, devtools, root)"
+cmd = "uv run --directory backend ruff check . ../devtools"
+description = "Lint Python (backend, devtools)"
 
 [tasks.format-backend]
-cmd = "uv run ruff format ."
+cmd = "uv run --directory backend ruff format . ../devtools"
 description = "Format Python (ruff)"
 
 [tasks.lint-frontend]
@@ -77,7 +77,7 @@ depends-on = ["lint-backend", "lint-frontend", "format-backend", "format-fronten
 description = "Lint and format backend and frontend"
 
 [tasks.commit]
-cmd = "uv run cz commit"
+cmd = "uv run --directory backend cz commit"
 description = "Commitizen conventional commit"
 
 [tasks.container]
@@ -87,29 +87,29 @@ description = "Start devcontainer (docker-compose)"
 
 [tasks.provision]
 depends-on = ["_ensure-db"]
-cmd = "uv run python -m devtools.scripts.provision"
-env = { PYTHONPATH = "backend:." }
+cmd = "uv run --directory backend python -m devtools.scripts.provision"
+env = { PYTHONPATH = ".:.." }
 description = "Provision hint / devtools provision entrypoint"
 
 [tasks.import]
 depends-on = ["_ensure-db"]
-cmd = "uv run python -m devtools.scripts.import_hike"
-env = { PYTHONPATH = "backend:." }
+cmd = "uv run --directory backend python -m devtools.scripts.import_hike"
+env = { PYTHONPATH = ".:.." }
 description = "Import Hike POS data (e.g. --vendors --products)"
 
 [tasks.eval]
-cmd = "uv run python -m devtools.evals"
-env = { PYTHONPATH = "backend:." }
+cmd = "uv run --directory backend python -m devtools.evals"
+env = { PYTHONPATH = ".:.." }
 description = "Run LLM evals"
 
 [tasks.create-admin]
-cmd = "uv run python backend/scripts/create_admin.py"
-env = { PYTHONPATH = "backend:." }
+cmd = "uv run --directory backend python scripts/create_admin.py"
+env = { PYTHONPATH = ".:.." }
 description = "Create or update admin user in DB"
 
 [tasks.verify]
-cmd = "uv run python backend/scripts/verify_deploy.py"
-env = { PYTHONPATH = "backend:." }
+cmd = "uv run --directory backend python scripts/verify_deploy.py"
+env = { PYTHONPATH = ".:.." }
 description = "Pre-deploy verification"
 
 [tasks.clean]

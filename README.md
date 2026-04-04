@@ -6,7 +6,7 @@ Material management for supply yards — contractors, warehouses, and inventory.
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh   # Pixi task runner (once per machine); then open a new terminal or: export PATH="$HOME/.pixi/bin:$PATH"
-uv sync                                     # Python deps + dev tools (workspace root)
+uv sync --dev --directory backend          # Python deps + dev tools (optional if you use pixi tasks only)
 npm install --prefix frontend               # frontend deps
 cp backend/.env.example backend/.env      # edit with your keys
 pixi run dev                              # backend + frontend together

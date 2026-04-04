@@ -55,13 +55,13 @@ Production readiness checklist for sku-ops. Work through each section before goi
 
 ## Testing
 
-- [ ] All backend tests pass: `cd backend && uv run pytest -v` (currently 421+ tests)
+- [ ] All backend tests pass: `uv run --directory backend pytest -v` (currently 421+ tests)
 - [ ] All frontend tests pass: `cd frontend && npm test -- --run`
-- [ ] Ruff lint clean: `cd backend && uv run ruff check .`
-- [ ] Ruff format clean: `cd backend && uv run ruff format --check .`
+- [ ] Ruff lint clean: `uv run --directory backend ruff check .`
+- [ ] Ruff format clean: `uv run --directory backend ruff format --check .`
 - [ ] ESLint clean: `cd frontend && npx eslint src/`
 - [ ] Prettier clean: `cd frontend && npx prettier --check src/`
-- [ ] Architecture tests pass (DDD boundary enforcement): `cd backend && uv run pytest tests/test_architecture.py -v`
+- [ ] Architecture tests pass (DDD boundary enforcement): `uv run --directory backend pytest tests/test_architecture.py -v`
 - [ ] WebSocket edge case tests pass (fan-out, filtering, rapid reconnect)
 - [ ] Integration workflow tests pass (authenticated CRUD flows)
 

@@ -10,11 +10,9 @@ RUN apt-get update && \
 
 RUN pip install uv
 
-# Copy workspace root + backend member for uv workspace resolution
-COPY pyproject.toml ./pyproject.toml
-COPY uv.lock ./
-COPY backend/pyproject.toml ./backend/pyproject.toml
-RUN uv sync --frozen --no-dev --no-editable --package sku-ops-backend
+# Backend uv project only (pyproject + lock in backend/)
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+RUN uv sync --frozen --no-dev --no-editable --directory backend
 
 
 FROM python:3.13-slim-bookworm AS runtime
@@ -34,7 +32,7 @@ RUN groupadd --gid 1001 appgroup && \
     useradd --uid 1001 --gid 1001 --no-create-home --shell /sbin/nologin appuser
 
 # Copy installed packages and uv from builder
-COPY --from=builder /build/.venv /app/.venv
+COPY --from=builder /build/backend/.venv /app/.venv
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 
 # Copy application source only — devtools is intentionally excluded

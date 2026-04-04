@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
-export PYTHONPATH="backend:."
+export PYTHONPATH=".:.."
 
 _load_supabase_env() {
   while IFS='=' read -r key raw_value; do
@@ -46,6 +46,6 @@ cleanup() {
 trap cleanup INT TERM
 trap cleanup EXIT
 
-uv run uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir backend &
+uv run --directory backend uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir . &
 npm run dev --prefix frontend &
 wait

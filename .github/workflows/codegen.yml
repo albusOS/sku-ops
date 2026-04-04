@@ -39,15 +39,15 @@ jobs:
           version: latest
 
       - name: Install project deps
-        run: uv sync --dev
+        run: uv sync --dev --directory backend
 
       - name: Start local Supabase
         run: supabase start
 
       - name: Generate types and models
-        run: uv run python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local
+        run: uv run --directory backend python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local
         env:
-          PYTHONPATH: backend:.
+          PYTHONPATH: ".:.."
 
       - name: Check for uncommitted changes
         run: |
@@ -55,7 +55,7 @@ jobs:
             echo "::error::Generated types are out of date. Run the codegen pipeline locally and commit the changes."
             echo ""
             echo "To fix:"
-            echo "  PYTHONPATH=backend:. uv run python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local"
+            echo "  PYTHONPATH=.:.. uv run --directory backend python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local"
             echo "  git add backend/shared/infrastructure/types/"
             echo "  git commit -m 'chore: regenerate SQLModel types'"
             exit 1

@@ -43,18 +43,18 @@ jobs:
         with:
           enable-cache: true
 
-      # uv sync and ruff run from the workspace root (pyproject.toml + uv.lock live here)
+      # uv project and lockfile live under backend/
       - name: Install project and dev deps
-        run: uv sync --dev
+        run: uv sync --dev --directory backend
 
       - name: Lint
-        run: uv run ruff check backend/
+        run: uv run --directory backend ruff check .
 
       - name: Format check
-        run: uv run ruff format --check backend/
+        run: uv run --directory backend ruff format --check .
 
       - name: Audit dependencies
-        run: uv run pip-audit
+        run: uv run --directory backend pip-audit
 
       - name: Run tests
         env:
@@ -63,7 +63,7 @@ jobs:
           JWT_SECRET: ci-test-secret
           # Leave ANTHROPIC_API_KEY unset — conftest sets it to "" so
           # ANTHROPIC_AVAILABLE=False and no real API calls are made in tests.
-        run: uv run pytest --tb=short -q --timeout=60
+        run: uv run --directory backend pytest --tb=short -q --timeout=60
 
   frontend:
     name: Frontend

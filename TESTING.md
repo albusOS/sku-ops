@@ -12,7 +12,7 @@
 
 ```bash
 # Python tooling (backend deps + pytest + ruff + commitizen)
-uv sync
+uv sync --dev --directory backend
 
 # Frontend deps
 npm install --prefix frontend
@@ -21,7 +21,7 @@ npm install --prefix frontend
 cd e2e && npm install && npx playwright install --with-deps chromium && cd ..
 ```
 
-`uv sync` at the workspace root installs `sku-ops-backend` as an editable workspace member plus all dev dependencies (pytest, ruff, commitizen, rich). A single `uv.lock` at the workspace root governs all Python dependencies.
+`uv sync --dev --directory backend` installs the backend package plus all dev dependencies (pytest, ruff, commitizen, rich, etc.). [`backend/uv.lock`](backend/uv.lock) governs Python dependencies; the venv defaults to `backend/.venv`.
 
 ## Running tests
 
@@ -35,9 +35,9 @@ pixi run test
 
 ```bash
 pixi run test-backend                                   # all backend tests
-pixi run test-backend -- -- backend/tests/unit/         # unit tests only
-pixi run test-backend -- -- backend/tests/integration/  # integration tests only
-pixi run test-backend -- -- backend/tests/api/          # API tests only
+pixi run test-backend -- -- tests/unit/         # unit tests only
+pixi run test-backend -- -- tests/integration/  # integration tests only
+pixi run test-backend -- -- tests/api/          # API tests only
 pixi run test-backend -- -- -k test_smoke              # single test by name
 pixi run test-backend -- -- --tb=short -v              # verbose with short tracebacks
 ```
@@ -69,7 +69,7 @@ from shared.infrastructure.db import sql_execute
 from shared.kernel.types import CurrentUser
 ```
 
-This works because `pythonpath = ["backend"]` in the root `pyproject.toml` pytest config adds `backend/` to `sys.path`. Combined with `--import-mode=importlib`, all backend modules resolve without `sys.path` hacks.
+This works because `pythonpath = [".", ".."]` in [`backend/pyproject.toml`](backend/pyproject.toml) adds `backend/` (first-party modules like `shared`) and the repo root (`backend.*` test imports) to `sys.path`. Combined with `--import-mode=importlib`, modules resolve without ad hoc `sys.path` hacks.
 
 ## Shared test infrastructure
 
@@ -156,7 +156,7 @@ pixi run eval -- --suite all
 pixi run eval -- --suite routing --model anthropic/claude-haiku-4-5
 ```
 
-Canonical SQL seeds live under `supabase/seeds/` (edit there, then `pixi run db-reset` or `supabase db reset --local`). Evals live in `devtools/`. They import backend production code via `PYTHONPATH=backend:.` as set by `pixi` Python tasks.
+Canonical SQL seeds live under `supabase/seeds/` (edit there, then `pixi run db-reset` or `supabase db reset --local`). Evals live in `devtools/`. Pixi Python tasks set `PYTHONPATH=.:..` with `uv run --directory backend` so `devtools` and backend code import correctly.
 
 ## Linting
 
@@ -168,7 +168,7 @@ pixi run format-frontend
 pixi run check                     # all four
 ```
 
-Ruff config lives in the root `pyproject.toml`. Per-file-ignores are scoped to `backend/tests/**`, `devtools/**`, and specific backend paths.
+Ruff config lives in [`backend/pyproject.toml`](backend/pyproject.toml). Per-file-ignores are scoped to `tests/**`, `../devtools/**`, and specific paths under `backend/`.
 
 ## Docker
 
@@ -178,6 +178,6 @@ The Docker image contains only production code and dependencies:
 docker build -f backend/Dockerfile .   # build context is workspace root
 ```
 
-- `uv sync --frozen --no-dev --no-editable` in the Dockerfile installs only `[project.dependencies]`.
+- `uv sync --frozen --no-dev --no-editable --directory backend` in the Dockerfile installs only `[project.dependencies]`.
 - Devtools live at workspace root, structurally outside the `COPY backend/ .` layer.
 - `backend/tests/` is excluded via `.dockerignore`.

@@ -70,22 +70,23 @@ pixi run db-reset                # reset local DB from migrations + seeds
 pixi run clean                   # wipe backend venv + Python caches (see devtools/scripts/clean_repo.sh)
 ```
 
-Never suggest `pip`, `python -m pytest`, or `ruff` directly. Python tooling runs through **`uv`** (`uv run` inside `pixi` tasks or directly at repo root). The project uses **uv workspaces** — the root `pyproject.toml` manages dev deps, `backend/pyproject.toml` has production deps only.
+Never suggest `pip`, `python -m pytest`, or `ruff` directly. Python tooling runs through **`uv`**, invoked as **`uv run --directory backend ...`** from `pixi` tasks or from the repo root. Production and dev dependencies, plus Ruff/pytest/commitizen config, live in **`backend/pyproject.toml`**; **`backend/uv.lock`** and **`backend/.venv`** are the uv project artifacts.
 
 ## Monorepo layout
 
 ```
 sku-ops/
-├── backend/          # deployable app + its tests
+├── backend/          # deployable app + its tests + pyproject.toml + uv.lock
+│   ├── pyproject.toml # Python deps (prod + dev), ruff, pytest, commitizen
+│   ├── uv.lock
 │   └── tests/        # backend unit/integration/api tests
 ├── frontend/         # React SPA (co-located unit tests in src/__tests__/)
 ├── e2e/              # cross-stack Playwright tests
 ├── devtools/         # seeds, evals, scripts — not deployed
-├── pixi.toml         # task runner (dev, test, db, …)
-└── pyproject.toml    # uv workspace root (dev deps, ruff, pytest, commitizen)
+└── pixi.toml         # task runner (dev, test, db, …)
 ```
 
-Each deployable owns its tests. Devtools live at the workspace root. The Docker image contains zero test or devtools code — `backend/tests/` is excluded via `.dockerignore`, devtools is structurally outside the `COPY backend/` layer, and `uv sync --no-dev` skips test deps.
+Each deployable owns its tests. Devtools live at the workspace root. The Docker image contains zero test or devtools code — `backend/tests/` is excluded via `.dockerignore`, devtools is structurally outside the `COPY backend/` layer, and `uv sync --no-dev --directory backend` skips test deps.
 
 ## Frontend always proxies /api → localhost:8000
 Configured in `frontend/vite.config.js`. Works with both modes as long as backend is on :8000.

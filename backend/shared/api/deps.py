@@ -8,7 +8,7 @@ suggestion via TC001), FastAPI will see an unresolved forward reference and
 fall back to treating the parameter as a plain query param, returning 422
 instead of 401 for unauthenticated requests.
 
-All api/** files therefore suppress TC001/TC002/TC003 in pyproject.toml.
+All api/** files therefore suppress TC001/TC002/TC003 in backend/pyproject.toml.
 """
 
 from __future__ import annotations

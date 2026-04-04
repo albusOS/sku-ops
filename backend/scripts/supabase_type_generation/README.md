@@ -7,7 +7,7 @@ Database-first pipeline: Postgres (via Supabase) is the source of truth. This pa
 From the **repo root**, with local Supabase up (`pixi run db` or `supabase start`):
 
 ```bash
-PYTHONPATH=backend:. uv run python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local
+PYTHONPATH=.:.. uv run --directory backend python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local
 ```
 
 - **`--skip-cli`** - Do not call `supabase gen types`; reuse existing `{schema}_database_types.py` / `.ts` under `types/`.
