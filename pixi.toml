@@ -49,17 +49,11 @@ depends-on = ["_ensure-db"]
 cmd = "bash devtools/scripts/run_dev_stack.sh"
 description = "Start backend and frontend dev servers together"
 
-[tasks.test]
-description = "Tests: all (default), backend (db-reset + pytest), or frontend. Pytest-only flags: pixi run test backend -- -- … (not with target all)"
-args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
+[tasks.tests]
+description = "Tests: all (default: backend + frontend + e2e), or backend | frontend | e2e. Pytest-only: pixi run tests backend -- -- … (not with target all). Playwright: pixi run tests e2e -- -- …"
+args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend", "e2e"] }]
 env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
-cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run db-reset && uv run --directory backend pytest{% else %}pixi run db-reset && uv run --directory backend pytest && pnpm --dir frontend run test:run{% endif %}"
-
-[tasks.test-e2e]
-depends-on = ["_ensure-db"]
-cmd = "pnpm install --frozen-lockfile && pnpx playwright test"
-cwd = "e2e"
-description = "Run Playwright e2e tests"
+cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run db-reset && uv run --directory backend pytest{% elif target == \"e2e\" %}pixi run _ensure-db && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% else %}pixi run db-reset && uv run --directory backend pytest && pnpm --dir frontend run test:run && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% endif %}"
 
 [tasks.lint]
 description = "Lint: all (default), backend (ruff), or frontend (ESLint). Usage: pixi run lint [all|backend|frontend]"

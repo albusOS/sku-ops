@@ -55,13 +55,13 @@ Production readiness checklist for sku-ops. Work through each section before goi
 
 ## Testing
 
-- [ ] All backend tests pass: `pixi run test backend -- -- -v` (or `pixi run uv run --directory backend pytest -v`)
-- [ ] All frontend tests pass: `pixi run test frontend`
+- [ ] All backend tests pass: `pixi run tests backend -- -- -v` (or `pixi run uv run --directory backend pytest -v`)
+- [ ] All frontend tests pass: `pixi run tests frontend`
 - [ ] Ruff lint clean: `pixi run lint backend`
 - [ ] Ruff format clean: `pixi run uv run --directory backend ruff format --check .`
 - [ ] ESLint clean: `pixi run lint frontend` (or `pixi run lint` for all)
 - [ ] Prettier clean: `pixi run pnpm --dir frontend run format:check`
-- [ ] Architecture tests pass (DDD boundary enforcement): `pixi run test backend -- -- tests/unit/test_architecture.py -v`
+- [ ] Architecture tests pass (DDD boundary enforcement): `pixi run tests backend -- -- tests/unit/test_architecture.py -v`
 - [ ] WebSocket edge case tests pass (fan-out, filtering, rapid reconnect)
 - [ ] Integration workflow tests pass (authenticated CRUD flows)
 

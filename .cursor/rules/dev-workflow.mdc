@@ -55,10 +55,10 @@ All commands below run from the **project root** via `pixi run <task>` (`pixi ta
 
 ```bash
 pixi run doctor                  # toolchain check (pixi python, uv, node, pnpm)
-pixi run test                    # all tests (backend then frontend)
-pixi run test backend -- …       # backend only; … = pytest args (one -- separates them from pixi task args)
-pixi run test frontend           # frontend tests only (vitest)
-pixi run test-e2e -- …          # e2e; … = extra args to Playwright after one --
+pixi run tests                    # all tests (backend then frontend then e2e)
+pixi run tests backend -- …       # backend only; … = pytest args (one -- separates them from pixi task args)
+pixi run tests frontend           # frontend tests only (vitest)
+pixi run tests e2e -- …          # e2e only; … = extra args to Playwright after one --
 pixi run lint [all|backend|frontend]    # default all (ruff + ESLint)
 pixi run format [all|backend|frontend]  # default all (ruff + Prettier)
 pixi run check [all|backend|frontend]   # lint then format (default all)
@@ -86,7 +86,7 @@ sku-ops/
 ├── frontend/         # React SPA (co-located unit tests in src/__tests__/)
 ├── e2e/              # cross-stack Playwright tests
 ├── devtools/         # seeds, evals, scripts — not deployed
-└── pixi.toml         # task runner (dev, test, db, …)
+└── pixi.toml         # task runner (dev, tests, db, …)
 ```
 
 Each deployable owns its tests. Devtools live at the workspace root. The Docker image contains zero test or devtools code — `backend/tests/` is excluded via `.dockerignore`, devtools is structurally outside the `COPY backend/` layer, and `uv sync --no-dev --directory backend` skips test deps.

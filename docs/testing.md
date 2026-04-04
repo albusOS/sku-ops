@@ -26,39 +26,41 @@ pixi run pnpm --dir e2e install --frozen-lockfile
 
 ## Running tests
 
-### All tests (backend + frontend)
+### All tests (backend + frontend + e2e)
 
 ```bash
-pixi run test
+pixi run tests
 ```
+
+Runs `db-reset` + pytest, then Vitest, then Playwright (installs e2e deps and runs `pnpx playwright test` from `e2e/`). Requires local Supabase for backend; ensure Playwright browsers are installed when e2e runs (see Prerequisites).
 
 ### Backend only
 
 ```bash
-pixi run test backend                                   # all backend tests
-pixi run test backend -- -- tests/unit/               # unit tests only
-pixi run test backend -- -- tests/integration/         # integration tests only
-pixi run test backend -- -- tests/api/                # API tests only
-pixi run test backend -- -- -k test_smoke              # single test by name
-pixi run test backend -- -- --tb=short -v             # verbose with short tracebacks
+pixi run tests backend                                   # all backend tests
+pixi run tests backend -- -- tests/unit/               # unit tests only
+pixi run tests backend -- -- tests/integration/         # integration tests only
+pixi run tests backend -- -- tests/api/                # API tests only
+pixi run tests backend -- -- -k test_smoke              # single test by name
+pixi run tests backend -- -- --tb=short -v             # verbose with short tracebacks
 ```
 
-(Pass any pytest args after `--` only when **target is `backend`**. With `pixi run test` / target `all`, trailing args would apply to the whole shell chain including Vitest; use `test backend` for pytest-only flags.)
+(Pass any pytest args after `--` only when **target is `backend`**. With `pixi run tests` / target `all`, trailing args would apply to the whole shell chain (Vitest and Playwright); use `tests backend` for pytest-only flags.)
 
 ### Frontend only
 
 ```bash
-pixi run test frontend              # single run (vitest run)
+pixi run tests frontend              # single run (vitest run)
 pixi run pnpm --dir frontend run test   # watch mode (vitest)
 ```
 
 ### End-to-end (Playwright)
 
 ```bash
-pixi run test-e2e
+pixi run tests e2e
 ```
 
-`test-e2e` runs `pnpm install --frozen-lockfile` in `e2e/` then Playwright. Ensure browsers are installed if needed.
+`tests e2e` ensures Supabase is running, then runs `pnpm install --frozen-lockfile` in `e2e/` and Playwright. Pass Playwright CLI args after `--` (for example `pixi run tests e2e -- --headed`). Ensure browsers are installed if needed.
 
 ## How imports resolve
 
@@ -74,7 +76,7 @@ This works because `pythonpath = [".", ".."]` in [`backend/pyproject.toml`](../b
 
 ## Shared test infrastructure
 
-All backend tests run against a real Postgres database provided by the local Supabase stack. `pixi run test` (and `pixi run test backend`) reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
+All backend tests run against a real Postgres database provided by the local Supabase stack. `pixi run tests` (and `pixi run tests backend`) reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
 
 A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables then applies `supabase/seeds/pytest_minimal.sql` plus org-scoped UOM rows from `supabase/seeds/02_units_of_measure.sql` (via `catalog.application.uom_seed.uom_seed_sql`).
 

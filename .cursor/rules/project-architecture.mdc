@@ -98,7 +98,7 @@ To support a new auth provider: add a branch in `auth_provider.py`. No other fil
 
 - Database schema changes land as SQL migrations under `supabase/migrations/`.
 - The local source of truth is the checked-in Supabase project, not backend Python DDL files.
-- Apply local schema changes with `supabase db reset --local` through `pixi run test backend`, `pixi run test`, or `pixi run db-reset`.
+- Apply local schema changes with `supabase db reset --local` through `pixi run tests backend`, `pixi run tests`, or `pixi run db-reset`.
 
 ## File size
 
