@@ -484,7 +484,7 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
 # Simplified versions — just load center and basic neighbors.
 
 
-async def _direct_sku(entity_id: str, relation_filter: list[str] | None) -> GraphContext:
+async def _direct_sku(entity_id: str, _relation_filter: list[str] | None) -> GraphContext:
     center = await _load_sku(entity_id)
     if not center:
         return GraphContext(GraphNode("sku", entity_id, entity_id), [], [])
@@ -509,7 +509,7 @@ async def _direct_sku(entity_id: str, relation_filter: list[str] | None) -> Grap
     return GraphContext(center, nodes, edges)
 
 
-async def _direct_vendor(entity_id: str, relation_filter: list[str] | None) -> GraphContext:
+async def _direct_vendor(entity_id: str, _relation_filter: list[str] | None) -> GraphContext:
     center = await _load_vendor(entity_id)
     if not center:
         return GraphContext(GraphNode("vendor", entity_id, entity_id), [], [])

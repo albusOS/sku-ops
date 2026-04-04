@@ -47,10 +47,10 @@ def _ensure_registered() -> None:
     async def _weekly_sales(deps: WorkflowDeps) -> Any:
         return await run_weekly_sales_report(days=deps.days)
 
-    async def _inventory_overview(deps: WorkflowDeps) -> Any:
+    async def _inventory_overview(_deps: WorkflowDeps) -> Any:
         return await run_inventory_overview()
 
-    async def _procurement_overview(deps: WorkflowDeps) -> Any:
+    async def _procurement_overview(_deps: WorkflowDeps) -> Any:
         return await run_procurement_overview()
 
     async def _trend_overview(deps: WorkflowDeps) -> Any:

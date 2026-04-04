@@ -244,7 +244,7 @@ async def compress_history_async(
     return _compress_truncate(history, max_tokens)
 
 
-async def _summarize_turns(turns: list[dict], max_summary_tokens: int = 300) -> str | None:
+async def _summarize_turns(turns: list[dict], _max_summary_tokens: int = 300) -> str | None:
     """Summarize conversation turns using a cheap model.
 
     Returns None if LLM is unavailable. Never raises.

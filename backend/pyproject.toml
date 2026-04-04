@@ -143,9 +143,15 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 # Tests use deferred imports for optional stacks and heavy fixtures.
-"tests/**" = ["S101", "PLC0415"]
+"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002"]
+# HTTP handlers keep auth deps in signature for Depends() even when the body only
+# delegates to services that read org from contextvars.
+"api/beta/routers/**/*.py" = ["ARG001", "ARG002"]
+# PydanticAI injects RunContext on @agent.tool callables; many tools only use ctx when
+# writing deps — unused ctx on other tools is normal.
+"assistant/agents/**/agent.py" = ["ARG001", "ARG002"]
 # Scripts defer imports so CLI tools can run with minimal deps loaded first.
-"scripts/**" = ["PLC0415"]
+"scripts/**" = ["PLC0415", "ARG001", "ARG002"]
 # Deployment self-check; asserts are intentional checkpoints
 "scripts/verify_deploy.py" = ["S101"]
 
