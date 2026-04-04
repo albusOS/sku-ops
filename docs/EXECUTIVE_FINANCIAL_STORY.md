@@ -149,7 +149,7 @@ Provision demo data and run through the scenes manually or via the backend e2e t
 ```bash
 pixi run provision -- --dev
 pixi run import -- --vendors --products
-pixi run test-backend -- -- backend/tests/e2e/
+pixi run test backend -- -- backend/tests/e2e/
 ```
 
 Each numbered criterion above is a pass/fail check. 46 total criteria across 7 scenes.

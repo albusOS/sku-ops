@@ -83,9 +83,7 @@ async def invoice_get_by_id(
     )
     lines = lr.scalars().all()
     wr = await session.execute(
-        select(InvoiceWithdrawals.withdrawal_id).where(
-            InvoiceWithdrawals.invoice_id == iid
-        )
+        select(InvoiceWithdrawals.withdrawal_id).where(InvoiceWithdrawals.invoice_id == iid)
     )
     wids = [str(x[0]) for x in wr.all()]
     d = _inv_row_to_domain(inv)
@@ -99,15 +97,13 @@ async def invoice_insert(
 ) -> InvoiceWithDetails | None:
     invoice_dict = invoice.model_dump()
     invoice_id = invoice_dict.get("id") or new_uuid7_str()
-    invoice_number = invoice_dict.get(
-        "invoice_number"
-    ) or await invoice_next_number(session, org_id)
+    invoice_number = invoice_dict.get("invoice_number") or await invoice_next_number(
+        session, org_id
+    )
     now = datetime.now(UTC)
     inv_date = invoice_dict.get("invoice_date") or now
     payment_terms = invoice_dict.get("payment_terms") or "net_30"
-    due_date = invoice_dict.get("due_date") or compute_due_date(
-        inv_date, payment_terms
-    )
+    due_date = invoice_dict.get("due_date") or compute_due_date(inv_date, payment_terms)
     appr = invoice_dict.get("approved_by_id")
     row = Invoices(
         id=as_uuid_required(invoice_id),
@@ -167,19 +163,16 @@ async def invoice_list(
     if end_date:
         conds.append(Invoices.created_at <= datetime.fromisoformat(end_date))
     r = await session.execute(
-        select(Invoices)
-        .where(and_(*conds))
-        .order_by(Invoices.created_at.desc())
-        .limit(limit)
+        select(Invoices).where(and_(*conds)).order_by(Invoices.created_at.desc()).limit(limit)
     )
     invs = r.scalars().all()
     if not invs:
         return []
     ids = [i.id for i in invs]
     wid_rows = await session.execute(
-        select(
-            InvoiceWithdrawals.invoice_id, InvoiceWithdrawals.withdrawal_id
-        ).where(InvoiceWithdrawals.invoice_id.in_(ids))
+        select(InvoiceWithdrawals.invoice_id, InvoiceWithdrawals.withdrawal_id).where(
+            InvoiceWithdrawals.invoice_id.in_(ids)
+        )
     )
     wid_map: dict[uuid.UUID, list[str]] = {}
     for iid, wid in wid_rows.all():
@@ -247,9 +240,7 @@ async def invoice_replace_line_items(
     line_items: list[dict],
 ) -> float:
     iid = await _ensure_invoice_org(session, org_id, invoice_id)
-    await session.execute(
-        delete(InvoiceLineItems).where(InvoiceLineItems.invoice_id == iid)
-    )
+    await session.execute(delete(InvoiceLineItems).where(InvoiceLineItems.invoice_id == iid))
     subtotal = 0.0
     for item in line_items:
         qty = float(item.get("quantity", 1))
@@ -333,21 +324,15 @@ async def invoice_unlink_withdrawals(
 ) -> list[str]:
     iid = await _ensure_invoice_org(session, org_id, invoice_id)
     wr = await session.execute(
-        select(InvoiceWithdrawals.withdrawal_id).where(
-            InvoiceWithdrawals.invoice_id == iid
-        )
+        select(InvoiceWithdrawals.withdrawal_id).where(InvoiceWithdrawals.invoice_id == iid)
     )
     wids = [str(x[0]) for x in wr.all()]
-    await session.execute(
-        delete(InvoiceWithdrawals).where(InvoiceWithdrawals.invoice_id == iid)
-    )
+    await session.execute(delete(InvoiceWithdrawals).where(InvoiceWithdrawals.invoice_id == iid))
     await session.flush()
     return wids
 
 
-async def invoice_soft_delete(
-    session: AsyncSession, org_id: uuid.UUID, invoice_id: str
-) -> None:
+async def invoice_soft_delete(session: AsyncSession, org_id: uuid.UUID, invoice_id: str) -> None:
     iid = as_uuid_required(invoice_id)
     now = datetime.now(UTC)
     await session.execute(
@@ -371,11 +356,7 @@ async def invoice_insert_row(
     due_date: str,
     now: datetime,
 ) -> None:
-    due = (
-        datetime.fromisoformat(due_date)
-        if isinstance(due_date, str)
-        else due_date
-    )
+    due = datetime.fromisoformat(due_date) if isinstance(due_date, str) else due_date
     row = Invoices(
         id=as_uuid_required(inv_id),
         invoice_number=invoice_number,
@@ -412,9 +393,7 @@ async def invoice_mark_paid_for_withdrawal(
 ) -> None:
     wid = as_uuid_required(withdrawal_id)
     r = await session.execute(
-        select(InvoiceWithdrawals.invoice_id).where(
-            InvoiceWithdrawals.withdrawal_id == wid
-        )
+        select(InvoiceWithdrawals.invoice_id).where(InvoiceWithdrawals.withdrawal_id == wid)
     )
     row = r.first()
     if not row or not row[0]:
@@ -533,9 +512,7 @@ def _row_to_invoice_partial(inv: Invoices) -> Invoice:
     return Invoice.model_validate(d)
 
 
-async def invoice_list_unsynced(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[Invoice]:
+async def invoice_list_unsynced(session: AsyncSession, org_id: uuid.UUID) -> list[Invoice]:
     r = await session.execute(
         select(Invoices)
         .where(
@@ -583,9 +560,7 @@ async def invoice_list_needing_reconciliation(
     return out
 
 
-async def invoice_list_failed(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[Invoice]:
+async def invoice_list_failed(session: AsyncSession, org_id: uuid.UUID) -> list[Invoice]:
     r = await session.execute(
         select(Invoices)
         .where(
@@ -598,9 +573,7 @@ async def invoice_list_failed(
     return [_row_to_invoice_partial(x) for x in r.scalars().all()]
 
 
-async def invoice_list_mismatch(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[Invoice]:
+async def invoice_list_mismatch(session: AsyncSession, org_id: uuid.UUID) -> list[Invoice]:
     r = await session.execute(
         select(Invoices)
         .where(
@@ -613,9 +586,7 @@ async def invoice_list_mismatch(
     return [_row_to_invoice_partial(x) for x in r.scalars().all()]
 
 
-async def invoice_list_stale_cogs(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[Invoice]:
+async def invoice_list_stale_cogs(session: AsyncSession, org_id: uuid.UUID) -> list[Invoice]:
     r = await session.execute(
         select(Invoices)
         .where(

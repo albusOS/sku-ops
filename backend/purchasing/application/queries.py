@@ -72,20 +72,12 @@ async def list_failed_po_bills() -> list[dict]:
     return await _db_purchasing().list_failed_po_bills(get_org_id())
 
 
-async def set_xero_sync_status(
-    po_id: str, status: str, updated_at: datetime
-) -> None:
-    await _db_purchasing().set_po_xero_sync_status(
-        get_org_id(), po_id, status, updated_at
-    )
+async def set_xero_sync_status(po_id: str, status: str, updated_at: datetime) -> None:
+    await _db_purchasing().set_po_xero_sync_status(get_org_id(), po_id, status, updated_at)
 
 
-async def set_xero_bill_id(
-    po_id: str, xero_bill_id: str, updated_at: datetime
-) -> None:
-    await _db_purchasing().set_po_xero_bill_id(
-        get_org_id(), po_id, xero_bill_id, updated_at
-    )
+async def set_xero_bill_id(po_id: str, xero_bill_id: str, updated_at: datetime) -> None:
+    await _db_purchasing().set_po_xero_bill_id(get_org_id(), po_id, xero_bill_id, updated_at)
 
 
 async def po_summary_by_status() -> dict[str, dict]:
@@ -98,9 +90,7 @@ async def list_pos(status: str | None = None) -> list[PORow]:
 
 
 async def list_pos_with_counts(status: str | None = None) -> list[PORow]:
-    return await _db_purchasing().list_pos_with_counts(
-        get_org_id(), status=status
-    )
+    return await _db_purchasing().list_pos_with_counts(get_org_id(), status=status)
 
 
 async def get_po(po_id: str) -> PORow | None:
@@ -158,13 +148,9 @@ async def purchase_history(
     vendor_id: str, days: int = 90, limit: int = 20
 ) -> list[PurchaseHistoryItem]:
     """Recent POs for a vendor with item summaries."""
-    return await _db_purchasing().purchase_history(
-        get_org_id(), vendor_id, days=days, limit=limit
-    )
+    return await _db_purchasing().purchase_history(get_org_id(), vendor_id, days=days, limit=limit)
 
 
 async def reorder_with_vendor_context(limit: int = 30) -> list[ReorderRow]:
     """Low-stock SKUs enriched with vendor options for procurement planning."""
-    return await _db_purchasing().reorder_with_vendor_context(
-        get_org_id(), limit=limit
-    )
+    return await _db_purchasing().reorder_with_vendor_context(get_org_id(), limit=limit)

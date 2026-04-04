@@ -10,9 +10,7 @@ from tests.helpers.auth import ADMIN_USER_ID
 async def test_assemble_context_skips_vector_search_when_disabled():
     with patch(
         "assistant.application.context_assembly._vector_search",
-        new=AsyncMock(
-            return_value=[{"entity_type": "sku", "entity_id": "sku-1"}]
-        ),
+        new=AsyncMock(return_value=[{"entity_type": "sku", "entity_id": "sku-1"}]),
     ) as vector_search:
         ctx = await assemble_context(
             query="what should I order",

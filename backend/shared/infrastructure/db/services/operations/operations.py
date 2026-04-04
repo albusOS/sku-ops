@@ -54,9 +54,7 @@ async def _scoped_org(org_id: str) -> AsyncIterator[None]:
 class OperationsDatabaseService(DomainDatabaseService):
     # --- Withdrawals ---------------------------------------------------------
 
-    async def insert_withdrawal(
-        self, org_id: str, withdrawal: MaterialWithdrawal
-    ) -> None:
+    async def insert_withdrawal(self, org_id: str, withdrawal: MaterialWithdrawal) -> None:
         oid = as_uuid_required(org_id)
         withdrawal.organization_id = org_id
         parent_row = build_withdrawal_row(withdrawal, oid)
@@ -84,9 +82,7 @@ class OperationsDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             stmt = select(Withdrawals).where(Withdrawals.organization_id == oid)
             if contractor_id:
-                stmt = stmt.where(
-                    Withdrawals.contractor_id == as_uuid_required(contractor_id)
-                )
+                stmt = stmt.where(Withdrawals.contractor_id == as_uuid_required(contractor_id))
             if payment_status:
                 stmt = stmt.where(Withdrawals.payment_status == payment_status)
             if billing_entity:
@@ -97,11 +93,7 @@ class OperationsDatabaseService(DomainDatabaseService):
             end_bound = parse_date_param(end_date)
             if end_bound is not None:
                 stmt = stmt.where(Withdrawals.created_at <= end_bound)
-            stmt = (
-                stmt.order_by(Withdrawals.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
+            stmt = stmt.order_by(Withdrawals.created_at.desc()).limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = list(result.scalars().all())
             return await hydrate_withdrawals(session, rows)
@@ -194,9 +186,7 @@ class OperationsDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return n > 0
 
-    async def unlink_withdrawals_from_invoice(
-        self, org_id: str, withdrawal_ids: list[str]
-    ) -> None:
+    async def unlink_withdrawals_from_invoice(self, org_id: str, withdrawal_ids: list[str]) -> None:
         if not withdrawal_ids:
             return
         oid = as_uuid_required(org_id)
@@ -240,12 +230,8 @@ class OperationsDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             stmt = (
-                select(
-                    WithdrawalItems.sku_id, func.sum(WithdrawalItems.quantity)
-                )
-                .join(
-                    Withdrawals, WithdrawalItems.withdrawal_id == Withdrawals.id
-                )
+                select(WithdrawalItems.sku_id, func.sum(WithdrawalItems.quantity))
+                .join(Withdrawals, WithdrawalItems.withdrawal_id == Withdrawals.id)
                 .where(Withdrawals.organization_id == oid)
                 .group_by(WithdrawalItems.sku_id)
             )
@@ -295,9 +281,7 @@ class OperationsDatabaseService(DomainDatabaseService):
 
     # --- Material requests ---------------------------------------------------
 
-    async def insert_material_request(
-        self, org_id: str, request: MaterialRequest
-    ) -> None:
+    async def insert_material_request(self, org_id: str, request: MaterialRequest) -> None:
         oid = as_uuid_required(org_id)
         parent = build_material_request_row(request, oid)
         async with self.session() as session:
@@ -389,9 +373,7 @@ class OperationsDatabaseService(DomainDatabaseService):
                 )
             )
             if res.rowcount == 0:
-                raise InvalidTransitionError(
-                    "MaterialRequest", "processed", "processed"
-                )
+                raise InvalidTransitionError("MaterialRequest", "processed", "processed")
             await self.end_write_session(session)
             return True
 
@@ -406,9 +388,7 @@ class OperationsDatabaseService(DomainDatabaseService):
                 session.add(build_return_item_row(row.id, item))
             await self.end_write_session(session)
 
-    async def get_return_by_id(
-        self, org_id: str, return_id: str
-    ) -> MaterialReturn | None:
+    async def get_return_by_id(self, org_id: str, return_id: str) -> MaterialReturn | None:
         oid = as_uuid_required(org_id)
         rid = as_uuid_required(return_id)
         async with self.session() as session:
@@ -437,13 +417,9 @@ class OperationsDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             stmt = select(Returns).where(Returns.organization_id == oid)
             if contractor_id:
-                stmt = stmt.where(
-                    Returns.contractor_id == as_uuid_required(contractor_id)
-                )
+                stmt = stmt.where(Returns.contractor_id == as_uuid_required(contractor_id))
             if withdrawal_id:
-                stmt = stmt.where(
-                    Returns.withdrawal_id == as_uuid_required(withdrawal_id)
-                )
+                stmt = stmt.where(Returns.withdrawal_id == as_uuid_required(withdrawal_id))
             start_bound = parse_date_param(start_date)
             if start_bound is not None:
                 stmt = stmt.where(Returns.created_at >= start_bound)
@@ -538,9 +514,7 @@ class OperationsDatabaseService(DomainDatabaseService):
         from operations.application import contractor_service
 
         async with _scoped_org(org_id):
-            return await contractor_service.update_contractor(
-                contractor_id, updates
-            )
+            return await contractor_service.update_contractor(contractor_id, updates)
 
     async def delete_contractor(self, org_id: str, contractor_id: str) -> int:
         from operations.application import contractor_service

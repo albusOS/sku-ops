@@ -36,9 +36,7 @@ def _statement_timeout_clause(timeout_ms: int) -> str:
     return f"SET LOCAL statement_timeout = '{int(timeout_ms)}ms'"
 
 
-def positional_placeholders_to_named(
-    sql: str, params: Sequence[Any]
-) -> tuple[str, dict[str, Any]]:
+def positional_placeholders_to_named(sql: str, params: Sequence[Any]) -> tuple[str, dict[str, Any]]:
     """Map Postgres-style ``$1`` .. ``$n`` to SQLAlchemy named binds (``:_p1`` ...)."""
     n = len(params)
     out_sql = sql
@@ -161,9 +159,7 @@ class RawSQLService:
         t0 = time.monotonic()
         async with get_session() as session:
             if read_only:
-                await session.execute(
-                    text(_statement_timeout_clause(timeout_ms))
-                )
+                await session.execute(text(_statement_timeout_clause(timeout_ms)))
             result = await session.execute(text(sql_exec), bind)
             if result.returns_rows:
                 raw_rows = result.mappings().all()

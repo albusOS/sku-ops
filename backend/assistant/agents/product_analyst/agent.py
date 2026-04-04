@@ -99,9 +99,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         family_items: list[dict[str, Any]] = []
 
         try:
-            skus = await _db_catalog().list_skus(
-                get_org_id(), search=query, limit=5
-            )
+            skus = await _db_catalog().list_skus(get_org_id(), search=query, limit=5)
             sku_items = [
                 {
                     "id": s.id,
@@ -137,9 +135,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
             logger.warning("Catalog family search failed: %s", e)
 
         return budget_tool_result(
-            CatalogSearchResult(
-                skus=sku_items, families=family_items
-            ).serialize()
+            CatalogSearchResult(skus=sku_items, families=family_items).serialize()
         )
 
     @_agent.tool
@@ -186,9 +182,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         """
         vendor_id = ctx.deps.vendor_id
         if not vendor_id:
-            return VendorItemMatch(
-                match=None, reason="no vendor_id provided"
-            ).serialize()
+            return VendorItemMatch(match=None, reason="no vendor_id provided").serialize()
         try:
             vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(
                 get_org_id(), vendor_id, vendor_sku
@@ -214,15 +208,11 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         try:
             depts = await _db_catalog().list_departments(get_org_id())
             return DepartmentCodesResult(
-                departments=[
-                    {"code": d.code, "name": d.name, "id": d.id} for d in depts
-                ]
+                departments=[{"code": d.code, "name": d.name, "id": d.id} for d in depts]
             ).serialize()
         except Exception as e:
             logger.warning("Department lookup failed: %s", e)
-            return DepartmentCodesResult(
-                departments=[], error=str(e)
-            ).serialize()
+            return DepartmentCodesResult(departments=[], error=str(e)).serialize()
 
     @_agent.tool
     async def submit_analysis(

@@ -18,9 +18,7 @@ class TestContractorsList:
         data = r.json()
         assert isinstance(data, list)
         assert len(data) >= 1
-        contractor = next(
-            (c for c in data if c.get("email") == "sarah@summitpm.com"), None
-        )
+        contractor = next((c for c in data if c.get("email") == "sarah@summitpm.com"), None)
         assert contractor is not None
         assert contractor["name"] == "Sarah Okafor"
         assert contractor["company"] == "Summit Property Group"

@@ -111,15 +111,11 @@ async def neighbors(
                 center.entity_type, center.entity_id, depth, relation_filter
             )
 
-        nodes, edges = await _hydrate_neighbors(
-            center.entity_type, center.entity_id, neighbor_rows
-        )
+        nodes, edges = await _hydrate_neighbors(center.entity_type, center.entity_id, neighbor_rows)
         return GraphContext(center=center, neighbors=nodes, edges=edges)
 
     except Exception as e:
-        logger.warning(
-            "Graph traversal failed for %s:%s — %s", entity_type, entity_id, e
-        )
+        logger.warning("Graph traversal failed for %s:%s — %s", entity_type, entity_id, e)
         return None
 
 
@@ -131,10 +127,7 @@ async def multi_neighbors(
     if not entities:
         return []
     raw = await asyncio.gather(
-        *(
-            neighbors(etype, eid, relation_filter=relation_filter)
-            for etype, eid in entities
-        ),
+        *(neighbors(etype, eid, relation_filter=relation_filter) for etype, eid in entities),
         return_exceptions=True,
     )
     return [r for r in raw if isinstance(r, GraphContext)]
@@ -315,9 +308,7 @@ async def _edges_one_hop(
     org_id = get_org_id()
 
     if relation_filter:
-        placeholders = ", ".join(
-            f"${i + 4}" for i in range(len(relation_filter))
-        )
+        placeholders = ", ".join(f"${i + 4}" for i in range(len(relation_filter)))
         res = await sql_execute(
             f"SELECT DISTINCT target_id::text AS target_id, target_type, relation "
             f"FROM entity_edges "
@@ -354,9 +345,7 @@ async def _edges_recursive(
     rel_clause = ""
     params: list = [source_id, source_type, org_id, max_depth]
     if relation_filter:
-        placeholders = ", ".join(
-            f"${i + 5}" for i in range(len(relation_filter))
-        )
+        placeholders = ", ".join(f"${i + 5}" for i in range(len(relation_filter)))
         rel_clause = f"AND e.relation IN ({placeholders})"
         params.extend(relation_filter)
 
@@ -495,9 +484,7 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
 # Simplified versions — just load center and basic neighbors.
 
 
-async def _direct_sku(
-    entity_id: str, relation_filter: list[str] | None
-) -> GraphContext:
+async def _direct_sku(entity_id: str, relation_filter: list[str] | None) -> GraphContext:
     center = await _load_sku(entity_id)
     if not center:
         return GraphContext(GraphNode("sku", entity_id, entity_id), [], [])
@@ -517,18 +504,12 @@ async def _direct_sku(
     )
     for r in res.rows:
         nodes.append(GraphNode("vendor", r["vendor_id"], r["name"]))
-        edges.append(
-            GraphEdge(
-                "sku", center.entity_id, "vendor", r["vendor_id"], "supplied_by"
-            )
-        )
+        edges.append(GraphEdge("sku", center.entity_id, "vendor", r["vendor_id"], "supplied_by"))
 
     return GraphContext(center, nodes, edges)
 
 
-async def _direct_vendor(
-    entity_id: str, relation_filter: list[str] | None
-) -> GraphContext:
+async def _direct_vendor(entity_id: str, relation_filter: list[str] | None) -> GraphContext:
     center = await _load_vendor(entity_id)
     if not center:
         return GraphContext(GraphNode("vendor", entity_id, entity_id), [], [])
@@ -547,11 +528,7 @@ async def _direct_vendor(
     )
     for r in res.rows:
         nodes.append(GraphNode("sku", r["sku_id"], f"{r['sku']} — {r['name']}"))
-        edges.append(
-            GraphEdge(
-                "vendor", center.entity_id, "sku", r["sku_id"], "supplies"
-            )
-        )
+        edges.append(GraphEdge("vendor", center.entity_id, "sku", r["sku_id"], "supplies"))
 
     return GraphContext(center, nodes, edges)
 

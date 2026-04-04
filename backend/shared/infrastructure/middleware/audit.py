@@ -59,9 +59,7 @@ async def audit_log(
         if not ip and request.client:
             ip = request.client.host
 
-    details_str = (
-        json.dumps(details) if isinstance(details, dict) else (details or "")
-    )
+    details_str = json.dumps(details) if isinstance(details, dict) else (details or "")
     now = datetime.now(UTC)
 
     try:

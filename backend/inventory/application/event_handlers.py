@@ -40,9 +40,7 @@ async def check_reorder_points(event: InventoryChanged) -> None:
                     )
                 )
         except (RuntimeError, OSError, ValueError):
-            logger.warning(
-                "Reorder check failed for sku %s", sku_id, exc_info=True
-            )
+            logger.warning("Reorder check failed for sku %s", sku_id, exc_info=True)
 
 
 @on(LowStockDetected)

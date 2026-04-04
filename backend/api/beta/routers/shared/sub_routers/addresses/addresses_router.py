@@ -64,9 +64,7 @@ async def search_addresses(
 
 @router.get("/{address_id}")
 async def get_address(address_id: str, current_user: AdminDep):
-    addr = await _db_shared().get_address_by_id(
-        address_id, current_user.organization_id
-    )
+    addr = await _db_shared().get_address_by_id(address_id, current_user.organization_id)
     if not addr:
         raise HTTPException(status_code=404, detail="Address not found")
     return addr
@@ -78,9 +76,7 @@ async def create_address(
     current_user: AdminDep,
 ):
     if not data.line1.strip():
-        raise HTTPException(
-            status_code=400, detail="Address line 1 is required"
-        )
+        raise HTTPException(status_code=400, detail="Address line 1 is required")
 
     address = StoredAddress(
         id=new_uuid7_str(),

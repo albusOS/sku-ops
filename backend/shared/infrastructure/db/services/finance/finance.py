@@ -66,14 +66,10 @@ class FinanceDatabaseService(DomainDatabaseService):
                 limit=limit,
             )
 
-    async def invoice_update_fields(
-        self, org_id: str, invoice_id: str, fields: dict
-    ):
+    async def invoice_update_fields(self, org_id: str, invoice_id: str, fields: dict):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            out = await inv_ops.invoice_update_fields(
-                session, oid, invoice_id, fields
-            )
+            out = await inv_ops.invoice_update_fields(session, oid, invoice_id, fields)
             await self.end_write_session(session)
             return out
 
@@ -82,39 +78,27 @@ class FinanceDatabaseService(DomainDatabaseService):
     ):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            sub = await inv_ops.invoice_replace_line_items(
-                session, oid, invoice_id, line_items
-            )
+            sub = await inv_ops.invoice_replace_line_items(session, oid, invoice_id, line_items)
             await self.end_write_session(session)
             return sub
 
-    async def invoice_insert_line_items(
-        self, org_id: str, invoice_id: str, line_items: list[dict]
-    ):
+    async def invoice_insert_line_items(self, org_id: str, invoice_id: str, line_items: list[dict]):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            sub = await inv_ops.invoice_insert_line_items(
-                session, oid, invoice_id, line_items
-            )
+            sub = await inv_ops.invoice_insert_line_items(session, oid, invoice_id, line_items)
             await self.end_write_session(session)
             return sub
 
-    async def invoice_link_withdrawal(
-        self, org_id: str, invoice_id: str, withdrawal_id: str
-    ):
+    async def invoice_link_withdrawal(self, org_id: str, invoice_id: str, withdrawal_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await inv_ops.invoice_link_withdrawal(
-                session, oid, invoice_id, withdrawal_id
-            )
+            await inv_ops.invoice_link_withdrawal(session, oid, invoice_id, withdrawal_id)
             await self.end_write_session(session)
 
     async def invoice_unlink_withdrawals(self, org_id: str, invoice_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            out = await inv_ops.invoice_unlink_withdrawals(
-                session, oid, invoice_id
-            )
+            out = await inv_ops.invoice_unlink_withdrawals(session, oid, invoice_id)
             await self.end_write_session(session)
             return out
 
@@ -129,11 +113,7 @@ class FinanceDatabaseService(DomainDatabaseService):
 
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            now = (
-                datetime.fromisoformat(row["now"])
-                if isinstance(row["now"], str)
-                else row["now"]
-            )
+            now = datetime.fromisoformat(row["now"]) if isinstance(row["now"], str) else row["now"]
             dd = row["due_date"]
             due_s = dd.isoformat() if hasattr(dd, "isoformat") else dd
             await inv_ops.invoice_insert_row(
@@ -151,14 +131,10 @@ class FinanceDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def invoice_mark_paid_for_withdrawal(
-        self, org_id: str, withdrawal_id: str
-    ):
+    async def invoice_mark_paid_for_withdrawal(self, org_id: str, withdrawal_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await inv_ops.invoice_mark_paid_for_withdrawal(
-                session, oid, withdrawal_id
-            )
+            await inv_ops.invoice_mark_paid_for_withdrawal(session, oid, withdrawal_id)
             await self.end_write_session(session)
 
     async def invoice_update_totals(
@@ -171,14 +147,10 @@ class FinanceDatabaseService(DomainDatabaseService):
     ):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await inv_ops.invoice_update_totals(
-                session, oid, invoice_id, subtotal, tax, total
-            )
+            await inv_ops.invoice_update_totals(session, oid, invoice_id, subtotal, tax, total)
             await self.end_write_session(session)
 
-    async def invoice_update_billing(
-        self, org_id: str, invoice_id: str, body: dict
-    ):
+    async def invoice_update_billing(self, org_id: str, invoice_id: str, body: dict):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             await inv_ops.invoice_update_billing(
@@ -196,9 +168,7 @@ class FinanceDatabaseService(DomainDatabaseService):
     ) -> None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await inv_ops.invoice_update_fields_dynamic(
-                session, oid, invoice_id, fields
-            )
+            await inv_ops.invoice_update_fields_dynamic(session, oid, invoice_id, fields)
             await self.end_write_session(session)
 
     async def invoice_set_xero_invoice_id(
@@ -219,14 +189,10 @@ class FinanceDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def invoice_set_xero_sync_status(
-        self, org_id: str, invoice_id: str, status: str
-    ):
+    async def invoice_set_xero_sync_status(self, org_id: str, invoice_id: str, status: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await inv_ops.invoice_set_xero_sync_status(
-                session, oid, invoice_id, status
-            )
+            await inv_ops.invoice_set_xero_sync_status(session, oid, invoice_id, status)
             await self.end_write_session(session)
 
     async def invoice_list_unsynced(self, org_id: str):
@@ -237,9 +203,7 @@ class FinanceDatabaseService(DomainDatabaseService):
     async def invoice_list_needing_reconciliation(self, org_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await inv_ops.invoice_list_needing_reconciliation(
-                session, oid
-            )
+            return await inv_ops.invoice_list_needing_reconciliation(session, oid)
 
     async def invoice_list_failed(self, org_id: str):
         oid = as_uuid_required(org_id)
@@ -286,9 +250,7 @@ class FinanceDatabaseService(DomainDatabaseService):
     async def credit_note_get_by_id(self, org_id: str, credit_note_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await cn_ops.credit_note_get_by_id(
-                session, oid, credit_note_id
-            )
+            return await cn_ops.credit_note_get_by_id(session, oid, credit_note_id)
 
     async def credit_note_list(self, org_id: str, **kwargs):
         oid = as_uuid_required(org_id)
@@ -302,24 +264,16 @@ class FinanceDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return out
 
-    async def credit_note_set_xero_id(
-        self, org_id: str, credit_note_id: str, xero_id: str
-    ):
+    async def credit_note_set_xero_id(self, org_id: str, credit_note_id: str, xero_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await cn_ops.credit_note_set_xero_id(
-                session, oid, credit_note_id, xero_id
-            )
+            await cn_ops.credit_note_set_xero_id(session, oid, credit_note_id, xero_id)
             await self.end_write_session(session)
 
-    async def credit_note_set_sync_status(
-        self, org_id: str, credit_note_id: str, status: str
-    ):
+    async def credit_note_set_sync_status(self, org_id: str, credit_note_id: str, status: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await cn_ops.credit_note_set_sync_status(
-                session, oid, credit_note_id, status
-            )
+            await cn_ops.credit_note_set_sync_status(session, oid, credit_note_id, status)
             await self.end_write_session(session)
 
     async def credit_note_list_unsynced(self, org_id: str):
@@ -330,9 +284,7 @@ class FinanceDatabaseService(DomainDatabaseService):
     async def credit_note_list_needing_reconciliation(self, org_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await cn_ops.credit_note_list_needing_reconciliation(
-                session, oid
-            )
+            return await cn_ops.credit_note_list_needing_reconciliation(session, oid)
 
     async def credit_note_list_failed(self, org_id: str):
         oid = as_uuid_required(org_id)
@@ -346,14 +298,10 @@ class FinanceDatabaseService(DomainDatabaseService):
 
     # --- Payments ----------------------------------------------------------
 
-    async def payment_insert(
-        self, org_id: str, payment, withdrawal_ids: list[str] | None = None
-    ):
+    async def payment_insert(self, org_id: str, payment, withdrawal_ids: list[str] | None = None):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await billing_ops.payment_insert(
-                session, oid, payment, withdrawal_ids
-            )
+            await billing_ops.payment_insert(session, oid, payment, withdrawal_ids)
             await self.end_write_session(session)
 
     async def payment_get_by_id(self, org_id: str, payment_id: str):
@@ -369,9 +317,7 @@ class FinanceDatabaseService(DomainDatabaseService):
     async def payment_list_for_invoice(self, org_id: str, invoice_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await billing_ops.payment_list_for_invoice(
-                session, oid, invoice_id
-            )
+            return await billing_ops.payment_list_for_invoice(session, oid, invoice_id)
 
     # --- Billing entities --------------------------------------------------
 
@@ -392,30 +338,22 @@ class FinanceDatabaseService(DomainDatabaseService):
     async def billing_entity_get_by_id(self, org_id: str, entity_id: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await billing_ops.billing_entity_get_by_id(
-                session, oid, entity_id
-            )
+            return await billing_ops.billing_entity_get_by_id(session, oid, entity_id)
 
     async def billing_entity_get_by_name(self, org_id: str, name: str):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await billing_ops.billing_entity_get_by_name(
-                session, oid, name
-            )
+            return await billing_ops.billing_entity_get_by_name(session, oid, name)
 
     async def billing_entity_list(self, org_id: str, **kwargs):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             return await billing_ops.billing_entity_list(session, oid, **kwargs)
 
-    async def billing_entity_update(
-        self, org_id: str, entity_id: str, updates: dict
-    ):
+    async def billing_entity_update(self, org_id: str, entity_id: str, updates: dict):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            out = await billing_ops.billing_entity_update(
-                session, oid, entity_id, updates
-            )
+            out = await billing_ops.billing_entity_update(session, oid, entity_id, updates)
             await self.end_write_session(session)
         logger.info(
             "billing_entity.updated",
@@ -423,14 +361,10 @@ class FinanceDatabaseService(DomainDatabaseService):
         )
         return out
 
-    async def billing_entity_search(
-        self, org_id: str, query: str, limit: int = 20
-    ):
+    async def billing_entity_search(self, org_id: str, query: str, limit: int = 20):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await billing_ops.billing_entity_search(
-                session, oid, query, limit
-            )
+            return await billing_ops.billing_entity_search(session, oid, query, limit)
 
     async def billing_entity_ensure(self, org_id: str, name: str):
         oid = as_uuid_required(org_id)
@@ -504,27 +438,19 @@ class FinanceDatabaseService(DomainDatabaseService):
     ):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            await billing_ops.fiscal_close_period(
-                session, oid, period_id, closed_by_id, closed_at
-            )
+            await billing_ops.fiscal_close_period(session, oid, period_id, closed_by_id, closed_at)
             await self.end_write_session(session)
 
     async def fiscal_find_closed_covering(self, org_id: str, entry_date):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await billing_ops.fiscal_find_closed_covering(
-                session, oid, entry_date
-            )
+            return await billing_ops.fiscal_find_closed_covering(session, oid, entry_date)
 
-    async def fiscal_check_period_open(
-        self, org_id: str, entry_date: str | datetime
-    ) -> None:
+    async def fiscal_check_period_open(self, org_id: str, entry_date: str | datetime) -> None:
         """Raise ValueError if entry_date falls in a closed fiscal period."""
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            period = await billing_ops.fiscal_find_closed_covering(
-                session, oid, entry_date
-            )
+            period = await billing_ops.fiscal_find_closed_covering(session, oid, entry_date)
         if period:
             period_id, period_name = period
             raise ValueError(
@@ -591,9 +517,7 @@ class FinanceDatabaseService(DomainDatabaseService):
                     "cost": cost,
                     "shrinkage": shrinkage,
                     "profit": profit,
-                    "margin_pct": round(float(profit) / rev_f * 100, 1)
-                    if rev_f > 0
-                    else 0.0,
+                    "margin_pct": round(float(profit) / rev_f * 100, 1) if rev_f > 0 else 0.0,
                 }
             )
         return out
@@ -633,9 +557,7 @@ class FinanceDatabaseService(DomainDatabaseService):
                     "revenue": revenue,
                     "cost": cost,
                     "profit": profit,
-                    "margin_pct": round(float(profit) / rev_f * 100, 1)
-                    if rev_f > 0
-                    else 0.0,
+                    "margin_pct": round(float(profit) / rev_f * 100, 1) if rev_f > 0 else 0.0,
                     "withdrawal_count": row["transaction_count"],
                 }
             )
@@ -674,9 +596,7 @@ class FinanceDatabaseService(DomainDatabaseService):
 
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            rows = await lr_rep.summary_by_contractor_raw(
-                session, oid, **kwargs
-            )
+            rows = await lr_rep.summary_by_contractor_raw(session, oid, **kwargs)
         cids = [r["contractor_id"] for r in rows]
         user_map = await get_users_by_ids(cids)
         return [
@@ -729,6 +649,4 @@ class FinanceDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         hr = float(kwargs.get("holding_rate_pct", 25.0))
         async with self.session() as session:
-            return await lr_rep.inventory_carrying_cost(
-                session, oid, holding_rate_pct=hr
-            )
+            return await lr_rep.inventory_carrying_cost(session, oid, holding_rate_pct=hr)

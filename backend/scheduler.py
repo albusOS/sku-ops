@@ -44,9 +44,7 @@ async def xero_sync_loop() -> None:
                 for oid in org_ids:
                     token = org_id_var.set(oid)
                     try:
-                        logger.info(
-                            "Xero nightly sync starting for org '%s'", oid
-                        )
+                        logger.info("Xero nightly sync starting for org '%s'", oid)
                         summary = await run_sync()
                         logger.info(
                             "Xero nightly sync complete for org '%s': %s",
@@ -61,9 +59,7 @@ async def xero_sync_loop() -> None:
                                 summary["errors"],
                             )
                     except Exception:
-                        logger.exception(
-                            "Xero nightly sync failed for org '%s'", oid
-                        )
+                        logger.exception("Xero nightly sync failed for org '%s'", oid)
                     finally:
                         org_id_var.reset(token)
         except asyncio.CancelledError:

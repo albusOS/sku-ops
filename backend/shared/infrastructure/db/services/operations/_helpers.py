@@ -83,14 +83,10 @@ def return_item_to_line_dict(row: ReturnItems) -> dict:
     }
 
 
-def withdrawal_row_to_domain(
-    row: Withdrawals, items: list[dict]
-) -> MaterialWithdrawal:
+def withdrawal_row_to_domain(row: Withdrawals, items: list[dict]) -> MaterialWithdrawal:
     d = {
         "id": str(row.id),
-        "organization_id": str(row.organization_id)
-        if row.organization_id
-        else "",
+        "organization_id": str(row.organization_id) if row.organization_id else "",
         "created_at": row.created_at,
         "job_id": str(row.job_id),
         "service_address": row.service_address,
@@ -115,9 +111,7 @@ def withdrawal_row_to_domain(
     return MaterialWithdrawal.model_validate(d)
 
 
-def material_request_row_to_domain(
-    row: MaterialRequests, items: list[dict]
-) -> MaterialRequest:
+def material_request_row_to_domain(row: MaterialRequests, items: list[dict]) -> MaterialRequest:
     d = {
         "id": str(row.id),
         "organization_id": str(row.organization_id),
@@ -139,9 +133,7 @@ def material_request_row_to_domain(
 def return_row_to_domain(row: Returns, items: list[dict]) -> MaterialReturn:
     d: dict = {
         "id": str(row.id),
-        "organization_id": str(row.organization_id)
-        if row.organization_id
-        else "",
+        "organization_id": str(row.organization_id) if row.organization_id else "",
         "created_at": row.created_at,
         "updated_at": row.updated_at,
         "withdrawal_id": str(row.withdrawal_id),
@@ -179,9 +171,7 @@ async def load_withdrawal_items_batch(
     return by_w
 
 
-async def hydrate_withdrawal(
-    session: AsyncSession, row: Withdrawals
-) -> MaterialWithdrawal:
+async def hydrate_withdrawal(session: AsyncSession, row: Withdrawals) -> MaterialWithdrawal:
     items_map = await load_withdrawal_items_batch(session, [row.id])
     return withdrawal_row_to_domain(row, items_map.get(row.id, []))
 
@@ -208,9 +198,7 @@ async def load_material_request_items_batch(
     )
     by_r: dict[uuid.UUID, list[dict]] = defaultdict(list)
     for it in result.scalars().all():
-        by_r[it.material_request_id].append(
-            material_request_item_to_line_dict(it)
-        )
+        by_r[it.material_request_id].append(material_request_item_to_line_dict(it))
     return by_r
 
 
@@ -221,14 +209,10 @@ async def hydrate_material_requests(
         return []
     ids = [r.id for r in rows]
     item_map = await load_material_request_items_batch(session, ids)
-    return [
-        material_request_row_to_domain(r, item_map.get(r.id, [])) for r in rows
-    ]
+    return [material_request_row_to_domain(r, item_map.get(r.id, [])) for r in rows]
 
 
-async def hydrate_material_request(
-    session: AsyncSession, row: MaterialRequests
-) -> MaterialRequest:
+async def hydrate_material_request(session: AsyncSession, row: MaterialRequests) -> MaterialRequest:
     items_map = await load_material_request_items_batch(session, [row.id])
     return material_request_row_to_domain(row, items_map.get(row.id, []))
 
@@ -239,9 +223,7 @@ async def load_return_items_batch(
     if not return_ids:
         return {}
     result = await session.execute(
-        select(ReturnItems)
-        .where(ReturnItems.return_id.in_(return_ids))
-        .order_by(ReturnItems.id)
+        select(ReturnItems).where(ReturnItems.return_id.in_(return_ids)).order_by(ReturnItems.id)
     )
     by_r: dict[uuid.UUID, list[dict]] = defaultdict(list)
     for it in result.scalars().all():
@@ -249,9 +231,7 @@ async def load_return_items_batch(
     return by_r
 
 
-async def hydrate_returns(
-    session: AsyncSession, rows: list[Returns]
-) -> list[MaterialReturn]:
+async def hydrate_returns(session: AsyncSession, rows: list[Returns]) -> list[MaterialReturn]:
     if not rows:
         return []
     ids = [r.id for r in rows]
@@ -264,9 +244,7 @@ async def hydrate_return(session: AsyncSession, row: Returns) -> MaterialReturn:
     return return_row_to_domain(row, items_map.get(row.id, []))
 
 
-def build_withdrawal_row(
-    withdrawal: MaterialWithdrawal, org_uuid: uuid.UUID
-) -> Withdrawals:
+def build_withdrawal_row(withdrawal: MaterialWithdrawal, org_uuid: uuid.UUID) -> Withdrawals:
     return Withdrawals(
         id=as_uuid_required(withdrawal.id),
         job_id=as_uuid_required(withdrawal.job_id),
@@ -292,9 +270,7 @@ def build_withdrawal_row(
     )
 
 
-def build_withdrawal_item_row(
-    withdrawal_id: uuid.UUID, item: WithdrawalItem
-) -> WithdrawalItems:
+def build_withdrawal_item_row(withdrawal_id: uuid.UUID, item: WithdrawalItem) -> WithdrawalItems:
     qty = item.quantity
     price = item.unit_price
     cost = item.cost
@@ -315,9 +291,7 @@ def build_withdrawal_item_row(
     )
 
 
-def build_material_request_row(
-    request: MaterialRequest, org_uuid: uuid.UUID
-) -> MaterialRequests:
+def build_material_request_row(request: MaterialRequest, org_uuid: uuid.UUID) -> MaterialRequests:
     return MaterialRequests(
         id=as_uuid_required(request.id),
         contractor_id=as_uuid_required(request.contractor_id),
@@ -374,9 +348,7 @@ def build_return_row(ret: MaterialReturn, org_uuid: uuid.UUID) -> Returns:
     )
 
 
-def build_return_item_row(
-    return_id: uuid.UUID, item: ReturnItem
-) -> ReturnItems:
+def build_return_item_row(return_id: uuid.UUID, item: ReturnItem) -> ReturnItems:
     qty = item.quantity
     price = item.unit_price
     cost = item.cost

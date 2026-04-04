@@ -73,9 +73,7 @@ async def apply_credit_note(
 
         if result.auto_paid and result.invoice_id:
             now = datetime.now(UTC)
-            await _db_operations().mark_withdrawals_paid_by_invoice(
-                org_id, result.invoice_id, now
-            )
+            await _db_operations().mark_withdrawals_paid_by_invoice(org_id, result.invoice_id, now)
 
         await record_credit_note_application(
             credit_note_id=credit_note_id,

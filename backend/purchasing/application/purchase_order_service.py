@@ -144,9 +144,7 @@ async def create_purchase_order(
                 po_id=po.id,
                 name=item.get("name", "Unknown"),
                 original_sku=item.get("original_sku"),
-                ordered_qty=float(
-                    item.get("ordered_qty") or item.get("quantity") or 1
-                ),
+                ordered_qty=float(item.get("ordered_qty") or item.get("quantity") or 1),
                 delivered_qty=item.get("delivered_qty") or 0,
                 unit_price=float(item.get("price") or 0),
                 cost=round(cost_val, 2),
@@ -155,9 +153,7 @@ async def create_purchase_order(
                 pack_qty=int(item.get("pack_qty") or 1),
                 purchase_uom=item.get("purchase_uom") or "each",
                 purchase_pack_qty=int(item.get("purchase_pack_qty") or 1),
-                suggested_department=(
-                    item.get("suggested_department") or "HDW"
-                ).upper(),
+                suggested_department=(item.get("suggested_department") or "HDW").upper(),
                 status=POItemStatus.ORDERED,
                 sku_id=item.get("sku_id") or None,
                 organization_id=org_id,

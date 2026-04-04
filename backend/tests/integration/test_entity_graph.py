@@ -22,10 +22,8 @@ class TestEntityGraph:
             cur = await sql_execute(
                 "SELECT table_name FROM information_schema.views WHERE table_name = 'entity_edges'"
             )
-            row = (cur.rows[0] if cur.rows else None)
-            assert row is not None, (
-                "entity_edges view should exist after schema bootstrap"
-            )
+            row = cur.rows[0] if cur.rows else None
+            assert row is not None, "entity_edges view should exist after schema bootstrap"
 
         call(_body)
 
@@ -68,13 +66,9 @@ class TestEntityGraph:
             assert ctx is not None, "Should find the SKU"
             assert ctx.center.entity_type == "sku"
             assert "Graph Test Bolt" in ctx.center.label
-            assert len(ctx.neighbors) >= 1, (
-                "Should have at least the vendor neighbor"
-            )
+            assert len(ctx.neighbors) >= 1, "Should have at least the vendor neighbor"
 
-            vendor_neighbors = [
-                n for n in ctx.neighbors if n.entity_type == "vendor"
-            ]
+            vendor_neighbors = [n for n in ctx.neighbors if n.entity_type == "vendor"]
             assert len(vendor_neighbors) >= 1
             assert any("Graph Vendor" in n.label for n in vendor_neighbors)
 

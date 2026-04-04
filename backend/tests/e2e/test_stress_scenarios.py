@@ -40,9 +40,7 @@ _N_WORKERS = 5  # concurrency fan-out for high-load tests
 # ── DB query helpers ──────────────────────────────────────────────────────────
 
 
-def _count_ledger(
-    client: TestClient, reference_id: str, reference_type: str
-) -> int:
+def _count_ledger(client: TestClient, reference_id: str, reference_type: str) -> int:
     """Count all ledger rows for a given reference."""
 
     async def _q() -> int:
@@ -102,12 +100,8 @@ def _get_stock_qty(client: TestClient, sku_id: str, headers: dict) -> float:
     return float(resp.json()["quantity"])
 
 
-def _get_withdrawal(
-    client: TestClient, withdrawal_id: str, headers: dict
-) -> dict[str, Any]:
-    resp = client.get(
-        f"/api/beta/operations/withdrawals/{withdrawal_id}", headers=headers
-    )
+def _get_withdrawal(client: TestClient, withdrawal_id: str, headers: dict) -> dict[str, Any]:
+    resp = client.get(f"/api/beta/operations/withdrawals/{withdrawal_id}", headers=headers)
     assert resp.status_code == 200
     return resp.json()
 
@@ -124,9 +118,7 @@ def _attempt_commit(client: TestClient, headers: dict, count_id: str) -> int:
     return resp.status_code
 
 
-def _attempt_mark_paid(
-    client: TestClient, headers: dict, withdrawal_id: str
-) -> int:
+def _attempt_mark_paid(client: TestClient, headers: dict, withdrawal_id: str) -> int:
     resp = client.put(
         f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid",
         json={},
@@ -190,12 +182,8 @@ def _setup_po_pending(
     quantity: int = 50,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Create a PO, mark delivery, return (po, pending_items)."""
-    po = create_po(
-        client, headers, product, quantity=quantity, vendor_name="Stress Vendor"
-    )
-    po_resp = client.get(
-        f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers
-    )
+    po = create_po(client, headers, product, quantity=quantity, vendor_name="Stress Vendor")
+    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     ordered_ids = [i["id"] for i in items if i.get("status") == "ordered"]
     if ordered_ids:
@@ -204,9 +192,7 @@ def _setup_po_pending(
             json={"item_ids": ordered_ids},
             headers=headers,
         )
-    po_resp = client.get(
-        f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers
-    )
+    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     return po, items
 
@@ -266,9 +252,7 @@ class TestStressScenarios:
                 f"Withdrawal {wd_id}: expected exactly 1 payment AR entry, got {payment_entries}"
             )
             wd = _get_withdrawal(client, wd_id, headers)
-            assert wd["payment_status"] == "paid", (
-                f"Withdrawal {wd_id} should be paid"
-            )
+            assert wd["payment_status"] == "paid", f"Withdrawal {wd_id} should be paid"
 
     def test_bulk_mark_paid_with_already_paid_no_duplicate_ledger(
         self, client: TestClient, seed_dept_id: str
@@ -305,9 +289,7 @@ class TestStressScenarios:
         pre_count = _count_ledger_by_account(
             client, already_paid["id"], "payment", "accounts_receivable"
         )
-        assert pre_count == 1, (
-            "Pre-paid withdrawal should already have 1 payment entry"
-        )
+        assert pre_count == 1, "Pre-paid withdrawal should already have 1 payment entry"
 
         # Bulk that includes the already-paid one
         resp = client.put(
@@ -326,9 +308,7 @@ class TestStressScenarios:
         )
 
         # New one should now have exactly 1 entry
-        new_count = _count_ledger_by_account(
-            client, new_wd["id"], "payment", "accounts_receivable"
-        )
+        new_count = _count_ledger_by_account(client, new_wd["id"], "payment", "accounts_receivable")
         assert new_count == 1, (
             f"New withdrawal should have exactly 1 payment entry, got {new_count}"
         )
@@ -400,27 +380,18 @@ class TestStressScenarios:
         count = open_cycle_count(client, headers)
         count_id: str = count["id"]
 
-        detail = client.get(
-            f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers
-        ).json()
+        detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
         target = next(
-            (
-                i
-                for i in detail.get("items", [])
-                if i["sku_id"] == product["id"]
-            ),
+            (i for i in detail.get("items", []) if i["sku_id"] == product["id"]),
             None,
         )
         assert target is not None, "Product must appear in the cycle count"
 
-        update_cycle_count_item(
-            client, headers, count_id, target["id"], counted_qty=counted_qty
-        )
+        update_cycle_count_item(client, headers, count_id, target["id"], counted_qty=counted_qty)
 
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
             futures = [
-                pool.submit(_attempt_commit, client, headers, count_id)
-                for _ in range(_N_WORKERS)
+                pool.submit(_attempt_commit, client, headers, count_id) for _ in range(_N_WORKERS)
             ]
             statuses = [f.result() for f in as_completed(futures)]
 
@@ -450,34 +421,21 @@ class TestStressScenarios:
         count = open_cycle_count(client, headers)
         count_id: str = count["id"]
 
-        detail = client.get(
-            f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers
-        ).json()
+        detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
         target = next(
-            (
-                i
-                for i in detail.get("items", [])
-                if i["sku_id"] == product["id"]
-            ),
+            (i for i in detail.get("items", []) if i["sku_id"] == product["id"]),
             None,
         )
         assert target is not None
 
-        update_cycle_count_item(
-            client, headers, count_id, target["id"], counted_qty=70.0
-        )
+        update_cycle_count_item(client, headers, count_id, target["id"], counted_qty=70.0)
 
         with ThreadPoolExecutor(max_workers=3) as pool:
-            futures = [
-                pool.submit(_attempt_commit, client, headers, count_id)
-                for _ in range(3)
-            ]
+            futures = [pool.submit(_attempt_commit, client, headers, count_id) for _ in range(3)]
             statuses = [f.result() for f in as_completed(futures)]
 
         successes = sum(1 for s in statuses if s == 200)
-        assert successes == 1, (
-            f"Exactly 1 commit should succeed, got {successes}"
-        )
+        assert successes == 1, f"Exactly 1 commit should succeed, got {successes}"
 
         final_qty = _get_stock_qty(client, product["id"], headers)
         assert final_qty == pytest.approx(70.0), (
@@ -499,28 +457,17 @@ class TestStressScenarios:
         count = open_cycle_count(client, headers)
         count_id: str = count["id"]
 
-        detail = client.get(
-            f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers
-        ).json()
+        detail = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers).json()
         target = next(
-            (
-                i
-                for i in detail.get("items", [])
-                if i["sku_id"] == product["id"]
-            ),
+            (i for i in detail.get("items", []) if i["sku_id"] == product["id"]),
             None,
         )
         assert target is not None
 
-        update_cycle_count_item(
-            client, headers, count_id, target["id"], counted_qty=80.0
-        )
+        update_cycle_count_item(client, headers, count_id, target["id"], counted_qty=80.0)
 
         with ThreadPoolExecutor(max_workers=3) as pool:
-            futures = [
-                pool.submit(_attempt_commit, client, headers, count_id)
-                for _ in range(3)
-            ]
+            futures = [pool.submit(_attempt_commit, client, headers, count_id) for _ in range(3)]
             [f.result() for f in as_completed(futures)]
 
         # There is one adjustment reference per product per commit. All concurrent
@@ -566,9 +513,7 @@ class TestStressScenarios:
             quantity=int(initial_qty),
             name="STRESS-POReceive",
         )
-        po, items = _setup_po_pending(
-            client, headers, product, quantity=order_qty
-        )
+        po, items = _setup_po_pending(client, headers, product, quantity=order_qty)
 
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
             futures = [
@@ -590,16 +535,12 @@ class TestStressScenarios:
         # Ledger: exactly one set of INVENTORY + AP entries for this PO receipt.
         # Each item that has cost > 0 writes 2 entries. With one item at cost=5.0 and
         # qty=40, that's 2 rows. Any double-write would produce 4 or more.
-        inventory_entries = _count_ledger_by_account(
-            client, po["id"], "po_receipt", "inventory"
-        )
+        inventory_entries = _count_ledger_by_account(client, po["id"], "po_receipt", "inventory")
         assert inventory_entries == 1, (
             f"PO {po['id']}: expected exactly 1 inventory ledger entry for po_receipt, "
             f"got {inventory_entries}"
         )
-        ap_entries = _count_ledger_by_account(
-            client, po["id"], "po_receipt", "accounts_payable"
-        )
+        ap_entries = _count_ledger_by_account(client, po["id"], "po_receipt", "accounts_payable")
         assert ap_entries == 1, (
             f"PO {po['id']}: expected exactly 1 AP ledger entry for po_receipt, got {ap_entries}"
         )
@@ -628,17 +569,11 @@ class TestStressScenarios:
         assert wd_state["payment_status"] == "invoiced", (
             f"Withdrawal should be auto-invoiced, got {wd_state['payment_status']}"
         )
-        assert wd_state.get("invoice_id") is not None, (
-            "Auto-invoice should be linked"
-        )
+        assert wd_state.get("invoice_id") is not None, "Auto-invoice should be linked"
 
         # Withdrawal must be linked to exactly one invoice
         resp = client.get("/api/beta/finance/invoices", headers=headers)
-        invoices = [
-            inv
-            for inv in resp.json()
-            if wd["id"] in inv.get("withdrawal_ids", [])
-        ]
+        invoices = [inv for inv in resp.json() if wd["id"] in inv.get("withdrawal_ids", [])]
         assert len(invoices) == 1, (
             f"Withdrawal should be on exactly 1 invoice, found {len(invoices)}"
         )
@@ -733,9 +668,7 @@ class TestStressScenarios:
         )
 
         # AR entry should equal withdrawal total (positive)
-        ar_amount = _sum_ledger_amount(
-            client, wd["id"], "withdrawal", "accounts_receivable"
-        )
+        ar_amount = _sum_ledger_amount(client, wd["id"], "withdrawal", "accounts_receivable")
         assert ar_amount == pytest.approx(wd["total"], abs=0.01), (
             f"AR ledger entry should equal withdrawal total {wd['total']}. Got {ar_amount}."
         )
@@ -800,9 +733,7 @@ class TestStressScenarios:
         final_qty = _get_stock_qty(client, product["id"], headers)
 
         assert final_qty >= 0, f"Stock must never go negative. Got {final_qty}"
-        assert final_qty == pytest.approx(
-            initial_qty - (successes * per_request), abs=0.01
-        ), (
+        assert final_qty == pytest.approx(initial_qty - (successes * per_request), abs=0.01), (
             f"Stock mismatch: initial={initial_qty}, successes={successes}, "
             f"per_request={per_request}, expected={initial_qty - successes * per_request}, "
             f"got={final_qty}"
@@ -840,12 +771,8 @@ def _attempt_return(
     )
 
 
-def _attempt_delete_invoice(
-    client: TestClient, headers: dict, invoice_id: str
-) -> int:
-    resp = client.delete(
-        f"/api/beta/finance/invoices/{invoice_id}", headers=headers
-    )
+def _attempt_delete_invoice(client: TestClient, headers: dict, invoice_id: str) -> int:
+    resp = client.delete(f"/api/beta/finance/invoices/{invoice_id}", headers=headers)
     return resp.status_code
 
 
@@ -881,9 +808,7 @@ class TestAdversarialBehavior:
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             f_pay = pool.submit(_attempt_mark_paid, client, headers, wd["id"])
-            f_inv = pool.submit(
-                _attempt_create_invoice, client, headers, [wd["id"]]
-            )
+            f_inv = pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
             f_pay.result()
             f_inv.result()
 
@@ -899,9 +824,7 @@ class TestAdversarialBehavior:
                 f"Paid withdrawal should have exactly 1 payment AR entry, got {payment_entries}"
             )
         elif status == "invoiced":
-            assert invoice_id is not None, (
-                "Invoiced withdrawal must have an invoice_id"
-            )
+            assert invoice_id is not None, "Invoiced withdrawal must have an invoice_id"
             payment_entries = _count_ledger_by_account(
                 client, wd["id"], "payment", "accounts_receivable"
             )
@@ -930,8 +853,7 @@ class TestAdversarialBehavior:
         n_retries = 10
         with ThreadPoolExecutor(max_workers=n_retries) as pool:
             futures = [
-                pool.submit(_attempt_mark_paid, client, headers, wd["id"])
-                for _ in range(n_retries)
+                pool.submit(_attempt_mark_paid, client, headers, wd["id"]) for _ in range(n_retries)
             ]
             statuses = [f.result() for f in as_completed(futures)]
 
@@ -980,12 +902,8 @@ class TestAdversarialBehavior:
         assert resp.status_code == 200
 
         # Return some items
-        ret_status, ret_body = _attempt_return(
-            client, headers, wd["id"], product, return_qty
-        )
-        assert ret_status == 200, (
-            f"Return should succeed on paid withdrawal: {ret_body}"
-        )
+        ret_status, ret_body = _attempt_return(client, headers, wd["id"], product, return_qty)
+        assert ret_status == 200, f"Return should succeed on paid withdrawal: {ret_body}"
 
         final_qty = _get_stock_qty(client, product["id"], headers)
         expected = initial_qty - withdraw_qty + return_qty
@@ -995,9 +913,7 @@ class TestAdversarialBehavior:
 
     # ── Concurrent return + mark-paid on same withdrawal ─────────────────────
 
-    def test_concurrent_return_and_mark_paid(
-        self, client: TestClient, seed_dept_id: str
-    ) -> None:
+    def test_concurrent_return_and_mark_paid(self, client: TestClient, seed_dept_id: str) -> None:
         """User processes a return while someone else marks the withdrawal paid.
         Both can succeed (return creates credit note, mark-paid records payment).
         Stock and ledger must be consistent regardless of ordering.
@@ -1017,9 +933,7 @@ class TestAdversarialBehavior:
         wd = create_withdrawal(client, headers, product, quantity=withdraw_qty)
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f_ret = pool.submit(
-                _attempt_return, client, headers, wd["id"], product, return_qty
-            )
+            f_ret = pool.submit(_attempt_return, client, headers, wd["id"], product, return_qty)
             f_pay = pool.submit(_attempt_mark_paid, client, headers, wd["id"])
             ret_status, _ = f_ret.result()
             pay_status = f_pay.result()
@@ -1037,9 +951,7 @@ class TestAdversarialBehavior:
         payment_entries = _count_ledger_by_account(
             client, wd["id"], "payment", "accounts_receivable"
         )
-        assert payment_entries <= 1, (
-            f"At most 1 payment AR entry. Got {payment_entries}"
-        )
+        assert payment_entries <= 1, f"At most 1 payment AR entry. Got {payment_entries}"
 
     # ── Invoice-then-immediately-delete: user creates and nukes invoice ──────
 
@@ -1068,12 +980,8 @@ class TestAdversarialBehavior:
 
         # Fire delete + re-create concurrently
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f_del = pool.submit(
-                _attempt_delete_invoice, client, headers, invoice_id
-            )
-            f_create = pool.submit(
-                _attempt_create_invoice, client, headers, [wd["id"]]
-            )
+            f_del = pool.submit(_attempt_delete_invoice, client, headers, invoice_id)
+            f_create = pool.submit(_attempt_create_invoice, client, headers, [wd["id"]])
             f_del.result()
             f_create.result()
 
@@ -1083,13 +991,9 @@ class TestAdversarialBehavior:
 
         # Withdrawal must be in a consistent state
         if status == "invoiced":
-            assert inv_link is not None, (
-                "Invoiced withdrawal must have an invoice_id"
-            )
+            assert inv_link is not None, "Invoiced withdrawal must have an invoice_id"
             # Verify the linked invoice actually exists
-            inv_resp = client.get(
-                f"/api/beta/finance/invoices/{inv_link}", headers=headers
-            )
+            inv_resp = client.get(f"/api/beta/finance/invoices/{inv_link}", headers=headers)
             assert inv_resp.status_code == 200, (
                 f"Withdrawal links to invoice {inv_link} but that invoice doesn't exist (orphan)"
             )
@@ -1130,20 +1034,14 @@ class TestAdversarialBehavior:
         target_id = wd_ids[0]
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f_bulk = pool.submit(
-                _attempt_bulk_mark_paid, client, headers, wd_ids
-            )
-            f_single = pool.submit(
-                _attempt_mark_paid, client, headers, target_id
-            )
+            f_bulk = pool.submit(_attempt_bulk_mark_paid, client, headers, wd_ids)
+            f_single = pool.submit(_attempt_mark_paid, client, headers, target_id)
             f_bulk.result()
             f_single.result()
 
         for wd_id in wd_ids:
             wd_state = _get_withdrawal(client, wd_id, headers)
-            assert wd_state["payment_status"] == "paid", (
-                f"Withdrawal {wd_id} should be paid"
-            )
+            assert wd_state["payment_status"] == "paid", f"Withdrawal {wd_id} should be paid"
 
             payment_entries = _count_ledger_by_account(
                 client, wd_id, "payment", "accounts_receivable"
@@ -1155,9 +1053,7 @@ class TestAdversarialBehavior:
 
     # ── Withdraw → invoice → pay → return: full lifecycle with ledger check ──
 
-    def test_full_lifecycle_ledger_balance(
-        self, client: TestClient, seed_dept_id: str
-    ) -> None:
+    def test_full_lifecycle_ledger_balance(self, client: TestClient, seed_dept_id: str) -> None:
         """Walk through the complete lifecycle of a withdrawal and verify that
         ledger entries are balanced at each step and cumulative totals are exact.
 
@@ -1182,9 +1078,7 @@ class TestAdversarialBehavior:
             f"Withdrawal should have 5 ledger entries. Got {wd_ledger_count}"
         )
 
-        wd_ar = _sum_ledger_amount(
-            client, wd["id"], "withdrawal", "accounts_receivable"
-        )
+        wd_ar = _sum_ledger_amount(client, wd["id"], "withdrawal", "accounts_receivable")
         assert wd_ar == pytest.approx(wd_total, abs=0.01), (
             f"Withdrawal AR should equal total {wd_total}. Got {wd_ar}"
         )
@@ -1192,9 +1086,7 @@ class TestAdversarialBehavior:
         # Step 2: Verify auto-invoice
         wd_state = _get_withdrawal(client, wd["id"], headers)
         assert wd_state["payment_status"] == "invoiced"
-        assert wd_state.get("invoice_id") is not None, (
-            "Auto-invoice should be linked"
-        )
+        assert wd_state.get("invoice_id") is not None, "Auto-invoice should be linked"
 
         # Step 3: Pay
         pay_status = _attempt_mark_paid(client, headers, wd["id"])
@@ -1202,9 +1094,7 @@ class TestAdversarialBehavior:
         wd_state = _get_withdrawal(client, wd["id"], headers)
         assert wd_state["payment_status"] == "paid"
 
-        payment_ar = _sum_ledger_amount(
-            client, wd["id"], "payment", "accounts_receivable"
-        )
+        payment_ar = _sum_ledger_amount(client, wd["id"], "payment", "accounts_receivable")
         assert payment_ar == pytest.approx(-wd_total, abs=0.01), (
             f"Payment AR should be -{wd_total} (reducing receivable). Got {payment_ar}"
         )
@@ -1215,9 +1105,7 @@ class TestAdversarialBehavior:
 
         # Stock check: 200 - 8 + 3 = 195
         final_qty = _get_stock_qty(client, product["id"], headers)
-        assert final_qty == pytest.approx(195.0), (
-            f"Stock should be 195. Got {final_qty}"
-        )
+        assert final_qty == pytest.approx(195.0), f"Stock should be 195. Got {final_qty}"
 
         # Net AR across all entries for this withdrawal should be:
         #   +wd_total (withdrawal) -wd_total (payment) = 0 from those two
@@ -1273,18 +1161,14 @@ class TestAdversarialBehavior:
             return resp.status_code, resp.text
 
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
-            futures = [
-                pool.submit(_do_withdrawal, i) for i in range(_N_WORKERS)
-            ]
+            futures = [pool.submit(_do_withdrawal, i) for i in range(_N_WORKERS)]
             results = [f.result() for f in as_completed(futures)]
 
         successes = [(s, b) for s, b in results if s == 200]
         final_qty = _get_stock_qty(client, product["id"], headers)
 
         assert final_qty >= 0, f"Stock must never go negative. Got {final_qty}"
-        assert final_qty == pytest.approx(
-            initial_qty - (len(successes) * per_wd), abs=0.01
-        ), (
+        assert final_qty == pytest.approx(initial_qty - (len(successes) * per_wd), abs=0.01), (
             f"Stock mismatch: {len(successes)} withdrawals of {per_wd} from {initial_qty}. "
             f"Expected {initial_qty - len(successes) * per_wd}, got {final_qty}"
         )
@@ -1329,9 +1213,7 @@ class TestAdversarialBehavior:
         assert final_qty <= 100, (
             f"Stock {final_qty} exceeds initial 100 — returned more than was withdrawn"
         )
-        assert final_qty >= 90, (
-            f"Stock {final_qty} below 90 — something was double-decremented"
-        )
+        assert final_qty >= 90, f"Stock {final_qty} below 90 — something was double-decremented"
 
     # ── Concurrent returns on same withdrawal ────────────────────────────────
 
@@ -1352,12 +1234,8 @@ class TestAdversarialBehavior:
         wd = create_withdrawal(client, headers, product, quantity=10)
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f1 = pool.submit(
-                _attempt_return, client, headers, wd["id"], product, 10
-            )
-            f2 = pool.submit(
-                _attempt_return, client, headers, wd["id"], product, 10
-            )
+            f1 = pool.submit(_attempt_return, client, headers, wd["id"], product, 10)
+            f2 = pool.submit(_attempt_return, client, headers, wd["id"], product, 10)
             r1_status, _ = f1.result()
             r2_status, _ = f2.result()
 

@@ -35,20 +35,20 @@ pixi run test
 ### Backend only
 
 ```bash
-pixi run test-backend                                   # all backend tests
-pixi run test-backend -- -- tests/unit/         # unit tests only
-pixi run test-backend -- -- tests/integration/  # integration tests only
-pixi run test-backend -- -- tests/api/          # API tests only
-pixi run test-backend -- -- -k test_smoke              # single test by name
-pixi run test-backend -- -- --tb=short -v              # verbose with short tracebacks
+pixi run test backend                                   # all backend tests
+pixi run test backend -- -- tests/unit/               # unit tests only
+pixi run test backend -- -- tests/integration/         # integration tests only
+pixi run test backend -- -- tests/api/                # API tests only
+pixi run test backend -- -- -k test_smoke              # single test by name
+pixi run test backend -- -- --tb=short -v             # verbose with short tracebacks
 ```
 
-(Pass any pytest args after `--`.)
+(Pass any pytest args after `--` only when **target is `backend`**. With `pixi run test` / target `all`, trailing args would apply to the whole shell chain including Vitest; use `test backend` for pytest-only flags.)
 
 ### Frontend only
 
 ```bash
-pixi run test-frontend              # single run (vitest run)
+pixi run test frontend              # single run (vitest run)
 pixi run pnpm --dir frontend run test   # watch mode (vitest)
 ```
 
@@ -74,7 +74,7 @@ This works because `pythonpath = [".", ".."]` in [`backend/pyproject.toml`](back
 
 ## Shared test infrastructure
 
-All backend tests run against a real Postgres database provided by the local Supabase stack. `pixi run test` and `pixi run test-backend` reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
+All backend tests run against a real Postgres database provided by the local Supabase stack. `pixi run test` (and `pixi run test backend`) reset the local database from `supabase/migrations/` and `supabase/seeds/*.sql` (via `supabase/config.toml` `[db.seed] sql_paths`) before pytest starts.
 
 A session-scoped `TestClient` boots the ASGI app once for the entire test run. Before each test that needs a clean slate, `_truncate_and_seed()` truncates all tables then applies `supabase/seeds/pytest_minimal.sql` plus org-scoped UOM rows from `supabase/seeds/02_units_of_measure.sql` (via `catalog.application.uom_seed.uom_seed_sql`).
 
@@ -162,11 +162,9 @@ Canonical SQL seeds live under `supabase/seeds/` (edit there, then `pixi run db-
 ## Linting
 
 ```bash
-pixi run lint-backend
-pixi run format-backend
-pixi run lint-frontend
-pixi run format-frontend
-pixi run check                     # all four
+pixi run lint [all|backend|frontend]    # default all
+pixi run format [all|backend|frontend]    # default all
+pixi run check [all|backend|frontend]    # lint then format (default all)
 ```
 
 Ruff config lives in [`backend/pyproject.toml`](backend/pyproject.toml). Per-file-ignores are scoped to `tests/**`, `../devtools/**`, and specific paths under `backend/`.

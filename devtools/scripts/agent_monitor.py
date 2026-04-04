@@ -86,9 +86,7 @@ def _build_stats_panel(stats: dict) -> Panel:
 
 
 def _build_agent_breakdown(stats: dict) -> Panel:
-    table = Table(
-        show_header=True, header_style="bold", box=None, padding=(0, 1)
-    )
+    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
     table.add_column("Agent", style="bold")
     table.add_column("Runs", justify="right")
     table.add_column("Tokens (in→out)", justify="right")
@@ -117,9 +115,7 @@ def _build_agent_breakdown(stats: dict) -> Panel:
 
 
 def _build_runs_table(runs: list[dict]) -> Panel:
-    table = Table(
-        show_header=True, header_style="bold", box=None, padding=(0, 1)
-    )
+    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
     table.add_column("Time", width=8)
     table.add_column("Agent", width=16)
     table.add_column("Mode", width=5)
@@ -146,21 +142,13 @@ def _build_runs_table(runs: list[dict]) -> Panel:
             except (json.JSONDecodeError, TypeError):
                 tool_calls = []
 
-        tools_str = (
-            ", ".join(tc.get("tool", "?") for tc in tool_calls)
-            if tool_calls
-            else "-"
-        )
+        tools_str = ", ".join(tc.get("tool", "?") for tc in tool_calls) if tool_calls else "-"
         if len(tools_str) > 30:
             tools_str = tools_str[:27] + "..."
 
         msg = (r.get("user_message") or "")[:40]
         error = r.get("error")
-        status = (
-            Text("ERR", style="bold red")
-            if error
-            else Text("OK", style="green")
-        )
+        status = Text("ERR", style="bold red") if error else Text("OK", style="green")
 
         table.add_row(
             time_str,
@@ -208,9 +196,7 @@ async def _fetch_data(minutes: int, limit: int) -> tuple[dict, list[dict]]:
 
     oid = get_org_id()
     db = get_database_manager()
-    stats = await db.assistant.agent_run_stats(
-        oid, hours=max(1, minutes // 60) or 1
-    )
+    stats = await db.assistant.agent_run_stats(oid, hours=max(1, minutes // 60) or 1)
     runs = await db.assistant.list_agent_runs(oid, minutes=minutes, limit=limit)
     return stats, runs
 
@@ -239,9 +225,7 @@ async def _run(interval: int, minutes: int, limit: int, once: bool):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Live agent monitoring dashboard"
-    )
+    parser = argparse.ArgumentParser(description="Live agent monitoring dashboard")
     parser.add_argument(
         "--interval",
         type=int,
@@ -254,12 +238,8 @@ def main():
         default=60,
         help="Show runs from last N minutes (default: 60)",
     )
-    parser.add_argument(
-        "--limit", type=int, default=30, help="Max runs to show (default: 30)"
-    )
-    parser.add_argument(
-        "--once", action="store_true", help="Single snapshot, no live refresh"
-    )
+    parser.add_argument("--limit", type=int, default=30, help="Max runs to show (default: 30)")
+    parser.add_argument("--once", action="store_true", help="Single snapshot, no live refresh")
     args = parser.parse_args()
     try:
         asyncio.run(_run(args.interval, args.minutes, args.limit, args.once))

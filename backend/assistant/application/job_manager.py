@@ -80,9 +80,7 @@ def _local_publish(job_id: str, event: dict) -> None:
         try:
             q.put_nowait(event)
         except asyncio.QueueFull:
-            logger.warning(
-                "Dropping event for slow local subscriber on job %s", job_id
-            )
+            logger.warning("Dropping event for slow local subscriber on job %s", job_id)
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +277,7 @@ async def _redis_subscribe(job_id: str) -> AsyncIterator[dict]:
     try:
         await pubsub.subscribe(channel)
         while True:
-            msg = await pubsub.get_message(
-                ignore_subscribe_messages=True, timeout=1.0
-            )
+            msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if msg is None:
                 status = await get_job_status(job_id)
                 if status and status["status"] in (
@@ -308,9 +304,7 @@ async def _redis_subscribe(job_id: str) -> AsyncIterator[dict]:
                 await pubsub.unsubscribe(channel)
                 await pubsub.aclose()
         except Exception:
-            logger.debug(
-                "Pubsub cleanup failed for channel %s", channel, exc_info=True
-            )
+            logger.debug("Pubsub cleanup failed for channel %s", channel, exc_info=True)
 
 
 async def _local_subscribe(job_id: str) -> AsyncIterator[dict]:
@@ -344,11 +338,7 @@ async def _local_subscribe(job_id: str) -> AsyncIterator[dict]:
 def cleanup_local() -> None:
     """Remove expired local jobs. Called periodically in dev/test."""
     now = time.monotonic()
-    expired = [
-        jid
-        for jid, job in _local_jobs.items()
-        if now - job.created_at > _JOB_TTL
-    ]
+    expired = [jid for jid, job in _local_jobs.items() if now - job.created_at > _JOB_TTL]
     for jid in expired:
         _local_jobs.pop(jid, None)
         _local_event_logs.pop(jid, None)

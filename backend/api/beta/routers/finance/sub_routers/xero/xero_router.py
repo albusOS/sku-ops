@@ -83,15 +83,11 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     _require_xero_configured()
 
     if error:
-        raise HTTPException(
-            status_code=400, detail=f"Xero OAuth error: {error}"
-        )
+        raise HTTPException(status_code=400, detail=f"Xero OAuth error: {error}")
 
     org_id = await _db_finance().oauth_pop_state("", state)
     if not org_id:
-        raise HTTPException(
-            status_code=400, detail="Invalid or expired OAuth state"
-        )
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
     org_id_var.set(org_id)
 
     async with httpx.AsyncClient() as client:
@@ -107,14 +103,10 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
             timeout=15,
         )
     if not resp.is_success:
-        raise HTTPException(
-            status_code=502, detail=f"Xero token exchange failed: {resp.text}"
-        )
+        raise HTTPException(status_code=502, detail=f"Xero token exchange failed: {resp.text}")
 
     token_data = resp.json()
-    expiry_ts = datetime.now(UTC).timestamp() + token_data.get(
-        "expires_in", 1800
-    )
+    expiry_ts = datetime.now(UTC).timestamp() + token_data.get("expires_in", 1800)
     expiry_dt = datetime.fromtimestamp(expiry_ts, tz=UTC)
 
     settings = await _db_finance().org_settings_get(org_id)
@@ -128,9 +120,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     await _db_finance().org_settings_upsert(org_id, updated)
 
     redirect_target = (
-        f"{FRONTEND_URL}/settings?xero=connected"
-        if FRONTEND_URL
-        else "/settings?xero=connected"
+        f"{FRONTEND_URL}/settings?xero=connected" if FRONTEND_URL else "/settings?xero=connected"
     )
     return RedirectResponse(url=redirect_target)
 
@@ -140,18 +130,14 @@ async def list_xero_tenants(current_user: AdminDep):
     """List Xero organisations the connected token can access. Use to select tenant_id."""
     settings = await _db_finance().org_settings_get(get_org_id())
     if not settings.xero_access_token:
-        raise HTTPException(
-            status_code=400, detail="Xero not connected for this org"
-        )
+        raise HTTPException(status_code=400, detail="Xero not connected for this org")
 
     adapter = XeroAdapter()
     try:
         tenants = await adapter.get_tenants(settings.xero_access_token)
         return {"tenants": tenants}
     except (httpx.HTTPError, RuntimeError, OSError) as e:
-        raise HTTPException(
-            status_code=502, detail=f"Failed to fetch Xero tenants: {e}"
-        ) from e
+        raise HTTPException(status_code=502, detail=f"Failed to fetch Xero tenants: {e}") from e
 
 
 @router.post("/select-tenant")
@@ -162,9 +148,7 @@ async def select_xero_tenant(
     """Save the chosen Xero tenant (organisation) ID for this org."""
     settings = await _db_finance().org_settings_get(get_org_id())
     if not settings.xero_access_token:
-        raise HTTPException(
-            status_code=400, detail="Xero not connected for this org"
-        )
+        raise HTTPException(status_code=400, detail="Xero not connected for this org")
     updated = settings.model_copy(update={"xero_tenant_id": tenant_id})
     saved = await _db_finance().org_settings_upsert(get_org_id(), updated)
     return {"xero_tenant_id": saved.xero_tenant_id}
@@ -182,9 +166,7 @@ async def list_tracking_categories(current_user: AdminDep):
     """List Xero tracking categories for the connected org."""
     settings = await _db_finance().org_settings_get(get_org_id())
     if not settings.xero_access_token:
-        raise HTTPException(
-            status_code=400, detail="Xero not connected for this org"
-        )
+        raise HTTPException(status_code=400, detail="Xero not connected for this org")
 
     xero_settings = await get_xero_settings()
     gateway = get_invoicing_gateway(xero_settings)
@@ -204,9 +186,7 @@ async def select_tracking_category(
 ):
     """Save the chosen Xero tracking category ID for job_id tagging on invoice lines."""
     settings = await _db_finance().org_settings_get(get_org_id())
-    updated = settings.model_copy(
-        update={"xero_tracking_category_id": tracking_category_id}
-    )
+    updated = settings.model_copy(update={"xero_tracking_category_id": tracking_category_id})
     saved = await _db_finance().org_settings_upsert(get_org_id(), updated)
     return {"xero_tracking_category_id": saved.xero_tracking_category_id}
 
@@ -248,13 +228,9 @@ async def get_xero_health(
         "failed_credits": failed_credits,
         "failed_po_bills": failed_pos,
         "totals": {
-            "unsynced": len(unsynced_invoices)
-            + len(unsynced_credits)
-            + len(unsynced_pos),
+            "unsynced": len(unsynced_invoices) + len(unsynced_credits) + len(unsynced_pos),
             "mismatch": len(mismatch_invoices) + len(mismatch_credits),
-            "failed": len(failed_invoices)
-            + len(failed_credits)
-            + len(failed_pos),
+            "failed": len(failed_invoices) + len(failed_credits) + len(failed_pos),
         },
     }
 

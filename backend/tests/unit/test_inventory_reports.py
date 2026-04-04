@@ -36,9 +36,7 @@ async def test_product_performance_report_handles_mixed_numeric_types(
             )
         ]
 
-    async def _units_sold_by_product(
-        _org_id: str, *, start_date=None, end_date=None
-    ):
+    async def _units_sold_by_product(_org_id: str, *, start_date=None, end_date=None):
         return {"sku-1": 2.0}
 
     class FakeFinance:

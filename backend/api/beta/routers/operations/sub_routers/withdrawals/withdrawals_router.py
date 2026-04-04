@@ -41,9 +41,7 @@ async def create_withdrawal(
     """Create a material withdrawal - Contractors withdraw materials charged to their account."""
     contractor_record = await get_contractor_by_id(current_user.id)
     if not contractor_record:
-        raise HTTPException(
-            status_code=404, detail="Contractor profile not found"
-        )
+        raise HTTPException(status_code=404, detail="Contractor profile not found")
     contractor = ContractorContext(
         id=contractor_record.id,
         name=contractor_record.name,
@@ -75,10 +73,7 @@ async def create_withdrawal_for_contractor(
     contractor = await get_contractor_by_id(contractor_id)
     if not contractor or contractor.role != "contractor":
         raise HTTPException(status_code=404, detail="Contractor not found")
-    if (
-        contractor.organization_id
-        and contractor.organization_id != current_user.organization_id
-    ):
+    if contractor.organization_id and contractor.organization_id != current_user.organization_id:
         raise HTTPException(
             status_code=403,
             detail="Contractor belongs to different organization",
@@ -112,9 +107,7 @@ async def get_withdrawals(
     start_date: str | None = None,
     end_date: str | None = None,
 ):
-    cid = (
-        current_user.id if current_user.role == "contractor" else contractor_id
-    )
+    cid = current_user.id if current_user.role == "contractor" else contractor_id
     return await _db_operations().list_withdrawals(
         current_user.organization_id,
         contractor_id=cid,
@@ -134,19 +127,14 @@ async def get_withdrawal(withdrawal_id: str, current_user: CurrentUserDep):
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
 
-    if (
-        current_user.role == "contractor"
-        and withdrawal.contractor_id != current_user.id
-    ):
+    if current_user.role == "contractor" and withdrawal.contractor_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     return withdrawal
 
 
 @router.put("/{withdrawal_id}/mark-paid")
-async def mark_withdrawal_paid(
-    withdrawal_id: str, request: Request, current_user: AdminDep
-):
+async def mark_withdrawal_paid(withdrawal_id: str, request: Request, current_user: AdminDep):
     try:
         result = await mark_single_withdrawal_paid(
             withdrawal_id=withdrawal_id,
@@ -168,9 +156,7 @@ async def mark_withdrawal_paid(
 
 
 @router.put("/bulk-mark-paid")
-async def bulk_mark_paid(
-    body: BulkMarkPaidRequest, request: Request, current_user: AdminDep
-):
+async def bulk_mark_paid(body: BulkMarkPaidRequest, request: Request, current_user: AdminDep):
     try:
         updated = await bulk_mark_withdrawals_paid(
             withdrawal_ids=body.withdrawal_ids,

@@ -47,9 +47,7 @@ async def get_current_user(
         payload = decode_token(credentials.credentials)
         claims = resolve_claims(payload)
     except ValueError as e:
-        raise HTTPException(
-            status_code=401, detail=f"Invalid token: {e}"
-        ) from e
+        raise HTTPException(status_code=401, detail=f"Invalid token: {e}") from e
     except jwt.ExpiredSignatureError as e:
         raise HTTPException(status_code=401, detail="Token expired") from e
     except jwt.InvalidTokenError as e:
@@ -83,9 +81,7 @@ def require_role(*roles):
         current_user: Annotated[CurrentUser, Depends(get_current_user)],
     ) -> CurrentUser:
         if current_user.role not in roles:
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
         return current_user
 
     return role_checker

@@ -93,9 +93,7 @@ async def ready(request: Request):
     checks["ai"] = {"status": "ok" if ai_ok else "unconfigured"}
 
     expected_ws = {"/api/beta/shared/ws", "/api/beta/assistant/ws/chat"}
-    mounted_ws = [
-        r.path for r in request.app.routes if isinstance(r, WebSocketRoute)
-    ]
+    mounted_ws = [r.path for r in request.app.routes if isinstance(r, WebSocketRoute)]
     ws_ok = expected_ws.issubset(set(mounted_ws))
     checks["websocket"] = {
         "status": "ok" if ws_ok else "missing",

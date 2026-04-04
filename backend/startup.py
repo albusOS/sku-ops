@@ -115,9 +115,7 @@ async def lifespan(app: FastAPI):
 
                 await get_index()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning(
-                    "BM25 index warm-up skipped for org '%s': %s", oid, e
-                )
+                logger.warning("BM25 index warm-up skipped for org '%s': %s", oid, e)
             try:
                 from finance.application.xero_startup_check import (
                     run_startup_check,
@@ -125,9 +123,7 @@ async def lifespan(app: FastAPI):
 
                 await run_startup_check()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning(
-                    "Xero startup check failed for org '%s': %s", oid, e
-                )
+                logger.warning("Xero startup check failed for org '%s': %s", oid, e)
             finally:
                 org_id_var.reset(token)
 
@@ -147,9 +143,7 @@ async def lifespan(app: FastAPI):
         )
 
     ws_routes = [r.path for r in app.routes if hasattr(r, "path")]
-    has_domain_ws = any(
-        "shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes
-    )
+    has_domain_ws = any("shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes)
     has_chat_ws = any("assistant/ws" in p or "ws/chat" in p for p in ws_routes)
     assert has_domain_ws, "Domain event WebSocket not mounted"
     assert has_chat_ws, "Chat streaming WebSocket not mounted"

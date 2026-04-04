@@ -130,9 +130,7 @@ class RealtimeServiceProxy:
     async def get_client(self):
         client = await get_async_supabase(False)
         if client is None:
-            raise RuntimeError(
-                "Async Supabase client is not configured for this environment."
-            )
+            raise RuntimeError("Async Supabase client is not configured for this environment.")
         return client
 
 

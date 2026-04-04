@@ -53,9 +53,7 @@ def _cycle_row_to_domain(row: CycleCounts) -> CycleCount:
         scope=row.scope,
         created_by_id=str(row.created_by_id),
         created_by_name=row.created_by_name or "",
-        committed_by_id=str(row.committed_by_id)
-        if row.committed_by_id
-        else None,
+        committed_by_id=str(row.committed_by_id) if row.committed_by_id else None,
         committed_at=row.committed_at,
     )
 
@@ -174,9 +172,7 @@ class InventoryDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         iid = as_uuid_required(item_id)
         async with self.session() as session:
-            sub = select(CycleCounts.id).where(
-                CycleCounts.organization_id == oid
-            )
+            sub = select(CycleCounts.id).where(CycleCounts.organization_id == oid)
             stmt = (
                 update(CycleCountItems)
                 .where(
@@ -223,16 +219,12 @@ class InventoryDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return (result.rowcount or 0) > 0
 
-    async def get_cycle_count(
-        self, org_id: str, count_id: str
-    ) -> CycleCount | None:
+    async def get_cycle_count(self, org_id: str, count_id: str) -> CycleCount | None:
         oid = as_uuid_required(org_id)
         cid = as_uuid_required(count_id)
         async with self.session() as session:
             r = await session.execute(
-                select(CycleCounts).where(
-                    CycleCounts.id == cid, CycleCounts.organization_id == oid
-                )
+                select(CycleCounts).where(CycleCounts.id == cid, CycleCounts.organization_id == oid)
             )
             row = r.scalar_one_or_none()
             return _cycle_row_to_domain(row) if row else None
@@ -303,9 +295,7 @@ class InventoryDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         keys = [f"sid{i}" for i in range(len(sku_ids))]
         ph = ", ".join(f":{k}" for k in keys)
-        params: dict[str, Any] = {
-            k: as_uuid_required(sku_ids[i]) for i, k in enumerate(keys)
-        }
+        params: dict[str, Any] = {k: as_uuid_required(sku_ids[i]) for i, k in enumerate(keys)}
         params["since"] = since
         params["org_id"] = oid
         q = text(
@@ -317,10 +307,7 @@ class InventoryDatabaseService(DomainDatabaseService):
         )
         async with self.session() as session:
             result = await session.execute(q, params)
-            return {
-                str(row["sku_id"]): float(row["total_used"])
-                for row in result.mappings()
-            }
+            return {str(row["sku_id"]): float(row["total_used"]) for row in result.mappings()}
 
     async def daily_withdrawal_activity(
         self, org_id: str, since: datetime, sku_id: str | None = None
@@ -353,9 +340,7 @@ class InventoryDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         keys = [f"sid{i}" for i in range(len(sku_ids))]
         ph = ", ".join(f":{k}" for k in keys)
-        params: dict[str, Any] = {
-            k: as_uuid_required(sku_ids[i]) for i, k in enumerate(keys)
-        }
+        params: dict[str, Any] = {k: as_uuid_required(sku_ids[i]) for i, k in enumerate(keys)}
         params["days"] = days
         params["org_id"] = oid
         query = text(
@@ -408,17 +393,13 @@ class InventoryDatabaseService(DomainDatabaseService):
                     "normalized_total": float(r["normalized_total"]),
                     "median_daily": round(float(r["median_daily"]), 2),
                     "mean_daily": round(float(r["mean_daily"]), 2),
-                    "normalized_daily": round(
-                        float(r["normalized_total"]) / max(clean_days, 1), 2
-                    ),
+                    "normalized_daily": round(float(r["normalized_total"]) / max(clean_days, 1), 2),
                     "outlier_days": outlier_days,
                     "total_days": int(total_days),
                 }
             return out
 
-    async def seasonal_pattern(
-        self, org_id: str, sku_id: str, months: int = 12
-    ) -> list[dict]:
+    async def seasonal_pattern(self, org_id: str, sku_id: str, months: int = 12) -> list[dict]:
         oid = as_uuid_required(org_id)
         sid = as_uuid_required(sku_id)
         q = text(
@@ -434,14 +415,10 @@ class InventoryDatabaseService(DomainDatabaseService):
            ORDER BY month"""
         )
         async with self.session() as session:
-            result = await session.execute(
-                q, {"sku_id": sid, "months": months, "org_id": oid}
-            )
+            result = await session.execute(q, {"sku_id": sid, "months": months, "org_id": oid})
             return [dict(r) for r in result.mappings()]
 
-    async def sku_demand_profile(
-        self, org_id: str, sku_id: str, days: int = 60
-    ) -> dict:
+    async def sku_demand_profile(self, org_id: str, sku_id: str, days: int = 60) -> dict:
         oid = as_uuid_required(org_id)
         sid = as_uuid_required(sku_id)
         daily_q = text(
@@ -514,17 +491,13 @@ class InventoryDatabaseService(DomainDatabaseService):
            LIMIT 10"""
         )
         async with self.session() as session:
-            job_result = await session.execute(
-                job_q, {"sku_id": sid, "days": days, "org_id": oid}
-            )
+            job_result = await session.execute(job_q, {"sku_id": sid, "days": days, "org_id": oid})
             job_rows = job_result.mappings().all()
 
         project_buys = []
         for jr in job_rows:
             jd = dict(jr)
-            pct = (
-                float(jd["job_total"]) / raw_total * 100 if raw_total > 0 else 0
-            )
+            pct = float(jd["job_total"]) / raw_total * 100 if raw_total > 0 else 0
             if pct >= 40:
                 project_buys.append(
                     {
@@ -544,9 +517,7 @@ class InventoryDatabaseService(DomainDatabaseService):
             "stats": {
                 "median_daily": round(median_val, 2),
                 "mean_daily": round(raw_total / n, 2),
-                "baseline_daily": round(
-                    baseline_total / max(baseline_days, 1), 2
-                ),
+                "baseline_daily": round(baseline_total / max(baseline_days, 1), 2),
                 "q1": round(q1, 2),
                 "q3": round(q3, 2),
                 "upper_fence": round(upper_fence, 2),

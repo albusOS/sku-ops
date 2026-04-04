@@ -117,35 +117,21 @@ async def create_withdrawal(
         p_price = p.price if p else 0
 
         if item.cost == 0.0 and p_cost:
-            updates["cost"] = _convert_price_per_unit(
-                p_cost, base_unit, req_unit
-            )
-        elif (
-            item.cost != 0.0
-            and req_unit != base_unit
-            and are_compatible(base_unit, req_unit)
-        ):
-            updates["cost"] = _convert_price_per_unit(
-                p_cost or item.cost, base_unit, req_unit
-            )
+            updates["cost"] = _convert_price_per_unit(p_cost, base_unit, req_unit)
+        elif item.cost != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
+            updates["cost"] = _convert_price_per_unit(p_cost or item.cost, base_unit, req_unit)
 
         if item.unit_price == 0.0 and p_price:
-            updates["unit_price"] = _convert_price_per_unit(
-                p_price, base_unit, req_unit
-            )
+            updates["unit_price"] = _convert_price_per_unit(p_price, base_unit, req_unit)
         elif (
-            item.unit_price != 0.0
-            and req_unit != base_unit
-            and are_compatible(base_unit, req_unit)
+            item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit)
         ):
             updates["unit_price"] = _convert_price_per_unit(
                 p_price or item.unit_price, base_unit, req_unit
             )
 
         updates["sell_uom"] = sell_uom
-        updates["sell_cost"] = cost_per_sell_unit(
-            p_cost, base_unit, sell_uom, pack_qty
-        )
+        updates["sell_cost"] = cost_per_sell_unit(p_cost, base_unit, sell_uom, pack_qty)
 
         item = item.model_copy(update=updates)
         enriched_items.append(item)
@@ -154,9 +140,7 @@ async def create_withdrawal(
     billing_entity_name = contractor.billing_entity
     billing_entity_id = contractor.billing_entity_id
     if billing_entity_name and not billing_entity_id:
-        be = await dbm.finance.billing_entity_ensure(
-            org_id, billing_entity_name
-        )
+        be = await dbm.finance.billing_entity_ensure(org_id, billing_entity_name)
         billing_entity_id = be.id if be else None
 
     withdrawal = MaterialWithdrawal(
@@ -288,13 +272,9 @@ async def mark_single_withdrawal_paid(
     paid_at = datetime.now(UTC)
 
     async with transaction():
-        result, changed = await db.mark_withdrawal_paid(
-            organization_id, withdrawal_id, paid_at
-        )
+        result, changed = await db.mark_withdrawal_paid(organization_id, withdrawal_id, paid_at)
         if not result:
-            raise ValueError(
-                f"Withdrawal {withdrawal_id} could not be marked paid"
-            )
+            raise ValueError(f"Withdrawal {withdrawal_id} could not be marked paid")
         if changed:
             await _mark_invoice_paid(withdrawal_id)
             await _record_payment_ledger(
@@ -348,9 +328,7 @@ async def bulk_mark_withdrawals_paid(
     changed_ids: set[str] = set()
     async with transaction():
         changed_ids = set(
-            await db.bulk_mark_withdrawals_paid(
-                organization_id, withdrawal_ids, paid_at
-            )
+            await db.bulk_mark_withdrawals_paid(organization_id, withdrawal_ids, paid_at)
         )
         for w in withdrawals:
             if w.id not in changed_ids:

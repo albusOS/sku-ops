@@ -100,9 +100,7 @@ class TestLimitInjection:
     """Validates that LIMIT is injected when missing."""
 
     def test_adds_limit(self):
-        result = ensure_limit(
-            "SELECT * FROM skus WHERE organization_id = $1", 500
-        )
+        result = ensure_limit("SELECT * FROM skus WHERE organization_id = $1", 500)
         assert "LIMIT 500" in result
 
     def test_preserves_existing_limit(self):
@@ -148,9 +146,7 @@ class TestDDLParsing:
         fk_cols = [fk.column for fk in info.foreign_keys]
         assert "vendor_id" in fk_cols
         assert "sku_id" in fk_cols
-        vendor_fk = next(
-            fk for fk in info.foreign_keys if fk.column == "vendor_id"
-        )
+        vendor_fk = next(fk for fk in info.foreign_keys if fk.column == "vendor_id")
         assert vendor_fk.ref_table == "vendors"
         assert vendor_fk.ref_column == "id"
 

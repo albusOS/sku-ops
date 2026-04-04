@@ -56,9 +56,7 @@ class TestCreateUnit:
         assert unit["name"] == "Pail"
         assert unit["family"] == "discrete"
 
-        units = client.get(
-            "/api/beta/catalog/units", headers=auth_headers
-        ).json()
+        units = client.get("/api/beta/catalog/units", headers=auth_headers).json()
         assert any(u["code"] == "pail" for u in units)
 
     def test_duplicate_code_rejected(self, client, auth_headers):
@@ -118,26 +116,18 @@ class TestDeleteUnit:
         )
         uom_id = create.json()["id"]
 
-        resp = client.delete(
-            f"/api/beta/catalog/units/{uom_id}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/beta/catalog/units/{uom_id}", headers=auth_headers)
         assert resp.status_code == 200
 
-        units = client.get(
-            "/api/beta/catalog/units", headers=auth_headers
-        ).json()
+        units = client.get("/api/beta/catalog/units", headers=auth_headers).json()
         assert not any(u["id"] == uom_id for u in units)
 
     def test_delete_nonexistent_returns_404(self, client, auth_headers):
-        resp = client.delete(
-            f"/api/beta/catalog/units/{uuid.uuid4()}", headers=auth_headers
-        )
+        resp = client.delete(f"/api/beta/catalog/units/{uuid.uuid4()}", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_contractor_cannot_delete(self, client, contractor_auth_headers):
-        resp = client.delete(
-            "/api/beta/catalog/units/uom-each", headers=contractor_auth_headers
-        )
+        resp = client.delete("/api/beta/catalog/units/uom-each", headers=contractor_auth_headers)
         assert resp.status_code == 403
 
 
@@ -227,9 +217,7 @@ class TestSkuRename:
         assert resp.json()["sku"] != old_sku
 
         # Verify persisted
-        get_resp = client.get(
-            f"/api/beta/catalog/skus/{sku_id}", headers=auth_headers
-        )
+        get_resp = client.get(f"/api/beta/catalog/skus/{sku_id}", headers=auth_headers)
         assert get_resp.json()["sku"] == "CUSTOM-NEW-01"
 
     def test_rename_to_duplicate_rejected(self, client, auth_headers):

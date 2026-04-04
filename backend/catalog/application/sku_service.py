@@ -46,14 +46,8 @@ async def generate_sku(
     a hash suffix to disambiguate.
     """
     org_id = get_org_id()
-    number = await _db_catalog().sku_counter_increment(
-        org_id, product_family_id
-    )
-    raw_slug = (
-        slug_from_name(family_name or "", max_len=8)
-        if family_name
-        else _DEFAULT_SLUG
-    )
+    number = await _db_catalog().sku_counter_increment(org_id, product_family_id)
+    raw_slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
     candidate = f"{department_code}-{raw_slug}-{str(number).zfill(2)}"
 
     # Check for collision and disambiguate if needed
@@ -63,11 +57,7 @@ async def generate_sku(
 
     # Collision — use a shorter slug + hash from the family ID
     suffix = product_family_id[:4].upper()
-    slug = (
-        slug_from_name(family_name or "", max_len=4)
-        if family_name
-        else _DEFAULT_SLUG
-    )
+    slug = slug_from_name(family_name or "", max_len=4) if family_name else _DEFAULT_SLUG
     return f"{department_code}-{slug}{suffix}-{str(number).zfill(2)}"
 
 
@@ -82,15 +72,9 @@ async def preview_sku(
     if not department:
         raise ResourceNotFoundError("Category", category_id)
     code = department.code
-    slug = (
-        slug_from_name(family_name or "", max_len=8)
-        if family_name
-        else _DEFAULT_SLUG
-    )
+    slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
     if product_family_id:
-        next_num = await _db_catalog().sku_counter_next_preview(
-            org_id, product_family_id
-        )
+        next_num = await _db_catalog().sku_counter_next_preview(org_id, product_family_id)
     else:
         next_num = 1
     return {
@@ -105,11 +89,7 @@ async def sku_overview(family_name: str | None = None) -> dict:
     """Return SKU format info and example SKU for every department."""
     org_id = get_org_id()
     departments = await _db_catalog().list_departments(org_id)
-    slug = (
-        slug_from_name(family_name or "", max_len=8)
-        if family_name
-        else _DEFAULT_SLUG
-    )
+    slug = slug_from_name(family_name or "", max_len=8) if family_name else _DEFAULT_SLUG
     depts = []
     for d in departments:
         dept_data = d.model_dump()

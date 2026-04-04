@@ -130,15 +130,11 @@ def _topological_sort(
     for m in models:
         visit(m.table_name)
 
-    non_link = [
-        n for n in sorted_names if n not in link_tables and n in model_map
-    ]
+    non_link = [n for n in sorted_names if n not in link_tables and n in model_map]
     link_list = [n for n in sorted_names if n in link_tables and n in model_map]
 
     result = link_list + non_link
-    remaining_names = [
-        m.table_name for m in models if m.table_name not in set(result)
-    ]
+    remaining_names = [m.table_name for m in models if m.table_name not in set(result)]
     return [model_map[n] for n in result + remaining_names if n in model_map]
 
 
@@ -158,14 +154,11 @@ def generate_sqlmodel_code(
         fk_by_source[fk.source_table].append(fk)
         fk_by_target[fk.target_table].append(fk)
 
-    models_with_pks = [
-        m for m in parsed_models if pk_map.get((schema, m.table_name))
-    ]
+    models_with_pks = [m for m in parsed_models if pk_map.get((schema, m.table_name))]
     sorted_models = _topological_sort(models_with_pks, fks, link_tables)
     table_names = {m.table_name for m in sorted_models}
     table_columns = {
-        model.table_name: {field.name for field in model.fields}
-        for model in sorted_models
+        model.table_name: {field.name for field in model.fields} for model in sorted_models
     }
     relationship_plan = _plan_relationships(
         fk_by_source=fk_by_source,
@@ -233,9 +226,7 @@ def _generate_field_line(
     table_fks: dict[str, ForeignKeyInfo],
     sa_imports: set[str],
 ) -> str:
-    mapped = map_pydantic_type(
-        field_info.type_annotation, field_info.is_optional
-    )
+    mapped = map_pydantic_type(field_info.type_annotation, field_info.is_optional)
     if mapped.needs_import:
         sa_imports.update(mapped.needs_import)
 
@@ -346,18 +337,14 @@ def _plan_relationships(
                 base_name, used_names, column_names
             )
 
-    pair_counts = Counter(
-        (fk.source_table, fk.target_table) for fk in relevant_fks
-    )
+    pair_counts = Counter((fk.source_table, fk.target_table) for fk in relevant_fks)
     explicit_foreign_keys = {
         fk.constraint_name
         for fk in relevant_fks
         if pair_counts[(fk.source_table, fk.target_table)] > 1
     }
     self_referential_constraints = {
-        fk.constraint_name
-        for fk in relevant_fks
-        if fk.source_table == fk.target_table
+        fk.constraint_name for fk in relevant_fks if fk.source_table == fk.target_table
     }
 
     return RelationshipPlan(
@@ -421,12 +408,8 @@ def _generate_relationships(
             continue
 
         target_class = _table_to_class(fk.target_table)
-        rel_name = relationship_plan.source_name_by_constraint[
-            fk.constraint_name
-        ]
-        back_name = relationship_plan.target_name_by_constraint[
-            fk.constraint_name
-        ]
+        rel_name = relationship_plan.source_name_by_constraint[fk.constraint_name]
+        back_name = relationship_plan.target_name_by_constraint[fk.constraint_name]
         foreign_keys = None
         remote_side = None
         if fk.constraint_name in relationship_plan.explicit_foreign_keys:
@@ -443,9 +426,7 @@ def _generate_relationships(
     used_names: set[str] = set()
     for fk in fk_by_target.get(table, []):
         if fk.constraint_name in relationship_plan.target_name_by_constraint:
-            used_names.add(
-                relationship_plan.target_name_by_constraint[fk.constraint_name]
-            )
+            used_names.add(relationship_plan.target_name_by_constraint[fk.constraint_name])
     for fk in fk_by_target.get(table, []):
         if len(fk.source_columns) != 1:
             continue
@@ -469,12 +450,8 @@ def _generate_relationships(
             )
             continue
 
-        rel_name = relationship_plan.target_name_by_constraint[
-            fk.constraint_name
-        ]
-        back_name = relationship_plan.source_name_by_constraint[
-            fk.constraint_name
-        ]
+        rel_name = relationship_plan.target_name_by_constraint[fk.constraint_name]
+        back_name = relationship_plan.source_name_by_constraint[fk.constraint_name]
         foreign_keys = None
         if fk.constraint_name in relationship_plan.explicit_foreign_keys:
             foreign_keys = f"{source_class}.{fk.source_columns[0]}"
@@ -524,13 +501,9 @@ def _add_m2m_relationship(
         if other_table not in all_tables or other_table in link_tables:
             continue
         other_class = _table_to_class(other_table)
-        rel_name = _dedupe_name(
-            _pluralize(other_table), used_names, column_names
-        )
+        rel_name = _dedupe_name(_pluralize(other_table), used_names, column_names)
         m2m_name_map[(link_table, table, other_table)] = rel_name
-        back_name = m2m_name_map.get(
-            (link_table, other_table, table), _pluralize(table)
-        )
+        back_name = m2m_name_map.get((link_table, other_table, table), _pluralize(table))
 
         lines.append(
             f"{rel_name}: {_collection_annotation(other_class)} = Relationship("
@@ -561,20 +534,14 @@ def _generate_header(
     for imp in sorted(sa_imports):
         if imp in ("JSONB", "PG_UUID"):
             if imp == "JSONB":
-                sa_from_pg.append(
-                    "from sqlalchemy.dialects.postgresql import JSONB"
-                )
+                sa_from_pg.append("from sqlalchemy.dialects.postgresql import JSONB")
             elif imp == "PG_UUID":
-                sa_from_pg.append(
-                    "from sqlalchemy.dialects.postgresql import UUID as PG_UUID"
-                )
+                sa_from_pg.append("from sqlalchemy.dialects.postgresql import UUID as PG_UUID")
         else:
             sa_from_main.append(imp)
 
     if sa_from_main:
-        lines.append(
-            f"from sqlalchemy import {', '.join(sorted(sa_from_main))}"
-        )
+        lines.append(f"from sqlalchemy import {', '.join(sorted(sa_from_main))}")
     for pg_line in sa_from_pg:
         lines.append(pg_line)
 

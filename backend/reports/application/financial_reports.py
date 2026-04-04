@@ -152,9 +152,7 @@ async def sales_report(
             get_org_id(), start_date=start_date, end_date=end_date
         ),
         _db_catalog().list_skus(get_org_id()),
-        _db_operations().payment_status_breakdown(
-            org_id, start_date=start_date, end_date=end_date
-        ),
+        _db_operations().payment_status_breakdown(org_id, start_date=start_date, end_date=end_date),
         _db_finance().analytics_returns_total(
             get_org_id(),
             start_date=start_date,
@@ -196,9 +194,7 @@ async def sales_report(
         total_tax=round_money(tax),
         total_transactions=tx_count,
         return_count=return_count,
-        average_transaction=round_money(net_revenue / tx_count)
-        if tx_count > 0
-        else 0.0,
+        average_transaction=round_money(net_revenue / tx_count) if tx_count > 0 else 0.0,
         by_payment_status=payment_status,
         top_products=enriched_products,
         total_revenue=round_money(net_revenue),
@@ -298,9 +294,7 @@ async def job_pl_report(
         total_profit=round_money(total_profit),
         # float for JSON-friendly percentage
         total_margin_pct=round(
-            float(total_profit / total_revenue * 100)
-            if total_revenue > 0
-            else 0.0,
+            float(total_profit / total_revenue * 100) if total_revenue > 0 else 0.0,
             1,
         ),
     )
@@ -327,9 +321,7 @@ async def pl_report(
     total_rows = None
 
     if group_by == "overall":
-        accounts = await _db_finance().ledger_summary_by_account(
-            get_org_id(), **date_kw, **dim_kw
-        )
+        accounts = await _db_finance().ledger_summary_by_account(get_org_id(), **date_kw, **dim_kw)
         revenue = accounts.get("revenue", 0.0)
         cogs = accounts.get("cogs", 0.0)
         tax = accounts.get("tax_collected", 0.0)
@@ -344,9 +336,7 @@ async def pl_report(
                 shrinkage=round_money(shrinkage),
                 gross_profit=profit,
                 # float for JSON-friendly percentage
-                margin_pct=round(float(profit / revenue * 100), 1)
-                if revenue > 0
-                else 0.0,
+                margin_pct=round(float(profit / revenue * 100), 1) if revenue > 0 else 0.0,
             ),
             rows=[],
             label_key="name",
@@ -365,37 +355,25 @@ async def pl_report(
         all_cost_override = result["all_cost"]
         label_key = "job_id"
     elif group_by == "contractor":
-        rows = await _db_finance().ledger_summary_by_contractor(
-            get_org_id(), **date_kw
-        )
+        rows = await _db_finance().ledger_summary_by_contractor(get_org_id(), **date_kw)
         label_key = "contractor_id"
     elif group_by == "department":
-        rows = await _db_finance().ledger_summary_by_department(
-            get_org_id(), **date_kw
-        )
+        rows = await _db_finance().ledger_summary_by_department(get_org_id(), **date_kw)
         label_key = "department"
     elif group_by == "entity":
-        rows = await _db_finance().ledger_summary_by_billing_entity(
-            get_org_id(), **date_kw
-        )
+        rows = await _db_finance().ledger_summary_by_billing_entity(get_org_id(), **date_kw)
         label_key = "billing_entity"
     elif group_by == "product":
         margin_rows, catalog = await asyncio.gather(
-            _db_finance().analytics_product_margins(
-                get_org_id(), **date_kw, limit=limit
-            ),
+            _db_finance().analytics_product_margins(get_org_id(), **date_kw, limit=limit),
             _db_catalog().list_skus(get_org_id()),
         )
         pmap = {p.id: p for p in catalog}
         rows = [
             {
                 **m,
-                "name": pmap[m["sku_id"]].name
-                if m["sku_id"] in pmap
-                else "Unknown",
-                "base_unit": pmap[m["sku_id"]].base_unit
-                if m["sku_id"] in pmap
-                else "each",
+                "name": pmap[m["sku_id"]].name if m["sku_id"] in pmap else "Unknown",
+                "base_unit": pmap[m["sku_id"]].base_unit if m["sku_id"] in pmap else "each",
             }
             for m in margin_rows
         ]
@@ -462,9 +440,7 @@ async def kpi_report(
             billing_entity=billing_entity,
         ),
         _db_catalog().list_skus(get_org_id()),
-        _db_operations().units_sold_by_product(
-            org_id, start_date=start_date, end_date=end_date
-        ),
+        _db_operations().units_sold_by_product(org_id, start_date=start_date, end_date=end_date),
     )
 
     total_revenue = accounts.get("revenue", 0.0)
@@ -494,11 +470,7 @@ async def kpi_report(
     # float for JSON-friendly percentage
     units_f = float(total_units_sold)
     stock_f = float(total_stock)
-    sell_through_pct = (
-        (units_f / (units_f + stock_f) * 100)
-        if (units_f + stock_f) > 0
-        else 0.0
-    )
+    sell_through_pct = (units_f / (units_f + stock_f) * 100) if (units_f + stock_f) > 0 else 0.0
 
     return KpiReport(
         period_days=period_days,

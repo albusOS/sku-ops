@@ -56,19 +56,17 @@ All commands below run from the **project root** via `pixi run <task>` (`pixi ta
 ```bash
 pixi run doctor                  # toolchain check (pixi python, uv, node, pnpm)
 pixi run test                    # all tests (backend then frontend)
-pixi run test-backend -- -- …    # backend tests only (pytest; extra args after --)
-pixi run test-frontend           # frontend tests only (vitest)
-pixi run test-e2e -- -- …        # Playwright e2e (cwd e2e/)
-pixi run lint-backend            # ruff lint Python
-pixi run format-backend          # ruff format Python
-pixi run lint-frontend           # ESLint frontend
-pixi run format-frontend         # Prettier frontend
-pixi run check                   # lint + format backend and frontend
+pixi run test backend -- …       # backend only; … = pytest args (one -- separates them from pixi task args)
+pixi run test frontend           # frontend tests only (vitest)
+pixi run test-e2e -- …          # e2e; … = extra args to Playwright after one --
+pixi run lint [all|backend|frontend]    # default all (ruff + ESLint)
+pixi run format [all|backend|frontend]  # default all (ruff + Prettier)
+pixi run check [all|backend|frontend]   # lint then format (default all)
 pixi run commit                  # commitizen conventional commit
 pixi run backend                 # backend only
 pixi run frontend                # frontend only
-pixi run provision -- -- …       # devtools provision
-pixi run eval -- -- …           # LLM evals
+pixi run provision -- …          # extra args for provision (Mode 1 shows --dev)
+pixi run eval -- …               # extra args for evals
 pixi run db                      # start local Supabase stack
 pixi run db-stop                 # stop local Supabase stack
 pixi run db-reset                # reset local DB from migrations + seeds

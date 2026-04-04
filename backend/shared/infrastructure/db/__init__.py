@@ -103,9 +103,7 @@ async def sql_execute_many(
     read_only: bool = False,
 ) -> int:
     """Execute the same statement for many parameter rows; returns rows affected."""
-    return await _manager().sql.execute_many(
-        sql, params_list, read_only=read_only
-    )
+    return await _manager().sql.execute_many(sql, params_list, read_only=read_only)
 
 
 __all__ = [

@@ -72,9 +72,7 @@ async def summary_by_account(
     billing_entity: str | None = None,
 ) -> dict[str, float]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -84,10 +82,7 @@ async def summary_by_account(
     sql = (
         "SELECT account, ROUND(CAST(SUM(amount) AS NUMERIC), 2) AS total"
         " FROM financial_ledger"
-        " WHERE organization_id = :org_id"
-        + date_sql
-        + dim_sql
-        + " GROUP BY account"
+        " WHERE organization_id = :org_id" + date_sql + dim_sql + " GROUP BY account"
     )
     r = await session.execute(text(sql), params)
     return {row[0]: float(row[1]) for row in r.all()}
@@ -111,9 +106,7 @@ async def trend_series(
     else:
         period_expr = "to_char(created_at::date, 'YYYY-MM-DD')"
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -203,9 +196,7 @@ async def product_margins(
     billing_entity: str | None = None,
 ) -> list[ProductMarginRow]:
     params: dict[str, Any] = {"org_id": org_id, "lim": limit}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -237,9 +228,7 @@ async def product_margins(
                 revenue=revenue,
                 cost=cost,
                 profit=profit,
-                margin_pct=round(float(profit) / rev_f * 100, 1)
-                if rev_f > 0
-                else 0.0,
+                margin_pct=round(float(profit) / rev_f * 100, 1) if rev_f > 0 else 0.0,
             )
         )
     return result
@@ -253,9 +242,7 @@ async def purchase_spend(
     end_date: str | None = None,
 ) -> float:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT ROUND(CAST(COALESCE(SUM(amount), 0) AS NUMERIC), 2) AS total"
         " FROM financial_ledger"
@@ -276,15 +263,11 @@ async def reference_counts(
     end_date: str | None = None,
 ) -> dict[str, int]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT reference_type, COUNT(DISTINCT reference_id) AS cnt"
         " FROM financial_ledger"
-        " WHERE organization_id = :org_id"
-        + date_sql
-        + " GROUP BY reference_type"
+        " WHERE organization_id = :org_id" + date_sql + " GROUP BY reference_type"
     )
     r = await session.execute(text(sql), params)
     return {row[0]: row[1] for row in r.all()}
@@ -301,9 +284,7 @@ async def returns_total(
     billing_entity: str | None = None,
 ) -> float:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     dim_sql = _build_dimension_sql(
         params,
         job_id=job_id,
@@ -330,9 +311,7 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT department,"
         " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
@@ -355,9 +334,7 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT billing_entity,"
         " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
@@ -366,9 +343,7 @@ async def summary_by_billing_entity(
         " COUNT(DISTINCT reference_id) AS transaction_count"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
-        " AND billing_entity IS NOT NULL"
-        + date_sql
-        + " GROUP BY billing_entity"
+        " AND billing_entity IS NOT NULL" + date_sql + " GROUP BY billing_entity"
     )
     r = await session.execute(text(sql), params)
     return [dict(row._mapping) for row in r.all()]
@@ -395,9 +370,7 @@ async def summary_by_contractor_raw(
         " COUNT(DISTINCT fl.reference_id) AS transaction_count"
         " FROM financial_ledger fl"
         " WHERE fl.organization_id = :org_id"
-        " AND fl.contractor_id IS NOT NULL"
-        + date_sql
-        + " GROUP BY fl.contractor_id"
+        " AND fl.contractor_id IS NOT NULL" + date_sql + " GROUP BY fl.contractor_id"
     )
     r = await session.execute(text(sql), params)
     return [dict(row._mapping) for row in r.all()]
@@ -415,9 +388,7 @@ async def summary_by_job_aggregate(
 ) -> tuple[list[dict[str, Any]], int, float, float]:
     """Returns (page rows, total count, all_revenue, all_cost)."""
     params: dict[str, Any] = {"org_id": org_id}
-    date_sql = _ledger_date_sql(
-        params, start_date=start_date, end_date=end_date
-    )
+    date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     base = (
         "SELECT job_id::text AS job_id,"
         " billing_entity,"
@@ -427,22 +398,19 @@ async def summary_by_job_aggregate(
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
         " AND account IN ('revenue', 'cogs')"
-        " AND job_id IS NOT NULL"
-        + date_sql
-        + " GROUP BY job_id, billing_entity"
+        " AND job_id IS NOT NULL" + date_sql + " GROUP BY job_id, billing_entity"
     )
     search_clause = ""
     if search:
         term = f"%{search}%"
         params["search_a"] = term
         params["search_b"] = term
-        search_clause = " HAVING CAST(job_id AS text) LIKE :search_a OR billing_entity LIKE :search_b"
+        search_clause = (
+            " HAVING CAST(job_id AS text) LIKE :search_a OR billing_entity LIKE :search_b"
+        )
     count_sql = (
         "SELECT COUNT(*) AS cnt, COALESCE(SUM(revenue), 0) AS total_revenue,"
-        " COALESCE(SUM(cost), 0) AS total_cost FROM ("
-        + base
-        + search_clause
-        + ") t"
+        " COALESCE(SUM(cost), 0) AS total_cost FROM (" + base + search_clause + ") t"
     )
     cr = await session.execute(text(count_sql), params)
     crow = cr.mappings().first()
@@ -450,9 +418,7 @@ async def summary_by_job_aggregate(
     all_revenue = float(crow["total_revenue"]) if crow else 0.0
     all_cost = float(crow["total_cost"]) if crow else 0.0
     params_page = {**params, "lim": limit, "off": offset}
-    data_sql = (
-        base + search_clause + " ORDER BY revenue DESC LIMIT :lim OFFSET :off"
-    )
+    data_sql = base + search_clause + " ORDER BY revenue DESC LIMIT :lim OFFSET :off"
     dr = await session.execute(text(data_sql), params_page)
     rows = [dict(row._mapping) for row in dr.all()]
     return rows, total, all_revenue, all_cost

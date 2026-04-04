@@ -67,10 +67,18 @@ const Login = () => {
         <div className="bg-surface rounded-2xl p-8 shadow-soft-lg border border-border/70 backdrop-blur-sm flex flex-col">
           <Tabs value={role} onValueChange={setRole} className="w-full">
             <TabsList className="grid w-full grid-cols-2 h-10 mb-6">
-              <TabsTrigger value="admin" className="text-xs sm:text-sm" data-testid="login-role-admin">
+              <TabsTrigger
+                value="admin"
+                className="text-xs sm:text-sm"
+                data-testid="login-role-admin"
+              >
                 Admin / Warehouse
               </TabsTrigger>
-              <TabsTrigger value="contractor" className="text-xs sm:text-sm" data-testid="login-role-contractor">
+              <TabsTrigger
+                value="contractor"
+                className="text-xs sm:text-sm"
+                data-testid="login-role-contractor"
+              >
                 Contractor
               </TabsTrigger>
             </TabsList>
@@ -85,10 +93,7 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4 flex-1">
             <div>
-              <Label
-                htmlFor="login-email"
-                className="text-muted-foreground font-medium text-sm"
-              >
+              <Label htmlFor="login-email" className="text-muted-foreground font-medium text-sm">
                 Email
               </Label>
               <Input
@@ -102,10 +107,7 @@ const Login = () => {
               />
             </div>
             <div>
-              <Label
-                htmlFor="login-password"
-                className="text-muted-foreground font-medium text-sm"
-              >
+              <Label htmlFor="login-password" className="text-muted-foreground font-medium text-sm">
                 Password
               </Label>
               <Input

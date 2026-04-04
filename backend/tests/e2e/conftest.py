@@ -36,9 +36,7 @@ def _seed_contractor(app_client: TestClient) -> str:
     from shared.infrastructure.db import sql_execute
 
     async def _insert():
-        cursor = await sql_execute(
-            "SELECT id FROM users WHERE id = $1", (CONTRACTOR_USER_ID,)
-        )
+        cursor = await sql_execute("SELECT id FROM users WHERE id = $1", (CONTRACTOR_USER_ID,))
         if cursor.rows:
             return
         await sql_execute(
@@ -80,9 +78,7 @@ def _seed_dept(client: TestClient, headers: dict) -> str:
         },
         headers=headers,
     )
-    assert resp.status_code == 200, (
-        f"Department seed failed: {resp.status_code} {resp.text}"
-    )
+    assert resp.status_code == 200, f"Department seed failed: {resp.status_code} {resp.text}"
     return resp.json()["id"]
 
 
@@ -148,9 +144,7 @@ class WSEventCollector:
 
     def start(self, client: TestClient, token: str | None = None) -> None:
         token = token or admin_token()
-        self._ws = client.websocket_connect(
-            f"/api/beta/shared/ws?token={token}"
-        )
+        self._ws = client.websocket_connect(f"/api/beta/shared/ws?token={token}")
         self._ws.__enter__()
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()

@@ -15,9 +15,7 @@ from tests.helpers.auth import CONTRACTOR_USER_ID, SEEDED_JOB_ID, admin_headers
 class TestWithdrawalPipeline:
     """Full withdrawal lifecycle through the live HTTP API."""
 
-    def test_withdrawal_creates_stock_ledger_and_events(
-        self, client, ws_events, seed_dept_id
-    ):
+    def test_withdrawal_creates_stock_ledger_and_events(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
         product = create_product(
             client,
@@ -32,9 +30,7 @@ class TestWithdrawalPipeline:
         assert withdrawal["contractor_id"]
 
         # Stock decremented
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.status_code == 200
         assert resp.json()["quantity"] == 45
 
@@ -112,9 +108,7 @@ class TestWithdrawalPipeline:
         assert resp.status_code in (400, 422)
 
         # Stock unchanged
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 2
 
     def test_dashboard_revenue_matches_withdrawal(self, client, seed_dept_id):

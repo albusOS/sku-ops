@@ -102,9 +102,7 @@ _SELECT_COLS = (
 
 
 def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
-        "utf-8"
-    )
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -189,9 +187,7 @@ async def create_contractor(
     org_id = get_org_id()
 
     async with transaction():
-        dup = await sql_execute(
-            "SELECT id FROM users WHERE email = $1", (email,)
-        )
+        dup = await sql_execute("SELECT id FROM users WHERE email = $1", (email,))
         if dup.rows:
             raise ValueError("Email already registered")
 
@@ -266,15 +262,12 @@ async def update_contractor(
         return contractor
 
     billing_name_changed = (
-        updates.billing_entity is not None
-        and updates.billing_entity != contractor.billing_entity
+        updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
     )
 
     async with transaction():
         if billing_name_changed:
-            be = await _db_finance().billing_entity_ensure(
-                org_id, updates.billing_entity
-            )
+            be = await _db_finance().billing_entity_ensure(org_id, updates.billing_entity)
             set_clauses.append(f"billing_entity_id = ${n}")
             values.append(be.id if be else None)
             n += 1

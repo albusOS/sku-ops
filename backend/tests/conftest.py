@@ -10,9 +10,7 @@ import os
 
 os.environ["ENV"] = "test"
 # CI injects DATABASE_URL. Local dev defaults to the Supabase local DB.
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-)
+os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres")
 os.environ.setdefault("REDIS_URL", "")
 os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
 os.environ["ANTHROPIC_API_KEY"] = ""

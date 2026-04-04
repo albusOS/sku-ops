@@ -103,9 +103,7 @@ HEARTBEAT_INTERVAL = 25
 _ALLOWED_ROLES = frozenset({"admin"})
 
 _STREAM_OVERLOAD_RETRIES = 2
-_STREAM_OVERLOAD_BACKOFF = (
-    5.0  # seconds — matches runner.py's _OVERLOAD_BASE_DELAY
-)
+_STREAM_OVERLOAD_BACKOFF = 5.0  # seconds — matches runner.py's _OVERLOAD_BASE_DELAY
 
 # Background generation tasks — tracked for clean shutdown
 _running_tasks: set[asyncio.Task] = set()
@@ -121,16 +119,10 @@ def _classify_chat_error(exc: Exception) -> tuple[str, str]:
     s = str(exc).lower()
     t = type(exc).__name__.lower()
 
-    if (
-        isinstance(exc, asyncio.TimeoutError)
-        or "timeout" in t
-        or "timeout" in s
-    ):
+    if isinstance(exc, asyncio.TimeoutError) or "timeout" in t or "timeout" in s:
         return "timeout", "The AI took too long to respond. Please try again."
 
-    if any(
-        k in s for k in ("rate limit", "429", "too many requests", "ratelimit")
-    ):
+    if any(k in s for k in ("rate limit", "429", "too many requests", "ratelimit")):
         return (
             "rate_limit",
             "AI rate limit reached. Please wait a moment and try again.",
@@ -151,10 +143,7 @@ def _classify_chat_error(exc: Exception) -> tuple[str, str]:
             "AI service authentication failed. Please contact support.",
         )
 
-    if any(
-        k in s
-        for k in ("overload", "503", "529", "service unavailable", "capacity")
-    ):
+    if any(k in s for k in ("overload", "503", "529", "service unavailable", "capacity")):
         return (
             "overloaded",
             "The AI service is temporarily overloaded. Please try again shortly.",
@@ -171,9 +160,7 @@ def _classify_chat_error(exc: Exception) -> tuple[str, str]:
 
 def _is_overload_error(exc: Exception) -> bool:
     s = str(exc).lower()
-    return any(
-        k in s for k in ("529", "overload", "service unavailable", "capacity")
-    )
+    return any(k in s for k in ("529", "overload", "service unavailable", "capacity"))
 
 
 router = APIRouter()
@@ -238,9 +225,7 @@ async def _run_generation(
         )
         return
 
-    await job_manager.publish_event(
-        job_id, {"type": "chat.status", "status": "thinking"}
-    )
+    await job_manager.publish_event(job_id, {"type": "chat.status", "status": "thinking"})
 
     logger.info(
         "Generation started: job=%s user=%s session=%s agent=%s",
@@ -328,17 +313,13 @@ async def _run_generation(
                             if not full_text:
                                 full_text = response_text
 
-                            model_name = model_override or get_model_name(
-                                f"agent:{agent_label}"
-                            )
+                            model_name = model_override or get_model_name(f"agent:{agent_label}")
                             usage = result.usage()
                             cost = calc_cost(model_name, usage)
 
                             all_msgs = result.all_messages()
                             tool_calls_final = extract_tool_calls(all_msgs)
-                            tool_calls_det = extract_tool_calls_detailed(
-                                all_msgs
-                            )
+                            tool_calls_det = extract_tool_calls_detailed(all_msgs)
                             text_history = extract_text_history(all_msgs)
 
                             intent = await classify_intent(original_message)
@@ -361,13 +342,9 @@ async def _run_generation(
                                         "content": original_message,
                                     }
                                 )
-                                new_history.append(
-                                    {"role": "assistant", "content": full_text}
-                                )
+                                new_history.append({"role": "assistant", "content": full_text})
 
-                            await session_store.update(
-                                session_id, new_history, cost_usd=turn_cost
-                            )
+                            await session_store.update(session_id, new_history, cost_usd=turn_cost)
 
                             if len(new_history) % 8 == 0:
                                 schedule_memory_extraction(
@@ -446,9 +423,7 @@ async def _run_generation(
 
                             asyncio.create_task(_log_run())  # noqa: RUF006
 
-                            ui_agent_label = response_agent_label(
-                                agent_label, tool_calls_final
-                            )
+                            ui_agent_label = response_agent_label(agent_label, tool_calls_final)
                             done_event = {
                                 "type": "chat.done",
                                 "response": full_text,
@@ -462,9 +437,7 @@ async def _run_generation(
                                     "input_tokens": usage.input_tokens,
                                     "output_tokens": usage.output_tokens,
                                     "model": model_name,
-                                    "session_cost_usd": await session_store.get_cost(
-                                        session_id
-                                    ),
+                                    "session_cost_usd": await session_store.get_cost(session_id),
                                 },
                                 "validation": {
                                     "passed": validation.passed,
@@ -486,14 +459,9 @@ async def _run_generation(
                     raise
 
                 overload_attempts += 1
-                if (
-                    overload_attempts >= _STREAM_OVERLOAD_RETRIES
-                    and not model_override
-                ):
+                if overload_attempts >= _STREAM_OVERLOAD_RETRIES and not model_override:
                     primary = get_model_name(
-                        f"agent:{agent_label}"
-                        if agent_label
-                        else "agent:unified"
+                        f"agent:{agent_label}" if agent_label else "agent:unified"
                     )
                     fallback = get_fallback_model(primary)
                     if fallback:
@@ -526,9 +494,7 @@ async def _run_generation(
                     job_id,
                     {"type": "chat.status", "status": "retrying"},
                 )
-                await asyncio.sleep(
-                    _STREAM_OVERLOAD_BACKOFF * (2 ** (overload_attempts - 1))
-                )
+                await asyncio.sleep(_STREAM_OVERLOAD_BACKOFF * (2 ** (overload_attempts - 1)))
 
         if stream_succeeded:
             return
@@ -546,9 +512,7 @@ async def _run_generation(
                 "session_id": session_id,
                 "usage": {
                     "cost_usd": 0,
-                    "session_cost_usd": await session_store.get_cost(
-                        session_id
-                    ),
+                    "session_cost_usd": await session_store.get_cost(session_id),
                 },
                 "cancelled": True,
             }
@@ -564,9 +528,7 @@ async def _run_generation(
                 "session_id": session_id,
                 "usage": {
                     "cost_usd": 0,
-                    "session_cost_usd": await session_store.get_cost(
-                        session_id
-                    ),
+                    "session_cost_usd": await session_store.get_cost(session_id),
                 },
             }
             await job_manager.complete_job(job_id, partial_done)
@@ -587,9 +549,7 @@ async def _run_generation(
             )
 
     except asyncio.CancelledError:
-        logger.debug(
-            "Generation task cancelled: job=%s session=%s", job_id, session_id
-        )
+        logger.debug("Generation task cancelled: job=%s session=%s", job_id, session_id)
         chat_message(agent_label, "cancelled")
         if full_text:
             await _save_turn(session_id, history, original_message, full_text)
@@ -649,14 +609,10 @@ async def ws_chat_endpoint(websocket: WebSocket):
     try:
         claims = resolve_claims(payload)
     except ValueError:
-        await websocket.close(
-            code=4001, reason="Invalid token: missing required claims"
-        )
+        await websocket.close(code=4001, reason="Invalid token: missing required claims")
         return
     if is_deployed and claims.organization_id is None:
-        await websocket.close(
-            code=4001, reason="Invalid token: missing organization_id claim"
-        )
+        await websocket.close(code=4001, reason="Invalid token: missing organization_id claim")
         return
     org_id = claims.organization_id or ""
     user_id = claims.user_id
@@ -738,9 +694,7 @@ async def ws_chat_endpoint(websocket: WebSocket):
                     resume_job_id = msg.get("job_id", "")
                     if not resume_job_id:
                         continue
-                    logger.info(
-                        "Chat WS resume: user=%s job=%s", user_id, resume_job_id
-                    )
+                    logger.info("Chat WS resume: user=%s job=%s", user_id, resume_job_id)
 
                     if relay_task and not relay_task.done():
                         relay_task.cancel()
@@ -767,15 +721,11 @@ async def ws_chat_endpoint(websocket: WebSocket):
                         active_job_id = None
                     else:
                         active_job_id = resume_job_id
-                        buffered = await job_manager.get_job_events(
-                            resume_job_id
-                        )
+                        buffered = await job_manager.get_job_events(resume_job_id)
                         for ev in buffered:
                             if not await _send(ws, ev):
                                 return
-                        relay_task = asyncio.create_task(
-                            _relay_events(resume_job_id)
-                        )
+                        relay_task = asyncio.create_task(_relay_events(resume_job_id))
                     continue
 
                 if msg_type == "chat":
@@ -790,14 +740,10 @@ async def ws_chat_endpoint(websocket: WebSocket):
                         continue
 
                     cancel_event = asyncio.Event()
-                    result = await _submit_chat(
-                        ws, msg, user_id, user_name, cancel_event
-                    )
+                    result = await _submit_chat(ws, msg, user_id, user_name, cancel_event)
                     if result:
                         active_job_id = result
-                        await _send(
-                            ws, {"type": "chat.job_started", "job_id": result}
-                        )
+                        await _send(ws, {"type": "chat.job_started", "job_id": result})
                         relay_task = asyncio.create_task(_relay_events(result))
                     else:
                         cancel_event = None
@@ -817,15 +763,11 @@ async def ws_chat_endpoint(websocket: WebSocket):
         asyncio.create_task(_receiver()),
     ]
     try:
-        _done, pending = await asyncio.wait(
-            tasks, return_when=asyncio.FIRST_COMPLETED
-        )
+        _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for t in pending:
             t.cancel()
         if pending:
-            await asyncio.shield(
-                asyncio.gather(*pending, return_exceptions=True)
-            )
+            await asyncio.shield(asyncio.gather(*pending, return_exceptions=True))
     except (RuntimeError, OSError, asyncio.CancelledError):
         for t in tasks:
             t.cancel()
@@ -860,10 +802,7 @@ async def _submit_chat(
         await _send(ws, {"type": "chat.error", "detail": "AI not configured."})
         return None
 
-    if (
-        SESSION_COST_CAP > 0
-        and await session_store.get_cost(session_id) >= SESSION_COST_CAP
-    ):
+    if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
         await _send(
             ws,
             {
@@ -876,17 +815,13 @@ async def _submit_chat(
                 "usage": {
                     "cost_usd": 0,
                     "capped": True,
-                    "session_cost_usd": await session_store.get_cost(
-                        session_id
-                    ),
+                    "session_cost_usd": await session_store.get_cost(session_id),
                 },
             },
         )
         return None
 
-    job_id = await job_manager.create_job(
-        session_id=session_id, user_id=user_id
-    )
+    job_id = await job_manager.create_job(session_id=session_id, user_id=user_id)
 
     task = asyncio.create_task(
         _prepare_and_generate(
@@ -921,11 +856,7 @@ async def _prepare_and_generate(
 
         requested_agent = (msg.get("agent_type") or "").strip().lower()
         specialist_agents = frozenset({"procurement", "trend", "health"})
-        route = (
-            requested_agent
-            if requested_agent in specialist_agents
-            else "unified"
-        )
+        route = requested_agent if requested_agent in specialist_agents else "unified"
         is_first_turn = not history
 
         compress_task = asyncio.create_task(compress_history_async(history))
@@ -954,12 +885,8 @@ async def _prepare_and_generate(
         assembled = await context_task
         context_block = assembled.format_for_agent()
 
-        clean_history = [
-            h for h in (history or []) if h.get("role") != "system"
-        ]
-        deps = AgentDeps(
-            user_id=user_id, user_name=user_name, history=clean_history
-        )
+        clean_history = [h for h in (history or []) if h.get("role") != "system"]
+        deps = AgentDeps(user_id=user_id, user_name=user_name, history=clean_history)
         msg_history = build_message_history(clean_history)
 
         logger.info(
@@ -976,11 +903,7 @@ async def _prepare_and_generate(
 
         enriched = _enrich_specialist_message(user_message, context_block)
 
-        agent = (
-            _specialist_agent_map[route]()
-            if route in specialist_agents
-            else _get_agent()
-        )
+        agent = _specialist_agent_map[route]() if route in specialist_agents else _get_agent()
 
         await _run_generation(
             job_id=job_id,

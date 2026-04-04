@@ -22,9 +22,7 @@ class JobsDatabaseService(DomainDatabaseService):
             updated_at=row.updated_at,
             code=row.code,
             name=row.name or "",
-            billing_entity_id=str(row.billing_entity_id)
-            if row.billing_entity_id
-            else None,
+            billing_entity_id=str(row.billing_entity_id) if row.billing_entity_id else None,
             status=row.status,
             service_address=row.service_address or "",
             notes=row.notes,
@@ -66,9 +64,7 @@ class JobsDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                select(Jobs).where(
-                    Jobs.code == code, Jobs.organization_id == oid
-                )
+                select(Jobs).where(Jobs.code == code, Jobs.organization_id == oid)
             )
             row = result.scalar_one_or_none()
             return self._row_to_job(row) if row else None
@@ -95,18 +91,12 @@ class JobsDatabaseService(DomainDatabaseService):
                         func.lower(Jobs.name).like(like),
                     )
                 )
-            stmt = (
-                stmt.order_by(Jobs.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
+            stmt = stmt.order_by(Jobs.created_at.desc()).limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = result.scalars().all()
             return [self._row_to_job(r) for r in rows]
 
-    async def update_job(
-        self, job_id: str, org_id: str, updates: dict
-    ) -> Job | None:
+    async def update_job(self, job_id: str, org_id: str, updates: dict) -> Job | None:
         jid = as_uuid_required(job_id)
         oid = as_uuid_required(org_id)
         async with self.session() as session:
@@ -133,9 +123,7 @@ class JobsDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
         return await self.get_job_by_id(job_id, org_id)
 
-    async def search_jobs(
-        self, org_id: str, query: str, *, limit: int = 20
-    ) -> list[Job]:
+    async def search_jobs(self, org_id: str, query: str, *, limit: int = 20) -> list[Job]:
         oid = as_uuid_required(org_id)
         like = f"%{query.lower()}%"
         async with self.session() as session:

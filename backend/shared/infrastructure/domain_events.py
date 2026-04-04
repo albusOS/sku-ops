@@ -122,9 +122,7 @@ async def _already_processed(event_id: str, handler_name: str) -> bool:
     try:
         from shared.infrastructure.db.base import get_database_manager
 
-        return await get_database_manager().shared.event_already_processed(
-            event_id, handler_name
-        )
+        return await get_database_manager().shared.event_already_processed(event_id, handler_name)
     except Exception:
         logger.debug(
             "processed_events lookup failed, treating as not processed",
@@ -133,16 +131,12 @@ async def _already_processed(event_id: str, handler_name: str) -> bool:
         return False
 
 
-async def _mark_processed(
-    event_id: str, handler_name: str, event_type: str
-) -> None:
+async def _mark_processed(event_id: str, handler_name: str, event_type: str) -> None:
     """Record a successful handler execution for future dedup."""
     try:
         from shared.infrastructure.db.base import get_database_manager
 
-        await get_database_manager().shared.mark_event_processed(
-            event_id, handler_name, event_type
-        )
+        await get_database_manager().shared.mark_event_processed(event_id, handler_name, event_type)
     except Exception:
         logger.debug("processed_events insert failed", exc_info=True)
 
@@ -223,9 +217,7 @@ async def dispatch(event: DomainEvent) -> None:
                 event_type,
             )
             if _handler_errors_total and _handler_errors_total is not False:
-                _handler_errors_total.labels(
-                    event_type=event_type, handler=handler_name
-                ).inc()
+                _handler_errors_total.labels(event_type=event_type, handler=handler_name).inc()
 
     elapsed_ms = round((time.monotonic() - start) * 1000, 1)
     logger.info(

@@ -45,15 +45,11 @@ _STUB_TENANT = "stub-tenant"
 
 
 async def _get_invoice(inv_id: str):
-    return await get_database_manager().finance.invoice_get_by_id(
-        DEFAULT_ORG_ID, inv_id
-    )
+    return await get_database_manager().finance.invoice_get_by_id(DEFAULT_ORG_ID, inv_id)
 
 
 async def _get_credit_note(cn_id: str):
-    return await get_database_manager().finance.credit_note_get_by_id(
-        DEFAULT_ORG_ID, cn_id
-    )
+    return await get_database_manager().finance.credit_note_get_by_id(DEFAULT_ORG_ID, cn_id)
 
 
 async def _make_withdrawal(billing_entity="On Point LLC") -> str:
@@ -148,9 +144,7 @@ class TestSyncJobIdempotency:
             await _run_sync_with_stub()
             inv_after_1 = await _get_invoice(inv_id)
             xero_id_1 = inv_after_1.xero_invoice_id
-            assert xero_id_1 is not None, (
-                "First sync should set xero_invoice_id"
-            )
+            assert xero_id_1 is not None, "First sync should set xero_invoice_id"
 
             await _run_sync_with_stub()
             inv_after_2 = await _get_invoice(inv_id)
@@ -241,9 +235,7 @@ class TestSyncStatusGating:
             await _run_sync_with_stub()
 
             inv_after = await _get_invoice(inv.id)
-            assert inv_after.xero_invoice_id is None, (
-                "Draft invoice must not be synced to Xero"
-            )
+            assert inv_after.xero_invoice_id is None, "Draft invoice must not be synced to Xero"
             assert inv_after.xero_sync_status == "pending"
 
         call(_body)
@@ -310,9 +302,7 @@ class TestSyncStatusGating:
 
             call(_body)
 
-        assert call_count == 0, (
-            "Already-synced invoice must not trigger another sync call"
-        )
+        assert call_count == 0, "Already-synced invoice must not trigger another sync call"
 
 
 # ── 3. Adjustment idempotency bug fix ─────────────────────────────────────────
@@ -325,9 +315,7 @@ class TestAdjustmentIdempotencyFix:
     After the fix, each adjustment generates a unique ID, so both are recorded.
     """
 
-    def test_two_adjustments_on_same_product_both_record_ledger_entries(
-        self, call
-    ):
+    def test_two_adjustments_on_same_product_both_record_ledger_entries(self, call):
         async def _body():
             from catalog.application.sku_lifecycle import (
                 create_product_with_sku,
@@ -813,9 +801,7 @@ class TestPOQueuing:
                 r2 = await sync_po_bill(po.id)
 
                 po_after = await pdb.get_po(DEFAULT_ORG_ID, po.id)
-                assert (
-                    r1.xero_bill_id == r2.xero_bill_id == po_after.xero_bill_id
-                )
+                assert r1.xero_bill_id == r2.xero_bill_id == po_after.xero_bill_id
 
             call(_body)
 
@@ -845,9 +831,7 @@ class TestSyncSummaryCounts:
 
         failing_gateway = StubXeroAdapter()
         failing_gateway.sync_invoice = AsyncMock(
-            return_value=InvoiceSyncResult(
-                success=False, error="Xero API unavailable"
-            )
+            return_value=InvoiceSyncResult(success=False, error="Xero API unavailable")
         )
 
         stub_settings = XeroSettings(
@@ -934,9 +918,7 @@ class TestCogsRepost:
 
         call(_body)
 
-    def test_editing_line_items_on_unsynced_invoice_does_not_set_cogs_stale(
-        self, call
-    ):
+    def test_editing_line_items_on_unsynced_invoice_does_not_set_cogs_stale(self, call):
         """Editing a draft/unsynced invoice must NOT set cogs_stale — it was never in Xero."""
 
         async def _body():
@@ -1074,9 +1056,7 @@ class TestCogsRepost:
             xero_tenant_id="t",
         )
         failing_gateway = StubXeroAdapter()
-        failing_gateway.repost_cogs_journal = AsyncMock(
-            side_effect=Exception("Xero journal error")
-        )
+        failing_gateway.repost_cogs_journal = AsyncMock(side_effect=Exception("Xero journal error"))
 
         with (
             patch(

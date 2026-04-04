@@ -76,20 +76,14 @@ class SharedDatabaseService(DomainDatabaseService):
             return True
         _active_cache[user_id] = (active, now)
         if len(_active_cache) > _ACTIVE_CACHE_MAX:
-            expired = [
-                k
-                for k, (_, ts) in _active_cache.items()
-                if (now - ts) >= _ACTIVE_CACHE_TTL
-            ]
+            expired = [k for k, (_, ts) in _active_cache.items() if (now - ts) >= _ACTIVE_CACHE_TTL]
             for k in expired:
                 del _active_cache[k]
         return active
 
     async def fetch_user_by_email(self, email: str) -> dict | None:
         async with self.session() as session:
-            result = await session.execute(
-                select(Users).where(Users.email == email)
-            )
+            result = await session.execute(select(Users).where(Users.email == email))
             u = result.scalar_one_or_none()
             if u is None:
                 return None
@@ -99,9 +93,7 @@ class SharedDatabaseService(DomainDatabaseService):
         uid = as_uuid_required(user_id)
         async with self.session() as session:
             result = await session.execute(
-                select(Users)
-                .options(defer(Users.password))
-                .where(Users.id == uid)
+                select(Users).options(defer(Users.password)).where(Users.id == uid)
             )
             u = result.scalar_one_or_none()
             if u is None:
@@ -169,9 +161,7 @@ class SharedDatabaseService(DomainDatabaseService):
     async def get_organization_by_id(self, org_id: str) -> Organization | None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(
-                select(Organizations).where(Organizations.id == oid)
-            )
+            result = await session.execute(select(Organizations).where(Organizations.id == oid))
             row = result.scalar_one_or_none()
             if row is None:
                 return None
@@ -184,9 +174,7 @@ class SharedDatabaseService(DomainDatabaseService):
 
     async def list_organizations(self) -> list[Organization]:
         async with self.session() as session:
-            result = await session.execute(
-                select(Organizations).order_by(Organizations.name)
-            )
+            result = await session.execute(select(Organizations).order_by(Organizations.name))
             rows = result.scalars().all()
             return [
                 Organization(
@@ -219,16 +207,12 @@ class SharedDatabaseService(DomainDatabaseService):
             session.add(row)
             await self.end_write_session(session)
 
-    async def get_address_by_id(
-        self, address_id: str, org_id: str
-    ) -> StoredAddress | None:
+    async def get_address_by_id(self, address_id: str, org_id: str) -> StoredAddress | None:
         aid = as_uuid_required(address_id)
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                select(Addresses).where(
-                    Addresses.id == aid, Addresses.organization_id == oid
-                )
+                select(Addresses).where(Addresses.id == aid, Addresses.organization_id == oid)
             )
             row = result.scalar_one_or_none()
             return self._address_to_stored(row)
@@ -248,8 +232,7 @@ class SharedDatabaseService(DomainDatabaseService):
             stmt = select(Addresses).where(Addresses.organization_id == oid)
             if billing_entity_id:
                 stmt = stmt.where(
-                    Addresses.billing_entity_id
-                    == as_uuid_required(billing_entity_id)
+                    Addresses.billing_entity_id == as_uuid_required(billing_entity_id)
                 )
             if job_id:
                 stmt = stmt.where(Addresses.job_id == as_uuid_required(job_id))
@@ -262,11 +245,7 @@ class SharedDatabaseService(DomainDatabaseService):
                         func.lower(Addresses.city).like(like),
                     )
                 )
-            stmt = (
-                stmt.order_by(Addresses.label, Addresses.line1)
-                .limit(limit)
-                .offset(offset)
-            )
+            stmt = stmt.order_by(Addresses.label, Addresses.line1).limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = result.scalars().all()
             return [self._address_to_stored(r) for r in rows if r is not None]
@@ -408,18 +387,14 @@ class SharedDatabaseService(DomainDatabaseService):
             resource_id=resource_id,
             details=details or None,
             ip_address=ip_address or None,
-            organization_id=as_uuid_required(organization_id)
-            if organization_id
-            else None,
+            organization_id=as_uuid_required(organization_id) if organization_id else None,
             created_at=created_at,
         )
         async with self.session() as session:
             session.add(row)
             await self.end_write_session(session)
 
-    async def event_already_processed(
-        self, event_id: str, handler_name: str
-    ) -> bool:
+    async def event_already_processed(self, event_id: str, handler_name: str) -> bool:
         try:
             eid = as_uuid_required(event_id)
             async with self.session() as session:
@@ -437,9 +412,7 @@ class SharedDatabaseService(DomainDatabaseService):
             )
             return False
 
-    async def mark_event_processed(
-        self, event_id: str, handler_name: str, event_type: str
-    ) -> None:
+    async def mark_event_processed(self, event_id: str, handler_name: str, event_type: str) -> None:
         try:
             row = ProcessedEvents(
                 event_id=as_uuid_required(event_id),

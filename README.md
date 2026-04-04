@@ -70,13 +70,12 @@ Install [Pixi](https://pixi.sh), then from the project root:
 ```bash
 pixi run doctor               # verify python, uv, node, pnpm come from pixi (and backend/.venv uses pixi Python)
 pixi run dev                  # start backend + frontend
-pixi run test                 # backend then frontend tests
-pixi run test-backend -- -- … # backend tests only (pytest; paths/flags after --)
-pixi run test-frontend        # frontend unit tests (vitest run)
-pixi run lint-backend         # lint Python (ruff)
-pixi run format-backend       # format Python (ruff)
-pixi run lint-frontend        # lint frontend (ESLint)
-pixi run format-frontend      # format frontend (Prettier)
+pixi run test                      # backend then frontend tests
+pixi run test backend -- -- …     # backend only; pytest paths/flags after -- (not for target all)
+pixi run test frontend            # frontend unit tests (vitest run)
+pixi run lint [all|backend|frontend]   # default all; ruff + ESLint
+pixi run format [all|backend|frontend] # default all; ruff + Prettier
+pixi run check [all|backend|frontend]    # lint then format (same targets)
 pixi run commit               # commitizen conventional commit
 pixi run backend              # start backend only
 pixi run frontend             # start frontend only

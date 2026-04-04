@@ -73,9 +73,7 @@ async def create_billing_entity(
     oid = get_org_id()
     existing = await _db_finance().billing_entity_get_by_name(oid, name)
     if existing:
-        raise HTTPException(
-            status_code=409, detail=f"Billing entity '{name}' already exists"
-        )
+        raise HTTPException(status_code=409, detail=f"Billing entity '{name}' already exists")
 
     entity = BillingEntity(
         name=name,

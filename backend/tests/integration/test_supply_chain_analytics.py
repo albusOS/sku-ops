@@ -59,9 +59,7 @@ async def _seed_sku(
     return sku_id
 
 
-async def _seed_withdrawal_txns(
-    sku_id: str, daily_qtys: list[float], start_days_ago: int = 30
-):
+async def _seed_withdrawal_txns(sku_id: str, daily_qtys: list[float], start_days_ago: int = 30):
     """Seed stock_transactions (WITHDRAWAL type) over consecutive days."""
     for i, qty in enumerate(daily_qtys):
         if qty <= 0:
@@ -97,9 +95,7 @@ async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
     )
 
 
-async def _seed_vendor(
-    vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supplies"
-):
+async def _seed_vendor(vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supplies"):
     await sql_execute(
         """INSERT INTO vendors (id, name, organization_id, created_at)
            VALUES ($1, $2, $3, NOW())
@@ -265,15 +261,9 @@ class TestVendorLeadTimeActual:
 
             vendor_id = await _seed_vendor()
             # 3 POs: created 30d ago received 20d ago (10d lead), etc.
-            await _seed_received_po(
-                vendor_id, created_days_ago=90, received_days_ago=83
-            )  # 7d
-            await _seed_received_po(
-                vendor_id, created_days_ago=60, received_days_ago=50
-            )  # 10d
-            await _seed_received_po(
-                vendor_id, created_days_ago=30, received_days_ago=22
-            )  # 8d
+            await _seed_received_po(vendor_id, created_days_ago=90, received_days_ago=83)  # 7d
+            await _seed_received_po(vendor_id, created_days_ago=60, received_days_ago=50)  # 10d
+            await _seed_received_po(vendor_id, created_days_ago=30, received_days_ago=22)  # 8d
 
             result = await vendor_lead_time_actual(vendor_id, days=180)
             assert result["po_count"] == 3
@@ -302,25 +292,13 @@ class TestVendorLeadTimeActual:
 
             vendor_id = await _seed_vendor(str(uuid.uuid4()), "Slow Vendor")
             # Early POs: fast (3 day lead)
-            await _seed_received_po(
-                vendor_id, created_days_ago=120, received_days_ago=117
-            )  # 3d
-            await _seed_received_po(
-                vendor_id, created_days_ago=100, received_days_ago=97
-            )  # 3d
-            await _seed_received_po(
-                vendor_id, created_days_ago=80, received_days_ago=77
-            )  # 3d
+            await _seed_received_po(vendor_id, created_days_ago=120, received_days_ago=117)  # 3d
+            await _seed_received_po(vendor_id, created_days_ago=100, received_days_ago=97)  # 3d
+            await _seed_received_po(vendor_id, created_days_ago=80, received_days_ago=77)  # 3d
             # Recent POs: slow (15 day lead)
-            await _seed_received_po(
-                vendor_id, created_days_ago=30, received_days_ago=15
-            )  # 15d
-            await _seed_received_po(
-                vendor_id, created_days_ago=25, received_days_ago=10
-            )  # 15d
-            await _seed_received_po(
-                vendor_id, created_days_ago=20, received_days_ago=5
-            )  # 15d
+            await _seed_received_po(vendor_id, created_days_ago=30, received_days_ago=15)  # 15d
+            await _seed_received_po(vendor_id, created_days_ago=25, received_days_ago=10)  # 15d
+            await _seed_received_po(vendor_id, created_days_ago=20, received_days_ago=5)  # 15d
 
             result = await vendor_lead_time_actual(vendor_id, days=180)
             assert result["po_count"] == 6
@@ -364,9 +342,7 @@ class TestInventoryCarryingCost:
             from shared.infrastructure.db.base import get_database_manager
 
             sku_id = str(uuid.uuid4())
-            await _seed_sku(
-                sku_id=sku_id, sku_code="HDW-FREE-01", quantity=100, cost=0
-            )
+            await _seed_sku(sku_id=sku_id, sku_code="HDW-FREE-01", quantity=100, cost=0)
             fin = get_database_manager().finance
             results = await fin.analytics_inventory_carrying_cost(get_org_id())
             free_matches = [r for r in results if r["sku_id"] == sku_id]
@@ -380,9 +356,7 @@ class TestInventoryCarryingCost:
             from shared.infrastructure.db.base import get_database_manager
 
             sku_id = str(uuid.uuid4())
-            await _seed_sku(
-                sku_id=sku_id, sku_code="HDW-EMPTY-01", quantity=0, cost=10
-            )
+            await _seed_sku(sku_id=sku_id, sku_code="HDW-EMPTY-01", quantity=0, cost=10)
             fin = get_database_manager().finance
             results = await fin.analytics_inventory_carrying_cost(get_org_id())
             empty_matches = [r for r in results if r["sku_id"] == sku_id]

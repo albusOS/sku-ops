@@ -127,9 +127,7 @@ def check_config_guards() -> None:
         if (should_raise and raised) or (not should_raise and not raised):
             _ok(label)
         elif should_raise and not raised:
-            _fail(
-                label, "Expected RuntimeError but config loaded without error"
-            )
+            _fail(label, "Expected RuntimeError but config loaded without error")
         else:
             _fail(
                 label,
@@ -174,12 +172,8 @@ def check_supabase_jwt_shape() -> None:
         )
         claims = _resolve_supabase(payload)
 
-        assert claims.role == "admin", (
-            f"Expected role='admin', got {claims.role!r}"
-        )
-        assert claims.name == "Test Admin", (
-            f"Expected name='Test Admin', got {claims.name!r}"
-        )
+        assert claims.role == "admin", f"Expected role='admin', got {claims.role!r}"
+        assert claims.name == "Test Admin", f"Expected name='Test Admin', got {claims.name!r}"
         assert claims.user_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", (
             f"Wrong user_id: {claims.user_id!r}"
         )
@@ -214,9 +208,7 @@ def check_supabase_jwt_shape() -> None:
         "role": "authenticated",
         "exp": int(time.time()) + 3600,
     }
-    no_role_token = jwt.encode(
-        no_role_payload, JWT_SECRET, algorithm=JWT_ALGORITHM
-    )
+    no_role_token = jwt.encode(no_role_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     try:
         payload = jwt.decode(
             no_role_token,
@@ -257,9 +249,7 @@ def check_supabase_jwt_shape() -> None:
 
     # Case 4: Expired token → must raise ExpiredSignatureError
     expired_payload = {**supabase_payload, "exp": int(time.time()) - 10}
-    expired_token = jwt.encode(
-        expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM
-    )
+    expired_token = jwt.encode(expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     try:
         jwt.decode(
             expired_token,
@@ -355,13 +345,9 @@ def check_production_flags() -> None:
         from shared.infrastructure.config import ALLOW_PUBLIC_AUTH
 
         if not ALLOW_PUBLIC_AUTH:
-            _ok(
-                "ALLOW_PUBLIC_AUTH=False in production (login/register endpoints disabled)"
-            )
+            _ok("ALLOW_PUBLIC_AUTH=False in production (login/register endpoints disabled)")
         elif os.environ.get("ALLOW_PUBLIC_AUTH", "").lower() in ("1", "true"):
-            _ok(
-                "ALLOW_PUBLIC_AUTH=True explicitly set (local auth mode, no Supabase)"
-            )
+            _ok("ALLOW_PUBLIC_AUTH=True explicitly set (local auth mode, no Supabase)")
         else:
             _fail(
                 "ALLOW_PUBLIC_AUTH=True in production",
@@ -380,9 +366,7 @@ def check_frontend_build() -> None:
     """Verify the frontend builds cleanly with production-style VITE_* vars set."""
     _section("Frontend build (Vite with VITE_* env vars)")
 
-    frontend_dir = os.path.join(
-        os.path.dirname(__file__), "..", "..", "frontend"
-    )
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
     frontend_dir = os.path.realpath(frontend_dir)
 
     if not os.path.isdir(frontend_dir):
@@ -420,9 +404,7 @@ def check_live_server(base_url: str) -> None:
 
     # /health
     try:
-        with urllib.request.urlopen(
-            f"{base}/api/beta/shared/health", timeout=10
-        ) as resp:
+        with urllib.request.urlopen(f"{base}/api/beta/shared/health", timeout=10) as resp:
             import json
 
             data = json.loads(resp.read())
@@ -433,18 +415,14 @@ def check_live_server(base_url: str) -> None:
                 f"env={env}, version={version}",
             )
             if env == "development":
-                _warn(
-                    "Server reports env=development — expected production or staging"
-                )
+                _warn("Server reports env=development — expected production or staging")
     except Exception as e:
         _fail("/api/beta/shared/health unreachable", str(e))
         return
 
     # /ready
     try:
-        with urllib.request.urlopen(
-            f"{base}/api/beta/shared/ready", timeout=10
-        ) as resp:
+        with urllib.request.urlopen(f"{base}/api/beta/shared/ready", timeout=10) as resp:
             import json
 
             data = json.loads(resp.read())
@@ -512,9 +490,7 @@ def main() -> None:
 
     # Add backend to path so imports work
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    sys.path.insert(
-        0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    )
+    sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
     check_config_guards()
     check_supabase_jwt_shape()
@@ -537,17 +513,11 @@ def main() -> None:
         print(f"{_GREEN}{_BOLD}All checks passed.{_RESET} Ready to deploy.\n")
         sys.exit(0)
     elif not _failures:
-        print(
-            f"{_YELLOW}{_BOLD}{len(_warnings)} warning(s), 0 failures.{_RESET}"
-        )
-        print(
-            "Warnings are non-blocking but worth reviewing before going live.\n"
-        )
+        print(f"{_YELLOW}{_BOLD}{len(_warnings)} warning(s), 0 failures.{_RESET}")
+        print("Warnings are non-blocking but worth reviewing before going live.\n")
         sys.exit(0)
     else:
-        print(
-            f"{_RED}{_BOLD}{len(_failures)} failure(s){_RESET}, {len(_warnings)} warning(s)."
-        )
+        print(f"{_RED}{_BOLD}{len(_failures)} failure(s){_RESET}, {len(_warnings)} warning(s).")
         print("\nFailed checks:")
         for f in _failures:
             print(f"  {_RED}✗{_RESET}  {f}")

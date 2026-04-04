@@ -74,10 +74,7 @@ async def chat_assistant(
     org_id = current_user.organization_id
     history = await session_store.get_or_create(session_id)
 
-    if (
-        SESSION_COST_CAP > 0
-        and await session_store.get_cost(session_id) >= SESSION_COST_CAP
-    ):
+    if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
         return {
             "response": (
                 f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. "
@@ -91,9 +88,7 @@ async def chat_assistant(
         }
 
     if not history:
-        memory_ctx = await recall_memory(
-            user_id=user_id, query=(data.message or "").strip()
-        )
+        memory_ctx = await recall_memory(user_id=user_id, query=(data.message or "").strip())
         if memory_ctx:
             # Inject as system message (not fake user turn) to avoid confusing the agent
             history = [
@@ -136,12 +131,8 @@ async def chat_assistant(
         new_history = agent_history
     else:
         new_history = list(history or [])
-        new_history.append(
-            {"role": "user", "content": (data.message or "").strip()}
-        )
-        new_history.append(
-            {"role": "assistant", "content": result.get("response", "")}
-        )
+        new_history.append({"role": "user", "content": (data.message or "").strip()})
+        new_history.append({"role": "assistant", "content": result.get("response", "")})
 
     await session_store.update(session_id, new_history, cost_usd=turn_cost)
 

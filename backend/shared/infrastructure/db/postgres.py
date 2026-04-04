@@ -31,17 +31,13 @@ class PostgresBackend:
     @property
     def engine(self) -> AsyncEngine:
         if self._engine is None:
-            raise RuntimeError(
-                "Database not initialized. Call connect() at startup."
-            )
+            raise RuntimeError("Database not initialized. Call connect() at startup.")
         return self._engine
 
     @property
     def session_factory(self) -> async_sessionmaker[AsyncSession]:
         if self._session_factory is None:
-            raise RuntimeError(
-                "Database not initialized. Call connect() at startup."
-            )
+            raise RuntimeError("Database not initialized. Call connect() at startup.")
         return self._session_factory
 
     async def connect(self, url: str) -> None:
@@ -68,13 +64,9 @@ class PostgresBackend:
         max_overflow = max(PG_POOL_MAX - pool_size, 0)
         async_url = url
         if async_url.startswith("postgresql://"):
-            async_url = async_url.replace(
-                "postgresql://", "postgresql+asyncpg://", 1
-            )
+            async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif async_url.startswith("postgres://"):
-            async_url = async_url.replace(
-                "postgres://", "postgresql+asyncpg://", 1
-            )
+            async_url = async_url.replace("postgres://", "postgresql+asyncpg://", 1)
 
         engine_kwargs: dict[str, Any] = {
             "pool_pre_ping": True,
@@ -88,9 +80,7 @@ class PostgresBackend:
             engine_kwargs["pool_timeout"] = PG_ACQUIRE_TIMEOUT
 
         self._engine = create_async_engine(async_url, **engine_kwargs)
-        self._session_factory = async_sessionmaker(
-            self._engine, expire_on_commit=False
-        )
+        self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
         self._register_pool_events()
 
     def _register_pool_events(self) -> None:

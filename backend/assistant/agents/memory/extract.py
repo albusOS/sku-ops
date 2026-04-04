@@ -68,9 +68,7 @@ async def extract_and_save(
 
         artifacts = json.loads(stripped)
         if isinstance(artifacts, list) and artifacts and len(artifacts) <= 50:
-            await _db_assistant().memory_save(
-                get_org_id(), user_id, session_id, artifacts
-            )
+            await _db_assistant().memory_save(get_org_id(), user_id, session_id, artifacts)
 
     except (
         json.JSONDecodeError,

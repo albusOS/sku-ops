@@ -76,9 +76,7 @@ class TestFKConstraintEnforcement:
         session.add(product)
         await session.flush()
 
-        result = await session.exec(
-            select(Products).where(Products.category_id == dept_id)
-        )
+        result = await session.exec(select(Products).where(Products.category_id == dept_id))
         assert result.first() is not None
 
 
@@ -168,9 +166,7 @@ class TestM2MRelationship:
         await session.flush()
 
         result = await session.exec(
-            select(InvoiceWithdrawals).where(
-                InvoiceWithdrawals.invoice_id == inv_id
-            )
+            select(InvoiceWithdrawals).where(InvoiceWithdrawals.invoice_id == inv_id)
         )
         loaded = result.first()
         assert loaded is not None

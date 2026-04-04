@@ -242,9 +242,7 @@ async def payment_get_by_id(
     p = _pay_row(row)
     if p:
         wr = await session.execute(
-            select(PaymentWithdrawals.withdrawal_id).where(
-                PaymentWithdrawals.payment_id == pid
-            )
+            select(PaymentWithdrawals.withdrawal_id).where(PaymentWithdrawals.payment_id == pid)
         )
         p.withdrawal_ids = [str(x[0]) for x in wr.all()]
     return p
@@ -265,13 +263,9 @@ async def payment_list(
     if invoice_id:
         conds.append(Payments.invoice_id == as_uuid_required(invoice_id))
     if billing_entity_id:
-        conds.append(
-            Payments.billing_entity_id == as_uuid_required(billing_entity_id)
-        )
+        conds.append(Payments.billing_entity_id == as_uuid_required(billing_entity_id))
     if start_date:
-        conds.append(
-            Payments.payment_date >= datetime.fromisoformat(start_date)
-        )
+        conds.append(Payments.payment_date >= datetime.fromisoformat(start_date))
     if end_date:
         conds.append(Payments.payment_date <= datetime.fromisoformat(end_date))
     r = await session.execute(
@@ -323,9 +317,7 @@ async def fiscal_list_periods(
     if status:
         conds.append(FiscalPeriods.status == status)
     r = await session.execute(
-        select(FiscalPeriods)
-        .where(and_(*conds))
-        .order_by(FiscalPeriods.start_date.desc())
+        select(FiscalPeriods).where(and_(*conds)).order_by(FiscalPeriods.start_date.desc())
     )
     return [
         FiscalPeriod.model_validate(uuids_to_str(x.model_dump(mode="python")))
@@ -378,11 +370,7 @@ async def fiscal_close_period(
     closed_at: str,
 ) -> None:
     pid = as_uuid_required(period_id)
-    cat = (
-        datetime.fromisoformat(closed_at)
-        if isinstance(closed_at, str)
-        else closed_at
-    )
+    cat = datetime.fromisoformat(closed_at) if isinstance(closed_at, str) else closed_at
     await session.execute(
         update(FiscalPeriods)
         .where(
@@ -427,20 +415,14 @@ def _org_settings_domain_from_row(row: OrgSettings) -> OrgSettingsDomain:
     te = d.get("xero_token_expiry")
     if isinstance(te, str) and te:
         try:
-            d["xero_token_expiry"] = datetime.fromisoformat(
-                te.replace("Z", "+00:00")
-            )
+            d["xero_token_expiry"] = datetime.fromisoformat(te.replace("Z", "+00:00"))
         except ValueError:
             d["xero_token_expiry"] = None
     return OrgSettingsDomain.model_validate(d)
 
 
-async def org_settings_get(
-    session: AsyncSession, org_id: uuid.UUID
-) -> OrgSettingsDomain:
-    r = await session.execute(
-        select(OrgSettings).where(OrgSettings.organization_id == org_id)
-    )
+async def org_settings_get(session: AsyncSession, org_id: uuid.UUID) -> OrgSettingsDomain:
+    r = await session.execute(select(OrgSettings).where(OrgSettings.organization_id == org_id))
     row = r.scalar_one_or_none()
     if row is None:
         return OrgSettingsDomain(organization_id=str(org_id))
@@ -503,9 +485,7 @@ async def org_settings_upsert(
     return await org_settings_get(session, org_id)
 
 
-async def org_settings_clear_xero_tokens(
-    session: AsyncSession, org_id: uuid.UUID
-) -> None:
+async def org_settings_clear_xero_tokens(session: AsyncSession, org_id: uuid.UUID) -> None:
     now = datetime.now(UTC)
     await session.execute(
         update(OrgSettings)
@@ -521,9 +501,7 @@ async def org_settings_clear_xero_tokens(
     await session.flush()
 
 
-async def oauth_save_state(
-    session: AsyncSession, org_id: uuid.UUID, state: str
-) -> None:
+async def oauth_save_state(session: AsyncSession, org_id: uuid.UUID, state: str) -> None:
     now = datetime.now(UTC)
     stmt = (
         pg_insert(OauthStates)
@@ -538,9 +516,7 @@ async def oauth_save_state(
 
 
 async def oauth_pop_state(session: AsyncSession, state: str) -> str | None:
-    r = await session.execute(
-        select(OauthStates.org_id).where(OauthStates.state == state)
-    )
+    r = await session.execute(select(OauthStates.org_id).where(OauthStates.state == state))
     row = r.first()
     if not row:
         return None

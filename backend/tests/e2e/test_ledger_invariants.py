@@ -40,9 +40,7 @@ class TestLedgerInvariants:
         wd_cost = wd["cost_total"]
 
         stats = _query_ledger(client, headers)
-        assert (
-            stats["range_revenue"] >= wd_total - wd_cost
-        )  # at minimum this withdrawal
+        assert stats["range_revenue"] >= wd_total - wd_cost  # at minimum this withdrawal
         assert stats["range_cogs"] >= wd_cost
 
         # Phase 2: Partial return (3 of 10 items)
@@ -72,15 +70,11 @@ class TestLedgerInvariants:
         assert resp.status_code == 200
 
         # Verify final state
-        resp = client.get(
-            f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
         assert resp.json()["payment_status"] == "paid"
 
         # Stock should be 100 - 10 + 3 = 93
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 93
 
     def test_no_duplicate_ledger_entries(self, client, seed_dept_id):
@@ -126,12 +120,8 @@ class TestLedgerInvariants:
             name="LEDGER-Unpaid",
         )
 
-        w1 = create_withdrawal(
-            client, headers, product, quantity=5, job_id=e2e_job_id("UP-1")
-        )
-        w2 = create_withdrawal(
-            client, headers, product, quantity=3, job_id=e2e_job_id("UP-2")
-        )
+        w1 = create_withdrawal(client, headers, product, quantity=5, job_id=e2e_job_id("UP-1"))
+        w2 = create_withdrawal(client, headers, product, quantity=3, job_id=e2e_job_id("UP-2"))
 
         # Pay w1 only
         resp = client.put(
@@ -142,21 +132,15 @@ class TestLedgerInvariants:
         assert resp.status_code == 200
 
         # w2 should still be invoiced (auto-invoiced at creation, not yet paid)
-        resp = client.get(
-            f"/api/beta/operations/withdrawals/{w2['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/operations/withdrawals/{w2['id']}", headers=headers)
         assert resp.json()["payment_status"] == "invoiced"
 
         stats = _query_ledger(client, headers)
         # w2 is auto-invoiced, so it appears in invoiced_total (not unpaid_total)
-        outstanding = stats.get("unpaid_total", 0) + stats.get(
-            "invoiced_total", 0
-        )
+        outstanding = stats.get("unpaid_total", 0) + stats.get("invoiced_total", 0)
         assert outstanding >= w2["total"]
 
-    def test_gross_profit_matches_revenue_minus_cogs(
-        self, client, seed_dept_id
-    ):
+    def test_gross_profit_matches_revenue_minus_cogs(self, client, seed_dept_id):
         """Gross profit = revenue - COGS, always."""
         headers = admin_headers()
         product = create_product(

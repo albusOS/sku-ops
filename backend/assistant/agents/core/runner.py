@@ -44,9 +44,7 @@ AGENT_TIMEOUT_SECONDS = 60
 _MAX_RETRIES = 3
 _OVERLOAD_MAX_RETRIES = 1
 _BASE_DELAY = 0.5  # seconds
-_OVERLOAD_BASE_DELAY = (
-    2.0  # shorter initial backoff — fail fast, switch to fallback
-)
+_OVERLOAD_BASE_DELAY = 2.0  # shorter initial backoff — fail fast, switch to fallback
 _MAX_DELAY = 15.0  # seconds
 
 
@@ -107,20 +105,13 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
     ):
         return _ErrorKind.NETWORK, True, None
 
-    if any(
-        k in s for k in ("529", "overload", "service unavailable", "capacity")
-    ):
+    if any(k in s for k in ("529", "overload", "service unavailable", "capacity")):
         return _ErrorKind.OVERLOADED, True, retry_after
 
-    if any(
-        k in s for k in ("500", "502", "503", "internal server", "bad gateway")
-    ):
+    if any(k in s for k in ("500", "502", "503", "internal server", "bad gateway")):
         return _ErrorKind.SERVER, True, None
 
-    if any(
-        k in s
-        for k in ("thinking", "budget", "extended thinking", "model_settings")
-    ):
+    if any(k in s for k in ("thinking", "budget", "extended thinking", "model_settings")):
         return _ErrorKind.MODEL_ERROR, True, None
 
     if any(k in t for k in ("auth", "permission")) or any(
@@ -136,10 +127,7 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
     ):
         return _ErrorKind.AUTH, False, None
 
-    if (
-        any(k in s for k in ("400", "bad request", "invalid request"))
-        or "badrequest" in t
-    ):
+    if any(k in s for k in ("400", "bad request", "invalid request")) or "badrequest" in t:
         return _ErrorKind.VALIDATION, False, None
 
     return _ErrorKind.UNKNOWN, False, None
@@ -186,14 +174,10 @@ async def run_agent(
     operation_var.set("agent_run")
 
     max_retries = (
-        config.retry.max_retries
-        if (config and config.retry.max_retries)
-        else _MAX_RETRIES
+        config.retry.max_retries if (config and config.retry.max_retries) else _MAX_RETRIES
     )
     backoff_base = (
-        config.retry.backoff_base
-        if (config and config.retry.backoff_base)
-        else _BASE_DELAY
+        config.retry.backoff_base if (config and config.retry.backoff_base) else _BASE_DELAY
     )
 
     active_settings = model_settings
@@ -244,9 +228,7 @@ async def run_agent(
             )
             return result
         except TimeoutError:
-            last_exc = RuntimeError(
-                f"{agent_name} timed out after {timeout_seconds}s"
-            )
+            last_exc = RuntimeError(f"{agent_name} timed out after {timeout_seconds}s")
             kind, retriable, retry_after = _ErrorKind.TIMEOUT, True, None
         except Exception as e:
             last_exc = e
@@ -275,10 +257,7 @@ async def run_agent(
 
         if kind == _ErrorKind.OVERLOADED:
             overload_attempts += 1
-            if (
-                overload_attempts >= _OVERLOAD_MAX_RETRIES
-                and not active_model_override
-            ):
+            if overload_attempts >= _OVERLOAD_MAX_RETRIES and not active_model_override:
                 original_model = get_model_name(
                     f"agent:{agent_label}" if agent_label else "agent:unified"
                 )
@@ -311,11 +290,7 @@ async def run_agent(
             continue
 
         if attempt < max_retries - 1:
-            effective_base = (
-                _OVERLOAD_BASE_DELAY
-                if kind == _ErrorKind.OVERLOADED
-                else backoff_base
-            )
+            effective_base = _OVERLOAD_BASE_DELAY if kind == _ErrorKind.OVERLOADED else backoff_base
             logger.warning(
                 "%s %s on attempt %s/%s, backing off: %s",
                 agent_name,
@@ -365,24 +340,18 @@ def _log_success(
 ):
     usage = result.usage()
     label = (
-        agent_label
-        or agent_name.split(":")[0].lower().replace("agent", "").strip()
-        or "inventory"
+        agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     )
     model_name = get_model_name(f"agent:{label}")
     cost = calc_cost(model_name, usage)
     tool_calls = extract_tool_calls_detailed(result.all_messages())
-    response_text = (
-        result.output if isinstance(result.output, str) else str(result.output)
-    )
+    response_text = result.output if isinstance(result.output, str) else str(result.output)
 
     tool_calls_simple = extract_tool_calls(result.all_messages())
 
     # Prometheus metrics (sync — no blocking)
     record_agent_run(label, "success", duration_ms / 1000.0)
-    llm_usage(
-        model_name, usage.input_tokens, usage.output_tokens, cost, agent=label
-    )
+    llm_usage(model_name, usage.input_tokens, usage.output_tokens, cost, agent=label)
     for tc in tool_calls:
         tool_call(tc.get("tool", "unknown"), "success")
 
@@ -434,9 +403,7 @@ def _log_failure(
     error_kind,
 ):
     label = (
-        agent_label
-        or agent_name.split(":")[0].lower().replace("agent", "").strip()
-        or "inventory"
+        agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
     )
     model_name = get_model_name(f"agent:{label}")
 
@@ -535,11 +502,7 @@ async def run_specialist(
         return _soft_error
 
     try:
-        response_text = (
-            result.output
-            if isinstance(result.output, str)
-            else str(result.output)
-        )
+        response_text = result.output if isinstance(result.output, str) else str(result.output)
         model_name = get_model_name(f"agent:{agent_label}")
         usage = result.usage()
         cost = calc_cost(model_name, usage)

@@ -49,19 +49,11 @@ depends-on = ["_ensure-db"]
 cmd = "bash devtools/scripts/run_dev_stack.sh"
 description = "Start backend and frontend dev servers together"
 
-[tasks.test-backend]
-depends-on = ["db-reset"]
-cmd = "uv run --directory backend pytest"
-env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
-description = "Run backend tests (pytest; DB reset first)"
-
-[tasks.test-frontend]
-cmd = "pnpm --dir frontend run test:run"
-description = "Run frontend tests (Vitest)"
-
 [tasks.test]
-depends-on = ["test-backend", "test-frontend"]
-description = "Run backend then frontend tests"
+description = "Tests: all (default), backend (db-reset + pytest), or frontend. Pytest-only flags: pixi run test backend -- -- … (not with target all)"
+args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
+env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
+cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run db-reset && uv run --directory backend pytest{% else %}pixi run db-reset && uv run --directory backend pytest && pnpm --dir frontend run test:run{% endif %}"
 
 [tasks.test-e2e]
 depends-on = ["_ensure-db"]
@@ -69,25 +61,24 @@ cmd = "pnpm install --frozen-lockfile && pnpx playwright test"
 cwd = "e2e"
 description = "Run Playwright e2e tests"
 
-[tasks.lint-backend]
-cmd = "uv run --directory backend ruff check . ../devtools"
-description = "Lint Python (backend, devtools)"
+[tasks.lint]
+description = "Lint: all (default), backend (ruff), or frontend (ESLint). Usage: pixi run lint [all|backend|frontend]"
+args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
+cmd = "{% if target == \"all\" %}uv run --directory backend ruff check . ../devtools && pnpm --dir frontend run lint{% elif target == \"backend\" %}uv run --directory backend ruff check . ../devtools{% else %}pnpm --dir frontend run lint{% endif %}"
 
-[tasks.format-backend]
-cmd = "uv run --directory backend ruff format . ../devtools"
-description = "Format Python (ruff)"
-
-[tasks.lint-frontend]
-cmd = "pnpm --dir frontend run lint"
-description = "Lint frontend (ESLint)"
-
-[tasks.format-frontend]
-cmd = "pnpm --dir frontend run format"
-description = "Format frontend (Prettier)"
+[tasks.format]
+description = "Format: all (default), backend (ruff), or frontend (Prettier). Usage: pixi run format [all|backend|frontend]"
+args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
+cmd = "{% if target == \"all\" %}uv run --directory backend ruff format . ../devtools && pnpm --dir frontend run format{% elif target == \"backend\" %}uv run --directory backend ruff format . ../devtools{% else %}pnpm --dir frontend run format{% endif %}"
 
 [tasks.check]
-depends-on = ["lint-backend", "lint-frontend", "format-backend", "format-frontend"]
-description = "Lint and format backend and frontend"
+description = "Lint then format: all (default), backend only, or frontend only. Usage: pixi run check [all|backend|frontend]"
+args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend"] }]
+depends-on = [
+  { task = "lint", args = ["{{ target }}"] },
+  { task = "format", args = ["{{ target }}"] },
+]
+cmd = "true"
 
 [tasks.commit]
 cmd = "uv run --directory backend cz commit"

@@ -98,16 +98,12 @@ class DocumentsDatabaseService(DomainDatabaseService):
         )
         return out
 
-    async def get_document_by_id(
-        self, doc_id: str, org_id: str
-    ) -> Document | None:
+    async def get_document_by_id(self, doc_id: str, org_id: str) -> Document | None:
         did = as_uuid_required(doc_id)
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                select(Documents).where(
-                    Documents.id == did, Documents.organization_id == oid
-                )
+                select(Documents).where(Documents.id == did, Documents.organization_id == oid)
             )
             row = result.scalar_one_or_none()
             return self._row_to_document(row) if row else None
@@ -132,11 +128,7 @@ class DocumentsDatabaseService(DomainDatabaseService):
                 stmt = stmt.where(func.lower(Documents.vendor_name).like(like))
             if po_id:
                 stmt = stmt.where(Documents.po_id == as_uuid_required(po_id))
-            stmt = (
-                stmt.order_by(Documents.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
+            stmt = stmt.order_by(Documents.created_at.desc()).limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = result.scalars().all()
             return [self._row_to_document(r) for r in rows]
@@ -149,9 +141,7 @@ class DocumentsDatabaseService(DomainDatabaseService):
         now = datetime.now(UTC)
         async with self.session() as session:
             result = await session.execute(
-                select(Documents).where(
-                    Documents.id == did, Documents.organization_id == oid
-                )
+                select(Documents).where(Documents.id == did, Documents.organization_id == oid)
             )
             row = result.scalar_one_or_none()
             if row is None:

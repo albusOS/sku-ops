@@ -44,9 +44,9 @@ _DOCUMENT_PARSE_SYSTEM: str | None = None
 def _get_parse_system_prompt() -> str:
     global _DOCUMENT_PARSE_SYSTEM
     if _DOCUMENT_PARSE_SYSTEM is None:
-        _DOCUMENT_PARSE_SYSTEM = (
-            _PROMPT_DIR / "document_parse_prompt.md"
-        ).read_text(encoding="utf-8")
+        _DOCUMENT_PARSE_SYSTEM = (_PROMPT_DIR / "document_parse_prompt.md").read_text(
+            encoding="utf-8"
+        )
     return _DOCUMENT_PARSE_SYSTEM
 
 
@@ -71,9 +71,7 @@ async def parse_document_with_ai(
         )
 
     system_prompt = _get_parse_system_prompt()
-    is_pdf = content_type == "application/pdf" or filename.lower().endswith(
-        ".pdf"
-    )
+    is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
 
     def _do_parse():
         if is_pdf:
@@ -119,17 +117,11 @@ async def parse_document_with_ai(
                 raise
 
     if not response or not str(response).strip():
-        raise ValueError(
-            "Claude returned no content. The document may be unreadable or blocked."
-        )
+        raise ValueError("Claude returned no content. The document may be unreadable or blocked.")
 
     json_match = re.search(r"\{[\s\S]*\}", response)
     try:
-        extracted = (
-            json.loads(json_match.group())
-            if json_match
-            else json.loads(response)
-        )
+        extracted = json.loads(json_match.group()) if json_match else json.loads(response)
     except (json.JSONDecodeError, AttributeError) as e:
         logger.warning(
             "Failed to parse Claude response as JSON: %s\nResponse preview: %.200s",
@@ -176,9 +168,7 @@ def _add_warnings(product: dict) -> None:
     warnings: list[str] = []
     confidence = product.get("_confidence", 0)
     if confidence and confidence < 0.7:
-        warnings.append(
-            "Low confidence classification — verify department and UOM"
-        )
+        warnings.append("Low confidence classification — verify department and UOM")
     dept = product.get("suggested_department", "")
     if dept and dept.upper() not in _KNOWN_DEPTS:
         warnings.append(f"Unknown department '{dept}' — defaulting to HDW")
@@ -186,9 +176,7 @@ def _add_warnings(product: dict) -> None:
         product["_warnings"] = warnings
 
 
-async def _match_vendor_skus(
-    products: list[dict], vendor_name: str | None
-) -> None:
+async def _match_vendor_skus(products: list[dict], vendor_name: str | None) -> None:
     """Lightweight DB pass: match products against vendor catalog and product families.
 
     Mutates product dicts in-place, adding _recommendation, _recommendation_reason,
@@ -197,9 +185,7 @@ async def _match_vendor_skus(
     vendor_id = None
     if vendor_name:
         try:
-            vendor = await _db_catalog().find_vendor_by_name(
-                get_org_id(), vendor_name
-            )
+            vendor = await _db_catalog().find_vendor_by_name(get_org_id(), vendor_name)
             if vendor:
                 vendor_id = vendor.id
         except Exception as e:

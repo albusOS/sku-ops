@@ -118,9 +118,7 @@ def create_po(
 
 def receive_po(client, headers, po_id: str) -> dict:
     """Mark delivery on all items and then receive them. Returns the receive result."""
-    po_resp = client.get(
-        f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers
-    )
+    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers)
     assert po_resp.status_code == 200
     po = po_resp.json()
     items = po.get("items", [])
@@ -134,9 +132,7 @@ def receive_po(client, headers, po_id: str) -> dict:
         )
         assert resp.status_code == 200, f"Delivery mark failed: {resp.text}"
 
-    po_resp = client.get(
-        f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers
-    )
+    po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers)
     items = po_resp.json().get("items", [])
     pending_items = [
         {
@@ -175,9 +171,7 @@ def update_cycle_count_item(
         json={"counted_qty": counted_qty},
         headers=headers,
     )
-    assert resp.status_code == 200, (
-        f"Cycle count item update failed: {resp.text}"
-    )
+    assert resp.status_code == 200, f"Cycle count item update failed: {resp.text}"
     return resp.json()
 
 
@@ -192,9 +186,7 @@ def commit_cycle_count(client, headers, count_id: str) -> dict:
     return resp.json()
 
 
-def create_material_request(
-    client, contractor_headers, product, *, quantity=3
-) -> dict:
+def create_material_request(client, contractor_headers, product, *, quantity=3) -> dict:
     """Create a material request as a contractor. Returns the request JSON."""
     resp = client.post(
         "/api/beta/operations/material-requests",
@@ -212,9 +204,7 @@ def create_material_request(
         },
         headers=contractor_headers,
     )
-    assert resp.status_code == 200, (
-        f"Material request create failed: {resp.text}"
-    )
+    assert resp.status_code == 200, f"Material request create failed: {resp.text}"
     return resp.json()
 
 
@@ -232,7 +222,5 @@ def process_material_request(
         json={"job_id": job_id, "service_address": service_address},
         headers=admin_headers,
     )
-    assert resp.status_code == 200, (
-        f"Material request process failed: {resp.text}"
-    )
+    assert resp.status_code == 200, f"Material request process failed: {resp.text}"
     return resp.json()

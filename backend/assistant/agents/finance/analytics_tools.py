@@ -55,9 +55,7 @@ async def _get_ar_aging(days: int = 365) -> str:
     """AR aging buckets by entity (current, 1-30, 31-60, 61-90, 90+)."""
     days = min(days, 730)
     start, end = _date_range(days)
-    buckets = await _db_finance().analytics_ar_aging(
-        get_org_id(), start_date=start, end_date=end
-    )
+    buckets = await _db_finance().analytics_ar_aging(get_org_id(), start_date=start, end_date=end)
     total_ar = round(sum(float(b.get("total_ar", 0)) for b in buckets), 2)
     return ArAgingResult(
         total_ar=total_ar,
@@ -163,9 +161,7 @@ async def _get_carrying_cost(holding_rate_pct: float = 25.0) -> str:
     by_dept: dict[str, float] = {}
     for i in items:
         dept = i["department"] or "Unknown"
-        by_dept[dept] = round(
-            by_dept.get(dept, 0) + float(i["carrying_cost"]), 2
-        )
+        by_dept[dept] = round(by_dept.get(dept, 0) + float(i["carrying_cost"]), 2)
     return CarryingCostResult(
         holding_rate_pct=rate,
         total_carrying_cost=total,

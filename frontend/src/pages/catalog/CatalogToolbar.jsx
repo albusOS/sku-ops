@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, LayoutGrid, List, Search, X, Plus, Printer, SlidersHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  LayoutGrid,
+  List,
+  Search,
+  X,
+  Plus,
+  Printer,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";

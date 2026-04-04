@@ -47,9 +47,7 @@ async def create_product(
     async with transaction():
         await cat.insert_product_family(product)
 
-    await dispatch(
-        CatalogChanged(org_id=org_id, sku_ids=(), change_type="created")
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(), change_type="created"))
     logger.info(
         "product.created",
         extra={
@@ -86,14 +84,8 @@ async def update_product(
 
     child_skus = await cat.find_skus_by_product_family(org_id, product_id)
     child_sku_ids = tuple(s.id for s in child_skus)
-    await dispatch(
-        CatalogChanged(
-            org_id=org_id, sku_ids=child_sku_ids, change_type="updated"
-        )
-    )
-    logger.info(
-        "product.updated", extra={"org_id": org_id, "product_id": product_id}
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=child_sku_ids, change_type="updated"))
+    logger.info("product.updated", extra={"org_id": org_id, "product_id": product_id})
     return result
 
 
@@ -113,16 +105,10 @@ async def delete_product(product_id: str) -> None:
             await cat.soft_delete_vendor_items_by_sku(s.id, org_id)
             await cat.soft_delete_sku(s.id, org_id)
             if s.category_id:
-                await cat.increment_department_sku_count(
-                    s.category_id, org_id, -1
-                )
+                await cat.increment_department_sku_count(s.category_id, org_id, -1)
         await cat.soft_delete_product_family(product_id, org_id)
 
-    await dispatch(
-        CatalogChanged(
-            org_id=org_id, sku_ids=child_sku_ids, change_type="deleted"
-        )
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=child_sku_ids, change_type="deleted"))
     logger.info(
         "product.deleted",
         extra={

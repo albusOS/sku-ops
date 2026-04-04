@@ -69,9 +69,7 @@ async def get_financial_summary(
 
     gross_profit = round_money(revenue - cogs)
     # float for JSON-friendly percentage
-    margin_pct = (
-        round(float(gross_profit / revenue * 100), 1) if revenue > 0 else 0.0
-    )
+    margin_pct = round(float(gross_profit / revenue * 100), 1) if revenue > 0 else 0.0
 
     by_entity = {}
     for row in by_entity_rows:
@@ -159,9 +157,7 @@ async def export_financials(
     )
 
     for w in withdrawals:
-        items_str = "; ".join(
-            [f"{i['name']} x{i['quantity']}" for i in w.get("items", [])]
-        )
+        items_str = "; ".join([f"{i['name']} x{i['quantity']}" for i in w.get("items", [])])
         writer.writerow(
             [
                 w.get("id", ""),

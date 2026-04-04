@@ -26,9 +26,7 @@ router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 
 @router.post("")
-async def create_material_request_route(
-    data: MaterialRequestCreate, current_user: CurrentUserDep
-):
+async def create_material_request_route(data: MaterialRequestCreate, current_user: CurrentUserDep):
     """Contractor creates a material request (pick list). Staff will process it into a withdrawal."""
     try:
         result = await create_material_request(data, current_user)
@@ -52,13 +50,8 @@ async def get_material_request(request_id: str, current_user: CurrentUserDep):
         current_user.organization_id, request_id
     )
     if not req:
-        raise HTTPException(
-            status_code=404, detail="Material request not found"
-        )
-    if (
-        current_user.role == "contractor"
-        and req.contractor_id != current_user.id
-    ):
+        raise HTTPException(status_code=404, detail="Material request not found")
+    if current_user.role == "contractor" and req.contractor_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     return req
 

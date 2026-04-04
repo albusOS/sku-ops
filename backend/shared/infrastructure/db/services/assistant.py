@@ -40,9 +40,7 @@ def _embedding_entity_uuid(entity_type: str, entity_id: str) -> str:
     try:
         return str(uuid_std.UUID(entity_id))
     except ValueError:
-        return str(
-            uuid_std.uuid5(uuid_std.NAMESPACE_URL, f"{entity_type}:{entity_id}")
-        )
+        return str(uuid_std.uuid5(uuid_std.NAMESPACE_URL, f"{entity_type}:{entity_id}"))
 
 
 def _decode_agent_run_json_fields(row: dict, keys: tuple[str, ...]) -> None:
@@ -79,9 +77,7 @@ class AssistantDatabaseService(DomainDatabaseService):
         parent_run_id: str | None = kwargs.get("parent_run_id")
         handoff_from: str | None = kwargs.get("handoff_from")
         validation_passed: bool | None = kwargs.get("validation_passed")
-        validation_failures: list[str] | None = kwargs.get(
-            "validation_failures"
-        )
+        validation_failures: list[str] | None = kwargs.get("validation_failures")
         validation_scores: dict | None = kwargs.get("validation_scores")
 
         run_id = new_uuid7_str()
@@ -135,9 +131,7 @@ class AssistantDatabaseService(DomainDatabaseService):
         session_id_filter: str | None = kwargs.get("session_id")
         minutes: int = kwargs.get("minutes", 60)
         limit: int = kwargs.get("limit", 50)
-        validation_failed_only: bool = kwargs.get(
-            "validation_failed_only", False
-        )
+        validation_failed_only: bool = kwargs.get("validation_failed_only", False)
 
         clauses = [
             f"created_at::timestamptz >= NOW() - INTERVAL '{minutes} minutes'",
@@ -170,8 +164,7 @@ class AssistantDatabaseService(DomainDatabaseService):
     async def agent_run_stats(self, org_id: str, **kwargs: Any) -> dict:
         hours: int = kwargs.get("hours", 24)
         since_sql = (
-            "org_id = :org_id AND created_at::timestamptz >= "
-            f"NOW() - INTERVAL '{hours} hours'"
+            f"org_id = :org_id AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours'"
         )
         base_params = {"org_id": org_id}
 
@@ -216,9 +209,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             res_model = await session.execute(
                 text(
                     "SELECT model, COUNT(*) as runs, SUM(cost_usd) as cost"
-                    " FROM agent_runs WHERE "
-                    + since_sql
-                    + " GROUP BY model ORDER BY cost DESC"
+                    " FROM agent_runs WHERE " + since_sql + " GROUP BY model ORDER BY cost DESC"
                 ),
                 base_params,
             )
@@ -231,18 +222,14 @@ class AssistantDatabaseService(DomainDatabaseService):
             "by_model": by_model,
         }
 
-    async def agent_session_trace(
-        self, org_id: str, session_id: str
-    ) -> list[dict]:
+    async def agent_session_trace(self, org_id: str, session_id: str) -> list[dict]:
         stmt = text(
             "SELECT agt.* FROM agent_runs AS agt"
             " WHERE agt.session_id = :session_id AND agt.org_id = :org_id"
             " ORDER BY agt.created_at ASC"
         )
         async with self.session() as session:
-            result = await session.execute(
-                stmt, {"session_id": session_id, "org_id": org_id}
-            )
+            result = await session.execute(stmt, {"session_id": session_id, "org_id": org_id})
             rows = [dict(r) for r in result.mappings().all()]
         for r in rows:
             _decode_agent_run_json_fields(
@@ -250,9 +237,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             )
         return rows
 
-    async def agent_validation_summary(
-        self, org_id: str, **kwargs: Any
-    ) -> dict:
+    async def agent_validation_summary(self, org_id: str, **kwargs: Any) -> dict:
         hours: int = kwargs.get("hours", 24)
         since_sql = (
             "org_id = :org_id AND created_at::timestamptz >= "
@@ -293,9 +278,7 @@ class AssistantDatabaseService(DomainDatabaseService):
         for row in fail_rows:
             raw = row["validation_failures"]
             try:
-                failures = (
-                    json.loads(raw) if isinstance(raw, str) else (raw or [])
-                )
+                failures = json.loads(raw) if isinstance(raw, str) else (raw or [])
                 for f in failures:
                     key = f.split(":")[0]
                     failure_counts[key] = failure_counts.get(key, 0) + 1
@@ -305,25 +288,18 @@ class AssistantDatabaseService(DomainDatabaseService):
         return {
             "period_hours": hours,
             "by_agent": by_agent,
-            "failure_type_counts": dict(
-                sorted(failure_counts.items(), key=lambda x: -x[1])
-            ),
+            "failure_type_counts": dict(sorted(failure_counts.items(), key=lambda x: -x[1])),
         }
 
-    async def agent_cost_breakdown(
-        self, org_id: str, **kwargs: Any
-    ) -> list[dict]:
+    async def agent_cost_breakdown(self, org_id: str, **kwargs: Any) -> list[dict]:
         days: int = kwargs.get("days", 7)
         group_by: str = kwargs.get("group_by", "agent")
         since_sql = (
-            "org_id = :org_id AND created_at::timestamptz >= "
-            f"NOW() - INTERVAL '{days} days'"
+            f"org_id = :org_id AND created_at::timestamptz >= NOW() - INTERVAL '{days} days'"
         )
         day_expr = "(created_at::timestamptz)::date"
 
-        col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(
-            group_by, "agent_name"
-        )
+        col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(group_by, "agent_name")
         query = (
             "SELECT " + col + " as group_key, " + day_expr + " as day,"
             " COUNT(*) as runs,"
@@ -443,10 +419,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             return 0
         try:
             now = datetime.now(UTC)
-            eids = [
-                _embedding_entity_uuid(entity_type, raw_id)
-                for raw_id, _, _ in items
-            ]
+            eids = [_embedding_entity_uuid(entity_type, raw_id) for raw_id, _, _ in items]
             existing_hashes: dict[str, str] = {}
 
             async with self.session() as session:
@@ -604,11 +577,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             if not await is_pgvector_available():
                 return None
 
-            qvec = (
-                query_embedding
-                if query_embedding is not None
-                else await embed_query(query)
-            )
+            qvec = query_embedding if query_embedding is not None else await embed_query(query)
             if qvec is None:
                 return None
 
@@ -646,13 +615,9 @@ class AssistantDatabaseService(DomainDatabaseService):
                 created = r["created_at"]
                 try:
                     created_dt = (
-                        datetime.fromisoformat(created)
-                        if isinstance(created, str)
-                        else created
+                        datetime.fromisoformat(created) if isinstance(created, str) else created
                     )
-                    days_old = max(
-                        0, (now - created_dt).total_seconds() / 86400
-                    )
+                    days_old = max(0, (now - created_dt).total_seconds() / 86400)
                 except (ValueError, TypeError):
                     days_old = 30
                 recency = math.exp(-0.02 * days_old)
@@ -672,9 +637,7 @@ class AssistantDatabaseService(DomainDatabaseService):
         if not artifacts:
             return
         now = datetime.now(UTC)
-        expires_at = datetime.now(UTC) + timedelta(
-            days=_DEFAULT_MEMORY_TTL_DAYS
-        )
+        expires_at = datetime.now(UTC) + timedelta(days=_DEFAULT_MEMORY_TTL_DAYS)
         rows_params: list[dict[str, Any]] = []
         artifact_ids: list[str] = []
         artifact_contents: list[str] = []
@@ -717,9 +680,7 @@ class AssistantDatabaseService(DomainDatabaseService):
                 await session.execute(ins, rp)
             await self.end_write_session(session)
 
-        logger.info(
-            "Memory: saved %d artifacts for user=%s", len(rows_params), user_id
-        )
+        logger.info("Memory: saved %d artifacts for user=%s", len(rows_params), user_id)
 
         async def _embed() -> None:
             try:
@@ -735,9 +696,7 @@ class AssistantDatabaseService(DomainDatabaseService):
                         artifact_ids, artifact_contents, vecs, strict=False
                     )
                 ]
-                written = await mgr.assistant.embedding_upsert_batch(
-                    org_id, "memory", items
-                )
+                written = await mgr.assistant.embedding_upsert_batch(org_id, "memory", items)
                 if written:
                     logger.debug("Memory embeddings: wrote %d vectors", written)
             except Exception as e:
@@ -793,12 +752,8 @@ class AssistantDatabaseService(DomainDatabaseService):
 
     @staticmethod
     def _format_memory_rows(rows: list[dict]) -> str:
-        lines = [
-            "[Memory from previous sessions — background context only, not ground truth]"
-        ]
+        lines = ["[Memory from previous sessions — background context only, not ground truth]"]
         for r in rows:
             date = (str(r.get("created_at") or ""))[:10]
-            lines.append(
-                f"- [{r['type']}] {r['subject']}: {r['content']} ({date})"
-            )
+            lines.append(f"- [{r['type']}] {r['subject']}: {r['content']} ({date})")
         return "\n".join(lines)

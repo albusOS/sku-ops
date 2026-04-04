@@ -86,23 +86,15 @@ class TestConcurrency:
 
         successes = [r for r in results if r[0] == 200]
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         final_qty = resp.json()["quantity"]
 
-        assert final_qty >= 0, (
-            f"Stock should never go negative, got {final_qty}"
-        )
+        assert final_qty >= 0, f"Stock should never go negative, got {final_qty}"
 
         if len(successes) == 2:
-            assert (
-                final_qty == 8 - 12
-            )  # Both succeeded = -4, but that shouldn't happen
+            assert final_qty == 8 - 12  # Both succeeded = -4, but that shouldn't happen
         elif len(successes) == 1:
-            assert final_qty == 2, (
-                f"One withdrawal of 6 from 8 should leave 2, got {final_qty}"
-            )
+            assert final_qty == 2, f"One withdrawal of 6 from 8 should leave 2, got {final_qty}"
         else:
             assert final_qty == 8, "If both failed, stock should be unchanged"
 
@@ -142,14 +134,10 @@ class TestConcurrency:
 
         successes = sum(1 for r in results if r[0] == 200)
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         final_qty = resp.json()["quantity"]
         expected = 100 - (successes * 10)
-        assert final_qty == expected, (
-            f"Expected {expected} (100 - {successes}*10), got {final_qty}"
-        )
+        assert final_qty == expected, f"Expected {expected} (100 - {successes}*10), got {final_qty}"
 
     def test_parallel_mark_paid_safe(self, client, seed_dept_id):
         """Two concurrent mark-paid on the same withdrawal should not double-pay."""
@@ -172,7 +160,5 @@ class TestConcurrency:
         successes = [s for s in statuses if s == 200]
         assert len(successes) >= 1, "At least one mark-paid should succeed"
 
-        resp = client.get(
-            f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
         assert resp.json()["payment_status"] == "paid"

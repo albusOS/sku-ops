@@ -30,21 +30,15 @@ class XeroOAuthMixin:
         resp.raise_for_status()
         token_data = resp.json()
 
-        expiry = datetime.now(UTC).timestamp() + token_data.get(
-            "expires_in", 1800
-        )
+        expiry = datetime.now(UTC).timestamp() + token_data.get("expires_in", 1800)
         updated = settings.model_copy(
             update={
                 "xero_access_token": token_data["access_token"],
-                "xero_refresh_token": token_data.get(
-                    "refresh_token", settings.xero_refresh_token
-                ),
+                "xero_refresh_token": token_data.get("refresh_token", settings.xero_refresh_token),
                 "xero_token_expiry": datetime.fromtimestamp(expiry, tz=UTC),
             }
         )
-        persisted = await get_database_manager().finance.org_settings_upsert(
-            get_org_id(), updated
-        )
+        persisted = await get_database_manager().finance.org_settings_upsert(get_org_id(), updated)
         return XeroSettings.model_validate(persisted.model_dump())
 
     async def get_tenants(self, access_token: str) -> list[dict]:

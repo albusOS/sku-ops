@@ -54,9 +54,7 @@ async def list_audit_log(
 @router.get("/actions")
 async def list_audit_actions(current_user: AdminDep):
     """Return distinct action names for filter dropdowns."""
-    return await _db_shared().audit_distinct_actions(
-        current_user.organization_id
-    )
+    return await _db_shared().audit_distinct_actions(current_user.organization_id)
 
 
 @router.get("/export")

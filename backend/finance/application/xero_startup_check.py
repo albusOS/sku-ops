@@ -50,9 +50,7 @@ async def check_xero_configuration() -> list[str]:
     try:
         settings = await _db_finance().org_settings_get(get_org_id())
     except (RuntimeError, OSError, ValueError) as e:
-        warnings.append(
-            f"XERO: Could not load org settings for {get_org_id()}: {e}"
-        )
+        warnings.append(f"XERO: Could not load org settings for {get_org_id()}: {e}")
         return warnings
 
     if not settings.xero_access_token:
@@ -68,9 +66,7 @@ async def check_xero_configuration() -> list[str]:
             "All API calls will fail with 403. Re-authorise Xero."
         )
 
-    if settings.xero_token_expiry and _is_token_expired(
-        settings.xero_token_expiry
-    ):
+    if settings.xero_token_expiry and _is_token_expired(settings.xero_token_expiry):
         warnings.append(
             "XERO: Access token is expired. The first sync will attempt a refresh. "
             "If refresh_token is also expired, re-authorise Xero immediately."

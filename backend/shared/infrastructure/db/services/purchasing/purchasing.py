@@ -83,9 +83,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             session.add(row)
             await self.end_write_session(session)
 
-    async def insert_po_items(
-        self, org_id: str, items: list[PurchaseOrderItem]
-    ) -> None:
+    async def insert_po_items(self, org_id: str, items: list[PurchaseOrderItem]) -> None:
         _ = as_uuid_required(org_id)
         async with self.session() as session:
             for item in items:
@@ -93,14 +91,10 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 session.add(build_purchase_order_item_row(item))
             await self.end_write_session(session)
 
-    async def list_pos(
-        self, org_id: str, status: str | None = None
-    ) -> list[PORow]:
+    async def list_pos(self, org_id: str, status: str | None = None) -> list[PORow]:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            stmt = select(PurchaseOrders).where(
-                PurchaseOrders.organization_id == oid
-            )
+            stmt = select(PurchaseOrders).where(PurchaseOrders.organization_id == oid)
             if status:
                 stmt = stmt.where(PurchaseOrders.status == status)
             stmt = stmt.order_by(PurchaseOrders.created_at.desc())
@@ -108,9 +102,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             rows = result.scalars().all()
             return [purchase_orders_row_to_porow(r) for r in rows]
 
-    async def list_pos_with_counts(
-        self, org_id: str, status: str | None = None
-    ) -> list[PORow]:
+    async def list_pos_with_counts(self, org_id: str, status: str | None = None) -> list[PORow]:
         oid = as_uuid_required(org_id)
         ord_v = POItemStatus.ORDERED.value
         pend_v = POItemStatus.PENDING.value
@@ -121,15 +113,9 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 select(
                     PurchaseOrders,
                     item_cnt.label("item_count"),
-                    item_cnt.filter(PurchaseOrderItems.status == ord_v).label(
-                        "ordered_count"
-                    ),
-                    item_cnt.filter(PurchaseOrderItems.status == pend_v).label(
-                        "pending_count"
-                    ),
-                    item_cnt.filter(PurchaseOrderItems.status == arr_v).label(
-                        "arrived_count"
-                    ),
+                    item_cnt.filter(PurchaseOrderItems.status == ord_v).label("ordered_count"),
+                    item_cnt.filter(PurchaseOrderItems.status == pend_v).label("pending_count"),
+                    item_cnt.filter(PurchaseOrderItems.status == arr_v).label("arrived_count"),
                 )
                 .outerjoin(
                     PurchaseOrderItems,
@@ -139,9 +125,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             )
             if status:
                 stmt = stmt.where(PurchaseOrders.status == status)
-            stmt = stmt.group_by(PurchaseOrders.id).order_by(
-                PurchaseOrders.created_at.desc()
-            )
+            stmt = stmt.group_by(PurchaseOrders.id).order_by(PurchaseOrders.created_at.desc())
             result = await session.execute(stmt)
             out: list[PORow] = []
             for (
@@ -351,10 +335,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                     PurchaseOrderItems.organization_id == oid,
                 )
             )
-            d = {
-                c.key: getattr(po_row, c.key)
-                for c in PurchaseOrders.__table__.columns
-            }
+            d = {c.key: getattr(po_row, c.key) for c in PurchaseOrders.__table__.columns}
             for k, v in list(d.items()):
                 if hasattr(v, "hex"):
                     d[k] = str(v)
@@ -392,17 +373,12 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 select(
                     PurchaseOrders.status,
                     func.count(PurchaseOrders.id).label("cnt"),
-                    func.coalesce(func.sum(PurchaseOrders.total), 0).label(
-                        "total"
-                    ),
+                    func.coalesce(func.sum(PurchaseOrders.total), 0).label("total"),
                 )
                 .where(PurchaseOrders.organization_id == oid)
                 .group_by(PurchaseOrders.status)
             )
-            return {
-                r.status: {"count": int(r.cnt), "total": float(r.total)}
-                for r in result.all()
-            }
+            return {r.status: {"count": int(r.cnt), "total": float(r.total)} for r in result.all()}
 
     async def set_po_xero_bill_id(
         self, org_id: str, po_id: str, xero_bill_id: str, updated_at: datetime
@@ -424,9 +400,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def vendor_catalog(
-        self, org_id: str, vendor_id: str
-    ) -> list[VendorCatalogRow]:
+    async def vendor_catalog(self, org_id: str, vendor_id: str) -> list[VendorCatalogRow]:
         oid = as_uuid_required(org_id)
         vid = as_uuid_required(vendor_id)
         async with self.session() as session:
@@ -479,9 +453,9 @@ class PurchasingDatabaseService(DomainDatabaseService):
                         ),
                         2,
                     ).label("total_spend"),
-                    func.sum(
-                        case((PurchaseOrders.status == "received", 1), else_=0)
-                    ).label("received_count"),
+                    func.sum(case((PurchaseOrders.status == "received", 1), else_=0)).label(
+                        "received_count"
+                    ),
                 ).where(
                     PurchaseOrders.vendor_id == vid,
                     PurchaseOrders.organization_id == oid,
@@ -497,8 +471,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                             func.avg(
                                 func.extract(
                                     "epoch",
-                                    PurchaseOrders.received_at
-                                    - PurchaseOrders.created_at,
+                                    PurchaseOrders.received_at - PurchaseOrders.created_at,
                                 )
                                 / 86400.0
                             ),
@@ -511,9 +484,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                             (
                                 func.sum(PurchaseOrderItems.delivered_qty)
                                 * 1.0
-                                / func.nullif(
-                                    func.sum(PurchaseOrderItems.ordered_qty), 0
-                                )
+                                / func.nullif(func.sum(PurchaseOrderItems.ordered_qty), 0)
                             ),
                             Numeric,
                         ),
@@ -543,9 +514,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             avg_lead_time_days=float(perf.avg_lead_time_days)
             if perf.avg_lead_time_days is not None
             else None,
-            fill_rate=float(perf.fill_rate)
-            if perf.fill_rate is not None
-            else None,
+            fill_rate=float(perf.fill_rate) if perf.fill_rate is not None else None,
         )
 
     async def purchase_history(
@@ -605,9 +574,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 po["item_count"] = len(po["items"])
             return pos
 
-    async def reorder_with_vendor_context(
-        self, org_id: str, limit: int = 30
-    ) -> list[ReorderRow]:
+    async def reorder_with_vendor_context(self, org_id: str, limit: int = 30) -> list[ReorderRow]:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -644,8 +611,10 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 )
                 for r in result.all()
             ]
-        vendor_items_by_sku = await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
-            org_id, [item["sku_id"] for item in low_stock]
+        vendor_items_by_sku = (
+            await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
+                org_id, [item["sku_id"] for item in low_stock]
+            )
         )
         for item in low_stock:
             vendor_items = vendor_items_by_sku.get(item["sku_id"], [])
@@ -665,9 +634,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             item["deficit"] = round(item["min_stock"] - item["quantity"], 2)
         return low_stock
 
-    async def get_po_items_enriched(
-        self, org_id: str, po_id: str
-    ) -> list[POItemRow]:
+    async def get_po_items_enriched(self, org_id: str, po_id: str) -> list[POItemRow]:
         """PO line items with catalog enrichment (same as legacy queries.get_po_items)."""
         items = await self.get_po_items(org_id, po_id)
         sku_ids = [i.sku_id for i in items if i.sku_id]
@@ -711,8 +678,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                     (
                         func.extract(
                             "epoch",
-                            PurchaseOrders.received_at
-                            - PurchaseOrders.created_at,
+                            PurchaseOrders.received_at - PurchaseOrders.created_at,
                         )
                         / 86400.0
                     ).label("lead_days"),
@@ -728,11 +694,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             rows = [dict(r._mapping) for r in res.all()]
 
             stated_scalar = await session.scalar(
-                select(
-                    func.percentile_cont(0.5).within_group(
-                        VendorItems.lead_time_days
-                    )
-                ).where(
+                select(func.percentile_cont(0.5).within_group(VendorItems.lead_time_days)).where(
                     VendorItems.vendor_id == vid,
                     VendorItems.lead_time_days.isnot(None),
                     VendorItems.organization_id == oid,
@@ -770,9 +732,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 elif drift_pct < -20:
                     trend = "improving"
 
-        stated_days = (
-            float(stated_scalar) if stated_scalar is not None else None
-        )
+        stated_days = float(stated_scalar) if stated_scalar is not None else None
 
         return {
             "vendor_id": vendor_id,

@@ -58,15 +58,12 @@ async def _get_outstanding_balances(limit: int = 20) -> str:
             }
         else:
             if created and (
-                not entity_map[entity]["oldest"]
-                or created < entity_map[entity]["oldest"]
+                not entity_map[entity]["oldest"] or created < entity_map[entity]["oldest"]
             ):
                 entity_map[entity]["oldest"] = created
         entity_map[entity]["balance"] += float(w.total)
         entity_map[entity]["withdrawal_count"] += 1
-    sorted_entities = sorted(
-        entity_map.items(), key=lambda x: x[1]["balance"], reverse=True
-    )
+    sorted_entities = sorted(entity_map.items(), key=lambda x: x[1]["balance"], reverse=True)
     balances = [
         EntityBalance(
             entity=entity,
@@ -93,15 +90,9 @@ async def _get_revenue_summary(days: int = 30) -> str:
     )
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_tax = sum(float(w.tax) for w in withdrawals)
-    paid = sum(
-        float(w.total) for w in withdrawals if w.payment_status == "paid"
-    )
-    unpaid = sum(
-        float(w.total) for w in withdrawals if w.payment_status == "unpaid"
-    )
-    invoiced = sum(
-        float(w.total) for w in withdrawals if w.payment_status == "invoiced"
-    )
+    paid = sum(float(w.total) for w in withdrawals if w.payment_status == "paid")
+    unpaid = sum(float(w.total) for w in withdrawals if w.payment_status == "unpaid")
+    invoiced = sum(float(w.total) for w in withdrawals if w.payment_status == "invoiced")
     return RevenueSummaryResult(
         period_days=days,
         transaction_count=len(withdrawals),
@@ -124,11 +115,7 @@ async def _get_pl_summary(days: int = 30) -> str:
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_cost = sum(float(w.cost_total) for w in withdrawals)
     gross_profit = total_revenue - total_cost
-    margin_pct = (
-        round((gross_profit / total_revenue * 100), 1)
-        if total_revenue > 0
-        else 0
-    )
+    margin_pct = round((gross_profit / total_revenue * 100), 1) if total_revenue > 0 else 0
     return PlSummaryResult(
         period_days=days,
         transaction_count=len(withdrawals),

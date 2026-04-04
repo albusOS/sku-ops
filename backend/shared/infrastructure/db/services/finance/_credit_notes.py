@@ -28,17 +28,13 @@ if TYPE_CHECKING:
 class ApplyCreditNoteResult:
     __slots__ = ("auto_paid", "credit_note", "invoice_id")
 
-    def __init__(
-        self, credit_note: CreditNote, auto_paid: bool, invoice_id: str
-    ) -> None:
+    def __init__(self, credit_note: CreditNote, auto_paid: bool, invoice_id: str) -> None:
         self.credit_note = credit_note
         self.auto_paid = auto_paid
         self.invoice_id = invoice_id
 
 
-async def _next_credit_note_number(
-    session: AsyncSession, org_id: uuid.UUID
-) -> str:
+async def _next_credit_note_number(session: AsyncSession, org_id: uuid.UUID) -> str:
     stmt = (
         pg_insert(InvoiceCounters)
         .values(organization_id=org_id, key="cn", counter=1)
@@ -152,9 +148,7 @@ async def credit_note_insert(
                 unit_price=price,
                 amount=amt,
                 cost=float(item.get("cost", 0)),
-                sku_id=as_uuid_required(item["sku_id"])
-                if item.get("sku_id")
-                else None,
+                sku_id=as_uuid_required(item["sku_id"]) if item.get("sku_id") else None,
                 unit="each",
                 sell_cost=float(item.get("cost", 0)),
             )
@@ -162,9 +156,7 @@ async def credit_note_insert(
     await session.flush()
     result = await credit_note_get_by_id(session, org_id, cn_id)
     if not result:
-        raise RuntimeError(
-            f"Credit note {cn_id} missing immediately after insert"
-        )
+        raise RuntimeError(f"Credit note {cn_id} missing immediately after insert")
     return result
 
 
@@ -187,16 +179,11 @@ async def credit_note_list(
     if status:
         conds.append(CreditNotes.status == status)
     if start_date:
-        conds.append(
-            CreditNotes.created_at >= datetime.fromisoformat(start_date)
-        )
+        conds.append(CreditNotes.created_at >= datetime.fromisoformat(start_date))
     if end_date:
         conds.append(CreditNotes.created_at <= datetime.fromisoformat(end_date))
     r = await session.execute(
-        select(CreditNotes)
-        .where(and_(*conds))
-        .order_by(CreditNotes.created_at.desc())
-        .limit(limit)
+        select(CreditNotes).where(and_(*conds)).order_by(CreditNotes.created_at.desc()).limit(limit)
     )
     return [_cn_row_to_model(x) for x in r.scalars().all()]
 
@@ -255,9 +242,7 @@ async def credit_note_apply(
     updated = await credit_note_get_by_id(session, org_id, credit_note_id)
     if not updated:
         raise RuntimeError(f"Credit note {credit_note_id} missing after apply")
-    return ApplyCreditNoteResult(
-        credit_note=updated, auto_paid=auto_paid, invoice_id=inv_id
-    )
+    return ApplyCreditNoteResult(credit_note=updated, auto_paid=auto_paid, invoice_id=inv_id)
 
 
 async def credit_note_set_xero_id(
@@ -300,9 +285,7 @@ async def credit_note_set_sync_status(
     await session.flush()
 
 
-async def credit_note_list_unsynced(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[CreditNote]:
+async def credit_note_list_unsynced(session: AsyncSession, org_id: uuid.UUID) -> list[CreditNote]:
     r = await session.execute(
         select(CreditNotes)
         .where(
@@ -345,9 +328,7 @@ async def credit_note_list_needing_reconciliation(
     return out
 
 
-async def credit_note_list_failed(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[CreditNote]:
+async def credit_note_list_failed(session: AsyncSession, org_id: uuid.UUID) -> list[CreditNote]:
     r = await session.execute(
         select(CreditNotes)
         .where(
@@ -359,9 +340,7 @@ async def credit_note_list_failed(
     return [_cn_row_to_model(x) for x in r.scalars().all()]
 
 
-async def credit_note_list_mismatch(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[CreditNote]:
+async def credit_note_list_mismatch(session: AsyncSession, org_id: uuid.UUID) -> list[CreditNote]:
     r = await session.execute(
         select(CreditNotes)
         .where(

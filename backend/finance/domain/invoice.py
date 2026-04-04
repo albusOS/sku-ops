@@ -20,16 +20,10 @@ PAYMENT_TERMS_DAYS: dict[str, int] = {
 }
 
 
-def compute_due_date(
-    invoice_date: str | datetime, payment_terms: str
-) -> datetime:
+def compute_due_date(invoice_date: str | datetime, payment_terms: str) -> datetime:
     """Return due-date datetime from invoice_date + payment_terms."""
     days = PAYMENT_TERMS_DAYS.get(payment_terms, 30)
-    dt = (
-        datetime.fromisoformat(invoice_date)
-        if isinstance(invoice_date, str)
-        else invoice_date
-    )
+    dt = datetime.fromisoformat(invoice_date) if isinstance(invoice_date, str) else invoice_date
     return dt + timedelta(days=days)
 
 

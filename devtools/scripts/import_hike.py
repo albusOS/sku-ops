@@ -133,16 +133,12 @@ async def import_products(
         product_type = (data.get("Product type") or "").strip()
         dept = dept_by_name.get(product_type)
         if not dept:
-            errors.append(
-                f"Row {i}: unknown department '{product_type}' for '{name}'"
-            )
+            errors.append(f"Row {i}: unknown department '{product_type}' for '{name}'")
             continue
 
         # Price/cost
         cost = float(data.get("Pittsburgh Store_Cost price") or 0)
-        price_ex_tax = float(
-            data.get("Pittsburgh Store_Price Excluding Tax") or 0
-        )
+        price_ex_tax = float(data.get("Pittsburgh Store_Price Excluding Tax") or 0)
         price = (
             price_ex_tax
             if price_ex_tax > 0
@@ -151,9 +147,7 @@ async def import_products(
 
         # Stock
         qty = float(
-            data.get("Pittsburgh Store_Stock on hand")
-            or data.get("Pittsburgh Store_Stock")
-            or 0
+            data.get("Pittsburgh Store_Stock on hand") or data.get("Pittsburgh Store_Stock") or 0
         )
         min_stock = int(float(data.get("Pittsburgh Store_Reorder level") or 0))
 
@@ -247,11 +241,7 @@ async def main(do_vendors: bool, do_products: bool) -> None:
             await import_products(vendor_map=vendor_map)
             from shared.infrastructure.db.base import get_database_manager
 
-            await (
-                get_database_manager().catalog.recompute_department_sku_counts(
-                    ORG.id
-                )
-            )
+            await get_database_manager().catalog.recompute_department_sku_counts(ORG.id)
             print("Recomputed department SKU counts.")
 
         print("\nDone.")

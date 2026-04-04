@@ -103,9 +103,7 @@ async def update_counted_qty(
     if count.status != CycleCountStatus.OPEN:
         raise ValueError("Cannot update a committed cycle count.")
 
-    item = await _db_inventory().get_cycle_count_item(
-        get_org_id(), item_id, count_id
-    )
+    item = await _db_inventory().get_cycle_count_item(get_org_id(), item_id, count_id)
     if item is None:
         raise ResourceNotFoundError("CycleCountItem", item_id)
 
@@ -165,9 +163,7 @@ async def commit_cycle_count(
 
     items = await _db_inventory().list_cycle_count_items(get_org_id(), count_id)
     items_to_adjust = [
-        i
-        for i in items
-        if i.counted_qty is not None and i.variance not in (None, 0, 0.0)
+        i for i in items if i.counted_qty is not None and i.variance not in (None, 0, 0.0)
     ]
 
     committed_at = datetime.now(UTC)

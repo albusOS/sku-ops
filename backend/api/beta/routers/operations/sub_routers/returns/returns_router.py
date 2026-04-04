@@ -85,14 +85,9 @@ async def get_return(
     return_id: str,
     current_user: CurrentUserDep,
 ):
-    ret = await _db_operations().get_return_by_id(
-        current_user.organization_id, return_id
-    )
+    ret = await _db_operations().get_return_by_id(current_user.organization_id, return_id)
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")
-    if (
-        current_user.role == "contractor"
-        and ret.contractor_id != current_user.id
-    ):
+    if current_user.role == "contractor" and ret.contractor_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your return")
     return ret

@@ -82,7 +82,7 @@ Still in `base.py`, inside `if TYPE_CHECKING:` at module top:
 
 #### 7. Verification
 
-- Run `uv run ruff check` on touched files (from repo root, or `pixi run lint-backend` when appropriate).
+- Run `uv run ruff check` on touched files (from repo root, or `pixi run lint backend` when appropriate).
 - Smoke: `async with transaction() as tx:` then access `tx.<your_key>` and call one read method.
 
 ### Boundaries (registration)

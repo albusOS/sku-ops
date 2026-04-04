@@ -100,13 +100,9 @@ async def chat(
 
     context_block = assembled.format_for_agent()
     if context_block:
-        history = [{"role": "system", "content": context_block}] + (
-            history or []
-        )
+        history = [{"role": "system", "content": context_block}] + (history or [])
 
-    logger.info(
-        "Agent mode: %s for message='%s...'", route, (user_message or "")[:50]
-    )
+    logger.info("Agent mode: %s for message='%s...'", route, (user_message or "")[:50])
 
     if route in specialist_agents:
         enriched = _enrich_specialist_message(user_message, context_block)
@@ -126,9 +122,7 @@ async def chat(
                 "agent": route,
                 "routed_to": [route],
             }
-        return _specialist_result(
-            user_message, spec_result, route, history or []
-        )
+        return _specialist_result(user_message, spec_result, route, history or [])
 
     result = await _unified_agent.run(
         user_message, history=history, deps=deps, session_id=session_id
@@ -175,9 +169,7 @@ async def recall_memory(user_id: str, query: str | None = None) -> str:
     When *query* is provided, uses semantic recall (hybrid scoring).
     Returns empty string if no artifacts exist.
     """
-    return await _db_assistant().memory_recall(
-        get_org_id(), user_id, query=query
-    )
+    return await _db_assistant().memory_recall(get_org_id(), user_id, query=query)
 
 
 def schedule_memory_extraction(

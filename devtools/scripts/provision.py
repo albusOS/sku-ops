@@ -14,12 +14,8 @@ import argparse
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Deprecated - use supabase db reset for seed data"
-    )
-    parser.add_argument(
-        "--dev", action="store_true", help="Ignored (dev users are in SQL seed)"
-    )
+    parser = argparse.ArgumentParser(description="Deprecated - use supabase db reset for seed data")
+    parser.add_argument("--dev", action="store_true", help="Ignored (dev users are in SQL seed)")
     _ = parser.parse_args()
     print(
         "Provisioning is handled by Supabase seeds. Run:\n"

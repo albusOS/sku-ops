@@ -36,9 +36,7 @@ class TestOrganizationCRUD:
         session.add(org)
         await session.flush()
 
-        result = await session.exec(
-            select(Organizations).where(Organizations.id == ORG_ID)
-        )
+        result = await session.exec(select(Organizations).where(Organizations.id == ORG_ID))
         loaded = result.first()
         assert loaded is not None
         assert loaded.name == "Test Org"
@@ -58,9 +56,7 @@ class TestOrganizationCRUD:
         session.add(org)
         await session.flush()
 
-        result = await session.exec(
-            select(Organizations).where(Organizations.id == ORG_ID)
-        )
+        result = await session.exec(select(Organizations).where(Organizations.id == ORG_ID))
         loaded = result.first()
         assert loaded is not None
         assert loaded.name == "Updated Name"
@@ -96,9 +92,7 @@ class TestParentChildInsert:
         session.add(product)
         await session.flush()
 
-        result = await session.exec(
-            select(Products).where(Products.id == prod_id)
-        )
+        result = await session.exec(select(Products).where(Products.id == prod_id))
         loaded = result.first()
         assert loaded is not None
         assert loaded.category_id == dept_id

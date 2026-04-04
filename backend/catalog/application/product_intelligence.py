@@ -54,9 +54,7 @@ def _get_system_prompt() -> str:
     global _SYSTEM_PROMPT
     if _SYSTEM_PROMPT is None:
         _ensure_rules_partial()
-        _SYSTEM_PROMPT = load_prompt(
-            __file__, "product_decomposition_prompt.md"
-        )
+        _SYSTEM_PROMPT = load_prompt(__file__, "product_decomposition_prompt.md")
     return _SYSTEM_PROMPT
 
 
@@ -96,17 +94,11 @@ def _dict_to_analyzed_product(
         product_type=raw.get("product_type") or "",
         specifications={str(k): str(v) for k, v in specs.items()},
         base_unit=_normalize_unit(raw.get("base_unit"), known_units),
-        sell_uom=_normalize_unit(
-            raw.get("sell_uom", raw.get("base_unit")), known_units
-        ),
+        sell_uom=_normalize_unit(raw.get("sell_uom", raw.get("base_unit")), known_units),
         pack_qty=_normalize_pack_qty(raw.get("pack_qty")),
-        purchase_uom=_normalize_unit(
-            raw.get("purchase_uom", raw.get("base_unit")), known_units
-        ),
+        purchase_uom=_normalize_unit(raw.get("purchase_uom", raw.get("base_unit")), known_units),
         purchase_pack_qty=_normalize_pack_qty(raw.get("purchase_pack_qty")),
-        suggested_department=(raw.get("suggested_department") or "HDW")
-        .upper()
-        .strip(),
+        suggested_department=(raw.get("suggested_department") or "HDW").upper().strip(),
         variant_label=raw.get("variant_label") or "",
         variant_attrs={str(k): str(v) for k, v in vattrs.items()},
         original_sku=raw.get("original_sku") or None,
@@ -136,9 +128,7 @@ def _rule_fallback(item: dict) -> AnalyzedProduct:
     )
 
 
-_FALLBACK_DEPTS = dict.fromkeys(
-    ("PLU", "ELE", "PNT", "LUM", "TOL", "HDW", "GDN", "APP"), True
-)
+_FALLBACK_DEPTS = dict.fromkeys(("PLU", "ELE", "PNT", "LUM", "TOL", "HDW", "GDN", "APP"), True)
 
 
 # ── Agent utilities ──────────────────────────────────────────────────────────
@@ -184,9 +174,7 @@ async def _run_agent_from_dicts(
     results: list[ProductAnalysis] = []
     for i, item in enumerate(items):
         if i < len(analyses_dicts):
-            results.append(
-                _agent_dict_to_analysis(analyses_dicts[i], item, known_units)
-            )
+            results.append(_agent_dict_to_analysis(analyses_dicts[i], item, known_units))
         else:
             ap = _rule_fallback(item)
             results.append(
@@ -227,9 +215,7 @@ async def _decompose_products(
 Decompose each into structured product data following the system instructions."""
 
     try:
-        response = await asyncio.to_thread(
-            generate_text, prompt, _get_system_prompt()
-        )
+        response = await asyncio.to_thread(generate_text, prompt, _get_system_prompt())
         if not response:
             logger.warning("Product intelligence: LLM returned empty response")
             return [_rule_fallback(item) for item in items]
@@ -242,9 +228,7 @@ Decompose each into structured product data following the system instructions.""
         for i, item in enumerate(items):
             raw_text = item.get("name") or ""
             if i < len(parsed) and isinstance(parsed[i], dict):
-                results.append(
-                    _dict_to_analyzed_product(parsed[i], raw_text, known_units)
-                )
+                results.append(_dict_to_analyzed_product(parsed[i], raw_text, known_units))
             else:
                 results.append(_rule_fallback(item))
         return results
@@ -323,21 +307,15 @@ def _validate_product(
     valid = known_units if known_units is not None else ALLOWED_BASE_UNITS
     warnings: list[str] = []
     if product.base_unit not in valid:
-        warnings.append(
-            f"Unknown base_unit '{product.base_unit}' — defaulting to 'each'"
-        )
+        warnings.append(f"Unknown base_unit '{product.base_unit}' — defaulting to 'each'")
     if product.sell_uom not in valid:
-        warnings.append(
-            f"Unknown sell_uom '{product.sell_uom}' — defaulting to 'each'"
-        )
+        warnings.append(f"Unknown sell_uom '{product.sell_uom}' — defaulting to 'each'")
     if product.suggested_department not in valid_dept_codes:
         warnings.append(
             f"Unknown department '{product.suggested_department}' — defaulting to 'HDW'"
         )
     if product.confidence < 0.7:
-        warnings.append(
-            "Low confidence classification — verify department and UOM"
-        )
+        warnings.append("Low confidence classification — verify department and UOM")
     if not product.clean_name or product.clean_name == product.raw_text:
         warnings.append("Name may need manual cleanup")
     return warnings
@@ -390,9 +368,7 @@ async def _enrich_single(
     families, (sku_id, vi_id) = await asyncio.gather(family_task, vendor_task)
     warnings = _validate_product(product, valid_dept_codes, known_units)
 
-    recommendation, reason = _derive_recommendation(
-        product, sku_id, vi_id, families
-    )
+    recommendation, reason = _derive_recommendation(product, sku_id, vi_id, families)
 
     return ProductAnalysis(
         product=product,

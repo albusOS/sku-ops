@@ -54,17 +54,13 @@ def _build_deps() -> PurchasingDeps:
     async def get_sku_by_id(sku_id: str):
         return await _db_catalog().get_sku_by_id(sku_id, get_org_id())
 
-    async def find_vendor_item_by_vendor_and_sku_code(
-        vendor_id: str, vendor_sku: str
-    ):
+    async def find_vendor_item_by_vendor_and_sku_code(vendor_id: str, vendor_sku: str):
         return await _db_catalog().find_vendor_item_by_vendor_and_sku(
             get_org_id(), vendor_id, vendor_sku
         )
 
     async def find_sku_by_name_and_vendor(name: str, vendor_id: str):
-        return await _db_catalog().find_sku_by_name_and_vendor(
-            get_org_id(), name, vendor_id
-        )
+        return await _db_catalog().find_sku_by_name_and_vendor(get_org_id(), name, vendor_id)
 
     async def update_sku(sku_id: str, updates: SkuUpdate):
         async with transaction():
@@ -76,11 +72,7 @@ def _build_deps() -> PurchasingDeps:
         return await _db_catalog().add_vendor_item(get_org_id(), **kw)
 
     async def insert_vendor_row(vendor: Vendor | dict) -> None:
-        v = (
-            Vendor.model_validate(vendor)
-            if isinstance(vendor, dict)
-            else vendor
-        )
+        v = Vendor.model_validate(vendor) if isinstance(vendor, dict) else vendor
         async with transaction():
             await _db_catalog().insert_vendor(v)
 
@@ -101,9 +93,7 @@ def _build_deps() -> PurchasingDeps:
     )
 
 
-router = APIRouter(
-    prefix="/purchasing/purchase-orders", tags=["purchase-orders"]
-)
+router = APIRouter(prefix="/purchasing/purchase-orders", tags=["purchase-orders"])
 
 
 @router.post("")
@@ -152,9 +142,7 @@ async def get_purchase_order(
     """Get a purchase order with all its items."""
     po = await get_po(po_id)
     if not po:
-        raise HTTPException(
-            status_code=404, detail=f"Purchase order not found: {po_id}"
-        )
+        raise HTTPException(status_code=404, detail=f"Purchase order not found: {po_id}")
     items = await get_po_items(po_id)
     return po.model_copy(update={"items": items})
 

@@ -46,7 +46,7 @@ jobs:
         run: pixi run uv sync --dev --directory backend
 
       - name: Lint
-        run: pixi run lint-backend
+        run: pixi run lint backend
 
       - name: Format check
         run: pixi run uv run --directory backend ruff format --check .

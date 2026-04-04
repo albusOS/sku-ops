@@ -105,9 +105,7 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
         if upper.startswith("PRIMARY KEY"):
             pk_match = re.search(r"\(([^)]+)\)", line)
             if pk_match:
-                pk_columns.update(
-                    c.strip() for c in pk_match.group(1).split(",")
-                )
+                pk_columns.update(c.strip() for c in pk_match.group(1).split(","))
             continue
 
         if upper.startswith(("UNIQUE", "CHECK", "CONSTRAINT", "FOREIGN KEY")):
@@ -131,9 +129,7 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
 
         fk_match = _FK_RE.search(rest)
         if fk_match:
-            foreign_keys.append(
-                ForeignKey(col_name, fk_match.group(1), fk_match.group(2))
-            )
+            foreign_keys.append(ForeignKey(col_name, fk_match.group(1), fk_match.group(2)))
 
         if col_name in ("organization_id", "org_id"):
             has_org_id = True

@@ -55,9 +55,7 @@ async def get_invoice(invoice_id: str) -> InvoiceWithDetails | None:
 
 
 async def mark_paid_for_withdrawal(withdrawal_id: str) -> None:
-    await _db_finance().invoice_mark_paid_for_withdrawal(
-        get_org_id(), withdrawal_id
-    )
+    await _db_finance().invoice_mark_paid_for_withdrawal(get_org_id(), withdrawal_id)
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +82,7 @@ async def _validate_withdrawals_for_invoice(
             raise ValueError(f"Withdrawal {wid} is already on invoice")
         be = w.billing_entity or ""
         if billing_entity is not None and be != billing_entity:
-            raise ValueError(
-                "All withdrawals must share the same billing_entity"
-            )
+            raise ValueError("All withdrawals must share the same billing_entity")
         billing_entity = be
         contact_name = w.contractor_name or w.contractor_company or ""
         withdrawals.append(w)
@@ -98,9 +94,7 @@ def _build_line_items_from_withdrawal(w, inv_id: str) -> list[dict]:
     """Convert typed WithdrawalItems to dicts for persistence."""
     items = []
     for item in w.items:
-        line = InvoiceLineItem.from_line_item(
-            item, invoice_id=inv_id, job_id=w.job_id
-        )
+        line = InvoiceLineItem.from_line_item(item, invoice_id=inv_id, job_id=w.job_id)
         items.append(
             {
                 "name": line.description,
@@ -159,26 +153,18 @@ async def create_invoice_from_withdrawals(
         total_tax = 0.0
         for w in withdrawals:
             items = _build_line_items_from_withdrawal(w, inv_id)
-            subtotal = await fin.invoice_insert_line_items(
-                org_id, inv_id, items
-            )
+            subtotal = await fin.invoice_insert_line_items(org_id, inv_id, items)
             total_subtotal += subtotal
             total_tax += w.tax
 
         total = round(total_subtotal + total_tax, 2)
-        await fin.invoice_update_totals(
-            org_id, inv_id, total_subtotal, total_tax, total
-        )
+        await fin.invoice_update_totals(org_id, inv_id, total_subtotal, total_tax, total)
 
         for wid in withdrawal_ids:
             await fin.invoice_link_withdrawal(org_id, inv_id, wid)
-            linked = await _db_operations().link_withdrawal_to_invoice(
-                org_id, wid, inv_id
-            )
+            linked = await _db_operations().link_withdrawal_to_invoice(org_id, wid, inv_id)
             if not linked:
-                raise ValueError(
-                    f"Withdrawal {wid} was already linked to another invoice"
-                )
+                raise ValueError(f"Withdrawal {wid} was already linked to another invoice")
 
     await dispatch(
         InvoiceCreated(
@@ -232,26 +218,18 @@ async def add_withdrawals_to_invoice(
         total_tax = 0.0
         for w in withdrawals:
             items = _build_line_items_from_withdrawal(w, invoice_id)
-            subtotal = await fin.invoice_insert_line_items(
-                org_id, invoice_id, items
-            )
+            subtotal = await fin.invoice_insert_line_items(org_id, invoice_id, items)
             total_subtotal += subtotal
             total_tax += w.tax
 
         total = round(total_subtotal + total_tax, 2)
-        await fin.invoice_update_totals(
-            org_id, invoice_id, total_subtotal, total_tax, total
-        )
+        await fin.invoice_update_totals(org_id, invoice_id, total_subtotal, total_tax, total)
 
         for wid in withdrawal_ids:
             await fin.invoice_link_withdrawal(org_id, invoice_id, wid)
-            linked = await _db_operations().link_withdrawal_to_invoice(
-                org_id, wid, invoice_id
-            )
+            linked = await _db_operations().link_withdrawal_to_invoice(org_id, wid, invoice_id)
             if not linked:
-                raise ValueError(
-                    f"Withdrawal {wid} was already linked to another invoice"
-                )
+                raise ValueError(f"Withdrawal {wid} was already linked to another invoice")
 
     return await fin.invoice_get_by_id(org_id, invoice_id)
 
@@ -284,10 +262,7 @@ async def update_invoice(
             subtotal = await fin.invoice_replace_line_items(
                 org_id,
                 invoice_id,
-                [
-                    i.model_dump() if hasattr(i, "model_dump") else i
-                    for i in line_items
-                ],
+                [i.model_dump() if hasattr(i, "model_dump") else i for i in line_items],
             )
             tax_val = tax if tax is not None else float(inv.tax)
             total = round(subtotal + tax_val, 2)
@@ -298,9 +273,7 @@ async def update_invoice(
             }
             if inv.xero_invoice_id:
                 sync_fields["xero_sync_status"] = XeroSyncStatus.COGS_STALE
-            await fin.invoice_update_fields_dynamic(
-                org_id, invoice_id, sync_fields
-            )
+            await fin.invoice_update_fields_dynamic(org_id, invoice_id, sync_fields)
         else:
             updates: dict[str, Any] = {}
             if billing_entity is not None:
@@ -337,9 +310,7 @@ async def update_invoice(
     return await fin.invoice_get_by_id(org_id, invoice_id)
 
 
-async def approve_invoice(
-    invoice_id: str, approved_by_id: str
-) -> InvoiceWithDetails | None:
+async def approve_invoice(invoice_id: str, approved_by_id: str) -> InvoiceWithDetails | None:
     """Approve a draft invoice, locking it for Xero sync."""
     org_id = get_org_id()
     fin = _db_finance()

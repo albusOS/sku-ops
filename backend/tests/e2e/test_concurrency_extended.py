@@ -115,7 +115,7 @@ def _query_ledger_entries(client, reference_id, account, reference_type=None):
                 "WHERE reference_id = $1 AND account = $2",
                 (reference_id, account),
             )
-        row = (cursor.rows[0] if cursor.rows else None)
+        row = cursor.rows[0] if cursor.rows else None
         return row[0], float(row[1])
 
     return client.portal.call(_query)

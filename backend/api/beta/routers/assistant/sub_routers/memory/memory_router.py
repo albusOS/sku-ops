@@ -33,9 +33,7 @@ class CorrectionPayload(BaseModel):
 
 
 @router.post("/corrections")
-async def save_corrections(
-    body: CorrectionPayload, user: CurrentUserDep
-) -> dict:
+async def save_corrections(body: CorrectionPayload, user: CurrentUserDep) -> dict:
     """Save user corrections to agent recommendations as memory artifacts.
 
     Called by the frontend when the user overrides agent-proposed fields
@@ -56,9 +54,7 @@ async def save_corrections(
         elif c.corrected_value:
             content = f"User set {c.field} to '{c.corrected_value}' on product '{c.item_name}'"
         else:
-            content = (
-                f"User rejected {c.field} suggestion on product '{c.item_name}'"
-            )
+            content = f"User rejected {c.field} suggestion on product '{c.item_name}'"
 
         if body.vendor_name:
             content += f" (vendor: {body.vendor_name})"
@@ -72,10 +68,6 @@ async def save_corrections(
             }
         )
 
-    await _db_assistant().memory_save(
-        get_org_id(), user.id, session_id, artifacts
-    )
-    logger.info(
-        "Saved %d product corrections for user=%s", len(artifacts), user.id
-    )
+    await _db_assistant().memory_save(get_org_id(), user.id, session_id, artifacts)
+    logger.info("Saved %d product corrections for user=%s", len(artifacts), user.id)
     return {"saved": len(artifacts)}

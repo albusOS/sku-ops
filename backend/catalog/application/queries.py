@@ -27,9 +27,7 @@ async def sku_vendor_options(sku_id: str) -> list[dict]:
     if not items:
         return []
 
-    last_by_vendor = await pur.last_po_created_at_by_vendor_for_sku(
-        org_id, sku_id
-    )
+    last_by_vendor = await pur.last_po_created_at_by_vendor_for_sku(org_id, sku_id)
     result = []
     for vi in items:
         vendor = await cat.get_vendor_by_id(vi.vendor_id, org_id)

@@ -35,9 +35,7 @@ def _document_date_for_row(po: PurchaseOrder) -> str | None:
     return str(dd)
 
 
-def build_purchase_orders_row(
-    po: PurchaseOrder, org_uuid: UUID
-) -> PurchaseOrders:
+def build_purchase_orders_row(po: PurchaseOrder, org_uuid: UUID) -> PurchaseOrders:
     """Map domain PurchaseOrder to SQLModel row for insert."""
     return PurchaseOrders(
         id=as_uuid_required(po.id),
@@ -45,9 +43,7 @@ def build_purchase_orders_row(
         vendor_name=po.vendor_name,
         document_date=_document_date_for_row(po),
         total=po.total,
-        status=po.status.value
-        if isinstance(po.status, POStatus)
-        else str(po.status),
+        status=po.status.value if isinstance(po.status, POStatus) else str(po.status),
         notes=po.notes,
         created_by_id=as_uuid_required(po.created_by_id),
         created_by_name=po.created_by_name,
@@ -64,11 +60,7 @@ def build_purchase_orders_row(
 def build_purchase_order_item_row(
     item: PurchaseOrderItem,
 ) -> PurchaseOrderItems:
-    st = (
-        item.status.value
-        if isinstance(item.status, POItemStatus)
-        else str(item.status)
-    )
+    st = item.status.value if isinstance(item.status, POItemStatus) else str(item.status)
     return PurchaseOrderItems(
         id=as_uuid_required(item.id),
         po_id=as_uuid_required(item.po_id),
@@ -133,9 +125,7 @@ def _parse_document_date(raw: str | None) -> datetime | None:
         return datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         try:
-            return datetime.combine(
-                datetime.strptime(raw, "%Y-%m-%d").date(), datetime.min.time()
-            )
+            return datetime.combine(datetime.strptime(raw, "%Y-%m-%d").date(), datetime.min.time())
         except ValueError:
             return None
 

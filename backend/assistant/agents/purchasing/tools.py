@@ -42,9 +42,7 @@ def _db_catalog():
     return get_database_manager().catalog
 
 
-async def _resolve_vendor_id(
-    vendor_id: str, name: str
-) -> tuple[str | None, str | None]:
+async def _resolve_vendor_id(vendor_id: str, name: str) -> tuple[str | None, str | None]:
     """Resolve vendor_id from name if needed. Returns (vendor_id, error_json) — one is always None."""
     vendor_id = vendor_id.strip()
     if vendor_id:
@@ -73,18 +71,14 @@ async def _get_vendor_catalog(vendor_id: str = "", name: str = "") -> str:
     ).serialize()
 
 
-async def _get_vendor_performance(
-    vendor_id: str = "", name: str = "", days: int = 90
-) -> str:
+async def _get_vendor_performance(vendor_id: str = "", name: str = "", days: int = 90) -> str:
     """Vendor scorecard. Use for vendor quality, spend, fill-rate, and reliability questions."""
     days = min(days, 365)
     vid, err = await _resolve_vendor_id(vendor_id, name)
     if err:
         return err
     vendor = await _db_catalog().get_vendor_by_id(vid, get_org_id())
-    perf = await vendor_performance(
-        vid, days, vendor_name=vendor.name if vendor else ""
-    )
+    perf = await vendor_performance(vid, days, vendor_name=vendor.name if vendor else "")
     return VendorPerformanceResult(
         vendor_id=perf.vendor_id,
         vendor_name=perf.vendor_name,
@@ -169,14 +163,10 @@ async def _list_all_vendors() -> str:
         )
         for v in vendors
     ]
-    return VendorDirectoryResult(
-        count=len(details), vendors=details
-    ).serialize()
+    return VendorDirectoryResult(count=len(details), vendors=details).serialize()
 
 
-async def _get_vendor_lead_times(
-    vendor_id: str = "", name: str = "", days: int = 180
-) -> str:
+async def _get_vendor_lead_times(vendor_id: str = "", name: str = "", days: int = 180) -> str:
     """Vendor lead-time lookup. Use for actual lead times, P90 risk, and drift detection."""
     days = min(days, 365)
     vid, err = await _resolve_vendor_id(vendor_id, name)
@@ -208,9 +198,7 @@ async def _get_procurement_snapshot(limit: int = 20) -> str:
     stockout_data = json.loads(stockout_raw)
 
     smart_by_sku = {item["sku"]: item for item in smart_data.get("items", [])}
-    stockout_by_sku = {
-        item["sku"]: item for item in stockout_data.get("forecast", [])
-    }
+    stockout_by_sku = {item["sku"]: item for item in stockout_data.get("forecast", [])}
 
     snapshot: list[dict] = []
     seen_skus: set[str] = set()
@@ -223,9 +211,7 @@ async def _get_procurement_snapshot(limit: int = 20) -> str:
         smart = smart_by_sku.get(sku, {})
         stockout = stockout_by_sku.get(sku, {})
         vendor_options = item.get("vendor_options", [])[:2]
-        preferred = next(
-            (opt for opt in vendor_options if opt.get("is_preferred")), None
-        )
+        preferred = next((opt for opt in vendor_options if opt.get("is_preferred")), None)
         top_vendor = preferred or (vendor_options[0] if vendor_options else {})
         snapshot.append(
             {

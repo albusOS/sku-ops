@@ -33,9 +33,7 @@ def _create_product(
     return cast("dict[str, Any]", resp.json())
 
 
-def _item_from_product(
-    product: dict[str, Any], quantity: int = 3
-) -> dict[str, Any]:
+def _item_from_product(product: dict[str, Any], quantity: int = 3) -> dict[str, Any]:
     return {
         "sku_id": product["id"],
         "sku": product["sku"],
@@ -94,9 +92,7 @@ def test_material_request_round_trip(client, auth, contractor_auth):
     assert len(fetched["items"]) == 1
 
 
-def test_material_request_fallback_fields_preserved(
-    client, auth, contractor_auth
-):
+def test_material_request_fallback_fields_preserved(client, auth, contractor_auth):
     """When contractor supplies job_id and service_address, they're stored in the request."""
     product = _create_product(client, auth)
     resp = _create_material_request(
@@ -169,9 +165,7 @@ def test_create_material_request_rejects_empty_items(client, contractor_auth):
 # ── API handler: list ────────────────────────────────────────────────────────
 
 
-def test_list_material_requests_contractor_sees_own(
-    client, auth, contractor_auth
-):
+def test_list_material_requests_contractor_sees_own(client, auth, contractor_auth):
     """Contractor only sees their own requests."""
     product = _create_product(client, auth)
     _create_material_request(
@@ -182,9 +176,7 @@ def test_list_material_requests_contractor_sees_own(
         service_address="1 Elm",
     )
 
-    resp = client.get(
-        "/api/beta/operations/material-requests", headers=contractor_auth
-    )
+    resp = client.get("/api/beta/operations/material-requests", headers=contractor_auth)
     assert resp.status_code == 200
     results = cast("list[dict[str, Any]]", resp.json())
 
@@ -192,9 +184,7 @@ def test_list_material_requests_contractor_sees_own(
     assert all(r["contractor_id"] == CONTRACTOR_USER_ID for r in results)
 
 
-def test_list_material_requests_admin_sees_pending(
-    client, auth, contractor_auth
-):
+def test_list_material_requests_admin_sees_pending(client, auth, contractor_auth):
     """Admin sees all pending requests."""
     product = _create_product(client, auth)
     _create_material_request(
@@ -244,10 +234,7 @@ def test_process_rejects_already_processed(client, auth, contractor_auth):
         headers=auth,
     )
     assert second.status_code == 400
-    assert (
-        "already processed"
-        in cast("dict[str, Any]", second.json())["detail"].lower()
-    )
+    assert "already processed" in cast("dict[str, Any]", second.json())["detail"].lower()
 
 
 def test_process_rejects_missing_job_id(client, auth, contractor_auth):
@@ -291,10 +278,7 @@ def test_process_rejects_missing_service_address(client, auth, contractor_auth):
         headers=auth,
     )
     assert resp.status_code == 400
-    assert (
-        "service address"
-        in cast("dict[str, Any]", resp.json())["detail"].lower()
-    )
+    assert "service address" in cast("dict[str, Any]", resp.json())["detail"].lower()
 
 
 def test_process_not_found(client, auth):
@@ -307,9 +291,7 @@ def test_process_not_found(client, auth):
     assert resp.status_code == 404
 
 
-def test_process_success_creates_withdrawal_and_updates_status(
-    client, auth, contractor_auth
-):
+def test_process_success_creates_withdrawal_and_updates_status(client, auth, contractor_auth):
     """Happy path: processing creates a withdrawal, marks request processed, decrements stock."""
     product = _create_product(client, auth, quantity=50.0)
     create_resp = _create_material_request(
@@ -334,9 +316,7 @@ def test_process_success_creates_withdrawal_and_updates_status(
     assert withdrawal["contractor_id"] == CONTRACTOR_USER_ID
 
     # Verify the request is now marked as processed
-    get_resp = client.get(
-        f"/api/beta/operations/material-requests/{req_id}", headers=auth
-    )
+    get_resp = client.get(f"/api/beta/operations/material-requests/{req_id}", headers=auth)
     assert get_resp.status_code == 200
     updated = cast("dict[str, Any]", get_resp.json())
     assert updated["status"] == "processed"

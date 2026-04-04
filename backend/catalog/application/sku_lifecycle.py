@@ -76,14 +76,10 @@ async def create_sku(
         raise ResourceNotFoundError("Department", category_id)
 
     family = (
-        await cat.get_product_family_by_id(product_family_id, org_id)
-        if product_family_id
-        else None
+        await cat.get_product_family_by_id(product_family_id, org_id) if product_family_id else None
     )
     family_name = family.name if family else name
-    sku_code = await generate_sku(
-        department.code, product_family_id, family_name
-    )
+    sku_code = await generate_sku(department.code, product_family_id, family_name)
     barcode_val = (barcode or "").strip() or sku_code
 
     if barcode_val and barcode_val.isdigit():
@@ -135,9 +131,7 @@ async def create_sku(
                 user_name=user_name,
             )
 
-    await dispatch(
-        CatalogChanged(org_id=org_id, sku_ids=(sku.id,), change_type="created")
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku.id,), change_type="created"))
     logger.info(
         "sku.created",
         extra={
@@ -254,9 +248,7 @@ async def update_sku(
                 exclude_sku_id=sku_id,
             )
             if existing:
-                raise DuplicateBarcodeError(
-                    update_data["barcode"], existing.name
-                )
+                raise DuplicateBarcodeError(update_data["barcode"], existing.name)
 
     if "sku" in update_data:
         new_code = update_data["sku"].strip()
@@ -269,9 +261,7 @@ async def update_sku(
             update_data.pop("sku")
 
     if "category_id" in update_data:
-        department = await cat.get_department_by_id(
-            update_data["category_id"], org_id
-        )
+        department = await cat.get_department_by_id(update_data["category_id"], org_id)
         if department:
             update_data["category_name"] = department.name
 
@@ -281,9 +271,7 @@ async def update_sku(
             new_cat = update_data["category_id"]
             if old_cat != new_cat:
                 if old_cat:
-                    await cat.increment_department_sku_count(
-                        old_cat, org_id, -1
-                    )
+                    await cat.increment_department_sku_count(old_cat, org_id, -1)
                 if new_cat:
                     await cat.increment_department_sku_count(new_cat, org_id, 1)
 
@@ -291,9 +279,7 @@ async def update_sku(
     if not result:
         raise ResourceNotFoundError("Sku", sku_id)
 
-    await dispatch(
-        CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated")
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated"))
     logger.info("sku.updated", extra={"org_id": org_id, "sku_id": sku_id})
     return result
 
@@ -332,17 +318,11 @@ async def adopt_sku(sku_id: str, new_family_id: str) -> Sku:
         await cat.increment_product_sku_count(new_family_id, org_id, 1)
         if old_family_id and sku.category_id != new_family.category_id:
             if sku.category_id:
-                await cat.increment_department_sku_count(
-                    sku.category_id, org_id, -1
-                )
+                await cat.increment_department_sku_count(sku.category_id, org_id, -1)
             if new_family.category_id:
-                await cat.increment_department_sku_count(
-                    new_family.category_id, org_id, 1
-                )
+                await cat.increment_department_sku_count(new_family.category_id, org_id, 1)
 
-    await dispatch(
-        CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated")
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="updated"))
     logger.info(
         "sku.adopted",
         extra={
@@ -369,15 +349,9 @@ async def delete_sku(sku_id: str) -> None:
         await cat.soft_delete_vendor_items_by_sku(sku_id, org_id)
         await cat.soft_delete_sku(sku_id, org_id)
         if sku.category_id:
-            await cat.increment_department_sku_count(
-                sku.category_id, org_id, -1
-            )
+            await cat.increment_department_sku_count(sku.category_id, org_id, -1)
         if sku.product_family_id:
-            await cat.increment_product_sku_count(
-                sku.product_family_id, org_id, -1
-            )
+            await cat.increment_product_sku_count(sku.product_family_id, org_id, -1)
 
-    await dispatch(
-        CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="deleted")
-    )
+    await dispatch(CatalogChanged(org_id=org_id, sku_ids=(sku_id,), change_type="deleted"))
     logger.info("sku.deleted", extra={"org_id": org_id, "sku_id": sku_id})

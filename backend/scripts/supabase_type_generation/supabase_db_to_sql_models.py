@@ -42,9 +42,7 @@ def _strip_cli_noise(content: str) -> str:
     import re
 
     lines = content.split("\n")
-    return "\n".join(
-        line for line in lines if not re.match(r"^Connecting to db \d+", line)
-    )
+    return "\n".join(line for line in lines if not re.match(r"^Connecting to db \d+", line))
 
 
 def run_supabase_gen_types(lang: str, local: bool = True) -> str:
@@ -120,9 +118,7 @@ def main(
         )
 
         print("  Generating SQLModel code...")
-        code = generate_sqlmodel_code(
-            schema, parsed_models, rel_metadata, pk_map
-        )
+        code = generate_sqlmodel_code(schema, parsed_models, rel_metadata, pk_map)
 
         output_path = types_dir / f"{schema}_sql_model_models.py"
         output_path.write_text(code)

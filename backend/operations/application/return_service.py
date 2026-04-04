@@ -58,13 +58,9 @@ async def create_return(
             w_item_map[wi.sku_id] = wi
         else:
             prev = w_item_map[wi.sku_id]
-            w_item_map[wi.sku_id] = wi.model_copy(
-                update={"quantity": prev.quantity + wi.quantity}
-            )
+            w_item_map[wi.sku_id] = wi.model_copy(update={"quantity": prev.quantity + wi.quantity})
 
-    w_dept_map = {
-        wi.sku_id: getattr(wi, "category_name", None) for wi in withdrawal.items
-    }
+    w_dept_map = {wi.sku_id: getattr(wi, "category_name", None) for wi in withdrawal.items}
 
     ret = MaterialReturn(
         withdrawal_id=data.withdrawal_id,
@@ -97,27 +93,19 @@ async def create_return(
             )
 
         # Re-read already-returned quantities inside the transaction (after lock).
-        existing_returns = await db.list_returns_by_withdrawal(
-            org_id, data.withdrawal_id
-        )
+        existing_returns = await db.list_returns_by_withdrawal(org_id, data.withdrawal_id)
         already_returned: dict[str, float] = {}
         for er in existing_returns:
             for ri in er.items:
-                already_returned[ri.sku_id] = (
-                    already_returned.get(ri.sku_id, 0) + ri.quantity
-                )
+                already_returned[ri.sku_id] = already_returned.get(ri.sku_id, 0) + ri.quantity
 
         enriched_items = []
         for item in data.items:
             original = w_item_map.get(item.sku_id)
             if not original:
-                raise DomainError(
-                    f"Product {item.sku_id} ({item.sku}) not on original withdrawal"
-                )
+                raise DomainError(f"Product {item.sku_id} ({item.sku}) not on original withdrawal")
 
-            max_returnable = original.quantity - already_returned.get(
-                item.sku_id, 0
-            )
+            max_returnable = original.quantity - already_returned.get(item.sku_id, 0)
             if item.quantity > max_returnable:
                 raise DomainError(
                     f"Cannot return {item.quantity} of {item.name} — "

@@ -57,9 +57,7 @@ class _LazyClientProxy:
     def __getattr__(self, name: str):
         client = self._factory()
         if client is None:
-            raise RuntimeError(
-                "Supabase client is not configured for this environment."
-            )
+            raise RuntimeError("Supabase client is not configured for this environment.")
         return getattr(client, name)
 
 

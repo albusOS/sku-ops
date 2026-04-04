@@ -17,18 +17,12 @@ if TYPE_CHECKING:
     from finance.domain.ledger import FinancialEntry
 
 
-def _financial_entry_to_row(
-    e: FinancialEntry, org_id: uuid.UUID
-) -> FinancialLedger:
+def _financial_entry_to_row(e: FinancialEntry, org_id: uuid.UUID) -> FinancialLedger:
     jid = as_uuid_required(e.journal_id) if e.journal_id else None
     job = as_uuid_required(e.job_id) if e.job_id else None
     contractor = as_uuid_required(e.contractor_id) if e.contractor_id else None
     sku = as_uuid_required(e.sku_id) if e.sku_id else None
-    perf = (
-        as_uuid_required(e.performed_by_user_id)
-        if e.performed_by_user_id
-        else None
-    )
+    perf = as_uuid_required(e.performed_by_user_id) if e.performed_by_user_id else None
     return FinancialLedger(
         id=as_uuid_required(e.id),
         journal_id=jid,

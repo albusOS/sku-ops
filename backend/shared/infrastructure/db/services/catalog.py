@@ -87,9 +87,7 @@ def _dept_row_to_domain(row: Departments) -> Department:
     return Department.model_validate(
         {
             "id": str(row.id),
-            "organization_id": str(row.organization_id)
-            if row.organization_id
-            else "",
+            "organization_id": str(row.organization_id) if row.organization_id else "",
             "created_at": row.created_at,
             "name": row.name,
             "code": row.code,
@@ -143,9 +141,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 )
             return out
 
-    async def get_department_by_id(
-        self, dept_id: str, org_id: str
-    ) -> Department | None:
+    async def get_department_by_id(self, dept_id: str, org_id: str) -> Department | None:
         did, oid = as_uuid_required(dept_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -158,9 +154,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.scalar_one_or_none()
             return _dept_row_to_domain(row) if row else None
 
-    async def get_department_by_code(
-        self, code: str, org_id: str
-    ) -> Department | None:
+    async def get_department_by_code(self, code: str, org_id: str) -> Department | None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -249,9 +243,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return res.rowcount or 0
 
-    async def increment_department_sku_count(
-        self, dept_id: str, org_id: str, delta: int
-    ) -> None:
+    async def increment_department_sku_count(self, dept_id: str, org_id: str, delta: int) -> None:
         did, oid = as_uuid_required(dept_id), as_uuid_required(org_id)
         async with self.session() as session:
             await session.execute(
@@ -325,9 +317,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             sql += " AND s.product_family_id = :product_family_id"
             params["product_family_id"] = as_uuid_required(product_family_id)
         if search:
-            sql += (
-                " AND (s.name LIKE :t1 OR s.sku LIKE :t2 OR s.barcode LIKE :t3)"
-            )
+            sql += " AND (s.name LIKE :t1 OR s.sku LIKE :t2 OR s.barcode LIKE :t3)"
             term = f"%{search}%"
             params["t1"] = term
             params["t2"] = term
@@ -342,11 +332,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(text(sql), params)
             rows = result.mappings().all()
-            return [
-                s
-                for r in rows
-                if (s := _sku_row_to_domain(dict(r))) is not None
-            ]
+            return [s for r in rows if (s := _sku_row_to_domain(dict(r))) is not None]
 
     async def count_skus(
         self,
@@ -460,9 +446,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _sku_row_to_domain(dict(row)) if row else None
 
-    async def find_skus_by_product_family(
-        self, org_id: str, product_family_id: str
-    ) -> list[Sku]:
+    async def find_skus_by_product_family(self, org_id: str, product_family_id: str) -> list[Sku]:
         pid, oid = as_uuid_required(product_family_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -472,11 +456,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 {"pid": pid, "oid": oid},
             )
             rows = result.mappings().all()
-            return [
-                s
-                for r in rows
-                if (s := _sku_row_to_domain(dict(r))) is not None
-            ]
+            return [s for r in rows if (s := _sku_row_to_domain(dict(r))) is not None]
 
     async def count_all_skus(self, org_id: str) -> int:
         oid = as_uuid_required(org_id)
@@ -500,9 +480,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             return int(r.scalar_one() or 0)
 
-    async def list_low_stock_skus(
-        self, org_id: str, limit: int = 10
-    ) -> list[Sku]:
+    async def list_low_stock_skus(self, org_id: str, limit: int = 10) -> list[Sku]:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -513,11 +491,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 {"oid": oid, "lim": limit},
             )
             rows = result.mappings().all()
-            return [
-                s
-                for r in rows
-                if (s := _sku_row_to_domain(dict(r))) is not None
-            ]
+            return [s for r in rows if (s := _sku_row_to_domain(dict(r))) is not None]
 
     async def insert_sku(self, sku: Sku) -> None:
         sku_dict = sku.model_dump()
@@ -540,9 +514,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 {
                     "id": as_uuid_required(sku_dict["id"]),
                     "sku": sku_dict["sku"],
-                    "product_family_id": as_uuid_required(
-                        sku_dict["product_family_id"]
-                    ),
+                    "product_family_id": as_uuid_required(sku_dict["product_family_id"]),
                     "name": sku_dict["name"],
                     "description": sku_dict.get("description", ""),
                     "price": sku_dict["price"],
@@ -561,21 +533,15 @@ class CatalogDatabaseService(DomainDatabaseService):
                     "variant_label": sku_dict.get("variant_label", ""),
                     "spec": sku_dict.get("spec", ""),
                     "grade": sku_dict.get("grade", ""),
-                    "variant_attrs": json.dumps(
-                        sku_dict.get("variant_attrs") or {}
-                    ),
+                    "variant_attrs": json.dumps(sku_dict.get("variant_attrs") or {}),
                     "organization_id": oid,
-                    "created_at": sku_dict.get("created_at")
-                    or datetime.now(UTC),
-                    "updated_at": sku_dict.get("updated_at")
-                    or datetime.now(UTC),
+                    "created_at": sku_dict.get("created_at") or datetime.now(UTC),
+                    "updated_at": sku_dict.get("updated_at") or datetime.now(UTC),
                 },
             )
             await self.end_write_session(session)
 
-    async def update_sku(
-        self, sku_id: str, org_id: str, updates: dict
-    ) -> Sku | None:
+    async def update_sku(self, sku_id: str, org_id: str, updates: dict) -> Sku | None:
         """Dynamic UPDATE mirroring sku_mutations.update."""
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         set_parts: list[str] = ["updated_at = :updated_at"]
@@ -733,9 +699,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def get_product_family_by_id(
-        self, product_id: str, org_id: str
-    ) -> ProductFamily | None:
+    async def get_product_family_by_id(self, product_id: str, org_id: str) -> ProductFamily | None:
         pid, oid = as_uuid_required(product_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -827,9 +791,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
         return await self.get_product_family_by_id(product_id, org_id)
 
-    async def soft_delete_product_family(
-        self, product_id: str, org_id: str
-    ) -> int:
+    async def soft_delete_product_family(self, product_id: str, org_id: str) -> int:
         pid, oid = as_uuid_required(product_id), as_uuid_required(org_id)
         now = datetime.now(UTC)
         async with self.session() as session:
@@ -842,9 +804,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return int(res.rowcount or 0)
 
-    async def increment_product_sku_count(
-        self, product_id: str, org_id: str, delta: int
-    ) -> None:
+    async def increment_product_sku_count(self, product_id: str, org_id: str, delta: int) -> None:
         pid, oid = as_uuid_required(product_id), as_uuid_required(org_id)
         async with self.session() as session:
             await session.execute(
@@ -866,14 +826,10 @@ class CatalogDatabaseService(DomainDatabaseService):
                 {"oid": oid},
             )
             return [
-                v
-                for r in result.mappings().all()
-                if (v := _row_to_vendor(dict(r))) is not None
+                v for r in result.mappings().all() if (v := _row_to_vendor(dict(r))) is not None
             ]
 
-    async def get_vendor_by_id(
-        self, vendor_id: str, org_id: str
-    ) -> Vendor | None:
+    async def get_vendor_by_id(self, vendor_id: str, org_id: str) -> Vendor | None:
         vid, oid = as_uuid_required(vendor_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -886,9 +842,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _row_to_vendor(dict(row)) if row else None
 
-    async def find_vendor_by_name(
-        self, org_id: str, name: str
-    ) -> Vendor | None:
+    async def find_vendor_by_name(self, org_id: str, name: str) -> Vendor | None:
         if not name or not name.strip():
             return None
         norm = name.strip().lower()
@@ -926,9 +880,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def update_vendor(
-        self, vendor_id: str, org_id: str, vendor_dict: dict
-    ) -> Vendor | None:
+    async def update_vendor(self, vendor_id: str, org_id: str, vendor_dict: dict) -> Vendor | None:
         vid, oid = as_uuid_required(vendor_id), as_uuid_required(org_id)
         new_name = vendor_dict.get("name", "")
         async with self.session() as session:
@@ -991,15 +943,9 @@ class CatalogDatabaseService(DomainDatabaseService):
                 ),
                 {"oid": oid},
             )
-            return [
-                u
-                for r in result.mappings().all()
-                if (u := _row_to_uom(dict(r))) is not None
-            ]
+            return [u for r in result.mappings().all() if (u := _row_to_uom(dict(r))) is not None]
 
-    async def get_uom_by_code(
-        self, org_id: str, code: str
-    ) -> UnitOfMeasure | None:
+    async def get_uom_by_code(self, org_id: str, code: str) -> UnitOfMeasure | None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -1013,9 +959,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _row_to_uom(dict(row)) if row else None
 
-    async def get_uom_by_id(
-        self, uom_id: str, org_id: str
-    ) -> UnitOfMeasure | None:
+    async def get_uom_by_id(self, uom_id: str, org_id: str) -> UnitOfMeasure | None:
         uid, oid = as_uuid_required(uom_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -1063,9 +1007,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return int(res.rowcount or 0)
 
-    async def sku_counter_next_preview(
-        self, org_id: str, product_family_id: str
-    ) -> int:
+    async def sku_counter_next_preview(self, org_id: str, product_family_id: str) -> int:
         oid = as_uuid_required(org_id)
         pid = as_uuid_required(product_family_id)
         async with self.session() as session:
@@ -1090,9 +1032,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             rows = result.all()
             return {str(a): int(b) for a, b in rows} if rows else {}
 
-    async def sku_counter_increment(
-        self, org_id: str, product_family_id: str
-    ) -> int:
+    async def sku_counter_increment(self, org_id: str, product_family_id: str) -> int:
         oid = as_uuid_required(org_id)
         pid = as_uuid_required(product_family_id)
         async with self.session() as session:
@@ -1201,9 +1141,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         )
         return item
 
-    async def modify_vendor_item(
-        self, org_id: str, item_id: str, updates: dict
-    ) -> VendorItem:
+    async def modify_vendor_item(self, org_id: str, item_id: str, updates: dict) -> VendorItem:
         """Update a vendor item; setting preferred clears other preferred for the SKU."""
         existing = await self.get_vendor_item_by_id(item_id, org_id)
         if not existing:
@@ -1218,9 +1156,7 @@ class CatalogDatabaseService(DomainDatabaseService):
 
         async with db_transaction():
             if updates.get("is_preferred"):
-                await self.clear_preferred_vendor_items_for_sku(
-                    existing.sku_id, org_id
-                )
+                await self.clear_preferred_vendor_items_for_sku(existing.sku_id, org_id)
             result = await self.update_vendor_item(item_id, org_id, payload)
         if not result:
             raise ResourceNotFoundError("VendorItem", item_id)
@@ -1257,9 +1193,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             },
         )
 
-    async def get_vendor_item_by_id(
-        self, item_id: str, org_id: str
-    ) -> VendorItem | None:
+    async def get_vendor_item_by_id(self, item_id: str, org_id: str) -> VendorItem | None:
         iid, oid = as_uuid_required(item_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -1271,9 +1205,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _row_to_vendor_item(dict(row)) if row else None
 
-    async def list_vendor_items_by_sku(
-        self, sku_id: str, org_id: str
-    ) -> list[VendorItem]:
+    async def list_vendor_items_by_sku(self, sku_id: str, org_id: str) -> list[VendorItem]:
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -1290,9 +1222,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 if (vi := _row_to_vendor_item(dict(r))) is not None
             ]
 
-    async def list_vendor_items_by_skus(
-        self, org_id: str, sku_ids: list[str]
-    ) -> list[VendorItem]:
+    async def list_vendor_items_by_skus(self, org_id: str, sku_ids: list[str]) -> list[VendorItem]:
         if not sku_ids:
             return []
         oid = as_uuid_required(org_id)
@@ -1330,9 +1260,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             grouped.setdefault(item.sku_id, []).append(item)
         return grouped
 
-    async def list_vendor_items_by_vendor(
-        self, vendor_id: str, org_id: str
-    ) -> list[VendorItem]:
+    async def list_vendor_items_by_vendor(self, vendor_id: str, org_id: str) -> list[VendorItem]:
         vid, oid = as_uuid_required(vendor_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
@@ -1413,11 +1341,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             if key in updates and updates[key] is not None:
                 pname = f"v{n}"
                 set_parts.append(f"{key} = :{pname}")
-                val = (
-                    bool(updates[key])
-                    if key == "is_preferred"
-                    else updates[key]
-                )
+                val = bool(updates[key]) if key == "is_preferred" else updates[key]
                 params[pname] = val
                 n += 1
         if len(set_parts) <= 1:
@@ -1442,9 +1366,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return int(res.rowcount or 0)
 
-    async def soft_delete_vendor_items_by_sku(
-        self, sku_id: str, org_id: str
-    ) -> int:
+    async def soft_delete_vendor_items_by_sku(self, sku_id: str, org_id: str) -> int:
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         now = datetime.now(UTC)
         async with self.session() as session:
@@ -1457,9 +1379,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return int(res.rowcount or 0)
 
-    async def clear_preferred_vendor_items_for_sku(
-        self, sku_id: str, org_id: str
-    ) -> None:
+    async def clear_preferred_vendor_items_for_sku(self, sku_id: str, org_id: str) -> None:
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         async with self.session() as session:
             await session.execute(

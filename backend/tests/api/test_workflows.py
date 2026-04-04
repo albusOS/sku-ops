@@ -34,9 +34,7 @@ class TestWithdrawalWorkflow:
 
     def test_withdrawal_decrements_stock(self, db, client):
         headers = admin_headers()
-        product = _create_product(
-            client, headers, quantity=50, name="WD-Decrement"
-        )
+        product = _create_product(client, headers, quantity=50, name="WD-Decrement")
 
         resp = client.post(
             "/api/beta/operations/withdrawals",
@@ -60,16 +58,12 @@ class TestWithdrawalWorkflow:
         withdrawal = resp.json()
         assert withdrawal["total"] > 0
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 45
 
     def test_withdrawal_with_insufficient_stock_fails(self, db, client):
         headers = admin_headers()
-        product = _create_product(
-            client, headers, quantity=3, name="WD-Insufficient"
-        )
+        product = _create_product(client, headers, quantity=3, name="WD-Insufficient")
 
         resp = client.post(
             "/api/beta/operations/withdrawals",
@@ -89,16 +83,10 @@ class TestWithdrawalWorkflow:
             },
             headers=headers,
         )
-        assert resp.status_code in (400, 422), (
-            f"Expected rejection, got {resp.status_code}"
-        )
+        assert resp.status_code in (400, 422), f"Expected rejection, got {resp.status_code}"
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
-        assert resp.json()["quantity"] == 3, (
-            "Stock should be unchanged after failed withdrawal"
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
+        assert resp.json()["quantity"] == 3, "Stock should be unchanged after failed withdrawal"
 
     def test_withdrawal_requires_items(self, db, client):
         headers = admin_headers()
@@ -183,9 +171,7 @@ class TestProductWorkflow:
         headers = admin_headers()
         product = _create_product(client, headers, name="PW-Create")
 
-        resp = client.get(
-            f"/api/beta/catalog/skus/{product['id']}", headers=headers
-        )
+        resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.status_code == 200
         assert resp.json()["name"] == "PW-Create"
 

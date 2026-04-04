@@ -54,11 +54,7 @@ def resolve_claims(payload: dict) -> ResolvedClaims:
 
     email = payload.get("email") or ""
     name = payload.get("name") or user_meta.get("name") or ""
-    org_id = (
-        app_meta.get("organization_id")
-        or payload.get("organization_id")
-        or None
-    )
+    org_id = app_meta.get("organization_id") or payload.get("organization_id") or None
 
     return ResolvedClaims(
         user_id=user_id,

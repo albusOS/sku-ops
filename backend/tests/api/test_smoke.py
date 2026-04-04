@@ -60,9 +60,8 @@ def test_all_context_routers_mounted(client):
         if resp.status_code == 404:
             not_mounted.append(f"{ctx}: {method} {path}")
 
-    assert not not_mounted, (
-        "These context routers appear unmounted (got 404):\n"
-        + "\n".join(f"  {m}" for m in not_mounted)
+    assert not not_mounted, "These context routers appear unmounted (got 404):\n" + "\n".join(
+        f"  {m}" for m in not_mounted
     )
 
 

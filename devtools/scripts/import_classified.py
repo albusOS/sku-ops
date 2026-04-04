@@ -26,9 +26,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "real"
 CLASSIFIED_PATH = DATA_DIR / "classified_products.json"
 
-sys.path.insert(
-    0, str(Path(__file__).resolve().parent.parent.parent / "backend")
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "backend"))
 
 
 def _strip_html(text: str | None) -> str:
@@ -62,9 +60,7 @@ async def nuke_catalog() -> None:
     async with transaction():
         for table in tables:
             await sql_execute(f"DELETE FROM {table}", read_only=False)
-        await sql_execute(
-            "UPDATE departments SET sku_count = 0", read_only=False
-        )
+        await sql_execute("UPDATE departments SET sku_count = 0", read_only=False)
     print("Nuked existing catalog data (hard-deleted all rows, reset counters)")
 
 
@@ -75,9 +71,7 @@ async def import_vendors() -> dict[str, str]:
     return await _import_vendors()
 
 
-async def import_classified(
-    classified_path: Path, dry_run: bool = False
-) -> None:
+async def import_classified(classified_path: Path, dry_run: bool = False) -> None:
     """Import classified products, creating families then SKUs."""
     from catalog.infrastructure.department_repo import department_repo
     from catalog.infrastructure.vendor_item_repo import vendor_item_repo
@@ -107,9 +101,7 @@ async def import_classified(
 
     if dry_run:
         print(f"\n{'=' * 60}")
-        print(
-            f"DRY RUN — would create {len(family_groups)} families from {len(products)} products"
-        )
+        print(f"DRY RUN — would create {len(family_groups)} families from {len(products)} products")
         print(f"{'=' * 60}\n")
         for key, members in family_groups.items():
             dept, fname = key.split("|", 1)
@@ -117,11 +109,7 @@ async def import_classified(
             for m in members:
                 vl = m.get("variant_label", "")
                 bu = m.get("base_unit", "each")
-                print(
-                    f"    - {m['name']}"
-                    + (f"  [variant: {vl}]" if vl else "")
-                    + f"  unit={bu}"
-                )
+                print(f"    - {m['name']}" + (f"  [variant: {vl}]" if vl else "") + f"  unit={bu}")
         return
 
     families_created = 0
@@ -164,22 +152,14 @@ async def import_classified(
                     if len(digits) == 12:
                         check = (
                             10
-                            - sum(
-                                d * (3 if i % 2 else 1)
-                                for i, d in enumerate(digits[:11])
-                            )
-                            % 10
+                            - sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits[:11])) % 10
                         ) % 10
                         if check != digits[11]:
                             barcode = None
                     elif len(digits) == 13:
                         check = (
                             10
-                            - sum(
-                                d * (3 if i % 2 else 1)
-                                for i, d in enumerate(digits[:12])
-                            )
-                            % 10
+                            - sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits[:12])) % 10
                         ) % 10
                         if check != digits[12]:
                             barcode = None
@@ -261,14 +241,10 @@ async def import_classified(
                     vendor_items_created += 1
 
             except Exception as e:
-                errors.append(
-                    f"SKU '{item['name']}' row {item.get('row')}: {e}"
-                )
+                errors.append(f"SKU '{item['name']}' row {item.get('row')}: {e}")
 
         if families_created % 50 == 0 and families_created > 0:
-            print(
-                f"  ... {families_created} families, {skus_created} SKUs created"
-            )
+            print(f"  ... {families_created} families, {skus_created} SKUs created")
 
     print("\nDone:")
     print(f"  Families created:     {families_created}")
@@ -277,9 +253,7 @@ async def import_classified(
 
     from shared.infrastructure.db.base import get_database_manager
 
-    await get_database_manager().catalog.recompute_department_sku_counts(
-        org_id_var.get()
-    )
+    await get_database_manager().catalog.recompute_department_sku_counts(org_id_var.get())
     print("  Department SKU counts: recomputed")
 
     if errors:
@@ -290,17 +264,13 @@ async def import_classified(
             print(f"  ... and {len(errors) - 30} more")
 
 
-async def main(
-    nuke: bool, vendors: bool, dry_run: bool, classified_path: Path
-) -> None:
+async def main(nuke: bool, vendors: bool, dry_run: bool, classified_path: Path) -> None:
     from devtools.scripts.company import ORG
     from shared.infrastructure.db import close_db, init_db
     from shared.infrastructure.logging_config import org_id_var, user_id_var
 
     if not classified_path.exists():
-        print(
-            f"Error: {classified_path} not found. Run classify_products.py first."
-        )
+        print(f"Error: {classified_path} not found. Run classify_products.py first.")
         sys.exit(1)
 
     await init_db()
@@ -322,15 +292,9 @@ async def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Import classified products into DB"
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be created"
-    )
-    parser.add_argument(
-        "--nuke", action="store_true", help="Soft-delete existing catalog first"
-    )
+    parser = argparse.ArgumentParser(description="Import classified products into DB")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be created")
+    parser.add_argument("--nuke", action="store_true", help="Soft-delete existing catalog first")
     parser.add_argument(
         "--vendors",
         action="store_true",
@@ -345,9 +309,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.dry_run and not args.nuke:
-        print(
-            "Error: specify --nuke to clear existing data, or --dry-run to preview"
-        )
+        print("Error: specify --nuke to clear existing data, or --dry-run to preview")
         sys.exit(1)
 
     asyncio.run(main(args.nuke, args.vendors, args.dry_run, args.input))

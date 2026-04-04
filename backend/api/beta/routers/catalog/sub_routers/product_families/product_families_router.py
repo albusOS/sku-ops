@@ -55,9 +55,7 @@ async def list_product_families(
     result = [p.model_dump() for p in items]
     if include_skus:
         for product in result:
-            skus = await _db_catalog().find_skus_by_product_family(
-                get_org_id(), product["id"]
-            )
+            skus = await _db_catalog().find_skus_by_product_family(get_org_id(), product["id"])
             product["skus"] = [s.model_dump() for s in skus]
     if limit is not None:
         total = await _db_catalog().count_product_families(
@@ -69,26 +67,18 @@ async def list_product_families(
 
 @router.get("/{product_id}")
 async def get_product_family(product_id: str, current_user: CurrentUserDep):
-    product = await _db_catalog().get_product_family_by_id(
-        product_id, get_org_id()
-    )
+    product = await _db_catalog().get_product_family_by_id(product_id, get_org_id())
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    skus = await _db_catalog().find_skus_by_product_family(
-        get_org_id(), product_id
-    )
+    skus = await _db_catalog().find_skus_by_product_family(get_org_id(), product_id)
     result = product.model_dump()
     result["skus"] = [s.model_dump() for s in skus]
     return result
 
 
 @router.post("")
-async def create_product_family(
-    data: ProductCreateRequest, current_user: AdminDep
-):
-    department = await _db_catalog().get_department_by_id(
-        data.category_id, get_org_id()
-    )
+async def create_product_family(data: ProductCreateRequest, current_user: AdminDep):
+    department = await _db_catalog().get_department_by_id(data.category_id, get_org_id())
     if not department:
         raise HTTPException(status_code=400, detail="Category not found")
     try:
@@ -116,12 +106,8 @@ async def update_product_family(
 
 
 @router.delete("/{product_id}")
-async def delete_product_family(
-    product_id: str, request: Request, current_user: AdminDep
-):
-    product = await _db_catalog().get_product_family_by_id(
-        product_id, get_org_id()
-    )
+async def delete_product_family(product_id: str, request: Request, current_user: AdminDep):
+    product = await _db_catalog().get_product_family_by_id(product_id, get_org_id())
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     try:
@@ -153,9 +139,7 @@ async def adopt_sku_into_family(
     select an orphan SKU and assign it to the correct product family.
     The SKU's category is also updated to match the family's category.
     """
-    product = await _db_catalog().get_product_family_by_id(
-        product_id, get_org_id()
-    )
+    product = await _db_catalog().get_product_family_by_id(product_id, get_org_id())
     if not product:
         raise HTTPException(status_code=404, detail="Product family not found")
     sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
@@ -193,29 +177,19 @@ async def adopt_sku_into_family(
 
 @router.get("/{product_id}/skus")
 async def list_product_skus(product_id: str, current_user: CurrentUserDep):
-    product = await _db_catalog().get_product_family_by_id(
-        product_id, get_org_id()
-    )
+    product = await _db_catalog().get_product_family_by_id(product_id, get_org_id())
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    skus = await _db_catalog().find_skus_by_product_family(
-        get_org_id(), product_id
-    )
+    skus = await _db_catalog().find_skus_by_product_family(get_org_id(), product_id)
     return [s.model_dump() for s in skus]
 
 
 @router.post("/{product_id}/skus")
-async def create_product_sku(
-    product_id: str, data: SkuCreate, current_user: AdminDep
-):
-    product = await _db_catalog().get_product_family_by_id(
-        product_id, get_org_id()
-    )
+async def create_product_sku(product_id: str, data: SkuCreate, current_user: AdminDep):
+    product = await _db_catalog().get_product_family_by_id(product_id, get_org_id())
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    department = await _db_catalog().get_department_by_id(
-        data.category_id, get_org_id()
-    )
+    department = await _db_catalog().get_department_by_id(data.category_id, get_org_id())
     if not department:
         raise HTTPException(status_code=400, detail="Category not found")
     sku = await create_sku(

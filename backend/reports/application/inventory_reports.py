@@ -81,9 +81,7 @@ async def inventory_report() -> InventoryReport:
     unrealized_margin = round_money(total_retail - total_cost)
     # float for JSON-friendly percentage
     margin_pct = (
-        round(float(unrealized_margin / total_retail * 100), 1)
-        if total_retail > 0
-        else 0.0
+        round(float(unrealized_margin / total_retail * 100), 1) if total_retail > 0 else 0.0
     )
     low_stock = [p for p in products if p.quantity <= p.min_stock]
     out_of_stock = [p for p in products if p.quantity == 0]
@@ -102,9 +100,7 @@ async def inventory_report() -> InventoryReport:
     for dept_data in by_department.values():
         dept_data["retail_value"] = round_money(dept_data["retail_value"])
         dept_data["cost_value"] = round_money(dept_data["cost_value"])
-        dept_data["margin"] = round_money(
-            dept_data["retail_value"] - dept_data["cost_value"]
-        )
+        dept_data["margin"] = round_money(dept_data["retail_value"] - dept_data["cost_value"])
 
     return InventoryReport(
         total_products=total_products,
@@ -135,9 +131,7 @@ async def product_performance_report(
             limit=limit,
         ),
         _db_catalog().list_skus(get_org_id()),
-        _db_operations().units_sold_by_product(
-            org_id, start_date=start_date, end_date=end_date
-        ),
+        _db_operations().units_sold_by_product(org_id, start_date=start_date, end_date=end_date),
     )
 
     product_map = {p.id: p for p in products_data}
@@ -198,9 +192,7 @@ async def reorder_urgency_report(
     if not sku_ids:
         return ReorderUrgencyReport(products=[], total=0)
 
-    velocity_map = await _db_inventory().withdrawal_velocity(
-        get_org_id(), sku_ids, since
-    )
+    velocity_map = await _db_inventory().withdrawal_velocity(get_org_id(), sku_ids, since)
 
     result = []
     for p in low_stock:
@@ -237,9 +229,7 @@ async def reorder_urgency_report(
     result.sort(
         key=lambda x: (
             x["days_until_stockout"] is None,
-            x["days_until_stockout"]
-            if x["days_until_stockout"] is not None
-            else 9999,
+            x["days_until_stockout"] if x["days_until_stockout"] is not None else 9999,
         )
     )
 
@@ -252,7 +242,5 @@ async def product_activity_report(
     days: int = 365,
 ) -> ProductActivityReport:
     since = datetime.now(UTC) - timedelta(days=min(days, 730))
-    rows = await _db_inventory().daily_withdrawal_activity(
-        get_org_id(), since, sku_id=sku_id
-    )
+    rows = await _db_inventory().daily_withdrawal_activity(get_org_id(), since, sku_id=sku_id)
     return ProductActivityReport(series=rows, sku_id=sku_id, days=days)

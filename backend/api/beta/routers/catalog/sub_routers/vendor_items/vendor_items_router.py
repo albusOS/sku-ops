@@ -53,9 +53,7 @@ async def list_sku_vendors(sku_id: str, current_user: CurrentUserDep):
 
 
 @router.post("/{sku_id}/vendors")
-async def add_sku_vendor(
-    sku_id: str, data: VendorItemCreateRequest, current_user: AdminDep
-):
+async def add_sku_vendor(sku_id: str, data: VendorItemCreateRequest, current_user: AdminDep):
     sku = await _db_catalog().get_sku_by_id(sku_id, get_org_id())
     if not sku:
         raise HTTPException(status_code=404, detail="SKU not found")
@@ -84,9 +82,7 @@ async def update_sku_vendor(
 ):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     try:
-        result = await _db_catalog().modify_vendor_item(
-            get_org_id(), item_id, update_data
-        )
+        result = await _db_catalog().modify_vendor_item(get_org_id(), item_id, update_data)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return result.model_dump()
@@ -113,13 +109,9 @@ async def remove_sku_vendor(sku_id: str, item_id: str, current_user: AdminDep):
 
 
 @router.post("/{sku_id}/vendors/{item_id}/set-preferred")
-async def set_sku_preferred_vendor(
-    sku_id: str, item_id: str, current_user: AdminDep
-):
+async def set_sku_preferred_vendor(sku_id: str, item_id: str, current_user: AdminDep):
     try:
-        await _db_catalog().set_preferred_vendor_item(
-            get_org_id(), sku_id, item_id
-        )
+        await _db_catalog().set_preferred_vendor_item(get_org_id(), sku_id, item_id)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return {"message": "Preferred vendor set"}

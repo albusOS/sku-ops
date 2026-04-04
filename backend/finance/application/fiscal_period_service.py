@@ -57,9 +57,7 @@ async def close_fiscal_period(
     now = datetime.now(UTC)
     org_id = get_org_id()
     async with transaction():
-        await _db_finance().fiscal_close_period(
-            org_id, period_id, closed_by_id, now
-        )
+        await _db_finance().fiscal_close_period(org_id, period_id, closed_by_id, now)
     result = await _db_finance().fiscal_get_period(org_id, period_id)
     if not result:
         raise ResourceNotFoundError("Fiscal period not found after close")

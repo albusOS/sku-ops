@@ -71,9 +71,7 @@ async def create_job(
 
     existing = await _db_jobs().get_job_by_code(code, get_org_id())
     if existing:
-        raise HTTPException(
-            status_code=409, detail=f"Job with code '{code}' already exists"
-        )
+        raise HTTPException(status_code=409, detail=f"Job with code '{code}' already exists")
 
     job = Job(
         code=code,

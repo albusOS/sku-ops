@@ -53,9 +53,7 @@ async def execute_sandboxed(sql: str) -> ExecutionResult:
     """
     org_id = get_org_id()
     if not org_id:
-        raise AnalystQueryError(
-            "No organization context. Cannot execute analyst query."
-        )
+        raise AnalystQueryError("No organization context. Cannot execute analyst query.")
 
     _validate_org_filter(sql)
     sql_named = re.sub(r"\$1\b", ":org_id", sql)
@@ -82,9 +80,7 @@ async def execute_sandboxed(sql: str) -> ExecutionResult:
             ) from e
         raise AnalystQueryError(f"Query execution error: {err_msg}") from e
 
-    _log_query(
-        sql_named, org_id, result.duration_ms, row_count=len(result.rows)
-    )
+    _log_query(sql_named, org_id, result.duration_ms, row_count=len(result.rows))
     return ExecutionResult(
         columns=result.columns,
         rows=result.rows[:MAX_ROWS],

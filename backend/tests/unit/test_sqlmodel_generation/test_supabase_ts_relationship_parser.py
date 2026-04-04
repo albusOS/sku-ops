@@ -46,11 +46,7 @@ class TestM2MLinkTable:
         fk_sources = {fk.source_table for fk in result.foreign_keys}
         assert "invoice_withdrawals" in fk_sources
 
-        iw_fks = [
-            fk
-            for fk in result.foreign_keys
-            if fk.source_table == "invoice_withdrawals"
-        ]
+        iw_fks = [fk for fk in result.foreign_keys if fk.source_table == "invoice_withdrawals"]
         assert len(iw_fks) == 2
 
         targets = {fk.target_table for fk in iw_fks}

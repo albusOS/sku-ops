@@ -30,9 +30,7 @@ class RelationshipMetadata:
     link_tables: set[str] = field(default_factory=set)
 
 
-def _find_matching(
-    content: str, start_idx: int, open_char: str, close_char: str
-) -> int:
+def _find_matching(content: str, start_idx: int, open_char: str, close_char: str) -> int:
     depth = 0
     for idx in range(start_idx, len(content)):
         c = content[idx]
@@ -102,9 +100,7 @@ def parse_ts_relationships(
             table_names.add(tbl.group(1))
         tables_in_schemas[s] = table_names
 
-    schema_match = re.search(
-        rf"(?<!\w){re.escape(schema_name)}\s*:\s*\{{", content
-    )
+    schema_match = re.search(rf"(?<!\w){re.escape(schema_name)}\s*:\s*\{{", content)
     if not schema_match:
         return RelationshipMetadata(schema=schema_name, foreign_keys=[])
 
@@ -161,15 +157,9 @@ def parse_ts_relationships(
                 break
             rel_obj = rels_block[obj_start : obj_end + 1]
 
-            fk_name_match = re.search(
-                r'foreignKeyName\s*:\s*"([^"]+)"', rel_obj
-            )
-            ref_rel_match = re.search(
-                r'referencedRelation\s*:\s*"([^"]+)"', rel_obj
-            )
-            one_to_one_match = re.search(
-                r"isOneToOne\s*:\s*(true|false)", rel_obj
-            )
+            fk_name_match = re.search(r'foreignKeyName\s*:\s*"([^"]+)"', rel_obj)
+            ref_rel_match = re.search(r'referencedRelation\s*:\s*"([^"]+)"', rel_obj)
+            one_to_one_match = re.search(r"isOneToOne\s*:\s*(true|false)", rel_obj)
             cols_match = re.search(r"columns\s*:\s*\[", rel_obj)
             ref_cols_match = re.search(r"referencedColumns\s*:\s*\[", rel_obj)
 
@@ -180,9 +170,7 @@ def parse_ts_relationships(
             fk_name = fk_name_match.group(1) if fk_name_match else ""
             ref_table = ref_rel_match.group(1)
             is_one_to_one = (
-                one_to_one_match.group(1).lower() == "true"
-                if one_to_one_match
-                else False
+                one_to_one_match.group(1).lower() == "true" if one_to_one_match else False
             )
 
             cols_begin = cols_match.end() - 1
@@ -191,9 +179,7 @@ def parse_ts_relationships(
             ref_cols_end = _find_matching(rel_obj, ref_cols_begin, "[", "]")
 
             cols = re.findall(r'"([^"]+)"', rel_obj[cols_begin + 1 : cols_end])
-            ref_cols = re.findall(
-                r'"([^"]+)"', rel_obj[ref_cols_begin + 1 : ref_cols_end]
-            )
+            ref_cols = re.findall(r'"([^"]+)"', rel_obj[ref_cols_begin + 1 : ref_cols_end])
 
             fk_cols_for_table.update(cols)
 

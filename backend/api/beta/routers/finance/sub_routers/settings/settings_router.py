@@ -28,9 +28,7 @@ def _mask(settings: OrgSettings) -> dict:
     for key in ("xero_access_token", "xero_refresh_token"):
         if d.get(key):
             d[key] = _REDACTED
-    d["xero_connected"] = bool(
-        settings.xero_tenant_id and settings.xero_access_token
-    )
+    d["xero_connected"] = bool(settings.xero_tenant_id and settings.xero_access_token)
     return d
 
 
@@ -45,9 +43,7 @@ async def get_xero_settings(current_user: AdminDep):
         logger.exception("Unexpected error in get_xero_settings")
         raise
     if settings is None:
-        raise HTTPException(
-            status_code=404, detail="Organization settings not found"
-        )
+        raise HTTPException(status_code=404, detail="Organization settings not found")
     return _mask(settings)
 
 
@@ -60,9 +56,7 @@ async def update_xero_settings(
     try:
         settings = await _db_finance().org_settings_get(get_org_id())
         if settings is None:
-            raise HTTPException(
-                status_code=404, detail="Organization settings not found"
-            )
+            raise HTTPException(status_code=404, detail="Organization settings not found")
 
         update = data.model_dump(exclude_none=True)
         merged = settings.model_copy(update=update)

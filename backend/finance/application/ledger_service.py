@@ -52,9 +52,7 @@ async def _record_sale_event(
     Entries per event: TAX_COLLECTED, ACCOUNTS_RECEIVABLE.
     All entries share one journal_id.
     """
-    if await _db_finance().ledger_entries_exist(
-        get_org_id(), reference_type.value, reference_id
-    ):
+    if await _db_finance().ledger_entries_exist(get_org_id(), reference_type.value, reference_id):
         return
     await _check_fiscal_period()
     journal_id = new_uuid7_str()

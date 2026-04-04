@@ -29,7 +29,14 @@ AuthAalLevel: TypeAlias = Literal["aal1", "aal2", "aal3"]
 
 AuthCodeChallengeMethod: TypeAlias = Literal["s256", "plain"]
 
-AuthOneTimeTokenType: TypeAlias = Literal["confirmation_token", "reauthentication_token", "recovery_token", "email_change_token_new", "email_change_token_current", "phone_change_token"]
+AuthOneTimeTokenType: TypeAlias = Literal[
+    "confirmation_token",
+    "reauthentication_token",
+    "recovery_token",
+    "email_change_token_new",
+    "email_change_token_current",
+    "phone_change_token",
+]
 
 AuthOauthRegistrationType: TypeAlias = Literal["dynamic", "manual"]
 
@@ -39,11 +46,13 @@ AuthOauthResponseType: TypeAlias = Literal["code"]
 
 AuthOauthClientType: TypeAlias = Literal["public", "confidential"]
 
+
 class PublicOrganizations(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
     id: uuid.UUID = Field(alias="id")
     name: str = Field(alias="name")
     slug: str = Field(alias="slug")
+
 
 class PublicOrganizationsInsert(TypedDict):
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -51,11 +60,13 @@ class PublicOrganizationsInsert(TypedDict):
     name: Annotated[str, Field(alias="name")]
     slug: Annotated[str, Field(alias="slug")]
 
+
 class PublicOrganizationsUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     name: NotRequired[Annotated[str, Field(alias="name")]]
     slug: NotRequired[Annotated[str, Field(alias="slug")]]
+
 
 class PublicUsers(BaseModel):
     billing_entity: str | None = Field(alias="billing_entity")
@@ -71,6 +82,7 @@ class PublicUsers(BaseModel):
     phone: str | None = Field(alias="phone")
     role: str = Field(alias="role")
 
+
 class PublicUsersInsert(TypedDict):
     billing_entity: NotRequired[Annotated[str | None, Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -85,6 +97,7 @@ class PublicUsersInsert(TypedDict):
     phone: NotRequired[Annotated[str | None, Field(alias="phone")]]
     role: NotRequired[Annotated[str, Field(alias="role")]]
 
+
 class PublicUsersUpdate(TypedDict):
     billing_entity: NotRequired[Annotated[str | None, Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -98,6 +111,7 @@ class PublicUsersUpdate(TypedDict):
     password: NotRequired[Annotated[str, Field(alias="password")]]
     phone: NotRequired[Annotated[str | None, Field(alias="phone")]]
     role: NotRequired[Annotated[str, Field(alias="role")]]
+
 
 class PublicOrgSettings(BaseModel):
     auto_invoice: bool = Field(alias="auto_invoice")
@@ -115,6 +129,7 @@ class PublicOrgSettings(BaseModel):
     xero_token_expiry: str | None = Field(alias="xero_token_expiry")
     xero_tracking_category_id: str | None = Field(alias="xero_tracking_category_id")
 
+
 class PublicOrgSettingsInsert(TypedDict):
     auto_invoice: NotRequired[Annotated[bool, Field(alias="auto_invoice")]]
     default_tax_rate: NotRequired[Annotated[float, Field(alias="default_tax_rate")]]
@@ -123,13 +138,18 @@ class PublicOrgSettingsInsert(TypedDict):
     xero_access_token: NotRequired[Annotated[str | None, Field(alias="xero_access_token")]]
     xero_ap_account_code: NotRequired[Annotated[str, Field(alias="xero_ap_account_code")]]
     xero_cogs_account_code: NotRequired[Annotated[str, Field(alias="xero_cogs_account_code")]]
-    xero_inventory_account_code: NotRequired[Annotated[str, Field(alias="xero_inventory_account_code")]]
+    xero_inventory_account_code: NotRequired[
+        Annotated[str, Field(alias="xero_inventory_account_code")]
+    ]
     xero_refresh_token: NotRequired[Annotated[str | None, Field(alias="xero_refresh_token")]]
     xero_sales_account_code: NotRequired[Annotated[str, Field(alias="xero_sales_account_code")]]
     xero_tax_type: NotRequired[Annotated[str, Field(alias="xero_tax_type")]]
     xero_tenant_id: NotRequired[Annotated[str | None, Field(alias="xero_tenant_id")]]
     xero_token_expiry: NotRequired[Annotated[str | None, Field(alias="xero_token_expiry")]]
-    xero_tracking_category_id: NotRequired[Annotated[str | None, Field(alias="xero_tracking_category_id")]]
+    xero_tracking_category_id: NotRequired[
+        Annotated[str | None, Field(alias="xero_tracking_category_id")]
+    ]
+
 
 class PublicOrgSettingsUpdate(TypedDict):
     auto_invoice: NotRequired[Annotated[bool, Field(alias="auto_invoice")]]
@@ -139,13 +159,18 @@ class PublicOrgSettingsUpdate(TypedDict):
     xero_access_token: NotRequired[Annotated[str | None, Field(alias="xero_access_token")]]
     xero_ap_account_code: NotRequired[Annotated[str, Field(alias="xero_ap_account_code")]]
     xero_cogs_account_code: NotRequired[Annotated[str, Field(alias="xero_cogs_account_code")]]
-    xero_inventory_account_code: NotRequired[Annotated[str, Field(alias="xero_inventory_account_code")]]
+    xero_inventory_account_code: NotRequired[
+        Annotated[str, Field(alias="xero_inventory_account_code")]
+    ]
     xero_refresh_token: NotRequired[Annotated[str | None, Field(alias="xero_refresh_token")]]
     xero_sales_account_code: NotRequired[Annotated[str, Field(alias="xero_sales_account_code")]]
     xero_tax_type: NotRequired[Annotated[str, Field(alias="xero_tax_type")]]
     xero_tenant_id: NotRequired[Annotated[str | None, Field(alias="xero_tenant_id")]]
     xero_token_expiry: NotRequired[Annotated[str | None, Field(alias="xero_token_expiry")]]
-    xero_tracking_category_id: NotRequired[Annotated[str | None, Field(alias="xero_tracking_category_id")]]
+    xero_tracking_category_id: NotRequired[
+        Annotated[str | None, Field(alias="xero_tracking_category_id")]
+    ]
+
 
 class PublicRefreshTokens(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
@@ -155,6 +180,7 @@ class PublicRefreshTokens(BaseModel):
     token_hash: str = Field(alias="token_hash")
     user_id: uuid.UUID = Field(alias="user_id")
 
+
 class PublicRefreshTokensInsert(TypedDict):
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
     expires_at: Annotated[datetime.datetime, Field(alias="expires_at")]
@@ -162,6 +188,7 @@ class PublicRefreshTokensInsert(TypedDict):
     revoked: NotRequired[Annotated[bool, Field(alias="revoked")]]
     token_hash: Annotated[str, Field(alias="token_hash")]
     user_id: Annotated[uuid.UUID, Field(alias="user_id")]
+
 
 class PublicRefreshTokensUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -171,20 +198,24 @@ class PublicRefreshTokensUpdate(TypedDict):
     token_hash: NotRequired[Annotated[str, Field(alias="token_hash")]]
     user_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_id")]]
 
+
 class PublicOauthStates(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
     org_id: uuid.UUID = Field(alias="org_id")
     state: str = Field(alias="state")
+
 
 class PublicOauthStatesInsert(TypedDict):
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
     org_id: Annotated[uuid.UUID, Field(alias="org_id")]
     state: Annotated[str, Field(alias="state")]
 
+
 class PublicOauthStatesUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     org_id: NotRequired[Annotated[uuid.UUID, Field(alias="org_id")]]
     state: NotRequired[Annotated[str, Field(alias="state")]]
+
 
 class PublicAuditLog(BaseModel):
     action: str = Field(alias="action")
@@ -197,6 +228,7 @@ class PublicAuditLog(BaseModel):
     resource_type: str | None = Field(alias="resource_type")
     user_id: uuid.UUID | None = Field(alias="user_id")
 
+
 class PublicAuditLogInsert(TypedDict):
     action: Annotated[str, Field(alias="action")]
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -208,6 +240,7 @@ class PublicAuditLogInsert(TypedDict):
     resource_type: NotRequired[Annotated[str | None, Field(alias="resource_type")]]
     user_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="user_id")]]
 
+
 class PublicAuditLogUpdate(TypedDict):
     action: NotRequired[Annotated[str, Field(alias="action")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -218,6 +251,7 @@ class PublicAuditLogUpdate(TypedDict):
     resource_id: NotRequired[Annotated[str | None, Field(alias="resource_id")]]
     resource_type: NotRequired[Annotated[str | None, Field(alias="resource_type")]]
     user_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="user_id")]]
+
 
 class PublicBillingEntities(BaseModel):
     billing_address: str = Field(alias="billing_address")
@@ -232,6 +266,7 @@ class PublicBillingEntities(BaseModel):
     updated_at: datetime.datetime = Field(alias="updated_at")
     xero_contact_id: str | None = Field(alias="xero_contact_id")
 
+
 class PublicBillingEntitiesInsert(TypedDict):
     billing_address: NotRequired[Annotated[str, Field(alias="billing_address")]]
     contact_email: NotRequired[Annotated[str, Field(alias="contact_email")]]
@@ -245,6 +280,7 @@ class PublicBillingEntitiesInsert(TypedDict):
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
     xero_contact_id: NotRequired[Annotated[str | None, Field(alias="xero_contact_id")]]
 
+
 class PublicBillingEntitiesUpdate(TypedDict):
     billing_address: NotRequired[Annotated[str, Field(alias="billing_address")]]
     contact_email: NotRequired[Annotated[str, Field(alias="contact_email")]]
@@ -257,6 +293,7 @@ class PublicBillingEntitiesUpdate(TypedDict):
     payment_terms: NotRequired[Annotated[str, Field(alias="payment_terms")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
     xero_contact_id: NotRequired[Annotated[str | None, Field(alias="xero_contact_id")]]
+
 
 class PublicAddresses(BaseModel):
     billing_entity_id: uuid.UUID | None = Field(alias="billing_entity_id")
@@ -272,6 +309,7 @@ class PublicAddresses(BaseModel):
     postal_code: str = Field(alias="postal_code")
     state: str = Field(alias="state")
 
+
 class PublicAddressesInsert(TypedDict):
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
     city: NotRequired[Annotated[str, Field(alias="city")]]
@@ -285,6 +323,7 @@ class PublicAddressesInsert(TypedDict):
     organization_id: Annotated[uuid.UUID, Field(alias="organization_id")]
     postal_code: NotRequired[Annotated[str, Field(alias="postal_code")]]
     state: NotRequired[Annotated[str, Field(alias="state")]]
+
 
 class PublicAddressesUpdate(TypedDict):
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -300,6 +339,7 @@ class PublicAddressesUpdate(TypedDict):
     postal_code: NotRequired[Annotated[str, Field(alias="postal_code")]]
     state: NotRequired[Annotated[str, Field(alias="state")]]
 
+
 class PublicFiscalPeriods(BaseModel):
     closed_at: datetime.datetime | None = Field(alias="closed_at")
     closed_by_id: uuid.UUID | None = Field(alias="closed_by_id")
@@ -310,6 +350,7 @@ class PublicFiscalPeriods(BaseModel):
     organization_id: uuid.UUID = Field(alias="organization_id")
     start_date: datetime.date = Field(alias="start_date")
     status: str = Field(alias="status")
+
 
 class PublicFiscalPeriodsInsert(TypedDict):
     closed_at: NotRequired[Annotated[datetime.datetime | None, Field(alias="closed_at")]]
@@ -322,6 +363,7 @@ class PublicFiscalPeriodsInsert(TypedDict):
     start_date: Annotated[datetime.date, Field(alias="start_date")]
     status: NotRequired[Annotated[str, Field(alias="status")]]
 
+
 class PublicFiscalPeriodsUpdate(TypedDict):
     closed_at: NotRequired[Annotated[datetime.datetime | None, Field(alias="closed_at")]]
     closed_by_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="closed_by_id")]]
@@ -333,11 +375,13 @@ class PublicFiscalPeriodsUpdate(TypedDict):
     start_date: NotRequired[Annotated[datetime.date, Field(alias="start_date")]]
     status: NotRequired[Annotated[str, Field(alias="status")]]
 
+
 class PublicProcessedEvents(BaseModel):
     event_id: uuid.UUID = Field(alias="event_id")
     event_type: str = Field(alias="event_type")
     handler_name: str = Field(alias="handler_name")
     processed_at: datetime.datetime = Field(alias="processed_at")
+
 
 class PublicProcessedEventsInsert(TypedDict):
     event_id: Annotated[uuid.UUID, Field(alias="event_id")]
@@ -345,11 +389,13 @@ class PublicProcessedEventsInsert(TypedDict):
     handler_name: Annotated[str, Field(alias="handler_name")]
     processed_at: Annotated[datetime.datetime, Field(alias="processed_at")]
 
+
 class PublicProcessedEventsUpdate(TypedDict):
     event_id: NotRequired[Annotated[uuid.UUID, Field(alias="event_id")]]
     event_type: NotRequired[Annotated[str, Field(alias="event_type")]]
     handler_name: NotRequired[Annotated[str, Field(alias="handler_name")]]
     processed_at: NotRequired[Annotated[datetime.datetime, Field(alias="processed_at")]]
+
 
 class PublicDepartments(BaseModel):
     code: str = Field(alias="code")
@@ -361,6 +407,7 @@ class PublicDepartments(BaseModel):
     organization_id: uuid.UUID | None = Field(alias="organization_id")
     sku_count: int = Field(alias="sku_count")
 
+
 class PublicDepartmentsInsert(TypedDict):
     code: Annotated[str, Field(alias="code")]
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -370,6 +417,7 @@ class PublicDepartmentsInsert(TypedDict):
     name: Annotated[str, Field(alias="name")]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
     sku_count: NotRequired[Annotated[int, Field(alias="sku_count")]]
+
 
 class PublicDepartmentsUpdate(TypedDict):
     code: NotRequired[Annotated[str, Field(alias="code")]]
@@ -381,6 +429,7 @@ class PublicDepartmentsUpdate(TypedDict):
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
     sku_count: NotRequired[Annotated[int, Field(alias="sku_count")]]
 
+
 class PublicUnitsOfMeasure(BaseModel):
     code: str = Field(alias="code")
     created_at: datetime.datetime = Field(alias="created_at")
@@ -389,6 +438,7 @@ class PublicUnitsOfMeasure(BaseModel):
     id: uuid.UUID = Field(alias="id")
     name: str = Field(alias="name")
     organization_id: uuid.UUID | None = Field(alias="organization_id")
+
 
 class PublicUnitsOfMeasureInsert(TypedDict):
     code: Annotated[str, Field(alias="code")]
@@ -399,6 +449,7 @@ class PublicUnitsOfMeasureInsert(TypedDict):
     name: Annotated[str, Field(alias="name")]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
 
+
 class PublicUnitsOfMeasureUpdate(TypedDict):
     code: NotRequired[Annotated[str, Field(alias="code")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -407,6 +458,7 @@ class PublicUnitsOfMeasureUpdate(TypedDict):
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     name: NotRequired[Annotated[str, Field(alias="name")]]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
+
 
 class PublicVendors(BaseModel):
     address: str = Field(alias="address")
@@ -419,6 +471,7 @@ class PublicVendors(BaseModel):
     organization_id: uuid.UUID | None = Field(alias="organization_id")
     phone: str = Field(alias="phone")
 
+
 class PublicVendorsInsert(TypedDict):
     address: NotRequired[Annotated[str, Field(alias="address")]]
     contact_name: NotRequired[Annotated[str, Field(alias="contact_name")]]
@@ -430,6 +483,7 @@ class PublicVendorsInsert(TypedDict):
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
     phone: NotRequired[Annotated[str, Field(alias="phone")]]
 
+
 class PublicVendorsUpdate(TypedDict):
     address: NotRequired[Annotated[str, Field(alias="address")]]
     contact_name: NotRequired[Annotated[str, Field(alias="contact_name")]]
@@ -440,6 +494,7 @@ class PublicVendorsUpdate(TypedDict):
     name: NotRequired[Annotated[str, Field(alias="name")]]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
     phone: NotRequired[Annotated[str, Field(alias="phone")]]
+
 
 class PublicProducts(BaseModel):
     category_id: uuid.UUID = Field(alias="category_id")
@@ -453,6 +508,7 @@ class PublicProducts(BaseModel):
     sku_count: int = Field(alias="sku_count")
     updated_at: datetime.datetime = Field(alias="updated_at")
 
+
 class PublicProductsInsert(TypedDict):
     category_id: Annotated[uuid.UUID, Field(alias="category_id")]
     category_name: NotRequired[Annotated[str, Field(alias="category_name")]]
@@ -465,6 +521,7 @@ class PublicProductsInsert(TypedDict):
     sku_count: NotRequired[Annotated[int, Field(alias="sku_count")]]
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
 
+
 class PublicProductsUpdate(TypedDict):
     category_id: NotRequired[Annotated[uuid.UUID, Field(alias="category_id")]]
     category_name: NotRequired[Annotated[str, Field(alias="category_name")]]
@@ -476,6 +533,7 @@ class PublicProductsUpdate(TypedDict):
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
     sku_count: NotRequired[Annotated[int, Field(alias="sku_count")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
+
 
 class PublicSkus(BaseModel):
     barcode: str | None = Field(alias="barcode")
@@ -505,6 +563,7 @@ class PublicSkus(BaseModel):
     variant_label: str = Field(alias="variant_label")
     vendor_barcode: str | None = Field(alias="vendor_barcode")
 
+
 class PublicSkusInsert(TypedDict):
     barcode: NotRequired[Annotated[str | None, Field(alias="barcode")]]
     base_unit: NotRequired[Annotated[str, Field(alias="base_unit")]]
@@ -532,6 +591,7 @@ class PublicSkusInsert(TypedDict):
     variant_attrs: NotRequired[Annotated[str, Field(alias="variant_attrs")]]
     variant_label: NotRequired[Annotated[str, Field(alias="variant_label")]]
     vendor_barcode: NotRequired[Annotated[str | None, Field(alias="vendor_barcode")]]
+
 
 class PublicSkusUpdate(TypedDict):
     barcode: NotRequired[Annotated[str | None, Field(alias="barcode")]]
@@ -561,6 +621,7 @@ class PublicSkusUpdate(TypedDict):
     variant_label: NotRequired[Annotated[str, Field(alias="variant_label")]]
     vendor_barcode: NotRequired[Annotated[str | None, Field(alias="vendor_barcode")]]
 
+
 class PublicVendorItems(BaseModel):
     cost: float = Field(alias="cost")
     created_at: datetime.datetime = Field(alias="created_at")
@@ -578,6 +639,7 @@ class PublicVendorItems(BaseModel):
     vendor_id: uuid.UUID = Field(alias="vendor_id")
     vendor_name: str = Field(alias="vendor_name")
     vendor_sku: str | None = Field(alias="vendor_sku")
+
 
 class PublicVendorItemsInsert(TypedDict):
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -597,6 +659,7 @@ class PublicVendorItemsInsert(TypedDict):
     vendor_name: NotRequired[Annotated[str, Field(alias="vendor_name")]]
     vendor_sku: NotRequired[Annotated[str | None, Field(alias="vendor_sku")]]
 
+
 class PublicVendorItemsUpdate(TypedDict):
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -615,20 +678,24 @@ class PublicVendorItemsUpdate(TypedDict):
     vendor_name: NotRequired[Annotated[str, Field(alias="vendor_name")]]
     vendor_sku: NotRequired[Annotated[str | None, Field(alias="vendor_sku")]]
 
+
 class PublicSkuCounters(BaseModel):
     counter: int = Field(alias="counter")
     organization_id: uuid.UUID = Field(alias="organization_id")
     product_family_id: uuid.UUID = Field(alias="product_family_id")
+
 
 class PublicSkuCountersInsert(TypedDict):
     counter: NotRequired[Annotated[int, Field(alias="counter")]]
     organization_id: Annotated[uuid.UUID, Field(alias="organization_id")]
     product_family_id: Annotated[uuid.UUID, Field(alias="product_family_id")]
 
+
 class PublicSkuCountersUpdate(TypedDict):
     counter: NotRequired[Annotated[int, Field(alias="counter")]]
     organization_id: NotRequired[Annotated[uuid.UUID, Field(alias="organization_id")]]
     product_family_id: NotRequired[Annotated[uuid.UUID, Field(alias="product_family_id")]]
+
 
 class PublicStockTransactions(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
@@ -650,6 +717,7 @@ class PublicStockTransactions(BaseModel):
     user_id: uuid.UUID = Field(alias="user_id")
     user_name: str = Field(alias="user_name")
 
+
 class PublicStockTransactionsInsert(TypedDict):
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
     id: Annotated[uuid.UUID, Field(alias="id")]
@@ -669,6 +737,7 @@ class PublicStockTransactionsInsert(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     user_id: Annotated[uuid.UUID, Field(alias="user_id")]
     user_name: NotRequired[Annotated[str, Field(alias="user_name")]]
+
 
 class PublicStockTransactionsUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -690,6 +759,7 @@ class PublicStockTransactionsUpdate(TypedDict):
     user_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_id")]]
     user_name: NotRequired[Annotated[str, Field(alias="user_name")]]
 
+
 class PublicCycleCounts(BaseModel):
     committed_at: datetime.datetime | None = Field(alias="committed_at")
     committed_by_id: uuid.UUID | None = Field(alias="committed_by_id")
@@ -700,6 +770,7 @@ class PublicCycleCounts(BaseModel):
     organization_id: uuid.UUID = Field(alias="organization_id")
     scope: str | None = Field(alias="scope")
     status: str = Field(alias="status")
+
 
 class PublicCycleCountsInsert(TypedDict):
     committed_at: NotRequired[Annotated[datetime.datetime | None, Field(alias="committed_at")]]
@@ -712,6 +783,7 @@ class PublicCycleCountsInsert(TypedDict):
     scope: NotRequired[Annotated[str | None, Field(alias="scope")]]
     status: NotRequired[Annotated[str, Field(alias="status")]]
 
+
 class PublicCycleCountsUpdate(TypedDict):
     committed_at: NotRequired[Annotated[datetime.datetime | None, Field(alias="committed_at")]]
     committed_by_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="committed_by_id")]]
@@ -722,6 +794,7 @@ class PublicCycleCountsUpdate(TypedDict):
     organization_id: NotRequired[Annotated[uuid.UUID, Field(alias="organization_id")]]
     scope: NotRequired[Annotated[str | None, Field(alias="scope")]]
     status: NotRequired[Annotated[str, Field(alias="status")]]
+
 
 class PublicCycleCountItems(BaseModel):
     counted_qty: float | None = Field(alias="counted_qty")
@@ -736,6 +809,7 @@ class PublicCycleCountItems(BaseModel):
     unit: str = Field(alias="unit")
     variance: float | None = Field(alias="variance")
 
+
 class PublicCycleCountItemsInsert(TypedDict):
     counted_qty: NotRequired[Annotated[float | None, Field(alias="counted_qty")]]
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -749,6 +823,7 @@ class PublicCycleCountItemsInsert(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     variance: NotRequired[Annotated[float | None, Field(alias="variance")]]
 
+
 class PublicCycleCountItemsUpdate(TypedDict):
     counted_qty: NotRequired[Annotated[float | None, Field(alias="counted_qty")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -761,6 +836,7 @@ class PublicCycleCountItemsUpdate(TypedDict):
     snapshot_qty: NotRequired[Annotated[float, Field(alias="snapshot_qty")]]
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     variance: NotRequired[Annotated[float | None, Field(alias="variance")]]
+
 
 class PublicWithdrawals(BaseModel):
     billing_entity: str = Field(alias="billing_entity")
@@ -786,6 +862,7 @@ class PublicWithdrawals(BaseModel):
     tax_rate: float = Field(alias="tax_rate")
     total: float = Field(alias="total")
 
+
 class PublicWithdrawalsInsert(TypedDict):
     billing_entity: NotRequired[Annotated[str, Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -809,6 +886,7 @@ class PublicWithdrawalsInsert(TypedDict):
     tax: Annotated[float, Field(alias="tax")]
     tax_rate: NotRequired[Annotated[float, Field(alias="tax_rate")]]
     total: Annotated[float, Field(alias="total")]
+
 
 class PublicWithdrawalsUpdate(TypedDict):
     billing_entity: NotRequired[Annotated[str, Field(alias="billing_entity")]]
@@ -834,6 +912,7 @@ class PublicWithdrawalsUpdate(TypedDict):
     tax_rate: NotRequired[Annotated[float, Field(alias="tax_rate")]]
     total: NotRequired[Annotated[float, Field(alias="total")]]
 
+
 class PublicMaterialRequests(BaseModel):
     contractor_id: uuid.UUID = Field(alias="contractor_id")
     contractor_name: str = Field(alias="contractor_name")
@@ -847,6 +926,7 @@ class PublicMaterialRequests(BaseModel):
     service_address: str | None = Field(alias="service_address")
     status: str = Field(alias="status")
     withdrawal_id: uuid.UUID | None = Field(alias="withdrawal_id")
+
 
 class PublicMaterialRequestsInsert(TypedDict):
     contractor_id: Annotated[uuid.UUID, Field(alias="contractor_id")]
@@ -862,6 +942,7 @@ class PublicMaterialRequestsInsert(TypedDict):
     status: NotRequired[Annotated[str, Field(alias="status")]]
     withdrawal_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="withdrawal_id")]]
 
+
 class PublicMaterialRequestsUpdate(TypedDict):
     contractor_id: NotRequired[Annotated[uuid.UUID, Field(alias="contractor_id")]]
     contractor_name: NotRequired[Annotated[str, Field(alias="contractor_name")]]
@@ -876,6 +957,7 @@ class PublicMaterialRequestsUpdate(TypedDict):
     status: NotRequired[Annotated[str, Field(alias="status")]]
     withdrawal_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="withdrawal_id")]]
 
+
 class PublicMaterialRequestItems(BaseModel):
     cost: float = Field(alias="cost")
     id: uuid.UUID = Field(alias="id")
@@ -886,6 +968,7 @@ class PublicMaterialRequestItems(BaseModel):
     sku_id: uuid.UUID = Field(alias="sku_id")
     unit: str = Field(alias="unit")
     unit_price: float = Field(alias="unit_price")
+
 
 class PublicMaterialRequestItemsInsert(TypedDict):
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -898,6 +981,7 @@ class PublicMaterialRequestItemsInsert(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
 
+
 class PublicMaterialRequestItemsUpdate(TypedDict):
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
@@ -908,6 +992,7 @@ class PublicMaterialRequestItemsUpdate(TypedDict):
     sku_id: NotRequired[Annotated[uuid.UUID, Field(alias="sku_id")]]
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
+
 
 class PublicReturns(BaseModel):
     billing_entity: str = Field(alias="billing_entity")
@@ -930,6 +1015,7 @@ class PublicReturns(BaseModel):
     updated_at: datetime.datetime = Field(alias="updated_at")
     withdrawal_id: uuid.UUID = Field(alias="withdrawal_id")
 
+
 class PublicReturnsInsert(TypedDict):
     billing_entity: NotRequired[Annotated[str, Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -950,6 +1036,7 @@ class PublicReturnsInsert(TypedDict):
     total: NotRequired[Annotated[float, Field(alias="total")]]
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
     withdrawal_id: Annotated[uuid.UUID, Field(alias="withdrawal_id")]
+
 
 class PublicReturnsUpdate(TypedDict):
     billing_entity: NotRequired[Annotated[str, Field(alias="billing_entity")]]
@@ -972,6 +1059,7 @@ class PublicReturnsUpdate(TypedDict):
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
     withdrawal_id: NotRequired[Annotated[uuid.UUID, Field(alias="withdrawal_id")]]
 
+
 class PublicWithdrawalItems(BaseModel):
     amount: float = Field(alias="amount")
     cost: float = Field(alias="cost")
@@ -986,6 +1074,7 @@ class PublicWithdrawalItems(BaseModel):
     unit: str = Field(alias="unit")
     unit_price: float = Field(alias="unit_price")
     withdrawal_id: uuid.UUID = Field(alias="withdrawal_id")
+
 
 class PublicWithdrawalItemsInsert(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
@@ -1002,6 +1091,7 @@ class PublicWithdrawalItemsInsert(TypedDict):
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
     withdrawal_id: Annotated[uuid.UUID, Field(alias="withdrawal_id")]
 
+
 class PublicWithdrawalItemsUpdate(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -1016,6 +1106,7 @@ class PublicWithdrawalItemsUpdate(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
     withdrawal_id: NotRequired[Annotated[uuid.UUID, Field(alias="withdrawal_id")]]
+
 
 class PublicReturnItems(BaseModel):
     amount: float = Field(alias="amount")
@@ -1032,6 +1123,7 @@ class PublicReturnItems(BaseModel):
     unit: str = Field(alias="unit")
     unit_price: float = Field(alias="unit_price")
 
+
 class PublicReturnItemsInsert(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -1047,6 +1139,7 @@ class PublicReturnItemsInsert(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
 
+
 class PublicReturnItemsUpdate(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -1061,6 +1154,7 @@ class PublicReturnItemsUpdate(TypedDict):
     sku_id: NotRequired[Annotated[uuid.UUID, Field(alias="sku_id")]]
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
+
 
 class PublicInvoices(BaseModel):
     amount_credited: float = Field(alias="amount_credited")
@@ -1092,6 +1186,7 @@ class PublicInvoices(BaseModel):
     xero_invoice_id: str | None = Field(alias="xero_invoice_id")
     xero_sync_status: str = Field(alias="xero_sync_status")
 
+
 class PublicInvoicesInsert(TypedDict):
     amount_credited: NotRequired[Annotated[float, Field(alias="amount_credited")]]
     approved_at: NotRequired[Annotated[datetime.datetime | None, Field(alias="approved_at")]]
@@ -1121,6 +1216,7 @@ class PublicInvoicesInsert(TypedDict):
     xero_cogs_journal_id: NotRequired[Annotated[str | None, Field(alias="xero_cogs_journal_id")]]
     xero_invoice_id: NotRequired[Annotated[str | None, Field(alias="xero_invoice_id")]]
     xero_sync_status: NotRequired[Annotated[str, Field(alias="xero_sync_status")]]
+
 
 class PublicInvoicesUpdate(TypedDict):
     amount_credited: NotRequired[Annotated[float, Field(alias="amount_credited")]]
@@ -1152,17 +1248,21 @@ class PublicInvoicesUpdate(TypedDict):
     xero_invoice_id: NotRequired[Annotated[str | None, Field(alias="xero_invoice_id")]]
     xero_sync_status: NotRequired[Annotated[str, Field(alias="xero_sync_status")]]
 
+
 class PublicInvoiceWithdrawals(BaseModel):
     invoice_id: uuid.UUID = Field(alias="invoice_id")
     withdrawal_id: uuid.UUID = Field(alias="withdrawal_id")
+
 
 class PublicInvoiceWithdrawalsInsert(TypedDict):
     invoice_id: Annotated[uuid.UUID, Field(alias="invoice_id")]
     withdrawal_id: Annotated[uuid.UUID, Field(alias="withdrawal_id")]
 
+
 class PublicInvoiceWithdrawalsUpdate(TypedDict):
     invoice_id: NotRequired[Annotated[uuid.UUID, Field(alias="invoice_id")]]
     withdrawal_id: NotRequired[Annotated[uuid.UUID, Field(alias="withdrawal_id")]]
+
 
 class PublicInvoiceLineItems(BaseModel):
     amount: float = Field(alias="amount")
@@ -1177,6 +1277,7 @@ class PublicInvoiceLineItems(BaseModel):
     unit: str = Field(alias="unit")
     unit_price: float = Field(alias="unit_price")
 
+
 class PublicInvoiceLineItemsInsert(TypedDict):
     amount: Annotated[float, Field(alias="amount")]
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -1189,6 +1290,7 @@ class PublicInvoiceLineItemsInsert(TypedDict):
     sku_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="sku_id")]]
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: Annotated[float, Field(alias="unit_price")]
+
 
 class PublicInvoiceLineItemsUpdate(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
@@ -1203,20 +1305,24 @@ class PublicInvoiceLineItemsUpdate(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
 
+
 class PublicInvoiceCounters(BaseModel):
     counter: int = Field(alias="counter")
     key: str = Field(alias="key")
     organization_id: uuid.UUID = Field(alias="organization_id")
+
 
 class PublicInvoiceCountersInsert(TypedDict):
     counter: NotRequired[Annotated[int, Field(alias="counter")]]
     key: Annotated[str, Field(alias="key")]
     organization_id: Annotated[uuid.UUID, Field(alias="organization_id")]
 
+
 class PublicInvoiceCountersUpdate(TypedDict):
     counter: NotRequired[Annotated[int, Field(alias="counter")]]
     key: NotRequired[Annotated[str, Field(alias="key")]]
     organization_id: NotRequired[Annotated[uuid.UUID, Field(alias="organization_id")]]
+
 
 class PublicCreditNotes(BaseModel):
     billing_entity: str = Field(alias="billing_entity")
@@ -1236,6 +1342,7 @@ class PublicCreditNotes(BaseModel):
     xero_credit_note_id: str | None = Field(alias="xero_credit_note_id")
     xero_sync_status: str = Field(alias="xero_sync_status")
 
+
 class PublicCreditNotesInsert(TypedDict):
     billing_entity: NotRequired[Annotated[str, Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -1253,6 +1360,7 @@ class PublicCreditNotesInsert(TypedDict):
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
     xero_credit_note_id: NotRequired[Annotated[str | None, Field(alias="xero_credit_note_id")]]
     xero_sync_status: NotRequired[Annotated[str, Field(alias="xero_sync_status")]]
+
 
 class PublicCreditNotesUpdate(TypedDict):
     billing_entity: NotRequired[Annotated[str, Field(alias="billing_entity")]]
@@ -1272,6 +1380,7 @@ class PublicCreditNotesUpdate(TypedDict):
     xero_credit_note_id: NotRequired[Annotated[str | None, Field(alias="xero_credit_note_id")]]
     xero_sync_status: NotRequired[Annotated[str, Field(alias="xero_sync_status")]]
 
+
 class PublicCreditNoteLineItems(BaseModel):
     amount: float = Field(alias="amount")
     cost: float = Field(alias="cost")
@@ -1283,6 +1392,7 @@ class PublicCreditNoteLineItems(BaseModel):
     sku_id: uuid.UUID | None = Field(alias="sku_id")
     unit: str = Field(alias="unit")
     unit_price: float = Field(alias="unit_price")
+
 
 class PublicCreditNoteLineItemsInsert(TypedDict):
     amount: Annotated[float, Field(alias="amount")]
@@ -1296,6 +1406,7 @@ class PublicCreditNoteLineItemsInsert(TypedDict):
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: Annotated[float, Field(alias="unit_price")]
 
+
 class PublicCreditNoteLineItemsUpdate(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -1307,6 +1418,7 @@ class PublicCreditNoteLineItemsUpdate(TypedDict):
     sku_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="sku_id")]]
     unit: NotRequired[Annotated[str, Field(alias="unit")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
+
 
 class PublicPayments(BaseModel):
     amount: float = Field(alias="amount")
@@ -1323,6 +1435,7 @@ class PublicPayments(BaseModel):
     updated_at: datetime.datetime = Field(alias="updated_at")
     xero_payment_id: str | None = Field(alias="xero_payment_id")
 
+
 class PublicPaymentsInsert(TypedDict):
     amount: Annotated[float, Field(alias="amount")]
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -1337,6 +1450,7 @@ class PublicPaymentsInsert(TypedDict):
     reference: NotRequired[Annotated[str, Field(alias="reference")]]
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
     xero_payment_id: NotRequired[Annotated[str | None, Field(alias="xero_payment_id")]]
+
 
 class PublicPaymentsUpdate(TypedDict):
     amount: NotRequired[Annotated[float, Field(alias="amount")]]
@@ -1353,17 +1467,21 @@ class PublicPaymentsUpdate(TypedDict):
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
     xero_payment_id: NotRequired[Annotated[str | None, Field(alias="xero_payment_id")]]
 
+
 class PublicPaymentWithdrawals(BaseModel):
     payment_id: uuid.UUID = Field(alias="payment_id")
     withdrawal_id: uuid.UUID = Field(alias="withdrawal_id")
+
 
 class PublicPaymentWithdrawalsInsert(TypedDict):
     payment_id: Annotated[uuid.UUID, Field(alias="payment_id")]
     withdrawal_id: Annotated[uuid.UUID, Field(alias="withdrawal_id")]
 
+
 class PublicPaymentWithdrawalsUpdate(TypedDict):
     payment_id: NotRequired[Annotated[uuid.UUID, Field(alias="payment_id")]]
     withdrawal_id: NotRequired[Annotated[uuid.UUID, Field(alias="withdrawal_id")]]
+
 
 class PublicFinancialLedger(BaseModel):
     account: str = Field(alias="account")
@@ -1386,6 +1504,7 @@ class PublicFinancialLedger(BaseModel):
     unit_cost: float | None = Field(alias="unit_cost")
     vendor_name: str | None = Field(alias="vendor_name")
 
+
 class PublicFinancialLedgerInsert(TypedDict):
     account: Annotated[str, Field(alias="account")]
     amount: Annotated[float, Field(alias="amount")]
@@ -1398,7 +1517,9 @@ class PublicFinancialLedgerInsert(TypedDict):
     job_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="job_id")]]
     journal_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="journal_id")]]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
-    performed_by_user_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]]
+    performed_by_user_id: NotRequired[
+        Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]
+    ]
     quantity: NotRequired[Annotated[float | None, Field(alias="quantity")]]
     reference_id: Annotated[str, Field(alias="reference_id")]
     reference_type: Annotated[str, Field(alias="reference_type")]
@@ -1406,6 +1527,7 @@ class PublicFinancialLedgerInsert(TypedDict):
     unit: NotRequired[Annotated[str | None, Field(alias="unit")]]
     unit_cost: NotRequired[Annotated[float | None, Field(alias="unit_cost")]]
     vendor_name: NotRequired[Annotated[str | None, Field(alias="vendor_name")]]
+
 
 class PublicFinancialLedgerUpdate(TypedDict):
     account: NotRequired[Annotated[str, Field(alias="account")]]
@@ -1419,7 +1541,9 @@ class PublicFinancialLedgerUpdate(TypedDict):
     job_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="job_id")]]
     journal_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="journal_id")]]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
-    performed_by_user_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]]
+    performed_by_user_id: NotRequired[
+        Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]
+    ]
     quantity: NotRequired[Annotated[float | None, Field(alias="quantity")]]
     reference_id: NotRequired[Annotated[str, Field(alias="reference_id")]]
     reference_type: NotRequired[Annotated[str, Field(alias="reference_type")]]
@@ -1427,6 +1551,7 @@ class PublicFinancialLedgerUpdate(TypedDict):
     unit: NotRequired[Annotated[str | None, Field(alias="unit")]]
     unit_cost: NotRequired[Annotated[float | None, Field(alias="unit_cost")]]
     vendor_name: NotRequired[Annotated[str | None, Field(alias="vendor_name")]]
+
 
 class PublicPurchaseOrders(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
@@ -1448,6 +1573,7 @@ class PublicPurchaseOrders(BaseModel):
     xero_bill_id: str | None = Field(alias="xero_bill_id")
     xero_sync_status: str = Field(alias="xero_sync_status")
 
+
 class PublicPurchaseOrdersInsert(TypedDict):
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
     created_by_id: Annotated[uuid.UUID, Field(alias="created_by_id")]
@@ -1467,6 +1593,7 @@ class PublicPurchaseOrdersInsert(TypedDict):
     vendor_name: NotRequired[Annotated[str, Field(alias="vendor_name")]]
     xero_bill_id: NotRequired[Annotated[str | None, Field(alias="xero_bill_id")]]
     xero_sync_status: NotRequired[Annotated[str, Field(alias="xero_sync_status")]]
+
 
 class PublicPurchaseOrdersUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -1488,6 +1615,7 @@ class PublicPurchaseOrdersUpdate(TypedDict):
     xero_bill_id: NotRequired[Annotated[str | None, Field(alias="xero_bill_id")]]
     xero_sync_status: NotRequired[Annotated[str, Field(alias="xero_sync_status")]]
 
+
 class PublicPurchaseOrderItems(BaseModel):
     base_unit: str = Field(alias="base_unit")
     cost: float = Field(alias="cost")
@@ -1506,6 +1634,7 @@ class PublicPurchaseOrderItems(BaseModel):
     status: str = Field(alias="status")
     suggested_department: str = Field(alias="suggested_department")
     unit_price: float = Field(alias="unit_price")
+
 
 class PublicPurchaseOrderItemsInsert(TypedDict):
     base_unit: NotRequired[Annotated[str, Field(alias="base_unit")]]
@@ -1526,6 +1655,7 @@ class PublicPurchaseOrderItemsInsert(TypedDict):
     suggested_department: NotRequired[Annotated[str, Field(alias="suggested_department")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
 
+
 class PublicPurchaseOrderItemsUpdate(TypedDict):
     base_unit: NotRequired[Annotated[str, Field(alias="base_unit")]]
     cost: NotRequired[Annotated[float, Field(alias="cost")]]
@@ -1545,6 +1675,7 @@ class PublicPurchaseOrderItemsUpdate(TypedDict):
     suggested_department: NotRequired[Annotated[str, Field(alias="suggested_department")]]
     unit_price: NotRequired[Annotated[float, Field(alias="unit_price")]]
 
+
 class PublicDocuments(BaseModel):
     created_at: datetime.datetime = Field(alias="created_at")
     document_type: str = Field(alias="document_type")
@@ -1560,6 +1691,7 @@ class PublicDocuments(BaseModel):
     updated_at: datetime.datetime = Field(alias="updated_at")
     uploaded_by_id: uuid.UUID = Field(alias="uploaded_by_id")
     vendor_name: str | None = Field(alias="vendor_name")
+
 
 class PublicDocumentsInsert(TypedDict):
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -1577,6 +1709,7 @@ class PublicDocumentsInsert(TypedDict):
     uploaded_by_id: Annotated[uuid.UUID, Field(alias="uploaded_by_id")]
     vendor_name: NotRequired[Annotated[str | None, Field(alias="vendor_name")]]
 
+
 class PublicDocumentsUpdate(TypedDict):
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
     document_type: NotRequired[Annotated[str, Field(alias="document_type")]]
@@ -1593,6 +1726,7 @@ class PublicDocumentsUpdate(TypedDict):
     uploaded_by_id: NotRequired[Annotated[uuid.UUID, Field(alias="uploaded_by_id")]]
     vendor_name: NotRequired[Annotated[str | None, Field(alias="vendor_name")]]
 
+
 class PublicJobs(BaseModel):
     billing_entity_id: uuid.UUID | None = Field(alias="billing_entity_id")
     code: str = Field(alias="code")
@@ -1604,6 +1738,7 @@ class PublicJobs(BaseModel):
     service_address: str = Field(alias="service_address")
     status: str = Field(alias="status")
     updated_at: datetime.datetime = Field(alias="updated_at")
+
 
 class PublicJobsInsert(TypedDict):
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
@@ -1617,6 +1752,7 @@ class PublicJobsInsert(TypedDict):
     status: NotRequired[Annotated[str, Field(alias="status")]]
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
 
+
 class PublicJobsUpdate(TypedDict):
     billing_entity_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="billing_entity_id")]]
     code: NotRequired[Annotated[str, Field(alias="code")]]
@@ -1628,6 +1764,7 @@ class PublicJobsUpdate(TypedDict):
     service_address: NotRequired[Annotated[str, Field(alias="service_address")]]
     status: NotRequired[Annotated[str, Field(alias="status")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
+
 
 class PublicMemoryArtifacts(BaseModel):
     content: str = Field(alias="content")
@@ -1641,6 +1778,7 @@ class PublicMemoryArtifacts(BaseModel):
     type: str = Field(alias="type")
     user_id: uuid.UUID = Field(alias="user_id")
 
+
 class PublicMemoryArtifactsInsert(TypedDict):
     content: NotRequired[Annotated[str, Field(alias="content")]]
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -1653,6 +1791,7 @@ class PublicMemoryArtifactsInsert(TypedDict):
     type: NotRequired[Annotated[str, Field(alias="type")]]
     user_id: Annotated[uuid.UUID, Field(alias="user_id")]
 
+
 class PublicMemoryArtifactsUpdate(TypedDict):
     content: NotRequired[Annotated[str, Field(alias="content")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -1664,6 +1803,7 @@ class PublicMemoryArtifactsUpdate(TypedDict):
     tags: NotRequired[Annotated[str, Field(alias="tags")]]
     type: NotRequired[Annotated[str, Field(alias="type")]]
     user_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_id")]]
+
 
 class PublicAgentRuns(BaseModel):
     agent_name: str = Field(alias="agent_name")
@@ -1690,6 +1830,7 @@ class PublicAgentRuns(BaseModel):
     validation_passed: bool | None = Field(alias="validation_passed")
     validation_scores: str = Field(alias="validation_scores")
 
+
 class PublicAgentRunsInsert(TypedDict):
     agent_name: Annotated[str, Field(alias="agent_name")]
     attempts: NotRequired[Annotated[int, Field(alias="attempts")]]
@@ -1714,6 +1855,7 @@ class PublicAgentRunsInsert(TypedDict):
     validation_failures: NotRequired[Annotated[str, Field(alias="validation_failures")]]
     validation_passed: NotRequired[Annotated[bool | None, Field(alias="validation_passed")]]
     validation_scores: NotRequired[Annotated[str, Field(alias="validation_scores")]]
+
 
 class PublicAgentRunsUpdate(TypedDict):
     agent_name: NotRequired[Annotated[str, Field(alias="agent_name")]]
@@ -1740,6 +1882,7 @@ class PublicAgentRunsUpdate(TypedDict):
     validation_passed: NotRequired[Annotated[bool | None, Field(alias="validation_passed")]]
     validation_scores: NotRequired[Annotated[str, Field(alias="validation_scores")]]
 
+
 class PublicEmbeddings(BaseModel):
     content: str = Field(alias="content")
     content_hash: str = Field(alias="content_hash")
@@ -1749,6 +1892,7 @@ class PublicEmbeddings(BaseModel):
     id: uuid.UUID = Field(alias="id")
     org_id: uuid.UUID = Field(alias="org_id")
     updated_at: datetime.datetime = Field(alias="updated_at")
+
 
 class PublicEmbeddingsInsert(TypedDict):
     content: Annotated[str, Field(alias="content")]
@@ -1760,6 +1904,7 @@ class PublicEmbeddingsInsert(TypedDict):
     org_id: Annotated[uuid.UUID, Field(alias="org_id")]
     updated_at: Annotated[datetime.datetime, Field(alias="updated_at")]
 
+
 class PublicEmbeddingsUpdate(TypedDict):
     content: NotRequired[Annotated[str, Field(alias="content")]]
     content_hash: NotRequired[Annotated[str, Field(alias="content_hash")]]
@@ -1769,6 +1914,7 @@ class PublicEmbeddingsUpdate(TypedDict):
     id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
     org_id: NotRequired[Annotated[uuid.UUID, Field(alias="org_id")]]
     updated_at: NotRequired[Annotated[datetime.datetime, Field(alias="updated_at")]]
+
 
 class PublicEntityEdges(BaseModel):
     org_id: uuid.UUID | None = Field(alias="org_id")

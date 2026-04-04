@@ -153,9 +153,7 @@ async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
 
 @router.post("")
 async def create_product(data: SkuCreate, current_user: AdminDep):
-    department = await _db_catalog().get_department_by_id(
-        data.category_id, get_org_id()
-    )
+    department = await _db_catalog().get_department_by_id(data.category_id, get_org_id())
     if not department:
         raise HTTPException(status_code=400, detail="Department not found")
 

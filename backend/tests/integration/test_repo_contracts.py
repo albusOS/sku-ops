@@ -58,14 +58,10 @@ class TestProductRepoContract:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            row = await get_database_manager().catalog.get_sku_by_id(
-                sku.id, DEFAULT_ORG_ID
-            )
+            row = await get_database_manager().catalog.get_sku_by_id(sku.id, DEFAULT_ORG_ID)
             assert row is not None
 
-            assert isinstance(row.quantity, float), (
-                f"quantity is {type(row.quantity)}"
-            )
+            assert isinstance(row.quantity, float), f"quantity is {type(row.quantity)}"
             assert row.quantity == pytest.approx(7.25)
 
             assert isinstance(row.price, float), f"price is {type(row.price)}"
@@ -92,9 +88,7 @@ class TestProductRepoContract:
                 user_name="Test",
                 on_stock_import=process_import_stock_changes,
             )
-            skus = await get_database_manager().catalog.list_skus(
-                DEFAULT_ORG_ID, limit=10
-            )
+            skus = await get_database_manager().catalog.list_skus(DEFAULT_ORG_ID, limit=10)
             assert len(skus) >= 1
             for s in skus:
                 assert isinstance(s.quantity, float), (

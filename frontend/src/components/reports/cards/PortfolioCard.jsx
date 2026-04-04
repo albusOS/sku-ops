@@ -44,12 +44,7 @@ function QuadrantStats({ products }) {
 
 export function PortfolioCard({ dateParams, onProductClick }) {
   const [open, setOpen] = useState(false);
-  const {
-    data: perfData,
-    isPending,
-    isError,
-    error,
-  } = useReportProductPerformance(dateParams);
+  const { data: perfData, isPending, isError, error } = useReportProductPerformance(dateParams);
   const products = useMemo(() => perfData?.products || [], [perfData]);
 
   const quadrants = useMemo(() => {
@@ -78,8 +73,7 @@ export function PortfolioCard({ dateParams, onProductClick }) {
   const insight = useMemo(() => {
     if (isPending) return "Loading...";
     if (isError) return error?.message || "Could not load product performance.";
-    if (products.length === 0)
-      return "No products with performance data for this range.";
+    if (products.length === 0) return "No products with performance data for this range.";
     return `${products.length} products · ${quadrants.stars} stars · ${quadrants.review} need review`;
   }, [isPending, isError, error, products.length, quadrants]);
 

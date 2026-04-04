@@ -57,16 +57,12 @@ async def insufficient_stock_handler(_request, exc: InsufficientStockError):
 
 @app.exception_handler(DomainError)
 async def domain_error_handler(_request, exc: DomainError):
-    return JSONResponse(
-        status_code=exc.status_hint, content={"detail": str(exc)}
-    )
+    return JSONResponse(status_code=exc.status_hint, content={"detail": str(exc)})
 
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request, exc: ValueError):
-    logger.warning(
-        "ValueError on %s %s: %s", request.method, request.url.path, exc
-    )
+    logger.warning("ValueError on %s %s: %s", request.method, request.url.path, exc)
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
@@ -79,11 +75,7 @@ async def unhandled_exception_handler(request, exc: Exception):
         request.url.path,
         traceback.format_exc(),
     )
-    detail = (
-        "Internal server error"
-        if is_deployed
-        else f"{type(exc).__name__}: {exc}"
-    )
+    detail = "Internal server error" if is_deployed else f"{type(exc).__name__}: {exc}"
     return JSONResponse(status_code=500, content={"detail": detail})
 
 

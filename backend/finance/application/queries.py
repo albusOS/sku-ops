@@ -40,9 +40,7 @@ async def list_billing_entities(
 
 
 async def search_billing_entities(query: str, limit: int = 20) -> list:
-    return await _db_finance().billing_entity_search(
-        get_org_id(), query, limit=limit
-    )
+    return await _db_finance().billing_entity_search(get_org_id(), query, limit=limit)
 
 
 # ── Payment queries ──────────────────────────────────────────────────────────
@@ -92,9 +90,7 @@ async def list_credit_notes(
 
 
 async def get_credit_note_by_id(credit_note_id: str) -> CreditNote | None:
-    return await _db_finance().credit_note_get_by_id(
-        get_org_id(), credit_note_id
-    )
+    return await _db_finance().credit_note_get_by_id(get_org_id(), credit_note_id)
 
 
 async def list_unsynced_credit_notes() -> list[CreditNote]:

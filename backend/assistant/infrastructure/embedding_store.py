@@ -82,9 +82,7 @@ async def embed_texts(
         all_vectors: list[list[float]] = []
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(
-                model=EMBEDDING_MODEL, input=batch
-            )
+            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         return _normalize(mat)
@@ -105,9 +103,7 @@ async def embed_query(
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(api_key=key)
-        resp = await client.embeddings.create(
-            model=EMBEDDING_MODEL, input=[query]
-        )
+        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:

@@ -38,9 +38,7 @@ def make_token(
 
 
 def admin_headers() -> dict[str, str]:
-    token = make_token(
-        ADMIN_USER_ID, role="admin", email="admin@supplyyard.com"
-    )
+    token = make_token(ADMIN_USER_ID, role="admin", email="admin@supplyyard.com")
     return {"Authorization": f"Bearer {token}"}
 
 

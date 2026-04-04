@@ -19,12 +19,8 @@ from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models 
 
 
 class TestSimpleModelGeneration:
-    def test_generates_valid_python(
-        self, sample_pydantic_output, sample_ts_empty_rels
-    ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+    def test_generates_valid_python(self, sample_pydantic_output, sample_ts_empty_rels):
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_empty_rels, "public")
         pk_map = {
             ("public", "departments"): ["id"],
@@ -40,9 +36,7 @@ class TestSimpleModelGeneration:
     def test_does_not_emit_future_annotations_import(
         self, sample_pydantic_output, sample_ts_empty_rels
     ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_empty_rels, "public")
         pk_map = {("public", "departments"): ["id"]}
 
@@ -51,12 +45,8 @@ class TestSimpleModelGeneration:
 
         assert "from __future__ import annotations" not in code
 
-    def test_simple_model_fields(
-        self, sample_pydantic_output, sample_ts_empty_rels
-    ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+    def test_simple_model_fields(self, sample_pydantic_output, sample_ts_empty_rels):
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_empty_rels, "public")
         pk_map = {("public", "departments"): ["id"]}
 
@@ -70,12 +60,8 @@ class TestSimpleModelGeneration:
 
 
 class TestOneToManyGeneration:
-    def test_generates_fk_field(
-        self, sample_pydantic_output, sample_ts_single_fk
-    ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+    def test_generates_fk_field(self, sample_pydantic_output, sample_ts_single_fk):
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_single_fk, "public")
         pk_map = {
             ("public", "departments"): ["id"],
@@ -86,12 +72,8 @@ class TestOneToManyGeneration:
 
         assert 'foreign_key="public.departments.id"' in code
 
-    def test_generates_relationship_attrs(
-        self, sample_pydantic_output, sample_ts_single_fk
-    ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+    def test_generates_relationship_attrs(self, sample_pydantic_output, sample_ts_single_fk):
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_single_fk, "public")
         pk_map = {
             ("public", "departments"): ["id"],
@@ -102,12 +84,8 @@ class TestOneToManyGeneration:
 
         assert "Relationship(back_populates=" in code
 
-    def test_back_populates_symmetry(
-        self, sample_pydantic_output, sample_ts_single_fk
-    ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+    def test_back_populates_symmetry(self, sample_pydantic_output, sample_ts_single_fk):
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_single_fk, "public")
         pk_map = {
             ("public", "departments"): ["id"],
@@ -122,9 +100,7 @@ class TestOneToManyGeneration:
     def test_generated_one_to_many_code_configures_mappers(
         self, sample_pydantic_output, sample_ts_single_fk
     ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_single_fk, "public")
         pk_map = {
             ("public", "departments"): ["id"],
@@ -356,12 +332,8 @@ configure_mappers()
 
 
 class TestModelOrdering:
-    def test_parents_before_children(
-        self, sample_pydantic_output, sample_ts_single_fk
-    ):
-        models = parse_pydantic_types(
-            sample_pydantic_output, "public", "Public"
-        )
+    def test_parents_before_children(self, sample_pydantic_output, sample_ts_single_fk):
+        models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_single_fk, "public")
         pk_map = {
             ("public", "departments"): ["id"],
@@ -443,9 +415,7 @@ class TestM2MPlusDirectFK:
         inv_block = code[inv_block_start:inv_block_end]
 
         attr_lines = [
-            line.strip().split(":")[0]
-            for line in inv_block.split("\n")
-            if "Relationship(" in line
+            line.strip().split(":")[0] for line in inv_block.split("\n") if "Relationship(" in line
         ]
         assert len(attr_lines) == len(set(attr_lines)), (
             f"Duplicate relationship attribute names on Invoices: {attr_lines}"
