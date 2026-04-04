@@ -47,7 +47,7 @@ docker compose up --build    # nginx/certbot excluded via override profile
 
 ## Common dev commands
 
-Install [Pixi](https://pixi.sh) once (`curl -fsSL https://pixi.sh/install.sh | sh`). All commands below run from the **project root** via `pixi run <task>` (`pixi task list` for discoverability).
+Install [Pixi](https://pixi.sh) once (`curl -fsSL https://pixi.sh/install.sh | sh`). The binary lives in `~/.pixi/bin` — use a **new shell** or `export PATH="$HOME/.pixi/bin:$PATH"` until your `~/.zshrc` is sourced. All commands below run from the **project root** via `pixi run <task>` (`pixi task list` for discoverability).
 
 ```bash
 pixi run test                    # all tests (backend then frontend)
