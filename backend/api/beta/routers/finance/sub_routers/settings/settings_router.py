@@ -53,14 +53,17 @@ async def update_xero_settings(
     current_user: AdminDep,
 ):
     """Update Xero account codes and/or API credentials."""
-    try:
+
+    async def _persist() -> OrgSettings:
         settings = await _db_finance().org_settings_get(get_org_id())
         if settings is None:
             raise HTTPException(status_code=404, detail="Organization settings not found")
-
         update = data.model_dump(exclude_none=True)
         merged = settings.model_copy(update=update)
-        saved = await _db_finance().org_settings_upsert(get_org_id(), merged)
+        return await _db_finance().org_settings_upsert(get_org_id(), merged)
+
+    try:
+        saved = await _persist()
     except HTTPException:
         raise
     except ValueError as e:

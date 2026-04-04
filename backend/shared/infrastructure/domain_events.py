@@ -155,7 +155,6 @@ async def _run_handler(handler: Handler, event: DomainEvent) -> bool:
     for attempt in range(max_retries + 1):
         try:
             await handler(event)
-            return True
         except Exception:
             if attempt == max_retries:
                 logger.exception(
@@ -177,6 +176,8 @@ async def _run_handler(handler: Handler, event: DomainEvent) -> bool:
                 delay,
             )
             await asyncio.sleep(delay)
+        else:
+            return True
     return False
 
 

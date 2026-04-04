@@ -130,10 +130,11 @@ class PostgresBackend:
         try:
             async with self.engine.connect() as conn:
                 await conn.exec_driver_sql("SELECT 1")
-            return True
         except Exception:
             logger.exception("Database health check failed")
             return False
+        else:
+            return True
 
     def get_pool_status(self) -> dict[str, str]:
         return {"status": self.engine.sync_engine.pool.status()}

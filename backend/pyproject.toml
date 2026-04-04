@@ -94,6 +94,10 @@ target-version = "py313"
 docstring-code-format = true
 
 [tool.ruff.lint]
+# TRY003 fights the project's dominant pattern (explicit DomainError/ValueError messages).
+# BLE001: broad `except Exception` is intentional at LLM/IO/event resilience boundaries;
+# narrow exceptions per call site is ongoing hardening, not a batch mechanical fix.
+ignore = ["TRY003", "BLE001"]
 select = [
     "A",      # flake8-builtins
     "ARG",    # flake8-unused-arguments

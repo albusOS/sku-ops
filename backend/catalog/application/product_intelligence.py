@@ -231,7 +231,6 @@ Decompose each into structured product data following the system instructions.""
                 results.append(_dict_to_analyzed_product(parsed[i], raw_text, known_units))
             else:
                 results.append(_rule_fallback(item))
-        return results
 
     except Exception as e:
         logger.warning(
@@ -240,6 +239,8 @@ Decompose each into structured product data following the system instructions.""
             e,
         )
         return [_rule_fallback(item) for item in items]
+    else:
+        return results
 
 
 # ── Phase 2: Match and Validate (used by batch path only) ───────────────────

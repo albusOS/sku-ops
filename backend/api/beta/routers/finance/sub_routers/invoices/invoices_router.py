@@ -97,9 +97,10 @@ async def create_invoice(
             request=request,
             org_id=current_user.organization_id,
         )
-        return inv
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    else:
+        return inv
 
 
 @router.put("/{invoice_id}")
@@ -168,9 +169,10 @@ async def delete_invoice(invoice_id: str, request: Request, current_user: AdminD
             request=request,
             org_id=current_user.organization_id,
         )
-        return {"deleted": True}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    else:
+        return {"deleted": True}
 
 
 @router.post("/{invoice_id}/approve")

@@ -53,10 +53,11 @@ async def create_material_return(
             request=request,
             org_id=current_user.organization_id,
         )
-        return result
     except (ValueError, RuntimeError, OSError) as e:
         status = getattr(e, "status_hint", 400)
         raise HTTPException(status_code=status, detail=str(e)) from e
+    else:
+        return result
 
 
 @router.get("")

@@ -93,7 +93,6 @@ async def run_workflow(
                 "duration_ms": duration_ms,
             },
         )
-        return result
     except Exception:
         duration_ms = int((time.monotonic() - start) * 1000)
         logger.warning(
@@ -105,6 +104,8 @@ async def run_workflow(
             },
         )
         raise
+    else:
+        return result
 
 
 def response_agent_label(agent_label: str, tool_calls: list[dict] | None) -> str:

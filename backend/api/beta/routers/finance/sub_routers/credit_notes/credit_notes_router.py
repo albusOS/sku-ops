@@ -60,6 +60,7 @@ async def apply_credit_note_to_invoice(
             request=request,
             org_id=current_user.organization_id,
         )
-        return cn
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    else:
+        return cn

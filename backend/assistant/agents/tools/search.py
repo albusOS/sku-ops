@@ -102,10 +102,11 @@ async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
         norm = np.linalg.norm(qvec)
         if norm > 0:
             qvec /= norm
-        return qvec
     except (ValueError, RuntimeError, OSError, TypeError) as e:
         logger.warning("Query embedding failed: %s", e)
         return None
+    else:
+        return qvec
 
 
 @dataclass

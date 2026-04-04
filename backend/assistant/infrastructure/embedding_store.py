@@ -105,10 +105,11 @@ async def embed_query(
         norm = np.linalg.norm(qvec)
         if norm > 0:
             qvec /= norm
-        return qvec
     except (ValueError, RuntimeError, OSError, TypeError) as e:
         logger.warning("embed_query failed: %s", e)
         return None
+    else:
+        return qvec
 
 
 # ── Content hashing ───────────────────────────────────────────────────────────

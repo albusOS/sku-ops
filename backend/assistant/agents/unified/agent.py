@@ -259,12 +259,13 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 _procurement_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
                 timeout=delegation_timeout,
             )
-            return result.response
         except TimeoutError:
             return "Procurement analysis timed out. Try a more specific question."
         except Exception:
             logger.exception("analyze_procurement delegation failed")
             return "Procurement analysis hit an error. Please try again."
+        else:
+            return result.response
 
     @_agent.tool
     async def analyze_trends(ctx: RunContext[AgentDeps], question: str) -> str:
@@ -274,12 +275,13 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 _trend_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
                 timeout=delegation_timeout,
             )
-            return result.response
         except TimeoutError:
             return "Trend analysis timed out. Try a more specific question."
         except Exception:
             logger.exception("analyze_trends delegation failed")
             return "Trend analysis hit an error. Please try again."
+        else:
+            return result.response
 
     @_agent.tool
     async def assess_business_health(ctx: RunContext[AgentDeps], question: str) -> str:
@@ -289,12 +291,13 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 _health_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
                 timeout=delegation_timeout,
             )
-            return result.response
         except TimeoutError:
             return "Health analysis timed out. Try a more specific question."
         except Exception:
             logger.exception("assess_business_health delegation failed")
             return "Health analysis hit an error. Please try again."
+        else:
+            return result.response
 
     @_agent.tool
     async def run_ad_hoc_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
@@ -304,12 +307,13 @@ def _get_agent() -> Agent[AgentDeps, str]:
                 _analyst_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
                 timeout=delegation_timeout,
             )
-            return result.response
         except TimeoutError:
             return "Ad hoc analysis timed out. Try a more focused question."
         except Exception:
             logger.exception("run_ad_hoc_analysis delegation failed")
             return "Ad hoc analysis hit an error. Please try again."
+        else:
+            return result.response
 
     return _agent
 

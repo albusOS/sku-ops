@@ -135,9 +135,10 @@ async def list_xero_tenants(current_user: AdminDep):
     adapter = XeroAdapter()
     try:
         tenants = await adapter.get_tenants(settings.xero_access_token)
-        return {"tenants": tenants}
     except (httpx.HTTPError, RuntimeError, OSError) as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch Xero tenants: {e}") from e
+    else:
+        return {"tenants": tenants}
 
 
 @router.post("/select-tenant")
@@ -172,11 +173,12 @@ async def list_tracking_categories(current_user: AdminDep):
     gateway = get_invoicing_gateway(xero_settings)
     try:
         categories = await gateway.list_tracking_categories(xero_settings)
-        return {"tracking_categories": categories}
     except (httpx.HTTPError, RuntimeError, OSError) as e:
         raise HTTPException(
             status_code=502, detail=f"Failed to fetch tracking categories: {e}"
         ) from e
+    else:
+        return {"tracking_categories": categories}
 
 
 @router.post("/select-tracking-category")

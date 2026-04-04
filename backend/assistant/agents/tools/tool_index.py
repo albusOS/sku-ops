@@ -66,10 +66,11 @@ async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
         norm = np.linalg.norm(qvec)
         if norm > 0:
             qvec /= norm
-        return qvec
     except Exception as e:
         logger.warning("Tool index query embedding failed: %s", e)
         return None
+    else:
+        return qvec
 
 
 class ToolIndex:

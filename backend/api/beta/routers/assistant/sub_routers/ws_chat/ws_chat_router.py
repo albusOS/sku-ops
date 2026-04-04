@@ -176,9 +176,10 @@ def _authenticate(token: str) -> dict | None:
 async def _send(ws: WebSocket, msg: dict) -> bool:
     try:
         await ws.send_text(json.dumps(msg))
-        return True
     except (RuntimeError, OSError):
         return False
+    else:
+        return True
 
 
 # ---------------------------------------------------------------------------

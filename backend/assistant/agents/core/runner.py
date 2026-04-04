@@ -226,13 +226,14 @@ async def run_agent(
                 duration_ms=duration_ms,
                 attempts=attempts,
             )
-            return result
         except TimeoutError:
             last_exc = RuntimeError(f"{agent_name} timed out after {timeout_seconds}s")
             kind, retriable, retry_after = _ErrorKind.TIMEOUT, True, None
         except Exception as e:
             last_exc = e
             kind, retriable, retry_after = _classify(e)
+        else:
+            return result
 
         if not retriable:
             logger.error(

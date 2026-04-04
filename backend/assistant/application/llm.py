@@ -70,7 +70,6 @@ async def generate_text(
         agent: Agent[None, str] = Agent(model, system_prompt=system_instruction or "")
         try:
             result = await asyncio.wait_for(agent.run(prompt), timeout=30)
-            return result.output
         except Exception as primary_err:
             err_str = str(primary_err).lower()
             is_overloaded = any(
@@ -82,7 +81,13 @@ async def generate_text(
             if not fallback:
                 raise
             logger.info("generate_text: primary overloaded, trying fallback %s", fallback)
-            result = await asyncio.wait_for(agent.run(prompt, model=fallback), timeout=30)
+            try:
+                result = await asyncio.wait_for(agent.run(prompt, model=fallback), timeout=30)
+            except Exception:
+                raise
+            else:
+                return result.output
+        else:
             return result.output
     except Exception as e:
         logger.warning("generate_text failed: %s", e)

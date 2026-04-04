@@ -404,10 +404,11 @@ class AssistantDatabaseService(DomainDatabaseService):
                         },
                     )
                 await self.end_write_session(session)
-            return True
         except Exception as e:
             logger.warning("embedding upsert failed: %s", e)
             return False
+        else:
+            return True
 
     async def embedding_upsert_batch(
         self,

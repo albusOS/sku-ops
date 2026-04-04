@@ -148,11 +148,12 @@ async def classify_intent(user_message: str) -> IntentClassification:
         if len(_intent_cache) >= _CACHE_MAX:
             _intent_cache.popitem(last=False)
         _intent_cache[cache_key] = result
-        return result
 
     except Exception as e:
         logger.debug("Intent classifier failed (%s), using fallback", e)
         return _FALLBACK_INTENT
+    else:
+        return result
 
 
 # ── Domain tool cross-reference (structural check only) ───────────────────────
