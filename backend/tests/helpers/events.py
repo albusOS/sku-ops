@@ -9,7 +9,9 @@ Usage in tests::
         assert evt.withdrawal_id == "..."
 """
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from shared.kernel.domain_events import DomainEvent
 

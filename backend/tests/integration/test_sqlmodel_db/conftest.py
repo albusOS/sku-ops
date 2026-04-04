@@ -3,19 +3,22 @@
 Requires a running local Supabase/Postgres instance.
 """
 from __future__ import annotations
+
 import os
+
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-@pytest.fixture(scope='session')
+
+@pytest.fixture(scope="session")
 def database_url():
-    url = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@127.0.0.1:54322/postgres')
-    if url.startswith('postgresql://'):
-        url = url.replace('postgresql://', 'postgresql+asyncpg://', 1)
-    elif url.startswith('postgres://'):
-        url = url.replace('postgres://', 'postgresql+asyncpg://', 1)
+    url = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
     return url
 
 @pytest.fixture

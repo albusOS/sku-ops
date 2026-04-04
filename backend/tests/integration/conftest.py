@@ -7,8 +7,10 @@ pool singleton, causing intermittent ConnectionDoesNotExistError when
 one client's close_db() races with another's active queries.
 """
 import pytest
+
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import ADMIN_USER_ID, admin_headers, contractor_headers
+
 
 @pytest.fixture(autouse=True)
 def _clean_db(_app_client):

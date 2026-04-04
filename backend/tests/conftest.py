@@ -6,37 +6,39 @@ boots the ASGI app once; sub-directory conftest files add fixtures
 specific to their scope (e.g. DB seeding, auth helpers).
 """
 import os
+
 from catalog.application.uom_seed import uom_seed_sql
-os.environ['ENV'] = 'test'
-os.environ.setdefault('DATABASE_URL', 'postgresql://postgres:postgres@127.0.0.1:54322/postgres')
-os.environ.setdefault('REDIS_URL', '')
-os.environ.setdefault('JWT_SECRET', 'test-' + 'secret-key-for-pytest-32bytes!')
-os.environ['ANTHROPIC_API_KEY'] = ''
-os.environ['OPENAI_API_KEY'] = ''
+
+os.environ["ENV"] = "test"
+os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+os.environ.setdefault("REDIS_URL", "")
+os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = ""
 from pathlib import Path
+
 import pytest
-import finance.application.event_handlers
-import inventory.application.event_handlers
-import shared.infrastructure.ws_bridge
+
 from shared.kernel.constants import DEFAULT_ORG_ID
 from tests.helpers.auth import ADMIN_USER_ID
 from tests.helpers.events import EventCollector
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption('--run-integration', action='store_true', default=False, help='Run integration tests that require the local Supabase Postgres stack.')
+    parser.addoption("--run-integration", action="store_true", default=False, help="Run integration tests that require the local Supabase Postgres stack.")
 
 def _seed_sql_statements(relative_path: str) -> list[str]:
     path = _REPO_ROOT / relative_path
     stmts: list[str] = []
     for line in path.read_text().splitlines():
         stmt = line.strip()
-        if not stmt or stmt.startswith('--'):
+        if not stmt or stmt.startswith("--"):
             continue
         stmts.append(stmt)
     return stmts
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def _app_client():
     """Session-scoped TestClient — boots the ASGI app once for the entire test run.
 
@@ -44,6 +46,7 @@ def _app_client():
     lifecycle is consistent (no pool corruption from overlapping lifespans).
     """
     from starlette.testclient import TestClient
+
     from server import app
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
@@ -57,7 +60,7 @@ async def _truncate_and_seed():
     from shared.infrastructure.db import sql_execute
     async with transaction():
         await sql_execute("DO $$\n            DECLARE r RECORD;\n            BEGIN\n                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP\n                    EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';\n                END LOOP;\n            END $$", read_only=False)
-        for stmt in _seed_sql_statements('supabase/seeds/pytest_minimal.sql'):
+        for stmt in _seed_sql_statements("supabase/seeds/pytest_minimal.sql"):
             await sql_execute(stmt, read_only=False)
         for stmt in uom_seed_sql(DEFAULT_ORG_ID):
             await sql_execute(stmt, read_only=False)
@@ -70,11 +73,12 @@ def event_collector():
     also recorded in the collector for later assertion.
     """
     from unittest.mock import patch
+
     from shared.infrastructure.domain_events import dispatch as real_dispatch
     collector = EventCollector()
 
     async def _capturing_dispatch(event):
         await collector.capture(event)
         await real_dispatch(event)
-    with patch('shared.infrastructure.domain_events.dispatch', side_effect=_capturing_dispatch):
+    with patch("shared.infrastructure.domain_events.dispatch", side_effect=_capturing_dispatch):
         yield collector
