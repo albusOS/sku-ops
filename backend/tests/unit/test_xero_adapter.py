@@ -10,6 +10,7 @@ Tests validate:
   6. Token refresh — expired token triggers refresh before API call
   7. Idempotency contract — existing xero_invoice_id uses InvoiceID in payload
 """
+
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,21 +24,80 @@ from shared.kernel.constants import DEFAULT_ORG_ID
 
 
 def _settings(**overrides) -> OrgSettings:
-    base = {"organization_id": DEFAULT_ORG_ID, "xero_access_token": "tok-valid", "xero_refresh_token": "refresh-valid", "xero_tenant_id": "tenant-abc", "xero_token_expiry": datetime.now(UTC) + timedelta(hours=1), "xero_sales_account_code": "200", "xero_cogs_account_code": "500", "xero_inventory_account_code": "630", "xero_ap_account_code": "800"}
+    base = {
+        "organization_id": DEFAULT_ORG_ID,
+        "xero_access_token": "tok-valid",
+        "xero_refresh_token": "refresh-valid",
+        "xero_tenant_id": "tenant-abc",
+        "xero_token_expiry": datetime.now(UTC) + timedelta(hours=1),
+        "xero_sales_account_code": "200",
+        "xero_cogs_account_code": "500",
+        "xero_inventory_account_code": "630",
+        "xero_ap_account_code": "800",
+    }
     base.update(overrides)
     return OrgSettings(**base)
+
 
 def _expired_settings() -> OrgSettings:
     return _settings(xero_token_expiry=datetime.now(UTC) - timedelta(hours=1))
 
+
 def _invoice(xero_invoice_id=None) -> InvoiceWithDetails:
-    return InvoiceWithDetails(id="inv-local-1", organization_id=DEFAULT_ORG_ID, invoice_number="INV-00001", billing_entity="On Point LLC", status="approved", invoice_date="2025-03-01T00:00:00Z", due_date="2025-03-31T00:00:00Z", subtotal=100.0, tax=10.0, total=110.0, currency="USD", xero_invoice_id=xero_invoice_id, line_items=[InvoiceLineItem(description="2x16 Lumber", quantity=10, unit_price=10.0, amount=100.0, cost=6.0, sku_id="prod-1", job_id="JOB-42")])
+    return InvoiceWithDetails(
+        id="inv-local-1",
+        organization_id=DEFAULT_ORG_ID,
+        invoice_number="INV-00001",
+        billing_entity="On Point LLC",
+        status="approved",
+        invoice_date="2025-03-01T00:00:00Z",
+        due_date="2025-03-31T00:00:00Z",
+        subtotal=100.0,
+        tax=10.0,
+        total=110.0,
+        currency="USD",
+        xero_invoice_id=xero_invoice_id,
+        line_items=[
+            InvoiceLineItem(
+                description="2x16 Lumber",
+                quantity=10,
+                unit_price=10.0,
+                amount=100.0,
+                cost=6.0,
+                sku_id="prod-1",
+                job_id="JOB-42",
+            )
+        ],
+    )
+
 
 def _po(xero_bill_id=None) -> dict:
-    return {"id": "po-local-1", "vendor_name": "Lumberyard Inc", "document_date": "2025-03-01", "xero_bill_id": xero_bill_id, "items": [{"name": "2x4 Pine", "delivered_qty": 50, "ordered_qty": 50, "cost": 4.0}, {"name": "Drywall Sheet", "delivered_qty": 20, "ordered_qty": 20, "cost": 8.5}]}
+    return {
+        "id": "po-local-1",
+        "vendor_name": "Lumberyard Inc",
+        "document_date": "2025-03-01",
+        "xero_bill_id": xero_bill_id,
+        "items": [
+            {"name": "2x4 Pine", "delivered_qty": 50, "ordered_qty": 50, "cost": 4.0},
+            {"name": "Drywall Sheet", "delivered_qty": 20, "ordered_qty": 20, "cost": 8.5},
+        ],
+    }
+
 
 def _credit_note() -> CreditNote:
-    return CreditNote(id="cn-local-1", organization_id=DEFAULT_ORG_ID, credit_note_number="CN-00001", billing_entity="On Point LLC", status="applied", created_at="2025-03-05T00:00:00Z", xero_credit_note_id=None, line_items=[CreditNoteLineItem(description="Returned lumber", quantity=3, unit_price=10.0, amount=30.0, cost=6.0)])
+    return CreditNote(
+        id="cn-local-1",
+        organization_id=DEFAULT_ORG_ID,
+        credit_note_number="CN-00001",
+        billing_entity="On Point LLC",
+        status="applied",
+        created_at="2025-03-05T00:00:00Z",
+        xero_credit_note_id=None,
+        line_items=[
+            CreditNoteLineItem(description="Returned lumber", quantity=3, unit_price=10.0, amount=30.0, cost=6.0)
+        ],
+    )
+
 
 def _mock_resp(response_json: dict):
     resp = MagicMock()
@@ -45,7 +105,8 @@ def _mock_resp(response_json: dict):
     resp.json.return_value = response_json
     return resp
 
-def _mock_http_client(response_json: dict, journal_json: dict | None=None):
+
+def _mock_http_client(response_json: dict, journal_json: dict | None = None):
     """Return a patched httpx.AsyncClient.
 
     If journal_json is given, put() will return response_json on the first
@@ -62,8 +123,8 @@ def _mock_http_client(response_json: dict, journal_json: dict | None=None):
     mock_client.get = AsyncMock(return_value=inv_resp)
     return mock_client
 
-class TestSyncInvoiceNew:
 
+class TestSyncInvoiceNew:
     @pytest.mark.asyncio
     async def test_new_invoice_uses_put(self):
         adapter = XeroAdapter()
@@ -111,8 +172,8 @@ class TestSyncInvoiceNew:
         assert li["UnitAmount"] == 10.0
         assert li["AccountCode"] == "200"
 
-class TestSyncInvoiceUpdate:
 
+class TestSyncInvoiceUpdate:
     @pytest.mark.asyncio
     async def test_existing_invoice_uses_post(self):
         """If xero_invoice_id already set, the invoice must POST (update), not PUT (create new)."""
@@ -139,8 +200,8 @@ class TestSyncInvoiceUpdate:
         payload = mock_client.post.call_args[1]["json"]
         assert payload["Invoices"][0].get("InvoiceID") == "xero-existing-id"
 
-class TestSyncPOReceipt:
 
+class TestSyncPOReceipt:
     @pytest.mark.asyncio
     async def test_po_receipt_sends_bill_not_journal(self):
         """This is the critical regression test — manual journal was the old (wrong) behaviour."""
@@ -216,8 +277,8 @@ class TestSyncPOReceipt:
         payload = mock_client.post.call_args[1]["json"]
         assert payload["Invoices"][0]["InvoiceID"] == "existing-bill-id"
 
-class TestSyncCreditNote:
 
+class TestSyncCreditNote:
     @pytest.mark.asyncio
     async def test_credit_note_type_is_accrec(self):
         adapter = XeroAdapter()
@@ -261,13 +322,15 @@ class TestSyncCreditNote:
         mock_client.post.assert_called_once()
         mock_client.put.assert_not_called()
 
-class TestFetchMethods:
 
+class TestFetchMethods:
     @pytest.mark.asyncio
     async def test_fetch_invoice_normalises_response(self):
         adapter = XeroAdapter()
         settings = _settings()
-        mock_client = _mock_http_client({"Invoices": [{"InvoiceID": "xero-inv-1", "Total": 110.0, "Status": "AUTHORISED", "LineItems": [{}, {}]}]})
+        mock_client = _mock_http_client(
+            {"Invoices": [{"InvoiceID": "xero-inv-1", "Total": 110.0, "Status": "AUTHORISED", "LineItems": [{}, {}]}]}
+        )
         with patch("httpx.AsyncClient", return_value=mock_client):
             result = await adapter.fetch_invoice("xero-inv-1", settings)
         assert result["total"] == 110.0
@@ -287,15 +350,17 @@ class TestFetchMethods:
     async def test_fetch_credit_note_normalises_response(self):
         adapter = XeroAdapter()
         settings = _settings()
-        mock_client = _mock_http_client({"CreditNotes": [{"CreditNoteID": "xero-cn-1", "Total": 30.0, "Status": "AUTHORISED", "LineItems": [{}]}]})
+        mock_client = _mock_http_client(
+            {"CreditNotes": [{"CreditNoteID": "xero-cn-1", "Total": 30.0, "Status": "AUTHORISED", "LineItems": [{}]}]}
+        )
         with patch("httpx.AsyncClient", return_value=mock_client):
             result = await adapter.fetch_credit_note("xero-cn-1", settings)
         assert result["total"] == 30.0
         assert result["line_count"] == 1
         assert result["status"] == "AUTHORISED"
 
-class TestTokenRefresh:
 
+class TestTokenRefresh:
     def test_is_token_expired_true_when_past_expiry(self):
         adapter = XeroAdapter()
         settings = _expired_settings()
@@ -318,13 +383,16 @@ class TestTokenRefresh:
         settings = _expired_settings()
         refreshed_settings = _settings()
         mock_client = _mock_http_client({"Invoices": [{"InvoiceID": "xero-inv-after-refresh", "LineItems": [{}]}]})
-        with patch.object(adapter, "refresh_token", AsyncMock(return_value=refreshed_settings)) as mock_refresh, patch("httpx.AsyncClient", return_value=mock_client):
+        with (
+            patch.object(adapter, "refresh_token", AsyncMock(return_value=refreshed_settings)) as mock_refresh,
+            patch("httpx.AsyncClient", return_value=mock_client),
+        ):
             result = await adapter.sync_invoice(_invoice(), settings)
         mock_refresh.assert_called_once()
         assert result.success is True
 
-class TestErrorHandling:
 
+class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_sync_invoice_empty_xero_response_returns_failure(self):
         adapter = XeroAdapter()
@@ -353,8 +421,8 @@ class TestErrorHandling:
             result = await adapter.sync_credit_note(_credit_note(), settings)
         assert result.success is False
 
-class TestRepostCogsJournal:
 
+class TestRepostCogsJournal:
     def _make_mock_client_for_repost(self, void_response=None):
         """Return a mock client for a repost: POST to void + PUT to create new journal."""
         void_resp = MagicMock()
@@ -378,11 +446,17 @@ class TestRepostCogsJournal:
         settings = _settings()
         mock_client = self._make_mock_client_for_repost()
         with patch("httpx.AsyncClient", return_value=mock_client):
-            new_id = await adapter.repost_cogs_journal(_invoice(xero_invoice_id="xero-inv-1"), settings, old_journal_id="old-jnl-id")
+            new_id = await adapter.repost_cogs_journal(
+                _invoice(xero_invoice_id="xero-inv-1"), settings, old_journal_id="old-jnl-id"
+            )
         void_call_urls = [c[0][0] for c in mock_client.post.call_args_list]
-        assert any("ManualJournals/old-jnl-id" in url for url in void_call_urls), f"Expected POST to ManualJournals/old-jnl-id to void it, got: {void_call_urls}"
+        assert any("ManualJournals/old-jnl-id" in url for url in void_call_urls), (
+            f"Expected POST to ManualJournals/old-jnl-id to void it, got: {void_call_urls}"
+        )
         put_urls = [c[0][0] for c in mock_client.put.call_args_list]
-        assert any("ManualJournals" in url for url in put_urls), "Expected PUT to ManualJournals for the new COGS journal"
+        assert any("ManualJournals" in url for url in put_urls), (
+            "Expected PUT to ManualJournals for the new COGS journal"
+        )
         assert new_id == "new-jnl-id"
 
     @pytest.mark.asyncio
@@ -403,7 +477,9 @@ class TestRepostCogsJournal:
         mock_client = self._make_mock_client_for_repost()
         mock_client.post = AsyncMock(side_effect=Exception("Xero 404 — journal not found"))
         with patch("httpx.AsyncClient", return_value=mock_client):
-            new_id = await adapter.repost_cogs_journal(_invoice(xero_invoice_id="xero-inv-1"), settings, old_journal_id="gone-jnl-id")
+            new_id = await adapter.repost_cogs_journal(
+                _invoice(xero_invoice_id="xero-inv-1"), settings, old_journal_id="gone-jnl-id"
+            )
         assert new_id == "new-jnl-id", "New COGS journal must be posted even if voiding the old one failed"
 
     @pytest.mark.asyncio
@@ -412,17 +488,29 @@ class TestRepostCogsJournal:
         adapter = XeroAdapter()
         settings = _settings()
         mock_client = self._make_mock_client_for_repost()
-        zero_cost_invoice = _invoice(xero_invoice_id="xero-inv-1").model_copy(update={"line_items": [InvoiceLineItem(description="Free item", quantity=5, unit_price=10.0, amount=50.0, cost=0.0, sku_id="p1")]})
+        zero_cost_invoice = _invoice(xero_invoice_id="xero-inv-1").model_copy(
+            update={
+                "line_items": [
+                    InvoiceLineItem(
+                        description="Free item", quantity=5, unit_price=10.0, amount=50.0, cost=0.0, sku_id="p1"
+                    )
+                ]
+            }
+        )
         with patch("httpx.AsyncClient", return_value=mock_client):
             result = await adapter.repost_cogs_journal(zero_cost_invoice, settings, old_journal_id=None)
         assert result is None
         mock_client.put.assert_not_called()
 
+
 def _settings_with_tracking(**overrides) -> OrgSettings:
     """Settings fixture with a tracking category configured."""
     return _settings(xero_tracking_category_id="cat-job-001", **overrides)
 
-def _mock_tracking_client(invoice_response: dict, journal_json: dict | None=None, existing_options: list[str] | None=None):
+
+def _mock_tracking_client(
+    invoice_response: dict, journal_json: dict | None = None, existing_options: list[str] | None = None
+):
     """Build a mock client for tests that involve tracking category calls.
 
     sync_invoice with tracking enabled makes the following calls in order:
@@ -456,6 +544,7 @@ def _mock_tracking_client(invoice_response: dict, journal_json: dict | None=None
     mock_client.post = AsyncMock(return_value=inv_resp)
     return mock_client
 
+
 class TestTrackingOptionField:
     """Tracking dict on invoice and COGS journal lines must use 'Option', never 'Name'."""
 
@@ -464,7 +553,10 @@ class TestTrackingOptionField:
         """Invoice line item Tracking entry must use 'Option' for the job value."""
         adapter = XeroAdapter()
         settings = _settings_with_tracking()
-        mock_client = _mock_tracking_client({"Invoices": [{"InvoiceID": "xero-inv-tracking", "LineItems": [{}]}]}, journal_json={"ManualJournals": [{"ManualJournalID": "jnl-1"}]})
+        mock_client = _mock_tracking_client(
+            {"Invoices": [{"InvoiceID": "xero-inv-tracking", "LineItems": [{}]}]},
+            journal_json={"ManualJournals": [{"ManualJournalID": "jnl-1"}]},
+        )
         with patch("httpx.AsyncClient", return_value=mock_client):
             await adapter.sync_invoice(_invoice(), settings)
         invoice_put_call = next(c for c in mock_client.put.call_args_list if "/Invoices" in c[0][0])
@@ -472,7 +564,9 @@ class TestTrackingOptionField:
         tracking = li.get("Tracking", [])
         assert tracking, "Tracking must be present on line items when job_id is set"
         assert "Option" in tracking[0], f"Tracking entry must use 'Option' key, got keys: {list(tracking[0].keys())}"
-        assert "Name" not in tracking[0], "Tracking entry must NOT use 'Name' key — that key is silently ignored by Xero"
+        assert "Name" not in tracking[0], (
+            "Tracking entry must NOT use 'Name' key — that key is silently ignored by Xero"
+        )
         assert tracking[0]["Option"] == "JOB-42"
 
     @pytest.mark.asyncio
@@ -480,7 +574,10 @@ class TestTrackingOptionField:
         """COGS manual journal lines must also use 'Option', not 'Name', for tracking."""
         adapter = XeroAdapter()
         settings = _settings_with_tracking()
-        mock_client = _mock_tracking_client({"Invoices": [{"InvoiceID": "xero-inv-tracking", "LineItems": [{}]}]}, journal_json={"ManualJournals": [{"ManualJournalID": "jnl-1"}]})
+        mock_client = _mock_tracking_client(
+            {"Invoices": [{"InvoiceID": "xero-inv-tracking", "LineItems": [{}]}]},
+            journal_json={"ManualJournals": [{"ManualJournalID": "jnl-1"}]},
+        )
         with patch("httpx.AsyncClient", return_value=mock_client):
             await adapter.sync_invoice(_invoice(), settings)
         journal_put_call = next(c for c in mock_client.put.call_args_list if "/ManualJournals" in c[0][0])
@@ -490,11 +587,13 @@ class TestTrackingOptionField:
         assert lines_with_tracking, "At least one COGS journal line must have Tracking"
         for jl in lines_with_tracking:
             tracking = jl["Tracking"]
-            assert "Option" in tracking[0], f"COGS journal Tracking entry must use 'Option', got: {list(tracking[0].keys())}"
+            assert "Option" in tracking[0], (
+                f"COGS journal Tracking entry must use 'Option', got: {list(tracking[0].keys())}"
+            )
             assert "Name" not in tracking[0]
 
-class TestEnsureTrackingOption:
 
+class TestEnsureTrackingOption:
     def _make_tracking_client(self, existing_options: list[str]):
         """Mock client for _ensure_tracking_option tests only."""
         options = [{"Name": n, "Status": "ACTIVE"} for n in existing_options]
@@ -542,8 +641,8 @@ class TestEnsureTrackingOption:
         await adapter._ensure_tracking_option("cat-1", "JOB-42", settings, mock_client)
         mock_client.put.assert_called_once()
 
-class TestTaxTypeExplicitTotals:
 
+class TestTaxTypeExplicitTotals:
     @pytest.mark.asyncio
     async def test_invoice_header_includes_totals_without_tax_type(self):
         """Without xero_tax_type, SubTotal/TotalTax/Total must still be sent."""

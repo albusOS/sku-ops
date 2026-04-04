@@ -3,6 +3,7 @@
 Verifies the full chain: withdrawal → invoice → payment → all statuses
 transition correctly → AR ledger entry → WebSocket events.
 """
+
 import pytest
 
 from tests.e2e.helpers import create_product, create_withdrawal, e2e_job_id
@@ -26,12 +27,30 @@ class TestPaymentPipeline:
             assert wd_state.get("invoice_id") is not None
         ws_events.clear()
         w1_state = client.get(f"/api/beta/operations/withdrawals/{w1['id']}", headers=headers).json()
-        resp = client.post("/api/beta/finance/payments", json={"withdrawal_ids": [w1["id"]], "invoice_id": w1_state["invoice_id"], "method": "bank_transfer", "reference": "TRF-E2E-PAY-1"}, headers=headers)
+        resp = client.post(
+            "/api/beta/finance/payments",
+            json={
+                "withdrawal_ids": [w1["id"]],
+                "invoice_id": w1_state["invoice_id"],
+                "method": "bank_transfer",
+                "reference": "TRF-E2E-PAY-1",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         payment = resp.json()
         assert payment["amount"] == pytest.approx(w1["total"], abs=0.01)
         w2_state = client.get(f"/api/beta/operations/withdrawals/{w2['id']}", headers=headers).json()
-        resp = client.post("/api/beta/finance/payments", json={"withdrawal_ids": [w2["id"]], "invoice_id": w2_state["invoice_id"], "method": "bank_transfer", "reference": "TRF-E2E-PAY-2"}, headers=headers)
+        resp = client.post(
+            "/api/beta/finance/payments",
+            json={
+                "withdrawal_ids": [w2["id"]],
+                "invoice_id": w2_state["invoice_id"],
+                "method": "bank_transfer",
+                "reference": "TRF-E2E-PAY-2",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         for wid in [w1["id"], w2["id"]]:
             resp = client.get(f"/api/beta/operations/withdrawals/{wid}", headers=headers)
@@ -64,7 +83,11 @@ class TestPaymentPipeline:
         headers = admin_headers()
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, name="PAY-List")
         withdrawal = create_withdrawal(client, headers, product, quantity=1)
-        resp = client.post("/api/beta/finance/payments", json={"withdrawal_ids": [withdrawal["id"]], "method": "cash", "reference": "CASH-E2E"}, headers=headers)
+        resp = client.post(
+            "/api/beta/finance/payments",
+            json={"withdrawal_ids": [withdrawal["id"]], "method": "cash", "reference": "CASH-E2E"},
+            headers=headers,
+        )
         assert resp.status_code == 200
         payment_id = resp.json()["id"]
         resp = client.get("/api/beta/finance/payments", headers=headers)

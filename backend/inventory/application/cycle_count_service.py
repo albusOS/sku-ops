@@ -59,8 +59,7 @@ async def open_cycle_count(
 
     if not products:
         raise ValueError(
-            f"No products found{f' in department {scope!r}' if scope else ''}. "
-            "Cannot open an empty cycle count."
+            f"No products found{f' in department {scope!r}' if scope else ''}. Cannot open an empty cycle count."
         )
 
     count = CycleCount(
@@ -162,9 +161,7 @@ async def commit_cycle_count(
         raise ValueError("Cycle count is already committed.")
 
     items = await _db_inventory().list_cycle_count_items(get_org_id(), count_id)
-    items_to_adjust = [
-        i for i in items if i.counted_qty is not None and i.variance not in (None, 0, 0.0)
-    ]
+    items_to_adjust = [i for i in items if i.counted_qty is not None and i.variance not in (None, 0, 0.0)]
 
     committed_at = datetime.now(UTC)
 

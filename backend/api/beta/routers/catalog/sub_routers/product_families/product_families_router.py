@@ -58,9 +58,7 @@ async def list_product_families(
             skus = await _db_catalog().find_skus_by_product_family(get_org_id(), product["id"])
             product["skus"] = [s.model_dump() for s in skus]
     if limit is not None:
-        total = await _db_catalog().count_product_families(
-            get_org_id(), category_id=category_id, search=search
-        )
+        total = await _db_catalog().count_product_families(get_org_id(), category_id=category_id, search=search)
         return {"items": result, "total": total}
     return result
 
@@ -94,9 +92,7 @@ async def create_product_family(data: ProductCreateRequest, current_user: AdminD
 
 
 @router.put("/{product_id}")
-async def update_product_family(
-    product_id: str, data: ProductUpdateRequest, current_user: AdminDep
-):
+async def update_product_family(product_id: str, data: ProductUpdateRequest, current_user: AdminDep):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     try:
         result = await update_product(product_id, update_data)

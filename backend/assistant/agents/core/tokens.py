@@ -74,9 +74,7 @@ def budget_tool_result(raw_json: str, max_tokens: int = 2000) -> str:
         items = data.get(key)
         if isinstance(items, list):
             data[key] = [
-                {k: v for k, v in item.items() if k not in _LOW_VALUE_FIELDS}
-                if isinstance(item, dict)
-                else item
+                {k: v for k, v in item.items() if k not in _LOW_VALUE_FIELDS} if isinstance(item, dict) else item
                 for item in items
             ]
 
@@ -89,10 +87,7 @@ def budget_tool_result(raw_json: str, max_tokens: int = 2000) -> str:
         items = data.get(key)
         if isinstance(items, list) and len(items) > 3:
             original_count = len(items)
-            while (
-                len(items) > 3
-                and count_tokens(json.dumps(data, separators=(",", ":"))) > max_tokens
-            ):
+            while len(items) > 3 and count_tokens(json.dumps(data, separators=(",", ":"))) > max_tokens:
                 items.pop()
             data[key] = items
             data[f"_{key}_truncated"] = f"{len(items)}/{original_count} shown"

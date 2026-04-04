@@ -130,9 +130,7 @@ class RawSQLService:
     def __init__(self, db_service: BaseDatabaseService) -> None:
         self._db_service = db_service
 
-    def _prepare_params(
-        self, sql: str, params: dict[str, Any] | Sequence[Any] | None
-    ) -> tuple[str, dict[str, Any]]:
+    def _prepare_params(self, sql: str, params: dict[str, Any] | Sequence[Any] | None) -> tuple[str, dict[str, Any]]:
         if params is None:
             return sql, {}
         if isinstance(params, Mapping):

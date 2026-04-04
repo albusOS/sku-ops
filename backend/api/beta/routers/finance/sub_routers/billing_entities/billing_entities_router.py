@@ -98,6 +98,4 @@ async def update_billing_entity(
         raise HTTPException(status_code=404, detail="Billing entity not found")
 
     oid = get_org_id()
-    return await _db_finance().billing_entity_update(
-        oid, entity_id, data.model_dump(exclude_none=True)
-    )
+    return await _db_finance().billing_entity_update(oid, entity_id, data.model_dump(exclude_none=True))

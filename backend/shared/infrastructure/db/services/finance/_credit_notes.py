@@ -68,9 +68,7 @@ def _cn_line_to_model(row: CreditNoteLineItems) -> CreditNoteLineItem:
     return CreditNoteLineItem.model_validate(d)
 
 
-async def credit_note_get_by_id(
-    session: AsyncSession, org_id: uuid.UUID, credit_note_id: str
-) -> CreditNote | None:
+async def credit_note_get_by_id(session: AsyncSession, org_id: uuid.UUID, credit_note_id: str) -> CreditNote | None:
     cid = as_uuid_required(credit_note_id)
     r = await session.execute(
         select(CreditNotes).where(
@@ -83,9 +81,7 @@ async def credit_note_get_by_id(
         return None
     cn = _cn_row_to_model(row)
     lr = await session.execute(
-        select(CreditNoteLineItems)
-        .where(CreditNoteLineItems.credit_note_id == cid)
-        .order_by(CreditNoteLineItems.id)
+        select(CreditNoteLineItems).where(CreditNoteLineItems.credit_note_id == cid).order_by(CreditNoteLineItems.id)
     )
     cn.line_items = [_cn_line_to_model(x) for x in lr.scalars().all()]
     return cn
@@ -189,9 +185,7 @@ async def credit_note_list(
     return [_cn_row_to_model(x) for x in r.scalars().all()]
 
 
-async def credit_note_apply(
-    session: AsyncSession, org_id: uuid.UUID, credit_note_id: str
-) -> ApplyCreditNoteResult:
+async def credit_note_apply(session: AsyncSession, org_id: uuid.UUID, credit_note_id: str) -> ApplyCreditNoteResult:
     cn = await credit_note_get_by_id(session, org_id, credit_note_id)
     if not cn:
         raise ValueError("Credit note not found")
@@ -299,9 +293,7 @@ async def credit_note_list_unsynced(session: AsyncSession, org_id: uuid.UUID) ->
     return [_cn_row_to_model(x) for x in r.scalars().all()]
 
 
-async def credit_note_list_needing_reconciliation(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[CreditNote]:
+async def credit_note_list_needing_reconciliation(session: AsyncSession, org_id: uuid.UUID) -> list[CreditNote]:
     r = await session.execute(
         select(CreditNotes)
         .where(

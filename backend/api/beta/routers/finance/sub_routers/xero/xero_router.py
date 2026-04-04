@@ -119,9 +119,7 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     )
     await _db_finance().org_settings_upsert(org_id, updated)
 
-    redirect_target = (
-        f"{FRONTEND_URL}/settings?xero=connected" if FRONTEND_URL else "/settings?xero=connected"
-    )
+    redirect_target = f"{FRONTEND_URL}/settings?xero=connected" if FRONTEND_URL else "/settings?xero=connected"
     return RedirectResponse(url=redirect_target)
 
 
@@ -174,9 +172,7 @@ async def list_tracking_categories(current_user: AdminDep):
     try:
         categories = await gateway.list_tracking_categories(xero_settings)
     except (httpx.HTTPError, RuntimeError, OSError) as e:
-        raise HTTPException(
-            status_code=502, detail=f"Failed to fetch tracking categories: {e}"
-        ) from e
+        raise HTTPException(status_code=502, detail=f"Failed to fetch tracking categories: {e}") from e
     else:
         return {"tracking_categories": categories}
 

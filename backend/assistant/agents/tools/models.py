@@ -220,7 +220,10 @@ class InventoryStats(ToolModel):
     total_cost_value: float
     low_stock_count: int
     out_of_stock_count: int
-    _note: str = "total_skus is the count of distinct SKUs. No meaningful total unit count exists because SKUs are measured in different units (each, gallon, box, etc.)."
+    _note: str = (
+        "total_skus is the count of distinct SKUs. No meaningful total unit count exists "
+        "because SKUs are measured in different units (each, gallon, box, etc.)."
+    )
 
 
 @dataclass(frozen=True)
@@ -250,9 +253,7 @@ class UsageVelocityResult(ToolModel):
 class ReorderSuggestionsResult(ToolModel):
     count: int
     suggestions: list[ReorderSuggestion]
-    _note: str = (
-        "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
-    )
+    _note: str = "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
 
 
 @dataclass(frozen=True)
@@ -281,9 +282,7 @@ class DepartmentActivityResult(ToolModel):
 class StockoutForecastResult(ToolModel):
     count: int
     forecast: list[StockoutItem]
-    _note: str = (
-        "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
-    )
+    _note: str = "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
 
 
 @dataclass(frozen=True)

@@ -312,9 +312,7 @@ def _validate_product(
     if product.sell_uom not in valid:
         warnings.append(f"Unknown sell_uom '{product.sell_uom}' — defaulting to 'each'")
     if product.suggested_department not in valid_dept_codes:
-        warnings.append(
-            f"Unknown department '{product.suggested_department}' — defaulting to 'HDW'"
-        )
+        warnings.append(f"Unknown department '{product.suggested_department}' — defaulting to 'HDW'")
     if product.confidence < 0.7:
         warnings.append("Low confidence classification — verify department and UOM")
     if not product.clean_name or product.clean_name == product.raw_text:
@@ -363,9 +361,7 @@ async def _enrich_single(
     known_units: frozenset[str] | None = None,
 ) -> ProductAnalysis:
     family_task = _find_family_candidates(product, search_families)
-    vendor_task = _find_vendor_match(
-        product, vendor_id, find_by_vendor_sku, find_by_name_and_vendor
-    )
+    vendor_task = _find_vendor_match(product, vendor_id, find_by_vendor_sku, find_by_name_and_vendor)
     families, (sku_id, vi_id) = await asyncio.gather(family_task, vendor_task)
     warnings = _validate_product(product, valid_dept_codes, known_units)
 

@@ -116,9 +116,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
             logger.warning("Catalog SKU search failed: %s", e)
 
         try:
-            families = await _db_catalog().list_product_families(
-                get_org_id(), search=query, limit=5
-            )
+            families = await _db_catalog().list_product_families(get_org_id(), search=query, limit=5)
             family_items = [
                 {
                     "id": f.id,
@@ -131,9 +129,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         except Exception as e:
             logger.warning("Catalog family search failed: %s", e)
 
-        return budget_tool_result(
-            CatalogSearchResult(skus=sku_items, families=family_items).serialize()
-        )
+        return budget_tool_result(CatalogSearchResult(skus=sku_items, families=family_items).serialize())
 
     @_agent.tool
     async def get_family_skus(
@@ -146,9 +142,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         so you can determine if the new product is a new variant.
         """
         try:
-            skus = await _db_catalog().list_skus(
-                get_org_id(), product_family_id=family_id, limit=20
-            )
+            skus = await _db_catalog().list_skus(get_org_id(), product_family_id=family_id, limit=20)
             items = [
                 {
                     "sku": s.sku,
@@ -181,9 +175,7 @@ def _get_agent() -> Agent[ProductAnalystDeps, str]:
         if not vendor_id:
             return VendorItemMatch(match=None, reason="no vendor_id provided").serialize()
         try:
-            vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(
-                get_org_id(), vendor_id, vendor_sku
-            )
+            vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(get_org_id(), vendor_id, vendor_sku)
             if vi:
                 return VendorItemMatch(
                     match={

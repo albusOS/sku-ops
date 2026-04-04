@@ -124,9 +124,7 @@ async def chat(
             }
         return _specialist_result(user_message, spec_result, route, history or [])
 
-    result = await _unified_agent.run(
-        user_message, history=history, deps=deps, session_id=session_id
-    )
+    result = await _unified_agent.run(user_message, history=history, deps=deps, session_id=session_id)
     result["routed_to"] = ["unified"]
     return result
 
@@ -138,9 +136,7 @@ def _enrich_specialist_message(user_message: str, context_block: str) -> str:
     return f"<context>\n{context_block}\n</context>\n\n{user_message}"
 
 
-def _specialist_result(
-    user_message: str, spec_result, agent_label: str, history: list[dict]
-) -> dict:
+def _specialist_result(user_message: str, spec_result, agent_label: str, history: list[dict]) -> dict:
     """Format specialist run output to match unified agent result shape."""
     new_history = list(history)
     new_history.append({"role": "user", "content": user_message})

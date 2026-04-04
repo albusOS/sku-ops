@@ -4,6 +4,7 @@ Verifies the full chain: POST /api/beta/operations/withdrawals → stock decreme
 ledger entries written and balanced → WebSocket events delivered →
 auto-invoice created.
 """
+
 import pytest
 
 from tests.e2e.helpers import create_product, create_withdrawal
@@ -43,12 +44,31 @@ class TestWithdrawalPipeline:
         assert resp.status_code == 200
         wd = resp.json()
         assert wd.get("invoice_id") is not None, "Every withdrawal must have an invoice created atomically"
-        assert wd.get("payment_status") == "invoiced", "Withdrawal payment_status must be 'invoiced' after invoice creation"
+        assert wd.get("payment_status") == "invoiced", (
+            "Withdrawal payment_status must be 'invoiced' after invoice creation"
+        )
 
     def test_withdrawal_insufficient_stock_rejected(self, client, seed_dept_id):
         headers = admin_headers()
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=2, name="WD-InsufficientE2E")
-        resp = client.post(f"/api/beta/operations/withdrawals/for-contractor?contractor_id={CONTRACTOR_USER_ID}", json={"items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 10, "unit_price": product["price"], "cost": product["cost"]}], "job_id": SEEDED_JOB_ID, "service_address": "Fail St"}, headers=headers)
+        resp = client.post(
+            f"/api/beta/operations/withdrawals/for-contractor?contractor_id={CONTRACTOR_USER_ID}",
+            json={
+                "items": [
+                    {
+                        "sku_id": product["id"],
+                        "sku": product["sku"],
+                        "name": product["name"],
+                        "quantity": 10,
+                        "unit_price": product["price"],
+                        "cost": product["cost"],
+                    }
+                ],
+                "job_id": SEEDED_JOB_ID,
+                "service_address": "Fail St",
+            },
+            headers=headers,
+        )
         assert resp.status_code in (400, 422)
         resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         assert resp.json()["quantity"] == 2
@@ -56,7 +76,9 @@ class TestWithdrawalPipeline:
     def test_dashboard_revenue_matches_withdrawal(self, client, seed_dept_id):
         """Dashboard stats should reflect the withdrawal's revenue and COGS."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="WD-DashboardE2E")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="WD-DashboardE2E"
+        )
         withdrawal = create_withdrawal(client, headers, product, quantity=10)
         resp = client.get("/api/beta/reports/dashboard/stats", headers=headers)
         assert resp.status_code == 200

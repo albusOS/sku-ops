@@ -1,4 +1,5 @@
-"""Finance context router - billing entities, credit notes, financials, fiscal periods, invoices, payments, settings, xero."""
+"""Finance context router - billing entities, credit notes, financials, fiscal
+periods, invoices, payments, settings, xero."""
 
 from fastapi import APIRouter
 

@@ -44,9 +44,7 @@ class _DefaultStockRepo:
         await _db_inventory().insert_stock_transaction(tx)
 
     async def list_by_product(self, sku_id: str, limit: int = 50) -> list[StockTransaction]:
-        return await _db_inventory().list_stock_transactions_by_product(
-            get_org_id(), sku_id, limit=limit
-        )
+        return await _db_inventory().list_stock_transactions_by_product(get_org_id(), sku_id, limit=limit)
 
 
 _default_stock_repo = _DefaultStockRepo()
@@ -125,15 +123,11 @@ async def process_withdrawal_stock_changes(
         for item, canonical_qty, base_unit in resolved:
             product = await _db_catalog().get_sku_by_id(item.sku_id, get_org_id())
             async with transaction():
-                result = await _db_catalog().sku_atomic_decrement(
-                    item.sku_id, get_org_id(), canonical_qty, now
-                )
+                result = await _db_catalog().sku_atomic_decrement(item.sku_id, get_org_id(), canonical_qty, now)
 
             if not result:
                 available = product.quantity if product else 0
-                raise InsufficientStockError(
-                    sku=item.sku, requested=item.quantity, available=available
-                )
+                raise InsufficientStockError(sku=item.sku, requested=item.quantity, available=available)
 
             quantity_before = result.quantity + canonical_qty
             await _record_stock_transaction(

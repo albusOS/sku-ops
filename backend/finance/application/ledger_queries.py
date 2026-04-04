@@ -49,9 +49,7 @@ async def ar_aging(
     end_date: str | None = None,
 ) -> list[ArAgingRow]:
     """AR aging buckets by billing entity based on invoice due_date."""
-    return await _db_finance().analytics_ar_aging(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().analytics_ar_aging(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def product_margins(
@@ -80,9 +78,7 @@ async def purchase_spend(
     end_date: str | None = None,
 ) -> float:
     """Total inventory additions from PO receipts in the period."""
-    return await _db_finance().analytics_purchase_spend(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().analytics_purchase_spend(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def reference_counts(
@@ -90,9 +86,7 @@ async def reference_counts(
     end_date: str | None = None,
 ) -> dict[str, int]:
     """Count distinct references by type (withdrawal, return, etc.)."""
-    return await _db_finance().analytics_reference_counts(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().analytics_reference_counts(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def returns_total(
@@ -118,9 +112,7 @@ async def inventory_carrying_cost(
     holding_rate_pct: float = 25.0,
 ) -> list[dict]:
     """Estimated carrying cost per SKU with stock > 0."""
-    return await _db_finance().analytics_inventory_carrying_cost(
-        get_org_id(), holding_rate_pct=holding_rate_pct
-    )
+    return await _db_finance().analytics_inventory_carrying_cost(get_org_id(), holding_rate_pct=holding_rate_pct)
 
 
 class DepartmentSummaryRow(TypedDict):
@@ -191,9 +183,7 @@ async def summary_by_department(
     end_date: str | None = None,
 ) -> list[DepartmentSummaryRow]:
     """Per-department revenue, cogs, shrinkage."""
-    return await _db_finance().ledger_summary_by_department(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().ledger_summary_by_department(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def summary_by_job(
@@ -219,9 +209,7 @@ async def summary_by_billing_entity(
     end_date: str | None = None,
 ) -> list[BillingEntitySummaryRow]:
     """Per-entity AR balances and revenue."""
-    return await _db_finance().ledger_summary_by_billing_entity(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().ledger_summary_by_billing_entity(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def summary_by_contractor(
@@ -229,9 +217,7 @@ async def summary_by_contractor(
     end_date: str | None = None,
 ) -> list[ContractorSummaryRow]:
     """Per-contractor spend totals."""
-    return await _db_finance().ledger_summary_by_contractor(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().ledger_summary_by_contractor(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def units_sold_by_product(
@@ -241,9 +227,7 @@ async def units_sold_by_product(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _db_operations().units_sold_by_product(
-        org_id, start_date=start_date, end_date=end_date
-    )
+    return await _db_operations().units_sold_by_product(org_id, start_date=start_date, end_date=end_date)
 
 
 async def payment_status_breakdown(
@@ -253,6 +237,4 @@ async def payment_status_breakdown(
     end_date: str | None = None,
 ) -> dict[str, float]:
     """Delegate to operations context (owns withdrawal data)."""
-    return await _db_operations().payment_status_breakdown(
-        org_id, start_date=start_date, end_date=end_date
-    )
+    return await _db_operations().payment_status_breakdown(org_id, start_date=start_date, end_date=end_date)

@@ -148,9 +148,7 @@ async def sales_report(
             limit=10,
             **dim_kw,
         ),
-        _db_finance().analytics_reference_counts(
-            get_org_id(), start_date=start_date, end_date=end_date
-        ),
+        _db_finance().analytics_reference_counts(get_org_id(), start_date=start_date, end_date=end_date),
         _db_catalog().list_skus(get_org_id()),
         _db_operations().payment_status_breakdown(org_id, start_date=start_date, end_date=end_date),
         _db_finance().analytics_returns_total(
@@ -188,9 +186,7 @@ async def sales_report(
         total_cogs=round_money(cogs),
         gross_profit=gross_profit,
         # float for JSON-friendly percentage
-        gross_margin_pct=round(float(gross_profit / net_revenue * 100), 1)
-        if net_revenue > 0
-        else 0.0,
+        gross_margin_pct=round(float(gross_profit / net_revenue * 100), 1) if net_revenue > 0 else 0.0,
         total_tax=round_money(tax),
         total_transactions=tx_count,
         return_count=return_count,
@@ -383,15 +379,9 @@ async def pl_report(
         label_key = "name"
 
     total_revenue = (
-        all_revenue_override
-        if all_revenue_override is not None
-        else sum(r.get("revenue", 0.0) for r in rows)
+        all_revenue_override if all_revenue_override is not None else sum(r.get("revenue", 0.0) for r in rows)
     )
-    total_cost = (
-        all_cost_override
-        if all_cost_override is not None
-        else sum(r.get("cost", 0.0) for r in rows)
-    )
+    total_cost = all_cost_override if all_cost_override is not None else sum(r.get("cost", 0.0) for r in rows)
     total_profit = round_money(total_revenue - total_cost)
 
     return PlReport(
@@ -401,9 +391,7 @@ async def pl_report(
             cogs=round_money(total_cost),
             gross_profit=total_profit,
             # float for JSON-friendly percentage
-            margin_pct=round(float(total_profit / total_revenue * 100), 1)
-            if total_revenue > 0
-            else 0.0,
+            margin_pct=round(float(total_profit / total_revenue * 100), 1) if total_revenue > 0 else 0.0,
         ),
         rows=rows,
         label_key=label_key,
@@ -416,9 +404,7 @@ async def ar_aging_report(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> list[ArAgingRow]:
-    return await _db_finance().analytics_ar_aging(
-        get_org_id(), start_date=start_date, end_date=end_date
-    )
+    return await _db_finance().analytics_ar_aging(get_org_id(), start_date=start_date, end_date=end_date)
 
 
 async def kpi_report(

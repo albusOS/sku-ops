@@ -73,9 +73,7 @@ class FinanceDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return out
 
-    async def invoice_replace_line_items(
-        self, org_id: str, invoice_id: str, line_items: list[dict]
-    ):
+    async def invoice_replace_line_items(self, org_id: str, invoice_id: str, line_items: list[dict]):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             sub = await inv_ops.invoice_replace_line_items(session, oid, invoice_id, line_items)
@@ -161,9 +159,7 @@ class FinanceDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def invoice_update_fields_dynamic(
-        self, org_id: str, invoice_id: str, fields: dict
-    ) -> None:
+    async def invoice_update_fields_dynamic(self, org_id: str, invoice_id: str, fields: dict) -> None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             await inv_ops.invoice_update_fields_dynamic(session, oid, invoice_id, fields)
@@ -373,14 +369,10 @@ class FinanceDatabaseService(DomainDatabaseService):
 
     # --- Ledger ORM --------------------------------------------------------
 
-    async def ledger_entries_exist(
-        self, org_id: str, reference_type: str, reference_id: str
-    ) -> bool:
+    async def ledger_entries_exist(self, org_id: str, reference_type: str, reference_id: str) -> bool:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            return await ledger_entries_exist_for_reference(
-                session, oid, reference_type, reference_id
-            )
+            return await ledger_entries_exist_for_reference(session, oid, reference_type, reference_id)
 
     async def ledger_insert_entries(self, org_id: str, entries: list):
         oid = as_uuid_required(org_id)
@@ -451,9 +443,7 @@ class FinanceDatabaseService(DomainDatabaseService):
             period = await billing_ops.fiscal_find_closed_covering(session, oid, entry_date)
         if period:
             period_id, period_name = period
-            raise ValueError(
-                f"Cannot create entries in closed fiscal period '{period_name or period_id}'"
-            )
+            raise ValueError(f"Cannot create entries in closed fiscal period '{period_name or period_id}'")
 
     # --- Org settings / OAuth ----------------------------------------------
 
@@ -602,12 +592,8 @@ class FinanceDatabaseService(DomainDatabaseService):
                 "revenue": row["revenue"],
                 "ar_balance": row["ar_balance"],
                 "transaction_count": row["transaction_count"],
-                "name": user_map[row["contractor_id"]].name
-                if row["contractor_id"] in user_map
-                else "",
-                "company": user_map[row["contractor_id"]].company
-                if row["contractor_id"] in user_map
-                else "",
+                "name": user_map[row["contractor_id"]].name if row["contractor_id"] in user_map else "",
+                "company": user_map[row["contractor_id"]].company if row["contractor_id"] in user_map else "",
             }
             for row in rows
         ]

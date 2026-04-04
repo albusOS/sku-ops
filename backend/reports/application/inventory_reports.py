@@ -80,9 +80,7 @@ async def inventory_report() -> InventoryReport:
     total_cost = round_money(sum(p.cost * p.quantity for p in products))
     unrealized_margin = round_money(total_retail - total_cost)
     # float for JSON-friendly percentage
-    margin_pct = (
-        round(float(unrealized_margin / total_retail * 100), 1) if total_retail > 0 else 0.0
-    )
+    margin_pct = round(float(unrealized_margin / total_retail * 100), 1) if total_retail > 0 else 0.0
     low_stock = [p for p in products if p.quantity <= p.min_stock]
     out_of_stock = [p for p in products if p.quantity == 0]
 
@@ -90,9 +88,7 @@ async def inventory_report() -> InventoryReport:
     for p in products:
         dept = p.category_name or "Unknown"
         if dept not in by_department:
-            by_department[dept] = DepartmentInventory(
-                count=0, retail_value=0.0, cost_value=0.0, margin=0.0
-            )
+            by_department[dept] = DepartmentInventory(count=0, retail_value=0.0, cost_value=0.0, margin=0.0)
         by_department[dept]["count"] += 1
         by_department[dept]["retail_value"] += p.price * p.quantity
         by_department[dept]["cost_value"] += p.cost * p.quantity
@@ -148,11 +144,7 @@ async def product_performance_report(
         margin_pct = float(m["margin_pct"])
         catalog_unit_cost = float(p.cost if p else 0)
         avg_cost = cost / units_sold if units_sold > 0 else 0.0
-        sell_through = (
-            (units_sold / (units_sold + current_stock) * 100)
-            if (units_sold + current_stock) > 0
-            else 0.0
-        )
+        sell_through = (units_sold / (units_sold + current_stock) * 100) if (units_sold + current_stock) > 0 else 0.0
         result.append(
             {
                 "sku_id": pid,

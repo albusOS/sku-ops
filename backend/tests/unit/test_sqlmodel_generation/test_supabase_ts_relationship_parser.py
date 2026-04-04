@@ -1,4 +1,5 @@
 """Unit tests for the TypeScript relationship parser."""
+
 from __future__ import annotations
 
 from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
@@ -7,7 +8,6 @@ from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser im
 
 
 class TestSingleFK:
-
     def test_extracts_single_fk(self, sample_ts_single_fk):
         result = parse_ts_relationships(sample_ts_single_fk, "public")
         assert len(result.foreign_keys) == 1
@@ -23,8 +23,8 @@ class TestSingleFK:
         result = parse_ts_relationships(sample_ts_single_fk, "public")
         assert len(result.link_tables) == 0
 
-class TestEmptyRelationships:
 
+class TestEmptyRelationships:
     def test_empty_rels_returns_no_fks(self, sample_ts_empty_rels):
         result = parse_ts_relationships(sample_ts_empty_rels, "public")
         assert len(result.foreign_keys) == 0
@@ -34,8 +34,8 @@ class TestEmptyRelationships:
         result = parse_ts_relationships(sample_ts_empty_rels, "public")
         assert result.schema == "public"
 
-class TestM2MLinkTable:
 
+class TestM2MLinkTable:
     def test_detects_link_table(self, sample_ts_m2m):
         result = parse_ts_relationships(sample_ts_m2m, "public")
         assert "invoice_withdrawals" in result.link_tables
@@ -49,8 +49,8 @@ class TestM2MLinkTable:
         targets = {fk.target_table for fk in iw_fks}
         assert targets == {"invoices", "withdrawals"}
 
-class TestMultipleFKs:
 
+class TestMultipleFKs:
     def test_table_with_two_fks(self):
         ts_content = '\nexport type Database = {\n  public: {\n    Tables: {\n      skus: {\n        Row: {\n          id: string\n          category_id: string\n          product_family_id: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "skus_category_id_fkey"\n            columns: ["category_id"]\n            isOneToOne: false\n            referencedRelation: "departments"\n            referencedColumns: ["id"]\n          },\n          {\n            foreignKeyName: "skus_product_family_id_fkey"\n            columns: ["product_family_id"]\n            isOneToOne: false\n            referencedRelation: "products"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
         result = parse_ts_relationships(ts_content, "public")
@@ -58,16 +58,16 @@ class TestMultipleFKs:
         targets = {fk.target_table for fk in result.foreign_keys}
         assert targets == {"departments", "products"}
 
-class TestIsOneToOne:
 
+class TestIsOneToOne:
     def test_propagates_one_to_one_flag(self):
         ts_content = '\nexport type Database = {\n  public: {\n    Tables: {\n      user_profiles: {\n        Row: {\n          user_id: string\n          bio: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "user_profiles_user_id_fkey"\n            columns: ["user_id"]\n            isOneToOne: true\n            referencedRelation: "users"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
         result = parse_ts_relationships(ts_content, "public")
         assert len(result.foreign_keys) == 1
         assert result.foreign_keys[0].is_one_to_one is True
 
-class TestNonexistentSchema:
 
+class TestNonexistentSchema:
     def test_returns_empty_for_unknown_schema(self, sample_ts_single_fk):
         result = parse_ts_relationships(sample_ts_single_fk, "nonexistent")
         assert len(result.foreign_keys) == 0

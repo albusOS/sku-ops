@@ -103,13 +103,9 @@ async def neighbors(
             return None
 
         if depth <= 1:
-            neighbor_rows = await _edges_one_hop(
-                center.entity_type, center.entity_id, relation_filter
-            )
+            neighbor_rows = await _edges_one_hop(center.entity_type, center.entity_id, relation_filter)
         else:
-            neighbor_rows = await _edges_recursive(
-                center.entity_type, center.entity_id, depth, relation_filter
-            )
+            neighbor_rows = await _edges_recursive(center.entity_type, center.entity_id, depth, relation_filter)
 
         nodes, edges = await _hydrate_neighbors(center.entity_type, center.entity_id, neighbor_rows)
         return GraphContext(center=center, neighbors=nodes, edges=edges)
@@ -440,7 +436,8 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
             "SELECT id::text AS id, name AS label FROM vendors WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "department": (
-            "SELECT id::text AS id, name AS label FROM departments WHERE id::text = ANY($1) AND organization_id::text = $2"
+            "SELECT id::text AS id, name AS label FROM departments "
+            "WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "po": (
             "SELECT id::text AS id, 'PO ' || LEFT(id::text, 8) || ' — ' || vendor_name AS label "

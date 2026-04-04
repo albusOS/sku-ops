@@ -54,7 +54,11 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def get_procurement_snapshot(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Use first for broad buy-plan questions. Returns bundled reorder risk, stockout timing, smart min_stock gaps, and preferred vendor context."""
+        """Use first for broad buy-plan questions.
+
+        Returns bundled reorder risk, stockout timing, smart min_stock gaps,
+        and preferred vendor context.
+        """
         return budget_tool_result(await _get_procurement_snapshot(limit=limit))
 
     @_agent.tool
@@ -64,7 +68,11 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def get_smart_reorder_points(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
-        """Use for reorder-policy questions. Returns velocity-based reorder points vs static min_stock and flags miscalibrations."""
+        """Use for reorder-policy questions.
+
+        Returns velocity-based reorder points vs static min_stock and flags
+        miscalibrations.
+        """
         return budget_tool_result(await _get_smart_reorder_points(limit=limit))
 
     @_agent.tool
@@ -72,9 +80,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 180
     ) -> str:
         """Use for vendor delivery-risk questions. Returns actual lead times from PO history plus drift detection."""
-        return budget_tool_result(
-            await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days)
-        )
+        return budget_tool_result(await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days))
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
@@ -86,20 +92,23 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 90
     ) -> str:
         """Use for vendor scorecard questions. Returns PO count, spend, average lead time, and fill rate."""
-        return budget_tool_result(
-            await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days)
-        )
+        return budget_tool_result(await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days))
 
     @_agent.tool
-    async def get_vendor_catalog(
-        ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = ""
-    ) -> str:
-        """Use when the user asks what a vendor sells. Returns SKUs supplied by a vendor with cost, lead time, and MOQ."""
+    async def get_vendor_catalog(ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "") -> str:
+        """Use when the user asks what a vendor sells.
+
+        Returns SKUs supplied by a vendor with cost, lead time, and MOQ.
+        """
         return budget_tool_result(await _get_vendor_catalog(vendor_id=vendor_id, name=name))
 
     @_agent.tool
     async def get_sku_vendor_options(ctx: RunContext[AgentDeps], sku_id: str) -> str:
-        """Use for SKU sourcing and alternatives. Returns all vendor options for one SKU with comparative pricing and lead times."""
+        """Use for SKU sourcing and alternatives.
+
+        Returns all vendor options for one SKU with comparative pricing and lead
+        times.
+        """
         return budget_tool_result(await _get_sku_vendor_options(sku_id=sku_id))
 
     @_agent.tool
@@ -111,9 +120,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
         limit: int = 20,
     ) -> str:
         """Use only when you need supporting evidence. Returns recent POs for a vendor with item summaries."""
-        return budget_tool_result(
-            await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit)
-        )
+        return budget_tool_result(await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit))
 
     return _agent
 

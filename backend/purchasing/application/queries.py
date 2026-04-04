@@ -135,18 +135,12 @@ async def vendor_catalog(vendor_id: str) -> list[VendorCatalogRow]:
     return await _db_purchasing().vendor_catalog(get_org_id(), vendor_id)
 
 
-async def vendor_performance(
-    vendor_id: str, days: int = 90, vendor_name: str = ""
-) -> VendorPerformance:
+async def vendor_performance(vendor_id: str, days: int = 90, vendor_name: str = "") -> VendorPerformance:
     """PO count, total spend, avg lead time, fill rate for a vendor."""
-    return await _db_purchasing().vendor_performance(
-        get_org_id(), vendor_id, days=days, vendor_name=vendor_name
-    )
+    return await _db_purchasing().vendor_performance(get_org_id(), vendor_id, days=days, vendor_name=vendor_name)
 
 
-async def purchase_history(
-    vendor_id: str, days: int = 90, limit: int = 20
-) -> list[PurchaseHistoryItem]:
+async def purchase_history(vendor_id: str, days: int = 90, limit: int = 20) -> list[PurchaseHistoryItem]:
     """Recent POs for a vendor with item summaries."""
     return await _db_purchasing().purchase_history(get_org_id(), vendor_id, days=days, limit=limit)
 

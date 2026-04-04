@@ -86,9 +86,7 @@ async def _get_vendor_performance(vendor_id: str = "", name: str = "", days: int
         po_count=perf.po_count,
         total_spend=float(perf.total_spend),
         received_count=perf.received_count,
-        avg_lead_time_days=float(perf.avg_lead_time_days)
-        if perf.avg_lead_time_days is not None
-        else None,
+        avg_lead_time_days=float(perf.avg_lead_time_days) if perf.avg_lead_time_days is not None else None,
         fill_rate=float(perf.fill_rate) if perf.fill_rate is not None else None,
     ).serialize()
 
@@ -111,9 +109,7 @@ async def _get_sku_vendor_options(sku_id: str = "") -> str:
     ).serialize()
 
 
-async def _get_purchase_history(
-    vendor_id: str = "", name: str = "", days: int = 90, limit: int = 20
-) -> str:
+async def _get_purchase_history(vendor_id: str = "", name: str = "", days: int = 90, limit: int = 20) -> str:
     """Vendor evidence lookup. Use only when recent PO examples are needed to support a conclusion."""
     days = min(days, 365)
     limit = min(limit, 50)
@@ -229,8 +225,7 @@ async def _get_procurement_snapshot(limit: int = 20) -> str:
                 "days_until_stockout": stockout.get("days_until_stockout"),
                 "avg_daily_use": stockout.get("avg_daily_use"),
                 "preferred_vendor": top_vendor.get("vendor_name"),
-                "vendor_lead_days": smart.get("vendor_lead_days")
-                or top_vendor.get("lead_time_days"),
+                "vendor_lead_days": smart.get("vendor_lead_days") or top_vendor.get("lead_time_days"),
                 "vendor_options": vendor_options,
             }
         )
@@ -269,9 +264,7 @@ async def _get_procurement_snapshot(limit: int = 20) -> str:
             -(item.get("min_stock_gap") or 0),
         )
     )
-    return ProcurementSnapshotResult(
-        count=len(snapshot[:limit]), items=snapshot[:limit]
-    ).serialize()
+    return ProcurementSnapshotResult(count=len(snapshot[:limit]), items=snapshot[:limit]).serialize()
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────

@@ -52,9 +52,7 @@ def agent_run(agent: str, status: str, duration_seconds: float) -> None:
 # ── LLM usage ────────────────────────────────────────────────────────────────
 
 
-def llm_usage(
-    model: str, input_tokens: int, output_tokens: int, cost_usd: float, agent: str = ""
-) -> None:
+def llm_usage(model: str, input_tokens: int, output_tokens: int, cost_usd: float, agent: str = "") -> None:
     """Record LLM token usage and cost."""
     if _PROMETHEUS_AVAILABLE:
         llm_tokens_total.labels(direction="input", model=model).inc(input_tokens)

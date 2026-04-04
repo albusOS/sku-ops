@@ -48,8 +48,7 @@ def _state_from_json(raw: str | None) -> SessionState | None:
         data = json.loads(raw)
 
         entities = [
-            EntityRef(type=e["type"], id=e["id"], label=e["label"])
-            for e in data.get("entities", [])[:_MAX_ENTITIES]
+            EntityRef(type=e["type"], id=e["id"], label=e["label"]) for e in data.get("entities", [])[:_MAX_ENTITIES]
         ]
         updated = data.get("updated_at")
         dt = datetime.fromisoformat(updated) if updated else datetime.now(UTC)
@@ -140,9 +139,7 @@ async def update_state(session_id: str, state: SessionState | None) -> None:
         await r.hset(key, "state", raw)
         await r.expire(key, _SESSION_TTL)
         return
-    entry = _SESSIONS.setdefault(
-        session_id, {"history": [], "cost_usd": 0.0, "ts": time.monotonic()}
-    )
+    entry = _SESSIONS.setdefault(session_id, {"history": [], "cost_usd": 0.0, "ts": time.monotonic()})
     entry["state"] = state
     entry["ts"] = time.monotonic()
 

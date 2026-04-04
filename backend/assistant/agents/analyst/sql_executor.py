@@ -75,8 +75,7 @@ async def execute_sandboxed(sql: str) -> ExecutionResult:
         err_msg = str(e)
         if "canceling statement due to statement timeout" in err_msg:
             raise AnalystQueryError(
-                "Query timed out (10s limit). Try a more targeted query "
-                "with tighter filters or fewer joins."
+                "Query timed out (10s limit). Try a more targeted query with tighter filters or fewer joins."
             ) from e
         raise AnalystQueryError(f"Query execution error: {err_msg}") from e
 

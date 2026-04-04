@@ -46,9 +46,7 @@ async def list_material_requests_route(current_user: CurrentUserDep):
 
 @router.get("/{request_id}")
 async def get_material_request(request_id: str, current_user: CurrentUserDep):
-    req = await _db_operations().get_material_request_by_id(
-        current_user.organization_id, request_id
-    )
+    req = await _db_operations().get_material_request_by_id(current_user.organization_id, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Material request not found")
     if current_user.role == "contractor" and req.contractor_id != current_user.id:

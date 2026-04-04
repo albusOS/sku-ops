@@ -73,9 +73,7 @@ async def check_xero_configuration() -> list[str]:
         )
 
     if not settings.xero_refresh_token:
-        warnings.append(
-            "XERO: No refresh token stored. Token refresh will fail when the access token expires."
-        )
+        warnings.append("XERO: No refresh token stored. Token refresh will fail when the access token expires.")
 
     for field, label, consequence in _REQUIRED_ACCOUNT_CODES:
         if not getattr(settings, field, None):

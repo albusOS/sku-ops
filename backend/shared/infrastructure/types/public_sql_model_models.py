@@ -19,9 +19,7 @@ class InvoiceWithdrawals(SQLModel, table=True):
     __tablename__ = "invoice_withdrawals"
     __table_args__ = {"schema": "public", "extend_existing": True}
 
-    invoice_id: uuid.UUID = Field(
-        primary_key=True, foreign_key="public.invoices.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    invoice_id: uuid.UUID = Field(primary_key=True, foreign_key="public.invoices.id", sa_type=PG_UUID(as_uuid=True))
     withdrawal_id: uuid.UUID = Field(
         primary_key=True, foreign_key="public.withdrawals.id", sa_type=PG_UUID(as_uuid=True)
     )
@@ -31,9 +29,7 @@ class PaymentWithdrawals(SQLModel, table=True):
     __tablename__ = "payment_withdrawals"
     __table_args__ = {"schema": "public", "extend_existing": True}
 
-    payment_id: uuid.UUID = Field(
-        primary_key=True, foreign_key="public.payments.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    payment_id: uuid.UUID = Field(primary_key=True, foreign_key="public.payments.id", sa_type=PG_UUID(as_uuid=True))
     withdrawal_id: uuid.UUID = Field(
         primary_key=True, foreign_key="public.withdrawals.id", sa_type=PG_UUID(as_uuid=True)
     )
@@ -91,9 +87,7 @@ class BillingEntities(SQLModel, table=True):
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     is_active: bool
     name: str
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     payment_terms: str
     updated_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     xero_contact_id: str | None = Field(default=None)
@@ -246,9 +240,7 @@ class AuditLog(SQLModel, table=True):
     )
     resource_id: str | None = Field(default=None)
     resource_type: str | None = Field(default=None)
-    user_id: uuid.UUID | None = Field(
-        foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    user_id: uuid.UUID | None = Field(foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True))
 
     organization: Optional["Organizations"] = Relationship(back_populates="audit_logs")
     user: Optional["Users"] = Relationship(back_populates="audit_logs")
@@ -269,9 +261,7 @@ class Addresses(SQLModel, table=True):
     label: str
     line1: str
     line2: str
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     postal_code: str
     state: str
 
@@ -284,16 +274,12 @@ class FiscalPeriods(SQLModel, table=True):
     __table_args__ = {"schema": "public", "extend_existing": True}
 
     closed_at: datetime.datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    closed_by_id: uuid.UUID | None = Field(
-        foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    closed_by_id: uuid.UUID | None = Field(foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True))
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     end_date: datetime.date = Field(sa_type=Date)
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     name: str
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     start_date: datetime.date = Field(sa_type=Date)
     status: str
 
@@ -373,9 +359,7 @@ class Products(SQLModel, table=True):
     __tablename__ = "products"
     __table_args__ = {"schema": "public", "extend_existing": True}
 
-    category_id: uuid.UUID = Field(
-        foreign_key="public.departments.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    category_id: uuid.UUID = Field(foreign_key="public.departments.id", sa_type=PG_UUID(as_uuid=True))
     category_name: str
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     deleted_at: datetime.datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
@@ -400,9 +384,7 @@ class Skus(SQLModel, table=True):
 
     barcode: str | None = Field(default=None)
     base_unit: str
-    category_id: uuid.UUID = Field(
-        foreign_key="public.departments.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    category_id: uuid.UUID = Field(foreign_key="public.departments.id", sa_type=PG_UUID(as_uuid=True))
     category_name: str
     cost: float = Field(sa_type=Float)
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
@@ -417,9 +399,7 @@ class Skus(SQLModel, table=True):
     )
     pack_qty: int
     price: float = Field(sa_type=Float)
-    product_family_id: uuid.UUID = Field(
-        foreign_key="public.products.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    product_family_id: uuid.UUID = Field(foreign_key="public.products.id", sa_type=PG_UUID(as_uuid=True))
     purchase_pack_qty: int
     purchase_uom: str
     quantity: float = Field(sa_type=Float)
@@ -489,9 +469,7 @@ class StockTransactions(SQLModel, table=True):
 
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     original_quantity: float | None = Field(default=None, sa_type=Float)
     original_unit: str | None = Field(default=None)
     product_name: str
@@ -525,9 +503,7 @@ class CycleCounts(SQLModel, table=True):
     created_by_id: uuid.UUID = Field(foreign_key="public.users.id", sa_type=PG_UUID(as_uuid=True))
     created_by_name: str
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     scope: str | None = Field(default=None)
     status: str
 
@@ -549,9 +525,7 @@ class CycleCountItems(SQLModel, table=True):
 
     counted_qty: float | None = Field(default=None, sa_type=Float)
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
-    cycle_count_id: uuid.UUID = Field(
-        foreign_key="public.cycle_counts.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    cycle_count_id: uuid.UUID = Field(foreign_key="public.cycle_counts.id", sa_type=PG_UUID(as_uuid=True))
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     notes: str | None = Field(default=None)
     product_name: str
@@ -571,9 +545,7 @@ class Invoices(SQLModel, table=True):
 
     amount_credited: float = Field(sa_type=Float)
     approved_at: datetime.datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    approved_by_id: uuid.UUID | None = Field(
-        foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    approved_by_id: uuid.UUID | None = Field(foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True))
     billing_address: str
     billing_entity: str
     billing_entity_id: uuid.UUID | None = Field(
@@ -609,9 +581,7 @@ class Invoices(SQLModel, table=True):
     organization: Optional["Organizations"] = Relationship(back_populates="invoices")
     credit_notes: list["CreditNotes"] = Relationship(back_populates="invoice")
     invoice_line_items: list["InvoiceLineItems"] = Relationship(back_populates="invoice")
-    withdrawals_rel: list["Withdrawals"] = Relationship(
-        back_populates="invoices", link_model=InvoiceWithdrawals
-    )
+    withdrawals_rel: list["Withdrawals"] = Relationship(back_populates="invoices", link_model=InvoiceWithdrawals)
     payments: list["Payments"] = Relationship(back_populates="invoice")
     withdrawals: list["Withdrawals"] = Relationship(back_populates="invoice")
 
@@ -630,9 +600,7 @@ class Withdrawals(SQLModel, table=True):
     cost_total: float = Field(sa_type=Float)
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    invoice_id: uuid.UUID | None = Field(
-        foreign_key="public.invoices.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    invoice_id: uuid.UUID | None = Field(foreign_key="public.invoices.id", default=None, sa_type=PG_UUID(as_uuid=True))
     items: str | None = Field(default=None)
     job_id: uuid.UUID = Field(sa_type=PG_UUID(as_uuid=True))
     notes: str | None = Field(default=None)
@@ -660,13 +628,9 @@ class Withdrawals(SQLModel, table=True):
         back_populates="processed_by_withdrawals",
         sa_relationship_kwargs={"foreign_keys": "Withdrawals.processed_by_id"},
     )
-    invoices: list["Invoices"] = Relationship(
-        back_populates="withdrawals_rel", link_model=InvoiceWithdrawals
-    )
+    invoices: list["Invoices"] = Relationship(back_populates="withdrawals_rel", link_model=InvoiceWithdrawals)
     material_requests: list["MaterialRequests"] = Relationship(back_populates="withdrawal")
-    payments: list["Payments"] = Relationship(
-        back_populates="withdrawals", link_model=PaymentWithdrawals
-    )
+    payments: list["Payments"] = Relationship(back_populates="withdrawals", link_model=PaymentWithdrawals)
     returns: list["Returns"] = Relationship(back_populates="withdrawal")
     withdrawal_items: list["WithdrawalItems"] = Relationship(back_populates="withdrawal")
 
@@ -681,9 +645,7 @@ class MaterialRequests(SQLModel, table=True):
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     job_id: uuid.UUID | None = Field(default=None, sa_type=PG_UUID(as_uuid=True))
     notes: str | None = Field(default=None)
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     processed_at: datetime.datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     processed_by_id: uuid.UUID | None = Field(
         foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True)
@@ -704,9 +666,7 @@ class MaterialRequests(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "MaterialRequests.processed_by_id"},
     )
     withdrawal: Optional["Withdrawals"] = Relationship(back_populates="material_requests")
-    material_request_items: list["MaterialRequestItems"] = Relationship(
-        back_populates="material_request"
-    )
+    material_request_items: list["MaterialRequestItems"] = Relationship(back_populates="material_request")
 
 
 class MaterialRequestItems(SQLModel, table=True):
@@ -715,9 +675,7 @@ class MaterialRequestItems(SQLModel, table=True):
 
     cost: float = Field(sa_type=Float)
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    material_request_id: uuid.UUID = Field(
-        foreign_key="public.material_requests.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    material_request_id: uuid.UUID = Field(foreign_key="public.material_requests.id", sa_type=PG_UUID(as_uuid=True))
     name: str
     quantity: float = Field(sa_type=Float)
     sku: str
@@ -725,9 +683,7 @@ class MaterialRequestItems(SQLModel, table=True):
     unit: str
     unit_price: float = Field(sa_type=Float)
 
-    material_request: Optional["MaterialRequests"] = Relationship(
-        back_populates="material_request_items"
-    )
+    material_request: Optional["MaterialRequests"] = Relationship(back_populates="material_request_items")
 
 
 class Returns(SQLModel, table=True):
@@ -756,9 +712,7 @@ class Returns(SQLModel, table=True):
     tax: float = Field(sa_type=Float)
     total: float = Field(sa_type=Float)
     updated_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
-    withdrawal_id: uuid.UUID = Field(
-        foreign_key="public.withdrawals.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    withdrawal_id: uuid.UUID = Field(foreign_key="public.withdrawals.id", sa_type=PG_UUID(as_uuid=True))
 
     billing_entity_rel: Optional["BillingEntities"] = Relationship(back_populates="returns")
     contractor: Optional["Users"] = Relationship(
@@ -789,9 +743,7 @@ class WithdrawalItems(SQLModel, table=True):
     sku_id: uuid.UUID = Field(sa_type=PG_UUID(as_uuid=True))
     unit: str
     unit_price: float = Field(sa_type=Float)
-    withdrawal_id: uuid.UUID = Field(
-        foreign_key="public.withdrawals.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    withdrawal_id: uuid.UUID = Field(foreign_key="public.withdrawals.id", sa_type=PG_UUID(as_uuid=True))
 
     withdrawal: Optional["Withdrawals"] = Relationship(back_populates="withdrawal_items")
 
@@ -860,9 +812,7 @@ class CreditNotes(SQLModel, table=True):
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     credit_note_number: str
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    invoice_id: uuid.UUID | None = Field(
-        foreign_key="public.invoices.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    invoice_id: uuid.UUID | None = Field(foreign_key="public.invoices.id", default=None, sa_type=PG_UUID(as_uuid=True))
     notes: str | None = Field(default=None)
     organization_id: uuid.UUID | None = Field(
         foreign_key="public.organizations.id", default=None, sa_type=PG_UUID(as_uuid=True)
@@ -888,9 +838,7 @@ class CreditNoteLineItems(SQLModel, table=True):
 
     amount: float = Field(sa_type=Float)
     cost: float = Field(sa_type=Float)
-    credit_note_id: uuid.UUID = Field(
-        foreign_key="public.credit_notes.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    credit_note_id: uuid.UUID = Field(foreign_key="public.credit_notes.id", sa_type=PG_UUID(as_uuid=True))
     description: str
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     quantity: float = Field(sa_type=Float)
@@ -912,14 +860,10 @@ class Payments(SQLModel, table=True):
     )
     created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    invoice_id: uuid.UUID | None = Field(
-        foreign_key="public.invoices.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    invoice_id: uuid.UUID | None = Field(foreign_key="public.invoices.id", default=None, sa_type=PG_UUID(as_uuid=True))
     method: str
     notes: str | None = Field(default=None)
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     payment_date: datetime.datetime = Field(sa_type=DateTime(timezone=True))
     recorded_by_id: uuid.UUID = Field(foreign_key="public.users.id", sa_type=PG_UUID(as_uuid=True))
     reference: str
@@ -930,9 +874,7 @@ class Payments(SQLModel, table=True):
     invoice: Optional["Invoices"] = Relationship(back_populates="payments")
     organization: Optional["Organizations"] = Relationship(back_populates="payments")
     recorded_by: Optional["Users"] = Relationship(back_populates="payments")
-    withdrawals: list["Withdrawals"] = Relationship(
-        back_populates="payments", link_model=PaymentWithdrawals
-    )
+    withdrawals: list["Withdrawals"] = Relationship(back_populates="payments", link_model=PaymentWithdrawals)
 
 
 class FinancialLedger(SQLModel, table=True):
@@ -975,16 +917,12 @@ class PurchaseOrders(SQLModel, table=True):
         foreign_key="public.organizations.id", default=None, sa_type=PG_UUID(as_uuid=True)
     )
     received_at: datetime.datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    received_by_id: uuid.UUID | None = Field(
-        foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    received_by_id: uuid.UUID | None = Field(foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True))
     received_by_name: str | None = Field(default=None)
     status: str
     total: float | None = Field(default=None, sa_type=Float)
     updated_at: datetime.datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    vendor_id: uuid.UUID | None = Field(
-        foreign_key="public.vendors.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    vendor_id: uuid.UUID | None = Field(foreign_key="public.vendors.id", default=None, sa_type=PG_UUID(as_uuid=True))
     vendor_name: str
     xero_bill_id: str | None = Field(default=None)
     xero_sync_status: str
@@ -1042,9 +980,7 @@ class Documents(SQLModel, table=True):
     filename: str
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     mime_type: str
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     parsed_data: str | None = Field(default=None)
     po_id: uuid.UUID | None = Field(
         foreign_key="public.purchase_orders.id", default=None, sa_type=PG_UUID(as_uuid=True)
@@ -1071,9 +1007,7 @@ class Jobs(SQLModel, table=True):
     id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
     name: str
     notes: str | None = Field(default=None)
-    organization_id: uuid.UUID = Field(
-        foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True)
-    )
+    organization_id: uuid.UUID = Field(foreign_key="public.organizations.id", sa_type=PG_UUID(as_uuid=True))
     service_address: str
     status: str
     updated_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
@@ -1125,9 +1059,7 @@ class AgentRuns(SQLModel, table=True):
     response_text: str | None = Field(default=None)
     session_id: uuid.UUID = Field(sa_type=PG_UUID(as_uuid=True))
     tool_calls: str
-    user_id: uuid.UUID | None = Field(
-        foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True)
-    )
+    user_id: uuid.UUID | None = Field(foreign_key="public.users.id", default=None, sa_type=PG_UUID(as_uuid=True))
     user_message: str | None = Field(default=None)
     validation_failures: str
     validation_passed: bool | None = Field(default=None)

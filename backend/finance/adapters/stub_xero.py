@@ -6,18 +6,14 @@ from finance.ports.invoicing_port import InvoiceSyncResult
 
 
 class StubXeroAdapter:
-    async def sync_invoice(
-        self, invoice: InvoiceWithDetails, _settings: XeroSettings
-    ) -> InvoiceSyncResult:
+    async def sync_invoice(self, invoice: InvoiceWithDetails, _settings: XeroSettings) -> InvoiceSyncResult:
         return InvoiceSyncResult(
             success=True,
             external_id=f"XERO-STUB-{invoice.id}",
             external_journal_id=f"XERO-STUB-JNL-{invoice.id}",
         )
 
-    async def sync_po_receipt(
-        self, po: dict, _cost_total: float, _settings: XeroSettings
-    ) -> InvoiceSyncResult:
+    async def sync_po_receipt(self, po: dict, _cost_total: float, _settings: XeroSettings) -> InvoiceSyncResult:
         return InvoiceSyncResult(
             success=True,
             external_id=f"XERO-STUB-BILL-{po.get('id', 'unknown')}",
@@ -35,9 +31,7 @@ class StubXeroAdapter:
     ) -> str:
         return f"XERO-STUB-COGS-REPOST-{invoice.id}"
 
-    async def fetch_invoice_by_number(
-        self, _invoice_number: str, _settings: XeroSettings
-    ) -> dict | None:
+    async def fetch_invoice_by_number(self, _invoice_number: str, _settings: XeroSettings) -> dict | None:
         return None
 
     async def fetch_invoice(self, _xero_invoice_id: str, _settings: XeroSettings) -> dict:

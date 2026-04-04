@@ -57,9 +57,7 @@ async def _get_outstanding_balances(limit: int = 20) -> str:
                 "oldest": created,
             }
         else:
-            if created and (
-                not entity_map[entity]["oldest"] or created < entity_map[entity]["oldest"]
-            ):
+            if created and (not entity_map[entity]["oldest"] or created < entity_map[entity]["oldest"]):
                 entity_map[entity]["oldest"] = created
         entity_map[entity]["balance"] += float(w.total)
         entity_map[entity]["withdrawal_count"] += 1
@@ -85,9 +83,7 @@ async def _get_revenue_summary(days: int = 30) -> str:
     """Revenue breakdown by payment status over a period."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await get_database_manager().operations.list_withdrawals(
-        get_org_id(), start_date=since, limit=10000
-    )
+    withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), start_date=since, limit=10000)
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_tax = sum(float(w.tax) for w in withdrawals)
     paid = sum(float(w.total) for w in withdrawals if w.payment_status == "paid")
@@ -109,9 +105,7 @@ async def _get_pl_summary(days: int = 30) -> str:
     """Profit & loss: revenue, COGS, gross profit and margin."""
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await get_database_manager().operations.list_withdrawals(
-        get_org_id(), start_date=since, limit=10000
-    )
+    withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), start_date=since, limit=10000)
     total_revenue = sum(float(w.total) for w in withdrawals)
     total_cost = sum(float(w.cost_total) for w in withdrawals)
     gross_profit = total_revenue - total_cost

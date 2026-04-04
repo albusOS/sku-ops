@@ -7,9 +7,7 @@ from finance.domain.xero_settings import XeroSettings
 
 
 class XeroReconcileMixin:
-    async def fetch_invoice_by_number(
-        self, invoice_number: str, settings: XeroSettings
-    ) -> dict | None:
+    async def fetch_invoice_by_number(self, invoice_number: str, settings: XeroSettings) -> dict | None:
         """Look up a Xero invoice by InvoiceNumber. Returns the first match or None."""
         if self._is_token_expired(settings):
             settings = await self.refresh_token(settings)

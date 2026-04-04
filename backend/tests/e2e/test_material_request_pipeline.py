@@ -3,6 +3,7 @@
 Verifies: contractor can create requests, admin processes into withdrawal,
 stock reduced, WS events, role guards enforced.
 """
+
 import pytest
 
 from tests.e2e.helpers import (
@@ -48,14 +49,33 @@ class TestMaterialRequestPipeline:
         c_headers = contractor_headers()
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-RoleGuard")
         mr = create_material_request(client, c_headers, product, quantity=2)
-        resp = client.post(f"/api/beta/operations/material-requests/{mr['id']}/process", json={"job_id": SEEDED_JOB_ID, "service_address": "Fail St"}, headers=c_headers)
+        resp = client.post(
+            f"/api/beta/operations/material-requests/{mr['id']}/process",
+            json={"job_id": SEEDED_JOB_ID, "service_address": "Fail St"},
+            headers=c_headers,
+        )
         assert resp.status_code in (401, 403), f"Contractor should not be able to process, got {resp.status_code}"
 
     def test_admin_cannot_create_as_contractor(self, client, seed_dept_id):
         """Admin role should not be allowed to create material requests."""
         headers = admin_headers()
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-AdminGuard")
-        resp = client.post("/api/beta/operations/material-requests", json={"items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 1, "unit_price": product["price"], "cost": product["cost"]}]}, headers=headers)
+        resp = client.post(
+            "/api/beta/operations/material-requests",
+            json={
+                "items": [
+                    {
+                        "sku_id": product["id"],
+                        "sku": product["sku"],
+                        "name": product["name"],
+                        "quantity": 1,
+                        "unit_price": product["price"],
+                        "cost": product["cost"],
+                    }
+                ]
+            },
+            headers=headers,
+        )
         assert resp.status_code in (400, 403), f"Admin should not create material requests, got {resp.status_code}"
 
     def test_double_process_rejected(self, client, seed_dept_id, seed_contractor_id):
@@ -65,7 +85,11 @@ class TestMaterialRequestPipeline:
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-DoubleProcess")
         mr = create_material_request(client, c_headers, product, quantity=2)
         process_material_request(client, headers, mr["id"])
-        resp = client.post(f"/api/beta/operations/material-requests/{mr['id']}/process", json={"job_id": e2e_job_id("DOUBLE"), "service_address": "Double St"}, headers=headers)
+        resp = client.post(
+            f"/api/beta/operations/material-requests/{mr['id']}/process",
+            json={"job_id": e2e_job_id("DOUBLE"), "service_address": "Double St"},
+            headers=headers,
+        )
         assert resp.status_code == 400, "Double process should be rejected"
 
     def test_material_requests_listed(self, client, seed_dept_id, seed_contractor_id):

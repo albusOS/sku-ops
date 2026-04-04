@@ -1,4 +1,5 @@
 """Shared fixtures for SQLModel generation tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -10,25 +11,31 @@ SAMPLE_TS_EMPTY_RELS = "\nexport type Database = {\n  public: {\n    Tables: {\n
 SAMPLE_PYDANTIC_OUTPUT = '\nfrom __future__ import annotations\nimport datetime\nfrom pydantic import BaseModel, Field\n\nclass PublicDepartments(BaseModel):\n    id: str = Field(alias="id")\n    name: str = Field(alias="name")\n    organization_id: str | None = Field(alias="organization_id")\n\nclass PublicDepartmentsInsert(TypedDict):\n    id: str\n    name: str\n\nclass PublicDepartmentsUpdate(TypedDict):\n    id: str\n\nclass PublicProducts(BaseModel):\n    category_id: str = Field(alias="category_id")\n    id: str = Field(alias="id")\n    name: str = Field(alias="name")\n\nclass PublicProductsInsert(TypedDict):\n    category_id: str\n    id: str\n\nclass PublicProductsUpdate(TypedDict):\n    category_id: str\n'
 SAMPLE_SQL_MIGRATION = "\nCREATE TABLE IF NOT EXISTS departments (\n    id TEXT PRIMARY KEY,\n    name TEXT NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS products (\n    id TEXT PRIMARY KEY,\n    name TEXT NOT NULL,\n    category_id TEXT NOT NULL REFERENCES departments(id)\n);\n\nCREATE TABLE IF NOT EXISTS invoices (\n    id TEXT PRIMARY KEY,\n    total NUMERIC(18,2) NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS withdrawals (\n    id TEXT PRIMARY KEY,\n    amount NUMERIC(18,2) NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS invoice_withdrawals (\n    invoice_id TEXT NOT NULL REFERENCES invoices(id),\n    withdrawal_id TEXT NOT NULL REFERENCES withdrawals(id),\n    PRIMARY KEY (invoice_id, withdrawal_id)\n);\n"
 
+
 @pytest.fixture
 def sample_ts_single_fk():
     return SAMPLE_TS_SINGLE_FK
+
 
 @pytest.fixture
 def sample_ts_m2m():
     return SAMPLE_TS_M2M
 
+
 @pytest.fixture
 def sample_ts_m2m_plus_direct_fk():
     return SAMPLE_TS_M2M_PLUS_DIRECT_FK
+
 
 @pytest.fixture
 def sample_ts_empty_rels():
     return SAMPLE_TS_EMPTY_RELS
 
+
 @pytest.fixture
 def sample_pydantic_output():
     return SAMPLE_PYDANTIC_OUTPUT
+
 
 @pytest.fixture
 def sample_sql_migration(tmp_path):

@@ -1,4 +1,5 @@
 """Unit tests for the data analyst agent — SQL validation, schema context, and wiring."""
+
 import pytest
 
 from assistant.agents.analyst.schema_context import _parse_ddl, format_detail, format_overview
@@ -17,7 +18,9 @@ class TestSQLValidation:
         validate_sql("SELECT id, name FROM skus WHERE organization_id = $1")
 
     def test_with_cte_allowed(self):
-        validate_sql("WITH recent AS (SELECT * FROM withdrawals WHERE organization_id = $1) SELECT * FROM recent LIMIT 100")
+        validate_sql(
+            "WITH recent AS (SELECT * FROM withdrawals WHERE organization_id = $1) SELECT * FROM recent LIMIT 100"
+        )
 
     def test_empty_rejected(self):
         with pytest.raises(SQLValidationError, match="Empty query"):
@@ -71,6 +74,7 @@ class TestSQLValidation:
         with pytest.raises(SQLValidationError, match="Only SELECT"):
             validate_sql("EXPLAIN SELECT 1")
 
+
 class TestOrgFilter:
     """Validates that org isolation is enforced."""
 
@@ -80,6 +84,7 @@ class TestOrgFilter:
 
     def test_dollar_one_present(self):
         _validate_org_filter("SELECT * FROM skus WHERE organization_id = $1")
+
 
 class TestLimitInjection:
     """Validates that LIMIT is injected when missing."""
@@ -93,6 +98,7 @@ class TestLimitInjection:
         result = ensure_limit(sql, 500)
         assert "LIMIT 500" not in result
         assert "LIMIT 10" in result
+
 
 class TestDDLParsing:
     """Validates that DDL strings are correctly parsed into TableInfo."""
@@ -128,6 +134,7 @@ class TestDDLParsing:
 
     def test_invalid_ddl_returns_none(self):
         assert _parse_ddl("NOT A DDL STATEMENT", "test") is None
+
 
 class TestSchemaFormatting:
     """Validates schema formatting for the LLM."""

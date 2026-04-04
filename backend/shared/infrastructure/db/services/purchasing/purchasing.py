@@ -350,9 +350,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             ]
             return d
 
-    async def set_po_xero_sync_status(
-        self, org_id: str, po_id: str, status: str, updated_at: datetime
-    ) -> None:
+    async def set_po_xero_sync_status(self, org_id: str, po_id: str, status: str, updated_at: datetime) -> None:
         oid = as_uuid_required(org_id)
         pid = as_uuid_required(po_id)
         async with self.session() as session:
@@ -380,9 +378,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             )
             return {r.status: {"count": int(r.cnt), "total": float(r.total)} for r in result.all()}
 
-    async def set_po_xero_bill_id(
-        self, org_id: str, po_id: str, xero_bill_id: str, updated_at: datetime
-    ) -> None:
+    async def set_po_xero_bill_id(self, org_id: str, po_id: str, xero_bill_id: str, updated_at: datetime) -> None:
         oid = as_uuid_required(org_id)
         pid = as_uuid_required(po_id)
         async with self.session() as session:
@@ -430,7 +426,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 .order_by(VendorItems.is_preferred.desc(), Skus.name)
             )
             result = await session.execute(stmt)
-            return [VendorCatalogRow(**dict(r._mapping)) for r in result.all()]
+            return [VendorCatalogRow(**dict(m)) for m in result.mappings().all()]
 
     async def vendor_performance(
         self,
@@ -453,9 +449,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                         ),
                         2,
                     ).label("total_spend"),
-                    func.sum(case((PurchaseOrders.status == "received", 1), else_=0)).label(
-                        "received_count"
-                    ),
+                    func.sum(case((PurchaseOrders.status == "received", 1), else_=0)).label("received_count"),
                 ).where(
                     PurchaseOrders.vendor_id == vid,
                     PurchaseOrders.organization_id == oid,
@@ -511,9 +505,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             po_count=int(summary.po_count or 0),
             total_spend=float(summary.total_spend or 0),
             received_count=int(summary.received_count or 0),
-            avg_lead_time_days=float(perf.avg_lead_time_days)
-            if perf.avg_lead_time_days is not None
-            else None,
+            avg_lead_time_days=float(perf.avg_lead_time_days) if perf.avg_lead_time_days is not None else None,
             fill_rate=float(perf.fill_rate) if perf.fill_rate is not None else None,
         )
 
@@ -570,7 +562,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                         PurchaseOrderItems.organization_id == oid,
                     )
                 )
-                po["items"] = [dict(ir._mapping) for ir in item_result.all()]
+                po["items"] = [dict(m) for m in item_result.mappings().all()]
                 po["item_count"] = len(po["items"])
             return pos
 
@@ -611,10 +603,8 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 )
                 for r in result.all()
             ]
-        vendor_items_by_sku = (
-            await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
-                org_id, [item["sku_id"] for item in low_stock]
-            )
+        vendor_items_by_sku = await get_database_manager().catalog.list_vendor_items_by_skus_grouped(
+            org_id, [item["sku_id"] for item in low_stock]
         )
         for item in low_stock:
             vendor_items = vendor_items_by_sku.get(item["sku_id"], [])
@@ -664,9 +654,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 enriched.append(item)
         return enriched
 
-    async def vendor_lead_time_actual(
-        self, org_id: str, vendor_id: str, days: int = 180
-    ) -> dict[str, Any]:
+    async def vendor_lead_time_actual(self, org_id: str, vendor_id: str, days: int = 180) -> dict[str, Any]:
         """Lead time stats from received POs plus stated median lead from vendor_items."""
         oid = as_uuid_required(org_id)
         vid = as_uuid_required(vendor_id)
@@ -691,7 +679,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
                 )
                 .order_by(PurchaseOrders.received_at)
             )
-            rows = [dict(r._mapping) for r in res.all()]
+            rows = [dict(m) for m in res.mappings().all()]
 
             stated_scalar = await session.scalar(
                 select(func.percentile_cont(0.5).within_group(VendorItems.lead_time_days)).where(
@@ -743,9 +731,7 @@ class PurchasingDatabaseService(DomainDatabaseService):
             "trend": trend,
         }
 
-    async def last_po_created_at_by_vendor_for_sku(
-        self, org_id: str, sku_id: str
-    ) -> dict[str, datetime | None]:
+    async def last_po_created_at_by_vendor_for_sku(self, org_id: str, sku_id: str) -> dict[str, datetime | None]:
         """Latest PO created_at per vendor for order lines matching sku_id (org scoped)."""
         oid = as_uuid_required(org_id)
         sid = as_uuid_required(sku_id)

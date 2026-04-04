@@ -8,12 +8,14 @@ Usage in tests::
         evt = event_collector.of_type(WithdrawalCreated)[0]
         assert evt.withdrawal_id == "..."
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from shared.kernel.domain_events import DomainEvent
+
 
 class EventCollector:
     """Captures domain events dispatched during a test.

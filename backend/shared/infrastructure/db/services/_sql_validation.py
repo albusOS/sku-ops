@@ -73,16 +73,12 @@ def validate_sql(sql: str) -> None:
 
     normalized = stripped.upper().lstrip()
     if not any(normalized.startswith(p) for p in _ALLOWED_PREFIXES):
-        raise SQLValidationError(
-            f"Only SELECT and WITH (CTE) queries are allowed. Got: {normalized[:30]}..."
-        )
+        raise SQLValidationError(f"Only SELECT and WITH (CTE) queries are allowed. Got: {normalized[:30]}...")
 
     if ";" in stripped:
         parts = [p.strip() for p in stripped.split(";") if p.strip()]
         if len(parts) > 1:
-            raise SQLValidationError(
-                "Multi-statement queries are not allowed. Send one query at a time."
-            )
+            raise SQLValidationError("Multi-statement queries are not allowed. Send one query at a time.")
 
     for pattern, message in FORBIDDEN_PATTERNS:
         if pattern.search(stripped):

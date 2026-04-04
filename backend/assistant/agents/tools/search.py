@@ -128,6 +128,10 @@ class DomainSearchIndex:
         self._sku_bm25 = None
         self._slices: dict[str, _EntitySlice] = {}
 
+    @property
+    def has_sku_embeddings(self) -> bool:
+        return self._sku_embeddings is not None
+
     async def rebuild(self) -> None:
         """Rebuild all entity indexes."""
         await self._rebuild_skus()
@@ -187,9 +191,7 @@ class DomainSearchIndex:
         if not vendors:
             return
 
-        texts = [
-            f"{v.name} {v.contact_name} {v.email} {v.phone} {v.address}".strip() for v in vendors
-        ]
+        texts = [f"{v.name} {v.contact_name} {v.email} {v.phone} {v.address}".strip() for v in vendors]
         embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
 
         self._slices["vendor"] = _EntitySlice(
@@ -246,9 +248,7 @@ class DomainSearchIndex:
 
     async def _rebuild_jobs(self) -> None:
         try:
-            withdrawals = await get_database_manager().operations.list_withdrawals(
-                get_org_id(), limit=2000
-            )
+            withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), limit=2000)
         except (RuntimeError, OSError, ValueError, Exception) as e:
             logger.warning("Job index build failed: %s", e)
             return
@@ -299,9 +299,7 @@ class DomainSearchIndex:
 
     # ── Search methods ────────────────────────────────────────────────────
 
-    async def search_semantic(
-        self, query: str, limit: int = 10, api_key: str = ""
-    ) -> list[SkuLike]:
+    async def search_semantic(self, query: str, limit: int = 10, api_key: str = "") -> list[SkuLike]:
         """SKU semantic search."""
         if self._sku_embeddings is None or not self._skus:
             return self.search_bm25(query, limit)
@@ -312,9 +310,7 @@ class DomainSearchIndex:
         top_idx = np.argsort(scores)[::-1][:limit]
         return [self._skus[i] for i in top_idx if scores[i] > 0.2]
 
-    async def search_entity(
-        self, query: str, entity_type: str, limit: int = 10
-    ) -> list[SearchResult]:
+    async def search_entity(self, query: str, entity_type: str, limit: int = 10) -> list[SearchResult]:
         """Semantic search over a specific entity type."""
         s = self._slices.get(entity_type)
         if not s or not s.texts:

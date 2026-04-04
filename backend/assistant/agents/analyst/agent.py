@@ -99,9 +99,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx.deps.query_results["_count"] = query_count + 1
 
         if result_obj.rows and len(result_obj.columns) >= 2:
-            rows_for_block = [
-                [str(row.get(c, "")) for c in result_obj.columns] for row in result_obj.rows[:50]
-            ]
+            rows_for_block = [[str(row.get(c, "")) for c in result_obj.columns] for row in result_obj.rows[:50]]
             block = {
                 "type": "data_table",
                 "title": description or f"Query result ({result_obj.row_count} rows)",

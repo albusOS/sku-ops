@@ -156,16 +156,12 @@ class AssistantDatabaseService(DomainDatabaseService):
             result = await session.execute(stmt, params)
             rows = [dict(r) for r in result.mappings().all()]
         for r in rows:
-            _decode_agent_run_json_fields(
-                r, ("tool_calls", "validation_failures", "validation_scores")
-            )
+            _decode_agent_run_json_fields(r, ("tool_calls", "validation_failures", "validation_scores"))
         return rows
 
     async def agent_run_stats(self, org_id: str, **kwargs: Any) -> dict:
         hours: int = kwargs.get("hours", 24)
-        since_sql = (
-            f"org_id = :org_id AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours'"
-        )
+        since_sql = f"org_id = :org_id AND created_at::timestamptz >= NOW() - INTERVAL '{hours} hours'"
         base_params = {"org_id": org_id}
 
         async with self.session() as session:
@@ -232,9 +228,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             result = await session.execute(stmt, {"session_id": session_id, "org_id": org_id})
             rows = [dict(r) for r in result.mappings().all()]
         for r in rows:
-            _decode_agent_run_json_fields(
-                r, ("tool_calls", "validation_failures", "validation_scores")
-            )
+            _decode_agent_run_json_fields(r, ("tool_calls", "validation_failures", "validation_scores"))
         return rows
 
     async def agent_validation_summary(self, org_id: str, **kwargs: Any) -> dict:
@@ -253,9 +247,7 @@ class AssistantDatabaseService(DomainDatabaseService):
                     " COUNT(*) as runs,"
                     " SUM(CASE WHEN validation_passed THEN 1 ELSE 0 END) as passed,"
                     " SUM(CASE WHEN NOT validation_passed THEN 1 ELSE 0 END) as failed"
-                    " FROM agent_runs WHERE "
-                    + since_sql
-                    + " GROUP BY agent_name ORDER BY failed DESC"
+                    " FROM agent_runs WHERE " + since_sql + " GROUP BY agent_name ORDER BY failed DESC"
                 ),
                 base_params,
             )
@@ -263,8 +255,7 @@ class AssistantDatabaseService(DomainDatabaseService):
 
             res_fail = await session.execute(
                 text(
-                    "SELECT validation_failures FROM agent_runs"
-                    " WHERE " + since_sql + " AND validation_passed = FALSE"
+                    "SELECT validation_failures FROM agent_runs WHERE " + since_sql + " AND validation_passed = FALSE"
                 ),
                 base_params,
             )
@@ -294,9 +285,7 @@ class AssistantDatabaseService(DomainDatabaseService):
     async def agent_cost_breakdown(self, org_id: str, **kwargs: Any) -> list[dict]:
         days: int = kwargs.get("days", 7)
         group_by: str = kwargs.get("group_by", "agent")
-        since_sql = (
-            f"org_id = :org_id AND created_at::timestamptz >= NOW() - INTERVAL '{days} days'"
-        )
+        since_sql = f"org_id = :org_id AND created_at::timestamptz >= NOW() - INTERVAL '{days} days'"
         day_expr = "(created_at::timestamptz)::date"
 
         col = {"agent": "agent_name", "model": "model", "org": "org_id"}.get(group_by, "agent_name")
@@ -307,13 +296,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             " SUM(output_tokens) as output_tokens,"
             " SUM(cost_usd) as cost"
             " FROM agent_runs"
-            " WHERE "
-            + since_sql
-            + " GROUP BY "
-            + col
-            + ", "
-            + day_expr
-            + " ORDER BY day DESC, cost DESC"
+            " WHERE " + since_sql + " GROUP BY " + col + ", " + day_expr + " ORDER BY day DESC, cost DESC"
         )
         async with self.session() as session:
             result = await session.execute(text(query), {"org_id": org_id})
@@ -614,9 +597,7 @@ class AssistantDatabaseService(DomainDatabaseService):
                 sim = float(r["similarity"])
                 created = r["created_at"]
                 try:
-                    created_dt = (
-                        datetime.fromisoformat(created) if isinstance(created, str) else created
-                    )
+                    created_dt = datetime.fromisoformat(created) if isinstance(created, str) else created
                     days_old = max(0, (now - created_dt).total_seconds() / 86400)
                 except (ValueError, TypeError):
                     days_old = 30
@@ -631,9 +612,7 @@ class AssistantDatabaseService(DomainDatabaseService):
             logger.debug("Semantic recall unavailable, falling back: %s", e)
             return None
 
-    async def memory_save(
-        self, org_id: str, user_id: str, session_id: str, artifacts: list[dict]
-    ) -> None:
+    async def memory_save(self, org_id: str, user_id: str, session_id: str, artifacts: list[dict]) -> None:
         if not artifacts:
             return
         now = datetime.now(UTC)
@@ -692,9 +671,7 @@ class AssistantDatabaseService(DomainDatabaseService):
                     return
                 items = [
                     (aid, content, vec)
-                    for aid, content, vec in zip(
-                        artifact_ids, artifact_contents, vecs, strict=False
-                    )
+                    for aid, content, vec in zip(artifact_ids, artifact_contents, vecs, strict=False)
                 ]
                 written = await mgr.assistant.embedding_upsert_batch(org_id, "memory", items)
                 if written:

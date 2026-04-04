@@ -55,10 +55,7 @@ class XeroBaseMixin:
         resp.raise_for_status()
         categories = resp.json().get("TrackingCategories", [])
         existing_names = {
-            opt.get("Name", "")
-            for cat in categories
-            for opt in cat.get("Options", [])
-            if opt.get("Status") == "ACTIVE"
+            opt.get("Name", "") for cat in categories for opt in cat.get("Options", []) if opt.get("Status") == "ACTIVE"
         }
         if option_name not in existing_names:
             create_resp = await client.put(

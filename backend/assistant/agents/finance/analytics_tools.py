@@ -69,9 +69,7 @@ async def _get_sku_margins(days: int = 30, limit: int = 20) -> str:
     days = min(days, 365)
     limit = min(limit, 50)
     start, end = _date_range(days)
-    margins = await _db_finance().analytics_product_margins(
-        get_org_id(), start_date=start, end_date=end, limit=limit
-    )
+    margins = await _db_finance().analytics_product_margins(get_org_id(), start_date=start, end_date=end, limit=limit)
     return SkuMarginsResult(
         period_days=days,
         count=len(margins),
@@ -83,9 +81,7 @@ async def _get_department_profitability(days: int = 30) -> str:
     """Revenue, COGS, shrinkage, profit, and margin by department."""
     days = min(days, 365)
     start, end = _date_range(days)
-    depts = await _db_finance().ledger_summary_by_department(
-        get_org_id(), start_date=start, end_date=end
-    )
+    depts = await _db_finance().ledger_summary_by_department(get_org_id(), start_date=start, end_date=end)
     return DeptProfitabilityResult(
         period_days=days,
         department_count=len(depts),
@@ -98,9 +94,7 @@ async def _get_job_profitability(days: int = 30, limit: int = 20) -> str:
     days = min(days, 365)
     limit = min(limit, 50)
     start, end = _date_range(days)
-    result = await _db_finance().ledger_summary_by_job(
-        get_org_id(), start_date=start, end_date=end, limit=limit
-    )
+    result = await _db_finance().ledger_summary_by_job(get_org_id(), start_date=start, end_date=end, limit=limit)
     return JobProfitabilityResult(
         period_days=days,
         total_jobs=result.get("total", 0),
@@ -114,9 +108,7 @@ async def _get_entity_summary(days: int = 30) -> str:
     """Revenue summary by billing entity."""
     days = min(days, 365)
     start, end = _date_range(days)
-    entities = await _db_finance().ledger_summary_by_billing_entity(
-        get_org_id(), start_date=start, end_date=end
-    )
+    entities = await _db_finance().ledger_summary_by_billing_entity(get_org_id(), start_date=start, end_date=end)
     return EntitySummaryResult(
         period_days=days,
         entity_count=len(entities),
@@ -128,9 +120,7 @@ async def _get_contractor_spend(days: int = 30) -> str:
     """Spend summary by contractor."""
     days = min(days, 365)
     start, end = _date_range(days)
-    contractors = await _db_finance().ledger_summary_by_contractor(
-        get_org_id(), start_date=start, end_date=end
-    )
+    contractors = await _db_finance().ledger_summary_by_contractor(get_org_id(), start_date=start, end_date=end)
     return ContractorSpendResult(
         period_days=days,
         contractor_count=len(contractors),
@@ -142,9 +132,7 @@ async def _get_purchase_spend(days: int = 30) -> str:
     """Total purchase order spend over a period."""
     days = min(days, 365)
     start, end = _date_range(days)
-    total = await _db_finance().analytics_purchase_spend(
-        get_org_id(), start_date=start, end_date=end
-    )
+    total = await _db_finance().analytics_purchase_spend(get_org_id(), start_date=start, end_date=end)
     return PurchaseSpendResult(
         period_days=days,
         total_purchase_spend=float(total),
@@ -154,9 +142,7 @@ async def _get_purchase_spend(days: int = 30) -> str:
 async def _get_carrying_cost(holding_rate_pct: float = 25.0) -> str:
     """Estimated holding cost of current inventory, grouped by department."""
     rate = float(holding_rate_pct)
-    items = await _db_finance().analytics_inventory_carrying_cost(
-        get_org_id(), holding_rate_pct=rate
-    )
+    items = await _db_finance().analytics_inventory_carrying_cost(get_org_id(), holding_rate_pct=rate)
     total = round(sum(float(i["carrying_cost"]) for i in items), 2)
     by_dept: dict[str, float] = {}
     for i in items:

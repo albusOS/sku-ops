@@ -103,9 +103,7 @@ class BaseDatabaseService:
                     return
             except SQLAlchemyTimeoutError:
                 if attempt == retries:
-                    raise RuntimeError(
-                        "Database session unavailable after retry exhaustion"
-                    ) from None
+                    raise RuntimeError("Database session unavailable after retry exhaustion") from None
                 await asyncio.sleep(delay_seconds)
                 delay_seconds *= 2
 

@@ -53,9 +53,7 @@ def extract_tool_calls(messages: list[ModelRequest | ModelResponse]) -> list[dic
     out = []
     for msg in messages:
         if isinstance(msg, ModelResponse):
-            out.extend(
-                {"tool": part.tool_name} for part in msg.parts if isinstance(part, ToolCallPart)
-            )
+            out.extend({"tool": part.tool_name} for part in msg.parts if isinstance(part, ToolCallPart))
     return out
 
 

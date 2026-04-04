@@ -14,9 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class XeroInvoiceSyncMixin:
-    async def sync_invoice(
-        self, invoice: InvoiceWithDetails, settings: XeroSettings
-    ) -> InvoiceSyncResult:
+    async def sync_invoice(self, invoice: InvoiceWithDetails, settings: XeroSettings) -> InvoiceSyncResult:
         if self._is_token_expired(settings):
             settings = await self.refresh_token(settings)
 
@@ -28,9 +26,7 @@ class XeroInvoiceSyncMixin:
                 job_ids = {li["job_id"] for li in line_items if li.get("job_id")}
                 for job_id in job_ids:
                     try:
-                        await self._ensure_tracking_option(
-                            settings.xero_tracking_category_id, job_id, settings, client
-                        )
+                        await self._ensure_tracking_option(settings.xero_tracking_category_id, job_id, settings, client)
                     except Exception as e:
                         logger.warning("Could not ensure tracking option %r: %s", job_id, e)
 
@@ -67,14 +63,10 @@ class XeroInvoiceSyncMixin:
             }
             if inv.get("due_date"):
                 dd = inv["due_date"]
-                xero_invoice["DueDate"] = (
-                    dd.strftime("%Y-%m-%d") if isinstance(dd, datetime) else str(dd)[:10]
-                )
+                xero_invoice["DueDate"] = dd.strftime("%Y-%m-%d") if isinstance(dd, datetime) else str(dd)[:10]
             if inv.get("invoice_date"):
                 id_ = inv["invoice_date"]
-                xero_invoice["Date"] = (
-                    id_.strftime("%Y-%m-%d") if isinstance(id_, datetime) else str(id_)[:10]
-                )
+                xero_invoice["Date"] = id_.strftime("%Y-%m-%d") if isinstance(id_, datetime) else str(id_)[:10]
             if inv.get("po_reference"):
                 xero_invoice["Reference"] = inv["po_reference"]
 
@@ -101,16 +93,12 @@ class XeroInvoiceSyncMixin:
             result = resp.json()
             invoices = result.get("Invoices", [])
             if not invoices:
-                return InvoiceSyncResult(
-                    success=False, error="Xero returned no invoice in response"
-                )
+                return InvoiceSyncResult(success=False, error="Xero returned no invoice in response")
 
             xero_invoice_id = invoices[0].get("InvoiceID")
 
             first_job_id = next((li.get("job_id") for li in line_items if li.get("job_id")), None)
-            journal_id = await self._post_cogs_journal(
-                inv, settings, xero_invoice_id, first_job_id, client
-            )
+            journal_id = await self._post_cogs_journal(inv, settings, xero_invoice_id, first_job_id, client)
 
         return InvoiceSyncResult(
             success=True,

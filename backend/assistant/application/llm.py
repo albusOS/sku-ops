@@ -72,9 +72,7 @@ async def generate_text(
             result = await asyncio.wait_for(agent.run(prompt), timeout=30)
         except Exception as primary_err:
             err_str = str(primary_err).lower()
-            is_overloaded = any(
-                k in err_str for k in ("529", "overload", "service unavailable", "capacity")
-            )
+            is_overloaded = any(k in err_str for k in ("529", "overload", "service unavailable", "capacity"))
             if not is_overloaded:
                 raise
             fallback = get_fallback_model(model)
@@ -239,9 +237,7 @@ def _openrouter_vision(client, prompt: str, data_url: str, system: str | None) -
         _raise_provider_error(e, "OpenRouter")
 
 
-def _anthropic_image(
-    client, prompt: str, image_data: str, media_type: str, system: str | None
-) -> str:
+def _anthropic_image(client, prompt: str, image_data: str, media_type: str, system: str | None) -> str:
     """Image call via raw Anthropic SDK."""
     try:
         kwargs = {

@@ -97,9 +97,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 180
     ) -> str:
         """Actual vendor lead times from PO data, with drift detection."""
-        return budget_tool_result(
-            await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days)
-        )
+        return budget_tool_result(await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days))
 
     @_agent.tool
     async def get_pl_summary(ctx: RunContext[AgentDeps], days: int = 30) -> str:

@@ -140,17 +140,13 @@ class PublicOrgSettingsInsert(TypedDict):
     xero_access_token: NotRequired[Annotated[str | None, Field(alias="xero_access_token")]]
     xero_ap_account_code: NotRequired[Annotated[str, Field(alias="xero_ap_account_code")]]
     xero_cogs_account_code: NotRequired[Annotated[str, Field(alias="xero_cogs_account_code")]]
-    xero_inventory_account_code: NotRequired[
-        Annotated[str, Field(alias="xero_inventory_account_code")]
-    ]
+    xero_inventory_account_code: NotRequired[Annotated[str, Field(alias="xero_inventory_account_code")]]
     xero_refresh_token: NotRequired[Annotated[str | None, Field(alias="xero_refresh_token")]]
     xero_sales_account_code: NotRequired[Annotated[str, Field(alias="xero_sales_account_code")]]
     xero_tax_type: NotRequired[Annotated[str, Field(alias="xero_tax_type")]]
     xero_tenant_id: NotRequired[Annotated[str | None, Field(alias="xero_tenant_id")]]
     xero_token_expiry: NotRequired[Annotated[str | None, Field(alias="xero_token_expiry")]]
-    xero_tracking_category_id: NotRequired[
-        Annotated[str | None, Field(alias="xero_tracking_category_id")]
-    ]
+    xero_tracking_category_id: NotRequired[Annotated[str | None, Field(alias="xero_tracking_category_id")]]
 
 
 class PublicOrgSettingsUpdate(TypedDict):
@@ -161,17 +157,13 @@ class PublicOrgSettingsUpdate(TypedDict):
     xero_access_token: NotRequired[Annotated[str | None, Field(alias="xero_access_token")]]
     xero_ap_account_code: NotRequired[Annotated[str, Field(alias="xero_ap_account_code")]]
     xero_cogs_account_code: NotRequired[Annotated[str, Field(alias="xero_cogs_account_code")]]
-    xero_inventory_account_code: NotRequired[
-        Annotated[str, Field(alias="xero_inventory_account_code")]
-    ]
+    xero_inventory_account_code: NotRequired[Annotated[str, Field(alias="xero_inventory_account_code")]]
     xero_refresh_token: NotRequired[Annotated[str | None, Field(alias="xero_refresh_token")]]
     xero_sales_account_code: NotRequired[Annotated[str, Field(alias="xero_sales_account_code")]]
     xero_tax_type: NotRequired[Annotated[str, Field(alias="xero_tax_type")]]
     xero_tenant_id: NotRequired[Annotated[str | None, Field(alias="xero_tenant_id")]]
     xero_token_expiry: NotRequired[Annotated[str | None, Field(alias="xero_token_expiry")]]
-    xero_tracking_category_id: NotRequired[
-        Annotated[str | None, Field(alias="xero_tracking_category_id")]
-    ]
+    xero_tracking_category_id: NotRequired[Annotated[str | None, Field(alias="xero_tracking_category_id")]]
 
 
 class PublicRefreshTokens(BaseModel):
@@ -1519,9 +1511,7 @@ class PublicFinancialLedgerInsert(TypedDict):
     job_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="job_id")]]
     journal_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="journal_id")]]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
-    performed_by_user_id: NotRequired[
-        Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]
-    ]
+    performed_by_user_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]]
     quantity: NotRequired[Annotated[float | None, Field(alias="quantity")]]
     reference_id: Annotated[str, Field(alias="reference_id")]
     reference_type: Annotated[str, Field(alias="reference_type")]
@@ -1543,9 +1533,7 @@ class PublicFinancialLedgerUpdate(TypedDict):
     job_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="job_id")]]
     journal_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="journal_id")]]
     organization_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="organization_id")]]
-    performed_by_user_id: NotRequired[
-        Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]
-    ]
+    performed_by_user_id: NotRequired[Annotated[uuid.UUID | None, Field(alias="performed_by_user_id")]]
     quantity: NotRequired[Annotated[float | None, Field(alias="quantity")]]
     reference_id: NotRequired[Annotated[str, Field(alias="reference_id")]]
     reference_type: NotRequired[Annotated[str, Field(alias="reference_type")]]

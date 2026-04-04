@@ -53,9 +53,7 @@ def _serialize(event: Event) -> str:
 
 def _deserialize(raw: str) -> Event:
     d = json.loads(raw)
-    return Event(
-        type=d["type"], org_id=d["org_id"], user_id=d.get("user_id", ""), data=d.get("data", {})
-    )
+    return Event(type=d["type"], org_id=d["org_id"], user_id=d.get("user_id", ""), data=d.get("data", {}))
 
 
 class _Hub:

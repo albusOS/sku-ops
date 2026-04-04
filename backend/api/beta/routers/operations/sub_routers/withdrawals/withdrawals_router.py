@@ -121,9 +121,7 @@ async def get_withdrawals(
 
 @router.get("/{withdrawal_id}")
 async def get_withdrawal(withdrawal_id: str, current_user: CurrentUserDep):
-    withdrawal = await _db_operations().get_withdrawal_by_id(
-        current_user.organization_id, withdrawal_id
-    )
+    withdrawal = await _db_operations().get_withdrawal_by_id(current_user.organization_id, withdrawal_id)
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
 

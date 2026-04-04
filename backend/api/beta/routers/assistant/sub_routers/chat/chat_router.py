@@ -41,11 +41,7 @@ async def chat_status(_current_user: AdminDep):
     available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
     return {
         "available": available,
-        "provider": "anthropic"
-        if ANTHROPIC_AVAILABLE
-        else "openrouter"
-        if OPENROUTER_AVAILABLE
-        else None,
+        "provider": "anthropic" if ANTHROPIC_AVAILABLE else "openrouter" if OPENROUTER_AVAILABLE else None,
         "setup_url": LLM_SETUP_URL if not available else None,
     }
 
@@ -77,8 +73,7 @@ async def chat_assistant(
     if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
         return {
             "response": (
-                f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. "
-                "Start a new chat to continue."
+                f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat to continue."
             ),
             "tool_calls": [],
             "thinking": [],

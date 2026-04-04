@@ -122,10 +122,7 @@ async def trend_series(
         " COUNT(DISTINCT reference_id) AS transaction_count"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
-        " AND account IN ('revenue', 'cogs', 'shrinkage')"
-        + date_sql
-        + dim_sql
-        + " GROUP BY period ORDER BY period"
+        " AND account IN ('revenue', 'cogs', 'shrinkage')" + date_sql + dim_sql + " GROUP BY period ORDER BY period"
     )
     r = await session.execute(text(sql), params)
     series: list[TrendPoint] = []
@@ -167,13 +164,19 @@ async def ar_aging(
     sql = (
         "SELECT fl.billing_entity,"
         " ROUND(CAST(SUM(fl.amount) AS NUMERIC), 2) AS total_ar,"
-        f" ROUND(CAST(SUM(CASE WHEN {age} <= 0 THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS current_not_due,"
-        f" ROUND(CAST(SUM(CASE WHEN {age} > 0 AND {age} <= 30 THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS overdue_1_30,"
-        f" ROUND(CAST(SUM(CASE WHEN {age} > 30 AND {age} <= 60 THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS overdue_31_60,"
-        f" ROUND(CAST(SUM(CASE WHEN {age} > 60 AND {age} <= 90 THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS overdue_61_90,"
-        f" ROUND(CAST(SUM(CASE WHEN {age} > 90 THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS overdue_90_plus"
+        f" ROUND(CAST(SUM(CASE WHEN {age} <= 0 THEN fl.amount ELSE 0 END) AS NUMERIC), 2)"
+        " AS current_not_due,"
+        f" ROUND(CAST(SUM(CASE WHEN {age} > 0 AND {age} <= 30 THEN fl.amount ELSE 0 END)"
+        f" AS NUMERIC), 2) AS overdue_1_30,"
+        f" ROUND(CAST(SUM(CASE WHEN {age} > 30 AND {age} <= 60 THEN fl.amount ELSE 0 END)"
+        f" AS NUMERIC), 2) AS overdue_31_60,"
+        f" ROUND(CAST(SUM(CASE WHEN {age} > 60 AND {age} <= 90 THEN fl.amount ELSE 0 END)"
+        f" AS NUMERIC), 2) AS overdue_61_90,"
+        f" ROUND(CAST(SUM(CASE WHEN {age} > 90 THEN fl.amount ELSE 0 END) AS NUMERIC), 2)"
+        " AS overdue_90_plus"
         " FROM financial_ledger fl"
-        " LEFT JOIN invoice_withdrawals iw ON fl.reference_id = iw.withdrawal_id::text AND fl.reference_type = 'withdrawal'"
+        " LEFT JOIN invoice_withdrawals iw ON fl.reference_id = iw.withdrawal_id::text "
+        "AND fl.reference_type = 'withdrawal'"
         " LEFT JOIN invoices inv ON iw.invoice_id = inv.id"
         " WHERE fl.organization_id = :org_id"
         " AND fl.account = 'accounts_receivable'"
@@ -211,10 +214,7 @@ async def product_margins(
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
         " AND account IN ('revenue', 'cogs')"
-        " AND sku_id IS NOT NULL"
-        + date_sql
-        + dim_sql
-        + " GROUP BY sku_id ORDER BY revenue DESC LIMIT :lim"
+        " AND sku_id IS NOT NULL" + date_sql + dim_sql + " GROUP BY sku_id ORDER BY revenue DESC LIMIT :lim"
     )
     r = await session.execute(text(sql), params)
     result: list[ProductMarginRow] = []
@@ -324,7 +324,7 @@ async def summary_by_department(
         " AND department IS NOT NULL" + date_sql + " GROUP BY department"
     )
     r = await session.execute(text(sql), params)
-    return [dict(row._mapping) for row in r.all()]
+    return [dict(m) for m in r.mappings().all()]
 
 
 async def summary_by_billing_entity(
@@ -338,16 +338,18 @@ async def summary_by_billing_entity(
     date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT billing_entity,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2)"
+        " AS revenue,"
         " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END) AS NUMERIC), 2) AS ar_balance,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END) "
+        "AS NUMERIC), 2) AS ar_balance,"
         " COUNT(DISTINCT reference_id) AS transaction_count"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
         " AND billing_entity IS NOT NULL" + date_sql + " GROUP BY billing_entity"
     )
     r = await session.execute(text(sql), params)
-    return [dict(row._mapping) for row in r.all()]
+    return [dict(m) for m in r.mappings().all()]
 
 
 async def summary_by_contractor_raw(
@@ -366,15 +368,17 @@ async def summary_by_contractor_raw(
     )
     sql = (
         "SELECT fl.contractor_id::text AS contractor_id,"
-        " ROUND(CAST(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END) AS NUMERIC), 2) AS ar_balance,"
+        " ROUND(CAST(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END) "
+        "AS NUMERIC), 2) AS ar_balance,"
         " COUNT(DISTINCT fl.reference_id) AS transaction_count"
         " FROM financial_ledger fl"
         " WHERE fl.organization_id = :org_id"
         " AND fl.contractor_id IS NOT NULL" + date_sql + " GROUP BY fl.contractor_id"
     )
     r = await session.execute(text(sql), params)
-    return [dict(row._mapping) for row in r.all()]
+    return [dict(m) for m in r.mappings().all()]
 
 
 async def summary_by_job_aggregate(
@@ -406,9 +410,7 @@ async def summary_by_job_aggregate(
         term = f"%{search}%"
         params["search_a"] = term
         params["search_b"] = term
-        search_clause = (
-            " HAVING CAST(job_id AS text) LIKE :search_a OR billing_entity LIKE :search_b"
-        )
+        search_clause = " HAVING CAST(job_id AS text) LIKE :search_a OR billing_entity LIKE :search_b"
     count_sql = (
         "SELECT COUNT(*) AS cnt, COALESCE(SUM(revenue), 0) AS total_revenue,"
         " COALESCE(SUM(cost), 0) AS total_cost FROM (" + base + search_clause + ") t"
@@ -421,7 +423,7 @@ async def summary_by_job_aggregate(
     params_page = {**params, "lim": limit, "off": offset}
     data_sql = base + search_clause + " ORDER BY revenue DESC LIMIT :lim OFFSET :off"
     dr = await session.execute(text(data_sql), params_page)
-    rows = [dict(row._mapping) for row in dr.all()]
+    rows = [dict(m) for m in dr.mappings().all()]
     return rows, total, all_revenue, all_cost
 
 

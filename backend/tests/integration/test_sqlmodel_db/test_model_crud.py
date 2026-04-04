@@ -1,4 +1,5 @@
 """Integration tests: CRUD operations using generated SQLModel classes against local Postgres."""
+
 from __future__ import annotations
 
 import uuid
@@ -9,13 +10,16 @@ from sqlmodel import select
 
 from shared.infrastructure.types.public_sql_model_models import Departments, Organizations, Products
 
-pytestmark = pytest.mark.skipif("not config.getoption('--run-integration', default=False)", reason="Integration tests require --run-integration flag and running local Supabase")
+pytestmark = pytest.mark.skipif(
+    "not config.getoption('--run-integration', default=False)",
+    reason="Integration tests require --run-integration flag and running local Supabase",
+)
 ORG_ID = uuid.uuid4()
 NOW = datetime.now(tz=UTC)
 SEEDED_ORG_ID = uuid.UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69c001")
 
-class TestOrganizationCRUD:
 
+class TestOrganizationCRUD:
     async def test_insert_and_select(self, session):
         org = Organizations(id=ORG_ID, name="Test Org", slug=f"test-org-{uuid.uuid4().hex[:8]}", created_at=NOW)
         session.add(org)
@@ -38,15 +42,32 @@ class TestOrganizationCRUD:
         assert loaded is not None
         assert loaded.name == "Updated Name"
 
-class TestParentChildInsert:
 
+class TestParentChildInsert:
     async def test_insert_department_and_product(self, session):
         dept_id = uuid.uuid4()
         prod_id = uuid.uuid4()
-        dept = Departments(id=dept_id, name="Test Department", code=f"TST-{uuid.uuid4().hex[:4]}", description="Test department for SQLModel integration coverage", created_at=NOW, organization_id=SEEDED_ORG_ID, sku_count=0)
+        dept = Departments(
+            id=dept_id,
+            name="Test Department",
+            code=f"TST-{uuid.uuid4().hex[:4]}",
+            description="Test department for SQLModel integration coverage",
+            created_at=NOW,
+            organization_id=SEEDED_ORG_ID,
+            sku_count=0,
+        )
         session.add(dept)
         await session.flush()
-        product = Products(id=prod_id, name="Test Product", category_id=dept_id, category_name="Test Department", created_at=NOW, description="Generated SQLModel product fixture", sku_count=0, updated_at=NOW)
+        product = Products(
+            id=prod_id,
+            name="Test Product",
+            category_id=dept_id,
+            category_name="Test Department",
+            created_at=NOW,
+            description="Generated SQLModel product fixture",
+            sku_count=0,
+            updated_at=NOW,
+        )
         session.add(product)
         await session.flush()
         result = await session.exec(select(Products).where(Products.id == prod_id))

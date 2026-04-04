@@ -342,9 +342,7 @@ def format_detail(table_names: list[str]) -> str:
     for name in table_names:
         info = catalog.get(name)
         if not info:
-            parts.append(
-                f"Table '{name}' not found. Available: {', '.join(sorted(catalog.keys()))}"
-            )
+            parts.append(f"Table '{name}' not found. Available: {', '.join(sorted(catalog.keys()))}")
             continue
 
         lines = [f"## {info.name} ({info.context} context)"]
@@ -356,8 +354,7 @@ def format_detail(table_names: list[str]) -> str:
             fk = fk_map.get(col.name)
             fk_str = f"{fk.ref_table}({fk.ref_column})" if fk else ""
             lines.append(
-                f"| {col.name} | {col.type} | {'Y' if col.is_pk else ''} "
-                f"| {'Y' if col.nullable else ''} | {fk_str} |"
+                f"| {col.name} | {col.type} | {'Y' if col.is_pk else ''} | {'Y' if col.nullable else ''} | {fk_str} |"
             )
 
         if info.has_org_id:

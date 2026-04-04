@@ -32,9 +32,7 @@ async def create_material_return(
     Contractors may only return their own withdrawals.
     """
     if current_user.role == "contractor":
-        withdrawal = await _db_operations().get_withdrawal_by_id(
-            current_user.organization_id, data.withdrawal_id
-        )
+        withdrawal = await _db_operations().get_withdrawal_by_id(current_user.organization_id, data.withdrawal_id)
         if not withdrawal or withdrawal.contractor_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not your withdrawal")
 

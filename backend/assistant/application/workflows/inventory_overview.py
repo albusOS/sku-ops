@@ -78,15 +78,9 @@ async def run_inventory_overview(
         if isinstance(data.get("department_health_raw"), dict)
         else []
     )
-    low_stock = (
-        data.get("low_stock_raw", {}).get("skus", [])
-        if isinstance(data.get("low_stock_raw"), dict)
-        else []
-    )
+    low_stock = data.get("low_stock_raw", {}).get("skus", []) if isinstance(data.get("low_stock_raw"), dict) else []
     slow_movers = (
-        data.get("slow_movers_raw", {}).get("slow_movers", [])
-        if isinstance(data.get("slow_movers_raw"), dict)
-        else []
+        data.get("slow_movers_raw", {}).get("slow_movers", []) if isinstance(data.get("slow_movers_raw"), dict) else []
     )
     data_for_format = {
         "inventory_stats": data.get("inventory_stats", {}),

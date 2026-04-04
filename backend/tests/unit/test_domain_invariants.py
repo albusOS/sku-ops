@@ -9,6 +9,7 @@ Categories:
   5. Error model contracts
   6. Withdrawal model invariants (totals, zero-tax, empty-items edge)
 """
+
 import pytest
 
 from inventory.domain.errors import InsufficientStockError
@@ -28,17 +29,45 @@ from shared.kernel.units import (
 class TestUOMConversion:
     """Convert between units — verify mathematical correctness."""
 
-    @pytest.mark.parametrize(("from_u", "to_u", "qty", "expected"), [("foot", "inch", 1.0, 12.0), ("inch", "foot", 12.0, 1.0), ("yard", "foot", 1.0, 3.0), ("foot", "yard", 3.0, 1.0), ("yard", "inch", 1.0, 36.0), ("inch", "yard", 36.0, 1.0), ("gallon", "quart", 1.0, 4.0), ("quart", "pint", 1.0, 2.0), ("gallon", "pint", 1.0, 8.0), ("pound", "ounce", 1.0, 16.0), ("ounce", "pound", 16.0, 1.0)])
+    @pytest.mark.parametrize(
+        ("from_u", "to_u", "qty", "expected"),
+        [
+            ("foot", "inch", 1.0, 12.0),
+            ("inch", "foot", 12.0, 1.0),
+            ("yard", "foot", 1.0, 3.0),
+            ("foot", "yard", 3.0, 1.0),
+            ("yard", "inch", 1.0, 36.0),
+            ("inch", "yard", 36.0, 1.0),
+            ("gallon", "quart", 1.0, 4.0),
+            ("quart", "pint", 1.0, 2.0),
+            ("gallon", "pint", 1.0, 8.0),
+            ("pound", "ounce", 1.0, 16.0),
+            ("ounce", "pound", 16.0, 1.0),
+        ],
+    )
     def test_exact_conversions(self, from_u, to_u, qty, expected):
         result = convert_quantity(qty, from_u, to_u)
-        assert result == pytest.approx(expected, rel=0.0001), f"{qty} {from_u} → {to_u}: expected {expected}, got {result}"
+        assert result == pytest.approx(expected, rel=0.0001), (
+            f"{qty} {from_u} → {to_u}: expected {expected}, got {result}"
+        )
 
-    @pytest.mark.parametrize(("from_u", "to_u", "qty"), [("foot", "inch", 2.5), ("gallon", "pint", 0.25), ("pound", "ounce", 0.125), ("yard", "inch", 3.7), ("meter", "foot", 1.5)])
+    @pytest.mark.parametrize(
+        ("from_u", "to_u", "qty"),
+        [
+            ("foot", "inch", 2.5),
+            ("gallon", "pint", 0.25),
+            ("pound", "ounce", 0.125),
+            ("yard", "inch", 3.7),
+            ("meter", "foot", 1.5),
+        ],
+    )
     def test_round_trip_preserves_quantity(self, from_u, to_u, qty):
         """Converting A→B→A must return the original quantity (within fp tolerance)."""
         intermediate = convert_quantity(qty, from_u, to_u)
         back = convert_quantity(intermediate, to_u, from_u)
-        assert back == pytest.approx(qty, rel=0.0001), f"Round-trip failed: {qty} {from_u} → {intermediate} {to_u} → {back} {from_u}"
+        assert back == pytest.approx(qty, rel=0.0001), (
+            f"Round-trip failed: {qty} {from_u} → {intermediate} {to_u} → {back} {from_u}"
+        )
 
     def test_identity_conversion(self):
         """Same unit → same quantity, no computation."""
@@ -47,7 +76,9 @@ class TestUOMConversion:
     def test_case_insensitive(self):
         assert convert_quantity(1, "Foot", "INCH") == pytest.approx(12.0)
 
-    @pytest.mark.parametrize(("from_u", "to_u"), [("foot", "gallon"), ("pound", "inch"), ("pint", "ounce"), ("sqft", "foot")])
+    @pytest.mark.parametrize(
+        ("from_u", "to_u"), [("foot", "gallon"), ("pound", "inch"), ("pint", "ounce"), ("sqft", "foot")]
+    )
     def test_cross_family_raises(self, from_u, to_u):
         """Converting between incompatible families must raise ValueError."""
         with pytest.raises(ValueError, match="Cannot convert"):
@@ -71,6 +102,7 @@ class TestUOMConversion:
         assert are_compatible("gallon", "pint") is True
         assert are_compatible("foot", "gallon") is False
         assert are_compatible("each", "box") is True
+
 
 class TestUnitFamilyCompleteness:
     """Every allowed base unit must belong to exactly one family."""
@@ -97,8 +129,8 @@ class TestUnitFamilyCompleteness:
             for unit, factor in units.items():
                 assert factor > 0, f"{unit} in {family} has non-positive factor {factor}"
 
-class TestLineItemArithmetic:
 
+class TestLineItemArithmetic:
     def test_subtotal_with_fractional_quantity(self):
         li = LineItem(sku_id="p1", sku="S", name="Pipe", quantity=2.5, unit_price=4.0)
         assert li.subtotal == 10.0
@@ -120,8 +152,8 @@ class TestLineItemArithmetic:
         li = LineItem(sku_id="p1", sku="S", name="X", quantity=1, price=5.0)
         assert li.unit_price == 5.0
 
-class TestStockDecrementInvariants:
 
+class TestStockDecrementInvariants:
     def test_default_unit_is_each(self):
         sd = StockDecrement(sku_id="p1", sku="S", name="X", quantity=1)
         assert sd.unit == "each"
@@ -130,21 +162,35 @@ class TestStockDecrementInvariants:
         sd = StockDecrement(sku_id="p1", sku="S", name="X", quantity=5, unit="inch")
         assert sd.unit == "inch"
 
-class TestErrorContracts:
 
+class TestErrorContracts:
     def test_insufficient_stock_stores_float_quantities(self):
         err = InsufficientStockError(sku="W-001", requested=2.5, available=1.0)
         assert isinstance(err.requested, float)
         assert isinstance(err.available, float)
         assert "2.5" in str(err)
 
-class TestWithdrawalInvariants:
 
+class TestWithdrawalInvariants:
     def _make_withdrawal(self, items):
-        return MaterialWithdrawal(items=items, job_id="J", service_address="X", subtotal=0, tax=0, total=0, cost_total=0, contractor_id="c1", processed_by_id="u1", organization_id=DEFAULT_ORG_ID)
+        return MaterialWithdrawal(
+            items=items,
+            job_id="J",
+            service_address="X",
+            subtotal=0,
+            tax=0,
+            total=0,
+            cost_total=0,
+            contractor_id="c1",
+            processed_by_id="u1",
+            organization_id=DEFAULT_ORG_ID,
+        )
 
     def test_compute_totals_with_fractional_items(self):
-        items = [WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0), WithdrawalItem(sku_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0)]
+        items = [
+            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0),
+            WithdrawalItem(sku_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0),
+        ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.1)
         assert w.subtotal == pytest.approx(17.5)
@@ -171,13 +217,16 @@ class TestWithdrawalInvariants:
 
     def test_total_equals_subtotal_plus_tax(self):
         """Invariant: total = subtotal + tax for any combination."""
-        items = [WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0), WithdrawalItem(sku_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0)]
+        items = [
+            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0),
+            WithdrawalItem(sku_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0),
+        ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.13)
         assert w.total == pytest.approx(w.subtotal + w.tax, abs=0.01)
 
-class TestContractorContext:
 
+class TestContractorContext:
     def test_requires_id_field(self):
         """ContractorContext.id is a required positional argument."""
         ctx = ContractorContext(id="abc-123")
@@ -193,6 +242,7 @@ class TestContractorContext:
     def test_is_frozen(self):
         """ContractorContext must be immutable — prevents accidental mutation."""
         from dataclasses import FrozenInstanceError
+
         ctx = ContractorContext(id="c-1")
         with pytest.raises(FrozenInstanceError):
             ctx.id = "mutated"
@@ -204,7 +254,12 @@ class TestContractorContext:
         from operations.application.withdrawal_service import create_withdrawal
         from operations.domain.withdrawal import MaterialWithdrawalCreate, WithdrawalItem
         from shared.kernel.types import CurrentUser
-        data = MaterialWithdrawalCreate(items=[WithdrawalItem(sku_id="p1", sku="X", name="A", quantity=1, unit_price=10.0)], job_id="J1", service_address="123 Main")
+
+        data = MaterialWithdrawalCreate(
+            items=[WithdrawalItem(sku_id="p1", sku="X", name="A", quantity=1, unit_price=10.0)],
+            job_id="J1",
+            service_address="123 Main",
+        )
         ctx = ContractorContext(id="")
         user = CurrentUser(id="u1", email="a@b.com", name="A", role="admin", organization_id=DEFAULT_ORG_ID)
         with pytest.raises(ValueError, match="contractor\\.id"):

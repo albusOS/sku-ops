@@ -27,21 +27,16 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
     """Withdrawal history for a contractor (by name)."""
     name = name.strip()
     limit = min(limit, 100)
-    all_withdrawals = await get_database_manager().operations.list_withdrawals(
-        get_org_id(), limit=500
-    )
+    all_withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), limit=500)
     name_lower = name.lower()
     matched = [
         w
         for w in all_withdrawals
-        if name_lower in (w.contractor_name or "").lower()
-        or name_lower in (w.contractor_company or "").lower()
+        if name_lower in (w.contractor_name or "").lower() or name_lower in (w.contractor_company or "").lower()
     ]
     details = [
         WithdrawalDetail(
-            date=w.created_at.strftime("%Y-%m-%d")
-            if isinstance(w.created_at, datetime)
-            else (w.created_at or "")[:10],
+            date=w.created_at.strftime("%Y-%m-%d") if isinstance(w.created_at, datetime) else (w.created_at or "")[:10],
             job_id=w.job_id,
             service_address=w.service_address,
             contractor=w.contractor_name,
@@ -67,9 +62,7 @@ async def _get_contractor_history(name: str = "", limit: int = 20) -> str:
 async def _get_job_materials(job_id: str = "") -> str:
     """All materials pulled for a specific job ID."""
     job_id = job_id.strip()
-    all_withdrawals = await get_database_manager().operations.list_withdrawals(
-        get_org_id(), limit=1000
-    )
+    all_withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), limit=1000)
     job_withdrawals = [w for w in all_withdrawals if (w.job_id or "").lower() == job_id.lower()]
     if not job_withdrawals:
         job_withdrawals = [w for w in all_withdrawals if job_id.lower() in (w.job_id or "").lower()]
@@ -115,14 +108,10 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
     days = min(days, 365)
     limit = min(limit, 100)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await get_database_manager().operations.list_withdrawals(
-        get_org_id(), start_date=since, limit=limit
-    )
+    withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), start_date=since, limit=limit)
     summaries = [
         WithdrawalSummary(
-            date=w.created_at.strftime("%Y-%m-%d")
-            if isinstance(w.created_at, datetime)
-            else (w.created_at or "")[:10],
+            date=w.created_at.strftime("%Y-%m-%d") if isinstance(w.created_at, datetime) else (w.created_at or "")[:10],
             job_id=w.job_id,
             contractor=w.contractor_name,
             service_address=w.service_address,
@@ -144,9 +133,7 @@ async def _list_recent_withdrawals(days: int = 7, limit: int = 20) -> str:
 async def _list_pending_material_requests(limit: int = 20) -> str:
     """Material requests from contractors awaiting approval."""
     limit = min(limit, 100)
-    rows = await get_database_manager().operations.list_pending_material_requests(
-        get_org_id(), limit=limit
-    )
+    rows = await get_database_manager().operations.list_pending_material_requests(get_org_id(), limit=limit)
     requests = [
         PendingRequest(
             id=r.id,
@@ -167,9 +154,7 @@ async def _get_daily_withdrawal_activity(days: int = 30, sku_id: str = "") -> st
     days = min(days, 365)
     since = datetime.now(UTC) - timedelta(days=days)
     sku_id_val = sku_id.strip() or None
-    activity = await get_database_manager().inventory.daily_withdrawal_activity(
-        get_org_id(), since, sku_id=sku_id_val
-    )
+    activity = await get_database_manager().inventory.daily_withdrawal_activity(get_org_id(), since, sku_id=sku_id_val)
     return DailyActivityResult(
         period_days=days,
         data_points=len(activity),

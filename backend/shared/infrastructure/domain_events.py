@@ -115,7 +115,7 @@ def retryable(max_retries: int = 2, base_delay: float = 0.1):
 
     def decorator(fn: Handler) -> Handler:
         setattr(fn, _RETRYABLE_ATTR, max_retries)
-        fn._retryable_base_delay = base_delay
+        fn._retryable_base_delay = base_delay  # noqa: SLF001
         return fn
 
     return decorator

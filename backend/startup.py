@@ -78,9 +78,7 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(_redis_workers_msg)
 
     if cors_warn_in_deployed:
-        logger.warning(
-            "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for production."
-        )
+        logger.warning("CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for production.")
 
     await init_db()
     logger.info("Database initialized")
@@ -116,15 +114,11 @@ async def lifespan(app: FastAPI):
             try:
                 await get_index()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning(
-                    "BM25 index warm-up skipped for org '%s': %s", oid, e
-                )
+                logger.warning("BM25 index warm-up skipped for org '%s': %s", oid, e)
             try:
                 await run_startup_check()
             except (RuntimeError, OSError, ValueError) as e:
-                logger.warning(
-                    "Xero startup check failed for org '%s': %s", oid, e
-                )
+                logger.warning("Xero startup check failed for org '%s': %s", oid, e)
             finally:
                 org_id_var.reset(token)
 
@@ -144,9 +138,7 @@ async def lifespan(app: FastAPI):
         )
 
     ws_routes = [r.path for r in app.routes if hasattr(r, "path")]
-    has_domain_ws = any(
-        "shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes
-    )
+    has_domain_ws = any("shared/ws" in p or p == "/api/beta/shared/ws" for p in ws_routes)
     has_chat_ws = any("assistant/ws" in p or "ws/chat" in p for p in ws_routes)
     if not has_domain_ws:
         raise RuntimeError(_DOMAIN_WS_MSG)

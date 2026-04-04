@@ -96,8 +96,7 @@ def _row_to_model(row) -> Contractor | None:
 
 
 _SELECT_COLS = (
-    "id, email, name, role, company, billing_entity, billing_entity_id, "
-    "phone, is_active, organization_id, created_at"
+    "id, email, name, role, company, billing_entity, billing_entity_id, phone, is_active, organization_id, created_at"
 )
 
 
@@ -145,10 +144,7 @@ async def list_contractors(search: str | None = None) -> list[Contractor]:
     params: list = [org_id]
     if search and search.strip():
         term = f"%{search.strip()}%"
-        base += (
-            " AND (name LIKE $2 OR email LIKE $3 OR company LIKE $4"
-            " OR billing_entity LIKE $5 OR phone LIKE $6)"
-        )
+        base += " AND (name LIKE $2 OR email LIKE $3 OR company LIKE $4 OR billing_entity LIKE $5 OR phone LIKE $6)"
         params.extend([term, term, term, term, term])
     base += " ORDER BY name"
     cursor = await sql_execute(base, params)
@@ -234,9 +230,7 @@ async def create_contractor(
     )
 
 
-async def update_contractor(
-    contractor_id: str, updates: UpdateContractorCommand
-) -> Contractor | None:
+async def update_contractor(contractor_id: str, updates: UpdateContractorCommand) -> Contractor | None:
     """Update contractor profile fields. Returns updated contractor or None."""
     contractor = await get_contractor_by_id(contractor_id)
     if not contractor or contractor.role != "contractor":
@@ -261,9 +255,7 @@ async def update_contractor(
     if not set_clauses:
         return contractor
 
-    billing_name_changed = (
-        updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
-    )
+    billing_name_changed = updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
 
     async with transaction():
         if billing_name_changed:

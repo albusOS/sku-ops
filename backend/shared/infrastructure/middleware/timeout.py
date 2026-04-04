@@ -47,9 +47,7 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Pick timeout based on path
-        timeout = (
-            AI_REQUEST_TIMEOUT if any(path.startswith(p) for p in _AI_PREFIXES) else REQUEST_TIMEOUT
-        )
+        timeout = AI_REQUEST_TIMEOUT if any(path.startswith(p) for p in _AI_PREFIXES) else REQUEST_TIMEOUT
 
         try:
             return await asyncio.wait_for(call_next(request), timeout=timeout)

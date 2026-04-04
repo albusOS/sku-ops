@@ -133,9 +133,7 @@ class DocumentsDatabaseService(DomainDatabaseService):
             rows = result.scalars().all()
             return [self._row_to_document(r) for r in rows]
 
-    async def update_document_status(
-        self, doc_id: str, org_id: str, status: str, po_id: str | None = None
-    ) -> None:
+    async def update_document_status(self, doc_id: str, org_id: str, status: str, po_id: str | None = None) -> None:
         did = as_uuid_required(doc_id)
         oid = as_uuid_required(org_id)
         now = datetime.now(UTC)

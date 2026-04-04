@@ -220,8 +220,7 @@ async def _run_generation(
             {
                 "type": "chat.error",
                 "error_type": "busy",
-                "detail": "The AI assistant is handling several requests right now. "
-                "Please try again in a moment.",
+                "detail": "The AI assistant is handling several requests right now. Please try again in a moment.",
             },
         )
         return
@@ -305,11 +304,7 @@ async def _run_generation(
 
                         elif isinstance(event, AgentRunResultEvent):
                             result = event.result
-                            response_text = (
-                                result.output
-                                if isinstance(result.output, str)
-                                else str(result.output)
-                            )
+                            response_text = result.output if isinstance(result.output, str) else str(result.output)
 
                             if not full_text:
                                 full_text = response_text
@@ -461,14 +456,11 @@ async def _run_generation(
 
                 overload_attempts += 1
                 if overload_attempts >= _STREAM_OVERLOAD_RETRIES and not model_override:
-                    primary = get_model_name(
-                        f"agent:{agent_label}" if agent_label else "agent:unified"
-                    )
+                    primary = get_model_name(f"agent:{agent_label}" if agent_label else "agent:unified")
                     fallback = get_fallback_model(primary)
                     if fallback:
                         logger.warning(
-                            "Stream overloaded after %d attempts, falling back to %s: "
-                            "job=%s session=%s",
+                            "Stream overloaded after %d attempts, falling back to %s: job=%s session=%s",
                             overload_attempts,
                             fallback,
                             job_id,

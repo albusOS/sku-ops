@@ -1,4 +1,5 @@
 """Unit tests for the Pydantic-to-SQLModel type mapping."""
+
 from __future__ import annotations
 
 from backend.scripts.supabase_type_generation.pydantic_to_sql_model_type_mapping import (
@@ -7,7 +8,6 @@ from backend.scripts.supabase_type_generation.pydantic_to_sql_model_type_mapping
 
 
 class TestBasicTypes:
-
     def test_str(self):
         result = map_pydantic_type("str", is_optional=False)
         assert result.python_type == "str"
@@ -28,8 +28,8 @@ class TestBasicTypes:
         assert result.python_type == "bool"
         assert result.sa_type is None
 
-class TestOptionalTypes:
 
+class TestOptionalTypes:
     def test_optional_str(self):
         result = map_pydantic_type("str | None", is_optional=True)
         assert result.python_type == "str | None"
@@ -43,8 +43,8 @@ class TestOptionalTypes:
         assert result.python_type == "float | None"
         assert result.sa_type == "Float"
 
-class TestDatetimeTypes:
 
+class TestDatetimeTypes:
     def test_datetime(self):
         result = map_pydantic_type("datetime.datetime", is_optional=False)
         assert result.python_type == "datetime.datetime"
@@ -61,8 +61,8 @@ class TestDatetimeTypes:
         assert result.python_type == "datetime.date"
         assert result.sa_type == "Date"
 
-class TestJsonTypes:
 
+class TestJsonTypes:
     def test_json_any(self):
         result = map_pydantic_type("Json[Any]", is_optional=False)
         assert "dict" in result.python_type
@@ -76,8 +76,8 @@ class TestJsonTypes:
         result = map_pydantic_type("Json", is_optional=False)
         assert result.sa_type == "JSONB"
 
-class TestUuidTypes:
 
+class TestUuidTypes:
     def test_uuid(self):
         result = map_pydantic_type("uuid.UUID", is_optional=False)
         assert result.python_type == "uuid.UUID"

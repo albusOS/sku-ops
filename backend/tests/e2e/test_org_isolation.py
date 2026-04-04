@@ -3,6 +3,7 @@
 Seeds a second organization and user, then verifies that products and
 withdrawals created by Org A are not visible to Org B, and vice versa.
 """
+
 import pytest
 
 from shared.infrastructure.db import sql_execute
@@ -13,6 +14,7 @@ from tests.helpers.auth import admin_headers, make_token
 ORG_B_ID = "0195f2c0-89aa-7d6d-bb34-7f3b3f69c0bb"
 ORG_B_USER = "0195f2c0-89ac-7f42-8b11-0000000000bb"
 
+
 @pytest.fixture(scope="session")
 def org_b_headers(app_client):
     """Seed a second org and user, return auth headers scoped to Org B."""
@@ -20,13 +22,21 @@ def org_b_headers(app_client):
     async def _seed():
         cursor = await sql_execute("SELECT id FROM organizations WHERE id = $1", (ORG_B_ID,))
         if not (cursor.rows[0] if cursor.rows else None):
-            await sql_execute("INSERT INTO organizations (id, name, slug, created_at) VALUES ($1, $2, $3, NOW())", (ORG_B_ID, "Org B", "org-b-test"))
+            await sql_execute(
+                "INSERT INTO organizations (id, name, slug, created_at) VALUES ($1, $2, $3, NOW())",
+                (ORG_B_ID, "Org B", "org-b-test"),
+            )
         cursor = await sql_execute("SELECT id FROM users WHERE id = $1", (ORG_B_USER,))
         if not (cursor.rows[0] if cursor.rows else None):
-            await sql_execute("INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at) VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())", (ORG_B_USER, "orgb@test.com", "unused", "Org B Admin", "admin", ORG_B_ID))
+            await sql_execute(
+                "INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at) VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())",
+                (ORG_B_USER, "orgb@test.com", "unused", "Org B Admin", "admin", ORG_B_ID),
+            )
+
     app_client.portal.call(_seed)
     token = make_token(user_id=ORG_B_USER, org_id=ORG_B_ID, role="admin", name="Org B Admin")
     return {"Authorization": f"Bearer {token}"}
+
 
 @pytest.fixture(scope="session")
 def org_b_dept_id(app_client, org_b_headers):
@@ -36,9 +46,14 @@ def org_b_dept_id(app_client, org_b_headers):
         for dept in resp.json():
             if dept.get("code") == "ORB":
                 return dept["id"]
-    resp = app_client.post("/api/beta/catalog/departments", json={"name": "Org B Dept", "code": "ORB", "description": "Org B department"}, headers=org_b_headers)
+    resp = app_client.post(
+        "/api/beta/catalog/departments",
+        json={"name": "Org B Dept", "code": "ORB", "description": "Org B department"},
+        headers=org_b_headers,
+    )
     assert resp.status_code == 200, f"Org B dept seed failed: {resp.text}"
     return resp.json()["id"]
+
 
 @pytest.mark.timeout(30)
 class TestOrgIsolation:
@@ -79,6 +94,7 @@ class TestOrgIsolation:
             product = create_product(client, headers_a, dept_id=seed_dept_id, quantity=50, name="WS-OrgIso")
             create_withdrawal(client, headers_a, product, quantity=3)
             import time
+
             time.sleep(1)
             wd_events = collector_b.all_of_type("withdrawal.created")
             assert len(wd_events) == 0, "Org B should not receive Org A's withdrawal.created events"

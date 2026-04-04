@@ -108,12 +108,12 @@ async def ready(request: Request):
 async def ai_health():
     """AI availability probe."""
     if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
+        detail_msg = (
+            f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. Get a key at {LLM_SETUP_URL}"
+        )
         return JSONResponse(
             status_code=503,
-            content={
-                "status": "unavailable",
-                "detail": f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. Get a key at {LLM_SETUP_URL}",
-            },
+            content={"status": "unavailable", "detail": detail_msg},
             headers=_NO_CACHE,
         )
     provider = "openrouter" if OPENROUTER_AVAILABLE else "anthropic"

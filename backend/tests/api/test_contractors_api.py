@@ -1,4 +1,5 @@
 """Contractors API tests — list, search."""
+
 import pytest
 
 

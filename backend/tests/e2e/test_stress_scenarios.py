@@ -13,6 +13,7 @@ TestAdversarialBehavior
 
 All tests run against Postgres (the only supported backend).
 """
+
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -36,81 +37,117 @@ from tests.helpers.auth import admin_headers
 
 _N_WORKERS = 5
 
+
 def _count_ledger(client: TestClient, reference_id: str, reference_type: str) -> int:
     """Count all ledger rows for a given reference."""
 
     async def _q() -> int:
-        cursor = await sql_execute("SELECT COUNT(*) FROM financial_ledger WHERE reference_id = $1 AND reference_type = $2", (reference_id, reference_type))
+        cursor = await sql_execute(
+            "SELECT COUNT(*) FROM financial_ledger WHERE reference_id = $1 AND reference_type = $2",
+            (reference_id, reference_type),
+        )
         row = cursor.rows[0] if cursor.rows else None
         return int(row[0])
+
     return client.portal.call(_q)
+
 
 def _count_ledger_by_account(client: TestClient, reference_id: str, reference_type: str, account: str) -> int:
     """Count ledger rows for a specific account within a reference."""
 
     async def _q() -> int:
-        cursor = await sql_execute("SELECT COUNT(*) FROM financial_ledger WHERE reference_id = $1 AND reference_type = $2 AND account = $3", (reference_id, reference_type, account))
+        cursor = await sql_execute(
+            "SELECT COUNT(*) FROM financial_ledger WHERE reference_id = $1 AND reference_type = $2 AND account = $3",
+            (reference_id, reference_type, account),
+        )
         row = cursor.rows[0] if cursor.rows else None
         return int(row[0])
+
     return client.portal.call(_q)
+
 
 def _sum_ledger_amount(client: TestClient, reference_id: str, reference_type: str, account: str) -> float:
     """Sum amounts for a specific account within a reference."""
 
     async def _q() -> float:
-        cursor = await sql_execute("SELECT COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND reference_type = $2 AND account = $3", (reference_id, reference_type, account))
+        cursor = await sql_execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND reference_type = $2 AND account = $3",
+            (reference_id, reference_type, account),
+        )
         row = cursor.rows[0] if cursor.rows else None
         return float(row[0])
+
     return client.portal.call(_q)
+
 
 def _get_stock_qty(client: TestClient, sku_id: str, headers: dict) -> float:
     resp = client.get(f"/api/beta/catalog/skus/{sku_id}", headers=headers)
     assert resp.status_code == 200
     return float(resp.json()["quantity"])
 
+
 def _get_withdrawal(client: TestClient, withdrawal_id: str, headers: dict) -> dict[str, Any]:
     resp = client.get(f"/api/beta/operations/withdrawals/{withdrawal_id}", headers=headers)
     assert resp.status_code == 200
     return resp.json()
 
+
 def _attempt_commit(client: TestClient, headers: dict, count_id: str) -> int:
     resp = client.post(f"/api/beta/inventory/cycle-counts/{count_id}/commit", json={}, headers=headers)
     return resp.status_code
+
 
 def _attempt_mark_paid(client: TestClient, headers: dict, withdrawal_id: str) -> int:
     resp = client.put(f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers)
     return resp.status_code
 
+
 def _attempt_bulk_mark_paid(client: TestClient, headers: dict, withdrawal_ids: list[str]) -> tuple[int, Any]:
-    resp = client.put("/api/beta/operations/withdrawals/bulk-mark-paid", json={"withdrawal_ids": withdrawal_ids}, headers=headers)
+    resp = client.put(
+        "/api/beta/operations/withdrawals/bulk-mark-paid", json={"withdrawal_ids": withdrawal_ids}, headers=headers
+    )
     return (resp.status_code, resp.json() if resp.status_code == 200 else resp.text)
+
 
 def _attempt_create_invoice(client: TestClient, headers: dict, withdrawal_ids: list[str]) -> tuple[int, Any]:
     resp = client.post("/api/beta/finance/invoices", json={"withdrawal_ids": withdrawal_ids}, headers=headers)
     return (resp.status_code, resp.json() if resp.status_code == 200 else resp.text)
 
+
 def _attempt_receive(client: TestClient, headers: dict, po_id: str, items: list[dict[str, Any]]) -> tuple[int, Any]:
-    pending = [{"id": i["id"], "delivered_qty": i.get("ordered_qty", 10)} for i in items if i.get("status") == "pending"]
-    resp = client.post(f"/api/beta/purchasing/purchase-orders/{po_id}/receive", json={"items": pending}, headers=headers)
+    pending = [
+        {"id": i["id"], "delivered_qty": i.get("ordered_qty", 10)} for i in items if i.get("status") == "pending"
+    ]
+    resp = client.post(
+        f"/api/beta/purchasing/purchase-orders/{po_id}/receive", json={"items": pending}, headers=headers
+    )
     return (resp.status_code, resp.json() if resp.status_code == 200 else resp.text)
 
-def _setup_po_pending(client: TestClient, headers: dict, product: dict[str, Any], *, quantity: int=50) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+
+def _setup_po_pending(
+    client: TestClient, headers: dict, product: dict[str, Any], *, quantity: int = 50
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Create a PO, mark delivery, return (po, pending_items)."""
     po = create_po(client, headers, product, quantity=quantity, vendor_name="Stress Vendor")
     po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     ordered_ids = [i["id"] for i in items if i.get("status") == "ordered"]
     if ordered_ids:
-        client.post(f"/api/beta/purchasing/purchase-orders/{po['id']}/delivery", json={"item_ids": ordered_ids}, headers=headers)
+        client.post(
+            f"/api/beta/purchasing/purchase-orders/{po['id']}/delivery", json={"item_ids": ordered_ids}, headers=headers
+        )
     po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     return (po, items)
+
 
 @pytest.mark.timeout(60)
 class TestStressScenarios:
     """High-load edge cases for financial and inventory mutations."""
 
-    def test_bulk_mark_paid_concurrent_overlapping_exact_one_ledger_entry(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_bulk_mark_paid_concurrent_overlapping_exact_one_ledger_entry(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """Two concurrent bulk mark-paid calls on the same IDs produce exactly 1 payment
         ledger entry per withdrawal.
 
@@ -130,7 +167,9 @@ class TestStressScenarios:
         assert len(successes) >= 1, "At least one bulk operation should succeed"
         for wd_id in wd_ids:
             payment_entries = _count_ledger_by_account(client, wd_id, "payment", "accounts_receivable")
-            assert payment_entries == 1, f"Withdrawal {wd_id}: expected exactly 1 payment AR entry, got {payment_entries}"
+            assert payment_entries == 1, (
+                f"Withdrawal {wd_id}: expected exactly 1 payment AR entry, got {payment_entries}"
+            )
             wd = _get_withdrawal(client, wd_id, headers)
             assert wd["payment_status"] == "paid", f"Withdrawal {wd_id} should be paid"
 
@@ -148,27 +187,39 @@ class TestStressScenarios:
         assert resp.status_code == 200
         pre_count = _count_ledger_by_account(client, already_paid["id"], "payment", "accounts_receivable")
         assert pre_count == 1, "Pre-paid withdrawal should already have 1 payment entry"
-        resp = client.put("/api/beta/operations/withdrawals/bulk-mark-paid", json={"withdrawal_ids": [already_paid["id"], new_wd["id"]]}, headers=headers)
+        resp = client.put(
+            "/api/beta/operations/withdrawals/bulk-mark-paid",
+            json={"withdrawal_ids": [already_paid["id"], new_wd["id"]]},
+            headers=headers,
+        )
         assert resp.status_code == 200
         post_count = _count_ledger_by_account(client, already_paid["id"], "payment", "accounts_receivable")
-        assert post_count == 1, f"Already-paid withdrawal must have exactly 1 payment AR entry after bulk, got {post_count}"
+        assert post_count == 1, (
+            f"Already-paid withdrawal must have exactly 1 payment AR entry after bulk, got {post_count}"
+        )
         new_count = _count_ledger_by_account(client, new_wd["id"], "payment", "accounts_receivable")
         assert new_count == 1, f"New withdrawal should have exactly 1 payment entry, got {new_count}"
 
-    def test_n_way_concurrent_bulk_mark_paid_single_ledger_per_withdrawal(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_n_way_concurrent_bulk_mark_paid_single_ledger_per_withdrawal(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """N concurrent bulk mark-paid calls on the same withdrawal set: each withdrawal
         ends up paid with exactly 1 payment ledger entry, regardless of fan-out.
         """
         headers = admin_headers()
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=500, name="STRESS-NFan")
-        wds = [create_withdrawal(client, headers, product, quantity=1, job_id=e2e_job_id(f"NFAN-{i}")) for i in range(3)]
+        wds = [
+            create_withdrawal(client, headers, product, quantity=1, job_id=e2e_job_id(f"NFAN-{i}")) for i in range(3)
+        ]
         wd_ids = [w["id"] for w in wds]
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
             futures = [pool.submit(_attempt_bulk_mark_paid, client, headers, wd_ids) for _ in range(_N_WORKERS)]
             [f.result() for f in as_completed(futures)]
         for wd_id in wd_ids:
             payment_entries = _count_ledger_by_account(client, wd_id, "payment", "accounts_receivable")
-            assert payment_entries == 1, f"Withdrawal {wd_id}: expected exactly 1 payment AR entry across {_N_WORKERS} concurrent bulk calls, got {payment_entries}"
+            assert payment_entries == 1, (
+                f"Withdrawal {wd_id}: expected exactly 1 payment AR entry across {_N_WORKERS} concurrent bulk calls, got {payment_entries}"
+            )
 
     def test_cycle_count_n_way_concurrent_commit_exact_stock(self, client: TestClient, seed_dept_id: str) -> None:
         """N concurrent commits of the same cycle count apply the variance exactly once.
@@ -193,7 +244,9 @@ class TestStressScenarios:
         successes = sum(1 for s in statuses if s == 200)
         assert successes == 1, f"Exactly 1 commit should succeed across {_N_WORKERS} workers, got {successes}"
         final_qty = _get_stock_qty(client, product["id"], headers)
-        assert final_qty == pytest.approx(expected_qty), f"Stock should be {expected_qty} (variance applied once). Got {final_qty} — variance may have been applied {successes} times or rolled back incorrectly."
+        assert final_qty == pytest.approx(expected_qty), (
+            f"Stock should be {expected_qty} (variance applied once). Got {final_qty} — variance may have been applied {successes} times or rolled back incorrectly."
+        )
 
     def test_cycle_count_positive_variance_applied_once(self, client: TestClient, seed_dept_id: str) -> None:
         """Positive variance (found stock) applied under concurrent commits: exactly once."""
@@ -211,7 +264,9 @@ class TestStressScenarios:
         successes = sum(1 for s in statuses if s == 200)
         assert successes == 1, f"Exactly 1 commit should succeed, got {successes}"
         final_qty = _get_stock_qty(client, product["id"], headers)
-        assert final_qty == pytest.approx(70.0), f"Stock should be 70.0 (snapshot=50, variance=+20, applied once). Got {final_qty}"
+        assert final_qty == pytest.approx(70.0), (
+            f"Stock should be 70.0 (snapshot=50, variance=+20, applied once). Got {final_qty}"
+        )
 
     def test_cycle_count_commit_ledger_entries_written_once(self, client: TestClient, seed_dept_id: str) -> None:
         """Concurrent cycle count commits produce exactly one set of adjustment ledger entries."""
@@ -229,11 +284,18 @@ class TestStressScenarios:
 
         async def _count_adjustment_entries() -> int:
             from shared.infrastructure.db import sql_execute
-            cursor = await sql_execute("SELECT COUNT(*) FROM financial_ledger WHERE reference_type = 'adjustment' AND sku_id = $1", (product["id"],))
+
+            cursor = await sql_execute(
+                "SELECT COUNT(*) FROM financial_ledger WHERE reference_type = 'adjustment' AND sku_id = $1",
+                (product["id"],),
+            )
             row = cursor.rows[0] if cursor.rows else None
             return int(row[0])
+
         total_adjustment_entries = client.portal.call(_count_adjustment_entries)
-        assert total_adjustment_entries == 2, f"Cycle count variance should produce exactly 2 ledger entries (inventory + offset), got {total_adjustment_entries}. Concurrent commits may have double-written."
+        assert total_adjustment_entries == 2, (
+            f"Cycle count variance should produce exactly 2 ledger entries (inventory + offset), got {total_adjustment_entries}. Concurrent commits may have double-written."
+        )
 
     def test_po_receive_n_way_concurrent_stock_and_ledger(self, client: TestClient, seed_dept_id: str) -> None:
         """N concurrent receives on the same PO increment stock exactly once and write
@@ -242,7 +304,9 @@ class TestStressScenarios:
         headers = admin_headers()
         initial_qty = 100.0
         order_qty = 40
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=int(initial_qty), name="STRESS-POReceive")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=int(initial_qty), name="STRESS-POReceive"
+        )
         po, items = _setup_po_pending(client, headers, product, quantity=order_qty)
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
             futures = [pool.submit(_attempt_receive, client, headers, po["id"], items) for _ in range(_N_WORKERS)]
@@ -250,9 +314,13 @@ class TestStressScenarios:
         successes = [r for r in results if r[0] == 200]
         assert len(successes) >= 1, "At least one receive must succeed"
         final_qty = _get_stock_qty(client, product["id"], headers)
-        assert final_qty == pytest.approx(initial_qty + order_qty), f"Stock should be {initial_qty + order_qty} (received once). Got {final_qty}. {len(successes)} of {_N_WORKERS} concurrent receives reported success."
+        assert final_qty == pytest.approx(initial_qty + order_qty), (
+            f"Stock should be {initial_qty + order_qty} (received once). Got {final_qty}. {len(successes)} of {_N_WORKERS} concurrent receives reported success."
+        )
         inventory_entries = _count_ledger_by_account(client, po["id"], "po_receipt", "inventory")
-        assert inventory_entries == 1, f"PO {po['id']}: expected exactly 1 inventory ledger entry for po_receipt, got {inventory_entries}"
+        assert inventory_entries == 1, (
+            f"PO {po['id']}: expected exactly 1 inventory ledger entry for po_receipt, got {inventory_entries}"
+        )
         ap_entries = _count_ledger_by_account(client, po["id"], "po_receipt", "accounts_payable")
         assert ap_entries == 1, f"PO {po['id']}: expected exactly 1 AP ledger entry for po_receipt, got {ap_entries}"
 
@@ -265,7 +333,9 @@ class TestStressScenarios:
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, name="STRESS-InvNway")
         wd = create_withdrawal(client, headers, product, quantity=5)
         wd_state = _get_withdrawal(client, wd["id"], headers)
-        assert wd_state["payment_status"] == "invoiced", f"Withdrawal should be auto-invoiced, got {wd_state['payment_status']}"
+        assert wd_state["payment_status"] == "invoiced", (
+            f"Withdrawal should be auto-invoiced, got {wd_state['payment_status']}"
+        )
         assert wd_state.get("invoice_id") is not None, "Auto-invoice should be linked"
         resp = client.get("/api/beta/finance/invoices", headers=headers)
         invoices = [inv for inv in resp.json() if wd["id"] in inv.get("withdrawal_ids", [])]
@@ -278,7 +348,9 @@ class TestStressScenarios:
         wd_state = _get_withdrawal(client, wd["id"], headers)
         assert wd_state["payment_status"] == "paid"
         payment_entries = _count_ledger_by_account(client, wd["id"], "payment", "accounts_receivable")
-        assert payment_entries == 1, f"Exactly 1 payment AR entry expected across {_N_WORKERS} concurrent mark-paid calls. Got {payment_entries}"
+        assert payment_entries == 1, (
+            f"Exactly 1 payment AR entry expected across {_N_WORKERS} concurrent mark-paid calls. Got {payment_entries}"
+        )
 
     def test_n_way_concurrent_mark_paid_exactly_one_ledger_entry(self, client: TestClient, seed_dept_id: str) -> None:
         """N concurrent mark-paid calls on the same withdrawal: exactly 1 payment AR entry."""
@@ -293,7 +365,9 @@ class TestStressScenarios:
         wd_state = _get_withdrawal(client, wd["id"], headers)
         assert wd_state["payment_status"] == "paid"
         payment_entries = _count_ledger_by_account(client, wd["id"], "payment", "accounts_receivable")
-        assert payment_entries == 1, f"Exactly 1 payment AR entry expected across {_N_WORKERS} concurrent mark-paid calls. Got {payment_entries}. {successes} calls reported success."
+        assert payment_entries == 1, (
+            f"Exactly 1 payment AR entry expected across {_N_WORKERS} concurrent mark-paid calls. Got {payment_entries}. {successes} calls reported success."
+        )
 
     def test_withdrawal_ledger_entries_written_exactly_once(self, client: TestClient, seed_dept_id: str) -> None:
         """A withdrawal writes its full ledger journal exactly once.
@@ -302,17 +376,25 @@ class TestStressScenarios:
         even if the event handler were called more than once (belt-and-suspenders).
         """
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="STRESS-WDLedger")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="STRESS-WDLedger"
+        )
         wd = create_withdrawal(client, headers, product, quantity=5)
         total_entries = _count_ledger(client, wd["id"], "withdrawal")
-        assert total_entries == 5, f"1-item withdrawal should produce exactly 5 ledger rows (REVENUE, COGS, INVENTORY, TAX, AR). Got {total_entries}."
+        assert total_entries == 5, (
+            f"1-item withdrawal should produce exactly 5 ledger rows (REVENUE, COGS, INVENTORY, TAX, AR). Got {total_entries}."
+        )
         ar_amount = _sum_ledger_amount(client, wd["id"], "withdrawal", "accounts_receivable")
-        assert ar_amount == pytest.approx(wd["total"], abs=0.01), f"AR ledger entry should equal withdrawal total {wd['total']}. Got {ar_amount}."
+        assert ar_amount == pytest.approx(wd["total"], abs=0.01), (
+            f"AR ledger entry should equal withdrawal total {wd['total']}. Got {ar_amount}."
+        )
         revenue = _sum_ledger_amount(client, wd["id"], "withdrawal", "revenue")
         cogs = _sum_ledger_amount(client, wd["id"], "withdrawal", "cogs")
         assert revenue > 0, "Revenue entry must be positive"
         assert cogs > 0, "COGS entry must be positive"
-        assert revenue - cogs == pytest.approx((product["price"] - product["cost"]) * 5, abs=0.02), "Gross profit per item should match price - cost"
+        assert revenue - cogs == pytest.approx((product["price"] - product["cost"]) * 5, abs=0.02), (
+            "Gross profit per item should match price - cost"
+        )
 
     def test_n_way_withdrawal_stock_never_negative(self, client: TestClient, seed_dept_id: str) -> None:
         """N concurrent withdrawals that collectively exceed available stock:
@@ -324,22 +406,54 @@ class TestStressScenarios:
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=initial_qty, name="STRESS-StockFloor")
 
         def _attempt_withdrawal_floor(job_id: str) -> int:
-            return client.post("/api/beta/operations/withdrawals", json={"items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": per_request, "unit_price": product["price"], "cost": product["cost"]}], "job_id": job_id, "service_address": "1 Race St"}, headers=headers).status_code
+            return client.post(
+                "/api/beta/operations/withdrawals",
+                json={
+                    "items": [
+                        {
+                            "sku_id": product["id"],
+                            "sku": product["sku"],
+                            "name": product["name"],
+                            "quantity": per_request,
+                            "unit_price": product["price"],
+                            "cost": product["cost"],
+                        }
+                    ],
+                    "job_id": job_id,
+                    "service_address": "1 Race St",
+                },
+                headers=headers,
+            ).status_code
+
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
             futures = [pool.submit(_attempt_withdrawal_floor, e2e_job_id(f"FLOOR-{i}")) for i in range(_N_WORKERS)]
             statuses = [f.result() for f in as_completed(futures)]
         successes = sum(1 for s in statuses if s == 200)
         final_qty = _get_stock_qty(client, product["id"], headers)
         assert final_qty >= 0, f"Stock must never go negative. Got {final_qty}"
-        assert final_qty == pytest.approx(initial_qty - successes * per_request, abs=0.01), f"Stock mismatch: initial={initial_qty}, successes={successes}, per_request={per_request}, expected={initial_qty - successes * per_request}, got={final_qty}"
+        assert final_qty == pytest.approx(initial_qty - successes * per_request, abs=0.01), (
+            f"Stock mismatch: initial={initial_qty}, successes={successes}, per_request={per_request}, expected={initial_qty - successes * per_request}, got={final_qty}"
+        )
 
-def _attempt_return(client: TestClient, headers: dict, withdrawal_id: str, product: dict[str, Any], qty: int) -> tuple[int, Any]:
-    resp = client.post("/api/beta/operations/returns", json={"withdrawal_id": withdrawal_id, "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": qty}]}, headers=headers)
+
+def _attempt_return(
+    client: TestClient, headers: dict, withdrawal_id: str, product: dict[str, Any], qty: int
+) -> tuple[int, Any]:
+    resp = client.post(
+        "/api/beta/operations/returns",
+        json={
+            "withdrawal_id": withdrawal_id,
+            "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": qty}],
+        },
+        headers=headers,
+    )
     return (resp.status_code, resp.json() if resp.status_code == 200 else resp.text)
+
 
 def _attempt_delete_invoice(client: TestClient, headers: dict, invoice_id: str) -> int:
     resp = client.delete(f"/api/beta/finance/invoices/{invoice_id}", headers=headers)
     return resp.status_code
+
 
 @pytest.mark.timeout(90)
 class TestAdversarialBehavior:
@@ -368,11 +482,15 @@ class TestAdversarialBehavior:
         invoice_id = wd_state.get("invoice_id")
         if status == "paid":
             payment_entries = _count_ledger_by_account(client, wd["id"], "payment", "accounts_receivable")
-            assert payment_entries == 1, f"Paid withdrawal should have exactly 1 payment AR entry, got {payment_entries}"
+            assert payment_entries == 1, (
+                f"Paid withdrawal should have exactly 1 payment AR entry, got {payment_entries}"
+            )
         elif status == "invoiced":
             assert invoice_id is not None, "Invoiced withdrawal must have an invoice_id"
             payment_entries = _count_ledger_by_account(client, wd["id"], "payment", "accounts_receivable")
-            assert payment_entries == 0, f"Invoiced (not paid) withdrawal should have 0 payment entries, got {payment_entries}"
+            assert payment_entries == 0, (
+                f"Invoiced (not paid) withdrawal should have 0 payment entries, got {payment_entries}"
+            )
         else:
             pytest.fail(f"Unexpected payment_status: {status}")
 
@@ -409,7 +527,9 @@ class TestAdversarialBehavior:
         assert ret_status == 200, f"Return should succeed on paid withdrawal: {ret_body}"
         final_qty = _get_stock_qty(client, product["id"], headers)
         expected = initial_qty - withdraw_qty + return_qty
-        assert final_qty == pytest.approx(expected), f"Stock should be {expected} ({initial_qty} - {withdraw_qty} + {return_qty}). Got {final_qty}"
+        assert final_qty == pytest.approx(expected), (
+            f"Stock should be {expected} ({initial_qty} - {withdraw_qty} + {return_qty}). Got {final_qty}"
+        )
 
     def test_concurrent_return_and_mark_paid(self, client: TestClient, seed_dept_id: str) -> None:
         """User processes a return while someone else marks the withdrawal paid.
@@ -430,7 +550,9 @@ class TestAdversarialBehavior:
         final_qty = _get_stock_qty(client, product["id"], headers)
         returned = return_qty if ret_status == 200 else 0
         expected = initial_qty - withdraw_qty + returned
-        assert final_qty == pytest.approx(expected, abs=0.01), f"Stock should be {expected}. Got {final_qty}. Return status={ret_status}, pay status={pay_status}"
+        assert final_qty == pytest.approx(expected, abs=0.01), (
+            f"Stock should be {expected}. Got {final_qty}. Return status={ret_status}, pay status={pay_status}"
+        )
         payment_entries = _count_ledger_by_account(client, wd["id"], "payment", "accounts_receivable")
         assert payment_entries <= 1, f"At most 1 payment AR entry. Got {payment_entries}"
 
@@ -457,7 +579,9 @@ class TestAdversarialBehavior:
         if status == "invoiced":
             assert inv_link is not None, "Invoiced withdrawal must have an invoice_id"
             inv_resp = client.get(f"/api/beta/finance/invoices/{inv_link}", headers=headers)
-            assert inv_resp.status_code == 200, f"Withdrawal links to invoice {inv_link} but that invoice doesn't exist (orphan)"
+            assert inv_resp.status_code == 200, (
+                f"Withdrawal links to invoice {inv_link} but that invoice doesn't exist (orphan)"
+            )
         elif status == "unpaid":
             pass
         else:
@@ -481,7 +605,9 @@ class TestAdversarialBehavior:
             wd_state = _get_withdrawal(client, wd_id, headers)
             assert wd_state["payment_status"] == "paid", f"Withdrawal {wd_id} should be paid"
             payment_entries = _count_ledger_by_account(client, wd_id, "payment", "accounts_receivable")
-            assert payment_entries == 1, f"Withdrawal {wd_id}: interleaved bulk+single must produce exactly 1 payment AR entry. Got {payment_entries}"
+            assert payment_entries == 1, (
+                f"Withdrawal {wd_id}: interleaved bulk+single must produce exactly 1 payment AR entry. Got {payment_entries}"
+            )
 
     def test_full_lifecycle_ledger_balance(self, client: TestClient, seed_dept_id: str) -> None:
         """Walk through the complete lifecycle of a withdrawal and verify that
@@ -490,7 +616,9 @@ class TestAdversarialBehavior:
         Steps: create withdrawal → invoice → mark-paid → partial return
         """
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=200, price=25.0, cost=10.0, name="ADV-FullLifecycle")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=200, price=25.0, cost=10.0, name="ADV-FullLifecycle"
+        )
         wd = create_withdrawal(client, headers, product, quantity=8)
         wd_total = wd["total"]
         wd_ledger_count = _count_ledger(client, wd["id"], "withdrawal")
@@ -505,7 +633,9 @@ class TestAdversarialBehavior:
         wd_state = _get_withdrawal(client, wd["id"], headers)
         assert wd_state["payment_status"] == "paid"
         payment_ar = _sum_ledger_amount(client, wd["id"], "payment", "accounts_receivable")
-        assert payment_ar == pytest.approx(-wd_total, abs=0.01), f"Payment AR should be -{wd_total} (reducing receivable). Got {payment_ar}"
+        assert payment_ar == pytest.approx(-wd_total, abs=0.01), (
+            f"Payment AR should be -{wd_total} (reducing receivable). Got {payment_ar}"
+        )
         ret_status, _ = _attempt_return(client, headers, wd["id"], product, 3)
         assert ret_status == 200
         final_qty = _get_stock_qty(client, product["id"], headers)
@@ -524,17 +654,37 @@ class TestAdversarialBehavior:
         product = create_product(client, headers, dept_id=seed_dept_id, quantity=initial_qty, name="ADV-MultiJob")
 
         def _do_withdrawal(job_suffix: int) -> tuple[int, Any]:
-            resp = client.post("/api/beta/operations/withdrawals", json={"items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": per_wd, "unit_price": product["price"], "cost": product["cost"]}], "job_id": e2e_job_id(f"MULTI-{job_suffix}"), "service_address": "123 Multi St"}, headers=headers)
+            resp = client.post(
+                "/api/beta/operations/withdrawals",
+                json={
+                    "items": [
+                        {
+                            "sku_id": product["id"],
+                            "sku": product["sku"],
+                            "name": product["name"],
+                            "quantity": per_wd,
+                            "unit_price": product["price"],
+                            "cost": product["cost"],
+                        }
+                    ],
+                    "job_id": e2e_job_id(f"MULTI-{job_suffix}"),
+                    "service_address": "123 Multi St",
+                },
+                headers=headers,
+            )
             if resp.status_code == 200:
                 return (resp.status_code, resp.json())
             return (resp.status_code, resp.text)
+
         with ThreadPoolExecutor(max_workers=_N_WORKERS) as pool:
             futures = [pool.submit(_do_withdrawal, i) for i in range(_N_WORKERS)]
             results = [f.result() for f in as_completed(futures)]
         successes = [(s, b) for s, b in results if s == 200]
         final_qty = _get_stock_qty(client, product["id"], headers)
         assert final_qty >= 0, f"Stock must never go negative. Got {final_qty}"
-        assert final_qty == pytest.approx(initial_qty - len(successes) * per_wd, abs=0.01), f"Stock mismatch: {len(successes)} withdrawals of {per_wd} from {initial_qty}. Expected {initial_qty - len(successes) * per_wd}, got {final_qty}"
+        assert final_qty == pytest.approx(initial_qty - len(successes) * per_wd, abs=0.01), (
+            f"Stock mismatch: {len(successes)} withdrawals of {per_wd} from {initial_qty}. Expected {initial_qty - len(successes) * per_wd}, got {final_qty}"
+        )
         for _status, body in successes:
             wd_id = body["id"]
             ledger_count = _count_ledger(client, wd_id, "withdrawal")
@@ -568,5 +718,7 @@ class TestAdversarialBehavior:
             r1_status, _ = f1.result()
             r2_status, _ = f2.result()
         final_qty = _get_stock_qty(client, product["id"], headers)
-        assert final_qty <= 100, f"Stock {final_qty} exceeds initial 100 — concurrent returns double-restored. Return 1: {r1_status}, Return 2: {r2_status}"
+        assert final_qty <= 100, (
+            f"Stock {final_qty} exceeds initial 100 — concurrent returns double-restored. Return 1: {r1_status}, Return 2: {r2_status}"
+        )
         assert final_qty >= 90, f"Stock unexpectedly low at {final_qty}"

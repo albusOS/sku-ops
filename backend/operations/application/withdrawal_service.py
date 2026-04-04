@@ -123,12 +123,8 @@ async def create_withdrawal(
 
         if item.unit_price == 0.0 and p_price:
             updates["unit_price"] = _convert_price_per_unit(p_price, base_unit, req_unit)
-        elif (
-            item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit)
-        ):
-            updates["unit_price"] = _convert_price_per_unit(
-                p_price or item.unit_price, base_unit, req_unit
-            )
+        elif item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
+            updates["unit_price"] = _convert_price_per_unit(p_price or item.unit_price, base_unit, req_unit)
 
         updates["sell_uom"] = sell_uom
         updates["sell_cost"] = cost_per_sell_unit(p_cost, base_unit, sell_uom, pack_qty)
@@ -327,9 +323,7 @@ async def bulk_mark_withdrawals_paid(
 
     changed_ids: set[str] = set()
     async with transaction():
-        changed_ids = set(
-            await db.bulk_mark_withdrawals_paid(organization_id, withdrawal_ids, paid_at)
-        )
+        changed_ids = set(await db.bulk_mark_withdrawals_paid(organization_id, withdrawal_ids, paid_at))
         for w in withdrawals:
             if w.id not in changed_ids:
                 continue

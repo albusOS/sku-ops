@@ -70,9 +70,7 @@ class SharedDatabaseService(DomainDatabaseService):
         try:
             uid = as_uuid_required(user_id)
             async with self.session() as session:
-                result = await session.execute(
-                    select(Users.is_active).where(Users.id == uid).limit(1)
-                )
+                result = await session.execute(select(Users.is_active).where(Users.id == uid).limit(1))
                 row = result.scalar_one_or_none()
                 active = bool(row) if row is not None else True
         except (RuntimeError, OSError, ValueError):
@@ -95,9 +93,7 @@ class SharedDatabaseService(DomainDatabaseService):
     async def fetch_user_safe_by_id(self, user_id: str) -> dict | None:
         uid = as_uuid_required(user_id)
         async with self.session() as session:
-            result = await session.execute(
-                select(Users).options(defer(Users.password)).where(Users.id == uid)
-            )
+            result = await session.execute(select(Users).options(defer(Users.password)).where(Users.id == uid))
             u = result.scalar_one_or_none()
             if u is None:
                 return None
@@ -198,9 +194,7 @@ class SharedDatabaseService(DomainDatabaseService):
             state=address.state,
             postal_code=address.postal_code,
             country=address.country,
-            billing_entity_id=as_uuid_required(address.billing_entity_id)
-            if address.billing_entity_id
-            else None,
+            billing_entity_id=as_uuid_required(address.billing_entity_id) if address.billing_entity_id else None,
             job_id=as_uuid_required(address.job_id) if address.job_id else None,
             organization_id=as_uuid_required(address.organization_id),
             created_at=address.created_at or datetime.now(UTC),
@@ -233,9 +227,7 @@ class SharedDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             stmt = select(Addresses).where(Addresses.organization_id == oid)
             if billing_entity_id:
-                stmt = stmt.where(
-                    Addresses.billing_entity_id == as_uuid_required(billing_entity_id)
-                )
+                stmt = stmt.where(Addresses.billing_entity_id == as_uuid_required(billing_entity_id))
             if job_id:
                 stmt = stmt.where(Addresses.job_id == as_uuid_required(job_id))
             if q:
@@ -252,9 +244,7 @@ class SharedDatabaseService(DomainDatabaseService):
             rows = result.scalars().all()
             return [self._address_to_stored(r) for r in rows if r is not None]
 
-    async def search_addresses(
-        self, org_id: str, query: str, *, limit: int = 20
-    ) -> list[StoredAddress]:
+    async def search_addresses(self, org_id: str, query: str, *, limit: int = 20) -> list[StoredAddress]:
         oid = as_uuid_required(org_id)
         like = f"%{query.lower()}%"
         async with self.session() as session:
@@ -324,18 +314,10 @@ class SharedDatabaseService(DomainDatabaseService):
             conds.append(AuditLog.created_at <= end_bound)
 
         async with self.session() as session:
-            count_result = await session.execute(
-                select(func.count()).select_from(AuditLog).where(and_(*conds))
-            )
+            count_result = await session.execute(select(func.count()).select_from(AuditLog).where(and_(*conds)))
             total = int(count_result.scalar_one() or 0)
 
-            stmt = (
-                select(AuditLog)
-                .where(and_(*conds))
-                .order_by(AuditLog.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
+            stmt = select(AuditLog).where(and_(*conds)).order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = result.scalars().all()
             entries = []
@@ -361,10 +343,7 @@ class SharedDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                select(AuditLog.action)
-                .where(AuditLog.organization_id == oid)
-                .distinct()
-                .order_by(AuditLog.action)
+                select(AuditLog.action).where(AuditLog.organization_id == oid).distinct().order_by(AuditLog.action)
             )
             return [r[0] for r in result.all()]
 

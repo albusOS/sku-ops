@@ -2,6 +2,7 @@
 
 Requires a running local Supabase/Postgres instance.
 """
+
 from __future__ import annotations
 
 import os
@@ -20,6 +21,7 @@ def database_url():
     elif url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
     return url
+
 
 @pytest.fixture
 async def session(database_url):

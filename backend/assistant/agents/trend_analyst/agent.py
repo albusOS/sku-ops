@@ -52,16 +52,12 @@ def _get_agent() -> Agent[AgentDeps, str]:
     )
 
     @_agent.tool
-    async def get_trend_series(
-        ctx: RunContext[AgentDeps], days: int = 30, group_by: str = "day"
-    ) -> str:
+    async def get_trend_series(ctx: RunContext[AgentDeps], days: int = 30, group_by: str = "day") -> str:
         """Revenue/cost/profit time series. group_by: 'day', 'week', or 'month'."""
         return budget_tool_result(await _get_trend_series(days=days, group_by=group_by))
 
     @_agent.tool
-    async def get_daily_withdrawal_activity(
-        ctx: RunContext[AgentDeps], days: int = 30, sku_id: str = ""
-    ) -> str:
+    async def get_daily_withdrawal_activity(ctx: RunContext[AgentDeps], days: int = 30, sku_id: str = "") -> str:
         """Daily withdrawal volume over the last N days."""
         return budget_tool_result(await _get_daily_withdrawal_activity(days=days, sku_id=sku_id))
 
@@ -71,16 +67,12 @@ def _get_agent() -> Agent[AgentDeps, str]:
         return budget_tool_result(await _get_demand_profile(sku=sku, days=days))
 
     @_agent.tool
-    async def get_seasonal_pattern(
-        ctx: RunContext[AgentDeps], sku: str = "", months: int = 12
-    ) -> str:
+    async def get_seasonal_pattern(ctx: RunContext[AgentDeps], sku: str = "", months: int = 12) -> str:
         """Monthly withdrawal totals for seasonality analysis."""
         return budget_tool_result(await _get_seasonal_pattern(sku=sku, months=months))
 
     @_agent.tool
-    async def get_top_skus(
-        ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10
-    ) -> str:
+    async def get_top_skus(ctx: RunContext[AgentDeps], days: int = 30, by: str = "revenue", limit: int = 10) -> str:
         """Top SKUs by volume or revenue."""
         return budget_tool_result(await _get_top_skus(days=days, by=by, limit=limit))
 

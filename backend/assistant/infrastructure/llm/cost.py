@@ -39,11 +39,7 @@ def calc_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
     if not pricing:
         return 0.0
     return round(
-        (
-            input_tokens * pricing["input_price_per_m"]
-            + output_tokens * pricing["output_price_per_m"]
-        )
-        / 1_000_000,
+        (input_tokens * pricing["input_price_per_m"] + output_tokens * pricing["output_price_per_m"]) / 1_000_000,
         6,
     )
 

@@ -32,9 +32,7 @@ class XeroJournalSyncMixin:
 
         tracking: list = []
         if settings.xero_tracking_category_id and first_job_id:
-            tracking = [
-                {"TrackingCategoryID": settings.xero_tracking_category_id, "Option": first_job_id}
-            ]
+            tracking = [{"TrackingCategoryID": settings.xero_tracking_category_id, "Option": first_job_id}]
 
         journal_lines: list = []
         cost_total = 0.0
@@ -48,9 +46,7 @@ class XeroJournalSyncMixin:
 
             description = li.get("description") or li.get("name") or ""
             unit = li.get("unit") or li.get("sell_uom") or "each"
-            line_narration = (
-                f"{description} — {qty} {unit} @ {unit_cost:.4f} [INV {invoice_number}]"
-            ).strip(" —")
+            line_narration = (f"{description} — {qty} {unit} @ {unit_cost:.4f} [INV {invoice_number}]").strip(" —")
 
             cogs_line: dict = {
                 "AccountCode": settings.xero_cogs_account_code,
@@ -87,15 +83,11 @@ class XeroJournalSyncMixin:
                 except Exception as e:
                     logger.warning("Could not ensure COGS tracking option %r: %s", first_job_id, e)
 
-            journal_lines, cost_total = self._build_cogs_journal_lines(
-                invoice, settings, xero_invoice_id, first_job_id
-            )
+            journal_lines, cost_total = self._build_cogs_journal_lines(invoice, settings, xero_invoice_id, first_job_id)
             if cost_total <= 0:
                 return None
 
-            narration = (
-                f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
-            )
+            narration = f"COGS for invoice {invoice.get('invoice_number', '')} (Xero ID: {xero_invoice_id})"
             journal = {"Narration": narration, "JournalLines": journal_lines}
             resp = await _client.put(
                 f"{XERO_API}/ManualJournals",
@@ -146,13 +138,9 @@ class XeroJournalSyncMixin:
             (li.get("job_id") for li in inv.get("line_items", []) if li.get("job_id")),
             None,
         )
-        return await self._post_cogs_journal(
-            inv, settings, inv.get("xero_invoice_id"), first_job_id
-        )
+        return await self._post_cogs_journal(inv, settings, inv.get("xero_invoice_id"), first_job_id)
 
-    async def sync_po_receipt(
-        self, po: dict, cost_total: float, settings: XeroSettings
-    ) -> InvoiceSyncResult:
+    async def sync_po_receipt(self, po: dict, cost_total: float, settings: XeroSettings) -> InvoiceSyncResult:
         """Send a vendor purchase to Xero as an ACCPAY Bill (not a manual journal).
 
         This creates a real AP liability attached to the vendor contact, which

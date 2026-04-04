@@ -11,10 +11,6 @@ except ImportError:
 
 def get_invoicing_gateway(settings: XeroSettings):
     """Return XeroAdapter if org has active Xero tokens, otherwise StubXeroAdapter."""
-    if (
-        settings.xero_access_token
-        and settings.xero_tenant_id
-        and XeroAdapter is not None
-    ):
+    if settings.xero_access_token and settings.xero_tenant_id and XeroAdapter is not None:
         return XeroAdapter()
     return StubXeroAdapter()

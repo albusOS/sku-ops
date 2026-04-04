@@ -81,21 +81,15 @@ def parse_csv_products(content: bytes) -> list:
         name = (row[col_map["name"]] or "").strip()
         if not name:
             continue
-        if name.lower().startswith("current inventory") or name.lower().startswith(
-            "for the period"
-        ):
+        if name.lower().startswith("current inventory") or name.lower().startswith("for the period"):
             continue
 
         qty = 0.0
         with contextlib.suppress(ValueError, TypeError, IndexError):
             qty = float((row[col_map.get("quantity", 3)] or "0").replace(",", ""))
 
-        cost = parse_dollar(
-            row[col_map.get("cost", 6)] if col_map.get("cost", 6) < len(row) else "0"
-        )
-        price = parse_dollar(
-            row[col_map.get("price", 8)] if col_map.get("price", 8) < len(row) else "0"
-        )
+        cost = parse_dollar(row[col_map.get("cost", 6)] if col_map.get("cost", 6) < len(row) else "0")
+        price = parse_dollar(row[col_map.get("price", 8)] if col_map.get("price", 8) < len(row) else "0")
         if price <= 0 and cost > 0:
             price = round(cost * 1.4, 2)
         elif cost <= 0 and price > 0:
@@ -103,9 +97,7 @@ def parse_csv_products(content: bytes) -> list:
 
         min_stock = 5
         with contextlib.suppress(ValueError, TypeError, IndexError):
-            min_stock = max(
-                0, int(float((row[col_map.get("min_stock", 5)] or "0").replace(",", "")))
-            )
+            min_stock = max(0, int(float((row[col_map.get("min_stock", 5)] or "0").replace(",", ""))))
         if min_stock == 0:
             min_stock = 5
 

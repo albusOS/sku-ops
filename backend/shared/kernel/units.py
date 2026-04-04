@@ -69,9 +69,7 @@ UNIT_FAMILIES: dict[str, dict[str, float]] = {
     },
 }
 
-_UNIT_TO_FAMILY: dict[str, str] = {
-    unit: family for family, units in UNIT_FAMILIES.items() for unit in units
-}
+_UNIT_TO_FAMILY: dict[str, str] = {unit: family for family, units in UNIT_FAMILIES.items() for unit in units}
 
 
 def family_for_unit(unit: str) -> str | None:
@@ -98,9 +96,7 @@ def convert_quantity(qty: float, from_unit: str, to_unit: str) -> float:
     if to_family is None:
         raise ValueError(f"Unknown unit: {to_unit}")
     if from_family != to_family:
-        raise ValueError(
-            f"Cannot convert between {from_unit} ({from_family}) and {to_unit} ({to_family})"
-        )
+        raise ValueError(f"Cannot convert between {from_unit} ({from_family}) and {to_unit} ({to_family})")
 
     from_factor = UNIT_FAMILIES[from_family][from_unit]
     to_factor = UNIT_FAMILIES[to_family][to_unit]
@@ -137,9 +133,7 @@ def cost_per_sell_unit(
     sell_uom = (sell_uom or "each").lower()
     if base_unit == sell_uom and pack_qty == 1:
         return cost_per_base
-    base_per_sell = (
-        convert_quantity(1, sell_uom, base_unit) if are_compatible(base_unit, sell_uom) else 1.0
-    )
+    base_per_sell = convert_quantity(1, sell_uom, base_unit) if are_compatible(base_unit, sell_uom) else 1.0
     return round(cost_per_base * base_per_sell * pack_qty, 6)
 
 

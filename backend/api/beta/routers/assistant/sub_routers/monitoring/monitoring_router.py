@@ -63,9 +63,7 @@ async def cost_breakdown(
     group_by: str = Query("agent", pattern="^(agent|model|org)$"),
 ):
     """Cost breakdown by agent, model, or org."""
-    return await _db_assistant().agent_cost_breakdown(
-        get_org_id(), days=days, group_by=group_by
-    )
+    return await _db_assistant().agent_cost_breakdown(get_org_id(), days=days, group_by=group_by)
 
 
 @router.get("/validation")
@@ -80,6 +78,4 @@ async def validation_summary(
     - ungrounded_numbers: numbers in response not found in tool results
     - domain_mismatch: tools used don't match the question domain
     """
-    return await _db_assistant().agent_validation_summary(
-        get_org_id(), hours=hours
-    )
+    return await _db_assistant().agent_validation_summary(get_org_id(), hours=hours)

@@ -164,9 +164,7 @@ async def load_withdrawal_items_batch(
     if not withdrawal_ids:
         return {}
     result = await session.execute(
-        select(WithdrawalItems)
-        .where(WithdrawalItems.withdrawal_id.in_(withdrawal_ids))
-        .order_by(WithdrawalItems.id)
+        select(WithdrawalItems).where(WithdrawalItems.withdrawal_id.in_(withdrawal_ids)).order_by(WithdrawalItems.id)
     )
     by_w: dict[uuid.UUID, list[dict]] = defaultdict(list)
     for it in result.scalars().all():
@@ -179,9 +177,7 @@ async def hydrate_withdrawal(session: AsyncSession, row: Withdrawals) -> Materia
     return withdrawal_row_to_domain(row, items_map.get(row.id, []))
 
 
-async def hydrate_withdrawals(
-    session: AsyncSession, rows: list[Withdrawals]
-) -> list[MaterialWithdrawal]:
+async def hydrate_withdrawals(session: AsyncSession, rows: list[Withdrawals]) -> list[MaterialWithdrawal]:
     if not rows:
         return []
     ids = [r.id for r in rows]
@@ -205,9 +201,7 @@ async def load_material_request_items_batch(
     return by_r
 
 
-async def hydrate_material_requests(
-    session: AsyncSession, rows: list[MaterialRequests]
-) -> list[MaterialRequest]:
+async def hydrate_material_requests(session: AsyncSession, rows: list[MaterialRequests]) -> list[MaterialRequest]:
     if not rows:
         return []
     ids = [r.id for r in rows]
@@ -220,9 +214,7 @@ async def hydrate_material_request(session: AsyncSession, row: MaterialRequests)
     return material_request_row_to_domain(row, items_map.get(row.id, []))
 
 
-async def load_return_items_batch(
-    session: AsyncSession, return_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, list[dict]]:
+async def load_return_items_batch(session: AsyncSession, return_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[dict]]:
     if not return_ids:
         return {}
     result = await session.execute(
@@ -311,9 +303,7 @@ def build_material_request_row(request: MaterialRequest, org_uuid: uuid.UUID) ->
     )
 
 
-def build_material_request_item_row(
-    request_id: uuid.UUID, item: WithdrawalItem
-) -> MaterialRequestItems:
+def build_material_request_item_row(request_id: uuid.UUID, item: WithdrawalItem) -> MaterialRequestItems:
     return MaterialRequestItems(
         id=new_uuid7(),
         material_request_id=request_id,

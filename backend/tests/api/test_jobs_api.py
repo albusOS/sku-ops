@@ -1,11 +1,11 @@
 """Jobs API - list, search, get, create, update."""
+
 import pytest
 
 from tests.helpers.auth import SEEDED_JOB_ID
 
 
 class TestJobsList:
-
     def test_requires_auth(self, client):
         r = client.get("/api/beta/jobs")
         assert r.status_code in (401, 403)
@@ -32,8 +32,8 @@ class TestJobsList:
         assert r.status_code == 200
         assert any(j["code"] == "RR-2026-001" for j in r.json())
 
-class TestJobsSearch:
 
+class TestJobsSearch:
     def test_requires_auth(self, client):
         r = client.get("/api/beta/jobs/search")
         assert r.status_code in (401, 403)
@@ -52,8 +52,8 @@ class TestJobsSearch:
         assert isinstance(data, list)
         assert all(j.get("status") == "active" for j in data)
 
-class TestJobsGet:
 
+class TestJobsGet:
     def test_requires_auth(self, client):
         r = client.get(f"/api/beta/jobs/{SEEDED_JOB_ID}")
         assert r.status_code in (401, 403)
@@ -77,8 +77,8 @@ class TestJobsGet:
         r = client.get("/api/beta/jobs/019a0000-0000-7000-8000-000000000001", headers=auth_headers)
         assert r.status_code == 404
 
-class TestJobsCreate:
 
+class TestJobsCreate:
     @pytest.mark.usefixtures("_db")
     def test_requires_code(self, client, auth_headers):
         r = client.post("/api/beta/jobs", headers=auth_headers, json={"name": "x"})
@@ -97,18 +97,24 @@ class TestJobsCreate:
     @pytest.mark.usefixtures("_db")
     def test_create_success(self, client, auth_headers):
         code = f"PYTEST-JOB-{SEEDED_JOB_ID[:8]}"
-        r = client.post("/api/beta/jobs", headers=auth_headers, json={"code": code, "name": "API test job", "service_address": "1 Test Ln", "notes": "note"})
+        r = client.post(
+            "/api/beta/jobs",
+            headers=auth_headers,
+            json={"code": code, "name": "API test job", "service_address": "1 Test Ln", "notes": "note"},
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["code"] == code
         assert body["name"] == "API test job"
         assert "id" in body
 
-class TestJobsUpdate:
 
+class TestJobsUpdate:
     @pytest.mark.usefixtures("_db")
     def test_not_found(self, client, auth_headers):
-        r = client.put("/api/beta/jobs/019a0000-0000-7000-8000-000000000002", headers=auth_headers, json={"name": "nope"})
+        r = client.put(
+            "/api/beta/jobs/019a0000-0000-7000-8000-000000000002", headers=auth_headers, json={"name": "nope"}
+        )
         assert r.status_code == 404
 
     @pytest.mark.usefixtures("_db")
@@ -118,7 +124,11 @@ class TestJobsUpdate:
 
     @pytest.mark.usefixtures("_db")
     def test_update_name_and_status(self, client, auth_headers):
-        r = client.put(f"/api/beta/jobs/{SEEDED_JOB_ID}", headers=auth_headers, json={"name": "Updated pytest job", "status": "completed"})
+        r = client.put(
+            f"/api/beta/jobs/{SEEDED_JOB_ID}",
+            headers=auth_headers,
+            json={"name": "Updated pytest job", "status": "completed"},
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["name"] == "Updated pytest job"

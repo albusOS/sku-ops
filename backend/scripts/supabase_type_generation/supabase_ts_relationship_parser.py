@@ -172,9 +172,7 @@ def parse_ts_relationships(
 
             fk_name = fk_name_match.group(1) if fk_name_match else ""
             ref_table = ref_rel_match.group(1)
-            is_one_to_one = (
-                one_to_one_match.group(1).lower() == "true" if one_to_one_match else False
-            )
+            is_one_to_one = one_to_one_match.group(1).lower() == "true" if one_to_one_match else False
 
             cols_begin = cols_match.end() - 1
             cols_end = _find_matching(rel_obj, cols_begin, "[", "]")

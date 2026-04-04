@@ -58,4 +58,4 @@ def release_generation_slot() -> None:
 def active_generation_count() -> int:
     """Return number of in-flight generations (for health/metrics)."""
     sem = _get_semaphore()
-    return MAX_CONCURRENT_GENERATIONS - sem._value
+    return MAX_CONCURRENT_GENERATIONS - sem._value  # noqa: SLF001

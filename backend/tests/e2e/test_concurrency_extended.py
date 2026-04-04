@@ -8,6 +8,7 @@ NOTE: These tests require proper transaction isolation (Postgres).
 SQLite's single-connection architecture cannot properly isolate concurrent
 transactions, making these tests unreliable on SQLite.
 """
+
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -26,6 +27,7 @@ from tests.helpers.auth import admin_headers
 _is_sqlite = "sqlite" in os.environ.get("DATABASE_URL", "sqlite")
 pytestmark = pytest.mark.skipif(_is_sqlite, reason="Requires Postgres for transaction isolation")
 
+
 def _create_po_pending(client, headers, product, *, quantity=10):
     """Create a PO and mark delivery so items are PENDING (ready for receive)."""
     po = create_po(client, headers, product, quantity=quantity, vendor_name="Race Vendor")
@@ -33,43 +35,62 @@ def _create_po_pending(client, headers, product, *, quantity=10):
     items = po_resp.json().get("items", [])
     ordered_ids = [i["id"] for i in items if i.get("status") == "ordered"]
     if ordered_ids:
-        client.post(f"/api/beta/purchasing/purchase-orders/{po['id']}/delivery", json={"item_ids": ordered_ids}, headers=headers)
+        client.post(
+            f"/api/beta/purchasing/purchase-orders/{po['id']}/delivery", json={"item_ids": ordered_ids}, headers=headers
+        )
     po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
     items = po_resp.json().get("items", [])
     return (po, items)
 
+
 def _attempt_receive(client, headers, po_id, items):
     """Attempt to receive pending PO items."""
-    pending_items = [{"id": i["id"], "delivered_qty": i.get("ordered_qty", 10)} for i in items if i.get("status") == "pending"]
-    resp = client.post(f"/api/beta/purchasing/purchase-orders/{po_id}/receive", json={"items": pending_items}, headers=headers)
+    pending_items = [
+        {"id": i["id"], "delivered_qty": i.get("ordered_qty", 10)} for i in items if i.get("status") == "pending"
+    ]
+    resp = client.post(
+        f"/api/beta/purchasing/purchase-orders/{po_id}/receive", json={"items": pending_items}, headers=headers
+    )
     return (resp.status_code, resp.json() if resp.status_code == 200 else resp.text)
+
 
 def _attempt_commit(client, headers, count_id):
     """Attempt to commit a cycle count."""
     resp = client.post(f"/api/beta/inventory/cycle-counts/{count_id}/commit", json={}, headers=headers)
     return resp.status_code
 
+
 def _attempt_create_invoice(client, headers, withdrawal_ids):
     """Attempt to create an invoice from withdrawals."""
     resp = client.post("/api/beta/finance/invoices", json={"withdrawal_ids": withdrawal_ids}, headers=headers)
     return (resp.status_code, resp.json() if resp.status_code == 200 else resp.text)
+
 
 def _attempt_mark_paid(client, headers, withdrawal_id):
     """Attempt to mark a withdrawal paid."""
     resp = client.put(f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers)
     return resp.status_code
 
+
 def _query_ledger_entries(client, reference_id, account, reference_type=None):
     """Query financial_ledger via the app portal."""
 
     async def _query():
         if reference_type:
-            cursor = await sql_execute("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND account = $2 AND reference_type = $3", (reference_id, account, reference_type))
+            cursor = await sql_execute(
+                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND account = $2 AND reference_type = $3",
+                (reference_id, account, reference_type),
+            )
         else:
-            cursor = await sql_execute("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND account = $2", (reference_id, account))
+            cursor = await sql_execute(
+                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND account = $2",
+                (reference_id, account),
+            )
         row = cursor.rows[0] if cursor.rows else None
         return (row[0], float(row[1]))
+
     return client.portal.call(_query)
+
 
 @pytest.mark.timeout(30)
 class TestConcurrencyExtended:

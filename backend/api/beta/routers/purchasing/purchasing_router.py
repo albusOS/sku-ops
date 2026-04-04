@@ -55,18 +55,14 @@ def _build_deps() -> PurchasingDeps:
         return await _db_catalog().get_sku_by_id(sku_id, get_org_id())
 
     async def find_vendor_item_by_vendor_and_sku_code(vendor_id: str, vendor_sku: str):
-        return await _db_catalog().find_vendor_item_by_vendor_and_sku(
-            get_org_id(), vendor_id, vendor_sku
-        )
+        return await _db_catalog().find_vendor_item_by_vendor_and_sku(get_org_id(), vendor_id, vendor_sku)
 
     async def find_sku_by_name_and_vendor(name: str, vendor_id: str):
         return await _db_catalog().find_sku_by_name_and_vendor(get_org_id(), name, vendor_id)
 
     async def update_sku(sku_id: str, updates: SkuUpdate):
         async with transaction():
-            return await _db_catalog().update_sku(
-                sku_id, get_org_id(), updates.model_dump(exclude_none=True)
-            )
+            return await _db_catalog().update_sku(sku_id, get_org_id(), updates.model_dump(exclude_none=True))
 
     async def add_vendor_item(**kw):
         return await _db_catalog().add_vendor_item(get_org_id(), **kw)
@@ -85,9 +81,7 @@ def _build_deps() -> PurchasingDeps:
         find_vendor_item_by_vendor_and_sku_code=find_vendor_item_by_vendor_and_sku_code,
         find_sku_by_name_and_vendor=find_sku_by_name_and_vendor,
         update_sku=update_sku,
-        create_product_with_sku=lambda **kw: lifecycle_create(
-            **kw, on_stock_import=process_receiving_stock_changes
-        ),
+        create_product_with_sku=lambda **kw: lifecycle_create(**kw, on_stock_import=process_receiving_stock_changes),
         add_vendor_item=add_vendor_item,
         process_receiving_stock_changes=process_receiving_stock_changes,
     )

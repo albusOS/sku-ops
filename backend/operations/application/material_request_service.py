@@ -84,9 +84,7 @@ async def create_material_request(
         organization_id=current_user.organization_id,
     )
     await _db_operations().insert_material_request(current_user.organization_id, mat_request)
-    fetched = await _db_operations().get_material_request_by_id(
-        current_user.organization_id, mat_request.id
-    )
+    fetched = await _db_operations().get_material_request_by_id(current_user.organization_id, mat_request.id)
     result = fetched or mat_request
 
     await dispatch(

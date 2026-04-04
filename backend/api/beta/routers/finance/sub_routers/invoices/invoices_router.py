@@ -210,9 +210,7 @@ async def sync_invoice_to_xero(invoice_id: str, request: Request, current_user: 
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
     if inv.status not in ("approved", "sent", "paid"):
-        raise HTTPException(
-            status_code=400, detail="Invoice must be approved before syncing to Xero"
-        )
+        raise HTTPException(status_code=400, detail="Invoice must be approved before syncing to Xero")
 
     result = await sync_invoice(invoice_id)
     if result.get("error") and not result.get("success"):

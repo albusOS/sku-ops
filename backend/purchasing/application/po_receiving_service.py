@@ -99,9 +99,7 @@ async def receive_po_items(
 
     vendor_id: str = po.vendor_id or ""
     departments = await deps.list_departments()
-    default_dept = await deps.get_department_by_code("HDW") or (
-        departments[0] if departments else None
-    )
+    default_dept = await deps.get_department_by_code("HDW") or (departments[0] if departments else None)
     dept_by_code = {d.code.upper(): d for d in departments}
 
     all_items = await db.get_po_items(org_id, po_id)
@@ -161,16 +159,10 @@ async def receive_po_items(
                     if not transitioned:
                         continue
 
-                    purchase_pack_qty = int(
-                        working.get("purchase_pack_qty") or existing.purchase_pack_qty or 1
-                    )
-                    purchase_uom = (
-                        working.get("purchase_uom") or existing.purchase_uom or "each"
-                    ).lower()
+                    purchase_pack_qty = int(working.get("purchase_pack_qty") or existing.purchase_pack_qty or 1)
+                    purchase_uom = (working.get("purchase_uom") or existing.purchase_uom or "each").lower()
                     base_unit = (existing.base_unit or "each").lower()
-                    stock_qty = _convert_purchase_to_base(
-                        delivered, purchase_uom, base_unit, purchase_pack_qty
-                    )
+                    stock_qty = _convert_purchase_to_base(delivered, purchase_uom, base_unit, purchase_pack_qty)
 
                     await deps.process_receiving_stock_changes(
                         sku_id=existing.id,
@@ -184,16 +176,13 @@ async def receive_po_items(
                         original_unit=purchase_uom,
                     )
                     po_item_cost = _resolve_po_item_cost(working)
-                    per_base_cost = (
-                        po_item_cost / purchase_pack_qty if purchase_pack_qty > 1 else po_item_cost
-                    )
+                    per_base_cost = po_item_cost / purchase_pack_qty if purchase_pack_qty > 1 else po_item_cost
                     old_qty = float(existing.quantity)
                     old_cost = float(existing.cost)
                     new_cost: float | None = None
                     if (old_qty + stock_qty) > 0:
                         new_cost = round(
-                            (old_qty * old_cost + stock_qty * per_base_cost)
-                            / (old_qty + stock_qty),
+                            (old_qty * old_cost + stock_qty * per_base_cost) / (old_qty + stock_qty),
                             4,
                         )
 
@@ -203,10 +192,7 @@ async def receive_po_items(
                     updated = await deps.get_sku_by_id(existing.id)
                     matched.append(updated)
                 else:
-                    dept = (
-                        dept_by_code.get((working.get("suggested_department") or "HDW").upper())
-                        or default_dept
-                    )
+                    dept = dept_by_code.get((working.get("suggested_department") or "HDW").upper()) or default_dept
                     if not dept:
                         error_details.append(
                             ReceiveItemError(
@@ -220,9 +206,7 @@ async def receive_po_items(
                     new_purchase_uom = (working.get("purchase_uom") or "each").lower()
                     new_base_unit = (working.get("base_unit") or "each").lower()
                     new_pack_qty = int(working.get("purchase_pack_qty") or 1)
-                    new_stock_qty = _convert_purchase_to_base(
-                        delivered, new_purchase_uom, new_base_unit, new_pack_qty
-                    )
+                    new_stock_qty = _convert_purchase_to_base(delivered, new_purchase_uom, new_base_unit, new_pack_qty)
                     per_base_cost_new = (
                         cost_val / new_pack_qty
                         if new_pack_qty > 1 and new_purchase_uom in _DISCRETE_CONTAINER_UOMS
@@ -279,9 +263,7 @@ async def receive_po_items(
                         cost=item_cost,
                         delivered_qty=delivered,
                         sku_id=resolved_pid,
-                        department=dept_by_code[dept_code].name
-                        if dept_code in dept_by_code
-                        else dept_code,
+                        department=dept_by_code[dept_code].name if dept_code in dept_by_code else dept_code,
                     )
                 )
             except (ValueError, RuntimeError, OSError, KeyError) as e:
@@ -398,9 +380,7 @@ async def _match_sku(item: dict, vendor_id: str, deps: PurchasingDeps):
         if existing:
             return existing
     if item.get("original_sku") and vendor_id:
-        vi = await deps.find_vendor_item_by_vendor_and_sku_code(
-            vendor_id, str(item["original_sku"]).strip()
-        )
+        vi = await deps.find_vendor_item_by_vendor_and_sku_code(vendor_id, str(item["original_sku"]).strip())
         if vi:
             existing = await deps.get_sku_by_id(vi.sku_id)
             if existing:

@@ -135,9 +135,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     # ── Operations tools (quick answers) ─────────────────────────────────────────
 
     @_agent.tool
-    async def list_recent_withdrawals(
-        ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20
-    ) -> str:
+    async def list_recent_withdrawals(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20) -> str:
         """Recent material withdrawals across all jobs."""
         return budget_tool_result(await _list_recent_withdrawals(days=days, limit=limit))
 
@@ -186,9 +184,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def run_weekly_sales_report(ctx: RunContext[AgentDeps], days: int = 30) -> str:
         """Full sales/finance report: revenue, P&L, top SKUs, outstanding balances."""
         trace_id = ctx.deps.trace_id or None
-        deps = WorkflowDeps(
-            org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id
-        )
+        deps = WorkflowDeps(org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id)
         result = await run_workflow("weekly_sales_report", deps)
         return result.synthesized_markdown
 
@@ -196,9 +192,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def run_inventory_overview(ctx: RunContext[AgentDeps]) -> str:
         """Full inventory overview: stats, department health, low stock, slow movers."""
         trace_id = ctx.deps.trace_id or None
-        deps = WorkflowDeps(
-            org_id=get_org_id(), user_id=ctx.deps.user_id, days=30, trace_id=trace_id
-        )
+        deps = WorkflowDeps(org_id=get_org_id(), user_id=ctx.deps.user_id, days=30, trace_id=trace_id)
         result = await run_workflow("inventory_overview", deps)
         return result.synthesized_markdown
 
@@ -206,9 +200,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def run_procurement_overview(ctx: RunContext[AgentDeps]) -> str:
         """Full procurement overview: what to order now, urgency, vendor grouping, and PO pipeline."""
         trace_id = ctx.deps.trace_id or None
-        deps = WorkflowDeps(
-            org_id=get_org_id(), user_id=ctx.deps.user_id, days=30, trace_id=trace_id
-        )
+        deps = WorkflowDeps(org_id=get_org_id(), user_id=ctx.deps.user_id, days=30, trace_id=trace_id)
         result = await run_workflow("procurement_overview", deps)
         return result.synthesized_markdown
 
@@ -216,9 +208,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def run_trend_overview(ctx: RunContext[AgentDeps], days: int = 30) -> str:
         """Full trend overview: broad demand shifts, top SKUs, department movement, and activity patterns."""
         trace_id = ctx.deps.trace_id or None
-        deps = WorkflowDeps(
-            org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id
-        )
+        deps = WorkflowDeps(org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id)
         result = await run_workflow("trend_overview", deps)
         return result.synthesized_markdown
 
@@ -226,9 +216,7 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def run_health_overview(ctx: RunContext[AgentDeps], days: int = 30) -> str:
         """Full health overview: urgent risks, cash/inventory drag, pending requests, and prioritized actions."""
         trace_id = ctx.deps.trace_id or None
-        deps = WorkflowDeps(
-            org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id
-        )
+        deps = WorkflowDeps(org_id=get_org_id(), user_id=ctx.deps.user_id, days=days, trace_id=trace_id)
         result = await run_workflow("health_overview", deps)
         return result.synthesized_markdown
 
@@ -253,7 +241,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def analyze_procurement(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to procurement analyst for reorder optimization, vendor selection, lead times, and ordering decisions."""
+        """Delegate to procurement analyst for reorder optimization, vendor selection,
+        lead times, and ordering decisions.
+        """
         try:
             result = await asyncio.wait_for(
                 _procurement_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
@@ -285,7 +275,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def assess_business_health(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to health analyst for cross-domain triage: inventory risk, cash flow, carrying cost, vendor drift."""
+        """Delegate to health analyst for cross-domain triage: inventory risk,
+        cash flow, carrying cost, vendor drift.
+        """
         try:
             result = await asyncio.wait_for(
                 _health_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),
@@ -301,7 +293,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def run_ad_hoc_analysis(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to the SQL analyst for ad hoc data questions: custom queries, period comparisons, cross-table joins, anything the pre-built tools can't answer."""
+        """Delegate to the SQL analyst for ad hoc data questions: custom queries,
+        period comparisons, cross-table joins, anything the pre-built tools
+        cannot answer.
+        """
         try:
             result = await asyncio.wait_for(
                 _analyst_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),

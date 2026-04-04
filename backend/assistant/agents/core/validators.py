@@ -95,11 +95,11 @@ Domain guide:
   purchasing       — vendors, purchase orders, vendor performance, procurement
 
 Examples:
-  "hi there" → {"needs_tools":false,"domains":[],"expects_table":false,"is_conversational":true}
-  "what are our top selling SKUs this month?" → {"needs_tools":true,"domains":["inventory"],"expects_table":true,"is_conversational":false}
-    "show me SKU margins" → {"needs_tools":true,"domains":["finance_analytics"],"expects_table":true,"is_conversational":false}
-  "are any POs outstanding?" → {"needs_tools":true,"domains":["purchasing","finance"],"expects_table":false,"is_conversational":false}
-  "what's the AR aging?" → {"needs_tools":true,"domains":["finance_analytics"],"expects_table":true,"is_conversational":false}
+  "hi there" → {"needs_tools":false,...}
+  "what are our top selling SKUs this month?" → needs_tools + inventory domain
+  "show me SKU margins" → needs_tools + finance_analytics
+  "are any POs outstanding?" → purchasing + finance
+  "what's the AR aging?" → finance_analytics + table
 """
 
 _FALLBACK_INTENT = IntentClassification(

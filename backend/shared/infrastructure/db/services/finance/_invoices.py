@@ -62,9 +62,7 @@ async def invoice_next_number(session: AsyncSession, org_id: uuid.UUID) -> str:
     return f"INV-{str(num).zfill(5)}"
 
 
-async def invoice_get_by_id(
-    session: AsyncSession, org_id: uuid.UUID, invoice_id: str
-) -> InvoiceWithDetails | None:
+async def invoice_get_by_id(session: AsyncSession, org_id: uuid.UUID, invoice_id: str) -> InvoiceWithDetails | None:
     iid = as_uuid_required(invoice_id)
     r = await session.execute(
         select(Invoices).where(
@@ -77,14 +75,10 @@ async def invoice_get_by_id(
     if inv is None:
         return None
     lr = await session.execute(
-        select(InvoiceLineItems)
-        .where(InvoiceLineItems.invoice_id == iid)
-        .order_by(InvoiceLineItems.id)
+        select(InvoiceLineItems).where(InvoiceLineItems.invoice_id == iid).order_by(InvoiceLineItems.id)
     )
     lines = lr.scalars().all()
-    wr = await session.execute(
-        select(InvoiceWithdrawals.withdrawal_id).where(InvoiceWithdrawals.invoice_id == iid)
-    )
+    wr = await session.execute(select(InvoiceWithdrawals.withdrawal_id).where(InvoiceWithdrawals.invoice_id == iid))
     wids = [str(x[0]) for x in wr.all()]
     d = _inv_row_to_domain(inv)
     d["line_items"] = [_line_to_domain(li) for li in lines]
@@ -92,14 +86,10 @@ async def invoice_get_by_id(
     return InvoiceWithDetails.model_validate(d)
 
 
-async def invoice_insert(
-    session: AsyncSession, org_id: uuid.UUID, invoice: Invoice
-) -> InvoiceWithDetails | None:
+async def invoice_insert(session: AsyncSession, org_id: uuid.UUID, invoice: Invoice) -> InvoiceWithDetails | None:
     invoice_dict = invoice.model_dump()
     invoice_id = invoice_dict.get("id") or new_uuid7_str()
-    invoice_number = invoice_dict.get("invoice_number") or await invoice_next_number(
-        session, org_id
-    )
+    invoice_number = invoice_dict.get("invoice_number") or await invoice_next_number(session, org_id)
     now = datetime.now(UTC)
     inv_date = invoice_dict.get("invoice_date") or now
     payment_terms = invoice_dict.get("payment_terms") or "net_30"
@@ -162,9 +152,7 @@ async def invoice_list(
         conds.append(Invoices.created_at >= datetime.fromisoformat(start_date))
     if end_date:
         conds.append(Invoices.created_at <= datetime.fromisoformat(end_date))
-    r = await session.execute(
-        select(Invoices).where(and_(*conds)).order_by(Invoices.created_at.desc()).limit(limit)
-    )
+    r = await session.execute(select(Invoices).where(and_(*conds)).order_by(Invoices.created_at.desc()).limit(limit))
     invs = r.scalars().all()
     if not invs:
         return []
@@ -180,9 +168,7 @@ async def invoice_list(
     out: list[InvoiceWithDetails] = []
     for inv in invs:
         lr = await session.execute(
-            select(InvoiceLineItems)
-            .where(InvoiceLineItems.invoice_id == inv.id)
-            .order_by(InvoiceLineItems.id)
+            select(InvoiceLineItems).where(InvoiceLineItems.invoice_id == inv.id).order_by(InvoiceLineItems.id)
         )
         lines = lr.scalars().all()
         d = _inv_row_to_domain(inv)
@@ -194,9 +180,7 @@ async def invoice_list(
     return out
 
 
-async def _ensure_invoice_org(
-    session: AsyncSession, org_id: uuid.UUID, invoice_id: str
-) -> uuid.UUID:
+async def _ensure_invoice_org(session: AsyncSession, org_id: uuid.UUID, invoice_id: str) -> uuid.UUID:
     iid = as_uuid_required(invoice_id)
     r = await session.execute(
         select(Invoices.id).where(
@@ -224,11 +208,7 @@ async def invoice_update_fields(
     safe = {k: v for k, v in vals.items() if k in cols and k != "id"}
     if not safe:
         return await invoice_get_by_id(session, org_id, invoice_id)
-    await session.execute(
-        update(Invoices)
-        .where(Invoices.id == iid, Invoices.organization_id == org_id)
-        .values(**safe)
-    )
+    await session.execute(update(Invoices).where(Invoices.id == iid, Invoices.organization_id == org_id).values(**safe))
     await session.flush()
     return await invoice_get_by_id(session, org_id, invoice_id)
 
@@ -310,22 +290,14 @@ async def invoice_link_withdrawal(
 ) -> None:
     iid = await _ensure_invoice_org(session, org_id, invoice_id)
     wid = as_uuid_required(withdrawal_id)
-    stmt = (
-        pg_insert(InvoiceWithdrawals)
-        .values(invoice_id=iid, withdrawal_id=wid)
-        .on_conflict_do_nothing()
-    )
+    stmt = pg_insert(InvoiceWithdrawals).values(invoice_id=iid, withdrawal_id=wid).on_conflict_do_nothing()
     await session.execute(stmt)
     await session.flush()
 
 
-async def invoice_unlink_withdrawals(
-    session: AsyncSession, org_id: uuid.UUID, invoice_id: str
-) -> list[str]:
+async def invoice_unlink_withdrawals(session: AsyncSession, org_id: uuid.UUID, invoice_id: str) -> list[str]:
     iid = await _ensure_invoice_org(session, org_id, invoice_id)
-    wr = await session.execute(
-        select(InvoiceWithdrawals.withdrawal_id).where(InvoiceWithdrawals.invoice_id == iid)
-    )
+    wr = await session.execute(select(InvoiceWithdrawals.withdrawal_id).where(InvoiceWithdrawals.invoice_id == iid))
     wids = [str(x[0]) for x in wr.all()]
     await session.execute(delete(InvoiceWithdrawals).where(InvoiceWithdrawals.invoice_id == iid))
     await session.flush()
@@ -388,13 +360,9 @@ async def invoice_insert_row(
     await session.flush()
 
 
-async def invoice_mark_paid_for_withdrawal(
-    session: AsyncSession, org_id: uuid.UUID, withdrawal_id: str
-) -> None:
+async def invoice_mark_paid_for_withdrawal(session: AsyncSession, org_id: uuid.UUID, withdrawal_id: str) -> None:
     wid = as_uuid_required(withdrawal_id)
-    r = await session.execute(
-        select(InvoiceWithdrawals.invoice_id).where(InvoiceWithdrawals.withdrawal_id == wid)
-    )
+    r = await session.execute(select(InvoiceWithdrawals.invoice_id).where(InvoiceWithdrawals.withdrawal_id == wid))
     row = r.first()
     if not row or not row[0]:
         return
@@ -461,11 +429,7 @@ async def invoice_update_fields_dynamic(
     safe = {k: v for k, v in vals.items() if k in cols and k != "id"}
     if not safe:
         return
-    await session.execute(
-        update(Invoices)
-        .where(Invoices.id == iid, Invoices.organization_id == org_id)
-        .values(**safe)
-    )
+    await session.execute(update(Invoices).where(Invoices.id == iid, Invoices.organization_id == org_id).values(**safe))
     await session.flush()
 
 
@@ -529,9 +493,7 @@ async def invoice_list_unsynced(session: AsyncSession, org_id: uuid.UUID) -> lis
     return [_row_to_invoice_partial(x) for x in r.scalars().all()]
 
 
-async def invoice_list_needing_reconciliation(
-    session: AsyncSession, org_id: uuid.UUID
-) -> list[Invoice]:
+async def invoice_list_needing_reconciliation(session: AsyncSession, org_id: uuid.UUID) -> list[Invoice]:
     r = await session.execute(
         select(Invoices)
         .where(

@@ -117,9 +117,7 @@ async def repost_cogs_for_invoice(inv_id: str) -> InvoiceSyncResult:
     gateway = get_invoicing_gateway(xero_settings)
 
     try:
-        new_journal_id = await gateway.repost_cogs_journal(
-            inv, xero_settings, old_journal_id=inv.xero_cogs_journal_id
-        )
+        new_journal_id = await gateway.repost_cogs_journal(inv, xero_settings, old_journal_id=inv.xero_cogs_journal_id)
         await fin.invoice_set_xero_invoice_id(
             org_id,
             inv_id,

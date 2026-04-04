@@ -197,9 +197,7 @@ async def record_po_receipt(
     created_at: datetime | None = None,
 ) -> None:
     """Write inventory + AP entries for each received PO line item."""
-    if await _db_finance().ledger_entries_exist(
-        get_org_id(), ReferenceType.PO_RECEIPT.value, po_id
-    ):
+    if await _db_finance().ledger_entries_exist(get_org_id(), ReferenceType.PO_RECEIPT.value, po_id):
         return
     await _check_fiscal_period()
     journal_id = new_uuid7_str()
@@ -284,9 +282,7 @@ async def record_adjustment(
     Positive delta: INVENTORY increases, offset account decreases (found stock).
     The offset account is determined by reason: 'damage' → DAMAGE, everything else → SHRINKAGE.
     """
-    if await _db_finance().ledger_entries_exist(
-        get_org_id(), ReferenceType.ADJUSTMENT.value, adjustment_ref_id
-    ):
+    if await _db_finance().ledger_entries_exist(get_org_id(), ReferenceType.ADJUSTMENT.value, adjustment_ref_id):
         return
     await _check_fiscal_period()
     amount = round_money(abs(quantity_delta) * product_cost)
@@ -336,9 +332,7 @@ async def record_payment(
     created_at: datetime | None = None,
 ) -> None:
     """Write AR reduction when a withdrawal is marked paid."""
-    if await _db_finance().ledger_entries_exist(
-        get_org_id(), ReferenceType.PAYMENT.value, withdrawal_id
-    ):
+    if await _db_finance().ledger_entries_exist(get_org_id(), ReferenceType.PAYMENT.value, withdrawal_id):
         return
     journal_id = new_uuid7_str()
     entry = FinancialEntry(
@@ -365,9 +359,7 @@ async def record_credit_note_application(
     performed_by_user_id: str | None = None,
 ) -> None:
     """Write AR reduction when a credit note is applied to an invoice."""
-    if await _db_finance().ledger_entries_exist(
-        get_org_id(), ReferenceType.CREDIT_NOTE.value, credit_note_id
-    ):
+    if await _db_finance().ledger_entries_exist(get_org_id(), ReferenceType.CREDIT_NOTE.value, credit_note_id):
         return
     journal_id = new_uuid7_str()
     await _db_finance().ledger_insert_entries(

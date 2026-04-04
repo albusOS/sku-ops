@@ -62,9 +62,7 @@ async def cmd_db_status(conn: asyncpg.Connection, _args: argparse.Namespace):
     version = await conn.fetchval("SELECT version()")
     db_name = await conn.fetchval("SELECT current_database()")
     db_size = await conn.fetchval("SELECT pg_size_pretty(pg_database_size(current_database()))")
-    active = await conn.fetchval(
-        "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()"
-    )
+    active = await conn.fetchval("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()")
     console.print(f"  Database : [cyan]{db_name}[/]")
     console.print(f"  Size     : [cyan]{db_size}[/]")
     console.print(f"  Active   : [cyan]{active}[/] connections")
@@ -241,9 +239,7 @@ async def cmd_db_check(conn: asyncpg.Connection, args: argparse.Namespace):
                 console.print(f"  [green]✓[/] {check['name']}")
                 passed += 1
             else:
-                console.print(
-                    f"  [red]✗[/] {check['name']} — found [red]{result}[/] (expected {check['expect']})"
-                )
+                console.print(f"  [red]✗[/] {check['name']} — found [red]{result}[/] (expected {check['expect']})")
                 failed += 1
         except Exception as e:
             console.print(f"  [yellow]?[/] {check['name']} — [yellow]{e}[/]")
@@ -262,9 +258,7 @@ async def cmd_tenant_list(conn: asyncpg.Connection, _args: argparse.Namespace):
     """List all organizations with key stats."""
     console.rule("[bold]Tenants")
 
-    orgs = await conn.fetch(
-        "SELECT id, name, slug, created_at FROM organizations ORDER BY created_at"
-    )
+    orgs = await conn.fetch("SELECT id, name, slug, created_at FROM organizations ORDER BY created_at")
 
     if not orgs:
         console.print("[yellow]No organizations found.[/]")
@@ -283,24 +277,16 @@ async def cmd_tenant_list(conn: asyncpg.Connection, _args: argparse.Namespace):
 
     for org in orgs:
         oid = org["id"]
-        skus = await conn.fetchval(
-            "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL", oid
-        )
+        skus = await conn.fetchval("SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL", oid)
         vendors = await conn.fetchval(
             "SELECT count(*) FROM vendors WHERE organization_id = $1 AND deleted_at IS NULL", oid
         )
-        withdrawals = await conn.fetchval(
-            "SELECT count(*) FROM withdrawals WHERE organization_id = $1", oid
-        )
+        withdrawals = await conn.fetchval("SELECT count(*) FROM withdrawals WHERE organization_id = $1", oid)
         invoices = await conn.fetchval(
             "SELECT count(*) FROM invoices WHERE organization_id = $1 AND deleted_at IS NULL", oid
         )
-        pos = await conn.fetchval(
-            "SELECT count(*) FROM purchase_orders WHERE organization_id = $1", oid
-        )
-        txns = await conn.fetchval(
-            "SELECT count(*) FROM stock_transactions WHERE organization_id = $1", oid
-        )
+        pos = await conn.fetchval("SELECT count(*) FROM purchase_orders WHERE organization_id = $1", oid)
+        txns = await conn.fetchval("SELECT count(*) FROM stock_transactions WHERE organization_id = $1", oid)
 
         t.add_row(
             org["name"],
@@ -328,9 +314,7 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         sys.exit(1)
 
     # Resolve org
-    org = await conn.fetchrow(
-        "SELECT id, name, slug FROM organizations WHERE id = $1 OR slug = $1", org_id
-    )
+    org = await conn.fetchrow("SELECT id, name, slug FROM organizations WHERE id = $1 OR slug = $1", org_id)
     if not org:
         err.print(f"[red]Organization not found: {org_id}[/]")
         sys.exit(1)
@@ -340,15 +324,11 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
 
     # Catalog stats
     console.print("\n[bold]Catalog[/]")
-    skus = await conn.fetchval(
-        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL", oid
-    )
+    skus = await conn.fetchval("SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL", oid)
     products = await conn.fetchval(
         "SELECT count(*) FROM products WHERE organization_id = $1 AND deleted_at IS NULL", oid
     )
-    vendors = await conn.fetchval(
-        "SELECT count(*) FROM vendors WHERE organization_id = $1 AND deleted_at IS NULL", oid
-    )
+    vendors = await conn.fetchval("SELECT count(*) FROM vendors WHERE organization_id = $1 AND deleted_at IS NULL", oid)
     departments = await conn.fetchval(
         "SELECT count(*) FROM departments WHERE organization_id = $1 AND deleted_at IS NULL", oid
     )
@@ -356,7 +336,9 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         "SELECT count(*) FROM vendor_items WHERE organization_id = $1 AND deleted_at IS NULL", oid
     )
     console.print(
-        f"  Products: [cyan]{products}[/]  SKUs: [cyan]{skus}[/]  Vendors: [cyan]{vendors}[/]  Departments: [cyan]{departments}[/]  Vendor-Items: [cyan]{vendor_items}[/]"
+        f"  Products: [cyan]{products}[/]  SKUs: [cyan]{skus}[/]  "
+        f"Vendors: [cyan]{vendors}[/]  Departments: [cyan]{departments}[/]  "
+        f"Vendor-Items: [cyan]{vendor_items}[/]"
     )
 
     # SKU health
@@ -369,7 +351,8 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         oid,
     )
     below_min = await conn.fetchval(
-        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL AND quantity < min_stock AND min_stock > 0",
+        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL "
+        "AND quantity < min_stock AND min_stock > 0",
         oid,
     )
     no_vendor = await conn.fetchval(
@@ -380,15 +363,15 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
     """,
         oid,
     )
+    neg_color = "red" if negative_qty else "green"
     console.print(
-        f"  Zero stock: [yellow]{zero_qty}[/]  Negative: [{'red' if negative_qty else 'green'}]{negative_qty}[/]  Below min: [yellow]{below_min}[/]  No vendor link: [yellow]{no_vendor}[/]"
+        f"  Zero stock: [yellow]{zero_qty}[/]  Negative: [{neg_color}]{negative_qty}[/]  "
+        f"Below min: [yellow]{below_min}[/]  No vendor link: [yellow]{no_vendor}[/]"
     )
 
     # Operations stats
     console.print("\n[bold]Operations[/]")
-    withdrawals = await conn.fetchval(
-        "SELECT count(*) FROM withdrawals WHERE organization_id = $1", oid
-    )
+    withdrawals = await conn.fetchval("SELECT count(*) FROM withdrawals WHERE organization_id = $1", oid)
     unpaid = await conn.fetchval(
         "SELECT count(*) FROM withdrawals WHERE organization_id = $1 AND payment_status = 'unpaid'",
         oid,
@@ -403,7 +386,8 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
     )
     returns = await conn.fetchval("SELECT count(*) FROM returns WHERE organization_id = $1", oid)
     console.print(
-        f"  Withdrawals: [cyan]{withdrawals}[/] (unpaid: [yellow]{unpaid}[/], invoiced: [cyan]{invoiced}[/], paid: [green]{paid}[/])"
+        f"  Withdrawals: [cyan]{withdrawals}[/] (unpaid: [yellow]{unpaid}[/], "
+        f"invoiced: [cyan]{invoiced}[/], paid: [green]{paid}[/])"
     )
     console.print(f"  Returns: [cyan]{returns}[/]")
 
@@ -431,9 +415,7 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
     console.print(
         f"  Invoices: draft [yellow]{inv_draft}[/], finalized [cyan]{inv_final}[/], paid [green]{inv_paid}[/]"
     )
-    console.print(
-        f"  Total invoiced: [cyan]${total_invoiced:,.2f}[/]  Total paid: [green]${total_paid_amt:,.2f}[/]"
-    )
+    console.print(f"  Total invoiced: [cyan]${total_invoiced:,.2f}[/]  Total paid: [green]${total_paid_amt:,.2f}[/]")
 
     overdue = await conn.fetch(
         """
@@ -487,9 +469,7 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
     """,
         oid,
     )
-    console.print(
-        f"  Stock transactions: [cyan]{recent_txns}[/]  Withdrawals: [cyan]{recent_withdrawals}[/]"
-    )
+    console.print(f"  Stock transactions: [cyan]{recent_txns}[/]  Withdrawals: [cyan]{recent_withdrawals}[/]")
 
 
 # ── tx:audit ─────────────────────────────────────────────────────────────────
@@ -656,9 +636,7 @@ def main():
         choices=list(COMMANDS.keys()),
         help="Command to run",
     )
-    parser.add_argument(
-        "org_id", nargs="?", default=None, help="Organization ID or slug (optional)"
-    )
+    parser.add_argument("org_id", nargs="?", default=None, help="Organization ID or slug (optional)")
     parser.add_argument("--limit", type=int, default=20, help="Row limit for tx:recent")
     parser.add_argument("--db-url", default=None, help="Override DATABASE_URL")
 

@@ -64,8 +64,6 @@ class XeroCreditNoteSyncMixin:
         resp.raise_for_status()
         credit_notes = resp.json().get("CreditNotes", [])
         if not credit_notes:
-            return InvoiceSyncResult(
-                success=False, error="Xero returned no credit note in response"
-            )
+            return InvoiceSyncResult(success=False, error="Xero returned no credit note in response")
         xero_cn_id = credit_notes[0].get("CreditNoteID")
         return InvoiceSyncResult(success=True, external_id=xero_cn_id)

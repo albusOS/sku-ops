@@ -75,9 +75,7 @@ async def create_sku(
     if not department:
         raise ResourceNotFoundError("Department", category_id)
 
-    family = (
-        await cat.get_product_family_by_id(product_family_id, org_id) if product_family_id else None
-    )
+    family = await cat.get_product_family_by_id(product_family_id, org_id) if product_family_id else None
     family_name = family.name if family else name
     sku_code = await generate_sku(department.code, product_family_id, family_name)
     barcode_val = (barcode or "").strip() or sku_code

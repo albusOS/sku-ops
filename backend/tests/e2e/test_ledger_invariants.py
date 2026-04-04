@@ -3,6 +3,7 @@
 Runs a sequence of financial operations (withdrawal, return, payment) and
 then queries the ledger directly to verify accounting integrity.
 """
+
 import pytest
 
 from tests.e2e.helpers import create_product, create_withdrawal, e2e_job_id
@@ -15,6 +16,7 @@ def _query_ledger(client, headers):
     assert resp.status_code == 200
     return resp.json()
 
+
 @pytest.mark.timeout(60)
 class TestLedgerInvariants:
     """Accounting invariants verified after a mixed financial workload."""
@@ -22,14 +24,23 @@ class TestLedgerInvariants:
     def test_full_cycle_ledger_integrity(self, client, seed_dept_id):
         """Withdrawal + return + payment — dashboard numbers stay consistent."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="LEDGER-Integrity")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="LEDGER-Integrity"
+        )
         wd = create_withdrawal(client, headers, product, quantity=10)
         wd_total = wd["total"]
         wd_cost = wd["cost_total"]
         stats = _query_ledger(client, headers)
         assert stats["range_revenue"] >= wd_total - wd_cost
         assert stats["range_cogs"] >= wd_cost
-        resp = client.post("/api/beta/operations/returns", json={"withdrawal_id": wd["id"], "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 3}]}, headers=headers)
+        resp = client.post(
+            "/api/beta/operations/returns",
+            json={
+                "withdrawal_id": wd["id"],
+                "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 3}],
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         resp = client.put(f"/api/beta/operations/withdrawals/{wd['id']}/mark-paid", json={}, headers=headers)
         assert resp.status_code == 200
@@ -45,7 +56,9 @@ class TestLedgerInvariants:
         checking dashboard stats stay consistent with a single withdrawal.
         """
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, price=10.0, cost=4.0, name="LEDGER-NoDup")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=100, price=10.0, cost=4.0, name="LEDGER-NoDup"
+        )
         stats_before = _query_ledger(client, headers)
         rev_before = stats_before.get("range_revenue", 0)
         wd = create_withdrawal(client, headers, product, quantity=5)
@@ -58,7 +71,9 @@ class TestLedgerInvariants:
     def test_unpaid_balance_tracks_correctly(self, client, seed_dept_id):
         """Unpaid total should equal the sum of unpaid withdrawal totals."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=200, price=15.0, cost=6.0, name="LEDGER-Unpaid")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=200, price=15.0, cost=6.0, name="LEDGER-Unpaid"
+        )
         w1 = create_withdrawal(client, headers, product, quantity=5, job_id=e2e_job_id("UP-1"))
         w2 = create_withdrawal(client, headers, product, quantity=3, job_id=e2e_job_id("UP-2"))
         resp = client.put(f"/api/beta/operations/withdrawals/{w1['id']}/mark-paid", json={}, headers=headers)
@@ -72,7 +87,9 @@ class TestLedgerInvariants:
     def test_gross_profit_matches_revenue_minus_cogs(self, client, seed_dept_id):
         """Gross profit = revenue - COGS, always."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, price=25.0, cost=10.0, name="LEDGER-Profit")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=100, price=25.0, cost=10.0, name="LEDGER-Profit"
+        )
         create_withdrawal(client, headers, product, quantity=8)
         stats = _query_ledger(client, headers)
         revenue = stats.get("range_revenue", 0)

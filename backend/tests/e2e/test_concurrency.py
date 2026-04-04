@@ -3,6 +3,7 @@
 Uses ThreadPoolExecutor to simulate concurrent API calls and verifies
 that stock never goes negative and double-payments are handled safely.
 """
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
@@ -13,15 +14,34 @@ from tests.helpers.auth import admin_headers
 
 def _attempt_withdrawal(client, headers, product, quantity, job_id):
     """Attempt a withdrawal, returning (status_code, response_json_or_text)."""
-    resp = client.post("/api/beta/operations/withdrawals", json={"items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": quantity, "unit_price": product["price"], "cost": product["cost"]}], "job_id": job_id, "service_address": "100 Concurrency Lane"}, headers=headers)
+    resp = client.post(
+        "/api/beta/operations/withdrawals",
+        json={
+            "items": [
+                {
+                    "sku_id": product["id"],
+                    "sku": product["sku"],
+                    "name": product["name"],
+                    "quantity": quantity,
+                    "unit_price": product["price"],
+                    "cost": product["cost"],
+                }
+            ],
+            "job_id": job_id,
+            "service_address": "100 Concurrency Lane",
+        },
+        headers=headers,
+    )
     if resp.status_code == 200:
         return (resp.status_code, resp.json())
     return (resp.status_code, resp.text)
+
 
 def _attempt_mark_paid(client, headers, withdrawal_id):
     """Attempt to mark a withdrawal paid, returning status_code."""
     resp = client.put(f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers)
     return resp.status_code
+
 
 @pytest.mark.timeout(30)
 class TestConcurrency:

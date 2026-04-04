@@ -213,15 +213,10 @@ async def admin_dashboard(
 
     raw_po = await po_summary_by_status()
     po_summary: dict[str, PoStatusSummary] = {
-        status: PoStatusSummary(count=v["count"], total=round_money(v["total"]))
-        for status, v in raw_po.items()
+        status: PoStatusSummary(count=v["count"], total=round_money(v["total"])) for status, v in raw_po.items()
     }
 
-    chart_start = (
-        _parse_iso(sd)
-        if sd
-        else (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-    )
+    chart_start = _parse_iso(sd) if sd else (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
     chart_end = _parse_iso(ed) if ed else now
     daily_chart = _build_daily_chart(range_withdrawals, chart_start, chart_end)
 

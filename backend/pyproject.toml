@@ -86,7 +86,7 @@ addopts = ["--import-mode=importlib"]
 [tool.ruff]
 # Do not mutate files on plain `ruff check` (CI / pixi lint). Use `ruff check --fix` locally when desired.
 fix = false
-line-length = 100
+line-length = 120
 src = ["."]
 target-version = "py313"
 
@@ -97,7 +97,9 @@ docstring-code-format = true
 # TRY003 fights the project's dominant pattern (explicit DomainError/ValueError messages).
 # BLE001: broad `except Exception` is intentional at LLM/IO/event resilience boundaries;
 # narrow exceptions per call site is ongoing hardening, not a batch mechanical fix.
-ignore = ["TRY003", "BLE001"]
+# S608: string-built SQL here uses allowlisted structural fragments (column/date clauses) with
+# bound parameters for values; bandit cannot see the split. Review when touching those call sites.
+ignore = ["TRY003", "BLE001", "S608"]
 select = [
     "A",      # flake8-builtins
     "ARG",    # flake8-unused-arguments
@@ -147,7 +149,9 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 # Tests use deferred imports for optional stacks and heavy fixtures.
-"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002"]
+# Long assertion data and mock payloads routinely exceed the code line cap.
+# Tests white-box private helpers and SQLAlchemy/SQLModel rows (_mapping, etc.).
+"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002", "E501", "SLF001"]
 # HTTP handlers keep auth deps in signature for Depends() even when the body only
 # delegates to services that read org from contextvars.
 "api/beta/routers/**/*.py" = ["ARG001", "ARG002"]
@@ -158,12 +162,16 @@ select = [
 "scripts/**" = ["PLC0415", "ARG001", "ARG002"]
 # Deployment self-check; asserts are intentional checkpoints
 "scripts/verify_deploy.py" = ["S101"]
+# UnitOfWork peers reach into DatabaseManager / service session transaction state.
+"shared/infrastructure/db/base.py" = ["SLF001"]
+"shared/infrastructure/db/services/_base.py" = ["SLF001"]
+"shared/infrastructure/db/services/raw_sql.py" = ["SLF001"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.pycodestyle]
-max-doc-length = 100
+max-doc-length = 120
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

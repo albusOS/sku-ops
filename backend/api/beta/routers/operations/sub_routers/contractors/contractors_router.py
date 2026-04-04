@@ -27,9 +27,7 @@ class ContractorCreate(BaseModel):
 @router.get("")
 async def get_contractors(
     current_user: AdminDep,
-    search: str | None = Query(
-        None, description="Search by name, email, company, billing entity, or phone"
-    ),
+    search: str | None = Query(None, description="Search by name, email, company, billing entity, or phone"),
 ):
     return await list_contractors(search=search)
 

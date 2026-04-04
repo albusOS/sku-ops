@@ -8,6 +8,7 @@ Tests cover:
   - Session management (session_id assignment, cost cap)
   - Connection lifecycle (heartbeat, graceful close)
 """
+
 import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -30,14 +31,29 @@ def _make_mock_stream(text_chunks, tool_names=None):
         TextPartDelta,
         ToolCallPart,
     )
+
     events = []
     if tool_names:
         for name in tool_names:
-            events.append(PartStartEvent(index=0, part=ToolCallPart(tool_name=name, args=None, tool_call_id=f"tc_{name}"), previous_part_kind=None))
+            events.append(
+                PartStartEvent(
+                    index=0,
+                    part=ToolCallPart(tool_name=name, args=None, tool_call_id=f"tc_{name}"),
+                    previous_part_kind=None,
+                )
+            )
     if text_chunks:
-        events.append(PartStartEvent(index=1, part=TextPart(content=text_chunks[0]), previous_part_kind="tool-call" if tool_names else None))
+        events.append(
+            PartStartEvent(
+                index=1, part=TextPart(content=text_chunks[0]), previous_part_kind="tool-call" if tool_names else None
+            )
+        )
         for chunk in text_chunks[1:]:
-            events.append(PartDeltaEvent(index=1, delta=TextPartDelta(content_delta=chunk, provider_name=None, provider_details=None)))
+            events.append(
+                PartDeltaEvent(
+                    index=1, delta=TextPartDelta(content_delta=chunk, provider_name=None, provider_details=None)
+                )
+            )
     full_text = "".join(text_chunks)
     mock_usage = MagicMock()
     mock_usage.input_tokens = 100
@@ -52,7 +68,9 @@ def _make_mock_stream(text_chunks, tool_names=None):
     async def _stream(*args, **kwargs):
         for ev in events:
             yield ev
+
     return _stream
+
 
 def _assert_ws_close(client, url: str, expected_code: int):
     """Connect and assert the server closes with the given code."""
@@ -63,9 +81,9 @@ def _assert_ws_close(client, url: str, expected_code: int):
     except WebSocketDisconnect as exc:
         assert exc.code == expected_code, f"Expected close code {expected_code}, got {exc.code}"
 
+
 @pytest.mark.timeout(15)
 class TestWSChatAuth:
-
     def test_no_token_rejected(self, client):
         _assert_ws_close(client, "/api/beta/assistant/ws/chat", 4001)
 
@@ -87,9 +105,9 @@ class TestWSChatAuth:
             messages = _collect_messages(ws, until_type="chat.error", max_msgs=5)
             assert len(messages) > 0
 
+
 @pytest.mark.timeout(15)
 class TestWSChatProtocol:
-
     def test_pong_response_accepted(self, client):
         """Server should accept pong messages without error."""
         token = _admin_token()
@@ -120,9 +138,9 @@ class TestWSChatProtocol:
             error = _find_msg(messages, "chat.error")
             assert error is not None
 
+
 @pytest.mark.timeout(30)
 class TestWSChatStreaming:
-
     def test_empty_message_returns_error(self, client):
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -155,7 +173,9 @@ class TestWSChatStreaming:
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
     def test_streaming_event_sequence(self, mock_get_agent, client):
         """Verify the full event sequence: job_started → status → deltas → done."""
-        mock_stream = _make_mock_stream(text_chunks=["Hello ", "world!", " How can I help?"], tool_names=["search_products"])
+        mock_stream = _make_mock_stream(
+            text_chunks=["Hello ", "world!", " How can I help?"], tool_names=["search_products"]
+        )
         mock_agent = MagicMock()
         mock_agent.run_stream_events = mock_stream
         mock_get_agent.return_value = mock_agent
@@ -233,9 +253,9 @@ class TestWSChatStreaming:
             assert "output_tokens" in usage
             assert "session_cost_usd" in usage
 
+
 @pytest.mark.timeout(30)
 class TestWSChatErrors:
-
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
     def test_agent_exception_returns_chat_error(self, mock_get_agent, client):
@@ -244,6 +264,7 @@ class TestWSChatErrors:
         async def _failing_stream(*args, **kwargs):
             raise RuntimeError("LLM provider down")
             yield
+
         mock_agent = MagicMock()
         mock_agent.run_stream_events = _failing_stream
         mock_get_agent.return_value = mock_agent
@@ -262,12 +283,14 @@ class TestWSChatErrors:
 
         async def _slow_stream(*args, **kwargs):
             from pydantic_ai import AgentRunResultEvent
+
             await asyncio.sleep(0.5)
             mock_result = MagicMock()
             mock_result.output = "done"
             mock_result.usage.return_value = MagicMock(input_tokens=10, output_tokens=5)
             mock_result.all_messages.return_value = []
             yield AgentRunResultEvent(result=mock_result)
+
         mock_agent = MagicMock()
         mock_agent.run_stream_events = _slow_stream
         mock_get_agent.return_value = mock_agent
@@ -282,9 +305,9 @@ class TestWSChatErrors:
             assert error is not None
             assert "already" in error["detail"].lower()
 
+
 @pytest.mark.timeout(15)
 class TestWSChatCostCap:
-
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.session_store")
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.SESSION_COST_CAP", 1.0)
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
@@ -300,6 +323,7 @@ class TestWSChatCostCap:
             assert "spend limit" in done["response"].lower()
             assert done["usage"]["capped"] is True
 
+
 def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
     """Read messages from WebSocket until we see ``until_type`` or timeout.
 
@@ -309,6 +333,7 @@ def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
     deadlocking the test run.
     """
     import threading
+
     collected: list[dict] = []
     for _ in range(max_msgs):
         result_box: list[str] = []
@@ -319,6 +344,7 @@ def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
                 rb.append(ws.receive_text())
             except Exception as exc:
                 eb.append(exc)
+
         t = threading.Thread(target=_recv, daemon=True)
         t.start()
         t.join(timeout=timeout_each)
@@ -334,6 +360,7 @@ def _collect_messages(ws, *, until_type, max_msgs=20, timeout_each=3.0):
         if msg.get("type") == until_type:
             break
     return collected
+
 
 def _find_msg(messages, msg_type):
     """Find the first message of the given type."""

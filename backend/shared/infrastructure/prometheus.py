@@ -144,6 +144,4 @@ def setup_prometheus(app: FastAPI) -> None:
             media_type=CONTENT_TYPE_LATEST,
         )
 
-    logger.info(
-        "Prometheus metrics enabled at /metrics%s", " (token-protected)" if _METRICS_TOKEN else ""
-    )
+    logger.info("Prometheus metrics enabled at /metrics%s", " (token-protected)" if _METRICS_TOKEN else "")

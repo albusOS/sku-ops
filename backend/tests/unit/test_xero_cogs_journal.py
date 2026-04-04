@@ -2,6 +2,7 @@
 
 Extracted from test_sell_cost_normalization.py — no DB, no network.
 """
+
 import pytest
 
 from finance.adapters.xero_adapter import XeroAdapter
@@ -10,7 +11,6 @@ from tests.helpers.xero import make_settings
 
 
 class TestCostPerSellUnit:
-
     def test_same_unit_same_pack(self):
         assert cost_per_sell_unit(5.0, "each", "each", 1) == 5.0
 
@@ -41,15 +41,59 @@ class TestCostPerSellUnit:
         result = cost_per_sell_unit(0.1, "inch", "foot", 3)
         assert result == pytest.approx(3.6, abs=0.0001)
 
+
 def _invoice_with_sell_cost() -> dict:
-    return {"id": "inv-1", "invoice_number": "INV-00042", "xero_invoice_id": "xero-abc", "line_items": [{"description": "Wire", "quantity": 24, "unit_price": 0.2, "amount": 4.8, "cost": 0.08, "sell_cost": 0.96, "unit": "inch", "sell_uom": "foot", "sku_id": "prod-1"}, {"description": "Conduit", "quantity": 5, "unit_price": 10.0, "amount": 50.0, "cost": 4.0, "sell_cost": 4.0, "unit": "each", "sell_uom": "each", "sku_id": "prod-2"}]}
+    return {
+        "id": "inv-1",
+        "invoice_number": "INV-00042",
+        "xero_invoice_id": "xero-abc",
+        "line_items": [
+            {
+                "description": "Wire",
+                "quantity": 24,
+                "unit_price": 0.2,
+                "amount": 4.8,
+                "cost": 0.08,
+                "sell_cost": 0.96,
+                "unit": "inch",
+                "sell_uom": "foot",
+                "sku_id": "prod-1",
+            },
+            {
+                "description": "Conduit",
+                "quantity": 5,
+                "unit_price": 10.0,
+                "amount": 50.0,
+                "cost": 4.0,
+                "sell_cost": 4.0,
+                "unit": "each",
+                "sell_uom": "each",
+                "sku_id": "prod-2",
+            },
+        ],
+    }
+
 
 def _invoice_legacy_no_sell_cost() -> dict:
     """Older invoice with only cost (no sell_cost)."""
-    return {"id": "inv-2", "invoice_number": "INV-00043", "xero_invoice_id": "xero-def", "line_items": [{"description": "Lumber", "quantity": 10, "unit_price": 10.0, "amount": 100.0, "cost": 6.0, "sku_id": "prod-3"}]}
+    return {
+        "id": "inv-2",
+        "invoice_number": "INV-00043",
+        "xero_invoice_id": "xero-def",
+        "line_items": [
+            {
+                "description": "Lumber",
+                "quantity": 10,
+                "unit_price": 10.0,
+                "amount": 100.0,
+                "cost": 6.0,
+                "sku_id": "prod-3",
+            }
+        ],
+    }
+
 
 class TestBuildCogsJournalLines:
-
     def setup_method(self):
         self.adapter = XeroAdapter()
         self.settings = make_settings()
@@ -116,7 +160,29 @@ class TestBuildCogsJournalLines:
 
     def test_zero_cost_lines_excluded(self):
         """Line items with zero sell_cost (and zero cost) must not appear in the journal."""
-        invoice = {"id": "inv-3", "invoice_number": "INV-00044", "xero_invoice_id": "xero-ghi", "line_items": [{"description": "Free Sample", "quantity": 1, "unit_price": 0.0, "amount": 0.0, "cost": 0.0, "sell_cost": 0.0}, {"description": "Paid Item", "quantity": 2, "unit_price": 5.0, "amount": 10.0, "cost": 3.0, "sell_cost": 3.0}]}
+        invoice = {
+            "id": "inv-3",
+            "invoice_number": "INV-00044",
+            "xero_invoice_id": "xero-ghi",
+            "line_items": [
+                {
+                    "description": "Free Sample",
+                    "quantity": 1,
+                    "unit_price": 0.0,
+                    "amount": 0.0,
+                    "cost": 0.0,
+                    "sell_cost": 0.0,
+                },
+                {
+                    "description": "Paid Item",
+                    "quantity": 2,
+                    "unit_price": 5.0,
+                    "amount": 10.0,
+                    "cost": 3.0,
+                    "sell_cost": 3.0,
+                },
+            ],
+        }
         lines, total = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-ghi")
         assert len(lines) == 2
         assert total == pytest.approx(6.0, abs=0.01)

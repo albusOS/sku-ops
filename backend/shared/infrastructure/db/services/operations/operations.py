@@ -102,9 +102,7 @@ class OperationsDatabaseService(DomainDatabaseService):
             rows = list(result.scalars().all())
             return await hydrate_withdrawals(session, rows)
 
-    async def get_withdrawal_by_id(
-        self, org_id: str, withdrawal_id: str
-    ) -> MaterialWithdrawal | None:
+    async def get_withdrawal_by_id(self, org_id: str, withdrawal_id: str) -> MaterialWithdrawal | None:
         oid = as_uuid_required(org_id)
         wid = as_uuid_required(withdrawal_id)
         async with self.session() as session:
@@ -143,9 +141,7 @@ class OperationsDatabaseService(DomainDatabaseService):
         updated = await self.get_withdrawal_by_id(org_id, withdrawal_id)
         return updated, changed
 
-    async def bulk_mark_withdrawals_paid(
-        self, org_id: str, withdrawal_ids: list[str], paid_at: datetime
-    ) -> list[str]:
+    async def bulk_mark_withdrawals_paid(self, org_id: str, withdrawal_ids: list[str], paid_at: datetime) -> list[str]:
         if not withdrawal_ids:
             return []
         oid = as_uuid_required(org_id)
@@ -167,9 +163,7 @@ class OperationsDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
             return ids
 
-    async def link_withdrawal_to_invoice(
-        self, org_id: str, withdrawal_id: str, invoice_id: str
-    ) -> bool:
+    async def link_withdrawal_to_invoice(self, org_id: str, withdrawal_id: str, invoice_id: str) -> bool:
         oid = as_uuid_required(org_id)
         wid = as_uuid_required(withdrawal_id)
         iid = as_uuid_required(invoice_id)
@@ -207,9 +201,7 @@ class OperationsDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def mark_withdrawals_paid_by_invoice(
-        self, org_id: str, invoice_id: str, paid_at: datetime
-    ) -> None:
+    async def mark_withdrawals_paid_by_invoice(self, org_id: str, invoice_id: str, paid_at: datetime) -> None:
         oid = as_uuid_required(org_id)
         iid = as_uuid_required(invoice_id)
         text_paid = str(PaymentStatus.PAID)
@@ -294,9 +286,7 @@ class OperationsDatabaseService(DomainDatabaseService):
                 session.add(build_material_request_item_row(parent.id, item))
             await self.end_write_session(session)
 
-    async def get_material_request_by_id(
-        self, org_id: str, request_id: str
-    ) -> MaterialRequest | None:
+    async def get_material_request_by_id(self, org_id: str, request_id: str) -> MaterialRequest | None:
         oid = as_uuid_required(org_id)
         rid = as_uuid_required(request_id)
         async with self.session() as session:
@@ -311,9 +301,7 @@ class OperationsDatabaseService(DomainDatabaseService):
                 return None
             return await hydrate_material_request(session, row)
 
-    async def list_pending_material_requests(
-        self, org_id: str, *, limit: int = 100
-    ) -> list[MaterialRequest]:
+    async def list_pending_material_requests(self, org_id: str, *, limit: int = 100) -> list[MaterialRequest]:
         oid = as_uuid_required(org_id)
         pending = str(MaterialRequestStatus.PENDING)
         async with self.session() as session:
@@ -435,9 +423,7 @@ class OperationsDatabaseService(DomainDatabaseService):
             rows = list(result.scalars().all())
             return await hydrate_returns(session, rows)
 
-    async def list_returns_by_withdrawal(
-        self, org_id: str, withdrawal_id: str
-    ) -> list[MaterialReturn]:
+    async def list_returns_by_withdrawal(self, org_id: str, withdrawal_id: str) -> list[MaterialReturn]:
         oid = as_uuid_required(org_id)
         wid = as_uuid_required(withdrawal_id)
         async with self.session() as session:
@@ -452,17 +438,13 @@ class OperationsDatabaseService(DomainDatabaseService):
             rows = list(result.scalars().all())
             return await hydrate_returns(session, rows)
 
-    async def link_return_credit_note(
-        self, org_id: str, return_id: str, credit_note_id: str
-    ) -> None:
+    async def link_return_credit_note(self, org_id: str, return_id: str, credit_note_id: str) -> None:
         oid = as_uuid_required(org_id)
         rid = as_uuid_required(return_id)
         cid = as_uuid_required(credit_note_id)
         async with self.session() as session:
             await session.execute(
-                update(Returns)
-                .where(Returns.id == rid, Returns.organization_id == oid)
-                .values(credit_note_id=cid)
+                update(Returns).where(Returns.id == rid, Returns.organization_id == oid).values(credit_note_id=cid)
             )
             await self.end_write_session(session)
 

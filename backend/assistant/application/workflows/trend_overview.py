@@ -41,8 +41,7 @@ def _format_markdown(data: dict) -> str:
         lines = ["### Top SKUs by Revenue\n| SKU | Name | Revenue |", "| --- | --- | --- |"]
         for item in top_skus[:10]:
             lines.append(
-                f"| {item.get('sku', '')} | {item.get('name', '')} "
-                f"| ${float(item.get('total_revenue', 0) or 0):,.2f} |"
+                f"| {item.get('sku', '')} | {item.get('name', '')} | ${float(item.get('total_revenue', 0) or 0):,.2f} |"
             )
         parts.append("\n".join(lines))
     depts = data.get("department_profitability", [])
@@ -66,9 +65,7 @@ async def run_trend_overview(days: int = 30) -> TrendOverviewResult:
     activity_raw = data.get("daily_withdrawal_activity_raw", {})
     top_skus = top_raw.get("skus", []) if isinstance(top_raw, dict) else []
     department_profitability = dept_raw.get("departments", []) if isinstance(dept_raw, dict) else []
-    daily_withdrawal_activity = (
-        activity_raw.get("activity", []) if isinstance(activity_raw, dict) else []
-    )
+    daily_withdrawal_activity = activity_raw.get("activity", []) if isinstance(activity_raw, dict) else []
     data_for_format = {
         "trend_series": data.get("trend_series", {}),
         "top_skus": top_skus,

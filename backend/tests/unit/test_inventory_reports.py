@@ -1,4 +1,5 @@
 """Report math regression tests."""
+
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -11,28 +12,44 @@ from reports.application.inventory_reports import product_performance_report
 async def test_product_performance_report_handles_mixed_numeric_types(monkeypatch):
 
     async def _product_margins(*, start_date=None, end_date=None, limit=200):
-        return [{"sku_id": "sku-1", "revenue": Decimal("120.00"), "cost": Decimal("45.50"), "profit": Decimal("74.50"), "margin_pct": Decimal("62.1")}]
+        return [
+            {
+                "sku_id": "sku-1",
+                "revenue": Decimal("120.00"),
+                "cost": Decimal("45.50"),
+                "profit": Decimal("74.50"),
+                "margin_pct": Decimal("62.1"),
+            }
+        ]
 
     async def _list_skus():
-        return [SimpleNamespace(id="sku-1", name="Widget", sku="W-1", category_name="Hardware", quantity=3.5, cost=4.25, base_unit="each")]
+        return [
+            SimpleNamespace(
+                id="sku-1",
+                name="Widget",
+                sku="W-1",
+                category_name="Hardware",
+                quantity=3.5,
+                cost=4.25,
+                base_unit="each",
+            )
+        ]
 
     async def _units_sold_by_product(_org_id: str, *, start_date=None, end_date=None):
         return {"sku-1": 2.0}
 
     class FakeFinance:
-
         async def analytics_product_margins(self, _org_id, **kwargs):
             return await _product_margins(**kwargs)
 
     class FakeCatalog:
-
         async def list_skus(self, _org_id):
             return await _list_skus()
 
     class FakeOperations:
-
         async def units_sold_by_product(self, _org_id, **kwargs):
             return await _units_sold_by_product(_org_id, **kwargs)
+
     monkeypatch.setattr("reports.application.inventory_reports.get_org_id", lambda: "org-test")
     monkeypatch.setattr("reports.application.inventory_reports._db_finance", FakeFinance)
     monkeypatch.setattr("reports.application.inventory_reports._db_catalog", FakeCatalog)

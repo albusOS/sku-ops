@@ -44,9 +44,7 @@ _DOCUMENT_PARSE_SYSTEM: str | None = None
 def _get_parse_system_prompt() -> str:
     global _DOCUMENT_PARSE_SYSTEM
     if _DOCUMENT_PARSE_SYSTEM is None:
-        _DOCUMENT_PARSE_SYSTEM = (_PROMPT_DIR / "document_parse_prompt.md").read_text(
-            encoding="utf-8"
-        )
+        _DOCUMENT_PARSE_SYSTEM = (_PROMPT_DIR / "document_parse_prompt.md").read_text(encoding="utf-8")
     return _DOCUMENT_PARSE_SYSTEM
 
 
@@ -66,12 +64,15 @@ async def parse_document_with_ai(
     Raises RuntimeError if AI is not configured.
     """
     if not ANTHROPIC_AVAILABLE:
-        raise RuntimeError(
-            f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {LLM_SETUP_URL}"
-        )
+        raise RuntimeError(f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {LLM_SETUP_URL}")
 
     system_prompt = _get_parse_system_prompt()
     is_pdf = content_type == "application/pdf" or filename.lower().endswith(".pdf")
+
+    extract_prompt = (
+        "Extract all product and vendor information. Classify each product with UOM, "
+        "department, and variant info. Return only valid JSON."
+    )
 
     def _do_parse():
         if is_pdf:
@@ -80,7 +81,7 @@ async def parse_document_with_ai(
                 temp_path = tf.name
             try:
                 return generate_with_pdf(
-                    "Extract all product and vendor information. Classify each product with UOM, department, and variant info. Return only valid JSON.",
+                    extract_prompt,
                     temp_path,
                     system_instruction=system_prompt,
                     anthropic_direct=True,
@@ -90,7 +91,7 @@ async def parse_document_with_ai(
                     os.unlink(temp_path)
         else:
             return generate_with_image(
-                "Extract all product and vendor information. Classify each product with UOM, department, and variant info. Return only valid JSON.",
+                extract_prompt,
                 contents,
                 system_instruction=system_prompt,
                 anthropic_direct=True,
@@ -103,9 +104,7 @@ async def parse_document_with_ai(
             break
         except ValueError as e:
             err_lower = str(e).lower()
-            if (
-                "rate limit" in err_lower or "overloaded" in err_lower
-            ) and attempt < _PARSE_MAX_RETRIES:
+            if ("rate limit" in err_lower or "overloaded" in err_lower) and attempt < _PARSE_MAX_RETRIES:
                 delay = _PARSE_RETRY_DELAYS[attempt]
                 logger.info(
                     "Rate limit, retrying in %ss (attempt %d)",
@@ -205,9 +204,7 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
         original_sku = product.get("original_sku")
         if original_sku:
             try:
-                vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(
-                    get_org_id(), vendor_id, original_sku
-                )
+                vi = await _db_catalog().find_vendor_item_by_vendor_and_sku(get_org_id(), vendor_id, original_sku)
                 if vi:
                     sku_id = vi.sku_id
                     vendor_item_id = vi.id
@@ -218,9 +215,7 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             clean_name = product.get("name", "")
             if clean_name:
                 try:
-                    sku = await _db_catalog().find_sku_by_name_and_vendor(
-                        get_org_id(), clean_name, vendor_id
-                    )
+                    sku = await _db_catalog().find_sku_by_name_and_vendor(get_org_id(), clean_name, vendor_id)
                     if sku:
                         sku_id = sku.id
                 except Exception as e:
@@ -233,9 +228,7 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             query = f"{brand} {query}"
         if query:
             try:
-                families = await _db_catalog().list_product_families(
-                    get_org_id(), search=query, limit=3
-                )
+                families = await _db_catalog().list_product_families(get_org_id(), search=query, limit=3)
                 family_candidates = [
                     {
                         "family_id": f.id,
@@ -257,9 +250,7 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
             )
         else:
             product["_recommendation"] = "link_existing"
-            product["_recommendation_reason"] = (
-                f"Found existing SKU matching '{product.get('name', '')}'."
-            )
+            product["_recommendation_reason"] = f"Found existing SKU matching '{product.get('name', '')}'."
     elif family_candidates:
         product["_family_candidates"] = family_candidates
         best = family_candidates[0]
@@ -270,6 +261,5 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
     else:
         product["_recommendation"] = "create_new"
         product["_recommendation_reason"] = (
-            f"No existing match found for '{product.get('name', '')}'. "
-            f"Will create as a new product."
+            f"No existing match found for '{product.get('name', '')}'. Will create as a new product."
         )

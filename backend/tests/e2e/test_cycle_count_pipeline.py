@@ -3,6 +3,7 @@
 Verifies: open creates snapshot, counted items get variance, commit applies
 adjustments, stock matches, WS events emitted, double-commit rejected.
 """
+
 import pytest
 
 from tests.e2e.helpers import (

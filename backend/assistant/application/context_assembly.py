@@ -122,9 +122,7 @@ async def assemble_context(
     tasks = {}
 
     if max_entity_hits > 0:
-        tasks["vector"] = asyncio.create_task(
-            _vector_search(query, max_entity_hits, query_embedding=query_embedding)
-        )
+        tasks["vector"] = asyncio.create_task(_vector_search(query, max_entity_hits, query_embedding=query_embedding))
 
     if include_memory:
         tasks["memory"] = asyncio.create_task(

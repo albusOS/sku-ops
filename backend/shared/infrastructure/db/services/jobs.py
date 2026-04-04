@@ -22,9 +22,7 @@ class JobsDatabaseService(DomainDatabaseService):
             updated_at=row.updated_at,
             code=row.code,
             name=row.name or "",
-            billing_entity_id=str(row.billing_entity_id)
-            if row.billing_entity_id
-            else None,
+            billing_entity_id=str(row.billing_entity_id) if row.billing_entity_id else None,
             status=row.status,
             service_address=row.service_address or "",
             notes=row.notes,
@@ -35,9 +33,7 @@ class JobsDatabaseService(DomainDatabaseService):
             id=as_uuid_required(job.id),
             code=job.code,
             name=job.name or "",
-            billing_entity_id=as_uuid_required(job.billing_entity_id)
-            if job.billing_entity_id
-            else None,
+            billing_entity_id=as_uuid_required(job.billing_entity_id) if job.billing_entity_id else None,
             status=str(job.status),
             service_address=job.service_address or "",
             notes=job.notes,
@@ -56,20 +52,14 @@ class JobsDatabaseService(DomainDatabaseService):
             return None
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(
-                select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid)
-            )
+            result = await session.execute(select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid))
             row = result.scalar_one_or_none()
             return self._row_to_job(row) if row else None
 
     async def get_job_by_code(self, code: str, org_id: str) -> Job | None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(
-                select(Jobs).where(
-                    Jobs.code == code, Jobs.organization_id == oid
-                )
-            )
+            result = await session.execute(select(Jobs).where(Jobs.code == code, Jobs.organization_id == oid))
             row = result.scalar_one_or_none()
             return self._row_to_job(row) if row else None
 
@@ -95,24 +85,16 @@ class JobsDatabaseService(DomainDatabaseService):
                         func.lower(Jobs.name).like(like),
                     )
                 )
-            stmt = (
-                stmt.order_by(Jobs.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
+            stmt = stmt.order_by(Jobs.created_at.desc()).limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = result.scalars().all()
             return [self._row_to_job(r) for r in rows]
 
-    async def update_job(
-        self, job_id: str, org_id: str, updates: dict
-    ) -> Job | None:
+    async def update_job(self, job_id: str, org_id: str, updates: dict) -> Job | None:
         jid = as_uuid_required(job_id)
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(
-                select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid)
-            )
+            result = await session.execute(select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid))
             row = result.scalar_one_or_none()
             if row is None:
                 return None
@@ -133,9 +115,7 @@ class JobsDatabaseService(DomainDatabaseService):
             await self.end_write_session(session)
         return await self.get_job_by_id(job_id, org_id)
 
-    async def search_jobs(
-        self, org_id: str, query: str, *, limit: int = 20
-    ) -> list[Job]:
+    async def search_jobs(self, org_id: str, query: str, *, limit: int = 20) -> list[Job]:
         oid = as_uuid_required(org_id)
         like = f"%{query.lower()}%"
         async with self.session() as session:
@@ -173,7 +153,5 @@ class JobsDatabaseService(DomainDatabaseService):
         await self.insert_job(job)
         got = await self.get_job_by_code(key, org_id)
         if got is None:
-            raise RuntimeError(
-                "insert_job succeeded but job row not found by code"
-            )
+            raise RuntimeError("insert_job succeeded but job row not found by code")
         return got

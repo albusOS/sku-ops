@@ -3,6 +3,7 @@
 Verifies the full chain: POST purchase-order → delivery → receive →
 stock increased → stock history → WS events.
 """
+
 import pytest
 
 from tests.e2e.helpers import create_po, create_product, receive_po
@@ -48,7 +49,9 @@ class TestPOReceivingPipeline:
         resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
         assert resp.status_code == 200
         po_detail = resp.json()
-        assert po_detail["status"] in ("partial", "received"), f"PO should be partial or received, got {po_detail['status']}"
+        assert po_detail["status"] in ("partial", "received"), (
+            f"PO should be partial or received, got {po_detail['status']}"
+        )
 
     def test_po_listed(self, client, seed_dept_id):
         """Created POs appear in GET /api/beta/purchasing/purchase-orders."""

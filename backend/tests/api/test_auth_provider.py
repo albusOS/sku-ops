@@ -6,6 +6,7 @@ tokens with clear errors.
 
 User ids must be valid UUID strings (canonicalized); see parse_uuid_str.
 """
+
 import pytest
 
 from shared.api.auth_provider import ResolvedClaims, resolve_claims
@@ -17,13 +18,22 @@ _SB2 = "00000000-0000-0000-0000-000000000012"
 _SB3 = "00000000-0000-0000-0000-000000000013"
 _SB4 = "00000000-0000-0000-0000-000000000014"
 
+
 class TestInternalClaims:
     """Internal JWT: flat top-level claims (user_id, role, name, email)."""
 
     def test_full_claims(self):
-        payload = {"user_id": _U1, "role": "admin", "name": "Alice", "email": "alice@test.com", "organization_id": "org-1"}
+        payload = {
+            "user_id": _U1,
+            "role": "admin",
+            "name": "Alice",
+            "email": "alice@test.com",
+            "organization_id": "org-1",
+        }
         c = resolve_claims(payload)
-        assert c == ResolvedClaims(user_id=_U1, email="alice@test.com", name="Alice", role="admin", organization_id="org-1")
+        assert c == ResolvedClaims(
+            user_id=_U1, email="alice@test.com", name="Alice", role="admin", organization_id="org-1"
+        )
 
     def test_sub_fallback_for_user_id(self):
         """user_id missing → falls back to sub."""
@@ -63,11 +73,18 @@ class TestInternalClaims:
         assert c.email == ""
         assert c.name == ""
 
+
 class TestSupabaseClaims:
     """Supabase JWT: role in app_metadata, user id in sub, name in user_metadata."""
 
     def test_full_supabase_claims(self):
-        payload = {"sub": _SB1, "email": "bob@example.com", "role": "authenticated", "app_metadata": {"role": "admin", "organization_id": "org-sb"}, "user_metadata": {"name": "Bob"}}
+        payload = {
+            "sub": _SB1,
+            "email": "bob@example.com",
+            "role": "authenticated",
+            "app_metadata": {"role": "admin", "organization_id": "org-sb"},
+            "user_metadata": {"name": "Bob"},
+        }
         c = resolve_claims(payload)
         assert c.user_id == _SB1
         assert c.role == "admin"

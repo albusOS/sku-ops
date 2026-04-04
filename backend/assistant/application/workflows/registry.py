@@ -110,8 +110,6 @@ async def run_workflow(
 
 def response_agent_label(agent_label: str, tool_calls: list[dict] | None) -> str:
     """Map workflow-driven unified responses to the existing UI report label."""
-    if agent_label == "unified" and any(
-        (call or {}).get("tool") in WORKFLOW_TOOL_NAMES for call in (tool_calls or [])
-    ):
+    if agent_label == "unified" and any((call or {}).get("tool") in WORKFLOW_TOOL_NAMES for call in (tool_calls or [])):
         return "dag"
     return agent_label

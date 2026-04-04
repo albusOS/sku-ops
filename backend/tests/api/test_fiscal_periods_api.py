@@ -1,4 +1,5 @@
 """Fiscal periods API - list, create, close."""
+
 import time
 
 import pytest
@@ -8,8 +9,8 @@ def _period_body():
     ts = time.time_ns()
     return {"name": f"pytest-fp-{ts}", "start_date": "2026-01-01T00:00:00Z", "end_date": "2026-01-31T23:59:59Z"}
 
-class TestFiscalPeriods:
 
+class TestFiscalPeriods:
     def test_requires_auth(self, client):
         r = client.get("/api/beta/finance/fiscal-periods")
         assert r.status_code in (401, 403)

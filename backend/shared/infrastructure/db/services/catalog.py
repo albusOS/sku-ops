@@ -128,9 +128,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                     Department.model_validate(
                         {
                             "id": str(dept_row.id),
-                            "organization_id": str(dept_row.organization_id)
-                            if dept_row.organization_id
-                            else "",
+                            "organization_id": str(dept_row.organization_id) if dept_row.organization_id else "",
                             "created_at": dept_row.created_at,
                             "name": dept_row.name,
                             "code": dept_row.code,
@@ -183,9 +181,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             session.add(row)
             await self.end_write_session(session)
 
-    async def update_department(
-        self, dept_id: str, org_id: str, name: str, description: str
-    ) -> Department | None:
+    async def update_department(self, dept_id: str, org_id: str, name: str, description: str) -> Department | None:
         did, oid = as_uuid_required(dept_id), as_uuid_required(org_id)
         async with self.session() as session:
             await session.execute(
@@ -201,17 +197,11 @@ class CatalogDatabaseService(DomainDatabaseService):
                 },
             )
             await session.execute(
-                text(
-                    "UPDATE skus SET category_name = :name "
-                    "WHERE category_id = :did AND organization_id = :oid"
-                ),
+                text("UPDATE skus SET category_name = :name WHERE category_id = :did AND organization_id = :oid"),
                 {"name": name, "did": did, "oid": oid},
             )
             await session.execute(
-                text(
-                    "UPDATE products SET category_name = :name "
-                    "WHERE category_id = :did AND organization_id = :oid"
-                ),
+                text("UPDATE products SET category_name = :name WHERE category_id = :did AND organization_id = :oid"),
                 {"name": name, "did": did, "oid": oid},
             )
             await self.end_write_session(session)
@@ -248,8 +238,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    "UPDATE departments SET sku_count = sku_count + :delta "
-                    "WHERE id = :did AND organization_id = :oid"
+                    "UPDATE departments SET sku_count = sku_count + :delta WHERE id = :did AND organization_id = :oid"
                 ),
                 {"delta": delta, "did": did, "oid": oid},
             )
@@ -368,9 +357,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                text(
-                    "SELECT * FROM skus WHERE id = :sid AND organization_id = :oid AND deleted_at IS NULL"
-                ),
+                text("SELECT * FROM skus WHERE id = :sid AND organization_id = :oid AND deleted_at IS NULL"),
                 {"sid": sid, "oid": oid},
             )
             row = result.mappings().first()
@@ -383,9 +370,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                text(
-                    "SELECT * FROM skus WHERE UPPER(sku) = :s AND organization_id = :oid AND deleted_at IS NULL"
-                ),
+                text("SELECT * FROM skus WHERE UPPER(sku) = :s AND organization_id = :oid AND deleted_at IS NULL"),
                 {"s": s, "oid": oid},
             )
             row = result.mappings().first()
@@ -425,9 +410,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _sku_row_to_domain(dict(row)) if row else None
 
-    async def find_sku_by_name_and_vendor(
-        self, org_id: str, name: str, vendor_id: str
-    ) -> Sku | None:
+    async def find_sku_by_name_and_vendor(self, org_id: str, name: str, vendor_id: str) -> Sku | None:
         if not name or not str(name).strip() or not vendor_id:
             return None
         norm = str(name).strip().lower()
@@ -451,7 +434,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    "SELECT * FROM skus WHERE product_family_id = :pid AND organization_id = :oid AND deleted_at IS NULL ORDER BY name"
+                    "SELECT * FROM skus WHERE product_family_id = :pid AND organization_id = :oid "
+                    "AND deleted_at IS NULL ORDER BY name"
                 ),
                 {"pid": pid, "oid": oid},
             )
@@ -462,9 +446,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             r = await session.execute(
-                text(
-                    "SELECT COUNT(*) FROM skus WHERE organization_id = :oid AND deleted_at IS NULL"
-                ),
+                text("SELECT COUNT(*) FROM skus WHERE organization_id = :oid AND deleted_at IS NULL"),
                 {"oid": oid},
             )
             return int(r.scalar_one() or 0)
@@ -474,7 +456,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             r = await session.execute(
                 text(
-                    "SELECT COUNT(*) FROM skus WHERE quantity <= min_stock AND organization_id = :oid AND deleted_at IS NULL"
+                    "SELECT COUNT(*) FROM skus WHERE quantity <= min_stock "
+                    "AND organization_id = :oid AND deleted_at IS NULL"
                 ),
                 {"oid": oid},
             )
@@ -500,7 +483,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    """INSERT INTO skus (id, sku, product_family_id, name, description, price, cost, quantity, min_stock,
+                    """INSERT INTO skus (id, sku, product_family_id, name, description, price, cost,
+                    quantity, min_stock,
                     category_id, category_name, barcode, vendor_barcode,
                     base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
                     variant_label, spec, grade, variant_attrs,
@@ -601,16 +585,15 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             res = await session.execute(
                 text(
-                    "UPDATE skus SET deleted_at = :now WHERE id = :sid AND deleted_at IS NULL AND organization_id = :oid"
+                    "UPDATE skus SET deleted_at = :now WHERE id = :sid "
+                    "AND deleted_at IS NULL AND organization_id = :oid"
                 ),
                 {"now": now, "sid": sid, "oid": oid},
             )
             await self.end_write_session(session)
             return int(res.rowcount or 0)
 
-    async def sku_atomic_decrement(
-        self, sku_id: str, org_id: str, quantity: float, updated_at: datetime
-    ) -> Sku | None:
+    async def sku_atomic_decrement(self, sku_id: str, org_id: str, quantity: float, updated_at: datetime) -> Sku | None:
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         async with self.session() as session:
             res = await session.execute(
@@ -626,9 +609,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             return None
         return await self.get_sku_by_id(sku_id, org_id)
 
-    async def sku_increment_quantity(
-        self, sku_id: str, org_id: str, quantity: float, updated_at: datetime
-    ) -> None:
+    async def sku_increment_quantity(self, sku_id: str, org_id: str, quantity: float, updated_at: datetime) -> None:
         sid, oid = as_uuid_required(sku_id), as_uuid_required(org_id)
         async with self.session() as session:
             await session.execute(
@@ -640,9 +621,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             await self.end_write_session(session)
 
-    async def sku_add_quantity(
-        self, sku_id: str, org_id: str, quantity: float, updated_at: datetime
-    ) -> Sku | None:
+    async def sku_add_quantity(self, sku_id: str, org_id: str, quantity: float, updated_at: datetime) -> Sku | None:
         await self.sku_increment_quantity(sku_id, org_id, quantity, updated_at)
         return await self.get_sku_by_id(sku_id, org_id)
 
@@ -703,9 +682,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         pid, oid = as_uuid_required(product_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                text(
-                    "SELECT * FROM products WHERE id = :pid AND organization_id = :oid AND deleted_at IS NULL"
-                ),
+                text("SELECT * FROM products WHERE id = :pid AND organization_id = :oid AND deleted_at IS NULL"),
                 {"pid": pid, "oid": oid},
             )
             row = result.mappings().first()
@@ -736,11 +713,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             params["off"] = offset
         async with self.session() as session:
             result = await session.execute(text(sql), params)
-            return [
-                p
-                for r in result.mappings().all()
-                if (p := _row_to_product_family(dict(r))) is not None
-            ]
+            return [p for r in result.mappings().all() if (p := _row_to_product_family(dict(r))) is not None]
 
     async def count_product_families(
         self,
@@ -762,9 +735,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             r = await session.execute(text(sql), params)
             return int(r.scalar_one() or 0)
 
-    async def update_product_family(
-        self, product_id: str, org_id: str, updates: dict
-    ) -> ProductFamily | None:
+    async def update_product_family(self, product_id: str, org_id: str, updates: dict) -> ProductFamily | None:
         pid, oid = as_uuid_required(product_id), as_uuid_required(org_id)
         set_parts: list[str] = ["updated_at = :updated_at"]
         params: dict[str, Any] = {
@@ -797,7 +768,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             res = await session.execute(
                 text(
-                    "UPDATE products SET deleted_at = :now WHERE id = :pid AND deleted_at IS NULL AND organization_id = :oid"
+                    "UPDATE products SET deleted_at = :now WHERE id = :pid "
+                    "AND deleted_at IS NULL AND organization_id = :oid"
                 ),
                 {"now": now, "pid": pid, "oid": oid},
             )
@@ -808,9 +780,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         pid, oid = as_uuid_required(product_id), as_uuid_required(org_id)
         async with self.session() as session:
             await session.execute(
-                text(
-                    "UPDATE products SET sku_count = sku_count + :delta WHERE id = :pid AND organization_id = :oid"
-                ),
+                text("UPDATE products SET sku_count = sku_count + :delta WHERE id = :pid AND organization_id = :oid"),
                 {"delta": delta, "pid": pid, "oid": oid},
             )
             await self.end_write_session(session)
@@ -825,9 +795,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 ),
                 {"oid": oid},
             )
-            return [
-                v for r in result.mappings().all() if (v := _row_to_vendor(dict(r))) is not None
-            ]
+            return [v for r in result.mappings().all() if (v := _row_to_vendor(dict(r))) is not None]
 
     async def get_vendor_by_id(self, vendor_id: str, org_id: str) -> Vendor | None:
         vid, oid = as_uuid_required(vendor_id), as_uuid_required(org_id)
@@ -900,9 +868,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 },
             )
             await session.execute(
-                text(
-                    "UPDATE vendor_items SET vendor_name = :vname WHERE vendor_id = :vid AND organization_id = :oid"
-                ),
+                text("UPDATE vendor_items SET vendor_name = :vname WHERE vendor_id = :vid AND organization_id = :oid"),
                 {"vname": new_name, "vid": vid, "oid": oid},
             )
             await self.end_write_session(session)
@@ -914,7 +880,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             res = await session.execute(
                 text(
-                    "UPDATE vendors SET deleted_at = :now WHERE id = :vid AND deleted_at IS NULL AND organization_id = :oid"
+                    "UPDATE vendors SET deleted_at = :now WHERE id = :vid "
+                    "AND deleted_at IS NULL AND organization_id = :oid"
                 ),
                 {"now": now, "vid": vid, "oid": oid},
             )
@@ -925,9 +892,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             r = await session.execute(
-                text(
-                    "SELECT COUNT(*) FROM vendors WHERE organization_id = :oid AND deleted_at IS NULL"
-                ),
+                text("SELECT COUNT(*) FROM vendors WHERE organization_id = :oid AND deleted_at IS NULL"),
                 {"oid": oid},
             )
             return int(r.scalar_one() or 0)
@@ -1012,9 +977,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         pid = as_uuid_required(product_family_id)
         async with self.session() as session:
             r = await session.execute(
-                text(
-                    "SELECT counter FROM sku_counters WHERE organization_id = :oid AND product_family_id = :pid"
-                ),
+                text("SELECT counter FROM sku_counters WHERE organization_id = :oid AND product_family_id = :pid"),
                 {"oid": oid, "pid": pid},
             )
             row = r.scalar_one_or_none()
@@ -1024,9 +987,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                text(
-                    "SELECT product_family_id, counter FROM sku_counters WHERE organization_id = :oid"
-                ),
+                text("SELECT product_family_id, counter FROM sku_counters WHERE organization_id = :oid"),
                 {"oid": oid},
             )
             rows = result.all()
@@ -1046,9 +1007,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 {"oid": oid, "pid": pid},
             )
             r = await session.execute(
-                text(
-                    "SELECT counter FROM sku_counters WHERE organization_id = :oid AND product_family_id = :pid"
-                ),
+                text("SELECT counter FROM sku_counters WHERE organization_id = :oid AND product_family_id = :pid"),
                 {"oid": oid, "pid": pid},
             )
             await self.end_write_session(session)
@@ -1165,9 +1124,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         )
         return result
 
-    async def set_preferred_vendor_item(
-        self, org_id: str, sku_id: str, vendor_item_id: str
-    ) -> None:
+    async def set_preferred_vendor_item(self, org_id: str, sku_id: str, vendor_item_id: str) -> None:
         """Set one vendor item preferred for a SKU (clears others)."""
         item = await self.get_vendor_item_by_id(vendor_item_id, org_id)
         if not item or item.sku_id != sku_id:
@@ -1195,9 +1152,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         iid, oid = as_uuid_required(item_id), as_uuid_required(org_id)
         async with self.session() as session:
             result = await session.execute(
-                text(
-                    "SELECT * FROM vendor_items WHERE id = :iid AND organization_id = :oid AND deleted_at IS NULL"
-                ),
+                text("SELECT * FROM vendor_items WHERE id = :iid AND organization_id = :oid AND deleted_at IS NULL"),
                 {"iid": iid, "oid": oid},
             )
             row = result.mappings().first()
@@ -1214,11 +1169,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 ),
                 {"sid": sid, "oid": oid},
             )
-            return [
-                vi
-                for r in result.mappings().all()
-                if (vi := _row_to_vendor_item(dict(r))) is not None
-            ]
+            return [vi for r in result.mappings().all() if (vi := _row_to_vendor_item(dict(r))) is not None]
 
     async def list_vendor_items_by_skus(self, org_id: str, sku_ids: list[str]) -> list[VendorItem]:
         if not sku_ids:
@@ -1249,9 +1200,7 @@ class CatalogDatabaseService(DomainDatabaseService):
         )
         return out
 
-    async def list_vendor_items_by_skus_grouped(
-        self, org_id: str, sku_ids: list[str]
-    ) -> dict[str, list[VendorItem]]:
+    async def list_vendor_items_by_skus_grouped(self, org_id: str, sku_ids: list[str]) -> dict[str, list[VendorItem]]:
         items = await self.list_vendor_items_by_skus(org_id, sku_ids)
         grouped: dict[str, list[VendorItem]] = {}
         for item in items:
@@ -1269,11 +1218,7 @@ class CatalogDatabaseService(DomainDatabaseService):
                 ),
                 {"vid": vid, "oid": oid},
             )
-            return [
-                vi
-                for r in result.mappings().all()
-                if (vi := _row_to_vendor_item(dict(r))) is not None
-            ]
+            return [vi for r in result.mappings().all() if (vi := _row_to_vendor_item(dict(r))) is not None]
 
     async def find_vendor_item_by_vendor_and_sku(
         self, org_id: str, vendor_id: str, vendor_sku: str
@@ -1294,9 +1239,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _row_to_vendor_item(dict(row)) if row else None
 
-    async def find_vendor_item_by_sku_and_vendor(
-        self, sku_id: str, vendor_id: str, org_id: str
-    ) -> VendorItem | None:
+    async def find_vendor_item_by_sku_and_vendor(self, sku_id: str, vendor_id: str, org_id: str) -> VendorItem | None:
         sid, vid, oid = (
             as_uuid_required(sku_id),
             as_uuid_required(vendor_id),
@@ -1314,9 +1257,7 @@ class CatalogDatabaseService(DomainDatabaseService):
             row = result.mappings().first()
             return _row_to_vendor_item(dict(row)) if row else None
 
-    async def update_vendor_item(
-        self, item_id: str, org_id: str, updates: dict
-    ) -> VendorItem | None:
+    async def update_vendor_item(self, item_id: str, org_id: str, updates: dict) -> VendorItem | None:
         iid, oid = as_uuid_required(item_id), as_uuid_required(org_id)
         set_parts: list[str] = ["updated_at = :updated_at"]
         params: dict[str, Any] = {
@@ -1357,7 +1298,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             res = await session.execute(
                 text(
-                    "UPDATE vendor_items SET deleted_at = :now WHERE id = :iid AND deleted_at IS NULL AND organization_id = :oid"
+                    "UPDATE vendor_items SET deleted_at = :now WHERE id = :iid "
+                    "AND deleted_at IS NULL AND organization_id = :oid"
                 ),
                 {"now": now, "iid": iid, "oid": oid},
             )
@@ -1370,7 +1312,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             res = await session.execute(
                 text(
-                    "UPDATE vendor_items SET deleted_at = :now WHERE sku_id = :sid AND deleted_at IS NULL AND organization_id = :oid"
+                    "UPDATE vendor_items SET deleted_at = :now WHERE sku_id = :sid "
+                    "AND deleted_at IS NULL AND organization_id = :oid"
                 ),
                 {"now": now, "sid": sid, "oid": oid},
             )
@@ -1382,7 +1325,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = :sid AND organization_id = :oid AND deleted_at IS NULL"
+                    "UPDATE vendor_items SET is_preferred = FALSE WHERE sku_id = :sid "
+                    "AND organization_id = :oid AND deleted_at IS NULL"
                 ),
                 {"sid": sid, "oid": oid},
             )
