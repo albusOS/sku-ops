@@ -99,7 +99,9 @@ docstring-code-format = true
 # narrow exceptions per call site is ongoing hardening, not a batch mechanical fix.
 # S608: string-built SQL here uses allowlisted structural fragments (column/date clauses) with
 # bound parameters for values; bandit cannot see the split. Review when touching those call sites.
-ignore = ["TRY003", "BLE001", "S608"]
+# PLW0603: lazy singletons (JWKS client, DB manager, agent caches) use module-level `global`;
+# refactoring to threading.Lock holders is not worth the churn here.
+ignore = ["TRY003", "BLE001", "S608", "PLW0603"]
 select = [
     "A",      # flake8-builtins
     "ARG",    # flake8-unused-arguments
@@ -148,10 +150,13 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Composition root: setup_logging() runs before app imports that may emit logs at import time.
+"server.py" = ["E402"]
 # Tests use deferred imports for optional stacks and heavy fixtures.
 # Long assertion data and mock payloads routinely exceed the code line cap.
 # Tests white-box private helpers and SQLAlchemy/SQLModel rows (_mapping, etc.).
-"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002", "E501", "SLF001"]
+# S106/S603: factory fixtures use placeholder password hashes; subprocess runs generated code under pytest.
+"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002", "E501", "SLF001", "S106", "S603"]
 # HTTP handlers keep auth deps in signature for Depends() even when the body only
 # delegates to services that read org from contextvars.
 "api/beta/routers/**/*.py" = ["ARG001", "ARG002"]
@@ -159,7 +164,8 @@ select = [
 # writing deps — unused ctx on other tools is normal.
 "assistant/agents/**/agent.py" = ["ARG001", "ARG002"]
 # Scripts defer imports so CLI tools can run with minimal deps loaded first.
-"scripts/**" = ["PLC0415", "ARG001", "ARG002"]
+# S603/S607/S310/PLW1510: dev-only CLIs call subprocess/urllib against known local paths and supabase CLI.
+"scripts/**" = ["PLC0415", "ARG001", "ARG002", "S603", "S607", "S310", "PLW1510"]
 # Deployment self-check; asserts are intentional checkpoints
 "scripts/verify_deploy.py" = ["S101"]
 # UnitOfWork peers reach into DatabaseManager / service session transaction state.
