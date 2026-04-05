@@ -5,7 +5,7 @@ Industry standard check digit validation for numeric barcodes.
 
 
 def _upc_check_digit(first_11: str) -> int:
-    """Compute UPC-A check digit from first 11 digits. Positions 1,3,5,7,9,11 ×3; 2,4,6,8,10 ×1."""
+    """Compute UPC-A check digit from first 11 digits. Positions 1,3,5,7,9,11 x3; 2,4,6,8,10 x1."""
     total = 0
     for i, d in enumerate(first_11[:11]):
         digit = int(d)
@@ -17,7 +17,7 @@ def _upc_check_digit(first_11: str) -> int:
 
 
 def _ean13_check_digit(first_12: str) -> int:
-    """Compute EAN-13 check digit. Odd positions ×1, even ×3."""
+    """Compute EAN-13 check digit. Odd positions x1, even x3."""
     total = 0
     for i, d in enumerate(first_12[:12]):
         digit = int(d)

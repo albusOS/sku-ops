@@ -8,17 +8,19 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import text
 
-from shared.infrastructure.db.base import BaseDatabaseService
 from shared.infrastructure.db.services._sql_validation import (
     SQLValidationError,
     ensure_limit,
     validate_sql,
 )
+
+if TYPE_CHECKING:
+    from shared.infrastructure.db.base import BaseDatabaseService
 
 _ISO_DATE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}")
 _STATEMENT_TIMEOUT_MAX_MS = 600_000

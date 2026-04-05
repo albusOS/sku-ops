@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 from finance.domain.enums import XeroSyncStatus
@@ -125,7 +125,8 @@ def _parse_document_date(raw: str | None) -> datetime | None:
         return datetime.fromisoformat(raw)
     except ValueError:
         try:
-            return datetime.combine(datetime.strptime(raw, "%Y-%m-%d").date(), datetime.min.time())
+            parsed = date.fromisoformat(raw)
+            return datetime(parsed.year, parsed.month, parsed.day, 0, 0, 0, tzinfo=UTC)
         except ValueError:
             return None
 

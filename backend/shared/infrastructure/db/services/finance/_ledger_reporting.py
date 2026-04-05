@@ -459,23 +459,23 @@ async def inventory_carrying_cost(
     r = await session.execute(sql, {"org_id": org_id})
     daily_rate = holding_rate_pct / 100.0 / 365.0
     results = []
-    for row in r.mappings().all():
-        row = dict(row)
-        inv_value = row["quantity"] * row["cost"]
-        days = float(row["days_held"])
+    for mapping in r.mappings().all():
+        rec = dict(mapping)
+        inv_value = rec["quantity"] * rec["cost"]
+        days = float(rec["days_held"])
         carrying = round(float(inv_value) * daily_rate * days, 2)
         results.append(
             {
-                "sku_id": str(row["sku_id"]),
-                "sku": row["sku"],
-                "name": row["name"],
-                "quantity": row["quantity"],
-                "cost": row["cost"],
+                "sku_id": str(rec["sku_id"]),
+                "sku": rec["sku"],
+                "name": rec["name"],
+                "quantity": rec["quantity"],
+                "cost": rec["cost"],
                 "inventory_value": round_money(inv_value),
                 "days_held": round(days, 0),
                 "carrying_cost": carrying,
-                "department": row["department"],
-                "sell_uom": row["sell_uom"],
+                "department": rec["department"],
+                "sell_uom": rec["sell_uom"],
             }
         )
     return results

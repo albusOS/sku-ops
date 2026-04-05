@@ -116,7 +116,7 @@ def cost_per_sell_unit(
     sell_uom: str,
     pack_qty: int = 1,
 ) -> float:
-    """Return the cost expressed per sell-unit (pack_qty × sell_uom).
+    """Return the cost expressed per sell-unit (pack_qty x sell_uom).
 
     All costs are stored at the base_unit level.  A sell-unit may differ
     both in the physical unit (e.g. base=inch, sell=foot) and in pack size

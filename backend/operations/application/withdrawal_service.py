@@ -105,10 +105,10 @@ async def create_withdrawal(
     product_map = {p.id: p for p in products}
     dept_map = {p.id: p.category_name for p in products}
     enriched_items = []
-    for item in data.items:
-        p = product_map.get(item.sku_id)
+    for line_item in data.items:
+        p = product_map.get(line_item.sku_id)
         base_unit = (p.base_unit if p else "each").lower()
-        req_unit = (item.unit or base_unit).lower()
+        req_unit = (line_item.unit or base_unit).lower()
         sell_uom = (p.sell_uom if p else base_unit).lower()
         pack_qty = p.pack_qty if p else 1
 
@@ -116,21 +116,20 @@ async def create_withdrawal(
         p_cost = p.cost if p else 0
         p_price = p.price if p else 0
 
-        if item.cost == 0.0 and p_cost:
+        if line_item.cost == 0.0 and p_cost:
             updates["cost"] = _convert_price_per_unit(p_cost, base_unit, req_unit)
-        elif item.cost != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
-            updates["cost"] = _convert_price_per_unit(p_cost or item.cost, base_unit, req_unit)
+        elif line_item.cost != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
+            updates["cost"] = _convert_price_per_unit(p_cost or line_item.cost, base_unit, req_unit)
 
-        if item.unit_price == 0.0 and p_price:
+        if line_item.unit_price == 0.0 and p_price:
             updates["unit_price"] = _convert_price_per_unit(p_price, base_unit, req_unit)
-        elif item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
-            updates["unit_price"] = _convert_price_per_unit(p_price or item.unit_price, base_unit, req_unit)
+        elif line_item.unit_price != 0.0 and req_unit != base_unit and are_compatible(base_unit, req_unit):
+            updates["unit_price"] = _convert_price_per_unit(p_price or line_item.unit_price, base_unit, req_unit)
 
         updates["sell_uom"] = sell_uom
         updates["sell_cost"] = cost_per_sell_unit(p_cost, base_unit, sell_uom, pack_qty)
 
-        item = item.model_copy(update=updates)
-        enriched_items.append(item)
+        enriched_items.append(line_item.model_copy(update=updates))
     data = data.model_copy(update={"items": enriched_items, "job_id": job_uuid})
 
     billing_entity_name = contractor.billing_entity
