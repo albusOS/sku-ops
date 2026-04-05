@@ -106,9 +106,8 @@ def _topological_sort(
     deps: dict[str, set[str]] = defaultdict(set)
 
     for fk in fks:
-        if fk.source_table in model_map and fk.target_table in model_map:
-            if fk.source_table != fk.target_table:
-                deps[fk.source_table].add(fk.target_table)
+        if fk.source_table in model_map and fk.target_table in model_map and fk.source_table != fk.target_table:
+            deps[fk.source_table].add(fk.target_table)
 
     sorted_names: list[str] = []
     visited: set[str] = set()
@@ -206,8 +205,7 @@ def generate_sqlmodel_code(
         if rel_lines:
             needs_relationship = True
             lines.append("")
-            for rl in rel_lines:
-                lines.append(f"    {rl}")
+            lines.extend(f"    {rl}" for rl in rel_lines)
 
         class_blocks.append("\n".join(lines))
 
@@ -529,8 +527,7 @@ def _generate_header(
 
     if sa_from_main:
         lines.append(f"from sqlalchemy import {', '.join(sorted(sa_from_main))}")
-    for pg_line in sa_from_pg:
-        lines.append(pg_line)
+    lines.extend(sa_from_pg)
 
     if sa_from_main or sa_from_pg:
         lines.append("")

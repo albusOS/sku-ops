@@ -84,12 +84,12 @@ def _extract_pks_from_body(body: str) -> list[str]:
         cols = composite_pk.group(1)
         return [c.strip().lower() for c in cols.split(",")]
 
-    for line in body.split("\n"):
-        line = line.strip().rstrip(",")
-        if not line or line.startswith("--"):
+    for raw_line in body.split("\n"):
+        stripped = raw_line.strip().rstrip(",")
+        if not stripped or stripped.startswith("--"):
             continue
-        if re.search(r"\bPRIMARY\s+KEY\b", line, re.IGNORECASE):
-            col_match = re.match(r"(\w+)\s+", line)
+        if re.search(r"\bPRIMARY\s+KEY\b", stripped, re.IGNORECASE):
+            col_match = re.match(r"(\w+)\s+", stripped)
             if col_match:
                 pk_columns.append(col_match.group(1).lower())
 
