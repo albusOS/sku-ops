@@ -1,0 +1,13 @@
+{
+  "include": ["backend"],
+  "exclude": ["**/node_modules", "**/__pycache__", "backend/.venv"],
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "off",
+  "venvPath": "backend",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "backend"
+    }
+  ]
+}
