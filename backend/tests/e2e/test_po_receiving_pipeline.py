@@ -16,7 +16,9 @@ class TestPOReceivingPipeline:
 
     def test_po_receive_increases_stock(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=10, cost=5.0, name="PO-Recv")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=10, cost=5.0, name="PO-Recv"
+        )
         po = create_po(client, headers, product, quantity=20, vendor_name="PO-E2E-Vendor")
         po_id = po["id"]
         assert po_id
@@ -31,7 +33,9 @@ class TestPOReceivingPipeline:
 
     def test_po_receive_records_stock_history(self, client, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=0, cost=4.0, name="PO-History")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=0, cost=4.0, name="PO-History"
+        )
         po = create_po(client, headers, product, quantity=15, vendor_name="PO-History-Vendor")
         receive_po(client, headers, po["id"])
         resp = client.get(f"/api/beta/inventory/stock/{product['id']}/history", headers=headers)
@@ -43,7 +47,9 @@ class TestPOReceivingPipeline:
 
     def test_po_status_after_receive(self, client, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=5, cost=3.0, name="PO-Status")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=5, cost=3.0, name="PO-Status"
+        )
         po = create_po(client, headers, product, quantity=10, vendor_name="PO-Status-Vendor")
         receive_po(client, headers, po["id"])
         resp = client.get(f"/api/beta/purchasing/purchase-orders/{po['id']}", headers=headers)
@@ -56,7 +62,9 @@ class TestPOReceivingPipeline:
     def test_po_listed(self, client, seed_dept_id):
         """Created POs appear in GET /api/beta/purchasing/purchase-orders."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=5, cost=2.0, name="PO-List")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=5, cost=2.0, name="PO-List"
+        )
         po = create_po(client, headers, product, quantity=5, vendor_name="PO-List-Vendor")
         resp = client.get("/api/beta/purchasing/purchase-orders", headers=headers)
         assert resp.status_code == 200

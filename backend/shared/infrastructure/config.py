@@ -120,7 +120,9 @@ def _resolve_jwt_secret() -> str:
 JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
 _default_token_expiry = "15" if is_production else "480"  # 8 hours in dev, 15 min in prod
-JWT_ACCESS_EXPIRATION_MINUTES = int(os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", _default_token_expiry))
+JWT_ACCESS_EXPIRATION_MINUTES = int(
+    os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", _default_token_expiry)
+)
 REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
 
 # ── Supabase JWKS (ES256 token verification) ─────────────────────────────────
@@ -200,7 +202,9 @@ def decode_token(token: str) -> dict:
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
-cors_is_permissive = not CORS_ORIGINS.strip() or CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
+cors_is_permissive = (
+    not CORS_ORIGINS.strip() or CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
+)
 cors_warn_in_deployed = is_deployed and cors_is_permissive
 
 
@@ -224,8 +228,12 @@ ALLOW_PUBLIC_AUTH = False
 # ── AI providers ──────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
-ANTHROPIC_FAST_MODEL = os.environ.get("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+ANTHROPIC_MODEL = (
+    os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+)
+ANTHROPIC_FAST_MODEL = (
+    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 OPENAI_AVAILABLE = bool(OPENAI_API_KEY)
@@ -236,7 +244,9 @@ OPENROUTER_AVAILABLE = bool(OPENROUTER_API_KEY)
 
 # Embeddings (OpenAI-compatible API: tool index, domain search, query router).
 # Set EMBEDDING_MODEL to change model; default text-embedding-3-small.
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small").strip() or "text-embedding-3-small"
+EMBEDDING_MODEL = (
+    os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small").strip() or "text-embedding-3-small"
+)
 
 
 # ── Agent model ───────────────────────────────────────────────────────────────
@@ -252,7 +262,9 @@ def _load_agent_model() -> str:
             if model:
                 return model
     except (OSError, ValueError, KeyError):
-        logging.getLogger(__name__).warning("Failed to parse models.yaml, using built-in default", exc_info=True)
+        logging.getLogger(__name__).warning(
+            "Failed to parse models.yaml, using built-in default", exc_info=True
+        )
     return "anthropic:claude-sonnet-4-6"
 
 
@@ -272,7 +284,9 @@ def _load_synthesis_model() -> str:
             if model:
                 return model
     except (OSError, ValueError, KeyError):
-        logging.getLogger(__name__).warning("Failed to parse synthesis from models.yaml", exc_info=True)
+        logging.getLogger(__name__).warning(
+            "Failed to parse synthesis from models.yaml", exc_info=True
+        )
     return "anthropic:claude-haiku-4-5"
 
 
@@ -292,7 +306,9 @@ def _load_classifier_model() -> str:
             if model:
                 return model
     except (OSError, ValueError, KeyError):
-        logging.getLogger(__name__).warning("Failed to parse classifier from models.yaml", exc_info=True)
+        logging.getLogger(__name__).warning(
+            "Failed to parse classifier from models.yaml", exc_info=True
+        )
     return "anthropic:claude-haiku-4-5"
 
 
@@ -335,7 +351,11 @@ def startup_summary() -> dict:
         "cors": CORS_ORIGINS if not cors_is_permissive else "*",
         "redis": "yes" if REDIS_URL else "no",
         "sentry": "yes" if SENTRY_DSN else "no",
-        "ai": ("openrouter" if OPENROUTER_AVAILABLE else ("anthropic" if ANTHROPIC_AVAILABLE else "none")),
+        "ai": (
+            "openrouter"
+            if OPENROUTER_AVAILABLE
+            else ("anthropic" if ANTHROPIC_AVAILABLE else "none")
+        ),
         "embeddings": "openai" if OPENAI_AVAILABLE else "none",
         "flags": flags or None,
     }

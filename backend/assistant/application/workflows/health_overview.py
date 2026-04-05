@@ -60,7 +60,9 @@ def _format_markdown(data: dict) -> str:
     balances = data.get("outstanding_balances", [])
     if balances:
         total = sum(float(item.get("balance", 0) or 0) for item in balances)
-        parts.append(f"### Outstanding Balances\nTotal: ${total:,.2f} across {len(balances)} accounts.")
+        parts.append(
+            f"### Outstanding Balances\nTotal: ${total:,.2f} across {len(balances)} accounts."
+        )
     ar = data.get("ar_aging", {})
     if ar:
         parts.append("### AR Aging\n" + json.dumps(ar, indent=2))
@@ -82,7 +84,9 @@ def _format_markdown(data: dict) -> str:
         parts.append("### Carrying Cost\n" + json.dumps(carrying, indent=2))
     slow = data.get("slow_movers", [])
     if slow:
-        parts.append(f"### Slow Movers\n{len(slow)} items with minimal movement tying up inventory.")
+        parts.append(
+            f"### Slow Movers\n{len(slow)} items with minimal movement tying up inventory."
+        )
 
     return "\n\n".join(parts)
 
@@ -96,8 +100,12 @@ async def run_health_overview(days: int = 30) -> HealthOverviewResult:
     pending_raw = data.get("pending_material_requests_raw", {})
     stockout_forecast = stockout_raw.get("forecast", []) if isinstance(stockout_raw, dict) else []
     slow_movers = slow_raw.get("slow_movers", []) if isinstance(slow_raw, dict) else []
-    outstanding_balances = outstanding_raw.get("balances", []) if isinstance(outstanding_raw, dict) else []
-    pending_material_requests = pending_raw.get("pending_requests", []) if isinstance(pending_raw, dict) else []
+    outstanding_balances = (
+        outstanding_raw.get("balances", []) if isinstance(outstanding_raw, dict) else []
+    )
+    pending_material_requests = (
+        pending_raw.get("pending_requests", []) if isinstance(pending_raw, dict) else []
+    )
     data_for_format = {
         "inventory_stats": data.get("inventory_stats", {}),
         "stockout_forecast": stockout_forecast,

@@ -253,7 +253,9 @@ class UsageVelocityResult(ToolModel):
 class ReorderSuggestionsResult(ToolModel):
     count: int
     suggestions: list[ReorderSuggestion]
-    _note: str = "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
+    _note: str = (
+        "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
+    )
 
 
 @dataclass(frozen=True)
@@ -282,7 +284,9 @@ class DepartmentActivityResult(ToolModel):
 class StockoutForecastResult(ToolModel):
     count: int
     forecast: list[StockoutItem]
-    _note: str = "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
+    _note: str = (
+        "Velocity uses normalized demand (IQR outlier stripping) to exclude one-time project buys."
+    )
 
 
 @dataclass(frozen=True)

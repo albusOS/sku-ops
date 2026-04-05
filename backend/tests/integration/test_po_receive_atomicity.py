@@ -32,7 +32,11 @@ from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
 
 def _user():
     return CurrentUser(
-        id=ADMIN_USER_ID, email="test@test.com", name="Test User", role="admin", organization_id=DEFAULT_ORG_ID
+        id=ADMIN_USER_ID,
+        email="test@test.com",
+        name="Test User",
+        role="admin",
+        organization_id=DEFAULT_ORG_ID,
     )
 
 
@@ -128,7 +132,9 @@ def _stub_deps(**overrides):
         )
 
     async def _find_sku_by_name_and_vendor(name: str, vendor_id: str):
-        return await get_database_manager().catalog.find_sku_by_name_and_vendor(DEFAULT_ORG_ID, name, vendor_id)
+        return await get_database_manager().catalog.find_sku_by_name_and_vendor(
+            DEFAULT_ORG_ID, name, vendor_id
+        )
 
     async def _update_sku(sku_id: str, updates: SkuUpdate):
         async with transaction():
@@ -184,7 +190,9 @@ def test_po_receive_rolls_back_stock_on_ledger_failure(call):
             updated = await get_database_manager().catalog.get_sku_by_id(product.id, DEFAULT_ORG_ID)
             assert updated.quantity == pytest.approx(100.0), "Stock should NOT have increased"
             po_items = await get_database_manager().purchasing.get_po_items(DEFAULT_ORG_ID, po.id)
-            assert po_items[0].status == POItemStatus.PENDING.value, "PO item should still be PENDING"
+            assert po_items[0].status == POItemStatus.PENDING.value, (
+                "PO item should still be PENDING"
+            )
 
         call(_body)
 
@@ -231,7 +239,9 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
         deps = _stub_deps(add_vendor_item=failing_add)
         result = await receive_po_items(
             po_id=po.id,
-            item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=10, suggested_department="HDW")],
+            item_updates=[
+                ReceiveItemUpdate(id=item.id, delivered_qty=10, suggested_department="HDW")
+            ],
             deps=deps,
             current_user=_user(),
         )
@@ -248,7 +258,9 @@ def test_po_receive_case_uom_converts_to_base_units(call):
     """Receiving 5 cases with purchase_pack_qty=12 should add 60 each to stock."""
 
     async def _body():
-        product = await _create_test_product(quantity=100.0, cost=1.0, purchase_uom="case", purchase_pack_qty=12)
+        product = await _create_test_product(
+            quantity=100.0, cost=1.0, purchase_uom="case", purchase_pack_qty=12
+        )
         po, item = await _create_po_with_item(
             sku_id=product.id, cost=24.0, ordered_qty=5, purchase_uom="case", purchase_pack_qty=12
         )
@@ -260,7 +272,9 @@ def test_po_receive_case_uom_converts_to_base_units(call):
         )
         assert result.errors == 0
         updated = await get_database_manager().catalog.get_sku_by_id(product.id, DEFAULT_ORG_ID)
-        assert updated.quantity == pytest.approx(160.0), f"Expected 100 + 60, got {updated.quantity}"
+        assert updated.quantity == pytest.approx(160.0), (
+            f"Expected 100 + 60, got {updated.quantity}"
+        )
 
     call(_body)
 
@@ -274,7 +288,9 @@ def test_po_receive_wac_correct_with_uom_conversion(call):
     """
 
     async def _body():
-        product = await _create_test_product(quantity=100.0, cost=1.0, purchase_uom="case", purchase_pack_qty=12)
+        product = await _create_test_product(
+            quantity=100.0, cost=1.0, purchase_uom="case", purchase_pack_qty=12
+        )
         po, item = await _create_po_with_item(
             sku_id=product.id, cost=24.0, ordered_qty=5, purchase_uom="case", purchase_pack_qty=12
         )
@@ -286,7 +302,9 @@ def test_po_receive_wac_correct_with_uom_conversion(call):
         )
         updated = await get_database_manager().catalog.get_sku_by_id(product.id, DEFAULT_ORG_ID)
         expected_wac = round((100 * 1 + 60 * 2) / 160, 4)
-        assert updated.cost == pytest.approx(expected_wac, abs=0.01), f"Expected WAC {expected_wac}, got {updated.cost}"
+        assert updated.cost == pytest.approx(expected_wac, abs=0.01), (
+            f"Expected WAC {expected_wac}, got {updated.cost}"
+        )
 
     call(_body)
 

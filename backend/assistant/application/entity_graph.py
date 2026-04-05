@@ -103,9 +103,13 @@ async def neighbors(
             return None
 
         if depth <= 1:
-            neighbor_rows = await _edges_one_hop(center.entity_type, center.entity_id, relation_filter)
+            neighbor_rows = await _edges_one_hop(
+                center.entity_type, center.entity_id, relation_filter
+            )
         else:
-            neighbor_rows = await _edges_recursive(center.entity_type, center.entity_id, depth, relation_filter)
+            neighbor_rows = await _edges_recursive(
+                center.entity_type, center.entity_id, depth, relation_filter
+            )
 
         nodes, edges = await _hydrate_neighbors(center.entity_type, center.entity_id, neighbor_rows)
         return GraphContext(center=center, neighbors=nodes, edges=edges)

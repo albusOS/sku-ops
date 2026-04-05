@@ -166,7 +166,12 @@ class TestProductWorkflow:
         headers = admin_headers()
         resp = client.post(
             "/api/beta/catalog/skus",
-            json={"name": "Bad Dept", "price": 10.0, "quantity": 1, "category_id": str(uuid.uuid4())},
+            json={
+                "name": "Bad Dept",
+                "price": 10.0,
+                "quantity": 1,
+                "category_id": str(uuid.uuid4()),
+            },
             headers=headers,
         )
         assert resp.status_code in (400, 404, 422)

@@ -20,7 +20,9 @@ class TestEntityGraph:
     def test_view_exists(self, call):
 
         async def _body():
-            cur = await sql_execute("SELECT table_name FROM information_schema.views WHERE table_name = 'entity_edges'")
+            cur = await sql_execute(
+                "SELECT table_name FROM information_schema.views WHERE table_name = 'entity_edges'"
+            )
             row = cur.rows[0] if cur.rows else None
             assert row is not None, "entity_edges view should exist after schema bootstrap"
 

@@ -39,7 +39,9 @@ def _attempt_withdrawal(client, headers, product, quantity, job_id):
 
 def _attempt_mark_paid(client, headers, withdrawal_id):
     """Attempt to mark a withdrawal paid, returning status_code."""
-    resp = client.put(f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers)
+    resp = client.put(
+        f"/api/beta/operations/withdrawals/{withdrawal_id}/mark-paid", json={}, headers=headers
+    )
     return resp.status_code
 
 
@@ -50,7 +52,9 @@ class TestConcurrency:
     def test_parallel_withdrawals_no_negative_stock(self, client, seed_dept_id):
         """Two concurrent withdrawals for more than available stock: at most one succeeds."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=8, name="CC-ParallelWD")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=8, name="CC-ParallelWD"
+        )
         with ThreadPoolExecutor(max_workers=2) as pool:
             f1 = pool.submit(_attempt_withdrawal, client, headers, product, 6, e2e_job_id("RACE-1"))
             f2 = pool.submit(_attempt_withdrawal, client, headers, product, 6, e2e_job_id("RACE-2"))
@@ -72,10 +76,16 @@ class TestConcurrency:
         We verify that stock is consistent regardless of how many succeeded.
         """
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=100, name="CC-BothSucceed")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=100, name="CC-BothSucceed"
+        )
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f1 = pool.submit(_attempt_withdrawal, client, headers, product, 10, e2e_job_id("BOTH-1"))
-            f2 = pool.submit(_attempt_withdrawal, client, headers, product, 10, e2e_job_id("BOTH-2"))
+            f1 = pool.submit(
+                _attempt_withdrawal, client, headers, product, 10, e2e_job_id("BOTH-1")
+            )
+            f2 = pool.submit(
+                _attempt_withdrawal, client, headers, product, 10, e2e_job_id("BOTH-2")
+            )
             results = [f.result() for f in as_completed([f1, f2])]
         successes = sum(1 for r in results if r[0] == 200)
         resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
@@ -86,7 +96,9 @@ class TestConcurrency:
     def test_parallel_mark_paid_safe(self, client, seed_dept_id):
         """Two concurrent mark-paid on the same withdrawal should not double-pay."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="CC-DoublePay")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="CC-DoublePay"
+        )
         wd = create_withdrawal(client, headers, product, quantity=5)
         with ThreadPoolExecutor(max_workers=2) as pool:
             f1 = pool.submit(_attempt_mark_paid, client, headers, wd["id"])

@@ -21,7 +21,9 @@ SEEDED_ORG_ID = uuid.UUID("0195f2c0-89aa-7d6d-bb34-7f3b3f69c001")
 
 class TestOrganizationCRUD:
     async def test_insert_and_select(self, session):
-        org = Organizations(id=ORG_ID, name="Test Org", slug=f"test-org-{uuid.uuid4().hex[:8]}", created_at=NOW)
+        org = Organizations(
+            id=ORG_ID, name="Test Org", slug=f"test-org-{uuid.uuid4().hex[:8]}", created_at=NOW
+        )
         session.add(org)
         await session.flush()
         result = await session.exec(select(Organizations).where(Organizations.id == ORG_ID))
@@ -31,7 +33,9 @@ class TestOrganizationCRUD:
         assert loaded.id == ORG_ID
 
     async def test_update(self, session):
-        org = Organizations(id=ORG_ID, name="Original Name", slug=f"slug-{uuid.uuid4().hex[:8]}", created_at=NOW)
+        org = Organizations(
+            id=ORG_ID, name="Original Name", slug=f"slug-{uuid.uuid4().hex[:8]}", created_at=NOW
+        )
         session.add(org)
         await session.flush()
         org.name = "Updated Name"

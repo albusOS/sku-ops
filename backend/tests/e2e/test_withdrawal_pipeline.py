@@ -17,7 +17,9 @@ class TestWithdrawalPipeline:
 
     def test_withdrawal_creates_stock_ledger_and_events(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="WD-Pipeline")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="WD-Pipeline"
+        )
         withdrawal = create_withdrawal(client, headers, product, quantity=5)
         assert withdrawal["total"] > 0
         assert withdrawal["contractor_id"]
@@ -38,19 +40,25 @@ class TestWithdrawalPipeline:
     def test_withdrawal_auto_creates_invoice(self, client, seed_dept_id):
         """Every withdrawal atomically creates an invoice — no manual step required."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="WD-AutoInvoice")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="WD-AutoInvoice"
+        )
         withdrawal = create_withdrawal(client, headers, product, quantity=3)
         resp = client.get(f"/api/beta/operations/withdrawals/{withdrawal['id']}", headers=headers)
         assert resp.status_code == 200
         wd = resp.json()
-        assert wd.get("invoice_id") is not None, "Every withdrawal must have an invoice created atomically"
+        assert wd.get("invoice_id") is not None, (
+            "Every withdrawal must have an invoice created atomically"
+        )
         assert wd.get("payment_status") == "invoiced", (
             "Withdrawal payment_status must be 'invoiced' after invoice creation"
         )
 
     def test_withdrawal_insufficient_stock_rejected(self, client, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=2, name="WD-InsufficientE2E")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=2, name="WD-InsufficientE2E"
+        )
         resp = client.post(
             f"/api/beta/operations/withdrawals/for-contractor?contractor_id={CONTRACTOR_USER_ID}",
             json={
@@ -77,7 +85,13 @@ class TestWithdrawalPipeline:
         """Dashboard stats should reflect the withdrawal's revenue and COGS."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="WD-DashboardE2E"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            price=20.0,
+            cost=8.0,
+            name="WD-DashboardE2E",
         )
         withdrawal = create_withdrawal(client, headers, product, quantity=10)
         resp = client.get("/api/beta/reports/dashboard/stats", headers=headers)

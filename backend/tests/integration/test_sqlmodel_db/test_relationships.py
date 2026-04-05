@@ -154,7 +154,9 @@ class TestM2MRelationship:
         link = InvoiceWithdrawals(invoice_id=inv_id, withdrawal_id=wd_id)
         session.add(link)
         await session.flush()
-        result = await session.exec(select(InvoiceWithdrawals).where(InvoiceWithdrawals.invoice_id == inv_id))
+        result = await session.exec(
+            select(InvoiceWithdrawals).where(InvoiceWithdrawals.invoice_id == inv_id)
+        )
         loaded = result.first()
         assert loaded is not None
         assert loaded.withdrawal_id == wd_id

@@ -15,7 +15,16 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parent.parent.parent
 BOUNDED_CONTEXTS = frozenset(
-    {"catalog", "inventory", "operations", "purchasing", "finance", "documents", "assistant", "reports"}
+    {
+        "catalog",
+        "inventory",
+        "operations",
+        "purchasing",
+        "finance",
+        "documents",
+        "assistant",
+        "reports",
+    }
 )
 COMPOSITION_ROOTS = frozenset({"server.py", "routes.py", "startup.py", "scheduler.py"})
 KNOWN_CROSS_INFRA_VIOLATIONS: frozenset[str] = frozenset()
@@ -49,7 +58,9 @@ def _from_imports(path: Path) -> list[str]:
     return [
         node.module
         for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module and (id(node) not in type_checking_nodes)
+        if isinstance(node, ast.ImportFrom)
+        and node.module
+        and (id(node) not in type_checking_nodes)
     ]
 
 
@@ -93,7 +104,9 @@ def test_domain_layer_does_not_import_infrastructure_or_api():
             seg = module.split(".")
             if len(seg) >= 2 and seg[1] in ("infrastructure", "api"):
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, "Domain files import from infrastructure or api layers:\n" + "\n".join(violations)
+    assert not violations, "Domain files import from infrastructure or api layers:\n" + "\n".join(
+        violations
+    )
 
 
 def test_no_cross_context_api_imports():
@@ -106,9 +119,16 @@ def test_no_cross_context_api_imports():
             continue
         for module in _from_imports(py_file):
             seg = module.split(".")
-            if len(seg) >= 2 and seg[0] in BOUNDED_CONTEXTS and (seg[1] == "api") and (seg[0] != home_ctx):
+            if (
+                len(seg) >= 2
+                and seg[0] in BOUNDED_CONTEXTS
+                and (seg[1] == "api")
+                and (seg[0] != home_ctx)
+            ):
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, "Cross-context api imports (only composition roots may do this):\n" + "\n".join(violations)
+    assert not violations, (
+        "Cross-context api imports (only composition roots may do this):\n" + "\n".join(violations)
+    )
 
 
 def test_cross_context_infrastructure_violations_not_growing():
@@ -127,7 +147,12 @@ def test_cross_context_infrastructure_violations_not_growing():
             continue
         for module in _from_imports(py_file):
             seg = module.split(".")
-            if len(seg) >= 2 and seg[0] in BOUNDED_CONTEXTS and (seg[1] == "infrastructure") and (seg[0] != home_ctx):
+            if (
+                len(seg) >= 2
+                and seg[0] in BOUNDED_CONTEXTS
+                and (seg[1] == "infrastructure")
+                and (seg[0] != home_ctx)
+            ):
                 imported_key = ".".join(seg[:3]) if len(seg) >= 3 else module
                 found.add(f"{str_rel}:{imported_key}")
     new_violations = found - KNOWN_CROSS_INFRA_VIOLATIONS
@@ -150,8 +175,9 @@ def test_api_layer_does_not_import_repos():
             seg = module.split(".")
             if len(seg) >= 2 and seg[-1].endswith("_repo") and ("infrastructure" in seg):
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, "API files import repos directly (should go through application layer):\n" + "\n".join(
-        violations
+    assert not violations, (
+        "API files import repos directly (should go through application layer):\n"
+        + "\n".join(violations)
     )
 
 
@@ -171,6 +197,13 @@ def test_no_cross_context_domain_imports():
             continue
         for module in _from_imports(py_file):
             seg = module.split(".")
-            if len(seg) >= 2 and seg[0] in BOUNDED_CONTEXTS and (seg[1] == "domain") and (seg[0] != home_ctx):
+            if (
+                len(seg) >= 2
+                and seg[0] in BOUNDED_CONTEXTS
+                and (seg[1] == "domain")
+                and (seg[0] != home_ctx)
+            ):
                 violations.append(f"  {rel}: from {module}")
-    assert not violations, "Cross-context domain imports (use application facades instead):\n" + "\n".join(violations)
+    assert not violations, (
+        "Cross-context domain imports (use application facades instead):\n" + "\n".join(violations)
+    )

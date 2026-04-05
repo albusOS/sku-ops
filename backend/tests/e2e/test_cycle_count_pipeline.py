@@ -21,7 +21,9 @@ class TestCycleCountPipeline:
 
     def test_cycle_count_adjusts_stock(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="CC-Adjust")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="CC-Adjust"
+        )
         count = open_cycle_count(client, headers)
         count_id = count["id"]
         resp = client.get(f"/api/beta/inventory/cycle-counts/{count_id}", headers=headers)
@@ -44,9 +46,13 @@ class TestCycleCountPipeline:
     def test_cycle_count_increase(self, client, seed_dept_id):
         """Cycle count can increase stock (found more than expected)."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=20, name="CC-Increase")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=20, name="CC-Increase"
+        )
         count = open_cycle_count(client, headers)
-        detail = client.get(f"/api/beta/inventory/cycle-counts/{count['id']}", headers=headers).json()
+        detail = client.get(
+            f"/api/beta/inventory/cycle-counts/{count['id']}", headers=headers
+        ).json()
         target = next(i for i in detail["items"] if i["sku_id"] == product["id"])
         update_cycle_count_item(client, headers, count["id"], target["id"], counted_qty=25)
         commit_cycle_count(client, headers, count["id"])
@@ -59,7 +65,9 @@ class TestCycleCountPipeline:
         create_product(client, headers, dept_id=seed_dept_id, quantity=10, name="CC-Double")
         count = open_cycle_count(client, headers)
         commit_cycle_count(client, headers, count["id"])
-        resp = client.post(f"/api/beta/inventory/cycle-counts/{count['id']}/commit", json={}, headers=headers)
+        resp = client.post(
+            f"/api/beta/inventory/cycle-counts/{count['id']}/commit", json={}, headers=headers
+        )
         assert resp.status_code in (400, 422), "Double commit should be rejected"
 
     def test_cycle_count_listed(self, client, seed_dept_id):
@@ -75,9 +83,13 @@ class TestCycleCountPipeline:
     def test_stock_history_after_commit(self, client, seed_dept_id):
         """Stock history should show adjustment entries after commit."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=30, name="CC-History")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=30, name="CC-History"
+        )
         count = open_cycle_count(client, headers)
-        detail = client.get(f"/api/beta/inventory/cycle-counts/{count['id']}", headers=headers).json()
+        detail = client.get(
+            f"/api/beta/inventory/cycle-counts/{count['id']}", headers=headers
+        ).json()
         target = next(i for i in detail["items"] if i["sku_id"] == product["id"])
         update_cycle_count_item(client, headers, count["id"], target["id"], counted_qty=28)
         commit_cycle_count(client, headers, count["id"])

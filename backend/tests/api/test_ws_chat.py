@@ -86,7 +86,9 @@ def _assert_ws_close(client, url: str, expected_code: int):
         client.websocket_connect(url),
     ):
         pass
-    assert exc_info.value.code == expected_code, f"Expected close code {expected_code}, got {exc_info.value.code}"
+    assert exc_info.value.code == expected_code, (
+        f"Expected close code {expected_code}, got {exc_info.value.code}"
+    )
 
 
 @pytest.mark.timeout(15)

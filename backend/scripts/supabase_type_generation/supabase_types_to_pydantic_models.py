@@ -64,7 +64,11 @@ def _is_optional_annotation(node: ast.expr) -> bool:
             curr = curr.left
         parts.append(curr)
         return any(isinstance(p, ast.Constant) and p.value is None for p in parts)
-    return bool(isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "Optional")
+    return bool(
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "Optional"
+    )
 
 
 def _annotation_to_str(node: ast.expr) -> str:

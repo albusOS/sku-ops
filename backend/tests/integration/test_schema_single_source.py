@@ -57,7 +57,8 @@ async def _bootstrap() -> dict[str, list[str]]:
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         rows = await conn.fetch(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name", "public"
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name",
+            "public",
         )
         tables = [r["table_name"] for r in rows]
         schema: dict[str, list[str]] = {}
@@ -115,7 +116,9 @@ async def test_invoices_has_xero_invoice_id_column():
 async def test_credit_notes_has_xero_sync_status_column():
     """credit_notes.xero_sync_status must exist."""
     schema = await _bootstrap()
-    assert "xero_sync_status" in schema["credit_notes"], "credit_notes table is missing xero_sync_status column."
+    assert "xero_sync_status" in schema["credit_notes"], (
+        "credit_notes table is missing xero_sync_status column."
+    )
 
 
 @pytest.mark.asyncio

@@ -40,4 +40,6 @@ async def make_product(
 
 
 def make_current_user(user_id=ADMIN_USER_ID, name="Test User", role="admin"):
-    return CurrentUser(id=user_id, email="test@test.com", name=name, role=role, organization_id=DEFAULT_ORG_ID)
+    return CurrentUser(
+        id=user_id, email="test@test.com", name=name, role=role, organization_id=DEFAULT_ORG_ID
+    )

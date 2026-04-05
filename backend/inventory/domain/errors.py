@@ -10,7 +10,9 @@ class InsufficientStockError(DomainError):
         self.sku = sku
         self.requested = requested
         self.available = available
-        super().__init__(f"Insufficient stock for {sku}: requested {requested}, available {available}")
+        super().__init__(
+            f"Insufficient stock for {sku}: requested {requested}, available {available}"
+        )
 
 
 class NegativeStockError(DomainError):
@@ -20,4 +22,6 @@ class NegativeStockError(DomainError):
         self.sku_id = sku_id
         self.current = current
         self.delta = delta
-        super().__init__(f"Cannot adjust: would result in negative stock (current: {current}, delta: {delta})")
+        super().__init__(
+            f"Cannot adjust: would result in negative stock (current: {current}, delta: {delta})"
+        )

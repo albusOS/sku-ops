@@ -151,7 +151,9 @@ def _get_or_create_dept(client: TestClient, headers: dict, name: str, code: str)
 class TestCatalogIntegrity:
     """Catalog mutation atomicity, variant attrs, and family hierarchy invariants."""
 
-    def test_category_transfer_updates_counters_atomically(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_category_transfer_updates_counters_atomically(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """Moving a SKU to a new category must atomically update:
            - skus.category_id
            - old department sku_count (-1)
@@ -194,7 +196,9 @@ class TestCatalogIntegrity:
             f"PLM counter should be {sku_count_plmb_before + 1} after transfer in, got {sku_count_plmb_final}"
         )
 
-    def test_variant_attrs_create_read_update_read(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_variant_attrs_create_read_update_read(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """variant_attrs must survive the full create → read → update → read cycle
         with exact fidelity — no JSON parse errors, no data loss, no coercion.
         """
@@ -251,7 +255,9 @@ class TestCatalogIntegrity:
             f"HTTP variant_attrs mismatch after update: expected {updated_attrs}, got {http_attrs_after_update}"
         )
 
-    def test_product_family_multi_variant_sku_count(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_product_family_multi_variant_sku_count(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """Creating a Product family then adding two variant SKUs via
         POST /products/{id}/skus must result in:
         - product.sku_count == 2 in DB
@@ -308,7 +314,9 @@ class TestCatalogIntegrity:
         assert attrs1.get("holes") == "1H"
         assert attrs2.get("holes") == "2H"
 
-    def test_adopt_sku_reassigns_product_parent(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_adopt_sku_reassigns_product_parent(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """PATCH /products/{family_id}/adopt-sku/{sku_id} must atomically:
         - Update skus.product_family_id in DB
         - Make the SKU appear in GET /products/{family_id}/skus
@@ -336,12 +344,18 @@ class TestCatalogIntegrity:
         )
         assert resp.status_code == 200, f"Adopt-sku failed: {resp.text}"
         db_family_id = _db_product_family_id_for_sku(client, orphan["id"])
-        assert db_family_id == family_id, f"DB product_family_id should be {family_id}, got {db_family_id}"
-        assert db_family_id != orphan_original_family_id, "SKU should have moved away from its auto-created solo parent"
+        assert db_family_id == family_id, (
+            f"DB product_family_id should be {family_id}, got {db_family_id}"
+        )
+        assert db_family_id != orphan_original_family_id, (
+            "SKU should have moved away from its auto-created solo parent"
+        )
         resp = client.get(f"/api/beta/catalog/products/{family_id}", headers=headers)
         assert resp.status_code == 200
         sku_ids = {s["id"] for s in resp.json().get("skus", [])}
-        assert orphan["id"] in sku_ids, f"Adopted SKU {orphan['id']} not visible in family {family_id}"
+        assert orphan["id"] in sku_ids, (
+            f"Adopted SKU {orphan['id']} not visible in family {family_id}"
+        )
         resp2 = client.patch(
             f"/api/beta/catalog/products/{family_id}/adopt-sku/{orphan['id']}",
             headers=headers,
@@ -350,7 +364,9 @@ class TestCatalogIntegrity:
         db_family_id_again = _db_product_family_id_for_sku(client, orphan["id"])
         assert db_family_id_again == family_id, "Re-adopt must not corrupt the product_family_id"
 
-    def test_receiving_stock_change_and_ledger_entry_are_atomic(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_receiving_stock_change_and_ledger_entry_are_atomic(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """After PO receive:
         - skus.quantity in DB must reflect the added stock
         - stock_transactions must have exactly one 'receiving' row for this SKU
@@ -373,9 +389,13 @@ class TestCatalogIntegrity:
         po = create_po(client, headers, product, quantity=30, vendor_name="AtomicVendor")
         receive_po(client, headers, po["id"])
         qty_after = _db_qty(client, sku_id)
-        assert qty_after > qty_before, f"Stock should have increased: was {qty_before}, still {qty_after}"
+        assert qty_after > qty_before, (
+            f"Stock should have increased: was {qty_before}, still {qty_after}"
+        )
         tx_count = _db_count_inventory_transactions(client, sku_id, "receiving")
-        assert tx_count >= 1, f"stock_transactions must have >= 1 'receiving' row for {sku_id}, found {tx_count}"
+        assert tx_count >= 1, (
+            f"stock_transactions must have >= 1 'receiving' row for {sku_id}, found {tx_count}"
+        )
 
     def test_withdrawal_stock_decrement_and_ledger_entry_are_atomic(
         self, client: TestClient, seed_dept_id: str, seed_contractor_id: str
@@ -401,7 +421,9 @@ class TestCatalogIntegrity:
         create_withdrawal(client, headers, product, quantity=withdraw_qty)
         qty_after = _db_qty(client, sku_id)
         tx_after = _db_count_inventory_transactions(client, sku_id, "withdrawal")
-        assert qty_after == qty_before - withdraw_qty, f"Stock should be {qty_before - withdraw_qty}, got {qty_after}"
+        assert qty_after == qty_before - withdraw_qty, (
+            f"Stock should be {qty_before - withdraw_qty}, got {qty_after}"
+        )
         assert tx_after == tx_before + 1, (
             f"stock_transactions should have 1 new withdrawal row, before={tx_before} after={tx_after}"
         )
@@ -476,7 +498,9 @@ class TestCatalogIntegrity:
             f"stock_transactions must have exactly {successes} withdrawal rows (one per success), found {tx_count}"
         )
 
-    def test_sku_edit_cannot_directly_overwrite_stock_quantity(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_sku_edit_cannot_directly_overwrite_stock_quantity(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """PUT /catalog/skus/{id} must not allow direct quantity overwrites.
         Stock changes must go through the inventory adjustment endpoint.
         This protects the stock ledger from silent bypasses.
@@ -507,7 +531,9 @@ class TestCatalogIntegrity:
             f"Stock should not change on a name-only edit: was {qty_before}, got {qty_after}"
         )
 
-    def test_sku_without_variant_attrs_defaults_to_empty_dict(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_sku_without_variant_attrs_defaults_to_empty_dict(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """SKUs created without variant_attrs must have {} in DB and HTTP,
         not null, not a JSON parse error, not an empty string.
         """
@@ -528,7 +554,9 @@ class TestCatalogIntegrity:
         db_attrs = _db_variant_attrs(client, sku_id)
         assert db_attrs == {}, f"variant_attrs should be empty dict, got {db_attrs!r}"
         http_attrs = resp.json().get("variant_attrs")
-        assert isinstance(http_attrs, dict), f"HTTP variant_attrs should be dict, got {http_attrs!r}"
+        assert isinstance(http_attrs, dict), (
+            f"HTTP variant_attrs should be dict, got {http_attrs!r}"
+        )
         assert http_attrs == {}, f"HTTP variant_attrs should be {{}}, got {http_attrs}"
 
     def test_pack_sell_decrement_applies_pack_qty(

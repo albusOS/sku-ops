@@ -91,7 +91,9 @@ class TestJobsCreate:
 
     @pytest.mark.usefixtures("_db")
     def test_conflict_duplicate_code(self, client, auth_headers):
-        r = client.post("/api/beta/jobs", headers=auth_headers, json={"code": "RR-2026-001", "name": "dup"})
+        r = client.post(
+            "/api/beta/jobs", headers=auth_headers, json={"code": "RR-2026-001", "name": "dup"}
+        )
         assert r.status_code == 409
 
     @pytest.mark.usefixtures("_db")
@@ -100,7 +102,12 @@ class TestJobsCreate:
         r = client.post(
             "/api/beta/jobs",
             headers=auth_headers,
-            json={"code": code, "name": "API test job", "service_address": "1 Test Ln", "notes": "note"},
+            json={
+                "code": code,
+                "name": "API test job",
+                "service_address": "1 Test Ln",
+                "notes": "note",
+            },
         )
         assert r.status_code == 200
         body = r.json()
@@ -113,13 +120,17 @@ class TestJobsUpdate:
     @pytest.mark.usefixtures("_db")
     def test_not_found(self, client, auth_headers):
         r = client.put(
-            "/api/beta/jobs/019a0000-0000-7000-8000-000000000002", headers=auth_headers, json={"name": "nope"}
+            "/api/beta/jobs/019a0000-0000-7000-8000-000000000002",
+            headers=auth_headers,
+            json={"name": "nope"},
         )
         assert r.status_code == 404
 
     @pytest.mark.usefixtures("_db")
     def test_invalid_status(self, client, auth_headers):
-        r = client.put(f"/api/beta/jobs/{SEEDED_JOB_ID}", headers=auth_headers, json={"status": "not-a-status"})
+        r = client.put(
+            f"/api/beta/jobs/{SEEDED_JOB_ID}", headers=auth_headers, json={"status": "not-a-status"}
+        )
         assert r.status_code in (400, 422)
 
     @pytest.mark.usefixtures("_db")
@@ -133,6 +144,8 @@ class TestJobsUpdate:
         body = r.json()
         assert body["name"] == "Updated pytest job"
         assert body["status"] == "completed"
-        r2 = client.put(f"/api/beta/jobs/{SEEDED_JOB_ID}", headers=auth_headers, json={"status": "active"})
+        r2 = client.put(
+            f"/api/beta/jobs/{SEEDED_JOB_ID}", headers=auth_headers, json={"status": "active"}
+        )
         assert r2.status_code == 200
         assert r2.json()["status"] == "active"

@@ -106,7 +106,11 @@ def _topological_sort(
     deps: dict[str, set[str]] = defaultdict(set)
 
     for fk in fks:
-        if fk.source_table in model_map and fk.target_table in model_map and fk.source_table != fk.target_table:
+        if (
+            fk.source_table in model_map
+            and fk.target_table in model_map
+            and fk.source_table != fk.target_table
+        ):
             deps[fk.source_table].add(fk.target_table)
 
     sorted_names: list[str] = []
@@ -156,7 +160,9 @@ def generate_sqlmodel_code(
     models_with_pks = [m for m in parsed_models if pk_map.get((schema, m.table_name))]
     sorted_models = _topological_sort(models_with_pks, fks, link_tables)
     table_names = {m.table_name for m in sorted_models}
-    table_columns = {model.table_name: {field.name for field in model.fields} for model in sorted_models}
+    table_columns = {
+        model.table_name: {field.name for field in model.fields} for model in sorted_models
+    }
     relationship_plan = _plan_relationships(
         fk_by_source=fk_by_source,
         fk_by_target=fk_by_target,
@@ -175,7 +181,10 @@ def generate_sqlmodel_code(
         class_name = _table_to_class(table)
         pks = pk_map.get((schema, table), [])
         table_fks = {
-            col: fk for fk in fk_by_source.get(table, []) for col in fk.source_columns if len(fk.source_columns) == 1
+            col: fk
+            for fk in fk_by_source.get(table, [])
+            for col in fk.source_columns
+            if len(fk.source_columns) == 1
         }
 
         lines = [
@@ -312,7 +321,9 @@ def _plan_relationships(
             if fk.constraint_name not in relevant_keys:
                 continue
             base_name = _fk_col_to_rel_name(fk.source_columns[0])
-            source_name_by_constraint[fk.constraint_name] = _dedupe_name(base_name, used_names, column_names)
+            source_name_by_constraint[fk.constraint_name] = _dedupe_name(
+                base_name, used_names, column_names
+            )
 
     for table in sorted(table_names):
         used_names: set[str] = set()
@@ -324,13 +335,19 @@ def _plan_relationships(
             fk_hint = _fk_col_to_rel_name(fk.source_columns[0])
             if base_name in used_names or base_name in column_names:
                 base_name = f"{fk_hint}_{base_name}"
-            target_name_by_constraint[fk.constraint_name] = _dedupe_name(base_name, used_names, column_names)
+            target_name_by_constraint[fk.constraint_name] = _dedupe_name(
+                base_name, used_names, column_names
+            )
 
     pair_counts = Counter((fk.source_table, fk.target_table) for fk in relevant_fks)
     explicit_foreign_keys = {
-        fk.constraint_name for fk in relevant_fks if pair_counts[(fk.source_table, fk.target_table)] > 1
+        fk.constraint_name
+        for fk in relevant_fks
+        if pair_counts[(fk.source_table, fk.target_table)] > 1
     }
-    self_referential_constraints = {fk.constraint_name for fk in relevant_fks if fk.source_table == fk.target_table}
+    self_referential_constraints = {
+        fk.constraint_name for fk in relevant_fks if fk.source_table == fk.target_table
+    }
 
     return RelationshipPlan(
         source_name_by_constraint=source_name_by_constraint,

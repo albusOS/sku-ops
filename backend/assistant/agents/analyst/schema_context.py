@@ -342,7 +342,9 @@ def format_detail(table_names: list[str]) -> str:
     for name in table_names:
         info = catalog.get(name)
         if not info:
-            parts.append(f"Table '{name}' not found. Available: {', '.join(sorted(catalog.keys()))}")
+            parts.append(
+                f"Table '{name}' not found. Available: {', '.join(sorted(catalog.keys()))}"
+            )
             continue
 
         lines = [f"## {info.name} ({info.context} context)"]

@@ -85,7 +85,9 @@ class TestProductRepoContract:
             skus = await get_database_manager().catalog.list_skus(DEFAULT_ORG_ID, limit=10)
             assert len(skus) >= 1
             for s in skus:
-                assert isinstance(s.quantity, float), f"sku '{s.name}' quantity is {type(s.quantity)}"
+                assert isinstance(s.quantity, float), (
+                    f"sku '{s.name}' quantity is {type(s.quantity)}"
+                )
 
         call(_body)
 
@@ -222,7 +224,15 @@ class TestCreditNoteRepoContract:
                 DEFAULT_ORG_ID,
                 str(uuid.uuid4()),
                 None,
-                [{"description": "Widget return", "quantity": 2.5, "unit_price": 10.0, "cost": 5.0, "sku_id": None}],
+                [
+                    {
+                        "description": "Widget return",
+                        "quantity": 2.5,
+                        "unit_price": 10.0,
+                        "cost": 5.0,
+                        "sku_id": None,
+                    }
+                ],
                 25.0,
                 2.5,
                 27.5,

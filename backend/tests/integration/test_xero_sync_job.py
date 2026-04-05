@@ -71,7 +71,14 @@ async def _make_withdrawal(billing_entity="On Point LLC") -> str:
         MaterialWithdrawal(
             id=wid,
             items=[
-                WithdrawalItem(sku_id=str(uuid4()), sku="SKU-1", name="Lumber", quantity=2, unit_price=10.0, cost=6.0)
+                WithdrawalItem(
+                    sku_id=str(uuid4()),
+                    sku="SKU-1",
+                    name="Lumber",
+                    quantity=2,
+                    unit_price=10.0,
+                    cost=6.0,
+                )
             ],
             job_id=SEEDED_JOB_ID,
             service_address="1 Main St",
@@ -102,13 +109,21 @@ async def _make_approved_invoice(billing_entity="On Point LLC"):
 async def _run_sync_with_stub():
     """Run the sync job with StubXeroAdapter injected at every call site."""
     stub_settings = XeroSettings(
-        organization_id=DEFAULT_ORG_ID, xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="stub-tenant"
+        organization_id=DEFAULT_ORG_ID,
+        xero_access_token=_STUB_XERO_TOKEN,
+        xero_tenant_id="stub-tenant",
     )
     stub_gateway = StubXeroAdapter()
     with (
-        patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
+        patch(
+            "finance.application.xero_sync_job.get_xero_settings",
+            AsyncMock(return_value=stub_settings),
+        ),
         patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
-        patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
+        patch(
+            "finance.application.invoice_sync.get_xero_settings",
+            AsyncMock(return_value=stub_settings),
+        ),
         patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
     ):
         return await run_sync(reconcile=False)
@@ -136,7 +151,9 @@ class TestSyncJobIdempotency:
     def test_running_sync_twice_does_not_call_put_twice(self, call):
         """StubXeroAdapter.sync_invoice should only be called once per invoice."""
         stub_settings = XeroSettings(
-            organization_id=DEFAULT_ORG_ID, xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="stub-tenant"
+            organization_id=DEFAULT_ORG_ID,
+            xero_access_token=_STUB_XERO_TOKEN,
+            xero_tenant_id="stub-tenant",
         )
         stub_gateway = StubXeroAdapter()
         call_count = 0
@@ -149,10 +166,20 @@ class TestSyncJobIdempotency:
 
         stub_gateway.sync_invoice = counting_sync
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway
+            ),
         ):
 
             async def _body():
@@ -216,10 +243,20 @@ class TestSyncStatusGating:
 
         stub_gateway.sync_invoice = counting
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway
+            ),
         ):
 
             async def _body():
@@ -257,10 +294,18 @@ class TestAdjustmentIdempotencyFix:
                 on_stock_import=process_import_stock_changes,
             )
             await process_adjustment_stock_changes(
-                sku_id=product.id, quantity_delta=+5.0, reason="found", user_id=ADMIN_USER_ID, user_name="Test"
+                sku_id=product.id,
+                quantity_delta=+5.0,
+                reason="found",
+                user_id=ADMIN_USER_ID,
+                user_name="Test",
             )
             await process_adjustment_stock_changes(
-                sku_id=product.id, quantity_delta=-3.0, reason="damage", user_id=ADMIN_USER_ID, user_name="Test"
+                sku_id=product.id,
+                quantity_delta=-3.0,
+                reason="damage",
+                user_id=ADMIN_USER_ID,
+                user_name="Test",
             )
             cursor = await sql_execute(
                 "SELECT COUNT(*) FROM financial_ledger\n                   WHERE reference_type = 'adjustment' AND sku_id = $1",
@@ -316,10 +361,20 @@ class TestReconciliationMismatch:
         )
         stub_gateway = StubXeroAdapter()
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway
+            ),
         ):
 
             async def _body_sync():
@@ -335,14 +390,22 @@ class TestReconciliationMismatch:
             return_value={"total": 9999.99, "line_count": 1, "status": "AUTHORISED"}
         )
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=mismatch_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=mismatch_gateway,
+            ),
         ):
 
             async def _body_reconcile():
                 await run_sync(reconcile=True)
                 inv_after = await _get_invoice(inv_id)
-                _mm_msg = f"Expected xero_sync_status='mismatch', got {inv_after.xero_sync_status!r}"
+                _mm_msg = (
+                    f"Expected xero_sync_status='mismatch', got {inv_after.xero_sync_status!r}"
+                )
                 assert inv_after.xero_sync_status == "mismatch", _mm_msg
 
             call(_body_reconcile)
@@ -354,10 +417,20 @@ class TestReconciliationMismatch:
         )
         stub_gateway = StubXeroAdapter()
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway
+            ),
         ):
 
             async def _body_sync():
@@ -369,11 +442,21 @@ class TestReconciliationMismatch:
             inv_id, local_total, local_line_count = call(_body_sync)
         matching_gateway = StubXeroAdapter()
         matching_gateway.fetch_invoice = AsyncMock(
-            return_value={"total": local_total, "line_count": local_line_count, "status": "AUTHORISED"}
+            return_value={
+                "total": local_total,
+                "line_count": local_line_count,
+                "status": "AUTHORISED",
+            }
         )
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=matching_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=matching_gateway,
+            ),
         ):
 
             async def _body_reconcile():
@@ -402,7 +485,9 @@ class TestCreditNoteSync:
             )
             await _run_sync_with_stub()
             cn_after = await _get_credit_note(cn_id)
-            assert cn_after.xero_credit_note_id is not None, "Applied credit note must be synced to Xero"
+            assert cn_after.xero_credit_note_id is not None, (
+                "Applied credit note must be synced to Xero"
+            )
             assert cn_after.xero_sync_status == "synced"
 
         call(_body)
@@ -454,8 +539,14 @@ class TestPOQueuing:
         )
         stub_gateway = StubXeroAdapter()
         with (
-            patch("finance.application.po_sync_service.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.po_sync_service.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.po_sync_service.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.po_sync_service.get_invoicing_gateway",
+                return_value=stub_gateway,
+            ),
         ):
 
             async def _body():
@@ -504,8 +595,14 @@ class TestPOQueuing:
         )
         stub_gateway = StubXeroAdapter()
         with (
-            patch("finance.application.po_sync_service.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.po_sync_service.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.po_sync_service.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.po_sync_service.get_invoicing_gateway",
+                return_value=stub_gateway,
+            ),
         ):
 
             async def _body():
@@ -568,10 +665,22 @@ class TestSyncSummaryCounts:
             organization_id=DEFAULT_ORG_ID, xero_access_token=_STUB_XERO_TOKEN, xero_tenant_id="t"
         )
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=failing_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=failing_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=failing_gateway,
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway",
+                return_value=failing_gateway,
+            ),
         ):
 
             async def _body():
@@ -665,10 +774,20 @@ class TestCogsRepost:
 
         stub_gateway.repost_cogs_journal = tracking_repost
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway", return_value=stub_gateway
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway", return_value=stub_gateway
+            ),
         ):
 
             async def _body():
@@ -694,7 +813,9 @@ class TestCogsRepost:
                 inv_stale = await _get_invoice(inv_id)
                 assert inv_stale.xero_sync_status == "cogs_stale"
                 summary = await run_sync(reconcile=False)
-                assert inv_id in repost_called, "repost_cogs_journal must be called for the stale invoice"
+                assert inv_id in repost_called, (
+                    "repost_cogs_journal must be called for the stale invoice"
+                )
                 assert summary.cogs_reposted == 1
                 assert summary.cogs_repost_failed == 0
                 inv_final = await _get_invoice(inv_id)
@@ -724,10 +845,22 @@ class TestCogsRepost:
         failing_gateway = StubXeroAdapter()
         failing_gateway.repost_cogs_journal = AsyncMock(side_effect=Exception("Xero journal error"))
         with (
-            patch("finance.application.xero_sync_job.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.xero_sync_job.get_invoicing_gateway", return_value=failing_gateway),
-            patch("finance.application.invoice_sync.get_xero_settings", AsyncMock(return_value=stub_settings)),
-            patch("finance.application.invoice_sync.get_invoicing_gateway", return_value=failing_gateway),
+            patch(
+                "finance.application.xero_sync_job.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.xero_sync_job.get_invoicing_gateway",
+                return_value=failing_gateway,
+            ),
+            patch(
+                "finance.application.invoice_sync.get_xero_settings",
+                AsyncMock(return_value=stub_settings),
+            ),
+            patch(
+                "finance.application.invoice_sync.get_invoicing_gateway",
+                return_value=failing_gateway,
+            ),
         ):
 
             async def _body():

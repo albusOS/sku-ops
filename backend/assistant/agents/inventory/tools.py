@@ -194,7 +194,9 @@ async def _get_reorder_suggestions(limit: int = 20) -> str:
     if not low_stock:
         return ReorderSuggestionsResult(count=0, suggestions=[]).serialize()
     sku_ids = [p.id for p in low_stock]
-    vel_map = await get_database_manager().inventory.demand_normalized_velocity(get_org_id(), sku_ids, days=30)
+    vel_map = await get_database_manager().inventory.demand_normalized_velocity(
+        get_org_id(), sku_ids, days=30
+    )
     suggestions: list[ReorderSuggestion] = []
     for p in low_stock:
         vel = vel_map.get(p.id)
@@ -270,7 +272,9 @@ async def _get_top_skus(days: int = 30, by: str = "revenue", limit: int = 10) ->
         by = "revenue"
     limit = min(limit, 50)
     since = datetime.now(UTC) - timedelta(days=days)
-    withdrawals = await get_database_manager().operations.list_withdrawals(get_org_id(), start_date=since, limit=10000)
+    withdrawals = await get_database_manager().operations.list_withdrawals(
+        get_org_id(), start_date=since, limit=10000
+    )
     sku_map: dict[str, dict] = {}
     for w in withdrawals:
         for item in w.items:
@@ -340,7 +344,9 @@ async def _forecast_stockout(limit: int = 15) -> str:
     if not in_stock:
         return StockoutForecastResult(count=0, forecast=[]).serialize()
     sku_ids = [p.id for p in in_stock]
-    vel_map = await get_database_manager().inventory.demand_normalized_velocity(get_org_id(), sku_ids, days=30)
+    vel_map = await get_database_manager().inventory.demand_normalized_velocity(
+        get_org_id(), sku_ids, days=30
+    )
     forecast: list[StockoutItem] = []
     for p in in_stock:
         vel = vel_map.get(p.id)
@@ -360,7 +366,11 @@ async def _forecast_stockout(limit: int = 15) -> str:
                 min_stock=float(p.min_stock),
                 avg_daily_use=round(avg_daily, 2),
                 days_until_stockout=days_until_zero,
-                risk="critical" if days_until_zero <= 3 else "high" if days_until_zero <= 7 else "medium",
+                risk="critical"
+                if days_until_zero <= 3
+                else "high"
+                if days_until_zero <= 7
+                else "medium",
                 outlier_days_excluded=vel["outlier_days"],
             )
         )
@@ -381,7 +391,9 @@ async def _get_slow_movers(limit: int = 20, days: int = 30) -> str:
     if not in_stock:
         return SlowMoversResult(period_days=days, count=0, slow_movers=[]).serialize()
     sku_ids = [p.id for p in in_stock]
-    velocity_map = await get_database_manager().inventory.withdrawal_velocity(get_org_id(), sku_ids, since)
+    velocity_map = await get_database_manager().inventory.withdrawal_velocity(
+        get_org_id(), sku_ids, since
+    )
     ranked = []
     for p in in_stock:
         withdrawn = float(velocity_map.get(p.id, 0))
@@ -418,7 +430,9 @@ async def _search_pos_semantic(query: str = "", limit: int = 10) -> str:
     index = await get_index()
     results = await index.search_entity(query, "purchase_order", limit=limit)
     items = [{"id": r.entity_id, "score": round(r.score, 3), **r.data} for r in results]
-    return SemanticEntityResult(count=len(items), items=items, entity_type="purchase_order").serialize()
+    return SemanticEntityResult(
+        count=len(items), items=items, entity_type="purchase_order"
+    ).serialize()
 
 
 async def _search_jobs_semantic(query: str = "", limit: int = 10) -> str:
@@ -438,7 +452,9 @@ async def _get_demand_profile(sku: str = "", days: int = 60) -> str:
     p = await _db_catalog().find_sku_by_code(get_org_id(), sku_code)
     if not p:
         return ErrorResult(error=f"SKU '{sku_code}' not found").serialize()
-    profile = await get_database_manager().inventory.sku_demand_profile(get_org_id(), p.id, days=days)
+    profile = await get_database_manager().inventory.sku_demand_profile(
+        get_org_id(), p.id, days=days
+    )
     profile["sku"] = sku_code
     profile["name"] = p.name
     profile["sell_uom"] = p.sell_uom or "each"
@@ -453,7 +469,9 @@ async def _get_seasonal_pattern(sku: str = "", months: int = 12) -> str:
     p = await _db_catalog().find_sku_by_code(get_org_id(), sku_code)
     if not p:
         return ErrorResult(error=f"SKU '{sku_code}' not found").serialize()
-    rows = await get_database_manager().inventory.seasonal_pattern(get_org_id(), p.id, months=months)
+    rows = await get_database_manager().inventory.seasonal_pattern(
+        get_org_id(), p.id, months=months
+    )
     return SeasonalPatternResult(
         sku=sku_code,
         name=p.name,

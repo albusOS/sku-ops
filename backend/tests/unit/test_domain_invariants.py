@@ -77,7 +77,8 @@ class TestUOMConversion:
         assert convert_quantity(1, "Foot", "INCH") == pytest.approx(12.0)
 
     @pytest.mark.parametrize(
-        ("from_u", "to_u"), [("foot", "gallon"), ("pound", "inch"), ("pint", "ounce"), ("sqft", "foot")]
+        ("from_u", "to_u"),
+        [("foot", "gallon"), ("pound", "inch"), ("pint", "ounce"), ("sqft", "foot")],
     )
     def test_cross_family_raises(self, from_u, to_u):
         """Converting between incompatible families must raise ValueError."""
@@ -189,7 +190,9 @@ class TestWithdrawalInvariants:
     def test_compute_totals_with_fractional_items(self):
         items = [
             WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=2.5, unit_price=4.0, cost=2.0),
-            WithdrawalItem(sku_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0),
+            WithdrawalItem(
+                sku_id="p2", sku="S2", name="B", quantity=0.75, unit_price=10.0, cost=6.0
+            ),
         ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.1)
@@ -199,7 +202,9 @@ class TestWithdrawalInvariants:
         assert w.cost_total == pytest.approx(9.5)
 
     def test_compute_totals_with_zero_tax(self):
-        items = [WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=5, unit_price=10.0, cost=4.0)]
+        items = [
+            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=5, unit_price=10.0, cost=4.0)
+        ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.0)
         assert w.subtotal == pytest.approx(50.0)
@@ -207,7 +212,9 @@ class TestWithdrawalInvariants:
         assert w.total == pytest.approx(50.0)
 
     def test_compute_totals_single_item(self):
-        items = [WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=1, unit_price=99.99, cost=50.0)]
+        items = [
+            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=1, unit_price=99.99, cost=50.0)
+        ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.0825)
         assert w.subtotal == pytest.approx(99.99)
@@ -218,8 +225,12 @@ class TestWithdrawalInvariants:
     def test_total_equals_subtotal_plus_tax(self):
         """Invariant: total = subtotal + tax for any combination."""
         items = [
-            WithdrawalItem(sku_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0),
-            WithdrawalItem(sku_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0),
+            WithdrawalItem(
+                sku_id="p1", sku="S1", name="A", quantity=3.33, unit_price=7.77, cost=3.0
+            ),
+            WithdrawalItem(
+                sku_id="p2", sku="S2", name="B", quantity=1.11, unit_price=22.22, cost=10.0
+            ),
         ]
         w = self._make_withdrawal(items)
         w.compute_totals(tax_rate=0.13)
@@ -261,6 +272,8 @@ class TestContractorContext:
             service_address="123 Main",
         )
         ctx = ContractorContext(id="")
-        user = CurrentUser(id="u1", email="a@b.com", name="A", role="admin", organization_id=DEFAULT_ORG_ID)
+        user = CurrentUser(
+            id="u1", email="a@b.com", name="A", role="admin", organization_id=DEFAULT_ORG_ID
+        )
         with pytest.raises(ValueError, match="contractor\\.id"):
             asyncio.get_event_loop().run_until_complete(create_withdrawal(data, ctx, user))

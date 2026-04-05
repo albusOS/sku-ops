@@ -7,7 +7,9 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND.parent
-UUID_PATTERN = re.compile("[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", re.IGNORECASE)
+UUID_PATTERN = re.compile(
+    "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", re.IGNORECASE
+)
 
 
 def _read(relative_path: str) -> str:

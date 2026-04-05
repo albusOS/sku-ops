@@ -33,7 +33,9 @@ class JobsDatabaseService(DomainDatabaseService):
             id=as_uuid_required(job.id),
             code=job.code,
             name=job.name or "",
-            billing_entity_id=as_uuid_required(job.billing_entity_id) if job.billing_entity_id else None,
+            billing_entity_id=as_uuid_required(job.billing_entity_id)
+            if job.billing_entity_id
+            else None,
             status=str(job.status),
             service_address=job.service_address or "",
             notes=job.notes,
@@ -52,14 +54,18 @@ class JobsDatabaseService(DomainDatabaseService):
             return None
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid))
+            result = await session.execute(
+                select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid)
+            )
             row = result.scalar_one_or_none()
             return self._row_to_job(row) if row else None
 
     async def get_job_by_code(self, code: str, org_id: str) -> Job | None:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(select(Jobs).where(Jobs.code == code, Jobs.organization_id == oid))
+            result = await session.execute(
+                select(Jobs).where(Jobs.code == code, Jobs.organization_id == oid)
+            )
             row = result.scalar_one_or_none()
             return self._row_to_job(row) if row else None
 
@@ -94,7 +100,9 @@ class JobsDatabaseService(DomainDatabaseService):
         jid = as_uuid_required(job_id)
         oid = as_uuid_required(org_id)
         async with self.session() as session:
-            result = await session.execute(select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid))
+            result = await session.execute(
+                select(Jobs).where(Jobs.id == jid, Jobs.organization_id == oid)
+            )
             row = result.scalar_one_or_none()
             if row is None:
                 return None

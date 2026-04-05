@@ -144,7 +144,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
     # ── Operations tools (quick answers) ─────────────────────────────────────────
 
     @_agent.tool
-    async def list_recent_withdrawals(ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20) -> str:
+    async def list_recent_withdrawals(
+        ctx: RunContext[AgentDeps], days: int = 7, limit: int = 20
+    ) -> str:
         """Recent material withdrawals across all jobs."""
         return budget_tool_result(await _list_recent_withdrawals(days=days, limit=limit))
 

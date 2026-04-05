@@ -19,10 +19,14 @@ from tests.helpers.auth import CONTRACTOR_USER_ID, SEEDED_JOB_ID, admin_headers,
 class TestMaterialRequestPipeline:
     """Full material request lifecycle through the live HTTP API."""
 
-    def test_create_and_process_material_request(self, client, ws_events, seed_dept_id, seed_contractor_id):
+    def test_create_and_process_material_request(
+        self, client, ws_events, seed_dept_id, seed_contractor_id
+    ):
         headers = admin_headers()
         c_headers = contractor_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-Pipeline")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="MR-Pipeline"
+        )
         ws_events.clear()
         mr = create_material_request(client, c_headers, product, quantity=5)
         assert mr.get("status") == "pending"
@@ -47,19 +51,25 @@ class TestMaterialRequestPipeline:
         """Contractor role should not be allowed to process a request."""
         headers = admin_headers()
         c_headers = contractor_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-RoleGuard")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="MR-RoleGuard"
+        )
         mr = create_material_request(client, c_headers, product, quantity=2)
         resp = client.post(
             f"/api/beta/operations/material-requests/{mr['id']}/process",
             json={"job_id": SEEDED_JOB_ID, "service_address": "Fail St"},
             headers=c_headers,
         )
-        assert resp.status_code in (401, 403), f"Contractor should not be able to process, got {resp.status_code}"
+        assert resp.status_code in (401, 403), (
+            f"Contractor should not be able to process, got {resp.status_code}"
+        )
 
     def test_admin_cannot_create_as_contractor(self, client, seed_dept_id):
         """Admin role should not be allowed to create material requests."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-AdminGuard")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="MR-AdminGuard"
+        )
         resp = client.post(
             "/api/beta/operations/material-requests",
             json={
@@ -76,13 +86,17 @@ class TestMaterialRequestPipeline:
             },
             headers=headers,
         )
-        assert resp.status_code in (400, 403), f"Admin should not create material requests, got {resp.status_code}"
+        assert resp.status_code in (400, 403), (
+            f"Admin should not create material requests, got {resp.status_code}"
+        )
 
     def test_double_process_rejected(self, client, seed_dept_id, seed_contractor_id):
         """Cannot process the same material request twice."""
         headers = admin_headers()
         c_headers = contractor_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="MR-DoubleProcess")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="MR-DoubleProcess"
+        )
         mr = create_material_request(client, c_headers, product, quantity=2)
         process_material_request(client, headers, mr["id"])
         resp = client.post(

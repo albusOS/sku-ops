@@ -25,7 +25,13 @@ class TestLedgerInvariants:
         """Withdrawal + return + payment — dashboard numbers stay consistent."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, price=20.0, cost=8.0, name="LEDGER-Integrity"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            price=20.0,
+            cost=8.0,
+            name="LEDGER-Integrity",
         )
         wd = create_withdrawal(client, headers, product, quantity=10)
         wd_total = wd["total"]
@@ -37,12 +43,21 @@ class TestLedgerInvariants:
             "/api/beta/operations/returns",
             json={
                 "withdrawal_id": wd["id"],
-                "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 3}],
+                "items": [
+                    {
+                        "sku_id": product["id"],
+                        "sku": product["sku"],
+                        "name": product["name"],
+                        "quantity": 3,
+                    }
+                ],
             },
             headers=headers,
         )
         assert resp.status_code == 200
-        resp = client.put(f"/api/beta/operations/withdrawals/{wd['id']}/mark-paid", json={}, headers=headers)
+        resp = client.put(
+            f"/api/beta/operations/withdrawals/{wd['id']}/mark-paid", json={}, headers=headers
+        )
         assert resp.status_code == 200
         resp = client.get(f"/api/beta/operations/withdrawals/{wd['id']}", headers=headers)
         assert resp.json()["payment_status"] == "paid"
@@ -57,7 +72,13 @@ class TestLedgerInvariants:
         """
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, price=10.0, cost=4.0, name="LEDGER-NoDup"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            price=10.0,
+            cost=4.0,
+            name="LEDGER-NoDup",
         )
         stats_before = _query_ledger(client, headers)
         rev_before = stats_before.get("range_revenue", 0)
@@ -72,11 +93,19 @@ class TestLedgerInvariants:
         """Unpaid total should equal the sum of unpaid withdrawal totals."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=200, price=15.0, cost=6.0, name="LEDGER-Unpaid"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=200,
+            price=15.0,
+            cost=6.0,
+            name="LEDGER-Unpaid",
         )
         w1 = create_withdrawal(client, headers, product, quantity=5, job_id=e2e_job_id("UP-1"))
         w2 = create_withdrawal(client, headers, product, quantity=3, job_id=e2e_job_id("UP-2"))
-        resp = client.put(f"/api/beta/operations/withdrawals/{w1['id']}/mark-paid", json={}, headers=headers)
+        resp = client.put(
+            f"/api/beta/operations/withdrawals/{w1['id']}/mark-paid", json={}, headers=headers
+        )
         assert resp.status_code == 200
         resp = client.get(f"/api/beta/operations/withdrawals/{w2['id']}", headers=headers)
         assert resp.json()["payment_status"] == "invoiced"
@@ -88,7 +117,13 @@ class TestLedgerInvariants:
         """Gross profit = revenue - COGS, always."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, quantity=100, price=25.0, cost=10.0, name="LEDGER-Profit"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            quantity=100,
+            price=25.0,
+            cost=10.0,
+            name="LEDGER-Profit",
         )
         create_withdrawal(client, headers, product, quantity=8)
         stats = _query_ledger(client, headers)

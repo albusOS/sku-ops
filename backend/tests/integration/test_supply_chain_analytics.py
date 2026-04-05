@@ -63,7 +63,10 @@ async def _seed_vendor(vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supp
 
 
 async def _seed_received_po(
-    vendor_id: str, created_days_ago: int, received_days_ago: int, sku_id: str = "0195f2c0-89af-7000-8000-000000000101"
+    vendor_id: str,
+    created_days_ago: int,
+    received_days_ago: int,
+    sku_id: str = "0195f2c0-89af-7000-8000-000000000101",
 ):
     po_id = str(uuid.uuid4())
     await sql_execute(
@@ -86,7 +89,9 @@ class TestDemandNormalizedVelocity:
             sku_id = await _seed_sku()
             daily = [5.0] * 15 + [200.0]
             await _seed_withdrawal_txns(sku_id, daily, start_days_ago=20)
-            result = await get_database_manager().inventory.demand_normalized_velocity(get_org_id(), [sku_id], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [sku_id], days=30
+            )
             assert sku_id in result
             vel = result[sku_id]
             assert vel["raw_total"] == 275.0
@@ -100,7 +105,9 @@ class TestDemandNormalizedVelocity:
     def test_empty_returns_empty(self, call):
 
         async def _body():
-            result = await get_database_manager().inventory.demand_normalized_velocity(get_org_id(), [], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [], days=30
+            )
             assert result == {}
 
         call(_body)
@@ -109,7 +116,9 @@ class TestDemandNormalizedVelocity:
 
         async def _body():
             sku_id = await _seed_sku()
-            result = await get_database_manager().inventory.demand_normalized_velocity(get_org_id(), [sku_id], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [sku_id], days=30
+            )
             assert sku_id not in result
 
         call(_body)
@@ -120,7 +129,9 @@ class TestDemandNormalizedVelocity:
             sku_id = await _seed_sku()
             daily = [5.0] * 15
             await _seed_withdrawal_txns(sku_id, daily, start_days_ago=20)
-            result = await get_database_manager().inventory.demand_normalized_velocity(get_org_id(), [sku_id], days=30)
+            result = await get_database_manager().inventory.demand_normalized_velocity(
+                get_org_id(), [sku_id], days=30
+            )
             assert sku_id in result
             vel = result[sku_id]
             assert vel["outlier_days"] == 0
@@ -138,7 +149,9 @@ class TestSkuDemandProfile:
             sku_id = await _seed_sku()
             daily = [2.0, 3.0, 4.0, 5.0, 3.0, 4.0, 2.0, 3.0, 5.0, 4.0, 150.0]
             await _seed_withdrawal_txns(sku_id, daily, start_days_ago=15)
-            profile = await get_database_manager().inventory.sku_demand_profile(get_org_id(), sku_id, days=30)
+            profile = await get_database_manager().inventory.sku_demand_profile(
+                get_org_id(), sku_id, days=30
+            )
             assert profile["sku_id"] == sku_id
             assert profile["total_days_active"] == 11
             assert profile["raw_total"] == 185.0
@@ -154,7 +167,9 @@ class TestSkuDemandProfile:
 
         async def _body():
             sku_id = await _seed_sku()
-            profile = await get_database_manager().inventory.sku_demand_profile(get_org_id(), sku_id, days=30)
+            profile = await get_database_manager().inventory.sku_demand_profile(
+                get_org_id(), sku_id, days=30
+            )
             assert profile["total_days_active"] == 0
             assert profile["raw_total"] == 0
             assert profile["daily"] == []
@@ -228,7 +243,9 @@ class TestInventoryCarryingCost:
             sku_id = await _seed_sku(quantity=100.0, cost=20.0)
             await _seed_receiving_txn(sku_id, qty=100, days_ago=30)
             fin = get_database_manager().finance
-            results = await fin.analytics_inventory_carrying_cost(get_org_id(), holding_rate_pct=25.0)
+            results = await fin.analytics_inventory_carrying_cost(
+                get_org_id(), holding_rate_pct=25.0
+            )
             assert len(results) >= 1
             match = [r for r in results if r["sku_id"] == sku_id]
             assert len(match) == 1

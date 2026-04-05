@@ -32,7 +32,9 @@ class TestBillingEntitiesSearch:
 class TestBillingEntitiesCrud:
     @pytest.mark.usefixtures("_db")
     def test_create_requires_name(self, client, auth_headers):
-        r = client.post("/api/beta/finance/billing-entities", headers=auth_headers, json={"contact_name": "x"})
+        r = client.post(
+            "/api/beta/finance/billing-entities", headers=auth_headers, json={"contact_name": "x"}
+        )
         assert r.status_code in (400, 422)
 
     @pytest.mark.usefixtures("_db")
@@ -50,22 +52,30 @@ class TestBillingEntitiesCrud:
         r2 = client.get(f"/api/beta/finance/billing-entities/{be_id}", headers=auth_headers)
         assert r2.status_code == 200
         assert r2.json()["name"] == name
-        r3 = client.get("/api/beta/finance/billing-entities", params={"q": name[:12]}, headers=auth_headers)
+        r3 = client.get(
+            "/api/beta/finance/billing-entities", params={"q": name[:12]}, headers=auth_headers
+        )
         assert r3.status_code == 200
         assert any(x["id"] == be_id for x in r3.json())
 
     @pytest.mark.usefixtures("_db")
     def test_create_conflict_same_name(self, client, auth_headers):
         name = _unique_name("Duplicate BE")
-        r1 = client.post("/api/beta/finance/billing-entities", headers=auth_headers, json={"name": name})
+        r1 = client.post(
+            "/api/beta/finance/billing-entities", headers=auth_headers, json={"name": name}
+        )
         assert r1.status_code == 200
-        r2 = client.post("/api/beta/finance/billing-entities", headers=auth_headers, json={"name": name})
+        r2 = client.post(
+            "/api/beta/finance/billing-entities", headers=auth_headers, json={"name": name}
+        )
         assert r2.status_code == 409
 
     @pytest.mark.usefixtures("_db")
     def test_update_entity(self, client, auth_headers):
         name = _unique_name("Update BE")
-        r = client.post("/api/beta/finance/billing-entities", headers=auth_headers, json={"name": name})
+        r = client.post(
+            "/api/beta/finance/billing-entities", headers=auth_headers, json={"name": name}
+        )
         assert r.status_code == 200
         be_id = r.json()["id"]
         r2 = client.put(
@@ -80,7 +90,10 @@ class TestBillingEntitiesCrud:
 
     @pytest.mark.usefixtures("_db")
     def test_get_not_found(self, client, auth_headers):
-        r = client.get("/api/beta/finance/billing-entities/019a0000-0000-7000-8000-000000000099", headers=auth_headers)
+        r = client.get(
+            "/api/beta/finance/billing-entities/019a0000-0000-7000-8000-000000000099",
+            headers=auth_headers,
+        )
         assert r.status_code == 404
 
 

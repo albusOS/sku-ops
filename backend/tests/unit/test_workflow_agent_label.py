@@ -2,7 +2,9 @@ from assistant.application.workflows.registry import response_agent_label
 
 
 def test_response_agent_label_marks_unified_workflow_runs_as_dag():
-    label = response_agent_label("unified", [{"tool": "run_inventory_overview"}, {"tool": "list_low_stock"}])
+    label = response_agent_label(
+        "unified", [{"tool": "run_inventory_overview"}, {"tool": "list_low_stock"}]
+    )
     assert label == "dag"
 
 

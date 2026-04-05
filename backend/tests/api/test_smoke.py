@@ -67,13 +67,17 @@ def test_auth_me_requires_auth(client):
 
 def test_auth_login_endpoint_removed(client):
     """POST /api/beta/shared/auth/login must not be mounted anymore."""
-    resp = client.post("/api/beta/shared/auth/login", json={"email": "x@x.com", "password": "wrong"})
+    resp = client.post(
+        "/api/beta/shared/auth/login", json={"email": "x@x.com", "password": "wrong"}
+    )
     assert resp.status_code == 404
 
 
 def test_auth_register_endpoint_removed(client):
     """POST /api/beta/shared/auth/register must not be mounted anymore."""
-    resp = client.post("/api/beta/shared/auth/register", json={"email": "x@x.com", "password": "pw", "name": "X"})
+    resp = client.post(
+        "/api/beta/shared/auth/register", json={"email": "x@x.com", "password": "pw", "name": "X"}
+    )
     assert resp.status_code == 404
 
 

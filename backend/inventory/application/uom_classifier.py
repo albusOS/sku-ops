@@ -175,7 +175,9 @@ Return ONLY a JSON array, one object per product in same order:
                     r = results[i] if i < len(results) else None
                     if r and isinstance(r, dict):
                         p["base_unit"] = _normalize_unit(r.get("base_unit"), valid)
-                        p["sell_uom"] = _normalize_unit(r.get("sell_uom", r.get("base_unit")), valid)
+                        p["sell_uom"] = _normalize_unit(
+                            r.get("sell_uom", r.get("base_unit")), valid
+                        )
                         p["pack_qty"] = _normalize_pack_qty(r.get("pack_qty"))
                     else:
                         _rule_fallback(p)

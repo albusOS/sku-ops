@@ -7,7 +7,11 @@ import pytest
 
 def _period_body():
     ts = time.time_ns()
-    return {"name": f"pytest-fp-{ts}", "start_date": "2026-01-01T00:00:00Z", "end_date": "2026-01-31T23:59:59Z"}
+    return {
+        "name": f"pytest-fp-{ts}",
+        "start_date": "2026-01-01T00:00:00Z",
+        "end_date": "2026-01-31T23:59:59Z",
+    }
 
 
 class TestFiscalPeriods:
@@ -23,7 +27,9 @@ class TestFiscalPeriods:
 
     @pytest.mark.usefixtures("_db")
     def test_create_list_close(self, client, auth_headers):
-        r = client.post("/api/beta/finance/fiscal-periods", headers=auth_headers, json=_period_body())
+        r = client.post(
+            "/api/beta/finance/fiscal-periods", headers=auth_headers, json=_period_body()
+        )
         assert r.status_code == 200
         created = r.json()
         pid = created["id"]

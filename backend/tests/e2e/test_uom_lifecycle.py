@@ -34,13 +34,20 @@ class TestUomLifecycle:
         """Create a custom unit, use it on a product, verify it persists."""
         headers = admin_headers()
         resp = client.post(
-            "/api/beta/catalog/units", json={"code": "crate", "name": "Crate", "family": "discrete"}, headers=headers
+            "/api/beta/catalog/units",
+            json={"code": "crate", "name": "Crate", "family": "discrete"},
+            headers=headers,
         )
         assert resp.status_code == 200
         uom = resp.json()
         assert uom["code"] == "crate"
         product = create_product(
-            client, headers, dept_id=seed_dept_id, name="Crate Widget", base_unit="crate", sell_uom="crate"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Crate Widget",
+            base_unit="crate",
+            sell_uom="crate",
         )
         assert product["base_unit"] == "crate"
         assert product["sell_uom"] == "crate"
@@ -53,11 +60,15 @@ class TestUomLifecycle:
         headers = admin_headers()
         product = create_product(client, headers, dept_id=seed_dept_id, name="Flexible UOM Widget")
         assert product["sell_uom"] == "each"
-        resp = client.put(f"/api/beta/catalog/skus/{product['id']}", json={"sell_uom": "bundle"}, headers=headers)
+        resp = client.put(
+            f"/api/beta/catalog/skus/{product['id']}", json={"sell_uom": "bundle"}, headers=headers
+        )
         assert resp.status_code == 200
         assert resp.json()["sell_uom"] == "bundle"
 
-    def test_withdrawal_with_custom_unit(self, client: TestClient, seed_dept_id: str, seed_contractor_id: str) -> None:
+    def test_withdrawal_with_custom_unit(
+        self, client: TestClient, seed_dept_id: str, seed_contractor_id: str
+    ) -> None:
         """Products with custom units can be withdrawn successfully."""
         headers = admin_headers()
         product = create_product(
@@ -76,15 +87,24 @@ class TestUomLifecycle:
         sku = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers).json()
         assert sku["quantity"] == 48.0
 
-    def test_delete_unit_does_not_affect_existing_products(self, client: TestClient, seed_dept_id: str) -> None:
+    def test_delete_unit_does_not_affect_existing_products(
+        self, client: TestClient, seed_dept_id: str
+    ) -> None:
         """Deleting a unit from the lookup table doesn't corrupt existing SKUs."""
         headers = admin_headers()
         create_resp = client.post(
-            "/api/beta/catalog/units", json={"code": "drum", "name": "Drum", "family": "discrete"}, headers=headers
+            "/api/beta/catalog/units",
+            json={"code": "drum", "name": "Drum", "family": "discrete"},
+            headers=headers,
         )
         uom_id = create_resp.json()["id"]
         product = create_product(
-            client, headers, dept_id=seed_dept_id, name="Drum Widget", base_unit="drum", sell_uom="drum"
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Drum Widget",
+            base_unit="drum",
+            sell_uom="drum",
         )
         del_resp = client.delete(f"/api/beta/catalog/units/{uom_id}", headers=headers)
         assert del_resp.status_code == 200
@@ -95,26 +115,44 @@ class TestUomLifecycle:
     def test_unit_codes_are_unique_per_org(self, client: TestClient, seed_dept_id: str) -> None:
         """Cannot create two units with the same code."""
         headers = admin_headers()
-        resp1 = client.post("/api/beta/catalog/units", json={"code": "barrel", "name": "Barrel"}, headers=headers)
+        resp1 = client.post(
+            "/api/beta/catalog/units", json={"code": "barrel", "name": "Barrel"}, headers=headers
+        )
         assert resp1.status_code == 200
-        resp2 = client.post("/api/beta/catalog/units", json={"code": "barrel", "name": "Barrel 2"}, headers=headers)
+        resp2 = client.post(
+            "/api/beta/catalog/units", json={"code": "barrel", "name": "Barrel 2"}, headers=headers
+        )
         assert resp2.status_code == 400
 
 
 class TestSkuRenameLifecycle:
     """SKU code rename through the full product lifecycle."""
 
-    def test_rename_sku_and_withdraw(self, client: TestClient, seed_dept_id: str, seed_contractor_id: str) -> None:
+    def test_rename_sku_and_withdraw(
+        self, client: TestClient, seed_dept_id: str, seed_contractor_id: str
+    ) -> None:
         """Renamed SKU continues to work for withdrawals."""
         headers = admin_headers()
         product = create_product(
-            client, headers, dept_id=seed_dept_id, name="Rename Lifecycle Widget", quantity=50, price=20.0, cost=10.0
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Rename Lifecycle Widget",
+            quantity=50,
+            price=20.0,
+            cost=10.0,
         )
         old_sku = product["sku"]
-        resp = client.put(f"/api/beta/catalog/skus/{product['id']}", json={"sku": "RLW-RENAMED-01"}, headers=headers)
+        resp = client.put(
+            f"/api/beta/catalog/skus/{product['id']}",
+            json={"sku": "RLW-RENAMED-01"},
+            headers=headers,
+        )
         assert resp.status_code == 200
         assert resp.json()["sku"] == "RLW-RENAMED-01"
-        get_old = client.get(f"/api/beta/catalog/skus/by-barcode?barcode={old_sku}", headers=headers)
+        get_old = client.get(
+            f"/api/beta/catalog/skus/by-barcode?barcode={old_sku}", headers=headers
+        )
         assert get_old.status_code == 404
         product["sku"] = "RLW-RENAMED-01"
         withdrawal = create_withdrawal(client, headers, product, quantity=3)
@@ -136,7 +174,9 @@ class TestSkuRenameLifecycle:
         else:
             depts = client.get("/api/beta/catalog/departments", headers=headers).json()
             elc_id = next(d["id"] for d in depts if d["code"] == "ELC")
-        product = create_product(client, headers, dept_id=seed_dept_id, name="Category Switch Widget")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, name="Category Switch Widget"
+        )
         assert "HDW" in product["sku"]
         resp = client.put(
             f"/api/beta/catalog/skus/{product['id']}",
@@ -153,5 +193,7 @@ class TestSkuRenameLifecycle:
         headers = admin_headers()
         p1 = create_product(client, headers, dept_id=seed_dept_id, name="Dup A")
         p2 = create_product(client, headers, dept_id=seed_dept_id, name="Dup B")
-        resp = client.put(f"/api/beta/catalog/skus/{p2['id']}", json={"sku": p1["sku"]}, headers=headers)
+        resp = client.put(
+            f"/api/beta/catalog/skus/{p2['id']}", json={"sku": p1["sku"]}, headers=headers
+        )
         assert resp.status_code == 409

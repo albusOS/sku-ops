@@ -79,7 +79,9 @@ async def main(
             if password:
                 import bcrypt
 
-                hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
+                    "utf-8"
+                )
             else:
                 hashed_pw = "!supabase-managed"
             await sql_execute(

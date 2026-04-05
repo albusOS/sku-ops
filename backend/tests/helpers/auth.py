@@ -42,7 +42,9 @@ def admin_headers() -> dict[str, str]:
 
 
 def contractor_headers() -> dict[str, str]:
-    token = make_token(CONTRACTOR_USER_ID, role="contractor", name="Sarah Okafor", email="sarah@summitpm.com")
+    token = make_token(
+        CONTRACTOR_USER_ID, role="contractor", name="Sarah Okafor", email="sarah@summitpm.com"
+    )
     return {"Authorization": f"Bearer {token}"}
 
 

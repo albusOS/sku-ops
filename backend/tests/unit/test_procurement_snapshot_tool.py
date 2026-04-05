@@ -20,7 +20,9 @@ async def test_procurement_snapshot_merges_core_procurement_signals():
                 "sell_uom": "each",
                 "min_stock": 10,
                 "deficit": 7,
-                "vendor_options": [{"vendor_name": "Acme Supply", "lead_time_days": 5, "is_preferred": True}],
+                "vendor_options": [
+                    {"vendor_name": "Acme Supply", "lead_time_days": 5, "is_preferred": True}
+                ],
             }
         ],
     }
@@ -42,16 +44,23 @@ async def test_procurement_snapshot_merges_core_procurement_signals():
             }
         ],
     }
-    stockout = {"count": 1, "forecast": [{"sku": "ABC-123", "avg_daily_use": 1.2, "days_until_stockout": 2.5}]}
+    stockout = {
+        "count": 1,
+        "forecast": [{"sku": "ABC-123", "avg_daily_use": 1.2, "days_until_stockout": 2.5}],
+    }
     with (
         patch(
             "assistant.agents.purchasing.tools._get_reorder_with_vendor_context",
             new=AsyncMock(return_value=json.dumps(reorder)),
         ),
         patch(
-            "assistant.agents.purchasing.tools._get_smart_reorder_points", new=AsyncMock(return_value=json.dumps(smart))
+            "assistant.agents.purchasing.tools._get_smart_reorder_points",
+            new=AsyncMock(return_value=json.dumps(smart)),
         ),
-        patch("assistant.agents.purchasing.tools._forecast_stockout", new=AsyncMock(return_value=json.dumps(stockout))),
+        patch(
+            "assistant.agents.purchasing.tools._forecast_stockout",
+            new=AsyncMock(return_value=json.dumps(stockout)),
+        ),
     ):
         raw = await _get_procurement_snapshot(limit=10)
     data = json.loads(raw)

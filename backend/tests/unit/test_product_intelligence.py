@@ -214,12 +214,16 @@ class TestValidateProduct:
         assert any("Low confidence" in w for w in warnings)
 
     def test_unknown_department_warning(self):
-        ap = AnalyzedProduct(raw_text="Widget", clean_name="Widget", suggested_department="XYZ", confidence=0.9)
+        ap = AnalyzedProduct(
+            raw_text="Widget", clean_name="Widget", suggested_department="XYZ", confidence=0.9
+        )
         warnings = _validate_product(ap, {"HDW", "PLU"})
         assert any("Unknown department" in w for w in warnings)
 
     def test_name_not_cleaned_warning(self):
-        ap = AnalyzedProduct(raw_text="messy raw text here", clean_name="messy raw text here", confidence=0.9)
+        ap = AnalyzedProduct(
+            raw_text="messy raw text here", clean_name="messy raw text here", confidence=0.9
+        )
         warnings = _validate_product(ap, {"HDW"})
         assert any("manual cleanup" in w for w in warnings)
 
@@ -273,7 +277,9 @@ class TestBatchPipeline:
     @pytest.mark.asyncio
     async def test_pipeline_with_llm(self, mock_llm_response):
         items = [
-            {"name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line"},
+            {
+                "name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line"
+            },
             {"name": "HDX 16 in. x 16 in. Multi-Purpose Microfiber Towel (24-Pack)"},
         ]
         results = await analyze_products(
@@ -350,7 +356,10 @@ class TestBatchPipeline:
             )
 
         results = await analyze_products(
-            items, generate_text=single_item_llm, vendor_id="vendor-1", find_by_vendor_sku=find_by_vendor_sku
+            items,
+            generate_text=single_item_llm,
+            vendor_id="vendor-1",
+            find_by_vendor_sku=find_by_vendor_sku,
         )
         assert results[0].matched_sku_id == "sku-123"
         assert results[0].matched_vendor_item_id == "vi-456"
@@ -377,7 +386,9 @@ class TestBatchPipeline:
             )
 
         items = [{"name": "BrassCraft supply line"}]
-        results = await analyze_products(items, generate_text=single_item_llm, search_families=search_families)
+        results = await analyze_products(
+            items, generate_text=single_item_llm, search_families=search_families
+        )
         assert len(results[0].family_candidates) == 2
         assert results[0].family_candidates[0].family_name == "Faucet Supply Lines"
         assert results[0].family_candidates[0].similarity == 0.85
@@ -447,8 +458,12 @@ class TestRealWorldExamples:
     @pytest.mark.asyncio
     async def test_supply_line_not_misclassified_as_inch(self, home_depot_llm):
         items = [
-            {"name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line"},
-            {"name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 20 in. Braided Polymer Faucet Supply Line"},
+            {
+                "name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line"
+            },
+            {
+                "name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 20 in. Braided Polymer Faucet Supply Line"
+            },
             {"name": "HDX 16 in. x 16 in. Multi-Purpose Microfiber Towel (24-Pack)"},
         ]
         results = await analyze_products(items, generate_text=home_depot_llm)
@@ -484,7 +499,9 @@ class TestRealWorldExamples:
             )
 
         items = [
-            {"name": "Kidde Code One Hardwired Interconnectable Smoke and Carbon Monoxide Detector, AA Battery Backup"}
+            {
+                "name": "Kidde Code One Hardwired Interconnectable Smoke and Carbon Monoxide Detector, AA Battery Backup"
+            }
         ]
         results = await analyze_products(items, generate_text=llm)
         assert results[0].product.base_unit == "each"

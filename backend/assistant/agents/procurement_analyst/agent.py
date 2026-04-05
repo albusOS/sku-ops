@@ -80,7 +80,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 180
     ) -> str:
         """Use for vendor delivery-risk questions. Returns actual lead times from PO history plus drift detection."""
-        return budget_tool_result(await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days))
+        return budget_tool_result(
+            await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days)
+        )
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
@@ -92,10 +94,14 @@ def _get_agent() -> Agent[AgentDeps, str]:
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 90
     ) -> str:
         """Use for vendor scorecard questions. Returns PO count, spend, average lead time, and fill rate."""
-        return budget_tool_result(await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days))
+        return budget_tool_result(
+            await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days)
+        )
 
     @_agent.tool
-    async def get_vendor_catalog(ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "") -> str:
+    async def get_vendor_catalog(
+        ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = ""
+    ) -> str:
         """Use when the user asks what a vendor sells.
 
         Returns SKUs supplied by a vendor with cost, lead time, and MOQ.
@@ -120,7 +126,9 @@ def _get_agent() -> Agent[AgentDeps, str]:
         limit: int = 20,
     ) -> str:
         """Use only when you need supporting evidence. Returns recent POs for a vendor with item summaries."""
-        return budget_tool_result(await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit))
+        return budget_tool_result(
+            await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit)
+        )
 
     return _agent
 

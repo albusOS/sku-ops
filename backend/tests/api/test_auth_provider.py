@@ -115,7 +115,10 @@ class TestSupabaseClaims:
             resolve_claims(payload)
 
     def test_org_id_from_app_metadata(self):
-        payload = {"sub": _U1, "app_metadata": {"role": "admin", "organization_id": "org-from-meta"}}
+        payload = {
+            "sub": _U1,
+            "app_metadata": {"role": "admin", "organization_id": "org-from-meta"},
+        }
         c = resolve_claims(payload)
         assert c.organization_id == "org-from-meta"
 

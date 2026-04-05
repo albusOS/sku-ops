@@ -41,7 +41,11 @@ async def chat_status(_current_user: AdminDep):
     available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
     return {
         "available": available,
-        "provider": "anthropic" if ANTHROPIC_AVAILABLE else "openrouter" if OPENROUTER_AVAILABLE else None,
+        "provider": "anthropic"
+        if ANTHROPIC_AVAILABLE
+        else "openrouter"
+        if OPENROUTER_AVAILABLE
+        else None,
         "setup_url": LLM_SETUP_URL if not available else None,
     }
 

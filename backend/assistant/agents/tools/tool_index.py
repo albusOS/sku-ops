@@ -83,7 +83,9 @@ class ToolIndex:
         """Rebuild index from unified tool descriptors."""
         descriptors = get_unified_tool_descriptors()
         self._names = list(descriptors.keys())
-        self._texts = [f"{d.name} {d.description} {' '.join(d.use_cases)}" for d in descriptors.values()]
+        self._texts = [
+            f"{d.name} {d.description} {' '.join(d.use_cases)}" for d in descriptors.values()
+        ]
         if not self._texts:
             self._embeddings = None
             self._bm25 = None

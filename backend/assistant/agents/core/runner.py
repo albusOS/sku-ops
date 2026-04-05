@@ -135,7 +135,11 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
 
 async def _backoff(attempt: int, retry_after: float | None) -> None:
     """Exponential backoff with jitter. Honours Retry-After when present."""
-    delay = min(retry_after, _MAX_DELAY) if retry_after is not None else min(_BASE_DELAY * 2**attempt, _MAX_DELAY)
+    delay = (
+        min(retry_after, _MAX_DELAY)
+        if retry_after is not None
+        else min(_BASE_DELAY * 2**attempt, _MAX_DELAY)
+    )
     jitter = random.uniform(-delay * 0.25, delay * 0.25)  # noqa: S311 - backoff jitter, not crypto
     await asyncio.sleep(max(0.1, delay + jitter))
 
@@ -170,8 +174,12 @@ async def run_agent(
     agent_name_var.set(agent_name)
     operation_var.set("agent_run")
 
-    max_retries = config.retry.max_retries if (config and config.retry.max_retries) else _MAX_RETRIES
-    backoff_base = config.retry.backoff_base if (config and config.retry.backoff_base) else _BASE_DELAY
+    max_retries = (
+        config.retry.max_retries if (config and config.retry.max_retries) else _MAX_RETRIES
+    )
+    backoff_base = (
+        config.retry.backoff_base if (config and config.retry.backoff_base) else _BASE_DELAY
+    )
 
     active_settings = model_settings
     active_model_override: str | None = None
@@ -192,8 +200,14 @@ async def run_agent(
             timeout=timeout_seconds,
         )
 
-    async def _backoff_local(attempt: int, retry_after: float | None, base: float = backoff_base) -> None:
-        delay = min(retry_after, _MAX_DELAY) if retry_after is not None else min(base * 2**attempt, _MAX_DELAY)
+    async def _backoff_local(
+        attempt: int, retry_after: float | None, base: float = backoff_base
+    ) -> None:
+        delay = (
+            min(retry_after, _MAX_DELAY)
+            if retry_after is not None
+            else min(base * 2**attempt, _MAX_DELAY)
+        )
         jitter = random.uniform(-delay * 0.25, delay * 0.25)  # noqa: S311 - backoff jitter, not crypto
         await asyncio.sleep(max(0.1, delay + jitter))
 
@@ -247,7 +261,9 @@ async def run_agent(
         if kind == _ErrorKind.OVERLOADED:
             overload_attempts += 1
             if overload_attempts >= _OVERLOAD_MAX_RETRIES and not active_model_override:
-                original_model = get_model_name(f"agent:{agent_label}" if agent_label else "agent:unified")
+                original_model = get_model_name(
+                    f"agent:{agent_label}" if agent_label else "agent:unified"
+                )
                 fallback = get_fallback_model(original_model)
                 if fallback:
                     logger.warning(
@@ -326,7 +342,9 @@ def _log_success(
     attempts,
 ):
     usage = result.usage()
-    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
+    label = (
+        agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
+    )
     model_name = get_model_name(f"agent:{label}")
     cost = calc_cost(model_name, usage)
     tool_calls = extract_tool_calls_detailed(result.all_messages())
@@ -387,11 +405,19 @@ def _log_failure(
     error,
     error_kind,
 ):
-    label = agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
+    label = (
+        agent_label or agent_name.split(":")[0].lower().replace("agent", "").strip() or "inventory"
+    )
     model_name = get_model_name(f"agent:{label}")
 
     # Prometheus metrics
-    status = "timeout" if error_kind == "timeout" else "overloaded" if error_kind == "overloaded" else "error"
+    status = (
+        "timeout"
+        if error_kind == "timeout"
+        else "overloaded"
+        if error_kind == "overloaded"
+        else "error"
+    )
     record_agent_run(label, status, duration_ms / 1000.0)
 
     async def _write():

@@ -194,7 +194,9 @@ class TestAgentConfig:
         import assistant.agents.core.config as cfg_mod
 
         cfg_mod._load_cached.cache_clear()
-        with patch.dict("os.environ", {"AGENT_CONFIG_ANALYST_MODEL": "openrouter:meta-llama/llama"}):
+        with patch.dict(
+            "os.environ", {"AGENT_CONFIG_ANALYST_MODEL": "openrouter:meta-llama/llama"}
+        ):
             cfg = cfg_mod._load_cached("analyst")
         assert cfg.model == "openrouter:meta-llama/llama"
         cfg_mod._load_cached.cache_clear()
@@ -275,7 +277,12 @@ class TestTokenUtils:
         from assistant.agents.core.tokens import budget_tool_result
 
         data = json.dumps(
-            {"skus": [{"id": "x", "name": "a" * 300, "_note": "verbose note", "barcode": "1234"} for _ in range(10)]}
+            {
+                "skus": [
+                    {"id": "x", "name": "a" * 300, "_note": "verbose note", "barcode": "1234"}
+                    for _ in range(10)
+                ]
+            }
         )
         result = budget_tool_result(data, max_tokens=500)
         assert "_note" not in result or "a" * 300 not in result
@@ -283,7 +290,9 @@ class TestTokenUtils:
     def test_estimate_turn_tokens(self):
         from assistant.agents.core.tokens import estimate_turn_tokens
 
-        est = estimate_turn_tokens("You are helpful.", [{"role": "user", "content": "hi"}], "Hello!")
+        est = estimate_turn_tokens(
+            "You are helpful.", [{"role": "user", "content": "hi"}], "Hello!"
+        )
         assert est["total_estimate"] > 0
         assert est["system"] > 0
         assert est["history"] > 0
@@ -330,7 +339,9 @@ class TestValidators:
     def test_conversational_intent_skips_validation(self):
         from assistant.agents.core.validators import IntentClassification, validate_response
 
-        intent = IntentClassification(needs_tools=False, domains=[], expects_table=False, is_conversational=True)
+        intent = IntentClassification(
+            needs_tools=False, domains=[], expects_table=False, is_conversational=True
+        )
         result = validate_response("thanks!", "You're welcome!", [], [], intent=intent)
         assert result.passed
         assert result.scores.get("conversational") == 1.0
@@ -397,7 +408,9 @@ class TestValidators:
     def test_none_intent_skips_intent_dependent_checks(self):
         from assistant.agents.core.validators import validate_response
 
-        result = validate_response("how many products do we have?", "We have about 150 products.", [], [], intent=None)
+        result = validate_response(
+            "how many products do we have?", "We have about 150 products.", [], [], intent=None
+        )
         assert "no_tools_called" not in result.failures
 
     def test_short_response_returns_low_score(self):
@@ -452,7 +465,8 @@ class TestInfraModelRouting:
         from assistant.agents.core.model_registry import get_model_name
 
         with patch.dict(
-            "os.environ", {"MODEL_REGISTRY_INFRA_CLASSIFIER": "openrouter:meta-llama/llama-3.3-70b-instruct"}
+            "os.environ",
+            {"MODEL_REGISTRY_INFRA_CLASSIFIER": "openrouter:meta-llama/llama-3.3-70b-instruct"},
         ):
             result = get_model_name("infra:classifier")
         assert result == "openrouter:meta-llama/llama-3.3-70b-instruct"
@@ -461,7 +475,10 @@ class TestInfraModelRouting:
         """MODEL_REGISTRY_INFRA_SYNTHESIS overrides the synthesis model."""
         from assistant.agents.core.model_registry import get_model_name
 
-        with patch.dict("os.environ", {"MODEL_REGISTRY_INFRA_SYNTHESIS": "openrouter:google/gemini-2.0-flash-001"}):
+        with patch.dict(
+            "os.environ",
+            {"MODEL_REGISTRY_INFRA_SYNTHESIS": "openrouter:google/gemini-2.0-flash-001"},
+        ):
             result = get_model_name("infra:synthesis")
         assert result == "openrouter:google/gemini-2.0-flash-001"
 
@@ -485,7 +502,9 @@ class TestConfigYamlTools:
         for node in ast.walk(tree):
             if isinstance(node, ast.AsyncFunctionDef):
                 for decorator in node.decorator_list:
-                    is_agent_tool = (isinstance(decorator, ast.Attribute) and decorator.attr == "tool") or (
+                    is_agent_tool = (
+                        isinstance(decorator, ast.Attribute) and decorator.attr == "tool"
+                    ) or (
                         isinstance(decorator, ast.Call)
                         and isinstance(decorator.func, ast.Attribute)
                         and (decorator.func.attr in ("tool", "tool_plain"))
@@ -513,7 +532,9 @@ class TestConfigYamlTools:
     def test_product_analyst_tools_match(self):
         from pathlib import Path
 
-        agent_file = str(Path(__file__).parent.parent.parent / "assistant/agents/product_analyst/agent.py")
+        agent_file = str(
+            Path(__file__).parent.parent.parent / "assistant/agents/product_analyst/agent.py"
+        )
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("product_analyst")
         assert configured == registered, (
@@ -523,7 +544,9 @@ class TestConfigYamlTools:
     def test_trend_analyst_tools_match(self):
         from pathlib import Path
 
-        agent_file = str(Path(__file__).parent.parent.parent / "assistant/agents/trend_analyst/agent.py")
+        agent_file = str(
+            Path(__file__).parent.parent.parent / "assistant/agents/trend_analyst/agent.py"
+        )
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("trend_analyst")
         assert configured == registered, (
@@ -533,7 +556,9 @@ class TestConfigYamlTools:
     def test_procurement_analyst_tools_match(self):
         from pathlib import Path
 
-        agent_file = str(Path(__file__).parent.parent.parent / "assistant/agents/procurement_analyst/agent.py")
+        agent_file = str(
+            Path(__file__).parent.parent.parent / "assistant/agents/procurement_analyst/agent.py"
+        )
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("procurement_analyst")
         assert configured == registered, (
@@ -543,7 +568,9 @@ class TestConfigYamlTools:
     def test_health_analyst_tools_match(self):
         from pathlib import Path
 
-        agent_file = str(Path(__file__).parent.parent.parent / "assistant/agents/health_analyst/agent.py")
+        agent_file = str(
+            Path(__file__).parent.parent.parent / "assistant/agents/health_analyst/agent.py"
+        )
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("health_analyst")
         assert configured == registered, (
@@ -573,7 +600,9 @@ class TestIntentCacheLRU:
 
             v_mod._intent_cache = OrderedDict()
             v_mod._CACHE_MAX = 2
-            dummy = IntentClassification(needs_tools=False, domains=[], expects_table=False, is_conversational=False)
+            dummy = IntentClassification(
+                needs_tools=False, domains=[], expects_table=False, is_conversational=False
+            )
             v_mod._intent_cache["key1"] = dummy
             v_mod._intent_cache["key2"] = dummy
             if len(v_mod._intent_cache) >= v_mod._CACHE_MAX:

@@ -122,7 +122,10 @@ async def trend_series(
         " COUNT(DISTINCT reference_id) AS transaction_count"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
-        " AND account IN ('revenue', 'cogs', 'shrinkage')" + date_sql + dim_sql + " GROUP BY period ORDER BY period"
+        " AND account IN ('revenue', 'cogs', 'shrinkage')"
+        + date_sql
+        + dim_sql
+        + " GROUP BY period ORDER BY period"
     )
     r = await session.execute(text(sql), params)
     series: list[TrendPoint] = []
@@ -214,7 +217,10 @@ async def product_margins(
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
         " AND account IN ('revenue', 'cogs')"
-        " AND sku_id IS NOT NULL" + date_sql + dim_sql + " GROUP BY sku_id ORDER BY revenue DESC LIMIT :lim"
+        " AND sku_id IS NOT NULL"
+        + date_sql
+        + dim_sql
+        + " GROUP BY sku_id ORDER BY revenue DESC LIMIT :lim"
     )
     r = await session.execute(text(sql), params)
     result: list[ProductMarginRow] = []
@@ -410,7 +416,9 @@ async def summary_by_job_aggregate(
         term = f"%{search}%"
         params["search_a"] = term
         params["search_b"] = term
-        search_clause = " HAVING CAST(job_id AS text) LIKE :search_a OR billing_entity LIKE :search_b"
+        search_clause = (
+            " HAVING CAST(job_id AS text) LIKE :search_a OR billing_entity LIKE :search_b"
+        )
     count_sql = (
         "SELECT COUNT(*) AS cnt, COALESCE(SUM(revenue), 0) AS total_revenue,"
         " COALESCE(SUM(cost), 0) AS total_cost FROM (" + base + search_clause + ") t"

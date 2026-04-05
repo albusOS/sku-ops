@@ -29,7 +29,9 @@ class TestSimpleModelGeneration:
         tree = ast.parse(code)
         assert tree is not None
 
-    def test_does_not_emit_future_annotations_import(self, sample_pydantic_output, sample_ts_empty_rels):
+    def test_does_not_emit_future_annotations_import(
+        self, sample_pydantic_output, sample_ts_empty_rels
+    ):
         models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_empty_rels, "public")
         pk_map = {("public", "departments"): ["id"]}
@@ -72,13 +74,19 @@ class TestOneToManyGeneration:
         assert 'back_populates="products"' in code
         assert 'back_populates="category"' in code
 
-    def test_generated_one_to_many_code_configures_mappers(self, sample_pydantic_output, sample_ts_single_fk):
+    def test_generated_one_to_many_code_configures_mappers(
+        self, sample_pydantic_output, sample_ts_single_fk
+    ):
         models = parse_pydantic_types(sample_pydantic_output, "public", "Public")
         rels = parse_ts_relationships(sample_ts_single_fk, "public")
         pk_map = {("public", "departments"): ["id"], ("public", "products"): ["id"]}
         code = generate_sqlmodel_code("public", models, rels, pk_map)
-        script = f"\n{code}\n\nfrom sqlalchemy.orm import configure_mappers\n\nconfigure_mappers()\n"
-        result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+        script = (
+            f"\n{code}\n\nfrom sqlalchemy.orm import configure_mappers\n\nconfigure_mappers()\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=False
+        )
         assert result.returncode == 0, result.stderr
 
 
@@ -126,8 +134,12 @@ class TestRelationshipDisambiguation:
         rels = parse_ts_relationships(ts_content, "public")
         pk_map = {("public", "billing_entities"): ["id"], ("public", "credit_notes"): ["id"]}
         code = generate_sqlmodel_code("public", models, rels, pk_map)
-        script = f"\n{code}\n\nfrom sqlalchemy.orm import configure_mappers\n\nconfigure_mappers()\n"
-        result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+        script = (
+            f"\n{code}\n\nfrom sqlalchemy.orm import configure_mappers\n\nconfigure_mappers()\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=False
+        )
         assert result.returncode == 0, result.stderr
 
     def test_multiple_foreign_keys_emit_disambiguated_relationships(self):
@@ -141,8 +153,12 @@ class TestRelationshipDisambiguation:
         rels = parse_ts_relationships(ts_content, "public")
         pk_map = {("public", "users"): ["id"], ("public", "withdrawals"): ["id"]}
         code = generate_sqlmodel_code("public", models, rels, pk_map)
-        script = f"\n{code}\n\nfrom sqlalchemy.orm import configure_mappers\n\nconfigure_mappers()\n"
-        result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+        script = (
+            f"\n{code}\n\nfrom sqlalchemy.orm import configure_mappers\n\nconfigure_mappers()\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=False
+        )
         assert result.returncode == 0, result.stderr
 
 
@@ -192,7 +208,9 @@ class TestM2MPlusDirectFK:
         inv_block_start = code.index("class Invoices(")
         inv_block_end = code.index("\n\n\nclass ", inv_block_start + 1)
         inv_block = code[inv_block_start:inv_block_end]
-        attr_lines = [line.strip().split(":")[0] for line in inv_block.split("\n") if "Relationship(" in line]
+        attr_lines = [
+            line.strip().split(":")[0] for line in inv_block.split("\n") if "Relationship(" in line
+        ]
         assert len(attr_lines) == len(set(attr_lines)), (
             f"Duplicate relationship attribute names on Invoices: {attr_lines}"
         )

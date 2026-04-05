@@ -16,7 +16,9 @@ class TestReturnPipeline:
 
     def test_return_restocks_and_emits_events(self, client, ws_events, seed_dept_id):
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="RET-Pipeline")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="RET-Pipeline"
+        )
         withdrawal = create_withdrawal(client, headers, product, quantity=10)
         resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         stock_after_wd = resp.json()["quantity"]
@@ -26,7 +28,14 @@ class TestReturnPipeline:
             "/api/beta/operations/returns",
             json={
                 "withdrawal_id": withdrawal["id"],
-                "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 4}],
+                "items": [
+                    {
+                        "sku_id": product["id"],
+                        "sku": product["sku"],
+                        "name": product["name"],
+                        "quantity": 4,
+                    }
+                ],
                 "reason": "other",
                 "notes": "E2E return test",
             },
@@ -48,13 +57,22 @@ class TestReturnPipeline:
     def test_over_return_rejected(self, client, seed_dept_id):
         """Cannot return more than was originally withdrawn."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="RET-OverReturn")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="RET-OverReturn"
+        )
         withdrawal = create_withdrawal(client, headers, product, quantity=3)
         resp = client.post(
             "/api/beta/operations/returns",
             json={
                 "withdrawal_id": withdrawal["id"],
-                "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 10}],
+                "items": [
+                    {
+                        "sku_id": product["id"],
+                        "sku": product["sku"],
+                        "name": product["name"],
+                        "quantity": 10,
+                    }
+                ],
             },
             headers=headers,
         )
@@ -65,19 +83,30 @@ class TestReturnPipeline:
     def test_returns_listed_by_withdrawal(self, client, seed_dept_id):
         """GET /api/beta/operations/returns?withdrawal_id=... lists the return."""
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, quantity=50, name="RET-List")
+        product = create_product(
+            client, headers, dept_id=seed_dept_id, quantity=50, name="RET-List"
+        )
         withdrawal = create_withdrawal(client, headers, product, quantity=5)
         resp = client.post(
             "/api/beta/operations/returns",
             json={
                 "withdrawal_id": withdrawal["id"],
-                "items": [{"sku_id": product["id"], "sku": product["sku"], "name": product["name"], "quantity": 2}],
+                "items": [
+                    {
+                        "sku_id": product["id"],
+                        "sku": product["sku"],
+                        "name": product["name"],
+                        "quantity": 2,
+                    }
+                ],
             },
             headers=headers,
         )
         assert resp.status_code == 200
         ret_id = resp.json()["id"]
-        resp = client.get(f"/api/beta/operations/returns?withdrawal_id={withdrawal['id']}", headers=headers)
+        resp = client.get(
+            f"/api/beta/operations/returns?withdrawal_id={withdrawal['id']}", headers=headers
+        )
         assert resp.status_code == 200
         ids = [r["id"] for r in resp.json()]
         assert ret_id in ids

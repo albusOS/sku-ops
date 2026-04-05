@@ -25,7 +25,9 @@ class TestMe:
         assert "password" not in data
 
     def test_me_with_invalid_token_returns_401(self, client):
-        r = client.get("/api/beta/shared/auth/me", headers={"Authorization": "Bearer invalid.token"})
+        r = client.get(
+            "/api/beta/shared/auth/me", headers={"Authorization": "Bearer invalid.token"}
+        )
         assert r.status_code == 401
 
     def test_me_rejects_non_uuid_sub_claim(self, client):
@@ -35,7 +37,10 @@ class TestMe:
                 "sub": "legacy-text-user-id",
                 "email": "x@test.com",
                 "role": "authenticated",
-                "app_metadata": {"role": "admin", "organization_id": "0195f2c0-89aa-7d6d-bb34-7f3b3f69c001"},
+                "app_metadata": {
+                    "role": "admin",
+                    "organization_id": "0195f2c0-89aa-7d6d-bb34-7f3b3f69c001",
+                },
                 "user_metadata": {"name": "X"},
                 "exp": int(time.time()) + 3600,
             },
@@ -51,15 +56,20 @@ class TestSupabaseOnlyAuthSurface:
     """The backend should no longer expose credential auth endpoints."""
 
     def test_login_endpoint_not_mounted(self, client):
-        r = client.post("/api/beta/shared/auth/login", json={"email": "nobody@nowhere.com", "password": "x"})
+        r = client.post(
+            "/api/beta/shared/auth/login", json={"email": "nobody@nowhere.com", "password": "x"}
+        )
         assert r.status_code == 404
 
     def test_register_endpoint_not_mounted(self, client):
         r = client.post(
-            "/api/beta/shared/auth/register", json={"email": "new@test.com", "password": "pass123", "name": "New User"}
+            "/api/beta/shared/auth/register",
+            json={"email": "new@test.com", "password": "pass123", "name": "New User"},
         )
         assert r.status_code == 404
 
     def test_refresh_endpoint_not_mounted(self, client):
-        r = client.post("/api/beta/shared/auth/refresh", headers={"Authorization": "Bearer anything"})
+        r = client.post(
+            "/api/beta/shared/auth/refresh", headers={"Authorization": "Bearer anything"}
+        )
         assert r.status_code == 404

@@ -75,7 +75,13 @@ def make_credit_note() -> dict:
         "created_at": "2025-03-05T00:00:00Z",
         "xero_credit_note_id": None,
         "line_items": [
-            {"description": "Returned lumber", "quantity": 3, "unit_price": 10.0, "amount": 30.0, "cost": 6.0}
+            {
+                "description": "Returned lumber",
+                "quantity": 3,
+                "unit_price": 10.0,
+                "amount": 30.0,
+                "cost": 6.0,
+            }
         ],
     }
 

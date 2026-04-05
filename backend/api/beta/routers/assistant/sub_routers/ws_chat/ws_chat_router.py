@@ -304,7 +304,11 @@ async def _run_generation(
 
                         elif isinstance(event, AgentRunResultEvent):
                             result = event.result
-                            response_text = result.output if isinstance(result.output, str) else str(result.output)
+                            response_text = (
+                                result.output
+                                if isinstance(result.output, str)
+                                else str(result.output)
+                            )
 
                             if not full_text:
                                 full_text = response_text
@@ -456,7 +460,9 @@ async def _run_generation(
 
                 overload_attempts += 1
                 if overload_attempts >= _STREAM_OVERLOAD_RETRIES and not model_override:
-                    primary = get_model_name(f"agent:{agent_label}" if agent_label else "agent:unified")
+                    primary = get_model_name(
+                        f"agent:{agent_label}" if agent_label else "agent:unified"
+                    )
                     fallback = get_fallback_model(primary)
                     if fallback:
                         logger.warning(

@@ -41,7 +41,14 @@ def create_product(client, headers, *, dept_id: str, **overrides) -> dict:
 
 
 def create_withdrawal(
-    client, headers, product, *, quantity=5, unit=None, job_id=SEEDED_JOB_ID, contractor_id=CONTRACTOR_USER_ID
+    client,
+    headers,
+    product,
+    *,
+    quantity=5,
+    unit=None,
+    job_id=SEEDED_JOB_ID,
+    contractor_id=CONTRACTOR_USER_ID,
 ) -> dict:
     """Create a withdrawal via the API (admin creates for contractor). Returns the JSON body."""
     item = {
@@ -63,7 +70,14 @@ def create_withdrawal(
 
 
 def create_po(
-    client, headers, product, *, quantity=10, vendor_name="E2E Vendor", purchase_uom=None, purchase_pack_qty=None
+    client,
+    headers,
+    product,
+    *,
+    quantity=10,
+    vendor_name="E2E Vendor",
+    purchase_uom=None,
+    purchase_pack_qty=None,
 ) -> dict:
     """Create a purchase order via the API. Returns the PO JSON body.
 
@@ -102,7 +116,9 @@ def receive_po(client, headers, po_id: str) -> dict:
     ordered_ids = [i["id"] for i in items if i.get("status") == "ordered"]
     if ordered_ids:
         resp = client.post(
-            f"/api/beta/purchasing/purchase-orders/{po_id}/delivery", json={"item_ids": ordered_ids}, headers=headers
+            f"/api/beta/purchasing/purchase-orders/{po_id}/delivery",
+            json={"item_ids": ordered_ids},
+            headers=headers,
         )
         assert resp.status_code == 200, f"Delivery mark failed: {resp.text}"
     po_resp = client.get(f"/api/beta/purchasing/purchase-orders/{po_id}", headers=headers)
@@ -113,7 +129,9 @@ def receive_po(client, headers, po_id: str) -> dict:
         if i.get("status") == "pending"
     ]
     resp = client.post(
-        f"/api/beta/purchasing/purchase-orders/{po_id}/receive", json={"items": pending_items}, headers=headers
+        f"/api/beta/purchasing/purchase-orders/{po_id}/receive",
+        json={"items": pending_items},
+        headers=headers,
     )
     assert resp.status_code == 200, f"PO receive failed: {resp.text}"
     return resp.json()
@@ -126,7 +144,9 @@ def open_cycle_count(client, headers, *, scope: str | None = None) -> dict:
     return resp.json()
 
 
-def update_cycle_count_item(client, headers, count_id: str, item_id: str, counted_qty: float) -> dict:
+def update_cycle_count_item(
+    client, headers, count_id: str, item_id: str, counted_qty: float
+) -> dict:
     """Update a single cycle count item's counted quantity."""
     resp = client.patch(
         f"/api/beta/inventory/cycle-counts/{count_id}/items/{item_id}",
@@ -139,7 +159,9 @@ def update_cycle_count_item(client, headers, count_id: str, item_id: str, counte
 
 def commit_cycle_count(client, headers, count_id: str) -> dict:
     """Commit a cycle count, applying all variances."""
-    resp = client.post(f"/api/beta/inventory/cycle-counts/{count_id}/commit", json={}, headers=headers)
+    resp = client.post(
+        f"/api/beta/inventory/cycle-counts/{count_id}/commit", json={}, headers=headers
+    )
     assert resp.status_code == 200, f"Cycle count commit failed: {resp.text}"
     return resp.json()
 

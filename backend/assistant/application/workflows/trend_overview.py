@@ -66,7 +66,9 @@ async def run_trend_overview(days: int = 30) -> TrendOverviewResult:
     activity_raw = data.get("daily_withdrawal_activity_raw", {})
     top_skus = top_raw.get("skus", []) if isinstance(top_raw, dict) else []
     department_profitability = dept_raw.get("departments", []) if isinstance(dept_raw, dict) else []
-    daily_withdrawal_activity = activity_raw.get("activity", []) if isinstance(activity_raw, dict) else []
+    daily_withdrawal_activity = (
+        activity_raw.get("activity", []) if isinstance(activity_raw, dict) else []
+    )
     data_for_format = {
         "trend_series": data.get("trend_series", {}),
         "top_skus": top_skus,

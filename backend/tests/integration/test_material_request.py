@@ -49,7 +49,9 @@ def _create_material_request(
 ):
     """Create a material request as contractor. Returns response."""
     payload = {"items": [_item_from_product(product)], **kwargs}
-    return client.post("/api/beta/operations/material-requests", json=payload, headers=contractor_auth)
+    return client.post(
+        "/api/beta/operations/material-requests", json=payload, headers=contractor_auth
+    )
 
 
 def test_material_request_round_trip(client, auth, contractor_auth):
@@ -60,7 +62,9 @@ def test_material_request_round_trip(client, auth, contractor_auth):
     )
     assert resp.status_code == 200
     created = cast("dict[str, Any]", resp.json())
-    get_resp = client.get(f"/api/beta/operations/material-requests/{created['id']}", headers=contractor_auth)
+    get_resp = client.get(
+        f"/api/beta/operations/material-requests/{created['id']}", headers=contractor_auth
+    )
     assert get_resp.status_code == 200
     fetched = cast("dict[str, Any]", get_resp.json())
     assert fetched["contractor_id"] == CONTRACTOR_USER_ID
@@ -73,10 +77,14 @@ def test_material_request_round_trip(client, auth, contractor_auth):
 def test_material_request_fallback_fields_preserved(client, auth, contractor_auth):
     """When contractor supplies job_id and service_address, they're stored in the request."""
     product = _create_product(client, auth)
-    resp = _create_material_request(client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="456 Elm")
+    resp = _create_material_request(
+        client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="456 Elm"
+    )
     assert resp.status_code == 200
     created = cast("dict[str, Any]", resp.json())
-    get_resp = client.get(f"/api/beta/operations/material-requests/{created['id']}", headers=contractor_auth)
+    get_resp = client.get(
+        f"/api/beta/operations/material-requests/{created['id']}", headers=contractor_auth
+    )
     assert get_resp.status_code == 200
     fetched = cast("dict[str, Any]", get_resp.json())
     assert fetched["job_id"] == SEEDED_JOB_ID
@@ -103,14 +111,18 @@ def test_create_material_request_rejects_non_contractor(client, auth):
     """Admin/staff cannot create material requests — only contractors."""
     product = _create_product(client, auth)
     resp = client.post(
-        "/api/beta/operations/material-requests", json={"items": [_item_from_product(product)]}, headers=auth
+        "/api/beta/operations/material-requests",
+        json={"items": [_item_from_product(product)]},
+        headers=auth,
     )
     assert resp.status_code == 403
 
 
 def test_create_material_request_rejects_empty_items(client, contractor_auth):
     """Request with no items is rejected."""
-    resp = client.post("/api/beta/operations/material-requests", json={"items": []}, headers=contractor_auth)
+    resp = client.post(
+        "/api/beta/operations/material-requests", json={"items": []}, headers=contractor_auth
+    )
     assert resp.status_code == 400
     assert "item" in cast("dict[str, Any]", resp.json())["detail"].lower()
 
@@ -118,7 +130,9 @@ def test_create_material_request_rejects_empty_items(client, contractor_auth):
 def test_list_material_requests_contractor_sees_own(client, auth, contractor_auth):
     """Contractor only sees their own requests."""
     product = _create_product(client, auth)
-    _create_material_request(client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="1 Elm")
+    _create_material_request(
+        client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="1 Elm"
+    )
     resp = client.get("/api/beta/operations/material-requests", headers=contractor_auth)
     assert resp.status_code == 200
     results = cast("list[dict[str, Any]]", resp.json())
@@ -129,7 +143,9 @@ def test_list_material_requests_contractor_sees_own(client, auth, contractor_aut
 def test_list_material_requests_admin_sees_pending(client, auth, contractor_auth):
     """Admin sees all pending requests."""
     product = _create_product(client, auth)
-    _create_material_request(client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="2 Elm")
+    _create_material_request(
+        client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="2 Elm"
+    )
     resp = client.get("/api/beta/operations/material-requests", headers=auth)
     assert resp.status_code == 200
     results = cast("list[dict[str, Any]]", resp.json())
@@ -163,11 +179,15 @@ def test_process_rejects_already_processed(client, auth, contractor_auth):
 def test_process_rejects_missing_job_id(client, auth, contractor_auth):
     """Processing requires a job_id (from staff or contractor fallback)."""
     product = _create_product(client, auth)
-    create_resp = _create_material_request(client, contractor_auth, product, job_id=None, service_address="1 Oak")
+    create_resp = _create_material_request(
+        client, contractor_auth, product, job_id=None, service_address="1 Oak"
+    )
     assert create_resp.status_code == 200
     req_id = cast("dict[str, Any]", create_resp.json())["id"]
     resp = client.post(
-        f"/api/beta/operations/material-requests/{req_id}/process", json={"service_address": "1 Oak"}, headers=auth
+        f"/api/beta/operations/material-requests/{req_id}/process",
+        json={"service_address": "1 Oak"},
+        headers=auth,
     )
     assert resp.status_code == 400
     assert "job id" in cast("dict[str, Any]", resp.json())["detail"].lower()
@@ -176,11 +196,15 @@ def test_process_rejects_missing_job_id(client, auth, contractor_auth):
 def test_process_rejects_missing_service_address(client, auth, contractor_auth):
     """Processing requires a service_address (from staff or contractor fallback)."""
     product = _create_product(client, auth)
-    create_resp = _create_material_request(client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address="")
+    create_resp = _create_material_request(
+        client, contractor_auth, product, job_id=SEEDED_JOB_ID, service_address=""
+    )
     assert create_resp.status_code == 200
     req_id = cast("dict[str, Any]", create_resp.json())["id"]
     resp = client.post(
-        f"/api/beta/operations/material-requests/{req_id}/process", json={"job_id": SEEDED_JOB_ID}, headers=auth
+        f"/api/beta/operations/material-requests/{req_id}/process",
+        json={"job_id": SEEDED_JOB_ID},
+        headers=auth,
     )
     assert resp.status_code == 400
     assert "service address" in cast("dict[str, Any]", resp.json())["detail"].lower()

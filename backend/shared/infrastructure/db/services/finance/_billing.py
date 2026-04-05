@@ -38,7 +38,9 @@ def _be_row(row: BillingEntities | None) -> BillingEntity | None:
     return BillingEntity.model_validate(d)
 
 
-async def billing_entity_insert(session: AsyncSession, org_id: uuid.UUID, entity: BillingEntity) -> None:
+async def billing_entity_insert(
+    session: AsyncSession, org_id: uuid.UUID, entity: BillingEntity
+) -> None:
     d = entity.model_dump()
     session.add(
         BillingEntities(
@@ -58,7 +60,9 @@ async def billing_entity_insert(session: AsyncSession, org_id: uuid.UUID, entity
     await session.flush()
 
 
-async def billing_entity_get_by_id(session: AsyncSession, org_id: uuid.UUID, entity_id: str) -> BillingEntity | None:
+async def billing_entity_get_by_id(
+    session: AsyncSession, org_id: uuid.UUID, entity_id: str
+) -> BillingEntity | None:
     eid = as_uuid_required(entity_id)
     r = await session.execute(
         select(BillingEntities).where(
@@ -69,7 +73,9 @@ async def billing_entity_get_by_id(session: AsyncSession, org_id: uuid.UUID, ent
     return _be_row(r.scalar_one_or_none())
 
 
-async def billing_entity_get_by_name(session: AsyncSession, org_id: uuid.UUID, name: str) -> BillingEntity | None:
+async def billing_entity_get_by_name(
+    session: AsyncSession, org_id: uuid.UUID, name: str
+) -> BillingEntity | None:
     nm = name.strip().lower()
     r = await session.execute(
         select(BillingEntities).where(
@@ -101,7 +107,11 @@ async def billing_entity_list(
             )
         )
     r = await session.execute(
-        select(BillingEntities).where(and_(*conds)).order_by(BillingEntities.name).limit(limit).offset(offset)
+        select(BillingEntities)
+        .where(and_(*conds))
+        .order_by(BillingEntities.name)
+        .limit(limit)
+        .offset(offset)
     )
     rows = r.scalars().all()
     return [x for row in rows if (x := _be_row(row)) is not None]
@@ -163,7 +173,9 @@ async def billing_entity_search(
     return [x for row in rows if (x := _be_row(row)) is not None]
 
 
-async def billing_entity_ensure(session: AsyncSession, org_id: uuid.UUID, name: str) -> BillingEntity | None:
+async def billing_entity_ensure(
+    session: AsyncSession, org_id: uuid.UUID, name: str
+) -> BillingEntity | None:
     if not name or not name.strip():
         return None
     existing = await billing_entity_get_by_name(session, org_id, name)
@@ -217,7 +229,9 @@ async def payment_insert(
     await session.flush()
 
 
-async def payment_get_by_id(session: AsyncSession, org_id: uuid.UUID, payment_id: str) -> Payment | None:
+async def payment_get_by_id(
+    session: AsyncSession, org_id: uuid.UUID, payment_id: str
+) -> Payment | None:
     pid = as_uuid_required(payment_id)
     r = await session.execute(
         select(Payments).where(
@@ -228,7 +242,9 @@ async def payment_get_by_id(session: AsyncSession, org_id: uuid.UUID, payment_id
     row = r.scalar_one_or_none()
     p = _pay_row(row)
     if p:
-        wr = await session.execute(select(PaymentWithdrawals.withdrawal_id).where(PaymentWithdrawals.payment_id == pid))
+        wr = await session.execute(
+            select(PaymentWithdrawals.withdrawal_id).where(PaymentWithdrawals.payment_id == pid)
+        )
         p.withdrawal_ids = [str(x[0]) for x in wr.all()]
     return p
 
@@ -254,12 +270,18 @@ async def payment_list(
     if end_date:
         conds.append(Payments.payment_date <= datetime.fromisoformat(end_date))
     r = await session.execute(
-        select(Payments).where(and_(*conds)).order_by(Payments.payment_date.desc()).limit(limit).offset(offset)
+        select(Payments)
+        .where(and_(*conds))
+        .order_by(Payments.payment_date.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return [p for x in r.scalars().all() if (p := _pay_row(x)) is not None]
 
 
-async def payment_list_for_invoice(session: AsyncSession, org_id: uuid.UUID, invoice_id: str) -> list[Payment]:
+async def payment_list_for_invoice(
+    session: AsyncSession, org_id: uuid.UUID, invoice_id: str
+) -> list[Payment]:
     iid = as_uuid_required(invoice_id)
     r = await session.execute(
         select(Payments)
@@ -272,7 +294,9 @@ async def payment_list_for_invoice(session: AsyncSession, org_id: uuid.UUID, inv
     return [p for x in r.scalars().all() if (p := _pay_row(x)) is not None]
 
 
-async def fiscal_get_period(session: AsyncSession, org_id: uuid.UUID, period_id: str) -> FiscalPeriod | None:
+async def fiscal_get_period(
+    session: AsyncSession, org_id: uuid.UUID, period_id: str
+) -> FiscalPeriod | None:
     pid = as_uuid_required(period_id)
     r = await session.execute(
         select(FiscalPeriods).where(
@@ -293,8 +317,13 @@ async def fiscal_list_periods(
     conds = [FiscalPeriods.organization_id == org_id]
     if status:
         conds.append(FiscalPeriods.status == status)
-    r = await session.execute(select(FiscalPeriods).where(and_(*conds)).order_by(FiscalPeriods.start_date.desc()))
-    return [FiscalPeriod.model_validate(uuids_to_str(x.model_dump(mode="python"))) for x in r.scalars().all()]
+    r = await session.execute(
+        select(FiscalPeriods).where(and_(*conds)).order_by(FiscalPeriods.start_date.desc())
+    )
+    return [
+        FiscalPeriod.model_validate(uuids_to_str(x.model_dump(mode="python")))
+        for x in r.scalars().all()
+    ]
 
 
 def _parse_period_date(value: str | date | datetime) -> date:

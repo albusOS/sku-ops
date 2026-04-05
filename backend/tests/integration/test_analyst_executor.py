@@ -19,7 +19,9 @@ class TestSandboxedExecution:
         """A basic SELECT against a seeded table returns data."""
 
         async def _body():
-            result = await execute_sandboxed("SELECT id, name FROM departments WHERE organization_id = $1 LIMIT 10")
+            result = await execute_sandboxed(
+                "SELECT id, name FROM departments WHERE organization_id = $1 LIMIT 10"
+            )
             assert result.row_count >= 1
             assert "id" in result.columns
             assert "name" in result.columns
@@ -30,7 +32,9 @@ class TestSandboxedExecution:
         """Queries only return data for the ambient org_id."""
 
         async def _body():
-            result = await execute_sandboxed("SELECT id FROM departments WHERE organization_id = $1")
+            result = await execute_sandboxed(
+                "SELECT id FROM departments WHERE organization_id = $1"
+            )
             for row in result.rows:
                 assert row is not None
 
@@ -49,7 +53,9 @@ class TestSandboxedExecution:
         """Queries without LIMIT get one appended."""
 
         async def _body():
-            result = await execute_sandboxed("SELECT id FROM departments WHERE organization_id = $1")
+            result = await execute_sandboxed(
+                "SELECT id FROM departments WHERE organization_id = $1"
+            )
             assert result.row_count <= 500
 
         call(_body)
@@ -93,7 +99,9 @@ class TestSandboxedExecution:
         """ExecutionResult can be serialized to JSON."""
 
         async def _body():
-            result = await execute_sandboxed("SELECT id, name FROM departments WHERE organization_id = $1 LIMIT 5")
+            result = await execute_sandboxed(
+                "SELECT id, name FROM departments WHERE organization_id = $1 LIMIT 5"
+            )
             formatted = format_result(result)
             parsed = json.loads(formatted)
             assert "columns" in parsed

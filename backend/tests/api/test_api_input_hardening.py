@@ -31,7 +31,9 @@ def test_billing_entity_name_with_sql_fragments_stored_as_literal(client, auth_h
 @pytest.mark.usefixtures("_db")
 def test_addresses_line1_unicode_and_whitespace_trimmed(client, auth_headers):
     r = client.post(
-        "/api/beta/shared/addresses", headers=auth_headers, json={"line1": "  Café Résumé 日本語  ", "city": "Québec"}
+        "/api/beta/shared/addresses",
+        headers=auth_headers,
+        json={"line1": "  Café Résumé 日本語  ", "city": "Québec"},
     )
     assert r.status_code == 200
     assert "日本語" in r.json()["line1"]

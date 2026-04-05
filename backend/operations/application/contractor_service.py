@@ -95,9 +95,7 @@ def _row_to_model(row) -> Contractor | None:
     return Contractor.model_validate(d)
 
 
-_SELECT_COLS = (
-    "id, email, name, role, company, billing_entity, billing_entity_id, phone, is_active, organization_id, created_at"
-)
+_SELECT_COLS = "id, email, name, role, company, billing_entity, billing_entity_id, phone, is_active, organization_id, created_at"
 
 
 def _hash_password(password: str) -> str:
@@ -230,7 +228,9 @@ async def create_contractor(
     )
 
 
-async def update_contractor(contractor_id: str, updates: UpdateContractorCommand) -> Contractor | None:
+async def update_contractor(
+    contractor_id: str, updates: UpdateContractorCommand
+) -> Contractor | None:
     """Update contractor profile fields. Returns updated contractor or None."""
     contractor = await get_contractor_by_id(contractor_id)
     if not contractor or contractor.role != "contractor":
@@ -255,7 +255,9 @@ async def update_contractor(contractor_id: str, updates: UpdateContractorCommand
     if not set_clauses:
         return contractor
 
-    billing_name_changed = updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
+    billing_name_changed = (
+        updates.billing_entity is not None and updates.billing_entity != contractor.billing_entity
+    )
 
     async with transaction():
         if billing_name_changed:

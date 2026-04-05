@@ -54,7 +54,9 @@ class TestDocumentsListGet:
 
     @pytest.mark.usefixtures("_db")
     def test_get_not_found(self, client, auth_headers):
-        r = client.get("/api/beta/documents/019a0000-0000-7000-8000-000000000099", headers=auth_headers)
+        r = client.get(
+            "/api/beta/documents/019a0000-0000-7000-8000-000000000099", headers=auth_headers
+        )
         assert r.status_code == 404
 
 
@@ -62,7 +64,9 @@ class TestDocumentsParse:
     @pytest.mark.usefixtures("_db")
     def test_parse_default_returns_501_without_ocr(self, client, auth_headers):
         r = client.post(
-            "/api/beta/documents/parse", headers=auth_headers, files={"file": ("x.txt", b"hello", "text/plain")}
+            "/api/beta/documents/parse",
+            headers=auth_headers,
+            files={"file": ("x.txt", b"hello", "text/plain")},
         )
         assert r.status_code == 501
 

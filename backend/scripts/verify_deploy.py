@@ -169,7 +169,9 @@ def check_supabase_jwt_shape() -> None:
 
         assert claims.role == "admin", f"Expected role='admin', got {claims.role!r}"
         assert claims.name == "Test Admin", f"Expected name='Test Admin', got {claims.name!r}"
-        assert claims.user_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", f"Wrong user_id: {claims.user_id!r}"
+        assert claims.user_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", (
+            f"Wrong user_id: {claims.user_id!r}"
+        )
         assert claims.organization_id == "supply-yard", (
             f"Expected organization_id='supply-yard', got {claims.organization_id!r}"
         )

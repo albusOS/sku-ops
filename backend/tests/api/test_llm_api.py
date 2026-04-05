@@ -13,7 +13,10 @@ class TestHealthAI:
 
     def test_ai_health_unavailable_without_key(self, client):
         with (
-            patch("api.beta.routers.shared.sub_routers.health.health_router.ANTHROPIC_AVAILABLE", False),
+            patch(
+                "api.beta.routers.shared.sub_routers.health.health_router.ANTHROPIC_AVAILABLE",
+                False,
+            ),
             patch(
                 "api.beta.routers.shared.sub_routers.health.health_router.LLM_SETUP_URL",
                 "https://console.anthropic.com/",
@@ -39,7 +42,9 @@ class TestChatStatus:
     async def test_chat_status_unavailable_without_key(self, client):
         headers = admin_headers()
         with (
-            patch("api.beta.routers.assistant.sub_routers.chat.chat_router.ANTHROPIC_AVAILABLE", False),
+            patch(
+                "api.beta.routers.assistant.sub_routers.chat.chat_router.ANTHROPIC_AVAILABLE", False
+            ),
             patch(
                 "api.beta.routers.assistant.sub_routers.chat.chat_router.LLM_SETUP_URL",
                 "https://console.anthropic.com/",
@@ -56,7 +61,9 @@ class TestChatStatus:
     @pytest.mark.asyncio
     async def test_chat_status_available_when_configured(self, client):
         headers = admin_headers()
-        with patch("api.beta.routers.assistant.sub_routers.chat.chat_router.ANTHROPIC_AVAILABLE", True):
+        with patch(
+            "api.beta.routers.assistant.sub_routers.chat.chat_router.ANTHROPIC_AVAILABLE", True
+        ):
             response = client.get("/api/beta/assistant/chat/status", headers=headers)
         assert response.status_code == 200
         data = response.json()

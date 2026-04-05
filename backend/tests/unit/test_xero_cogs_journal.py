@@ -149,7 +149,9 @@ class TestBuildCogsJournalLines:
     def test_tracking_applied_per_line_when_configured(self):
         settings = make_settings(xero_tracking_category_id="cat-123")
         invoice = _invoice_with_sell_cost()
-        lines, _ = self.adapter._build_cogs_journal_lines(invoice, settings, "xero-abc", first_job_id="JOB-42")
+        lines, _ = self.adapter._build_cogs_journal_lines(
+            invoice, settings, "xero-abc", first_job_id="JOB-42"
+        )
         assert all("Tracking" in jl for jl in lines)
         assert all(jl["Tracking"][0]["TrackingCategoryID"] == "cat-123" for jl in lines)
 

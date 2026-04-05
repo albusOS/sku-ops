@@ -26,7 +26,11 @@ class TestContractorsList:
     @pytest.mark.usefixtures("_db")
     def test_search_filters_by_name(self, client, auth_headers):
         """search param filters by name, email, company, etc."""
-        r = client.get("/api/beta/operations/contractors", params={"search": "Sarah Okafor"}, headers=auth_headers)
+        r = client.get(
+            "/api/beta/operations/contractors",
+            params={"search": "Sarah Okafor"},
+            headers=auth_headers,
+        )
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
@@ -34,7 +38,9 @@ class TestContractorsList:
 
     @pytest.mark.usefixtures("_db")
     def test_search_filters_by_company(self, client, auth_headers):
-        r = client.get("/api/beta/operations/contractors", params={"search": "Summit"}, headers=auth_headers)
+        r = client.get(
+            "/api/beta/operations/contractors", params={"search": "Summit"}, headers=auth_headers
+        )
         assert r.status_code == 200
         data = r.json()
         assert len(data) >= 1
@@ -42,7 +48,11 @@ class TestContractorsList:
 
     @pytest.mark.usefixtures("_db")
     def test_search_empty_when_no_match(self, client, auth_headers):
-        r = client.get("/api/beta/operations/contractors", params={"search": "xyznonexistent123"}, headers=auth_headers)
+        r = client.get(
+            "/api/beta/operations/contractors",
+            params={"search": "xyznonexistent123"},
+            headers=auth_headers,
+        )
         assert r.status_code == 200
         data = r.json()
         assert data == []

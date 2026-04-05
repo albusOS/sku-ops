@@ -37,7 +37,13 @@ class TestAddressesCrud:
         r = client.post(
             "/api/beta/shared/addresses",
             headers=auth_headers,
-            json={"label": "Yard", "line1": line1, "city": "Denver", "state": "CO", "postal_code": "80202"},
+            json={
+                "label": "Yard",
+                "line1": line1,
+                "city": "Denver",
+                "state": "CO",
+                "postal_code": "80202",
+            },
         )
         assert r.status_code == 200
         created = r.json()
@@ -52,14 +58,20 @@ class TestAddressesCrud:
 
     @pytest.mark.usefixtures("_db")
     def test_get_not_found(self, client, auth_headers):
-        r = client.get("/api/beta/shared/addresses/019a0000-0000-7000-8000-000000000088", headers=auth_headers)
+        r = client.get(
+            "/api/beta/shared/addresses/019a0000-0000-7000-8000-000000000088", headers=auth_headers
+        )
         assert r.status_code == 404
 
 
 class TestAddressesSearch:
     @pytest.mark.usefixtures("_db")
     def test_contractor_can_search(self, client, contractor_auth_headers):
-        r = client.get("/api/beta/shared/addresses/search", params={"q": "Main"}, headers=contractor_auth_headers)
+        r = client.get(
+            "/api/beta/shared/addresses/search",
+            params={"q": "Main"},
+            headers=contractor_auth_headers,
+        )
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 

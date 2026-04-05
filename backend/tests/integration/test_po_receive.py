@@ -38,7 +38,9 @@ def _user():
     )
 
 
-async def _create_test_product(name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id=SEEDED_DEPT_ID):
+async def _create_test_product(
+    name="Widget", quantity=100.0, cost=8.0, price=10.0, dept_id=SEEDED_DEPT_ID
+):
     return await create_product_with_sku(
         category_id=dept_id,
         category_name="Hardware",
@@ -113,7 +115,9 @@ def _stub_deps():
         )
 
     async def _find_sku_by_name_and_vendor(name: str, vendor_id: str):
-        return await get_database_manager().catalog.find_sku_by_name_and_vendor(DEFAULT_ORG_ID, name, vendor_id)
+        return await get_database_manager().catalog.find_sku_by_name_and_vendor(
+            DEFAULT_ORG_ID, name, vendor_id
+        )
 
     async def _update_sku(sku_id: str, updates: SkuUpdate):
         async with transaction():
@@ -211,7 +215,9 @@ def test_receive_cost_fallback_from_unit_price(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0, cost=8.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=None, unit_price=10.0, ordered_qty=50)
+        po, item = await _create_po_with_item(
+            sku_id=product.id, cost=None, unit_price=10.0, ordered_qty=50
+        )
         result = await receive_po_items(
             po_id=po.id,
             item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=50)],
@@ -346,7 +352,9 @@ def test_receive_creates_product_with_overridden_name(call):
     """When no product match, overrides (name, department) apply to the new product."""
 
     async def _body():
-        po, item = await _create_po_with_item(sku_id=None, cost=5.0, ordered_qty=10, name="Generic Widget")
+        po, item = await _create_po_with_item(
+            sku_id=None, cost=5.0, ordered_qty=10, name="Generic Widget"
+        )
         result = await receive_po_items(
             po_id=po.id,
             item_updates=[

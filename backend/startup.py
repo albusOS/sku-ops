@@ -78,7 +78,9 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(_redis_workers_msg)
 
     if cors_warn_in_deployed:
-        logger.warning("CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for production.")
+        logger.warning(
+            "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for production."
+        )
 
     await init_db()
     logger.info("Database initialized")

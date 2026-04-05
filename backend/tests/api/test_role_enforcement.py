@@ -41,7 +41,9 @@ ADMIN_ONLY_ENDPOINTS = [
 def test_contractor_rejected_from_admin_endpoint(client, method, path, body):
     """Contractors must receive 403 from admin-only endpoints."""
     resp = client.request(method, path, headers=contractor_headers(), json=body)
-    assert resp.status_code == 403, f"{method} {path} returned {resp.status_code} for contractor — expected 403"
+    assert resp.status_code == 403, (
+        f"{method} {path} returned {resp.status_code} for contractor — expected 403"
+    )
 
 
 @pytest.mark.parametrize(
@@ -69,7 +71,9 @@ CONTRACTOR_ACCESSIBLE_ENDPOINTS = [
 
 
 @pytest.mark.parametrize(
-    ("method", "path"), CONTRACTOR_ACCESSIBLE_ENDPOINTS, ids=[f"{m} {p}" for m, p in CONTRACTOR_ACCESSIBLE_ENDPOINTS]
+    ("method", "path"),
+    CONTRACTOR_ACCESSIBLE_ENDPOINTS,
+    ids=[f"{m} {p}" for m, p in CONTRACTOR_ACCESSIBLE_ENDPOINTS],
 )
 def test_contractor_can_access_shared_endpoints(client, method, path):
     """Contractors must be able to access CurrentUserDep endpoints."""

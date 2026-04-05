@@ -134,7 +134,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             scope=d.get("scope"),
             created_by_id=as_uuid_required(d["created_by_id"]),
             created_by_name=d.get("created_by_name", "") or "",
-            committed_by_id=as_uuid_required(d["committed_by_id"]) if d.get("committed_by_id") else None,
+            committed_by_id=as_uuid_required(d["committed_by_id"])
+            if d.get("committed_by_id")
+            else None,
             committed_at=d.get("committed_at"),
             created_at=d["created_at"],
         )
@@ -229,7 +231,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             row = r.scalar_one_or_none()
             return _cycle_row_to_domain(row) if row else None
 
-    async def list_cycle_counts(self, org_id: str, *, status: str | None = None) -> list[CycleCount]:
+    async def list_cycle_counts(
+        self, org_id: str, *, status: str | None = None
+    ) -> list[CycleCount]:
         oid = as_uuid_required(org_id)
         async with self.session() as session:
             stmt = select(CycleCounts).where(CycleCounts.organization_id == oid)
@@ -240,7 +244,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             rows = result.scalars().all()
             return [_cycle_row_to_domain(r) for r in rows]
 
-    async def list_cycle_count_items(self, org_id: str, cycle_count_id: str) -> list[CycleCountItem]:
+    async def list_cycle_count_items(
+        self, org_id: str, cycle_count_id: str
+    ) -> list[CycleCountItem]:
         oid = as_uuid_required(org_id)
         ccid = as_uuid_required(cycle_count_id)
         async with self.session() as session:
@@ -260,7 +266,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             rows = result.scalars().all()
             return [_cci_row_to_domain(r) for r in rows]
 
-    async def get_cycle_count_item(self, org_id: str, item_id: str, cycle_count_id: str) -> CycleCountItem | None:
+    async def get_cycle_count_item(
+        self, org_id: str, item_id: str, cycle_count_id: str
+    ) -> CycleCountItem | None:
         oid = as_uuid_required(org_id)
         iid = as_uuid_required(item_id)
         ccid = as_uuid_required(cycle_count_id)
@@ -281,7 +289,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             row = result.scalar_one_or_none()
             return _cci_row_to_domain(row) if row else None
 
-    async def withdrawal_velocity(self, org_id: str, sku_ids: list[str], since: datetime) -> dict[str, float]:
+    async def withdrawal_velocity(
+        self, org_id: str, sku_ids: list[str], since: datetime
+    ) -> dict[str, float]:
         if not sku_ids:
             return {}
         oid = as_uuid_required(org_id)
@@ -301,7 +311,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             result = await session.execute(q, params)
             return {str(row["sku_id"]): float(row["total_used"]) for row in result.mappings()}
 
-    async def daily_withdrawal_activity(self, org_id: str, since: datetime, sku_id: str | None = None) -> list[dict]:
+    async def daily_withdrawal_activity(
+        self, org_id: str, since: datetime, sku_id: str | None = None
+    ) -> list[dict]:
         oid = as_uuid_required(org_id)
         params: dict[str, Any] = {"org_id": oid, "since": since}
         sku_filter = ""
@@ -322,7 +334,9 @@ class InventoryDatabaseService(DomainDatabaseService):
             result = await session.execute(q, params)
             return [dict(r) for r in result.mappings()]
 
-    async def demand_normalized_velocity(self, org_id: str, sku_ids: list[str], days: int = 30) -> dict[str, dict]:
+    async def demand_normalized_velocity(
+        self, org_id: str, sku_ids: list[str], days: int = 30
+    ) -> dict[str, dict]:
         if not sku_ids:
             return {}
         oid = as_uuid_required(org_id)
@@ -421,7 +435,9 @@ class InventoryDatabaseService(DomainDatabaseService):
            ORDER BY day"""
         )
         async with self.session() as session:
-            daily_result = await session.execute(daily_q, {"sku_id": sid, "days": days, "org_id": oid})
+            daily_result = await session.execute(
+                daily_q, {"sku_id": sid, "days": days, "org_id": oid}
+            )
             daily_rows = [dict(r) for r in daily_result.mappings()]
 
         if not daily_rows:

@@ -59,25 +59,39 @@ def org_b_dept_id(app_client, org_b_headers):
 class TestOrgIsolation:
     """Verify that data from one org is invisible to another."""
 
-    def test_org_a_products_invisible_to_org_b(self, client, seed_dept_id, org_b_headers, org_b_dept_id):
+    def test_org_a_products_invisible_to_org_b(
+        self, client, seed_dept_id, org_b_headers, org_b_dept_id
+    ):
         headers_a = admin_headers()
-        product_a = create_product(client, headers_a, dept_id=seed_dept_id, quantity=10, name="OrgA-Only")
+        product_a = create_product(
+            client, headers_a, dept_id=seed_dept_id, quantity=10, name="OrgA-Only"
+        )
         resp = client.get("/api/beta/catalog/skus", headers=org_b_headers)
         assert resp.status_code == 200
         org_b_sku_ids = [p["id"] for p in resp.json()]
-        assert product_a["id"] not in org_b_sku_ids, "Org A's product should not be visible to Org B"
+        assert product_a["id"] not in org_b_sku_ids, (
+            "Org A's product should not be visible to Org B"
+        )
 
-    def test_org_b_products_invisible_to_org_a(self, client, seed_dept_id, org_b_headers, org_b_dept_id):
+    def test_org_b_products_invisible_to_org_a(
+        self, client, seed_dept_id, org_b_headers, org_b_dept_id
+    ):
         headers_a = admin_headers()
-        product_b = create_product(client, org_b_headers, dept_id=org_b_dept_id, quantity=10, name="OrgB-Only")
+        product_b = create_product(
+            client, org_b_headers, dept_id=org_b_dept_id, quantity=10, name="OrgB-Only"
+        )
         resp = client.get("/api/beta/catalog/skus", headers=headers_a)
         assert resp.status_code == 200
         org_a_sku_ids = [p["id"] for p in resp.json()]
-        assert product_b["id"] not in org_a_sku_ids, "Org B's product should not be visible to Org A"
+        assert product_b["id"] not in org_a_sku_ids, (
+            "Org B's product should not be visible to Org A"
+        )
 
     def test_org_a_withdrawals_invisible_to_org_b(self, client, seed_dept_id, org_b_headers):
         headers_a = admin_headers()
-        product = create_product(client, headers_a, dept_id=seed_dept_id, quantity=50, name="OrgA-WD-Iso")
+        product = create_product(
+            client, headers_a, dept_id=seed_dept_id, quantity=50, name="OrgA-WD-Iso"
+        )
         wd = create_withdrawal(client, headers_a, product, quantity=5)
         resp = client.get("/api/beta/operations/withdrawals", headers=org_b_headers)
         assert resp.status_code == 200
@@ -86,12 +100,16 @@ class TestOrgIsolation:
 
     def test_ws_org_isolation(self, client, seed_dept_id, org_b_headers):
         """WS events for Org A should NOT arrive on Org B's connection."""
-        org_b_token = make_token(user_id=ORG_B_USER, org_id=ORG_B_ID, role="admin", name="Org B Admin")
+        org_b_token = make_token(
+            user_id=ORG_B_USER, org_id=ORG_B_ID, role="admin", name="Org B Admin"
+        )
         collector_b = WSEventCollector()
         collector_b.start(client, token=org_b_token)
         try:
             headers_a = admin_headers()
-            product = create_product(client, headers_a, dept_id=seed_dept_id, quantity=50, name="WS-OrgIso")
+            product = create_product(
+                client, headers_a, dept_id=seed_dept_id, quantity=50, name="WS-OrgIso"
+            )
             create_withdrawal(client, headers_a, product, quantity=3)
             import time
 
