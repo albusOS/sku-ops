@@ -174,7 +174,7 @@ def schedule_memory_extraction(
     history: list[dict],
 ) -> None:
     """Fire-and-forget background task to extract memory artifacts from conversation."""
-    asyncio.create_task(
+    asyncio.create_task(  # noqa: RUF006 - fire-and-forget memory extraction
         extract_and_save(
             user_id=user_id,
             session_id=session_id,

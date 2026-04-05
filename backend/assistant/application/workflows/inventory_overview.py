@@ -42,11 +42,10 @@ def _format_markdown(data: dict) -> str:
             "### Department Health\n| Department | SKUs | Low | Out |",
             "| --- | --- | --- | --- |",
         ]
-        for d in depts[:15]:
-            lines.append(
-                f"| {d.get('name', '')} | {d.get('sku_count', 0)} "
-                f"| {d.get('low_stock', 0)} | {d.get('out_of_stock', 0)} |"
-            )
+        lines.extend(
+            f"| {d.get('name', '')} | {d.get('sku_count', 0)} | {d.get('low_stock', 0)} | {d.get('out_of_stock', 0)} |"
+            for d in depts[:15]
+        )
         parts.append("\n".join(lines))
     low = data.get("low_stock", [])
     if low:
@@ -54,12 +53,12 @@ def _format_markdown(data: dict) -> str:
             "### Low Stock\n| SKU | Name | Qty | Min | Dept |",
             "| --- | --- | --- | --- | --- |",
         ]
-        for item in low[:20]:
-            lines.append(
-                f"| {item.get('sku', '')} | {item.get('name', '')} "
-                f"| {item.get('quantity', 0)} {item.get('sell_uom', '')} "
-                f"| {item.get('min_stock', 0)} | {item.get('department', '')} |"
-            )
+        lines.extend(
+            f"| {item.get('sku', '')} | {item.get('name', '')} "
+            f"| {item.get('quantity', 0)} {item.get('sell_uom', '')} "
+            f"| {item.get('min_stock', 0)} | {item.get('department', '')} |"
+            for item in low[:20]
+        )
         parts.append("\n".join(lines))
     slow = data.get("slow_movers", [])
     if slow:

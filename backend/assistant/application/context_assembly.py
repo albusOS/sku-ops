@@ -17,17 +17,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-
-import numpy as np
+from typing import TYPE_CHECKING
 
 from assistant.application.entity_graph import GraphContext, multi_neighbors
-from assistant.application.session_state import EntityRef, SessionState
 from assistant.infrastructure.embedding_store import (
     embed_query,
     is_pgvector_available,
 )
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from assistant.application.session_state import EntityRef, SessionState
 
 logger = logging.getLogger(__name__)
 
@@ -55,19 +58,15 @@ class AssembledContext:
 
         # Graph context (entity + connections)
         if self.graph_contexts:
-            entity_lines = []
-            for gc in self.graph_contexts[:5]:
-                entity_lines.append(gc.format_for_agent(max_neighbors=5))
+            entity_lines = [gc.format_for_agent(max_neighbors=5) for gc in self.graph_contexts[:5]]
             sections.append("[Relevant entities]\n" + "\n\n".join(entity_lines))
 
         # Semantic entity hits without graph (fallback)
         elif self.entity_hits:
-            hit_lines = []
-            for h in self.entity_hits[:5]:
-                hit_lines.append(
-                    f"- [{h['entity_type']}] {h.get('content', h['entity_id'])} "
-                    f"(relevance: {h.get('similarity', 0):.2f})"
-                )
+            hit_lines = [
+                f"- [{h['entity_type']}] {h.get('content', h['entity_id'])} (relevance: {h.get('similarity', 0):.2f})"
+                for h in self.entity_hits[:5]
+            ]
             sections.append("[Potentially relevant entities]\n" + "\n".join(hit_lines))
 
         # Memory context
@@ -138,9 +137,8 @@ async def assemble_context(
     ctx.entity_hits = entity_hits
 
     if include_graph and (entity_hits or ctx.active_entities):
-        graph_entities: list[tuple[str, str]] = []
-        for h in entity_hits[:3]:
-            graph_entities.append((h["entity_type"], h["entity_id"]))
+        pairs_from_hits = [(h["entity_type"], h["entity_id"]) for h in entity_hits[:3]]
+        graph_entities = list(pairs_from_hits)
         for e in ctx.active_entities[:2]:
             pair = (e.type, e.id)
             if pair not in graph_entities:

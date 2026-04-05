@@ -43,10 +43,10 @@ def _format_markdown(data: dict) -> str:
     top_skus = data.get("top_skus", [])
     if top_skus:
         lines = ["### Top SKUs\n| SKU | Name | Revenue |", "| --- | --- | --- |"]
-        for item in top_skus[:10]:
-            lines.append(
-                f"| {item.get('sku', '')} | {item.get('name', '')} | ${float(item.get('total_revenue', 0) or 0):,.2f} |"
-            )
+        lines.extend(
+            f"| {item.get('sku', '')} | {item.get('name', '')} | ${float(item.get('total_revenue', 0) or 0):,.2f} |"
+            for item in top_skus[:10]
+        )
         parts.append("\n".join(lines))
     balances = data.get("outstanding_balances", [])
     if balances:

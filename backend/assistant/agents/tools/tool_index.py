@@ -142,9 +142,7 @@ class ToolIndex:
             except (ImportError, AttributeError):
                 pass
 
-        for d in DELEGATION_TOOLS:
-            if d in self._names and d not in seen:
-                result.append(d)
+        result.extend(d for d in DELEGATION_TOOLS if d in self._names and d not in seen)
         return result[: top_k + len(DELEGATION_TOOLS)]
 
 

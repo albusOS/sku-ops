@@ -15,7 +15,10 @@ import anthropic
 from openai import OpenAI
 from pydantic_ai import Agent
 
-from assistant.agents.core.model_registry import get_fallback_model, get_model_name
+from assistant.agents.core.model_registry import (
+    get_fallback_model,
+    get_model_name,
+)
 from shared.infrastructure.config import (
     ANTHROPIC_API_KEY,
     ANTHROPIC_AVAILABLE,
@@ -78,13 +81,12 @@ async def generate_text(
             fallback = get_fallback_model(model)
             if not fallback:
                 raise
-            logger.info("generate_text: primary overloaded, trying fallback %s", fallback)
-            try:
-                result = await asyncio.wait_for(agent.run(prompt, model=fallback), timeout=30)
-            except Exception:
-                raise
-            else:
-                return result.output
+            logger.info(
+                "generate_text: primary overloaded, trying fallback %s",
+                fallback,
+            )
+            result = await asyncio.wait_for(agent.run(prompt, model=fallback), timeout=30)
+            return result.output
         else:
             return result.output
     except Exception as e:

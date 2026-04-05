@@ -38,8 +38,10 @@ def _format_markdown(data: dict) -> str:
     forecast = data.get("stockout_forecast", [])
     if forecast:
         lines = ["### Stockout Risk\n| SKU | Name | Days Left |", "| --- | --- | --- |"]
-        for item in forecast[:10]:
-            lines.append(f"| {item.get('sku', '')} | {item.get('name', '')} | {item.get('days_until_stockout', '?')} |")
+        lines.extend(
+            f"| {item.get('sku', '')} | {item.get('name', '')} | {item.get('days_until_stockout', '?')} |"
+            for item in forecast[:10]
+        )
         parts.append("\n".join(lines))
 
     pending = data.get("pending_material_requests", [])

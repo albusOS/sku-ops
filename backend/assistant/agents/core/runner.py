@@ -135,11 +135,8 @@ def _classify(e: Exception) -> tuple[_ErrorKind, bool, float | None]:
 
 async def _backoff(attempt: int, retry_after: float | None) -> None:
     """Exponential backoff with jitter. Honours Retry-After when present."""
-    if retry_after is not None:
-        delay = min(retry_after, _MAX_DELAY)
-    else:
-        delay = min(_BASE_DELAY * (2**attempt), _MAX_DELAY)
-    jitter = random.uniform(-delay * 0.25, delay * 0.25)
+    delay = min(retry_after, _MAX_DELAY) if retry_after is not None else min(_BASE_DELAY * 2**attempt, _MAX_DELAY)
+    jitter = random.uniform(-delay * 0.25, delay * 0.25)  # noqa: S311 - backoff jitter, not crypto
     await asyncio.sleep(max(0.1, delay + jitter))
 
 
@@ -196,11 +193,8 @@ async def run_agent(
         )
 
     async def _backoff_local(attempt: int, retry_after: float | None, base: float = backoff_base) -> None:
-        if retry_after is not None:
-            delay = min(retry_after, _MAX_DELAY)
-        else:
-            delay = min(base * (2**attempt), _MAX_DELAY)
-        jitter = random.uniform(-delay * 0.25, delay * 0.25)
+        delay = min(retry_after, _MAX_DELAY) if retry_after is not None else min(base * 2**attempt, _MAX_DELAY)
+        jitter = random.uniform(-delay * 0.25, delay * 0.25)  # noqa: S311 - backoff jitter, not crypto
         await asyncio.sleep(max(0.1, delay + jitter))
 
     last_exc: Exception = RuntimeError(f"{agent_name}: no attempts made")
@@ -378,7 +372,7 @@ def _log_success(
         except Exception as e:
             logger.warning("Failed to classify/log agent run: %s", e)
 
-    _ = asyncio.create_task(_classify_and_write())  # RUF006: hold reference
+    asyncio.create_task(_classify_and_write())  # noqa: RUF006 - fire-and-forget log
 
 
 def _log_failure(
@@ -423,7 +417,7 @@ def _log_failure(
         except Exception as e:
             logger.warning("Failed to log agent run failure: %s", e)
 
-    _ = asyncio.create_task(_write())  # RUF006: hold reference
+    asyncio.create_task(_write())  # noqa: RUF006 - fire-and-forget log
 
 
 # ── Specialist runner (no reflection re-run) ──────────────────────────────────
@@ -547,6 +541,6 @@ async def run_specialist(
             logger.warning("Background validation/logging failed: %s", e)
 
     t0 = time.monotonic()
-    _ = asyncio.create_task(_background_validate())
+    asyncio.create_task(_background_validate())  # noqa: RUF006 - fire-and-forget validation
 
     return agent_result.to_dict()

@@ -15,12 +15,15 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.redis import get_redis, is_redis_available
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 logger = logging.getLogger(__name__)
 
