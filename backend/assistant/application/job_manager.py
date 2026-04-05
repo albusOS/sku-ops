@@ -15,9 +15,9 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
-from collections.abc import AsyncIterator
 
 from shared.helpers.uuid import new_uuid7_str
 from shared.infrastructure.redis import get_redis, is_redis_available

@@ -18,10 +18,9 @@ def test_get_session_inside_transaction_reuses_shared_session(call):
     from shared.infrastructure.db import get_session, transaction
 
     async def _body():
-        async with transaction(), get_session() as session_one:
-            async with get_session() as session_two:
-                assert session_one is session_two
-                result = await session_one.execute(text("SELECT 1"))
-                assert result.scalar_one() == 1
+        async with transaction(), get_session() as session_one, get_session() as session_two:
+            assert session_one is session_two
+            result = await session_one.execute(text("SELECT 1"))
+            assert result.scalar_one() == 1
 
     call(_body)

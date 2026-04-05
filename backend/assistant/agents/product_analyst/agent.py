@@ -17,7 +17,6 @@ from typing import Any
 from pydantic_ai import Agent, RunContext
 
 from assistant.agents.core.config import load_agent_config
-from catalog.application.product_intelligence import _ensure_rules_partial
 from assistant.agents.core.contracts import UsageInfo
 from assistant.agents.core.model_registry import (
     calc_cost,
@@ -31,6 +30,7 @@ from assistant.agents.tools.models import (
     FamilySkusResult,
     VendorItemMatch,
 )
+from catalog.application.product_intelligence import _ensure_rules_partial
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.prompt_loader import load_prompt
