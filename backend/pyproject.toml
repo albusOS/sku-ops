@@ -94,14 +94,6 @@ target-version = "py313"
 docstring-code-format = true
 
 [tool.ruff.lint]
-# TRY003 fights the project's dominant pattern (explicit DomainError/ValueError messages).
-# BLE001: broad `except Exception` is intentional at LLM/IO/event resilience boundaries;
-# narrow exceptions per call site is ongoing hardening, not a batch mechanical fix.
-# S608: string-built SQL here uses allowlisted structural fragments (column/date clauses) with
-# bound parameters for values; bandit cannot see the split. Review when touching those call sites.
-# PLW0603: lazy singletons (JWKS client, DB manager, agent caches) use module-level `global`;
-# refactoring to threading.Lock holders is not worth the churn here.
-ignore = ["TRY003", "BLE001", "S608", "PLW0603"]
 select = [
     "A",      # flake8-builtins
     "ARG",    # flake8-unused-arguments
@@ -150,6 +142,12 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Former [tool.ruff.lint].ignore — all suppressions use per-file keys only.
+# TRY003: explicit DomainError/ValueError messages are the dominant pattern.
+# BLE001: broad except Exception at LLM/IO/event resilience boundaries.
+# S608: dynamic SQL uses allowlisted fragments + bound parameters; bandit cannot see the split.
+# PLW0603: module-level global for lazy singletons (JWKS, DB, agent caches).
+"**/*.py" = ["TRY003", "BLE001", "S608", "PLW0603"]
 # Composition root: setup_logging() runs before app imports that may emit logs at import time.
 "server.py" = ["E402"]
 # Tests use deferred imports for optional stacks and heavy fixtures.
