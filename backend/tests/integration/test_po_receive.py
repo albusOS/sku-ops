@@ -30,7 +30,11 @@ from tests.helpers.auth import ADMIN_USER_ID, SEEDED_DEPT_ID
 
 def _user():
     return CurrentUser(
-        id=ADMIN_USER_ID, email="test@test.com", name="Test User", role="admin", organization_id=DEFAULT_ORG_ID
+        id=ADMIN_USER_ID,
+        email="test@test.com",
+        name="Test User",
+        role="admin",
+        organization_id=DEFAULT_ORG_ID,
     )
 
 
@@ -49,7 +53,12 @@ async def _create_test_product(name="Widget", quantity=100.0, cost=8.0, price=10
 
 
 async def _create_po_with_item(
-    sku_id=None, cost=None, unit_price=10.0, ordered_qty=50.0, name="Widget", status=POItemStatus.PENDING
+    sku_id=None,
+    cost=None,
+    unit_price=10.0,
+    ordered_qty=50.0,
+    name="Widget",
+    status=POItemStatus.PENDING,
 ):
     await sql_execute(
         "INSERT INTO vendors (id, name, organization_id, created_at)\n           VALUES ($1, $2, $3, NOW())\n           ON CONFLICT (id) DO NOTHING",
@@ -212,10 +221,13 @@ def test_receive_cost_fallback_from_unit_price(call):
         assert result.cost_total > 0, "cost_total should use unit_price fallback"
         assert result.cost_total == pytest.approx(7.0 * 50)
         cursor = await sql_execute(
-            "SELECT SUM(amount) FROM financial_ledger WHERE reference_id = $1 AND account = 'inventory'", (po.id,)
+            "SELECT SUM(amount) FROM financial_ledger WHERE reference_id = $1 AND account = 'inventory'",
+            (po.id,),
         )
         row = cursor.rows[0] if cursor.rows else None
-        assert row[0] is not None and row[0] > 0, "Ledger INVENTORY entry should be non-zero"
+        assert row is not None, "Ledger INVENTORY row should exist"
+        assert row[0] is not None, "Ledger INVENTORY sum should exist"
+        assert row[0] > 0, "Ledger INVENTORY entry should be non-zero"
 
     call(_body)
 
@@ -291,7 +303,12 @@ def test_receive_rejects_ordered_items(call):
 
     async def _body():
         product = await _create_test_product(quantity=100.0)
-        po, item = await _create_po_with_item(sku_id=product.id, cost=5.0, ordered_qty=10, status=POItemStatus.ORDERED)
+        po, item = await _create_po_with_item(
+            sku_id=product.id,
+            cost=5.0,
+            ordered_qty=10,
+            status=POItemStatus.ORDERED,
+        )
         result = await receive_po_items(
             po_id=po.id,
             item_updates=[ReceiveItemUpdate(id=item.id, delivered_qty=10)],
@@ -334,7 +351,10 @@ def test_receive_creates_product_with_overridden_name(call):
             po_id=po.id,
             item_updates=[
                 ReceiveItemUpdate(
-                    id=item.id, delivered_qty=10, name="Corrected Widget Name", suggested_department="HDW"
+                    id=item.id,
+                    delivered_qty=10,
+                    name="Corrected Widget Name",
+                    suggested_department="HDW",
                 )
             ],
             deps=_stub_deps(),
@@ -343,7 +363,8 @@ def test_receive_creates_product_with_overridden_name(call):
         assert result.received == 1
         assert result.errors == 0
         cursor = await sql_execute(
-            "SELECT name FROM skus WHERE id = (SELECT sku_id FROM purchase_order_items WHERE id = $1)", (item.id,)
+            "SELECT name FROM skus WHERE id = (SELECT sku_id FROM purchase_order_items WHERE id = $1)",
+            (item.id,),
         )
         row = cursor.rows[0] if cursor.rows else None
         assert row is not None
@@ -381,7 +402,12 @@ def test_receive_items_with_typed_input(call):
         product = await _create_test_product(name="Typed Input Product", quantity=20.0, cost=5.0)
         po, item = await _create_po_with_item(sku_id=product.id, cost=6.0, ordered_qty=15)
         update = ReceiveItemUpdate(id=item.id, delivered_qty=15, cost=6.0)
-        result = await receive_po_items(po_id=po.id, item_updates=[update], deps=_stub_deps(), current_user=_user())
+        result = await receive_po_items(
+            po_id=po.id,
+            item_updates=[update],
+            deps=_stub_deps(),
+            current_user=_user(),
+        )
         assert result.matched == 1
         assert result.errors == 0
         assert result.cost_total == pytest.approx(6.0 * 15)

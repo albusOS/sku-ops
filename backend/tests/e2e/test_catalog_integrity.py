@@ -95,7 +95,8 @@ def _db_count_inventory_transactions(client: TestClient, sku_id: str, tx_type: s
 
     async def _q() -> int:
         cur = await sql_execute(
-            "SELECT COUNT(*) FROM stock_transactions WHERE sku_id = $1 AND transaction_type = $2", (sku_id, tx_type)
+            "SELECT COUNT(*) FROM stock_transactions WHERE sku_id = $1 AND transaction_type = $2",
+            (sku_id, tx_type),
         )
         row = cur.rows[0] if cur.rows else None
         return int(row[0]) if row else 0
@@ -164,13 +165,23 @@ class TestCatalogIntegrity:
         plmb_id = _get_or_create_dept(client, headers, "Plumbing", "PLM")
         sku_count_hdw_before = _db_dept_sku_count(client, seed_dept_id)
         sku_count_plmb_before = _db_dept_sku_count(client, plmb_id)
-        product = create_product(client, headers, dept_id=seed_dept_id, name="Cat-Transfer-Widget", quantity=5)
+        product = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Cat-Transfer-Widget",
+            quantity=5,
+        )
         sku_id = product["id"]
         sku_count_hdw_after_create = _db_dept_sku_count(client, seed_dept_id)
         assert sku_count_hdw_after_create == sku_count_hdw_before + 1, (
             "HDW counter should have incremented by 1 after create"
         )
-        resp = client.put(f"/api/beta/catalog/skus/{sku_id}", json={"category_id": plmb_id}, headers=headers)
+        resp = client.put(
+            f"/api/beta/catalog/skus/{sku_id}",
+            json={"category_id": plmb_id},
+            headers=headers,
+        )
         assert resp.status_code == 200, f"Category transfer failed: {resp.text}"
         db_cat = _db_category_id(client, sku_id)
         assert db_cat == plmb_id, f"SKU category_id should be {plmb_id}, got {db_cat}"
@@ -188,7 +199,11 @@ class TestCatalogIntegrity:
         with exact fidelity — no JSON parse errors, no data loss, no coercion.
         """
         headers = admin_headers()
-        initial_attrs = {"holes": "1H", "size": '1/2"', "material": "galvanized steel"}
+        initial_attrs = {
+            "holes": "1H",
+            "size": '1/2"',
+            "material": "galvanized steel",
+        }
         resp = client.post(
             "/api/beta/catalog/skus",
             json={
@@ -213,8 +228,17 @@ class TestCatalogIntegrity:
         assert http_attrs == initial_attrs, (
             f"HTTP variant_attrs mismatch after create: expected {initial_attrs}, got {http_attrs}"
         )
-        updated_attrs = {"holes": "1H", "size": '1/2"', "material": "zinc-plated", "pack": "3pk"}
-        resp = client.put(f"/api/beta/catalog/skus/{sku_id}", json={"variant_attrs": updated_attrs}, headers=headers)
+        updated_attrs = {
+            "holes": "1H",
+            "size": '1/2"',
+            "material": "zinc-plated",
+            "pack": "3pk",
+        }
+        resp = client.put(
+            f"/api/beta/catalog/skus/{sku_id}",
+            json={"variant_attrs": updated_attrs},
+            headers=headers,
+        )
         assert resp.status_code == 200, f"Update failed: {resp.text}"
         db_attrs_after_update = _db_variant_attrs(client, sku_id)
         assert db_attrs_after_update == updated_attrs, (
@@ -236,7 +260,9 @@ class TestCatalogIntegrity:
         """
         headers = admin_headers()
         resp = client.post(
-            "/api/beta/catalog/products", json={"name": "EMT Strap 1/2in", "category_id": seed_dept_id}, headers=headers
+            "/api/beta/catalog/products",
+            json={"name": "EMT Strap 1/2in", "category_id": seed_dept_id},
+            headers=headers,
         )
         assert resp.status_code == 200, f"Product family create failed: {resp.text}"
         family_id = resp.json()["id"]
@@ -289,14 +315,25 @@ class TestCatalogIntegrity:
         - Be idempotent (re-adopting the same SKU returns 200 with no side-effects)
         """
         headers = admin_headers()
-        orphan = create_product(client, headers, dept_id=seed_dept_id, name="Orphan-Paint-Brush-2in", quantity=10)
+        orphan = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Orphan-Paint-Brush-2in",
+            quantity=10,
+        )
         orphan_original_family_id = _db_product_family_id_for_sku(client, orphan["id"])
         resp = client.post(
-            "/api/beta/catalog/products", json={"name": "Paint Brushes", "category_id": seed_dept_id}, headers=headers
+            "/api/beta/catalog/products",
+            json={"name": "Paint Brushes", "category_id": seed_dept_id},
+            headers=headers,
         )
         assert resp.status_code == 200
         family_id = resp.json()["id"]
-        resp = client.patch(f"/api/beta/catalog/products/{family_id}/adopt-sku/{orphan['id']}", headers=headers)
+        resp = client.patch(
+            f"/api/beta/catalog/products/{family_id}/adopt-sku/{orphan['id']}",
+            headers=headers,
+        )
         assert resp.status_code == 200, f"Adopt-sku failed: {resp.text}"
         db_family_id = _db_product_family_id_for_sku(client, orphan["id"])
         assert db_family_id == family_id, f"DB product_family_id should be {family_id}, got {db_family_id}"
@@ -305,7 +342,10 @@ class TestCatalogIntegrity:
         assert resp.status_code == 200
         sku_ids = {s["id"] for s in resp.json().get("skus", [])}
         assert orphan["id"] in sku_ids, f"Adopted SKU {orphan['id']} not visible in family {family_id}"
-        resp2 = client.patch(f"/api/beta/catalog/products/{family_id}/adopt-sku/{orphan['id']}", headers=headers)
+        resp2 = client.patch(
+            f"/api/beta/catalog/products/{family_id}/adopt-sku/{orphan['id']}",
+            headers=headers,
+        )
         assert resp2.status_code == 200
         db_family_id_again = _db_product_family_id_for_sku(client, orphan["id"])
         assert db_family_id_again == family_id, "Re-adopt must not corrupt the product_family_id"
@@ -320,7 +360,14 @@ class TestCatalogIntegrity:
         the quantity increment and ledger entry cannot diverge.
         """
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, name="PO-Atomic-Widget", quantity=5, cost=3.0)
+        product = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="PO-Atomic-Widget",
+            quantity=5,
+            cost=3.0,
+        )
         sku_id = product["id"]
         qty_before = _db_qty(client, sku_id)
         po = create_po(client, headers, product, quantity=30, vendor_name="AtomicVendor")
@@ -341,7 +388,12 @@ class TestCatalogIntegrity:
         headers = admin_headers()
         withdraw_qty = 7
         product = create_product(
-            client, headers, dept_id=seed_dept_id, name="Withdrawal-Atomic-Widget", quantity=50, cost=2.0
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Withdrawal-Atomic-Widget",
+            quantity=50,
+            cost=2.0,
         )
         sku_id = product["id"]
         qty_before = _db_qty(client, sku_id)
@@ -416,7 +468,7 @@ class TestCatalogIntegrity:
         final_qty = _db_qty(client, sku_id)
         expected_qty = initial_stock - successes * withdraw_qty
         assert final_qty == expected_qty, (
-            f"Final stock should be {expected_qty} ({initial_stock} - {successes}×{withdraw_qty}), got {final_qty}"
+            f"Final stock should be {expected_qty} ({initial_stock} - {successes}x{withdraw_qty}), got {final_qty}"
         )
         assert final_qty >= 0, f"Stock went negative: {final_qty}"
         tx_count = _db_count_inventory_transactions(client, sku_id, "withdrawal")
@@ -430,12 +482,24 @@ class TestCatalogIntegrity:
         This protects the stock ledger from silent bypasses.
         """
         headers = admin_headers()
-        product = create_product(client, headers, dept_id=seed_dept_id, name="NoQtyEdit-Widget", quantity=50)
+        product = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="NoQtyEdit-Widget",
+            quantity=50,
+        )
         sku_id = product["id"]
         qty_before = _db_qty(client, sku_id)
-        client.put(f"/api/beta/catalog/skus/{sku_id}", json={"name": product["name"], "quantity": 999}, headers=headers)
+        client.put(
+            f"/api/beta/catalog/skus/{sku_id}",
+            json={"name": product["name"], "quantity": 999},
+            headers=headers,
+        )
         resp2 = client.put(
-            f"/api/beta/catalog/skus/{sku_id}", json={"name": "NoQtyEdit-Widget-Renamed"}, headers=headers
+            f"/api/beta/catalog/skus/{sku_id}",
+            json={"name": "NoQtyEdit-Widget-Renamed"},
+            headers=headers,
         )
         assert resp2.status_code == 200
         qty_after = _db_qty(client, sku_id)
@@ -450,7 +514,13 @@ class TestCatalogIntegrity:
         headers = admin_headers()
         resp = client.post(
             "/api/beta/catalog/skus",
-            json={"name": "NoAttrs-Widget", "price": 5.0, "cost": 2.0, "quantity": 10, "category_id": seed_dept_id},
+            json={
+                "name": "NoAttrs-Widget",
+                "price": 5.0,
+                "cost": 2.0,
+                "quantity": 10,
+                "category_id": seed_dept_id,
+            },
             headers=headers,
         )
         assert resp.status_code == 200
@@ -485,7 +555,7 @@ class TestCatalogIntegrity:
         qty_after = _db_qty(client, sku_id)
         expected = qty_before - 18
         assert qty_after == expected, (
-            f"Stock should be {expected} (3 packs × 6 = 18 deducted from {qty_before}), got {qty_after}"
+            f"Stock should be {expected} (3 packs x 6 = 18 deducted from {qty_before}), got {qty_after}"
         )
 
     def test_receive_cases_sell_packs_round_trip(
@@ -512,7 +582,14 @@ class TestCatalogIntegrity:
             purchase_pack_qty=12,
         )
         sku_id = sku["id"]
-        po = create_po(client, headers, sku, quantity=5, purchase_uom="case", purchase_pack_qty=12)
+        po = create_po(
+            client,
+            headers,
+            sku,
+            quantity=5,
+            purchase_uom="case",
+            purchase_pack_qty=12,
+        )
         receive_po(client, headers, po["id"])
         qty_after_receive = _db_qty(client, sku_id)
         assert qty_after_receive == initial_qty + 60, (
@@ -532,7 +609,14 @@ class TestCatalogIntegrity:
         must deduct exactly N. Regression test for the pack conversion fix.
         """
         headers = admin_headers()
-        sku = create_product(client, headers, dept_id=seed_dept_id, name="Simple-Each-Widget", quantity=50, cost=2.0)
+        sku = create_product(
+            client,
+            headers,
+            dept_id=seed_dept_id,
+            name="Simple-Each-Widget",
+            quantity=50,
+            cost=2.0,
+        )
         sku_id = sku["id"]
         qty_before = _db_qty(client, sku_id)
         create_withdrawal(client, headers, sku, quantity=7, contractor_id=seed_contractor_id)

@@ -35,5 +35,5 @@ def test_parse_date_param_naive_date_string():
 
 
 def test_parse_date_param_invalid_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="isoformat"):
         parse_date_param("not-a-date")

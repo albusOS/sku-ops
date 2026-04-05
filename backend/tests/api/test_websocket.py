@@ -21,12 +21,12 @@ from tests.helpers.auth import make_token as _make_token
 
 def _assert_ws_close(client: TestClient, url: str, expected_code: int):
     """Connect and assert the server closes with the given code."""
-    try:
-        with client.websocket_connect(url):
-            pass
-        pytest.fail(f"Expected WebSocketDisconnect({expected_code})")
-    except WebSocketDisconnect as exc:
-        assert exc.code == expected_code, f"Expected close code {expected_code}, got {exc.code}"
+    with (
+        pytest.raises(WebSocketDisconnect) as exc_info,
+        client.websocket_connect(url),
+    ):
+        pass
+    assert exc_info.value.code == expected_code, f"Expected close code {expected_code}, got {exc_info.value.code}"
 
 
 class TestRealtimeWebSocket:
@@ -46,7 +46,10 @@ class TestRealtimeWebSocket:
         """Connection receives a ping heartbeat within HEARTBEAT_INTERVAL."""
         token = _make_token()
         with (
-            patch("api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL", 0.1),
+            patch(
+                "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+                0.1,
+            ),
             client.websocket_connect(f"/api/beta/shared/ws?token={token}") as ws,
         ):
             data = ws.receive_json()
@@ -78,14 +81,26 @@ class TestChatWebSocket:
     def test_chat_without_llm_returns_error(self, client: TestClient):
         token = _make_token()
         with (
-            patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", False),
-            patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE", False),
+            patch(
+                "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+                False,
+            ),
+            patch(
+                "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE",
+                False,
+            ),
+            client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws,
         ):
-            with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
-                ws.send_json({"type": "chat", "message": "hello", "session_id": "test-session"})
-                resp = ws.receive_json()
-                assert resp["type"] == "chat.error"
-                assert "not configured" in resp["detail"].lower()
+            ws.send_json(
+                {
+                    "type": "chat",
+                    "message": "hello",
+                    "session_id": "test-session",
+                }
+            )
+            resp = ws.receive_json()
+            assert resp["type"] == "chat.error"
+            assert "not configured" in resp["detail"].lower()
 
 
 class TestHealthEndpoint:
@@ -126,10 +141,18 @@ class TestEventDeliveryEndToEnd:
         """Emit an event and verify the connected client gets it."""
         token = _make_token(org_id=DEFAULT_ORG_ID)
         with (
-            patch("api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL", 999),
+            patch(
+                "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+                999,
+            ),
             client.websocket_connect(f"/api/beta/shared/ws?token={token}") as ws,
         ):
-            t = _delayed_emit(_EMIT_DELAY, events.INVENTORY_UPDATED, org_id=DEFAULT_ORG_ID, ids=["p-1"])
+            t = _delayed_emit(
+                _EMIT_DELAY,
+                events.INVENTORY_UPDATED,
+                org_id=DEFAULT_ORG_ID,
+                ids=["p-1"],
+            )
             msg = ws.receive_json()
             t.join()
             assert msg["type"] == events.INVENTORY_UPDATED
@@ -156,7 +179,10 @@ class TestEventDeliveryEndToEnd:
         """Client for org-A should not receive events for org-B."""
         token = _make_token(org_id="org-A")
         with (
-            patch("api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL", 999),
+            patch(
+                "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+                999,
+            ),
             client.websocket_connect(f"/api/beta/shared/ws?token={token}") as ws,
         ):
 
@@ -176,7 +202,10 @@ class TestEventDeliveryEndToEnd:
         """Contractor gets withdrawal.created but NOT inventory.updated."""
         token = _make_token(role="contractor")
         with (
-            patch("api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL", 999),
+            patch(
+                "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+                999,
+            ),
             client.websocket_connect(f"/api/beta/shared/ws?token={token}") as ws,
         ):
 
@@ -202,13 +231,25 @@ class TestEventDeliveryEndToEnd:
         ws_user_b = "00000000-0000-0000-0000-0000000000c2"
         token_u1 = _make_token(user_id=ws_user_a)
         with (
-            patch("api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL", 999),
+            patch(
+                "api.beta.routers.shared.sub_routers.websocket.websocket_router.HEARTBEAT_INTERVAL",
+                999,
+            ),
             client.websocket_connect(f"/api/beta/shared/ws?token={token_u1}") as ws,
         ):
 
             def _emit_pair():
-                event_hub.emit_sync(events.CHAT_DONE, org_id=DEFAULT_ORG_ID, user_id=ws_user_b, response="hi")
-                event_hub.emit_sync(events.INVENTORY_UPDATED, org_id=DEFAULT_ORG_ID, marker="broadcast")
+                event_hub.emit_sync(
+                    events.CHAT_DONE,
+                    org_id=DEFAULT_ORG_ID,
+                    user_id=ws_user_b,
+                    response="hi",
+                )
+                event_hub.emit_sync(
+                    events.INVENTORY_UPDATED,
+                    org_id=DEFAULT_ORG_ID,
+                    marker="broadcast",
+                )
 
             t = threading.Timer(_EMIT_DELAY, _emit_pair)
             t.start()

@@ -34,26 +34,33 @@ def _make_mock_stream(text_chunks, tool_names=None):
 
     events = []
     if tool_names:
-        for name in tool_names:
-            events.append(
-                PartStartEvent(
-                    index=0,
-                    part=ToolCallPart(tool_name=name, args=None, tool_call_id=f"tc_{name}"),
-                    previous_part_kind=None,
-                )
+        events.extend(
+            PartStartEvent(
+                index=0,
+                part=ToolCallPart(tool_name=name, args=None, tool_call_id=f"tc_{name}"),
+                previous_part_kind=None,
             )
+            for name in tool_names
+        )
     if text_chunks:
         events.append(
             PartStartEvent(
-                index=1, part=TextPart(content=text_chunks[0]), previous_part_kind="tool-call" if tool_names else None
+                index=1,
+                part=TextPart(content=text_chunks[0]),
+                previous_part_kind="tool-call" if tool_names else None,
             )
         )
-        for chunk in text_chunks[1:]:
-            events.append(
-                PartDeltaEvent(
-                    index=1, delta=TextPartDelta(content_delta=chunk, provider_name=None, provider_details=None)
-                )
+        events.extend(
+            PartDeltaEvent(
+                index=1,
+                delta=TextPartDelta(
+                    content_delta=chunk,
+                    provider_name=None,
+                    provider_details=None,
+                ),
             )
+            for chunk in text_chunks[1:]
+        )
     full_text = "".join(text_chunks)
     mock_usage = MagicMock()
     mock_usage.input_tokens = 100
@@ -74,12 +81,12 @@ def _make_mock_stream(text_chunks, tool_names=None):
 
 def _assert_ws_close(client, url: str, expected_code: int):
     """Connect and assert the server closes with the given code."""
-    try:
-        with client.websocket_connect(url):
-            pass
-        pytest.fail(f"Expected WebSocketDisconnect({expected_code})")
-    except WebSocketDisconnect as exc:
-        assert exc.code == expected_code, f"Expected close code {expected_code}, got {exc.code}"
+    with (
+        pytest.raises(WebSocketDisconnect) as exc_info,
+        client.websocket_connect(url),
+    ):
+        pass
+    assert exc_info.value.code == expected_code, f"Expected close code {expected_code}, got {exc_info.value.code}"
 
 
 @pytest.mark.timeout(15)
@@ -91,11 +98,19 @@ class TestWSChatAuth:
         _assert_ws_close(client, "/api/beta/assistant/ws/chat?token=garbage", 4001)
 
     def test_expired_token_rejected(self, client):
-        _assert_ws_close(client, f"/api/beta/assistant/ws/chat?token={_expired_token()}", 4001)
+        _assert_ws_close(
+            client,
+            f"/api/beta/assistant/ws/chat?token={_expired_token()}",
+            4001,
+        )
 
     def test_contractor_role_rejected(self, client):
         """Contractors cannot use the AI assistant."""
-        _assert_ws_close(client, f"/api/beta/assistant/ws/chat?token={_contractor_token()}", 4003)
+        _assert_ws_close(
+            client,
+            f"/api/beta/assistant/ws/chat?token={_contractor_token()}",
+            4003,
+        )
 
     def test_admin_connects_successfully(self, client):
         token = _admin_token()
@@ -158,8 +173,14 @@ class TestWSChatStreaming:
             error = _find_msg(messages, "chat.error")
             assert error is not None
 
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", False)
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE", False)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        False,
+    )
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE",
+        False,
+    )
     def test_ai_not_configured_returns_error(self, client):
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
@@ -170,11 +191,15 @@ class TestWSChatStreaming:
             assert "not configured" in error["detail"].lower()
 
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_streaming_event_sequence(self, mock_get_agent, client):
         """Verify the full event sequence: job_started → status → deltas → done."""
         mock_stream = _make_mock_stream(
-            text_chunks=["Hello ", "world!", " How can I help?"], tool_names=["search_products"]
+            text_chunks=["Hello ", "world!", " How can I help?"],
+            tool_names=["search_products"],
         )
         mock_agent = MagicMock()
         mock_agent.run_stream_events = mock_stream
@@ -204,7 +229,10 @@ class TestWSChatStreaming:
             assert "usage" in done
 
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_session_id_assigned_when_missing(self, mock_get_agent, client):
         """When no session_id is provided, one should be auto-assigned."""
         mock_stream = _make_mock_stream(text_chunks=["Hi there!"])
@@ -221,7 +249,10 @@ class TestWSChatStreaming:
             assert len(done["session_id"]) > 0
 
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_session_id_preserved_when_provided(self, mock_get_agent, client):
         """When session_id is provided, it should be echoed back."""
         mock_stream = _make_mock_stream(text_chunks=["Hi!"])
@@ -230,13 +261,24 @@ class TestWSChatStreaming:
         mock_get_agent.return_value = mock_agent
         token = _admin_token()
         with client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws:
-            ws.send_text(json.dumps({"type": "chat", "message": "Hello", "session_id": "my-session-123"}))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "type": "chat",
+                        "message": "Hello",
+                        "session_id": "my-session-123",
+                    }
+                )
+            )
             messages = _collect_messages(ws, until_type="chat.done", max_msgs=15)
             done = _find_msg(messages, "chat.done")
             assert done["session_id"] == "my-session-123"
 
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_done_payload_has_usage_fields(self, mock_get_agent, client):
         mock_stream = _make_mock_stream(text_chunks=["Report ready."])
         mock_agent = MagicMock()
@@ -257,7 +299,10 @@ class TestWSChatStreaming:
 @pytest.mark.timeout(30)
 class TestWSChatErrors:
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_agent_exception_returns_chat_error(self, mock_get_agent, client):
         """If the agent raises, client should get a chat.error event."""
 
@@ -277,7 +322,10 @@ class TestWSChatErrors:
             assert "wrong" in error["detail"].lower()
 
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router._get_agent")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_duplicate_generation_rejected(self, mock_get_agent, client):
         """Sending a second chat while one is streaming should return an error."""
 
@@ -309,8 +357,14 @@ class TestWSChatErrors:
 @pytest.mark.timeout(15)
 class TestWSChatCostCap:
     @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.session_store")
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.SESSION_COST_CAP", 1.0)
-    @patch("api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE", True)
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.SESSION_COST_CAP",
+        1.0,
+    )
+    @patch(
+        "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
+        True,
+    )
     def test_cost_cap_reached_returns_done_with_capped(self, mock_store, client):
         mock_store.get_cost = AsyncMock(return_value=1.5)
         mock_store.get_or_create = AsyncMock(return_value=[])

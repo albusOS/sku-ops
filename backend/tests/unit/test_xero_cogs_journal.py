@@ -111,33 +111,33 @@ class TestBuildCogsJournalLines:
     def test_cogs_lines_use_correct_account(self):
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
-        cogs_lines = [l for l in lines if l["LineAmount"] > 0]
-        assert all(l["AccountCode"] == "500" for l in cogs_lines)
+        cogs_lines = [jl for jl in lines if jl["LineAmount"] > 0]
+        assert all(jl["AccountCode"] == "500" for jl in cogs_lines)
 
     def test_inventory_lines_use_correct_account(self):
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
-        inv_lines = [l for l in lines if l["LineAmount"] < 0]
-        assert all(l["AccountCode"] == "630" for l in inv_lines)
+        inv_lines = [jl for jl in lines if jl["LineAmount"] < 0]
+        assert all(jl["AccountCode"] == "630" for jl in inv_lines)
 
     def test_journal_is_balanced(self):
         """Sum of all journal line amounts must be zero."""
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
-        total = sum(l["LineAmount"] for l in lines)
+        total = sum(jl["LineAmount"] for jl in lines)
         assert total == pytest.approx(0.0, abs=0.01)
 
     def test_per_line_descriptions_include_item_name(self):
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
-        descriptions = [l["Description"] for l in lines]
+        descriptions = [jl["Description"] for jl in lines]
         assert any("Wire" in d for d in descriptions)
         assert any("Conduit" in d for d in descriptions)
 
     def test_per_line_descriptions_include_invoice_number(self):
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
-        assert all("INV-00042" in l["Description"] for l in lines)
+        assert all("INV-00042" in jl["Description"] for jl in lines)
 
     def test_falls_back_to_cost_when_sell_cost_missing(self):
         """Legacy invoices without sell_cost should still work using cost."""
@@ -150,13 +150,13 @@ class TestBuildCogsJournalLines:
         settings = make_settings(xero_tracking_category_id="cat-123")
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, settings, "xero-abc", first_job_id="JOB-42")
-        assert all("Tracking" in l for l in lines)
-        assert all(l["Tracking"][0]["TrackingCategoryID"] == "cat-123" for l in lines)
+        assert all("Tracking" in jl for jl in lines)
+        assert all(jl["Tracking"][0]["TrackingCategoryID"] == "cat-123" for jl in lines)
 
     def test_no_tracking_when_no_category_configured(self):
         invoice = _invoice_with_sell_cost()
         lines, _ = self.adapter._build_cogs_journal_lines(invoice, self.settings, "xero-abc")
-        assert all("Tracking" not in l for l in lines)
+        assert all("Tracking" not in jl for jl in lines)
 
     def test_zero_cost_lines_excluded(self):
         """Line items with zero sell_cost (and zero cost) must not appear in the journal."""

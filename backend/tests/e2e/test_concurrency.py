@@ -54,9 +54,7 @@ class TestConcurrency:
         with ThreadPoolExecutor(max_workers=2) as pool:
             f1 = pool.submit(_attempt_withdrawal, client, headers, product, 6, e2e_job_id("RACE-1"))
             f2 = pool.submit(_attempt_withdrawal, client, headers, product, 6, e2e_job_id("RACE-2"))
-            results = []
-            for f in as_completed([f1, f2]):
-                results.append(f.result())
+            results = [f.result() for f in as_completed([f1, f2])]
         successes = [r for r in results if r[0] == 200]
         resp = client.get(f"/api/beta/catalog/skus/{product['id']}", headers=headers)
         final_qty = resp.json()["quantity"]
