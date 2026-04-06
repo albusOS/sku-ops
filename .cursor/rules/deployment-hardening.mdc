@@ -27,7 +27,7 @@ There are three environments: `development`, `test`, `production`. There is no s
 
 ## Vercel
 
-- Root `vercel.json` controls monorepo build: `cd frontend && pnpm install --frozen-lockfile && pnpm run build`.
+- **Single** root `vercel.json` at repo root controls the Vercel project (build `cd frontend && pnpm install --frozen-lockfile && pnpm run build`, output, CSP, `git.deploymentEnabled`). No second `frontend/vercel.json` (avoids drift). `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` are **not** committed in `vercel.json`; use GitHub Environment secrets or gitignored `.vercel/project.json` after `vercel link`.
 - Output: `frontend/dist`. SPA rewrite: all routes → `index.html`.
 - Three `VITE_*` env vars are build-time (baked into JS). Source of truth for production: committed `frontend/.env.production` (loaded by Vite when `pnpm run build` runs in mode production). Changing requires redeploy.
 - **Git vs Actions:** Repo sets `git.deploymentEnabled` with the production branch name (e.g. `main: false`) so Vercel’s [GitHub integration](https://vercel.com/docs/git/vercel-for-github) does not auto-deploy that branch while GitHub Actions runs `pull` + `build --prod --yes` + `deploy --prebuilt --prod --yes` (see [GitHub Actions + Vercel](https://vercel.com/docs/git/vercel-for-github#using-github-actions)). The key must match the **Production Branch** in Vercel project settings. Pin CLI with `npx vercel@50` under pixi. Deploy job attaches `--meta` (`githubCommitSha`, `githubCommitRef`, `githubRepo`, `githubActionsRunId`) for filtering in `vercel list --meta`. Environment secrets: `frontend_vercel_deployment` with `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
