@@ -15,7 +15,7 @@ export async function getAdminToken(request: APIRequestContext): Promise<string>
     process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
   if (!supabaseUrl || !anonKey) {
     throw new Error(
-      "E2E auth: set SUPABASE_URL and PUBLIC_SUPABASE_PUBLISHABLE_KEY (e.g. run pixi run tests e2e after pixi run db)",
+      "E2E auth: set SUPABASE_URL and PUBLIC_SUPABASE_PUBLISHABLE_KEY (e.g. run pixi run tests e2e after pixi run supabase)",
     );
   }
   const tokenUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`;

@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Pixi:** ([install](https://pixi.sh)) — installs Python 3.13, uv, Node 20, pnpm from [pixi.toml](../pixi.toml) / [pixi.lock](../pixi.lock)
-- **Supabase CLI:** for local DB (`pixi run db`, `db-reset`) — not bundled by pixi; install per [Supabase CLI docs](https://supabase.com/docs/guides/cli)
+- **Supabase CLI:** for local DB (`pixi run supabase`, `supabase reset`) — not bundled by pixi; install per [Supabase CLI docs](https://supabase.com/docs/guides/cli)
 - **Docker:** (optional, for production verification and e2e)
 
 ## Install everything
@@ -32,7 +32,7 @@ pixi run pnpm --dir e2e install --frozen-lockfile
 pixi run tests
 ```
 
-Runs `db-reset` + pytest, then Vitest, then Playwright (installs e2e deps and runs `pnpx playwright test` from `e2e/`). Requires local Supabase for backend; ensure Playwright browsers are installed when e2e runs (see Prerequisites).
+Runs `supabase reset` + pytest, then Vitest, then Playwright (installs e2e deps and runs `pnpx playwright test` from `e2e/`). Requires local Supabase for backend; ensure Playwright browsers are installed when e2e runs (see Prerequisites).
 
 ### Backend only
 
@@ -154,12 +154,12 @@ Create `e2e/specs/<name>.spec.ts`. Uses Playwright. Server starts automatically.
 ## Seeds and evals
 
 ```bash
-pixi run db-reset
+pixi run supabase reset
 pixi run eval -- --suite all
 pixi run eval -- --suite routing --model anthropic/claude-haiku-4-5
 ```
 
-Canonical SQL seeds live under `supabase/seeds/` (edit there, then `pixi run db-reset` or `supabase db reset --local`). Evals live in `devtools/`. Pixi Python tasks set `PYTHONPATH=.:..` with `uv run --directory backend` so `devtools` and backend code import correctly.
+Canonical SQL seeds live under `supabase/seeds/` (edit there, then `pixi run supabase reset` or `supabase db reset --local`). Evals live in `devtools/`. Pixi Python tasks set `PYTHONPATH=.:..` with `uv run --directory backend` so `devtools` and backend code import correctly.
 
 ## Linting
 

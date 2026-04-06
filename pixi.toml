@@ -20,18 +20,10 @@ description = "Verify python, uv, node, pnpm resolve from pixi and uv targets pi
 cmd = "bash devtools/scripts/is_supabase_running.sh"
 description = "Ensure local Supabase stack is running (start if not)"
 
-[tasks.db]
-cmd = "supabase start && echo 'Supabase started. Run supabase status for URLs.'"
-description = "Start local Supabase stack"
-
-[tasks.db-stop]
-cmd = "supabase stop"
-description = "Stop local Supabase stack"
-
-[tasks.db-reset]
-depends-on = ["_is_supabase_running"]
-cmd = "supabase db reset --local --yes"
-description = "Reset local DB from migrations and seeds"
+[tasks.supabase]
+description = "Local Supabase CLI: start (default), stop, or reset. Usage: pixi run supabase [start|stop|reset]"
+args = [{ arg = "action", default = "start", choices = ["start", "stop", "reset"] }]
+cmd = "{% if action == \"start\" %}supabase start && echo 'Supabase started. Run supabase status for URLs.'{% elif action == \"stop\" %}supabase stop{% elif action == \"reset\" %}bash devtools/scripts/is_supabase_running.sh && supabase db reset --local --yes{% endif %}"
 
 [tasks.backend]
 depends-on = ["_is_supabase_running"]
@@ -50,15 +42,15 @@ cmd = "bash devtools/scripts/run_dev_stack.sh"
 description = "Start backend and frontend dev servers together"
 
 [tasks.start]
-depends-on = ["doctor", "db", "dev"]
+depends-on = ["doctor", { task = "supabase", args = ["start"] }, "dev"]
 cmd = "true"
 description = "Verify toolchain, start local Supabase, then backend + frontend dev servers"
 
 [tasks.tests]
-description = "Tests: all (default: backend + frontend + e2e), or backend | frontend | e2e. Pytest-only: pixi run tests backend -- -- … (not with target all). Playwright: pixi run tests e2e -- -- …"
+description = "Tests: all (default: backend + frontend + e2e), or backend | frontend | e2e. Backend/all run supabase reset before pytest. Pytest-only: pixi run tests backend -- -- … (not with target all). Playwright: pixi run tests e2e -- -- …"
 args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend", "e2e"] }]
 env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
-cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run db-reset && uv run --directory backend pytest{% elif target == \"e2e\" %}pixi run _is_supabase_running && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% else %}pixi run db-reset && uv run --directory backend pytest && pnpm --dir frontend run test:run && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% endif %}"
+cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run supabase reset && uv run --directory backend pytest{% elif target == \"e2e\" %}pixi run _is_supabase_running && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% else %}pixi run supabase reset && uv run --directory backend pytest && pnpm --dir frontend run test:run && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% endif %}"
 
 [tasks.lint]
 description = "Lint: all (default), backend (ruff), or frontend (ESLint). Usage: pixi run lint [all|backend|frontend]"

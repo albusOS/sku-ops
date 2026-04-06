@@ -13,7 +13,7 @@ Use this for all feature work. Hot-reload, local Supabase, and seed scripts work
 pixi run start            # doctor + local Supabase + backend + frontend (from repo root)
 ```
 
-Equivalent step-by-step: `pixi run doctor`, then `pixi run db`, then `pixi run dev`. Or skip doctor and run `pixi run db` then `pixi run dev` when the toolchain is already known good.
+Equivalent step-by-step: `pixi run doctor`, then `pixi run supabase` (or `pixi run supabase start`), then `pixi run dev`. Or skip doctor and run `pixi run supabase` then `pixi run dev` when the toolchain is already known good.
 
 - Backend: uvicorn with `--reload` on http://localhost:8000
 - Frontend: Vite dev server on http://localhost:3000
@@ -48,7 +48,7 @@ All commands below run from the **project root** via `pixi run <task>` (`pixi ta
 
 ```bash
 pixi run doctor                  # toolchain check (pixi python, uv, node, pnpm)
-pixi run start                   # doctor + db + dev (daily stack)
+pixi run start                   # doctor + supabase start + dev (daily stack)
 pixi run tests                    # all tests (backend then frontend then e2e)
 pixi run tests backend -- …       # backend only; … = pytest args (one -- separates them from pixi task args)
 pixi run tests frontend           # frontend tests only (vitest)
@@ -61,9 +61,9 @@ pixi run backend                 # backend only
 pixi run frontend                # frontend only
 pixi run provision -- …          # extra args for provision (shows --dev for Mode 1)
 pixi run eval -- …               # extra args for evals
-pixi run db                      # start local Supabase stack
-pixi run db-stop                 # stop local Supabase stack
-pixi run db-reset                # reset local DB from migrations + seeds
+pixi run supabase                # start local Supabase stack (default action)
+pixi run supabase stop           # stop local Supabase stack
+pixi run supabase reset          # reset local DB from migrations + seeds
 pixi run clean                   # wipe backend venv + Python caches (see devtools/scripts/clean_repo.sh)
 ```
 
@@ -80,7 +80,7 @@ sku-ops/
 ├── frontend/         # React SPA (co-located unit tests in src/__tests__/)
 ├── e2e/              # cross-stack Playwright tests
 ├── devtools/         # seeds, evals, scripts — not deployed
-└── pixi.toml         # task runner (dev, tests, db, …)
+└── pixi.toml         # task runner (dev, tests, supabase, …)
 ```
 
 Each deployable owns its tests. Devtools live at the workspace root. The Docker image contains zero test or devtools code — `backend/tests/` is excluded via `.dockerignore`, devtools is structurally outside the `COPY backend/` layer, and `uv sync --no-dev --directory backend` skips test deps.

@@ -30,12 +30,12 @@ All seeded accounts use password **dev123** (Supabase Auth + matching `public.us
 | Admin (local) | dev@supply-yard.local |
 | Contractor (local) | contractor@supply-yard.local |
 
-Login uses **Supabase Auth** (`signInWithPassword`). `pixi run db-reset` runs `supabase/seeds/04_users.sql`, which seeds **`auth.users` + `auth.identities`** first, then **`public.users`** with the same ids for profile data (company, billing, etc.).
+Login uses **Supabase Auth** (`signInWithPassword`). `pixi run supabase reset` runs `supabase/seeds/04_users.sql`, which seeds **`auth.users` + `auth.identities`** first, then **`public.users`** with the same ids for profile data (company, billing, etc.).
 
 Frontend env: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (from `supabase status` or `pixi run frontend`, which exports them from `supabase status -o env`). See `frontend/.env.example`.
 
 ```bash
-pixi run db-reset                          # migrations + seeds (org, departments, demo, dev + auth users)
+pixi run supabase reset                   # migrations + seeds (org, departments, demo, dev + auth users)
 pixi run import -- --vendors               # optional: Hike POS vendors
 pixi run import -- --products              # optional: Hike POS products
 ```
@@ -93,7 +93,7 @@ Configuration is environment-aware (`ENV=development|test|production`). See `bac
 |---|---|---|---|
 | JWT_SECRET | default | default | required |
 | CORS | permissive (*) | permissive (*) | required |
-| Provisioning | `supabase/seeds/` + `pixi run db-reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
+| Provisioning | `supabase/seeds/` + `pixi run supabase reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
 | Database | Postgres (Docker) | Postgres | Postgres |
 | Redis | optional | required | required |
 | WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |
