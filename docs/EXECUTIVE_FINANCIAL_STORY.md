@@ -147,7 +147,7 @@ Sarah runs these checks because the numbers need to be defensible.
 Provision demo data and run through the scenes manually or via the backend e2e tests:
 
 ```bash
-pixi run provision -- --dev
+pixi run supabase reset
 pixi run import -- --vendors --products
 pixi run test backend -- -- backend/tests/e2e/
 ```

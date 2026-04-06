@@ -6,14 +6,14 @@ Complete walkthrough of all actors and flows in a real day at the Supply Yard. U
 
 ## Auth — Current State
 
-Dev users are created via `pixi run provision -- --dev`:
+Dev users come from Supabase SQL seeds (applied on `pixi run supabase reset`):
 
 | Role | Email | Password |
 |------|-------|----------|
 | Admin | `dev@supply-yard.local` | `dev123` |
 | Contractor | `contractor@supply-yard.local` | `dev123` |
 
-Production uses Supabase auth (admin@supplyyard.com). The org schema is bootstrapped on startup; departments and products are provisioned via `devtools/scripts/provision.py` and `devtools/scripts/import_hike.py`.
+Production uses Supabase auth (admin@supplyyard.com). The org schema is bootstrapped on startup; local org/departments/dev users come from `supabase/seeds/` (via `pixi run supabase reset`); catalog-style POS data is imported with `devtools/scripts/import_hike.py`.
 
 ---
 

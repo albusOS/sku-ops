@@ -17,10 +17,10 @@ pixi run start    # doctor + local Supabase + backend + frontend
 - **Backend:** http://localhost:8000  
 - **Frontend:** http://localhost:3000  
 
-### 2. Provision Data
+### 2. Seed data
 
 ```bash
-pixi run provision -- --dev                # org + departments + dev users
+pixi run supabase reset                    # migrations + SQL seeds (org, departments, dev users)
 pixi run import -- --vendors --products   # vendors + products from Hike POS
 ```
 
@@ -445,9 +445,9 @@ pixi run import -- --vendors --products   # vendors + products from Hike POS
 
 ---
 
-## Provisioning Commands
+## Seeding commands
 
 ```bash
-pixi run provision -- --dev                # org + departments + dev users
+pixi run supabase reset                    # migrations + SQL seeds (org, departments, dev users)
 pixi run import -- --vendors --products  # real Hike POS data
 ```

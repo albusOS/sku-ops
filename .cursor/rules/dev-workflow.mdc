@@ -19,10 +19,10 @@ Equivalent step-by-step: `pixi run doctor`, then `pixi run supabase` (or `pixi r
 - Frontend: Vite dev server on http://localhost:3000
 - DB: Supabase local Postgres on localhost:54322
 - Tasks `backend`, `frontend`, and `dev` depend on `_is_supabase_running`, which starts local Supabase if it is not already up
-- Provision data (run once after first start):
+- Seed local data (run once after first start, or after schema changes):
 
 ```bash
-pixi run provision -- --dev                 # org + departments + dev users
+pixi run supabase reset                    # migrations + SQL seeds (org, departments, dev users)
 pixi run import -- --vendors --products    # real Hike POS data
 ```
 
@@ -59,7 +59,6 @@ pixi run check [all|backend|frontend]   # lint then format (default all)
 pixi run commit                  # commitizen conventional commit
 pixi run backend                 # backend only
 pixi run frontend                # frontend only
-pixi run provision -- …          # extra args for provision (shows --dev for Mode 1)
 pixi run eval -- …               # extra args for evals
 pixi run supabase                # start local Supabase stack (default action)
 pixi run supabase stop           # stop local Supabase stack

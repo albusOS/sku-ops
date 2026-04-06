@@ -80,12 +80,6 @@ cmd = "docker-compose up -d"
 cwd = ".devcontainer"
 description = "Start devcontainer (docker-compose)"
 
-[tasks.provision]
-depends-on = ["_is_supabase_running"]
-cmd = "uv run --directory backend python -m devtools.scripts.provision"
-env = { PYTHONPATH = ".:.." }
-description = "Provision hint / devtools provision entrypoint"
-
 [tasks.import]
 depends-on = ["_is_supabase_running"]
 cmd = "uv run --directory backend python -m devtools.scripts.import_hike"
