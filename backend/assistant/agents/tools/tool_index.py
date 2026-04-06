@@ -13,7 +13,7 @@ import numpy as np
 from openai import AsyncOpenAI
 
 from assistant.agents.tools.descriptors import get_unified_tool_descriptors
-from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
+from shared.infrastructure.config import config
 
 try:
     from rank_bm25 import BM25Okapi
@@ -41,7 +41,7 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
         batch_size = 256
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            resp = await client.embeddings.create(model=config.EMBEDDING_MODEL, input=batch)
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         norms = np.linalg.norm(mat, axis=1, keepdims=True)
@@ -55,7 +55,7 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
 async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
     try:
         client = AsyncOpenAI(api_key=api_key)
-        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+        resp = await client.embeddings.create(model=config.EMBEDDING_MODEL, input=[query])
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:
@@ -91,8 +91,8 @@ class ToolIndex:
             self._bm25 = None
             return
 
-        if OPENAI_API_KEY:
-            self._embeddings = await _embed_batch(self._texts, OPENAI_API_KEY)
+        if config.OPENAI_API_KEY:
+            self._embeddings = await _embed_batch(self._texts, config.OPENAI_API_KEY)
             self._bm25 = None
             if self._embeddings is None:
                 self._build_bm25()
@@ -116,8 +116,8 @@ class ToolIndex:
         seen = set(DELEGATION_TOOLS)
         result: list[str] = []
 
-        if self._embeddings is not None and OPENAI_API_KEY:
-            qvec = await _embed_query(query, OPENAI_API_KEY)
+        if self._embeddings is not None and config.OPENAI_API_KEY:
+            qvec = await _embed_query(query, config.OPENAI_API_KEY)
             if qvec is not None:
                 scores = np.dot(self._embeddings, qvec)
                 idx = np.argsort(-scores)[: top_k + len(DELEGATION_TOOLS)]

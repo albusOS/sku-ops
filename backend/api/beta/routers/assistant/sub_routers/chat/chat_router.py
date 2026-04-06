@@ -23,12 +23,7 @@ from assistant.application.assistant import (
 from assistant.application.job_manager import GENERATION_TIMEOUT
 from shared.api.deps import AdminDep
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.config import (
-    ANTHROPIC_AVAILABLE,
-    LLM_SETUP_URL,
-    OPENROUTER_AVAILABLE,
-    SESSION_COST_CAP,
-)
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +33,15 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.get("/status")
 async def chat_status(_current_user: AdminDep):
     """Return whether AI assistant is configured. Frontend can show setup prompt when false."""
-    available = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
+    available = config.ANTHROPIC_AVAILABLE or config.OPENROUTER_AVAILABLE
     return {
         "available": available,
         "provider": "anthropic"
-        if ANTHROPIC_AVAILABLE
+        if config.ANTHROPIC_AVAILABLE
         else "openrouter"
-        if OPENROUTER_AVAILABLE
+        if config.OPENROUTER_AVAILABLE
         else None,
-        "setup_url": LLM_SETUP_URL if not available else None,
+        "setup_url": config.LLM_SETUP_URL if not available else None,
     }
 
 
@@ -74,10 +69,11 @@ async def chat_assistant(
     org_id = current_user.organization_id
     history = await session_store.get_or_create(session_id)
 
-    if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
+    cap = config.SESSION_COST_CAP
+    if cap > 0 and await session_store.get_cost(session_id) >= cap:
         return {
             "response": (
-                f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat to continue."
+                f"This session has reached the ${cap:.2f} AI spend limit. Start a new chat to continue."
             ),
             "tool_calls": [],
             "thinking": [],

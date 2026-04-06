@@ -6,7 +6,6 @@ and between last response and process exit.
 
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager, suppress
 from urllib.parse import urlparse
 
@@ -25,15 +24,7 @@ from assistant.agents.tools.tool_index import get_tool_index
 from assistant.infrastructure.llm import init_llm
 from finance.application.xero_startup_check import run_startup_check
 from scheduler import xero_sync_loop
-from shared.infrastructure.config import (
-    DATABASE_URL,
-    cors_warn_in_deployed,
-    db_is_local,
-    is_deployed,
-    is_development,
-    is_test,
-    startup_summary,
-)
+from shared.infrastructure.config import config
 from shared.infrastructure.db import close_db, init_db, sql_execute
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.event_hub import activate_redis
@@ -59,7 +50,7 @@ async def _get_active_org_ids() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize DB on startup; close DB on shutdown."""
-    worker_count = int(os.environ.get("WORKERS", "1"))
+    worker_count = config.WORKERS
 
     await init_redis()
     if is_redis_available():
@@ -77,7 +68,7 @@ async def lifespan(app: FastAPI):
         )
         raise RuntimeError(_redis_workers_msg)
 
-    if cors_warn_in_deployed:
+    if config.cors_warn_in_deployed:
         logger.warning(
             "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for production."
         )
@@ -85,8 +76,8 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
-    if is_development and not db_is_local:
-        _host = urlparse(DATABASE_URL).hostname or "<unknown>"
+    if config.is_development and not config.db_is_local:
+        _host = urlparse(config.DATABASE_URL).hostname or "<unknown>"
         logger.warning(
             "DATABASE_URL points at a non-local host ('%s') while ENV=development. "
             "Development mode uses permissive settings; production hardening is stricter. "
@@ -126,14 +117,14 @@ async def lifespan(app: FastAPI):
 
     warmup_task = asyncio.create_task(_background_warmup())
 
-    summary = startup_summary()
+    summary = config.startup_summary()
     logger.info("Application ready — %s", summary)
     if summary.get("flags"):
         logger.warning(
             "Active permissive flags: %s — review before deploying to production",
             ", ".join(summary["flags"]),
         )
-    if is_deployed:
+    if config.is_deployed:
         logger.info(
             "AUTH: JWT_SECRET is configured. If using Supabase Auth, verify this "
             "matches your Supabase project's JWT secret (Dashboard > Settings > API)."
@@ -152,7 +143,7 @@ async def lifespan(app: FastAPI):
     logger.info("Database connectivity verified")
 
     sync_task = None
-    if not is_test:
+    if not config.is_test:
         sync_task = asyncio.create_task(xero_sync_loop())
 
     yield

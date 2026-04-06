@@ -19,10 +19,10 @@ class TestModelRegistry:
 
     def test_unknown_task_falls_back_to_primary(self):
         from assistant.agents.core.model_registry import get_model_name
-        from shared.infrastructure.config import AGENT_PRIMARY_MODEL
+        from shared.infrastructure.config import config
 
         result = get_model_name("agent:totally_unknown_task")
-        assert result == AGENT_PRIMARY_MODEL
+        assert result == config.AGENT_PRIMARY_MODEL
 
     def test_env_override_takes_precedence(self):
         from assistant.agents.core.model_registry import get_model_name

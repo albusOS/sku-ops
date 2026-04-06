@@ -15,14 +15,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-from shared.infrastructure.config import (
-    PG_ACQUIRE_TIMEOUT,
-    PG_COMMAND_TIMEOUT,
-    PG_POOL_MAX,
-    PG_POOL_MIN,
-    is_deployed,
-    is_test,
-)
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +48,12 @@ class PostgresBackend:
                 "DATABASE_URL uses port 6543 (Supabase pgbouncer). "
                 "Use the direct Postgres connection on port 5432 instead."
             )
-            if is_deployed:
+            if config.is_deployed:
                 raise RuntimeError(msg)
             logger.warning(msg)
 
-        pool_size = max(PG_POOL_MIN, 1)
-        max_overflow = max(PG_POOL_MAX - pool_size, 0)
+        pool_size = max(config.PG_POOL_MIN, 1)
+        max_overflow = max(config.PG_POOL_MAX - pool_size, 0)
         async_url = url
         if async_url.startswith("postgresql://"):
             async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -69,14 +62,14 @@ class PostgresBackend:
 
         engine_kwargs: dict[str, Any] = {
             "pool_pre_ping": True,
-            "connect_args": {"command_timeout": PG_COMMAND_TIMEOUT},
+            "connect_args": {"command_timeout": config.PG_COMMAND_TIMEOUT},
         }
-        if is_test:
+        if config.is_test:
             engine_kwargs["poolclass"] = NullPool
         else:
             engine_kwargs["pool_size"] = pool_size
             engine_kwargs["max_overflow"] = max_overflow
-            engine_kwargs["pool_timeout"] = PG_ACQUIRE_TIMEOUT
+            engine_kwargs["pool_timeout"] = config.PG_ACQUIRE_TIMEOUT
 
         self._engine = create_async_engine(async_url, **engine_kwargs)
         self._session_factory = async_sessionmaker(self._engine, expire_on_commit=False)

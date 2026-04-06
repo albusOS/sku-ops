@@ -20,12 +20,7 @@ from purchasing.application.queries import (
     list_unsynced_po_bills,
 )
 from shared.api.deps import AdminDep
-from shared.infrastructure.config import (
-    FRONTEND_URL,
-    XERO_CLIENT_ID,
-    XERO_CLIENT_SECRET,
-    XERO_REDIRECT_URI,
-)
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var
@@ -50,7 +45,7 @@ _LOCK_TTL = 3600
 
 
 def _require_xero_configured():
-    if not XERO_CLIENT_ID or not XERO_CLIENT_SECRET or not XERO_REDIRECT_URI:
+    if not config.XERO_CLIENT_ID or not config.XERO_CLIENT_SECRET or not config.XERO_REDIRECT_URI:
         raise HTTPException(
             status_code=503,
             detail="Xero OAuth not configured. Set XERO_CLIENT_ID, XERO_CLIENT_SECRET, and XERO_REDIRECT_URI.",
@@ -69,8 +64,8 @@ async def xero_connect(current_user: AdminDep):
 
     params = {
         "response_type": "code",
-        "client_id": XERO_CLIENT_ID,
-        "redirect_uri": XERO_REDIRECT_URI,
+        "client_id": config.XERO_CLIENT_ID,
+        "redirect_uri": config.XERO_REDIRECT_URI,
         "scope": XERO_SCOPES,
         "state": state,
     }
@@ -96,9 +91,9 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": XERO_REDIRECT_URI,
-                "client_id": XERO_CLIENT_ID,
-                "client_secret": XERO_CLIENT_SECRET,
+                "redirect_uri": config.XERO_REDIRECT_URI,
+                "client_id": config.XERO_CLIENT_ID,
+                "client_secret": config.XERO_CLIENT_SECRET,
             },
             timeout=15,
         )
@@ -120,7 +115,9 @@ async def xero_callback(code: str = "", state: str = "", error: str = ""):
     await _db_finance().org_settings_upsert(org_id, updated)
 
     redirect_target = (
-        f"{FRONTEND_URL}/settings?xero=connected" if FRONTEND_URL else "/settings?xero=connected"
+        f"{config.FRONTEND_URL}/settings?xero=connected"
+        if config.FRONTEND_URL
+        else "/settings?xero=connected"
     )
     return RedirectResponse(url=redirect_target)
 

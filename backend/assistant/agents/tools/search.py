@@ -21,7 +21,7 @@ from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from purchasing.application.queries import list_pos
-from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY, is_test
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.domain_events import on
@@ -83,7 +83,7 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
         batch_size = 500
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            resp = await client.embeddings.create(model=config.EMBEDDING_MODEL, input=batch)
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         norms = np.linalg.norm(mat, axis=1, keepdims=True)
@@ -97,7 +97,7 @@ async def _embed_batch(texts: list[str], api_key: str) -> np.ndarray | None:
 async def _embed_query(query: str, api_key: str) -> np.ndarray | None:
     try:
         client = AsyncOpenAI(api_key=api_key)
-        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+        resp = await client.embeddings.create(model=config.EMBEDDING_MODEL, input=[query])
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:
@@ -152,8 +152,8 @@ class DomainSearchIndex:
         self._skus = skus
         texts = [_sku_text(s) for s in skus]
 
-        if OPENAI_API_KEY:
-            self._sku_embeddings = await _embed_batch(texts, OPENAI_API_KEY)
+        if config.OPENAI_API_KEY:
+            self._sku_embeddings = await _embed_batch(texts, config.OPENAI_API_KEY)
             if self._sku_embeddings is None:
                 self._build_sku_bm25(skus)
             else:
@@ -194,7 +194,9 @@ class DomainSearchIndex:
         texts = [
             f"{v.name} {v.contact_name} {v.email} {v.phone} {v.address}".strip() for v in vendors
         ]
-        embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
+        embeddings = (
+            await _embed_batch(texts, config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
+        )
 
         self._slices["vendor"] = _EntitySlice(
             entity_type="vendor",
@@ -235,7 +237,9 @@ class DomainSearchIndex:
                 }
             )
 
-        embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
+        embeddings = (
+            await _embed_batch(texts, config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
+        )
 
         self._slices["purchase_order"] = _EntitySlice(
             entity_type="purchase_order",
@@ -290,7 +294,9 @@ class DomainSearchIndex:
             ids.append(jid)
             data_list.append(jdata)
 
-        embeddings = await _embed_batch(texts, OPENAI_API_KEY) if OPENAI_API_KEY else None
+        embeddings = (
+            await _embed_batch(texts, config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
+        )
 
         self._slices["job"] = _EntitySlice(
             entity_type="job",
@@ -309,7 +315,7 @@ class DomainSearchIndex:
         """SKU semantic search."""
         if self._sku_embeddings is None or not self._skus:
             return self.search_bm25(query, limit)
-        qvec = await _embed_query(query, api_key or OPENAI_API_KEY or "")
+        qvec = await _embed_query(query, api_key or config.OPENAI_API_KEY or "")
         if qvec is None:
             return self.search_bm25(query, limit)
         scores = self._sku_embeddings @ qvec
@@ -326,7 +332,7 @@ class DomainSearchIndex:
         if s.embeddings is None:
             return self._bm25_entity_search(query, entity_type, limit)
 
-        qvec = await _embed_query(query, OPENAI_API_KEY or "")
+        qvec = await _embed_query(query, config.OPENAI_API_KEY or "")
         if qvec is None:
             return self._bm25_entity_search(query, entity_type, limit)
 
@@ -458,7 +464,7 @@ def _register_invalidation_handler() -> None:
 
     Called once at module import time. Skipped in test environments.
     """
-    if is_test:
+    if config.is_test:
         return
 
     @on(InventoryChanged)

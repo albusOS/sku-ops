@@ -19,14 +19,7 @@ from assistant.agents.core.model_registry import (
     get_fallback_model,
     get_model_name,
 )
-from shared.infrastructure.config import (
-    ANTHROPIC_API_KEY,
-    ANTHROPIC_AVAILABLE,
-    ANTHROPIC_MODEL,
-    OPENROUTER_API_KEY,
-    OPENROUTER_AVAILABLE,
-    OPENROUTER_BASE_URL,
-)
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +30,13 @@ _MULTIMODAL_OR_MODEL = "anthropic/claude-sonnet-4-6"
 
 def _get_openrouter_client():
     """Return an OpenAI-compatible client pointed at OpenRouter."""
-    if not OPENROUTER_AVAILABLE:
+    if not config.OPENROUTER_AVAILABLE:
         return None
     try:
-        return OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+        return OpenAI(
+            api_key=config.OPENROUTER_API_KEY,
+            base_url=config.OPENROUTER_BASE_URL,
+        )
     except ImportError:
         logger.warning("openai package not installed — cannot use OpenRouter for multimodal")
         return None
@@ -48,10 +44,10 @@ def _get_openrouter_client():
 
 def _get_anthropic_client():
     """Return sync Anthropic client — fallback when OpenRouter is not configured."""
-    if not ANTHROPIC_AVAILABLE:
+    if not config.ANTHROPIC_AVAILABLE:
         return None
     try:
-        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     except ImportError:
         logger.warning("anthropic package not installed")
         return None
@@ -247,7 +243,7 @@ def _anthropic_image(
     """Image call via raw Anthropic SDK."""
     try:
         kwargs = {
-            "model": ANTHROPIC_MODEL,
+            "model": config.ANTHROPIC_MODEL,
             "max_tokens": 4096,
             "messages": [
                 {
@@ -278,7 +274,7 @@ def _anthropic_pdf(client, prompt: str, pdf_data: str, system: str | None) -> st
     """PDF call via raw Anthropic SDK (native PDF beta)."""
     try:
         kwargs = {
-            "model": ANTHROPIC_MODEL,
+            "model": config.ANTHROPIC_MODEL,
             "max_tokens": 4096,
             "messages": [
                 {

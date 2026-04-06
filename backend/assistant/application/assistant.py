@@ -20,11 +20,7 @@ from assistant.agents.core.tokens import compress_history_async
 from assistant.agents.memory.extract import extract_and_save
 from assistant.application.context_assembly import assemble_context
 from assistant.application.session_state import SessionState
-from shared.infrastructure.config import (
-    ANTHROPIC_AVAILABLE,
-    LLM_SETUP_URL,
-    OPENROUTER_AVAILABLE,
-)
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -37,7 +33,7 @@ def _db_assistant():
 
 LLM_NOT_CONFIGURED_MSG = (
     "Chat assistant requires an API key. Set OPENROUTER_API_KEY (preferred) or "
-    f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {LLM_SETUP_URL}"
+    f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {config.LLM_SETUP_URL}"
 )
 
 
@@ -50,7 +46,7 @@ async def chat(
     session_state: SessionState | None = None,
 ) -> dict:
     """Route message to specialist or unified agent based on explicit mode selection."""
-    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
+    if not config.ANTHROPIC_AVAILABLE and not config.OPENROUTER_AVAILABLE:
         return {
             "response": LLM_NOT_CONFIGURED_MSG,
             "tool_calls": [],

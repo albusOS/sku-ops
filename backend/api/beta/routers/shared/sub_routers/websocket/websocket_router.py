@@ -16,7 +16,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from shared.api.auth_provider import resolve_claims
 from shared.infrastructure import event_hub
-from shared.infrastructure.config import decode_token, is_deployed
+from shared.infrastructure.config import config
 from shared.kernel.constants import DEFAULT_ORG_ID
 from shared.kernel.events import CONTRACTOR_VISIBLE_EVENTS, Event, is_shutdown
 
@@ -30,7 +30,7 @@ router = APIRouter()
 def _authenticate(token: str) -> dict | None:
     """Validate JWT and return payload, or None on failure."""
     try:
-        return decode_token(token)
+        return config.decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
 
@@ -56,10 +56,10 @@ async def ws_endpoint(websocket: WebSocket):
     except ValueError:
         await websocket.close(code=4001, reason="Invalid token: missing required claims")
         return
-    if is_deployed and claims.organization_id is None:
+    if config.is_deployed and claims.organization_id is None:
         await websocket.close(code=4001, reason="Invalid token: missing organization_id claim")
         return
-    org_id = claims.organization_id or ("" if is_deployed else DEFAULT_ORG_ID)
+    org_id = claims.organization_id or ("" if config.is_deployed else DEFAULT_ORG_ID)
     role = claims.role
     user_id = claims.user_id
     await websocket.accept()

@@ -11,7 +11,7 @@ import tiktoken
 
 from assistant.agents.core.model_registry import get_model_name
 from assistant.application.llm import generate_text
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +250,11 @@ async def _summarize_turns(turns: list[dict], _max_summary_tokens: int = 300) ->
     Returns None if LLM is unavailable. Never raises.
     """
     try:
-        if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
+        if (
+            not config.ANTHROPIC_AVAILABLE
+            and not config.OPENROUTER_AVAILABLE
+            and not config.is_test
+        ):
             return None
 
         model_id = get_model_name("infra:synthesis")

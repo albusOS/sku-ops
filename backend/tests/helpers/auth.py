@@ -4,7 +4,7 @@ import time
 
 import jwt
 
-from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET
+from shared.infrastructure.config import config
 from shared.kernel.constants import DEFAULT_ORG_ID
 
 ADMIN_USER_ID = "0195f2c0-89ab-7a10-8a01-000000000001"
@@ -33,7 +33,7 @@ def make_token(
     }
     if org_id:
         payload["app_metadata"]["organization_id"] = org_id
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 
 
 def admin_headers() -> dict[str, str]:

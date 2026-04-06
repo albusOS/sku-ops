@@ -5,7 +5,7 @@ from pathlib import Path
 import asyncpg
 import pytest
 
-from shared.infrastructure.config import DATABASE_URL
+from shared.infrastructure.config import config
 
 EXPECTED_TABLES = {
     "organizations",
@@ -54,7 +54,7 @@ EXPECTED_TABLES = {
 
 async def _bootstrap() -> dict[str, list[str]]:
     """Inspect the live schema created by the Supabase migration."""
-    conn = await asyncpg.connect(DATABASE_URL)
+    conn = await asyncpg.connect(config.DATABASE_URL)
     try:
         rows = await conn.fetch(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name",

@@ -7,14 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from starlette.routing import WebSocketRoute
 
-from shared.infrastructure.config import (
-    AGENT_PRIMARY_MODEL,
-    ANTHROPIC_AVAILABLE,
-    ENV,
-    LLM_SETUP_URL,
-    OPENROUTER_AVAILABLE,
-    REDIS_URL,
-)
+from shared.infrastructure.config import config
 from shared.infrastructure.db import sql_execute
 from shared.infrastructure.redis import get_redis, is_redis_available
 
@@ -34,7 +27,7 @@ async def health():
         content={
             "status": "ok",
             "version": _APP_VERSION,
-            "env": ENV,
+            "env": config.ENV,
             "uptime_seconds": round(time.monotonic() - _BOOT_TIME),
         },
         headers=_NO_CACHE,
@@ -64,7 +57,7 @@ async def ready(request: Request):
         overall = "unavailable"
 
     # --- redis (only when configured) ---
-    if REDIS_URL:
+    if config.REDIS_URL:
         try:
             if not is_redis_available():
                 checks["redis"] = {
@@ -85,7 +78,7 @@ async def ready(request: Request):
             overall = "unavailable"
 
     # --- ai ---
-    ai_ok = ANTHROPIC_AVAILABLE or OPENROUTER_AVAILABLE
+    ai_ok = config.ANTHROPIC_AVAILABLE or config.OPENROUTER_AVAILABLE
     checks["ai"] = {"status": "ok" if ai_ok else "unconfigured"}
 
     expected_ws = {"/api/beta/shared/ws", "/api/beta/assistant/ws/chat"}
@@ -107,16 +100,19 @@ async def ready(request: Request):
 @router.get("/health/ai")
 async def ai_health():
     """AI availability probe."""
-    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
-        detail_msg = f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. Get a key at {LLM_SETUP_URL}"
+    if not config.ANTHROPIC_AVAILABLE and not config.OPENROUTER_AVAILABLE:
+        detail_msg = (
+            f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. "
+            f"Get a key at {config.LLM_SETUP_URL}"
+        )
         return JSONResponse(
             status_code=503,
             content={"status": "unavailable", "detail": detail_msg},
             headers=_NO_CACHE,
         )
-    provider = "openrouter" if OPENROUTER_AVAILABLE else "anthropic"
+    provider = "openrouter" if config.OPENROUTER_AVAILABLE else "anthropic"
     return {
         "status": "ok",
         "provider": provider,
-        "agent_model": AGENT_PRIMARY_MODEL,
+        "agent_model": config.AGENT_PRIMARY_MODEL,
     }

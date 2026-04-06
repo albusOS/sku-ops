@@ -14,12 +14,7 @@ from __future__ import annotations
 import logging
 
 from assistant.infrastructure.llm.cost import calc_cost
-from shared.infrastructure.config import (
-    ANTHROPIC_API_KEY,
-    OPENAI_API_KEY,
-    OPENROUTER_API_KEY,
-    is_test,
-)
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +26,13 @@ def init_llm() -> None:
     global _initialized
 
     providers: list[str] = []
-    if is_test:
+    if config.is_test:
         providers.append("test")
-    if ANTHROPIC_API_KEY:
+    if config.ANTHROPIC_API_KEY:
         providers.append("anthropic")
-    if OPENROUTER_API_KEY:
+    if config.OPENROUTER_API_KEY:
         providers.append("openrouter")
-    if OPENAI_API_KEY:
+    if config.OPENAI_API_KEY:
         providers.append("openai (embeddings)")
 
     if not providers:
@@ -54,7 +49,7 @@ def get_model(model_id: str) -> str:
     In test mode, prefixes bare model IDs with 'test:' so PydanticAI
     uses its built-in test model.
     """
-    if is_test and not model_id.startswith("test:"):
+    if config.is_test and not model_id.startswith("test:"):
         return f"test:{model_id}"
     return model_id
 

@@ -1,361 +1,486 @@
 """
 Central configuration - environment-aware settings.
 
-Set ENV to control behavior:
-  - development  Local dev; permissive defaults, local auth allowed
-  - test         Pytest in-process; stub adapters, test Postgres DB (conftest sets this)
-  - production   Live; requires explicit secrets, strict CORS, dangerous flags forbidden
+Use the singleton:
 
-When ENV is unset, defaults to development.
+    from shared.infrastructure.config import config
+    config.DATABASE_URL
+
+``ENV`` controls behavior: ``development`` | ``test`` | ``production``.
+When unset before layered dotenv load, defaults to ``development``.
+
+Layered env files (see ``docs/environment.md``): ``backend/.env``,
+``backend/.env.{development|production}``, ``backend/.env.local``.
+
+Hot reload: with ``ENV=development``, dotenv files are re-applied on a debounced
+timer when accessing settings (no extra dependencies). ``ENV=test`` and
+``ENV=production`` do not reload files; production caches reads.
 """
+
+from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
+from typing import Any, ClassVar, Self
 from urllib.parse import urlparse
 
 import jwt
 import yaml
-from dotenv import load_dotenv
+
+from shared.infrastructure.env import (
+    find_backend_root,
+    load_backend_dotenv_initial,
+    maybe_reload_backend_dotenv_development,
+)
 
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = find_backend_root()
 
-# Project root = backend/ (walk up from this file to find it)
-def _find_backend_root() -> Path:
-    """Locate the backend root by finding the directory containing main.py."""
-    d = Path(__file__).resolve().parent
-    for _ in range(10):
-        if (d / "main.py").exists():
-            return d
-        d = d.parent
-    return Path.cwd()
+_pre_load_env = os.environ.get("ENV", "").strip().lower() or "development"
+load_backend_dotenv_initial(PROJECT_ROOT, env_name=_pre_load_env)
 
+_REQUESTED_ENV = os.environ.get("ENV", "").strip().lower() or "development"
+_ENV = _REQUESTED_ENV
 
-PROJECT_ROOT = _find_backend_root()
-
-# Resolve the runtime environment from the real process environment first.
-# Deployed environments must inject vars explicitly rather than inheriting
-# a stray local backend/.env file from the filesystem.
-_requested_env = os.environ.get("ENV", "").lower().strip()
-_ENV = _requested_env or "development"
-
-# Load .env for local-style runs. Root .env first (shared: API keys, Docker vars),
-# then backend/.env (backend-specific overrides). Production relies on injected vars.
-if _ENV in {"development", "test"}:
-    _repo_root = PROJECT_ROOT.parent
-    _root_env = _repo_root / ".env"
-    if _root_env.exists():
-        load_dotenv(_root_env)
-    _backend_env = PROJECT_ROOT / ".env"
-    if _backend_env.exists():
-        load_dotenv(_backend_env)
-
-
-def _is(env: str) -> bool:
-    """Check if current env matches."""
-    return env == _ENV
-
-
-# ── Environment flags ─────────────────────────────────────────────────────────
-# Three canonical environments: development, test, production.
-# There is no staging environment — production is the only deployed env.
-# If staging is needed in the future, add it here and in _VALID_ENVS.
-_VALID_ENVS = {"development", "test", "production"}
+_VALID_ENVS = frozenset({"development", "test", "production"})
 if _ENV not in _VALID_ENVS:
     raise RuntimeError(
         f"ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. Check your .env file or environment variable."
     )
 
-is_development = _is("development")
-is_production = _is("production")
-is_test = _is("test")
-
-# Public alias — use ENV instead of _ENV when importing the environment name
-ENV = _ENV
-
-# Kept for backward compatibility with any code that checks is_deployed.
-# In this codebase there is exactly one deployed environment: production.
-is_deployed = is_production
-
-# ── Database ──────────────────────────────────────────────────────────────────
-_local_supabase_db_url = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-DATABASE_URL = os.environ.get("DATABASE_URL", _local_supabase_db_url)
-
-if not DATABASE_URL.startswith(("postgresql://", "postgres://")):
-    raise RuntimeError(
-        "DATABASE_URL must be a PostgreSQL connection string. Set DATABASE_URL=postgresql://user:pass@host:5432/db"
-    )
-
-# True when DATABASE_URL points at a local host (localhost, 127.0.0.1, or the
-# Docker Compose service name "db"). Used by startup.py to warn when dev mode
-# is active against a non-local DB — the warning is emitted there (after
-# logging is configured) rather than here at import time.
-try:
-    _db_host = urlparse(DATABASE_URL).hostname or ""
-    db_is_local = _db_host in ("localhost", "127.0.0.1", "::1", "db")
-except Exception:
-    db_is_local = True  # parse failure: assume local to avoid false-positive warning
-
-# PostgreSQL connection pool
-PG_POOL_MIN = int(os.environ.get("PG_POOL_MIN", "2"))
-PG_POOL_MAX = int(os.environ.get("PG_POOL_MAX", "10"))
-PG_ACQUIRE_TIMEOUT = float(os.environ.get("PG_ACQUIRE_TIMEOUT", "10"))
-PG_COMMAND_TIMEOUT = int(os.environ.get("PG_COMMAND_TIMEOUT", "30"))
-
-# ── Redis ─────────────────────────────────────────────────────────────────────
-REDIS_URL = os.environ.get("REDIS_URL", "").strip()
-
-# ── Auth / JWT ────────────────────────────────────────────────────────────────
 _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
 
 
-def _resolve_jwt_secret() -> str:
-    raw = os.environ.get("JWT_SECRET", "").strip()
-    if is_production and (not raw or raw == _DEV_JWT_FALLBACK):
-        raise RuntimeError("JWT_SECRET must be set in production. Do not use default.")
-    return raw or _DEV_JWT_FALLBACK
+class Config:
+    """Process-wide settings. Use the module-level ``config`` instance."""
 
+    _instance: ClassVar[Config | None] = None
 
-JWT_SECRET = _resolve_jwt_secret()
-JWT_ALGORITHM = "HS256"
-_default_token_expiry = "15" if is_production else "480"  # 8 hours in dev, 15 min in prod
-JWT_ACCESS_EXPIRATION_MINUTES = int(
-    os.environ.get("JWT_ACCESS_EXPIRATION_MINUTES", _default_token_expiry)
-)
-REFRESH_TOKEN_EXPIRATION_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._init_instance()
+        return cls._instance
 
-# ── Supabase JWKS (ES256 token verification) ─────────────────────────────────
-_local_supabase_url = "http://127.0.0.1:54321" if is_development or is_test else ""
-SUPABASE_URL = os.environ.get("SUPABASE_URL", _local_supabase_url).strip().rstrip("/")
-PUBLIC_SUPABASE_PUBLISHABLE_KEY = os.environ.get("PUBLIC_SUPABASE_PUBLISHABLE_KEY", "").strip()
-SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
-_SUPABASE_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
-# Expected issuer for Supabase tokens: {project_url}/auth/v1
-_SUPABASE_ISSUER = f"{SUPABASE_URL}/auth/v1" if SUPABASE_URL else ""
+    def _init_instance(self) -> None:
+        self._backend_root = PROJECT_ROOT
+        self._env = _ENV
+        self._production_str_cache: dict[str, str] = {}
+        self._jwks_client: jwt.PyJWKClient | None = None
+        self._jwks_client_key: str = ""
+        self._enforce_cors()
 
-if is_production and not SUPABASE_URL:
-    raise RuntimeError(
-        "SUPABASE_URL must be set in production. Supabase is the sole auth provider in deployed environments."
-    )
+    @property
+    def ENV(self) -> str:
+        return self._env
 
-_jwks_client = None
+    @property
+    def is_development(self) -> bool:
+        return self._env == "development"
 
+    @property
+    def is_production(self) -> bool:
+        return self._env == "production"
 
-def _get_jwks_client():
-    """Lazy-init a PyJWKClient for Supabase ES256 token verification."""
-    global _jwks_client
-    if _jwks_client is None and _SUPABASE_JWKS_URL:
-        _jwks_client = jwt.PyJWKClient(
-            _SUPABASE_JWKS_URL,
-            cache_keys=True,
-            lifespan=3600,
-            timeout=5,
+    @property
+    def is_test(self) -> bool:
+        return self._env == "test"
+
+    @property
+    def is_deployed(self) -> bool:
+        return self.is_production
+
+    def _maybe_reload_dev(self) -> None:
+        if self._env == "development":
+            maybe_reload_backend_dotenv_development(self._backend_root)
+
+    def _get_str(self, key: str, default: str = "") -> str:
+        if self._env == "development":
+            self._maybe_reload_dev()
+        if self._env == "production":
+            if key in self._production_str_cache:
+                return self._production_str_cache[key]
+            val = os.environ.get(key, default)
+            self._production_str_cache[key] = val
+            return val
+        return os.environ.get(key, default)
+
+    @property
+    def DATABASE_URL(self) -> str:
+        default = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+        url = self._get_str("DATABASE_URL", default)
+        if not url.startswith(("postgresql://", "postgres://")):
+            raise RuntimeError(
+                "DATABASE_URL must be a PostgreSQL connection string. "
+                "Set DATABASE_URL=postgresql://user:pass@host:5432/db"
+            )
+        return url
+
+    @property
+    def db_is_local(self) -> bool:
+        try:
+            host = urlparse(self.DATABASE_URL).hostname or ""
+            return host in ("localhost", "127.0.0.1", "::1", "db")
+        except Exception:
+            return True
+
+    @property
+    def PG_POOL_MIN(self) -> int:
+        return int(self._get_str("PG_POOL_MIN", "2"))
+
+    @property
+    def PG_POOL_MAX(self) -> int:
+        return int(self._get_str("PG_POOL_MAX", "10"))
+
+    @property
+    def PG_ACQUIRE_TIMEOUT(self) -> float:
+        return float(self._get_str("PG_ACQUIRE_TIMEOUT", "10"))
+
+    @property
+    def PG_COMMAND_TIMEOUT(self) -> int:
+        return int(self._get_str("PG_COMMAND_TIMEOUT", "30"))
+
+    @property
+    def REDIS_URL(self) -> str:
+        return self._get_str("REDIS_URL", "").strip()
+
+    @property
+    def JWT_SECRET(self) -> str:
+        raw = self._get_str("JWT_SECRET", "").strip()
+        if self.is_production and (not raw or raw == _DEV_JWT_FALLBACK):
+            raise RuntimeError("JWT_SECRET must be set in production. Do not use default.")
+        return raw or _DEV_JWT_FALLBACK
+
+    @property
+    def JWT_ALGORITHM(self) -> str:
+        return self._get_str("JWT_ALGORITHM", "HS256").strip() or "HS256"
+
+    @property
+    def JWT_ACCESS_EXPIRATION_MINUTES(self) -> int:
+        raw = self._get_str("JWT_ACCESS_EXPIRATION_MINUTES", "").strip()
+        if raw:
+            return int(raw)
+        return 15 if self.is_production else 480
+
+    @property
+    def REFRESH_TOKEN_EXPIRATION_DAYS(self) -> int:
+        return int(self._get_str("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
+
+    @property
+    def SUPABASE_URL(self) -> str:
+        default = "http://127.0.0.1:54321" if self.is_development or self.is_test else ""
+        url = self._get_str("SUPABASE_URL", default).strip().rstrip("/")
+        if self.is_production and not url:
+            raise RuntimeError(
+                "SUPABASE_URL must be set in production. Supabase is the sole auth provider in deployed environments."
+            )
+        return url
+
+    @property
+    def supabase_jwks_url(self) -> str:
+        return f"{self.SUPABASE_URL}/auth/v1/.well-known/jwks.json" if self.SUPABASE_URL else ""
+
+    @property
+    def supabase_issuer(self) -> str:
+        return f"{self.SUPABASE_URL}/auth/v1" if self.SUPABASE_URL else ""
+
+    @property
+    def PUBLIC_SUPABASE_PUBLISHABLE_KEY(self) -> str:
+        return self._get_str("PUBLIC_SUPABASE_PUBLISHABLE_KEY", "").strip()
+
+    @property
+    def SUPABASE_SECRET_KEY(self) -> str:
+        return self._get_str("SUPABASE_SECRET_KEY", "").strip()
+
+    @property
+    def CORS_ORIGINS(self) -> str:
+        return self._get_str("CORS_ORIGINS", "*")
+
+    @property
+    def CORS_ORIGIN_REGEX(self) -> str:
+        return self._get_str("CORS_ORIGIN_REGEX", "").strip()
+
+    @property
+    def cors_is_permissive(self) -> bool:
+        o = self.CORS_ORIGINS
+        return not o.strip() or o == "*" or "*" in o.split(",")
+
+    @property
+    def cors_warn_in_deployed(self) -> bool:
+        return self.is_deployed and self.cors_is_permissive
+
+    def _enforce_cors(self) -> None:
+        if self.is_production and self.cors_is_permissive:
+            raise RuntimeError(
+                "CORS_ORIGINS must not be '*' or empty in production. Set CORS_ORIGINS=https://your-vercel-app.vercel.app"
+            )
+
+    @property
+    def SENTRY_DSN(self) -> str:
+        return self._get_str("SENTRY_DSN", "").strip()
+
+    ALLOW_PUBLIC_AUTH: bool = False
+
+    @property
+    def ANTHROPIC_API_KEY(self) -> str:
+        return self._get_str("ANTHROPIC_API_KEY", "").strip()
+
+    @property
+    def ANTHROPIC_AVAILABLE(self) -> bool:
+        return bool(self.ANTHROPIC_API_KEY)
+
+    @property
+    def ANTHROPIC_MODEL(self) -> str:
+        return self._get_str("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+
+    @property
+    def ANTHROPIC_FAST_MODEL(self) -> str:
+        return (
+            self._get_str("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip()
+            or "claude-sonnet-4-6"
         )
-    return _jwks_client
+
+    @property
+    def OPENAI_API_KEY(self) -> str:
+        return self._get_str("OPENAI_API_KEY", "").strip()
+
+    @property
+    def OPENAI_AVAILABLE(self) -> bool:
+        return bool(self.OPENAI_API_KEY)
+
+    @property
+    def OPENROUTER_API_KEY(self) -> str:
+        return self._get_str("OPENROUTER_API_KEY", "").strip()
+
+    @property
+    def OPENROUTER_BASE_URL(self) -> str:
+        return (
+            self._get_str("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
+            or "https://openrouter.ai/api/v1"
+        )
+
+    @property
+    def OPENROUTER_AVAILABLE(self) -> bool:
+        return bool(self.OPENROUTER_API_KEY)
+
+    @property
+    def EMBEDDING_MODEL(self) -> str:
+        return (
+            self._get_str("EMBEDDING_MODEL", "text-embedding-3-small").strip()
+            or "text-embedding-3-small"
+        )
+
+    def _load_agent_model(self) -> str:
+        env_override = self._get_str("AGENT_PRIMARY_MODEL", "").strip()
+        if env_override:
+            return env_override
+        try:
+            yaml_path = self._backend_root / "assistant" / "config" / "models.yaml"
+            if yaml_path.exists():
+                data = yaml.safe_load(yaml_path.read_text()) or {}
+                model = (data.get("primary") or "").strip()
+                if model:
+                    return model
+        except (OSError, ValueError, KeyError):
+            logger.warning("Failed to parse models.yaml, using built-in default", exc_info=True)
+        return "anthropic:claude-sonnet-4-6"
+
+    @property
+    def AGENT_PRIMARY_MODEL(self) -> str:
+        if self._env == "production":
+            if not hasattr(self, "_cached_agent_primary"):
+                self._cached_agent_primary = self._load_agent_model()
+            return self._cached_agent_primary
+        return self._load_agent_model()
+
+    def _load_synthesis_model(self) -> str:
+        env_override = self._get_str("MODEL_REGISTRY_INFRA_SYNTHESIS", "").strip()
+        if env_override:
+            return env_override
+        try:
+            yaml_path = self._backend_root / "assistant" / "config" / "models.yaml"
+            if yaml_path.exists():
+                data = yaml.safe_load(yaml_path.read_text()) or {}
+                model = (data.get("synthesis") or "").strip()
+                if model:
+                    return model
+        except (OSError, ValueError, KeyError):
+            logger.warning("Failed to parse synthesis from models.yaml", exc_info=True)
+        return "anthropic:claude-haiku-4-5"
+
+    @property
+    def INFRA_SYNTHESIS_MODEL(self) -> str:
+        if self._env == "production":
+            if not hasattr(self, "_cached_synthesis"):
+                self._cached_synthesis = self._load_synthesis_model()
+            return self._cached_synthesis
+        return self._load_synthesis_model()
+
+    def _load_classifier_model(self) -> str:
+        env_override = self._get_str("MODEL_REGISTRY_INFRA_CLASSIFIER", "").strip()
+        if env_override:
+            return env_override
+        try:
+            yaml_path = self._backend_root / "assistant" / "config" / "models.yaml"
+            if yaml_path.exists():
+                data = yaml.safe_load(yaml_path.read_text()) or {}
+                model = (data.get("classifier") or "").strip()
+                if model:
+                    return model
+        except (OSError, ValueError, KeyError):
+            logger.warning("Failed to parse classifier from models.yaml", exc_info=True)
+        return "anthropic:claude-haiku-4-5"
+
+    @property
+    def INFRA_CLASSIFIER_MODEL(self) -> str:
+        if self._env == "production":
+            if not hasattr(self, "_cached_classifier"):
+                self._cached_classifier = self._load_classifier_model()
+            return self._cached_classifier
+        return self._load_classifier_model()
+
+    LLM_SETUP_URL: str = "https://console.anthropic.com/"
+
+    @property
+    def SESSION_COST_CAP(self) -> float:
+        return float(self._get_str("SESSION_COST_CAP", "2.00"))
+
+    @property
+    def FRONTEND_URL(self) -> str:
+        return self._get_str("FRONTEND_URL", "").strip().rstrip("/")
+
+    @property
+    def XERO_CLIENT_ID(self) -> str:
+        return self._get_str("XERO_CLIENT_ID", "").strip()
+
+    @property
+    def XERO_CLIENT_SECRET(self) -> str:
+        return self._get_str("XERO_CLIENT_SECRET", "").strip()
+
+    @property
+    def XERO_REDIRECT_URI(self) -> str:
+        return self._get_str("XERO_REDIRECT_URI", "").strip()
+
+    @property
+    def XERO_SYNC_HOUR(self) -> int:
+        return int(self._get_str("XERO_SYNC_HOUR", "2"))
+
+    @property
+    def WORKERS(self) -> int:
+        return int(self._get_str("WORKERS", "1"))
+
+    @property
+    def LOG_LEVEL(self) -> str:
+        return self._get_str("LOG_LEVEL", "INFO").upper() or "INFO"
+
+    @property
+    def METRICS_TOKEN(self) -> str:
+        return self._get_str("METRICS_TOKEN", "").strip()
+
+    @property
+    def REQUEST_TIMEOUT(self) -> int:
+        return int(self._get_str("REQUEST_TIMEOUT", "30"))
+
+    @property
+    def AI_REQUEST_TIMEOUT(self) -> int:
+        return int(self._get_str("AI_REQUEST_TIMEOUT", "120"))
+
+    @property
+    def MAX_CONCURRENT_GENERATIONS(self) -> int:
+        return int(self._get_str("MAX_CONCURRENT_GENERATIONS", "4"))
+
+    @property
+    def GENERATION_QUEUE_TIMEOUT(self) -> float:
+        return float(self._get_str("GENERATION_QUEUE_TIMEOUT", "10"))
+
+    def _get_jwks_client(self) -> jwt.PyJWKClient | None:
+        key = self.supabase_jwks_url
+        if key != self._jwks_client_key:
+            self._jwks_client = None
+            self._jwks_client_key = key
+        if self._jwks_client is None and key:
+            self._jwks_client = jwt.PyJWKClient(
+                key,
+                cache_keys=True,
+                lifespan=3600,
+                timeout=5,
+            )
+        return self._jwks_client
+
+    def decode_token(self, token: str) -> dict:
+        """Decode JWT for the current environment (Supabase ES256 vs HS256 in test)."""
+
+        def _decode_es256() -> dict:
+            jwks = self._get_jwks_client()
+            if jwks is None:
+                raise jwt.InvalidTokenError(
+                    "SUPABASE_URL not configured for JWKS token verification"
+                )
+            try:
+                signing_key = jwks.get_signing_key_from_jwt(token)
+            except jwt.PyJWKClientError as e:
+                logger.warning("JWKS key fetch failed: %s", e)
+                raise jwt.InvalidTokenError("Unable to verify token signing key") from e
+            except Exception as e:
+                logger.warning("JWKS key fetch failed unexpectedly: %s", e)
+                raise jwt.InvalidTokenError("Unable to verify token signing key") from e
+            return jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["ES256"],
+                issuer=self.supabase_issuer,
+                options={"verify_aud": False, "verify_iss": True},
+            )
+
+        if self.is_production:
+            return _decode_es256()
+
+        if not self.is_test:
+            try:
+                header = jwt.get_unverified_header(token)
+            except jwt.InvalidTokenError:
+                header = {}
+            if header.get("alg") == "ES256" and self.supabase_jwks_url:
+                return _decode_es256()
+
+        return jwt.decode(token, self.JWT_SECRET, algorithms=[self.JWT_ALGORITHM])
+
+    def startup_summary(self) -> dict[str, Any]:
+        try:
+            parsed = urlparse(self.DATABASE_URL)
+            db_display = f"{parsed.hostname}:{parsed.port or 5432}{parsed.path}"
+        except Exception:
+            db_display = "<unparseable>"
+
+        flags: list[str] = []
+        if self.cors_is_permissive:
+            flags.append("CORS=*")
+
+        return {
+            "env": self.ENV,
+            "auth_provider": "supabase",
+            "db": db_display,
+            "cors": self.CORS_ORIGINS if not self.cors_is_permissive else "*",
+            "redis": "yes" if self.REDIS_URL else "no",
+            "sentry": "yes" if self.SENTRY_DSN else "no",
+            "ai": (
+                "openrouter"
+                if self.OPENROUTER_AVAILABLE
+                else ("anthropic" if self.ANTHROPIC_AVAILABLE else "none")
+            ),
+            "embeddings": "openai" if self.OPENAI_AVAILABLE else "none",
+            "flags": flags or None,
+        }
+
+
+config = Config()
 
 
 def decode_token(token: str) -> dict:
-    """Decode a JWT using the strategy matching the current environment.
-
-    Production: ES256 via Supabase JWKS with issuer verification.
-    Development: Supabase local issues ES256 (JWKS); pytest still uses HS256.
-    Test:        HS256 with JWT_SECRET only (no Supabase in unit API tests).
-
-    Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError on failure.
-    """
-
-    def _decode_es256() -> dict:
-        jwks = _get_jwks_client()
-        if jwks is None:
-            raise jwt.InvalidTokenError("SUPABASE_URL not configured for JWKS token verification")
-        try:
-            signing_key = jwks.get_signing_key_from_jwt(token)
-        except jwt.PyJWKClientError as e:
-            logger.warning("JWKS key fetch failed: %s", e)
-            raise jwt.InvalidTokenError("Unable to verify token signing key") from e
-        except Exception as e:
-            logger.warning("JWKS key fetch failed unexpectedly: %s", e)
-            raise jwt.InvalidTokenError("Unable to verify token signing key") from e
-        return jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["ES256"],
-            issuer=_SUPABASE_ISSUER,
-            options={"verify_aud": False, "verify_iss": True},
-        )
-
-    if is_production:
-        return _decode_es256()
-
-    if not is_test:
-        try:
-            header = jwt.get_unverified_header(token)
-        except jwt.InvalidTokenError:
-            header = {}
-        if header.get("alg") == "ES256" and _SUPABASE_JWKS_URL:
-            return _decode_es256()
-
-    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    """Module-level wrapper for callers that import the function."""
+    return config.decode_token(token)
 
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
-CORS_ORIGIN_REGEX = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
-cors_is_permissive = (
-    not CORS_ORIGINS.strip() or CORS_ORIGINS == "*" or "*" in CORS_ORIGINS.split(",")
-)
-cors_warn_in_deployed = is_deployed and cors_is_permissive
-
-
-def _enforce_cors() -> None:
-    if is_production and cors_is_permissive:
-        raise RuntimeError(
-            "CORS_ORIGINS must not be '*' or empty in production. Set CORS_ORIGINS=https://your-vercel-app.vercel.app"
-        )
-
-
-_enforce_cors()
-
-# ── Sentry ────────────────────────────────────────────────────────────────────
-SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
-
-ALLOW_PUBLIC_AUTH = False
-
-# ── Auth provider ─────────────────────────────────────────────────────────────
-# Supabase is the auth provider in every environment.
-
-# ── AI providers ──────────────────────────────────────────────────────────────
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-ANTHROPIC_AVAILABLE = bool(ANTHROPIC_API_KEY)
-ANTHROPIC_MODEL = (
-    os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
-)
-ANTHROPIC_FAST_MODEL = (
-    os.environ.get("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
-)
-
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
-OPENAI_AVAILABLE = bool(OPENAI_API_KEY)
-
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
-OPENROUTER_AVAILABLE = bool(OPENROUTER_API_KEY)
-
-# Embeddings (OpenAI-compatible API: tool index, domain search, query router).
-# Set EMBEDDING_MODEL to change model; default text-embedding-3-small.
-EMBEDDING_MODEL = (
-    os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small").strip() or "text-embedding-3-small"
-)
-
-
-# ── Agent model ───────────────────────────────────────────────────────────────
-def _load_agent_model() -> str:
-    env_override = os.environ.get("AGENT_PRIMARY_MODEL", "").strip()
-    if env_override:
-        return env_override
-    try:
-        _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
-        if _yaml_path.exists():
-            data = yaml.safe_load(_yaml_path.read_text()) or {}
-            model = (data.get("primary") or "").strip()
-            if model:
-                return model
-    except (OSError, ValueError, KeyError):
-        logging.getLogger(__name__).warning(
-            "Failed to parse models.yaml, using built-in default", exc_info=True
-        )
-    return "anthropic:claude-sonnet-4-6"
-
-
-AGENT_PRIMARY_MODEL: str = _load_agent_model()
-
-
-def _load_synthesis_model() -> str:
-    """Load synthesis model for history compression and memory extraction."""
-    env_override = os.environ.get("MODEL_REGISTRY_INFRA_SYNTHESIS", "").strip()
-    if env_override:
-        return env_override
-    try:
-        _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
-        if _yaml_path.exists():
-            data = yaml.safe_load(_yaml_path.read_text()) or {}
-            model = (data.get("synthesis") or "").strip()
-            if model:
-                return model
-    except (OSError, ValueError, KeyError):
-        logging.getLogger(__name__).warning(
-            "Failed to parse synthesis from models.yaml", exc_info=True
-        )
-    return "anthropic:claude-haiku-4-5"
-
-
-INFRA_SYNTHESIS_MODEL: str = _load_synthesis_model()
-
-
-def _load_classifier_model() -> str:
-    """Load classifier model for intent classification (high-volume, short JSON responses)."""
-    env_override = os.environ.get("MODEL_REGISTRY_INFRA_CLASSIFIER", "").strip()
-    if env_override:
-        return env_override
-    try:
-        _yaml_path = PROJECT_ROOT / "assistant" / "config" / "models.yaml"
-        if _yaml_path.exists():
-            data = yaml.safe_load(_yaml_path.read_text()) or {}
-            model = (data.get("classifier") or "").strip()
-            if model:
-                return model
-    except (OSError, ValueError, KeyError):
-        logging.getLogger(__name__).warning(
-            "Failed to parse classifier from models.yaml", exc_info=True
-        )
-    return "anthropic:claude-haiku-4-5"
-
-
-INFRA_CLASSIFIER_MODEL: str = _load_classifier_model()
-LLM_SETUP_URL = "https://console.anthropic.com/"
-SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "2.00"))
-
-# ── Frontend / OAuth ──────────────────────────────────────────────────────────
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
-
-# ── Xero OAuth 2.0 ───────────────────────────────────────────────────────────
-XERO_CLIENT_ID = os.environ.get("XERO_CLIENT_ID", "").strip()
-XERO_CLIENT_SECRET = os.environ.get("XERO_CLIENT_SECRET", "").strip()
-XERO_REDIRECT_URI = os.environ.get("XERO_REDIRECT_URI", "").strip()
-XERO_SYNC_HOUR = int(os.environ.get("XERO_SYNC_HOUR", "2"))
-
-
-# ── Startup config summary ────────────────────────────────────────────────────
-def startup_summary() -> dict:
-    """Return a dict summarising the effective runtime configuration.
-
-    Called once during lifespan startup so operators can confirm the process
-    is running with the expected identity, DB target, auth shape, and feature
-    flag state at a glance from the first log lines.
-    """
-    try:
-        _parsed = urlparse(DATABASE_URL)
-        db_display = f"{_parsed.hostname}:{_parsed.port or 5432}{_parsed.path}"
-    except Exception:
-        db_display = "<unparseable>"
-
-    flags: list[str] = []
-    if cors_is_permissive:
-        flags.append("CORS=*")
-
-    return {
-        "env": ENV,
-        "auth_provider": "supabase",
-        "db": db_display,
-        "cors": CORS_ORIGINS if not cors_is_permissive else "*",
-        "redis": "yes" if REDIS_URL else "no",
-        "sentry": "yes" if SENTRY_DSN else "no",
-        "ai": (
-            "openrouter"
-            if OPENROUTER_AVAILABLE
-            else ("anthropic" if ANTHROPIC_AVAILABLE else "none")
-        ),
-        "embeddings": "openai" if OPENAI_AVAILABLE else "none",
-        "flags": flags or None,
-    }
+def startup_summary() -> dict[str, Any]:
+    return config.startup_summary()

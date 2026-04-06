@@ -33,7 +33,7 @@ from functools import lru_cache
 from assistant.agents.core.model_registry import get_model_name
 from assistant.agents.tools.registry import all_tools
 from assistant.application.llm import generate_text
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, OPENROUTER_AVAILABLE, is_test
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,11 @@ async def classify_intent(user_message: str) -> IntentClassification:
         return _intent_cache[cache_key]
 
     try:
-        if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE and not is_test:
+        if (
+            not config.ANTHROPIC_AVAILABLE
+            and not config.OPENROUTER_AVAILABLE
+            and not config.is_test
+        ):
             return _FALLBACK_INTENT
 
         model_id = get_model_name("infra:classifier")

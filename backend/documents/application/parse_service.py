@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from assistant.application.llm import generate_with_image, generate_with_pdf
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE, LLM_SETUP_URL
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -65,9 +65,9 @@ async def parse_document_with_ai(
     Raises ValueError on rate limit exhaustion or parse failure.
     Raises RuntimeError if AI is not configured.
     """
-    if not ANTHROPIC_AVAILABLE:
+    if not config.ANTHROPIC_AVAILABLE:
         raise RuntimeError(
-            f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {LLM_SETUP_URL}"
+            f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {config.LLM_SETUP_URL}"
         )
 
     system_prompt = _get_parse_system_prompt()

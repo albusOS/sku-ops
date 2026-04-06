@@ -171,6 +171,8 @@ select = [
 "shared/infrastructure/db/base.py" = ["SLF001"]
 "shared/infrastructure/db/services/_base.py" = ["SLF001"]
 "shared/infrastructure/db/services/raw_sql.py" = ["SLF001"]
+# Env-var shaped property names (UPPER_SASE) + singleton __new__ touches private init.
+"shared/infrastructure/config.py" = ["N802", "PYI034", "SLF001", "TRY300", "E501"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

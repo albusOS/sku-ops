@@ -5,7 +5,7 @@ import time
 import jwt
 import pytest
 
-from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET
+from shared.infrastructure.config import config
 
 
 class TestMe:
@@ -44,8 +44,8 @@ class TestMe:
                 "user_metadata": {"name": "X"},
                 "exp": int(time.time()) + 3600,
             },
-            JWT_SECRET,
-            algorithm=JWT_ALGORITHM,
+            config.JWT_SECRET,
+            algorithm=config.JWT_ALGORITHM,
         )
         r = client.get("/api/beta/shared/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 401

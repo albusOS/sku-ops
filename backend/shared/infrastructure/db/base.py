@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
-from shared.infrastructure.config import DATABASE_URL
+from shared.infrastructure.config import config
 from shared.infrastructure.db import uow
 from shared.infrastructure.db.postgres import PostgresBackend
 from shared.infrastructure.db.supabase import get_async_supabase, get_supabase
@@ -226,7 +226,7 @@ class DatabaseManager:
         realtime: RealtimeServiceProxy
 
     def __init__(self, db_service: BaseDatabaseService | None = None) -> None:
-        self.db_service = db_service or BaseDatabaseService(DATABASE_URL)
+        self.db_service = db_service or BaseDatabaseService(config.DATABASE_URL)
         self._services: dict[str, object] = {}
         self._service_health: dict[str, str] = {}
         self._load_stats: dict[str, int] = {}

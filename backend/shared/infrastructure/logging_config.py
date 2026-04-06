@@ -11,12 +11,11 @@ the request_id middleware has set them in contextvars.
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from contextvars import ContextVar
 from typing import ClassVar
 
-from shared.infrastructure.config import is_deployed
+from shared.infrastructure.config import config
 
 _BaseJsonFormatter: type
 try:
@@ -105,7 +104,7 @@ class DevFormatter(logging.Formatter):
 
 def setup_logging() -> None:
     """Configure root logger. Call once at startup before any other logging."""
-    level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    level_name = config.LOG_LEVEL.upper()
     level = getattr(logging, level_name, logging.INFO)
 
     root = logging.getLogger()
@@ -118,7 +117,7 @@ def setup_logging() -> None:
     handler.setLevel(level)
 
     formatter: logging.Formatter
-    if is_deployed:
+    if config.is_deployed:
         formatter = ContextJsonFormatter(
             fmt="%(asctime)s %(level)s %(logger)s %(message)s",
             datefmt="%Y-%m-%dT%H:%M:%S",

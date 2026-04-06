@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import TYPE_CHECKING
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -24,10 +23,9 @@ from starlette.responses import JSONResponse, Response
 if TYPE_CHECKING:
     from starlette.requests import Request
 
-logger = logging.getLogger(__name__)
+from shared.infrastructure.config import config
 
-REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "30"))
-AI_REQUEST_TIMEOUT = int(os.environ.get("AI_REQUEST_TIMEOUT", "120"))
+logger = logging.getLogger(__name__)
 
 # Paths that get the longer AI timeout
 _AI_PREFIXES = ("/api/chat", "/api/beta/assistant/chat")
@@ -48,7 +46,9 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
 
         # Pick timeout based on path
         timeout = (
-            AI_REQUEST_TIMEOUT if any(path.startswith(p) for p in _AI_PREFIXES) else REQUEST_TIMEOUT
+            config.AI_REQUEST_TIMEOUT
+            if any(path.startswith(p) for p in _AI_PREFIXES)
+            else config.REQUEST_TIMEOUT
         )
 
         try:

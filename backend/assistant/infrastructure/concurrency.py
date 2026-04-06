@@ -8,22 +8,25 @@ The semaphore is per-process — in multi-worker mode each worker gets its own
 limit, which is the correct behavior (each has its own event loop).
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
-import os
+
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
-MAX_CONCURRENT_GENERATIONS = int(os.environ.get("MAX_CONCURRENT_GENERATIONS", "4"))
-_QUEUE_TIMEOUT = float(os.environ.get("GENERATION_QUEUE_TIMEOUT", "10"))
-
 _semaphore: asyncio.Semaphore | None = None
+_semaphore_limit: int | None = None
 
 
 def _get_semaphore() -> asyncio.Semaphore:
-    global _semaphore
-    if _semaphore is None:
-        _semaphore = asyncio.Semaphore(MAX_CONCURRENT_GENERATIONS)
+    global _semaphore, _semaphore_limit
+    limit = config.MAX_CONCURRENT_GENERATIONS
+    if _semaphore is None or _semaphore_limit != limit:
+        _semaphore = asyncio.Semaphore(limit)
+        _semaphore_limit = limit
     return _semaphore
 
 
@@ -32,17 +35,17 @@ class GenerationBusyError(Exception):
 
 
 async def acquire_generation_slot() -> None:
-    """Acquire a generation slot, waiting up to _QUEUE_TIMEOUT seconds.
+    """Acquire a generation slot, waiting up to GENERATION_QUEUE_TIMEOUT seconds.
 
     Raises GenerationBusyError if a slot cannot be obtained in time.
     """
     sem = _get_semaphore()
     try:
-        await asyncio.wait_for(sem.acquire(), timeout=_QUEUE_TIMEOUT)
+        await asyncio.wait_for(sem.acquire(), timeout=config.GENERATION_QUEUE_TIMEOUT)
     except TimeoutError:
         logger.warning(
             "Generation concurrency limit reached (%d active), rejecting request",
-            MAX_CONCURRENT_GENERATIONS,
+            config.MAX_CONCURRENT_GENERATIONS,
         )
         raise GenerationBusyError(
             "The AI assistant is handling several requests right now. Please try again in a moment."
@@ -58,4 +61,4 @@ def release_generation_slot() -> None:
 def active_generation_count() -> int:
     """Return number of in-flight generations (for health/metrics)."""
     sem = _get_semaphore()
-    return MAX_CONCURRENT_GENERATIONS - sem._value  # noqa: SLF001
+    return config.MAX_CONCURRENT_GENERATIONS - sem._value  # noqa: SLF001

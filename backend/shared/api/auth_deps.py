@@ -21,10 +21,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from shared.api.auth_provider import resolve_claims
-from shared.infrastructure.config import (
-    decode_token,
-    is_deployed,
-)
+from shared.infrastructure.config import config
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var, user_id_var
 from shared.kernel.constants import DEFAULT_ORG_ID
@@ -44,7 +41,7 @@ async def get_current_user(
     credentials: BearerToken,
 ) -> CurrentUser:
     try:
-        payload = decode_token(credentials.credentials)
+        payload = config.decode_token(credentials.credentials)
         claims = resolve_claims(payload)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}") from e
@@ -53,7 +50,7 @@ async def get_current_user(
     except jwt.InvalidTokenError as e:
         raise HTTPException(status_code=401, detail="Invalid token") from e
 
-    if is_deployed and claims.organization_id is None:
+    if config.is_deployed and claims.organization_id is None:
         raise HTTPException(
             status_code=401,
             detail="Invalid token: missing organization_id claim",

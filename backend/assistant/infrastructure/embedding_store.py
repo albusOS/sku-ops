@@ -21,7 +21,7 @@ import logging
 import numpy as np
 from openai import AsyncOpenAI
 
-from shared.infrastructure.config import EMBEDDING_MODEL, OPENAI_API_KEY
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def embed_texts(
     batch_size: int = 500,
 ) -> np.ndarray | None:
     """Embed a list of texts via OpenAI. Returns (N, 1536) normalized ndarray."""
-    key = api_key or OPENAI_API_KEY
+    key = api_key or config.OPENAI_API_KEY
     if not key or not texts:
         return None
     try:
@@ -81,7 +81,7 @@ async def embed_texts(
         all_vectors: list[list[float]] = []
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            resp = await client.embeddings.create(model=config.EMBEDDING_MODEL, input=batch)
             all_vectors.extend(item.embedding for item in resp.data)
         mat = np.array(all_vectors, dtype=np.float32)
         return _normalize(mat)
@@ -95,12 +95,12 @@ async def embed_query(
     api_key: str | None = None,
 ) -> np.ndarray | None:
     """Embed a single query string. Returns (1536,) normalized vector."""
-    key = api_key or OPENAI_API_KEY
+    key = api_key or config.OPENAI_API_KEY
     if not key or not query:
         return None
     try:
         client = AsyncOpenAI(api_key=key)
-        resp = await client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
+        resp = await client.embeddings.create(model=config.EMBEDDING_MODEL, input=[query])
         qvec = np.array(resp.data[0].embedding, dtype=np.float32)
         norm = np.linalg.norm(qvec)
         if norm > 0:

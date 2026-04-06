@@ -8,7 +8,7 @@ import logging
 from datetime import UTC, datetime
 
 from finance.application.xero_sync_job import run_sync
-from shared.infrastructure.config import XERO_SYNC_HOUR
+from shared.infrastructure.config import config
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var
 from shared.kernel.constants import DEFAULT_ORG_ID
@@ -32,13 +32,13 @@ async def xero_sync_loop() -> None:
     last_run_date = None
     logger.info(
         "Xero nightly sync scheduler started (fires at %02d:00 UTC)",
-        XERO_SYNC_HOUR,
+        config.XERO_SYNC_HOUR,
     )
     while True:
         try:
             await asyncio.sleep(60)
             now = datetime.now(UTC)
-            if now.hour == XERO_SYNC_HOUR and now.date() != last_run_date:
+            if now.hour == config.XERO_SYNC_HOUR and now.date() != last_run_date:
                 last_run_date = now.date()
                 org_ids = await _get_active_org_ids()
                 for oid in org_ids:

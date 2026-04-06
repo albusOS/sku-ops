@@ -104,8 +104,17 @@ backend/:memory:*
 .env.*
 !.env.example
 !.env.production.example
-backend/.env
-frontend/.env
+# Allow committed layered env templates (non-secrets)
+!backend/.env
+!backend/.env.development
+!backend/.env.production
+!backend/.env.local.example
+!frontend/.env
+!frontend/.env.development
+!frontend/.env.production
+# Local secrets only
+backend/.env.local
+frontend/.env.local
 
 # Deployment artifacts
 backups/

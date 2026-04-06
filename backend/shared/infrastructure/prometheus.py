@@ -8,7 +8,6 @@ Metrics collected:
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
 from typing import TYPE_CHECKING
@@ -18,6 +17,8 @@ from starlette.responses import Response
 
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
+
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -117,9 +118,6 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         return response
 
 
-_METRICS_TOKEN = os.environ.get("METRICS_TOKEN", "").strip()
-
-
 def setup_prometheus(app: FastAPI) -> None:
     """Add /metrics endpoint and request metrics middleware.
 
@@ -134,9 +132,10 @@ def setup_prometheus(app: FastAPI) -> None:
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics(request: Request):
-        if _METRICS_TOKEN:
+        token = config.METRICS_TOKEN
+        if token:
             auth = request.headers.get("authorization", "")
-            if auth != f"Bearer {_METRICS_TOKEN}":
+            if auth != f"Bearer {token}":
                 return Response(status_code=403, content="Forbidden")
 
         return Response(
@@ -145,5 +144,6 @@ def setup_prometheus(app: FastAPI) -> None:
         )
 
     logger.info(
-        "Prometheus metrics enabled at /metrics%s", " (token-protected)" if _METRICS_TOKEN else ""
+        "Prometheus metrics enabled at /metrics%s",
+        " (token-protected)" if config.METRICS_TOKEN else "",
     )

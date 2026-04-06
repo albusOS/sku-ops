@@ -141,7 +141,7 @@ def check_supabase_jwt_shape() -> None:
             _resolve_internal,
             _resolve_supabase,
         )
-        from shared.infrastructure.config import JWT_ALGORITHM, JWT_SECRET
+        from shared.infrastructure.config import config
     except ImportError as e:
         _fail("Import failed", str(e))
         return
@@ -156,13 +156,13 @@ def check_supabase_jwt_shape() -> None:
         "role": "authenticated",
         "exp": int(time.time()) + 3600,
     }
-    token = jwt.encode(supabase_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = jwt.encode(supabase_payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
 
     try:
         payload = jwt.decode(
             token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
+            config.JWT_SECRET,
+            algorithms=[config.JWT_ALGORITHM],
             options={"verify_aud": False},
         )
         claims = _resolve_supabase(payload)
@@ -203,12 +203,12 @@ def check_supabase_jwt_shape() -> None:
         "role": "authenticated",
         "exp": int(time.time()) + 3600,
     }
-    no_role_token = jwt.encode(no_role_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    no_role_token = jwt.encode(no_role_payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
     try:
         payload = jwt.decode(
             no_role_token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
+            config.JWT_SECRET,
+            algorithms=[config.JWT_ALGORITHM],
             options={"verify_aud": False},
         )
         _resolve_supabase(payload)
@@ -228,12 +228,12 @@ def check_supabase_jwt_shape() -> None:
         "organization_id": "supply-yard",
         "exp": int(time.time()) + 3600,
     }
-    dev_token = jwt.encode(dev_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    dev_token = jwt.encode(dev_payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
     try:
         payload = jwt.decode(
             dev_token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
+            config.JWT_SECRET,
+            algorithms=[config.JWT_ALGORITHM],
             options={"verify_aud": False},
         )
         claims = _resolve_internal(payload)
@@ -244,12 +244,12 @@ def check_supabase_jwt_shape() -> None:
 
     # Case 4: Expired token → must raise ExpiredSignatureError
     expired_payload = {**supabase_payload, "exp": int(time.time()) - 10}
-    expired_token = jwt.encode(expired_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    expired_token = jwt.encode(expired_payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
     try:
         jwt.decode(
             expired_token,
-            JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
+            config.JWT_SECRET,
+            algorithms=[config.JWT_ALGORITHM],
             options={"verify_aud": False},
         )
         _fail("Expired token: should raise ExpiredSignatureError but did not")
@@ -263,10 +263,11 @@ def check_cors_config() -> None:
     """Verify CORS header splitting handles single and multiple origins."""
     _section("CORS origin parsing")
 
-    from shared.infrastructure.config import CORS_ORIGINS
+    from shared.infrastructure.config import config
 
-    origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
-    if CORS_ORIGINS == "*":
+    cors = config.CORS_ORIGINS
+    origins = [o.strip() for o in cors.split(",") if o.strip()]
+    if cors == "*":
         _warn("CORS_ORIGINS is '*' (dev default — must be set in production)")
     else:
         _ok(
@@ -337,9 +338,9 @@ def check_production_flags() -> None:
         if "shared.infrastructure.config" in sys.modules:
             importlib.reload(sys.modules["shared.infrastructure.config"])
 
-        from shared.infrastructure.config import ALLOW_PUBLIC_AUTH
+        from shared.infrastructure.config import config
 
-        if not ALLOW_PUBLIC_AUTH:
+        if not config.ALLOW_PUBLIC_AUTH:
             _ok("ALLOW_PUBLIC_AUTH=False in production (login/register endpoints disabled)")
         elif os.environ.get("ALLOW_PUBLIC_AUTH", "").lower() in ("1", "true"):
             _ok("ALLOW_PUBLIC_AUTH=True explicitly set (local auth mode, no Supabase)")

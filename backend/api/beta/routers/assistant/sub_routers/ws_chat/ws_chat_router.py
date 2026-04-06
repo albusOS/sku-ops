@@ -75,13 +75,7 @@ from assistant.infrastructure.concurrency import (
 )
 from shared.api.auth_provider import resolve_claims
 from shared.helpers.uuid import new_uuid7_str
-from shared.infrastructure.config import (
-    ANTHROPIC_AVAILABLE,
-    OPENROUTER_AVAILABLE,
-    SESSION_COST_CAP,
-    decode_token,
-    is_deployed,
-)
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import org_id_var, user_id_var
@@ -168,7 +162,7 @@ router = APIRouter()
 
 def _authenticate(token: str) -> dict | None:
     try:
-        return decode_token(token)
+        return config.decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
 
@@ -610,7 +604,7 @@ async def ws_chat_endpoint(websocket: WebSocket):
     except ValueError:
         await websocket.close(code=4001, reason="Invalid token: missing required claims")
         return
-    if is_deployed and claims.organization_id is None:
+    if config.is_deployed and claims.organization_id is None:
         await websocket.close(code=4001, reason="Invalid token: missing organization_id claim")
         return
     org_id = claims.organization_id or ""
@@ -797,16 +791,17 @@ async def _submit_chat(
         await _send(ws, {"type": "chat.error", "detail": "Empty message"})
         return None
 
-    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
+    if not config.ANTHROPIC_AVAILABLE and not config.OPENROUTER_AVAILABLE:
         await _send(ws, {"type": "chat.error", "detail": "AI not configured."})
         return None
 
-    if SESSION_COST_CAP > 0 and await session_store.get_cost(session_id) >= SESSION_COST_CAP:
+    cap = config.SESSION_COST_CAP
+    if cap > 0 and await session_store.get_cost(session_id) >= cap:
         await _send(
             ws,
             {
                 "type": "chat.done",
-                "response": f"This session has reached the ${SESSION_COST_CAP:.2f} AI spend limit. Start a new chat.",
+                "response": f"This session has reached the ${cap:.2f} AI spend limit. Start a new chat.",
                 "tool_calls": [],
                 "thinking": [],
                 "agent": None,

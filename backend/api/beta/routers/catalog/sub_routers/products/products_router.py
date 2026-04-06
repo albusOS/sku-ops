@@ -22,7 +22,7 @@ from catalog.domain.sku import SkuCreate, SkuUpdate
 from inventory.application.inventory_service import process_import_stock_changes
 from inventory.application.uom_classifier import classify_uom
 from shared.api.deps import AdminDep, CurrentUserDep
-from shared.infrastructure.config import ANTHROPIC_AVAILABLE as LLM_AVAILABLE
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.middleware.audit import audit_log
@@ -142,7 +142,7 @@ async def get_product(sku_id: str, current_user: CurrentUserDep):
 @router.post("/suggest-uom")
 async def suggest_uom(data: SuggestUomRequest, _current_user: AdminDep):
     """Use AI to suggest base_unit, sell_uom, pack_qty from product name."""
-    gen_text = _generate_text if LLM_AVAILABLE else None
+    gen_text = _generate_text if config.ANTHROPIC_AVAILABLE else None
     units = await _db_catalog().list_uoms(get_org_id())
     known = frozenset(u.code for u in units)
     return await classify_uom(

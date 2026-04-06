@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from shared.infrastructure.config import ENV, SENTRY_DSN
+from shared.infrastructure.config import config
 from shared.infrastructure.logging_config import (
     org_id_var,
     request_id_var,
@@ -47,7 +47,8 @@ def _sentry_before_send(event: dict, _hint: dict) -> dict:
 
 def setup_sentry() -> None:
     """Initialize Sentry if SENTRY_DSN is configured."""
-    if not SENTRY_DSN:
+    dsn = config.SENTRY_DSN
+    if not dsn:
         return
 
     if sentry_sdk is None:
@@ -56,8 +57,8 @@ def setup_sentry() -> None:
 
     try:
         sentry_sdk.init(
-            dsn=SENTRY_DSN,
-            environment=ENV,
+            dsn=dsn,
+            environment=config.ENV,
             traces_sample_rate=0.2,
             profiles_sample_rate=0.1,
             integrations=[
@@ -67,6 +68,6 @@ def setup_sentry() -> None:
             send_default_pii=False,
             before_send=_sentry_before_send,
         )
-        logger.info("Sentry initialized (env=%s)", ENV)
+        logger.info("Sentry initialized (env=%s)", config.ENV)
     except Exception:
         logger.exception("Failed to initialize Sentry")

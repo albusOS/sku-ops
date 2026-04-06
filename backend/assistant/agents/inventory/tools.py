@@ -33,7 +33,7 @@ from assistant.agents.tools.models import (
 )
 from assistant.agents.tools.registry import register as _reg
 from assistant.agents.tools.search import get_index
-from shared.infrastructure.config import OPENAI_API_KEY
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -71,8 +71,9 @@ async def _search_semantic(query: str = "", limit: int = 10) -> str:
     query = query.strip()
     limit = min(limit, 30)
     index = await get_index()
-    if OPENAI_API_KEY and index.has_sku_embeddings:
-        results = await index.search_semantic(query, limit=limit, api_key=OPENAI_API_KEY)
+    key = config.OPENAI_API_KEY
+    if key and index.has_sku_embeddings:
+        results = await index.search_semantic(query, limit=limit, api_key=key)
         method = "embedding"
     else:
         results = index.search_bm25(query, limit=limit)

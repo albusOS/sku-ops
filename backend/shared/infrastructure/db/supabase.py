@@ -4,49 +4,59 @@ from __future__ import annotations
 
 from supabase import acreate_client, create_client
 
-from shared.infrastructure.config import (
-    PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    SUPABASE_SECRET_KEY,
-    SUPABASE_URL,
-)
+from shared.infrastructure.config import config
 
 _sync_clients: dict[bool, object | None] = {False: None, True: None}
 _async_clients: dict[bool, object | None] = {False: None, True: None}
+_sync_fingerprint: dict[bool, tuple[str, str] | None] = {False: None, True: None}
+_async_fingerprint: dict[bool, tuple[str, str] | None] = {False: None, True: None}
 
 
 def _get_key(admin: bool) -> str:
     if admin:
-        return SUPABASE_SECRET_KEY
-    return PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        return config.SUPABASE_SECRET_KEY
+    return config.PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 
 def _build_sync(admin: bool):
-    if not SUPABASE_URL or not _get_key(admin):
+    url = config.SUPABASE_URL
+    key = _get_key(admin)
+    if not url or not key:
         return None
 
-    return create_client(SUPABASE_URL, _get_key(admin))
+    return create_client(url, key)
 
 
 def _build_async(admin: bool):
-    if not SUPABASE_URL or not _get_key(admin):
+    url = config.SUPABASE_URL
+    key = _get_key(admin)
+    if not url or not key:
         return None
 
-    return acreate_client(SUPABASE_URL, _get_key(admin))
+    return acreate_client(url, key)
 
 
 def get_supabase(admin: bool = False):
-    client = _sync_clients[admin]
-    if client is None:
-        client = _build_sync(admin)
-        _sync_clients[admin] = client
+    url = config.SUPABASE_URL
+    key = _get_key(admin)
+    fp = (url, key)
+    if _sync_clients[admin] is not None and _sync_fingerprint[admin] == fp:
+        return _sync_clients[admin]
+    _sync_fingerprint[admin] = fp
+    client = _build_sync(admin)
+    _sync_clients[admin] = client
     return client
 
 
 async def get_async_supabase(admin: bool = False):
-    client = _async_clients[admin]
-    if client is None:
-        client = await _build_async(admin)
-        _async_clients[admin] = client
+    url = config.SUPABASE_URL
+    key = _get_key(admin)
+    fp = (url, key)
+    if _async_clients[admin] is not None and _async_fingerprint[admin] == fp:
+        return _async_clients[admin]
+    _async_fingerprint[admin] = fp
+    client = await _build_async(admin)
+    _async_clients[admin] = client
     return client
 
 

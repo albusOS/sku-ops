@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from shared.infrastructure.config import is_deployed
+from shared.infrastructure.config import config
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -35,6 +35,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         for header, value in _COMMON_HEADERS.items():
             response.headers.setdefault(header, value)
-        if is_deployed:
+        if config.is_deployed:
             response.headers.setdefault("Strict-Transport-Security", _HSTS)
         return response

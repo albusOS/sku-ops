@@ -17,12 +17,7 @@ import os
 from assistant.agents.core.config import load_agent_config
 from assistant.infrastructure.llm import get_model as _llm_get_model
 from assistant.infrastructure.llm.cost import calc_cost as _cost_calc
-from shared.infrastructure.config import (
-    AGENT_PRIMARY_MODEL,
-    INFRA_CLASSIFIER_MODEL,
-    INFRA_SYNTHESIS_MODEL,
-    OPENROUTER_AVAILABLE,
-)
+from shared.infrastructure.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -35,23 +30,13 @@ _TASK_TO_AGENT_ID: dict[str, str] = {
     "agent:product_analyst": "product_analyst",
 }
 
-_DEFAULTS: dict[str, str] = {
-    "agent:unified": AGENT_PRIMARY_MODEL,
-    "agent:analyst": AGENT_PRIMARY_MODEL,
-    "agent:trend": AGENT_PRIMARY_MODEL,
-    "agent:health": AGENT_PRIMARY_MODEL,
-    "agent:procurement": AGENT_PRIMARY_MODEL,
-    "agent:product_analyst": AGENT_PRIMARY_MODEL,
-    # Reserved task keys for agents not yet implemented.
-    # They resolve to AGENT_PRIMARY_MODEL via the fallback in _resolve(),
-    # so they are safe to call but produce no config.yaml override benefit.
-    # Add a config.yaml + _TASK_TO_AGENT_ID entry when the agent is built.
-    "agent:inventory": AGENT_PRIMARY_MODEL,
-    "agent:ops": AGENT_PRIMARY_MODEL,
-    "agent:finance": AGENT_PRIMARY_MODEL,
-    "infra:synthesis": INFRA_SYNTHESIS_MODEL,
-    "infra:classifier": INFRA_CLASSIFIER_MODEL,
-}
+
+def _default_model_for_task(task: str) -> str:
+    if task == "infra:synthesis":
+        return config.INFRA_SYNTHESIS_MODEL
+    if task == "infra:classifier":
+        return config.INFRA_CLASSIFIER_MODEL
+    return config.AGENT_PRIMARY_MODEL
 
 
 def _resolve(task: str) -> str:
@@ -70,7 +55,7 @@ def _resolve(task: str) -> str:
         if cfg.model:
             return cfg.model
 
-    return _DEFAULTS.get(task, AGENT_PRIMARY_MODEL)
+    return _default_model_for_task(task)
 
 
 def get_model_name(task: str) -> str:
@@ -94,7 +79,7 @@ def get_fallback_model(model_id: str) -> str | None:
     to reach the same model via a different path. Only applies when
     OpenRouter is configured and the original model is an Anthropic one.
     """
-    if not OPENROUTER_AVAILABLE:
+    if not config.OPENROUTER_AVAILABLE:
         return None
     if not model_id.startswith("anthropic:"):
         return None

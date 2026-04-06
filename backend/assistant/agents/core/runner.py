@@ -19,10 +19,7 @@ from assistant.agents.core.model_registry import (
     get_model_name,
 )
 from assistant.agents.core.validators import classify_intent, validate_response
-from shared.infrastructure.config import (
-    ANTHROPIC_AVAILABLE,
-    OPENROUTER_AVAILABLE,
-)
+from shared.infrastructure.config import config as app_config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 from shared.infrastructure.logging_config import (
@@ -469,7 +466,7 @@ async def run_specialist(
     2. Run validators for quality scoring (logged, not acted on)
     3. Package the result dict
     """
-    if not ANTHROPIC_AVAILABLE and not OPENROUTER_AVAILABLE:
+    if not app_config.ANTHROPIC_AVAILABLE and not app_config.OPENROUTER_AVAILABLE:
         return {
             "response": f"{agent_name} requires ANTHROPIC_API_KEY or OPENROUTER_API_KEY.",
             "tool_calls": [],

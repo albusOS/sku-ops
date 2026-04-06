@@ -9,7 +9,7 @@ from finance.adapters.xero._base import (
     XERO_OAUTH_ENDPOINT,
 )
 from finance.domain.xero_settings import XeroSettings
-from shared.infrastructure.config import XERO_CLIENT_ID, XERO_CLIENT_SECRET
+from shared.infrastructure.config import config
 from shared.infrastructure.db import get_org_id
 from shared.infrastructure.db.base import get_database_manager
 
@@ -22,8 +22,8 @@ class XeroOAuthMixin:
                 data={
                     "grant_type": "refresh_token",
                     "refresh_token": settings.xero_refresh_token,
-                    "client_id": XERO_CLIENT_ID,
-                    "client_secret": XERO_CLIENT_SECRET,
+                    "client_id": config.XERO_CLIENT_ID,
+                    "client_secret": config.XERO_CLIENT_SECRET,
                 },
                 timeout=15,
             )

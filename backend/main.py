@@ -18,7 +18,7 @@ setup_logging()
 
 from inventory.domain.errors import InsufficientStockError
 from routes import api_router
-from shared.infrastructure.config import CORS_ORIGINS, is_deployed
+from shared.infrastructure.config import config
 from shared.infrastructure.middleware.request_id import RequestIDMiddleware
 from shared.infrastructure.middleware.security_headers import (
     SecurityHeadersMiddleware,
@@ -75,7 +75,7 @@ async def unhandled_exception_handler(request, exc: Exception):
         request.url.path,
         traceback.format_exc(),
     )
-    detail = "Internal server error" if is_deployed else f"{type(exc).__name__}: {exc}"
+    detail = "Internal server error" if config.is_deployed else f"{type(exc).__name__}: {exc}"
     return JSONResponse(status_code=500, content={"detail": detail})
 
 
@@ -84,9 +84,7 @@ async def unhandled_exception_handler(request, exc: Exception):
 # Execution order on request:  CORS → RequestID → Timeout → SecurityHeaders → app
 # CORS must be outermost so its headers are present even on timeout/error responses.
 
-from shared.infrastructure.config import CORS_ORIGIN_REGEX
-
-_cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
+_cors_origins = [o.strip() for o in config.CORS_ORIGINS.split(",") if o.strip()]
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestTimeoutMiddleware)
@@ -95,7 +93,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_cors_origins,
-    allow_origin_regex=CORS_ORIGIN_REGEX or None,
+    allow_origin_regex=config.CORS_ORIGIN_REGEX or None,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
