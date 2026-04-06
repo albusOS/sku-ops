@@ -51,9 +51,6 @@ services:
       - key: PORT
         scope: RUN_TIME
         value: "8000"
-      - key: WORKERS
-        scope: RUN_TIME
-        value: "1"
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
@@ -105,18 +102,3 @@ services:
       - key: XERO_REDIRECT_URI
         scope: RUN_TIME
         value: REPLACE_WITH_CALLBACK_URL
-      - key: LOG_LEVEL
-        scope: RUN_TIME
-        value: INFO
-      - key: PG_POOL_MIN
-        scope: RUN_TIME
-        value: "2"
-      - key: PG_POOL_MAX
-        scope: RUN_TIME
-        value: "10"
-      - key: PG_ACQUIRE_TIMEOUT
-        scope: RUN_TIME
-        value: "10"
-      - key: PG_COMMAND_TIMEOUT
-        scope: RUN_TIME
-        value: "30"

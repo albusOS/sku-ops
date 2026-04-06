@@ -1,15 +1,15 @@
-name: Deploy Backend
+name: Deploy
 
 on:
   push:
     branches: [main]
     paths:
       - "backend/**"
-      - "backend/Dockerfile"
+      - "frontend/**"
       - ".github/workflows/deploy.yml"
 
 concurrency:
-  group: deploy-backend
+  group: deploy-prod
   cancel-in-progress: false
 
 env:
@@ -17,13 +17,40 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/sku-ops-backend
 
 jobs:
-  test:
-    name: Test gate
-    uses: ./.github/workflows/ci.yml
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/deploy.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/deploy.yml'
 
-  build-and-push:
-    name: Build & push image
-    needs: [test]
+  ci:
+    name: CI gate
+    needs: [changes]
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  build-backend:
+    name: Build & push backend image
+    needs: [changes, ci]
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,10 +89,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to App Platform
-    needs: [build-and-push]
+  deploy-backend:
+    name: Deploy backend (App Platform)
+    needs: [build-backend]
     runs-on: ubuntu-latest
+    environment: backend_digital_ocean_deployment
 
     steps:
       - name: Install doctl
@@ -76,3 +104,39 @@ jobs:
       - name: Trigger App Platform deploy
         run: |
           doctl apps create-deployment ${{ secrets.DIGITALOCEAN_APP_ID }} --force-rebuild --wait
+
+  deploy-frontend:
+    name: Deploy frontend (Vercel)
+    needs: [changes, ci]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    environment: frontend_vercel_deployment
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: prefix-dev/setup-pixi@v0.9.4
+        with:
+          cache: true
+
+      - name: Verify dev tools resolve from pixi
+        run: pixi run doctor
+
+      - name: Pull Vercel project settings
+        run: pixi run npx vercel@50 pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build (Vercel CLI / Build Output API)
+        run: pixi run npx vercel@50 build --prod --yes --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt to production
+        run: >
+          pixi run npx vercel@50 deploy --prebuilt --prod --yes
+          --token="$VERCEL_TOKEN"
+          --meta githubCommitSha="${{ github.sha }}"
+          --meta githubCommitRef="${{ github.ref_name }}"
+          --meta githubRepo="${{ github.repository }}"
+          --meta githubActionsRunId="${{ github.run_id }}"

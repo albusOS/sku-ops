@@ -1,6 +1,6 @@
 ---
 description: Production deployment requirements — Docker, DigitalOcean, Vercel, CORS, pool, auth, observability
-globs: "{backend/Dockerfile,docker-compose.yml,vercel.json,.do/app.yaml,.github/workflows/deploy.yml}"
+globs: "{backend/Dockerfile,docker-compose.yml,vercel.json,.do/app.yaml,.github/workflows/deploy.yml,.github/workflows/ci.yml}"
 alwaysApply: false
 ---
 
@@ -29,7 +29,9 @@ There are three environments: `development`, `test`, `production`. There is no s
 
 - Root `vercel.json` controls monorepo build: `cd frontend && pnpm install --frozen-lockfile && pnpm run build`.
 - Output: `frontend/dist`. SPA rewrite: all routes → `index.html`.
-- Three `VITE_*` env vars are build-time (baked into JS). Changing requires redeploy.
+- Three `VITE_*` env vars are build-time (baked into JS). Source of truth for production: committed `frontend/.env.production` (loaded by Vite when `pnpm run build` runs in mode production). Changing requires redeploy.
+- **Git vs Actions:** Repo sets `git.deploymentEnabled` with the production branch name (e.g. `main: false`) so Vercel’s [GitHub integration](https://vercel.com/docs/git/vercel-for-github) does not auto-deploy that branch while GitHub Actions runs `pull` + `build --prod --yes` + `deploy --prebuilt --prod --yes` (see [GitHub Actions + Vercel](https://vercel.com/docs/git/vercel-for-github#using-github-actions)). The key must match the **Production Branch** in Vercel project settings. Pin CLI with `npx vercel@50` under pixi. Deploy job attaches `--meta` (`githubCommitSha`, `githubCommitRef`, `githubRepo`, `githubActionsRunId`) for filtering in `vercel list --meta`. Environment secrets: `frontend_vercel_deployment` with `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+- Optional: Vercel can emit [`repository_dispatch`](https://vercel.com/docs/git/vercel-for-github#repository-dispatch-events) to GitHub (e.g. `vercel.deployment.success`) for post-deploy E2E; prefer that over `deployment_status` if you disable deployment notifications in Vercel Git settings.
 - Security headers set in `vercel.json`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`.
 - Immutable cache headers on `/assets/`.
 - Build-time env template: `frontend/.env.example`.
@@ -45,12 +47,12 @@ There are three environments: `development`, `test`, `production`. There is no s
 
 ## CI/CD
 
-- GitHub Actions CI (`.github/workflows/ci.yml`) runs lint + test on every push/PR to main/dev. Backend tests use `supabase start` + `supabase db reset --local` (same migration + seed path as local `pixi run tests backend`), not a bare Postgres service.
-- Deploy workflow (`.github/workflows/deploy.yml`) triggers on push to `main` for backend paths only
-- Deploy pipeline: CI test gate → Docker build → push to GHCR → trigger App Platform redeploy
-- Image is pushed to `ghcr.io/albus-consulting/sku-ops-backend` with SHA and `latest` tags
-- App Platform spec lives in `.do/app.yaml` — update with `doctl apps update <id> --spec .do/app.yaml`
-- Required GitHub secrets: `DIGITALOCEAN_ACCESS_TOKEN`, `DIGITALOCEAN_APP_ID`
+- GitHub Actions CI (`.github/workflows/ci.yml`) runs on every push/PR to `main`/`dev` and is callable from deploy. **`dorny/paths-filter@v4`** drives **path-gated lint jobs** (`backend-lint`, `frontend-lint`); **backend and frontend tests always run** on every CI invocation (cross-stack regressions).
+- Path filters: backend includes `backend/**` and `supabase/**`; frontend includes `frontend/**`. Pull-request runs need `pull-requests: read` on the `changes` job; push runs use checkout + git-based detection (`base: ${{ github.ref }}` for same-branch pushes).
+- Deploy workflow (`.github/workflows/deploy.yml`) triggers on push to `main` when `backend/**`, `frontend/**`, or the workflow file changes. A **`changes`** job scopes **backend** vs **frontend**; **`ci`** (`workflow_call` to `ci.yml`) must pass; then **backend** jobs (`build-backend` → `deploy-backend`) and **frontend** job (`deploy-frontend`) run **in parallel** when their paths matched.
+- Backend deploy: Docker build → push to `ghcr.io/<owner>/sku-ops-backend` (SHA + `latest`) → `doctl apps create-deployment` against App Platform. Use GitHub Environment **`backend_digital_ocean_deployment`** for secrets: `DIGITALOCEAN_ACCESS_TOKEN`, `DIGITALOCEAN_APP_ID` (move from repo-level secrets when enabling environments).
+- App Platform spec: `.do/app.yaml`. Non-secret tuning already in committed `backend/.env` / `backend/.env.production` inside the image should **not** be duplicated in the spec unless you need a runtime override; secrets and URL overrides stay in the spec or dashboard.
+- Frontend deploy: see **Vercel** above (prebuilt prod deploy via Actions + Environment secrets).
 
 ## CORS
 
