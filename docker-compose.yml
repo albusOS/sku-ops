@@ -1,25 +1,13 @@
-# docker-compose.yml — production-grade compose config.
+# docker-compose.yml — optional local stack (Postgres + Redis + backend).
 #
+# Production uses hosted services (e.g. DigitalOcean App Platform + Supabase + Vercel), not this file.
 # ENV defaults to development when not set (override auto-merges for docker-local).
-# For VPS production, set ENV=production in root .env — config.py enforces secrets.
 # Valid values: development | production
 #
-# Usage:
-#   Docker-local (dev):
-#     docker compose up
-#     Override (docker-compose.override.yml) is auto-merged: defaults ENV=development,
-#     exposes ports on host, hides nginx/certbot.
-#     Minimum root .env: POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (can be * in dev), ENV
-#
-#   VPS production:
-#     docker compose -f docker-compose.yml up -d
-#     Override is NOT loaded. Root .env must be fully populated (see .env.production.example).
-#     Required: ENV=production, POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (must not be *)
-#
-#   Railway:
-#     Deployed via railway.toml (Dockerfile builder). This file is NOT used.
-#     Set all env vars in Railway dashboard → Settings → Variables.
-#     Required: ENV=production, DATABASE_URL, JWT_SECRET, CORS_ORIGINS, REDIS_URL
+# Usage (from repo root):
+#   docker compose up
+#   docker-compose.override.yml is auto-merged: exposes db:5433 and backend:8000, defaults ENV=development.
+#   Minimum root .env: POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS, ENV
 #
 services:
   redis:
@@ -90,39 +78,8 @@ services:
     networks:
       - internal
 
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/nginx/nginx.rendered.conf:/etc/nginx/nginx.conf:ro
-      - ./frontend/dist:/app/frontend:ro
-      - certbot-webroot:/var/www/certbot:ro
-      - certbot-certs:/etc/letsencrypt:ro
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-    networks:
-      - internal
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - certbot-webroot:/var/www/certbot
-      - certbot-certs:/etc/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'"
-    networks:
-      - internal
-
 volumes:
   pgdata:
-  certbot-webroot:
-  certbot-certs:
 
 networks:
   internal:

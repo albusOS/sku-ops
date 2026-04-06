@@ -5,7 +5,7 @@ Pass/fail per check. Exit 1 if any check fails.
 
 Usage:
     pixi run verify
-    pixi run verify -- --url https://your-railway-domain  # also hits a live server
+    pixi run verify -- --url https://your-backend-domain  # also hits a live server
 """
 
 from __future__ import annotations
@@ -372,7 +372,7 @@ def check_frontend_build() -> None:
         **os.environ,
         "VITE_SUPABASE_URL": "https://test-project.supabase.co",
         "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_testkey_local_verify_only",
-        "VITE_BACKEND_URL": "https://test-backend.railway.app",
+        "VITE_BACKEND_URL": "https://test-backend.example.com",
     }
 
     result = subprocess.run(
@@ -471,7 +471,7 @@ def main() -> None:
     parser.add_argument(
         "--url",
         default="",
-        help="Base URL of a live server to check (e.g. https://your-app.railway.app)",
+        help="Base URL of a live server to check (e.g. https://api.your-domain.com)",
     )
     parser.add_argument(
         "--skip-build",

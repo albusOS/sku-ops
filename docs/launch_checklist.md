@@ -6,23 +6,23 @@ Production readiness checklist for sku-ops. Work through each section before goi
 
 ## Infrastructure
 
-- [ ] Provision managed Postgres (Supabase, Neon, or DO managed DB) and note the direct connection string (port 5432, not pooler)
-- [ ] Provision Redis (Upstash free tier or platform add-on) and note the URL
+- [ ] Provision managed Postgres (Supabase direct connection, port 5432 — not pooler)
+- [ ] Provision Redis (managed add-on or Upstash) and note the URL
 - [ ] Set `REDIS_URL` and `WORKERS=2` (or more) in production environment
-- [ ] Verify multi-worker startup succeeds with Redis (`docker compose up` logs show "Redis connected" and "multi-worker mode is safe")
-- [ ] Configure automated Postgres backups (daily, 7-day retention) — see `deploy/scripts/backup-postgres.sh`
+- [ ] Verify multi-worker startup succeeds with Redis (logs show Redis connected and safe fan-out)
+- [ ] Configure automated Postgres backups (Supabase project backups or provider snapshots)
 - [ ] Set up Sentry project and configure `SENTRY_DSN`
 - [ ] Set `METRICS_TOKEN` and configure Prometheus scraping or platform metrics dashboard
 - [ ] Configure uptime monitoring on `/api/health` and `/api/ready` (UptimeRobot, Better Stack, or similar)
-- [ ] Point DNS A records for frontend and API subdomains
-- [ ] Provision TLS certificates (auto via Certbot on VPS, or platform-managed)
+- [ ] Point DNS for frontend and API to Vercel and your API host
+- [ ] TLS is platform-managed (Vercel + API host); confirm HTTPS on both origins
 
 ## Security
 
-- [ ] Generate production `JWT_SECRET`: `python -c "import secrets; print(secrets.token_hex(32))"`
+- [ ] Set backend `JWT_SECRET` to the **Supabase project JWT secret** (not a random hex string)
 - [ ] Set `CORS_ORIGINS` to exact production domain(s) — no wildcards
 - [ ] Verify security headers with [securityheaders.com](https://securityheaders.com): `X-Frame-Options`, `CSP`, `HSTS`, `X-Content-Type-Options`
-- [ ] Confirm nginx rate limiting is active (60 req/min API, 10 req/min auth, 20 req/min chat)
+- [ ] Confirm API rate limiting strategy (platform WAF / edge rules / app config) matches your threat model
 - [ ] Audit git history for committed secrets: `git log --all -p -- '*.env' '*.pem' '*.key'`
 - [ ] Confirm no dev-only HTTP routes or data-mutation tooling are exposed in production
 - [ ] Ensure `.env` files are in `.gitignore` and `.dockerignore`
@@ -43,14 +43,11 @@ Production readiness checklist for sku-ops. Work through each section before goi
 
 ## CI/CD
 
-- [ ] Verify `ci.yml` passes on both `dev` and `main` branches (backend lint + format + test, frontend lint + format + build + test, Docker build)
-- [ ] Verify `bump.yml` creates version tags and GitHub releases on merge to `main`
-- [ ] Verify `deploy.yml` SSH deploy completes successfully on merge to `main`
-- [ ] Create GitHub environment `production` with required reviewers
-- [ ] Add branch protection rules for `main`: require PR, require status checks (Backend, Frontend, Docker build), require up-to-date
-- [ ] Add branch protection rules for `dev`: require PR, require status checks (Backend, Frontend)
-- [ ] Run `cz bump --dry-run` to verify commitizen config produces correct version tags
-- [ ] Verify `CHANGELOG.md` gets populated on first real bump
+- [ ] Verify `.github/workflows/ci.yml` passes on `dev` and `main` (backend lint + format + test, frontend lint + format + build + test, Docker build)
+- [ ] Create GitHub environment `production` with required reviewers if you use gated deploys
+- [ ] Add branch protection for `main`: require PR, require status checks, require up-to-date
+- [ ] Add branch protection for `dev`: require PR, require status checks
+- [ ] Run `cz bump --dry-run` to verify commitizen config produces correct version tags (if using release automation)
 - [ ] Install pre-commit hooks locally: `pixi run uv run --directory backend pre-commit install --install-hooks && pixi run uv run --directory backend pre-commit install --hook-type commit-msg`
 
 ## Testing
@@ -70,8 +67,8 @@ Production readiness checklist for sku-ops. Work through each section before goi
 - [ ] Verify JSON structured logging in production: deploy with `LOG_LEVEL=INFO`, check logs contain `request_id`, `user_id`, `org_id` fields
 - [ ] Confirm `X-Request-ID` response header is present on all API responses
 - [ ] Trigger a test error in Sentry and verify it arrives with `org_id` and `request_id` tags
-- [ ] Set up log aggregation (journald on VPS, or ship to Datadog/Loki/CloudWatch)
-- [ ] Verify Prometheus metrics at `/metrics` (requires `METRICS_TOKEN` auth): `http_requests_total`, `http_request_duration_seconds`
+- [ ] Set up log aggregation (platform logs or ship to Datadog/Loki/CloudWatch)
+- [ ] Verify Prometheus metrics at `/metrics` (when protected): `http_requests_total`, `http_request_duration_seconds`
 
 ## Post-Launch (Not Blockers)
 

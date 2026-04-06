@@ -3,7 +3,7 @@
 Modular monolith in production. Python/FastAPI backend, React frontend. Architecture remediation complete. These rules encode what was learned — follow them precisely.
 
 Consult `.cursor/rules/known-good-patterns.mdc` before any structural backend change.
-Consult `.cursor/rules/deployment-hardening.mdc` before any Docker, nginx, CORS, or auth change.
+Consult `.cursor/rules/deployment-hardening.mdc` before any Docker, CORS, or auth change.
 
 ---
 
@@ -126,4 +126,4 @@ Yes for mutation flows and cross-context data transfer. No for simple pass-throu
 - Do not add abstraction layers that have one caller and one implementation. That is ceremony, not architecture.
 - Do not create generic patterns (Repository[T], Service[T]) in a codebase with 5-15 entities per context.
 - Do not decrease test coverage. If new abstractions are harder to test than the concrete code they replace, the abstraction is wrong.
-- Do not touch Docker, nginx, CORS, or auth without reading `deployment-hardening.mdc` first.
+- Do not touch Docker, CORS, or auth without reading `deployment-hardening.mdc` first.

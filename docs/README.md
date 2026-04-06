@@ -6,9 +6,7 @@ Repo markdown uses **snake_case** filenames, except **README.md** (package or fo
 
 | Document | Purpose |
 | --- | --- |
-| [deploy.md](deploy.md) | Primary playbook: Railway + Vercel + Supabase |
-| [deploy_client.md](deploy_client.md) | Per-client setup on that stack |
-| [deployment.md](deployment.md) | VPS / self-hosted Docker |
+| [deploy.md](deploy.md) | Deployment playbook: hosted API + Vercel + Supabase |
 | [launch_checklist.md](launch_checklist.md) | Production readiness |
 
 ## Engineering

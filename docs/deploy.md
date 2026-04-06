@@ -1,24 +1,23 @@
 # Deployment Playbook
 
+Target stack: **DigitalOcean** (or equivalent for the FastAPI backend) + **Vercel** (frontend) + **Supabase** (auth + Postgres). CI/CD wiring is repo-specific — this doc covers env, auth, and verification only.
+
 ## Architecture
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Vercel     │     │   Railway    │     │   Supabase   │
+│   Vercel     │     │  API host    │     │   Supabase   │
 │  (Frontend)  │────▶│  (Backend)   │────▶│  (Auth + DB) │
 │  React SPA   │     │  FastAPI     │     │  Postgres 16 │
 └──────────────┘     └──────────────┘     └──────────────┘
-  Deploys from:        Deploys from:        Managed
-  main branch          main branch
-  Root dir: /          Dockerfile: backend/
+  Deploys from:        Your pipeline       Managed
+  Root dir: /          Docker image
 ```
 
-- **Frontend** (Vercel) — static React SPA, talks directly to backend via `VITE_BACKEND_URL`
-- **Backend** (Railway) — FastAPI in Docker, connects to Supabase Postgres via `DATABASE_URL`
-- **Auth** (Supabase) — issues JWTs. Backend validates them using Supabase's `JWT_SECRET`.
-- **Database** (Supabase Postgres) — port **5432 (direct)**, NOT 6543 (pooler). asyncpg uses prepared statements which are incompatible with pgbouncer.
-
-There is also a **self-hosted** path via `docker-compose.yml` (Postgres + Redis + backend + nginx + certbot). See [deployment.md](deployment.md) for VPS instructions.
+- **Frontend** (Vercel) — static React SPA; API calls go to `VITE_BACKEND_URL`.
+- **Backend** — FastAPI in Docker; connects to Supabase Postgres via `DATABASE_URL`.
+- **Auth** (Supabase) — issues JWTs. Backend validates with Supabase `JWT_SECRET`.
+- **Database** — Supabase Postgres on port **5432 (direct)**, NOT 6543 (pooler). asyncpg uses prepared statements incompatible with pgbouncer.
 
 ---
 
@@ -28,7 +27,7 @@ There is also a **self-hosted** path via `docker-compose.yml` (Postgres + Redis 
 |---|---|---|---|
 | Local dev | `development` | Your machine | Local Supabase stack, permissive defaults |
 | Test | `test` | CI / local pytest | Test Postgres DB, conftest sets this |
-| Production | `production` | Railway + Vercel + Supabase | Strict config, Supabase Auth required |
+| Production | `production` | Hosted API + Vercel + Supabase | Strict config, Supabase Auth required |
 
 There is no staging environment. `config.py` accepts exactly three values: `development`, `test`, `production`.
 
@@ -43,118 +42,71 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
 
 ---
 
-## New Client Deployment (Step by Step)
+## New environment (step by step)
 
 ### 1. Create a Supabase project
 
-1. Go to [supabase.com](https://supabase.com) and create a new project
+1. Go to [supabase.com](https://supabase.com) and create a new project.
 2. From **Settings > API** / **Settings > API keys**, collect:
    - **Project URL** — `https://xxxx.supabase.co`
-   - **Publishable key** — `sb_publishable_...` (public, safe for frontend; not the JWT secret)
-   - **JWT Secret** — under **JWT Settings** (used by the backend to validate tokens; not the publishable key)
-3. From **Settings > Database**, collect:
-   - **Connection string** — use the **Direct** connection (port 5432), NOT the pooler (port 6543)
-   - Format: `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`
+   - **Publishable key** — `sb_publishable_...` (public, safe for frontend)
+   - **JWT Secret** — under **JWT Settings** (backend validates tokens; not the publishable key)
+3. From **Settings > Database**, collect the **direct** connection string (port **5432**), not the pooler (6543).
 
-### 2. Deploy backend on Railway
+### 2. Deploy the backend
 
-1. Connect your GitHub repo to Railway
-2. Railway uses `railway.toml` at the repo root:
-   ```toml
-   [build]
-   builder = "DOCKERFILE"
-   dockerfilePath = "backend/Dockerfile"
-   buildContextPath = "."
+Run the same image built from [backend/Dockerfile](../backend/Dockerfile) on your host (e.g. DigitalOcean App Platform). Configure:
 
-   [deploy]
-   healthcheckPath = "/api/health"
-   healthcheckTimeout = 30
-   restartPolicyType = "ON_FAILURE"
-   restartPolicyMaxRetries = 3
-   ```
-3. Set environment variables in Railway dashboard (see `deploy/railway-env.example` for the full list):
+**Required — app will not start without:**
 
-   **Required — app won't start without these:**
+| Variable | Notes |
+|---|---|
+| `ENV` | `production` |
+| `DATABASE_URL` | Supabase direct, port 5432 |
+| `SUPABASE_URL` | Same project URL as frontend; JWKS |
+| `JWT_SECRET` | Supabase JWT secret from dashboard |
+| `CORS_ORIGINS` | Comma-separated; include all stable Vercel origins |
 
-   | Variable | Value | Notes |
-   |---|---|---|
-   | `ENV` | `production` | |
-   | `DATABASE_URL` | `postgresql://...` | Supabase direct connection, port 5432 |
-   | `SUPABASE_URL` | `https://xxxx.supabase.co` | Same project URL as the frontend; required for JWKS |
-   | `JWT_SECRET` | Supabase JWT secret | Dashboard > Settings > API > JWT Secret |
-   | `CORS_ORIGINS` | `https://your-app.vercel.app` | Comma-separated. Include all Vercel domains. |
+**Recommended:**
 
-   **Recommended:**
+| Variable | Notes |
+|---|---|
+| `REDIS_URL` | Required for `WORKERS > 1` |
+| `WORKERS` | `2` or more with Redis for AI chat concurrency |
+| `FRONTEND_URL` | Vercel production URL — Xero OAuth redirects |
+| `SENTRY_DSN` | Error tracking |
+| `CORS_ORIGIN_REGEX` | e.g. Vercel preview URLs |
 
-   | Variable | Value | Notes |
-   |---|---|---|
-   | `REDIS_URL` | `redis://...` | Add a Railway Redis service. Required for `WORKERS > 1`. |
-   | `WORKERS` | `2` | Doubles event loop capacity for concurrent AI chat. Requires Redis. |
-   | `FRONTEND_URL` | `https://your-app.vercel.app` | Required for Xero OAuth redirects |
-   | `SENTRY_DSN` | `https://...@sentry.io/...` | Error tracking |
+**Optional:** AI keys (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`), Xero (`XERO_*`), pool tuning (`PG_POOL_MAX`).
 
-   **Optional:**
-
-   | Variable | Value | Notes |
-   |---|---|---|
-   | `ANTHROPIC_API_KEY` | `sk-ant-...` | Enables AI assistant |
-   | `OPENROUTER_API_KEY` | `sk-or-...` | Fallback AI provider — auto-used when Anthropic is overloaded |
-   | `OPENAI_API_KEY` | `sk-...` | Product search embeddings |
-   | `CORS_ORIGIN_REGEX` | `https://frontend-.*\.vercel\.app` | Allow Vercel preview deploys |
-   | `XERO_CLIENT_ID` | | Xero integration |
-   | `XERO_CLIENT_SECRET` | | Xero integration |
-   | `XERO_REDIRECT_URI` | `https://your-railway.app/api/xero/callback` | Xero integration |
-   | `PG_POOL_MAX` | `10` | Tune: `floor(max_pg_connections / WORKERS)` |
-   | `LOG_LEVEL` | `INFO` | |
-
-4. Deploy. Check Railway logs for:
-   ```
-   INFO  Application ready — env=production, auth_provider=supabase, db=..., ...
-   ```
+The process listens on `$PORT` if the platform sets it (see Dockerfile `CMD`).
 
 ### 3. Deploy frontend on Vercel
 
-1. Import the repo on Vercel. The root `vercel.json` handles the monorepo build:
-   ```json
-   {
-     "buildCommand": "cd frontend && pnpm install --frozen-lockfile && pnpm run build",
-     "outputDirectory": "frontend/dist",
-     "installCommand": "echo skip"
-   }
-   ```
-2. Set environment variables in Vercel dashboard > Settings > Environment Variables:
+1. Import the repo. Root [vercel.json](../vercel.json) defines build, CSP, and SPA rewrites.
+2. Set **build-time** env vars in Vercel (see [frontend/.env.example](../frontend/.env.example)):
 
-   | Variable | Value | Notes |
-   |---|---|---|
-   | `VITE_BACKEND_URL` | `https://your-app.up.railway.app` | No trailing slash. All API calls go here. |
-   | `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` | Dashboard > Settings > API > Project URL |
-   | `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` | Dashboard > Settings > API keys > Publishable key |
+| Variable | Notes |
+|---|---|
+| `VITE_BACKEND_URL` | Public API origin, no trailing slash |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Publishable key |
 
-   These are **build-time** variables (baked into JS). Changing them requires a redeploy.
-
-3. After first deploy, note all stable Vercel domains and add them to Railway's `CORS_ORIGINS`:
-   - The custom alias domain
-   - The project domain (`frontend-xxx.vercel.app`)
-   - The branch domain (`frontend-git-main-xxx.vercel.app`)
+3. After deploy, add every stable Vercel origin to backend `CORS_ORIGINS` (production domain, `*.vercel.app` project URL, etc.).
 
 ### 4. Create the organization
 
-The schema creates a `"default"` org on first startup. Rename it for the client:
+The schema may create a `"default"` org on first startup. Rename for the client:
 
 ```sql
 UPDATE organizations SET name = 'ClientName', slug = 'clientname' WHERE id = 'default';
 ```
 
-For additional tenants, insert a new row:
-
-```sql
-INSERT INTO organizations (id, name, slug, created_at) VALUES ('client2', 'Client Two', 'client2', NOW());
-```
-
 ### 5. Create the admin user
 
-1. Create the user in **Supabase Dashboard > Authentication > Users** (email + password)
-2. Set the admin role **and** `organization_id` in **Supabase SQL Editor**:
+1. Create the user in **Supabase Dashboard > Authentication > Users**.
+2. Set role and `organization_id` in **Supabase SQL Editor**:
+
    ```sql
    UPDATE auth.users
    SET raw_app_meta_data = jsonb_set(
@@ -166,211 +118,71 @@ INSERT INTO organizations (id, name, slug, created_at) VALUES ('client2', 'Clien
    )
    WHERE email = 'admin@clientname.com';
    ```
-   **The `organization_id` claim is required.** Without it, the backend rejects every request with 401 in production. The value must match an `organizations.id` row in the database.
 
-3. Get the Supabase user UUID:
-   ```sql
-   SELECT id FROM auth.users WHERE email = 'admin@clientname.com';
-   ```
-4. Create the local profile row so `/api/auth/me` returns enriched data (company, phone, billing_entity):
-   ```bash
-   DATABASE_URL=<production-db-url> \
-   pixi run create-admin -- \
-     --id <supabase-user-uuid> \
-     --email admin@clientname.com \
-     --name "Client Admin" \
-     --org-id default
-   ```
+   **`organization_id` is required** in production JWTs or the API returns 401.
+
+3. Create the profile row (see `pixi run create-admin` in backend tooling) so `/api/auth/me` returns enriched data.
 
 ### 6. Verify
 
 ```bash
-pixi run verify -- --url https://your-railway-app.up.railway.app
+pixi run verify -- --url https://api.your-domain.com
 ```
 
-Check that:
-- `/api/health` returns 200 with `env=production`
-- `/api/ready` returns 200 with all checks passing
-- Login via Supabase SDK works in the browser
-- `/api/auth/me` returns the enriched profile
-- No CORS errors in the browser console
-- WebSocket connects (check Network tab for `/api/ws`)
+Check:
+
+- `/api/health` and `GET /api/beta/shared/health` / `/api/ready` as appropriate for your probes
+- Browser login via Supabase SDK
+- No CORS errors
+- WebSockets: `/api/beta/shared/ws` and `/api/beta/assistant/ws/chat`
 
 ---
 
-## Auth Model — Users, Contractors, Organizations
+## Auth model (short)
 
-### Concepts
-
-| Concept | What it is |
+| Concept | Meaning |
 |---|---|
-| **Organization** | The tenancy boundary. Every row in every business table has an `organization_id`. Each client gets one org. |
-| **User** | A row in the `users` table. Has a `role` (`admin` or `contractor`), scoped to one `organization_id`. |
-| **Admin** | `role = 'admin'`. Full access: inventory, purchasing, invoicing, reports, settings, AI assistant. |
-| **Contractor** | `role = 'contractor'`. Limited access: can view products (no cost), create material requests, view their own withdrawals. Contractors have `company`, `billing_entity`, and `billing_entity_id` fields. |
-
-Admins and contractors live in the **same `users` table** — `role` is the discriminator. There is no separate `contractors` table. The `contractor_service.py` module queries `users WHERE role = 'contractor'` and exposes CRUD via `/api/contractors`.
-
-### How auth works
-
-```
-Frontend                  Supabase Auth              Backend
-───────                   ────────────               ───────
-signInWithPassword() ───▶ Validates credentials
-                    ◀──── Returns JWT (access_token)
-
-GET /api/products    ────────────────────────────▶  auth_deps.py:
-  Authorization: Bearer <jwt>                         jwt.decode(token, JWT_SECRET)
-                                                      auth_provider.py:
-                                                        resolve_claims(payload)
-                                                        → ResolvedClaims(user_id, email, role, organization_id)
-
-                                                      CurrentUser built from claims
-                                                      org_id_var.set(org_id)  ← ambient context for all repos
-```
-
-**Production (Supabase):** JWT issued by Supabase. Backend validates with Supabase's `JWT_SECRET`. Role comes from `app_metadata.role`, org from `app_metadata.organization_id`.
-
-**Dev/test (bridge):** Backend issues its own JWT via `POST /api/auth/login`. Role and org_id are top-level claims.
-
-### Supabase JWT claims setup
-
-For every user in Supabase, you must set `role` and `organization_id` in `raw_app_meta_data`:
-
-```sql
--- Admin user
-UPDATE auth.users
-SET raw_app_meta_data = jsonb_set(
-  jsonb_set(
-    COALESCE(raw_app_meta_data, '{}'::jsonb),
-    '{role}', '"admin"'
-  ),
-  '{organization_id}', '"default"'
-)
-WHERE email = 'admin@clientname.com';
-
--- Contractor user  
-UPDATE auth.users
-SET raw_app_meta_data = jsonb_set(
-  jsonb_set(
-    COALESCE(raw_app_meta_data, '{}'::jsonb),
-    '{role}', '"contractor"'
-  ),
-  '{organization_id}', '"default"'
-)
-WHERE email = 'contractor@clientname.com';
-```
-
-These values end up in the JWT as `app_metadata.role` and `app_metadata.organization_id`. The backend reads them via `auth_provider.py`.
-
-### Adding a contractor (production workflow)
-
-1. Admin creates the contractor via the UI or `POST /api/contractors` (which inserts into `users` with `role='contractor'`)
-2. If the contractor needs to **log in themselves**, also create them in **Supabase Auth** (same email/password), then run the SQL above to set their role and org
-3. If the contractor is passive (admin processes withdrawals on their behalf), skip Supabase — they only need a `users` row
-
-### Multi-tenant isolation
-
-- Every query in every repo calls `get_org_id()` which reads from the `org_id_var` contextvar (set from the JWT during auth)
-- Every write passes `organization_id` to the insert
-- Cross-org data access is impossible at the SQL level — repos always filter by `organization_id`
-- In production, tokens without `organization_id` are rejected with 401 at the transport layer
-
-### Adding a new client (new org)
-
-1. Insert an organization row (see step 4 above)
-2. Create admin user in Supabase + local profile (see step 5 above)
-3. Set `organization_id` in their Supabase `app_metadata` to match the new org ID
-4. All their data will be isolated to that org
+| **Organization** | Tenancy boundary; `organization_id` on business data |
+| **User** | `users` table; `role` is `admin` or `contractor` |
+| **Production** | Supabase JWT; `JWT_SECRET` must match project; claims from `app_metadata` via `auth_provider.py` |
 
 ---
 
-## CI/CD Pipeline
+## CI/CD
 
-**GitHub Actions:** `.github/workflows/ci.yml`
+GitHub Actions: [.github/workflows/ci.yml](../.github/workflows/ci.yml) — backend lint/test, frontend lint/build/test, Docker image build smoke.
 
-| Job | What it does |
-|---|---|
-| `backend` | Lint (ruff) + format check + pytest against Postgres 16 |
-| `frontend` | Lint (eslint) + format (prettier) + build + vitest |
-| `docker` | Builds the backend Docker image (smoke test) |
-
-Runs on push to `main`/`dev` and on PRs targeting those branches.
-
-**Auto-deploy:** Railway auto-deploys on push to `main`. Vercel auto-deploys on push to `main` (with preview deploys for PRs).
+Automated deploy to Vercel / your API host is configured in your CI provider, not duplicated here.
 
 ---
 
-## WebSocket Support
-
-Two WebSocket endpoints, both authenticated via JWT query param:
+## WebSocket support
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/ws?token=...` | Realtime domain event broadcasting |
-| `GET /api/ws/chat?token=...` | AI assistant streaming |
+| `GET /api/beta/shared/ws?token=...` | Domain events |
+| `GET /api/beta/assistant/ws/chat?token=...` | AI assistant streaming |
 
-**Production constraints:**
-- `REDIS_URL` required if `WORKERS > 1` (event hub uses Redis Pub/Sub)
-- Client reconnects automatically with exponential backoff (1–30s)
-- Heartbeat timeout: 45s (domain events), 35s (chat)
-
----
-
-## Updating Environment Variables
-
-**Railway:**
-```bash
-railway variables --set "CORS_ORIGINS=https://domain1.com,https://domain2.com"
-```
-Railway auto-redeploys on variable change.
-
-**Vercel:**
-Change in dashboard, then trigger a redeploy (VITE_* vars are baked at build time).
+With `WORKERS > 1`, `REDIS_URL` is required (Redis pub/sub for events).
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Every API request → 401 | JWT_SECRET mismatch | Railway `JWT_SECRET` must be the Supabase JWT secret |
-| 401 "missing organization_id claim" | `organization_id` not in Supabase `app_metadata` | Run the SQL to set `organization_id` in `raw_app_meta_data` |
-| Login works but `/me` returns 401 | `app_metadata.role` not set | Run the SQL to set role in Supabase |
-| WebSocket 403 or CORS error | `CORS_ORIGINS` missing frontend domain | Add all Vercel domains to Railway `CORS_ORIGINS` |
-| Frontend blank / can't reach backend | `VITE_BACKEND_URL` wrong or missing | Set in Vercel env vars, redeploy |
-| DB connection fails | Using port 6543 (pgbouncer) | Switch to port 5432 (direct) in `DATABASE_URL` |
-| Backend crash on startup | Missing required env var | Read the `RuntimeError` message in Railway logs |
-| Auth doesn't work at all | `@supabase/supabase-js` not installed | Run `pixi run pnpm --dir frontend add @supabase/supabase-js` |
-| Preview deploys get CORS errors | Preview URL not in `CORS_ORIGINS` | Set `CORS_ORIGIN_REGEX` to match Vercel preview URLs |
-| Xero OAuth redirect fails | `FRONTEND_URL` not set | Set to your Vercel production URL on Railway |
-
-### Useful Commands
-
-```bash
-# Pre-deploy verification (local)
-pixi run verify -- --skip-build
-
-# Pre-deploy verification (against live server)
-pixi run verify -- --url https://your-app.up.railway.app
-
-# Check Railway logs
-railway logs
-
-# Check Railway env vars
-railway variables
-
-# Manual Railway redeploy
-railway up
-```
+| 401 on all API calls | `JWT_SECRET` not Supabase secret | Set backend `JWT_SECRET` from Supabase JWT settings |
+| missing `organization_id` claim | `raw_app_meta_data` not set | SQL update on `auth.users` |
+| CORS errors | Origin not in `CORS_ORIGINS` | Add Vercel URLs; use `CORS_ORIGIN_REGEX` for previews |
+| Frontend cannot reach API | Wrong `VITE_BACKEND_URL` | Fix Vercel env, redeploy |
+| DB connection fails | Using pooler port 6543 | Use direct 5432 `DATABASE_URL` |
 
 ---
 
-## Env Var Reference Files
+## Reference files
 
 | File | Purpose |
 |---|---|
-| `deploy/railway-env.example` | All Railway env vars with descriptions |
-| `deploy/vercel-env.example` | All Vercel (VITE_*) env vars |
-| `.env.production.example` | Docker Compose / VPS deployments |
-| `backend/.env.example` | Local native development |
+| [frontend/.env.example](../frontend/.env.example) | Vercel / frontend `VITE_*` template |
+| [.env.production.example](../.env.production.example) | Optional `docker compose` root `.env` template |
+| [backend/.env.example](../backend/.env.example) | Native local backend |

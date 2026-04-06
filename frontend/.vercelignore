@@ -1,5 +1,4 @@
 ../backend/
-../deploy/
 ../docker-compose*.yml
 ../.github/
 ../.devcontainer/

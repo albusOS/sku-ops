@@ -5,9 +5,8 @@ alwaysApply: true
 
 # Local Dev Workflow
 
-## Two modes — know which one you need
+## Daily development (default)
 
-### Mode 1: Daily development (default)
 Use this for all feature work. Hot-reload, local Supabase, and seed scripts work.
 
 ```bash
@@ -26,24 +25,17 @@ pixi run provision -- --dev                 # org + departments + dev users
 pixi run import -- --vendors --products    # real Hike POS data
 ```
 
-### Mode 2: Production verification (before deploy)
-Use this to confirm the Docker image builds and runs correctly against Postgres + Redis.
+## Optional Docker stack
 
-```bash
-docker compose up --build    # nginx/certbot excluded via override profile
-```
-
-- Backend: http://localhost:8000 (Postgres, Redis connected)
-- No hot-reload. Rebuild with `docker compose up --build` after code changes.
-- `devtools/` scripts are intentionally excluded from the Docker image — run seeds in Mode 1.
-- Docker build context is the workspace root: `docker build -f backend/Dockerfile .`
+`docker compose up` from the repo root runs Postgres + Redis + backend inside containers (see `docker-compose.yml`). Use when you want to validate the Docker image against real services locally. `devtools/` scripts are intentionally excluded from the Docker image — run seeds in native dev (`pixi run dev`) instead. Docker build context: `docker build -f backend/Dockerfile .`
 
 ## Key ports
-| Service  | Mode 1 (native) | Mode 2 (Docker) |
-|----------|-----------------|-----------------|
-| Backend  | :8000           | :8000           |
-| Frontend | :3000           | —               |
-| Postgres | :54322          | :5433           |
+
+| Service  | Native dev | Docker compose (override) |
+|----------|------------|---------------------------|
+| Backend  | :8000      | :8000                     |
+| Frontend | :3000      | —                         |
+| Postgres | :54322     | :5433 (host → container)  |
 
 ## Common dev commands
 
@@ -65,7 +57,7 @@ pixi run check [all|backend|frontend]   # lint then format (default all)
 pixi run commit                  # commitizen conventional commit
 pixi run backend                 # backend only
 pixi run frontend                # frontend only
-pixi run provision -- …          # extra args for provision (Mode 1 shows --dev)
+pixi run provision -- …          # extra args for provision (shows --dev for Mode 1)
 pixi run eval -- …               # extra args for evals
 pixi run db                      # start local Supabase stack
 pixi run db-stop                 # stop local Supabase stack
@@ -92,4 +84,5 @@ sku-ops/
 Each deployable owns its tests. Devtools live at the workspace root. The Docker image contains zero test or devtools code — `backend/tests/` is excluded via `.dockerignore`, devtools is structurally outside the `COPY backend/` layer, and `uv sync --no-dev --directory backend` skips test deps.
 
 ## Frontend always proxies /api → localhost:8000
-Configured in `frontend/vite.config.js`. Works with both modes as long as backend is on :8000.
+
+Configured in `frontend/vite.config.js`. Works for native dev as long as the backend is on :8000.

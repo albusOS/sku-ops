@@ -61,7 +61,7 @@ pixi run import -- --products              # optional: Hike POS products
 - **AI:** Anthropic Claude (documents, UOM, assistant), OpenAI (embeddings), OpenRouter (agent gateway)
 - **Infra:** Redis (event pub/sub, chat sessions, distributed locks), Prometheus metrics, Sentry error tracking
 - **Quality:** Ruff (Python lint + format), ESLint 9 + Prettier (frontend), commitizen (conventional commits), CI on every push
-- **Deploy:** Railway (backend), Vercel (frontend), Supabase (auth + DB)
+- **Deploy:** DigitalOcean (or equivalent API host), Vercel (frontend), Supabase (auth + DB)
 
 ## Dev Commands
 
@@ -144,13 +144,13 @@ Frontend: useRealtimeSync() -> invalidates TanStack Query cache -> UI re-renders
 
 Events are org-scoped and role-filtered. Contractors only receive events relevant to their role. With `REDIS_URL` set, events propagate across all workers via Redis Pub/Sub. Chat sessions are stored in Redis hashes with TTL expiry. The Xero sync lock uses a distributed Redis key.
 
-## Docker
+## Docker (optional local stack)
 
 ```bash
-cp .env.production.example .env   # set JWT_SECRET, CORS_ORIGINS, REDIS_URL, etc.
+cp .env.production.example .env   # set JWT_SECRET, CORS_ORIGINS, POSTGRES_PASSWORD, etc.
 docker compose up -d
 ```
 
-The stack includes PostgreSQL, Redis, the backend (FastAPI + uvicorn), Nginx (reverse proxy + static frontend), and Certbot (TLS). The backend runs behind Nginx with the frontend served as static files from `frontend/dist`.
+Runs PostgreSQL, Redis, and the backend only. Production uses hosted Supabase, Vercel, and your API host — see [Deploy playbook](docs/deploy.md).
 
-See [Documentation](docs/README.md) for the full index. Quick links: [Deploy playbook](docs/deploy.md) (Railway + Vercel + Supabase), [Deployment Guide](docs/deployment.md) (VPS / self-hosted), [Launch Checklist](docs/launch_checklist.md), and [Testing](docs/testing.md).
+See [Documentation](docs/README.md) for the full index. Quick links: [Deploy playbook](docs/deploy.md), [Launch Checklist](docs/launch_checklist.md), and [Testing](docs/testing.md).

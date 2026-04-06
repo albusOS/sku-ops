@@ -19,7 +19,6 @@ backend/tests/
 tests/
 devtools/scripts/enhance_csv.py
 frontend/
-deploy/
 .cursor/
 .devcontainer/
 node_modules/

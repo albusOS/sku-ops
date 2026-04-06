@@ -109,9 +109,6 @@ frontend/.env
 
 # Deployment artifacts
 backups/
-deploy/nginx/nginx.rendered.conf
-deploy/nginx/ssl-temp/
-deploy/nginx/nginx.init-tls.conf
 
 # Test artifacts and temp files
 test_temp.txt

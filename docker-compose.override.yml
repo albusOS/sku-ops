@@ -7,8 +7,6 @@
 # This file:
 #   - Exposes db and backend ports to the host for debugging
 #   - Defaults ENV to development (respects ENV set in root .env or shell)
-#   - Moves nginx and certbot behind the `production-only` profile so they are
-#     not started during local Docker runs
 #
 # IMPORTANT: ENV here uses ${ENV:-development} so that if your root .env sets
 # ENV=production, it is respected. The app enforces hard guards in production
@@ -17,9 +15,6 @@
 # Docker-local workflow (dev):
 #   cp .env.production.example .env && edit .env   # fill POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS
 #   docker compose up
-#
-# VPS production (no override):
-#   docker compose -f docker-compose.yml up -d
 services:
   db:
     ports:
@@ -30,11 +25,3 @@ services:
       - "8000:8000"
     environment:
       ENV: ${ENV:-development}
-
-  nginx:
-    profiles:
-      - production-only
-
-  certbot:
-    profiles:
-      - production-only
