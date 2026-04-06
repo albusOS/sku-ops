@@ -11,7 +11,7 @@ Modular monolith in production. Nine bounded contexts. Hardening for reliability
 
 | File | Role |
 |------|------|
-| `server.py` | App composition root — creates FastAPI app, mounts middleware and exception handlers |
+| `main.py` | App composition root — creates FastAPI app, mounts middleware and exception handlers |
 | `routes.py` | Router aggregation — imports all context routers and registers them under `/api` |
 | `startup.py` | Lifespan context manager — DB/Redis init, warm-up, demo seeding, shutdown |
 | `scheduler.py` | Background scheduled tasks — Xero nightly sync loop; add new recurring jobs here |
@@ -34,7 +34,7 @@ shared/infrastructure/      ← cross-cutting infra (db, redis, config, middlewa
 {context}/api/              ← thin HTTP transport, imports only own application layer + shared/api
 ```
 
-Composition roots (`server.py`, `routes.py`, `startup.py`, `scheduler.py`) are exempt from cross-context import rules — their purpose is to wire the whole system together.
+Composition roots (`main.py`, `routes.py`, `startup.py`, `scheduler.py`) are exempt from cross-context import rules — their purpose is to wire the whole system together.
 
 ### What each layer may contain
 

@@ -27,7 +27,7 @@ cmd = "{% if action == \"start\" %}supabase start && echo 'Supabase started. Run
 
 [tasks.backend]
 depends-on = ["_is_supabase_running"]
-cmd = "uv run --directory backend uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir ."
+cmd = "uv run --directory backend uvicorn main:app --reload --host 0.0.0.0 --port 8000 --app-dir ."
 env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
 description = "Start backend dev server (FastAPI)"
 

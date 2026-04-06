@@ -10,7 +10,8 @@ license = "MIT"
 dependencies = [
     # ── Core ──
     "fastapi>=0.110.1",
-    "uvicorn>=0.25.0",
+    "uvicorn[standard]>=0.25.0",
+    "gunicorn>=23.0.0",
     "python-dotenv>=1.0.1",
     "pydantic>=2.6.4",
     "email-validator>=2.2.0",
@@ -149,7 +150,7 @@ select = [
 # PLW0603: module-level global for lazy singletons (JWKS, DB, agent caches).
 "**/*.py" = ["TRY003", "BLE001", "S608", "PLW0603"]
 # Composition root: setup_logging() runs before app imports that may emit logs at import time.
-"server.py" = ["E402"]
+"main.py" = ["E402"]
 # Tests use deferred imports for optional stacks and heavy fixtures.
 # Long assertion data and mock payloads routinely exceed the code line cap.
 # Tests white-box private helpers and SQLAlchemy/SQLModel rows (_mapping, etc.).

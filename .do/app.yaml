@@ -1,0 +1,122 @@
+# DigitalOcean App Platform spec
+# Docs: https://docs.digitalocean.com/products/app-platform/reference/app-spec/
+#
+# The backend image is built by GitHub Actions and pushed to GHCR.
+# App Platform pulls the image and deploys it.
+#
+# Create / update the app:
+#   doctl apps create --spec .do/app.yaml
+#   doctl apps update <app-id> --spec .do/app.yaml
+#
+# GHCR pull auth: public packages often pull without credentials. For a private
+# package, set registry_credentials in the DO dashboard (username: PAT with
+# read:packages) or pass once to doctl; DO encrypts it and you must not commit
+# real tokens here. If deploy fails with image pull errors, add credentials via UI.
+#
+# Secret env values (DATABASE_URL, JWT_SECRET, etc.): set real values in the DO
+# dashboard or doctl after first apply — do not commit secrets.
+
+name: sku-ops-backend
+region: nyc1
+
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /
+
+services:
+  - name: api
+    image:
+      registry_type: GHCR
+      registry: albus-consulting
+      repository: sku-ops-backend
+      tag: latest
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    http_port: 8000
+    health_check:
+      http_path: /api/beta/shared/health
+      initial_delay_seconds: 15
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: ENV
+        scope: RUN_TIME
+        value: production
+      - key: PORT
+        scope: RUN_TIME
+        value: "8000"
+      - key: WORKERS
+        scope: RUN_TIME
+        value: "1"
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: CORS_ORIGINS
+        scope: RUN_TIME
+        value: REPLACE_WITH_VERCEL_DOMAINS
+      - key: CORS_ORIGIN_REGEX
+        scope: RUN_TIME
+        value: ""
+      - key: FRONTEND_URL
+        scope: RUN_TIME
+        value: REPLACE_WITH_VERCEL_URL
+      - key: REDIS_URL
+        scope: RUN_TIME
+        value: ""
+      - key: SENTRY_DSN
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: OPENROUTER_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: OPENAI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: XERO_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: XERO_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_VIA_DASHBOARD
+      - key: XERO_REDIRECT_URI
+        scope: RUN_TIME
+        value: REPLACE_WITH_CALLBACK_URL
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+      - key: PG_POOL_MIN
+        scope: RUN_TIME
+        value: "2"
+      - key: PG_POOL_MAX
+        scope: RUN_TIME
+        value: "10"
+      - key: PG_ACQUIRE_TIMEOUT
+        scope: RUN_TIME
+        value: "10"
+      - key: PG_COMMAND_TIMEOUT
+        scope: RUN_TIME
+        value: "30"

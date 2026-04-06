@@ -1,6 +1,6 @@
 ---
 description: Production deployment requirements — Docker, DigitalOcean, Vercel, CORS, pool, auth, observability
-globs: "{backend/Dockerfile,docker-compose.yml,vercel.json}"
+globs: "{backend/Dockerfile,docker-compose.yml,vercel.json,.do/app.yaml,.github/workflows/deploy.yml}"
 alwaysApply: false
 ---
 
@@ -12,7 +12,7 @@ Deviations are bugs, not preferences.
 
 Primary: **DigitalOcean** (or equivalent API host for the backend) + **Vercel** (frontend) + **Supabase** (auth + Postgres).
 
-Optional: `docker-compose.yml` runs **Postgres + Redis + backend** locally for integration smoke checks. It is not the production topology.
+Optional: `docker-compose.yml` runs **Redis + backend** locally for container smoke checks. Database is always Supabase (local or hosted). It is not the production topology.
 
 There are three environments: `development`, `test`, `production`. There is no staging.
 
@@ -37,10 +37,20 @@ There are three environments: `development`, `test`, `production`. There is no s
 ## Docker
 
 - Two-stage build: `builder` (compilers, uv sync) → `runtime` (venv only, no headers)
+- uv is pinned via `COPY --from=ghcr.io/astral-sh/uv:0.7` in the builder stage
 - Non-root: `appuser:appgroup` uid/gid 1001, `USER appuser` before `CMD`
 - `ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1` in runtime stage — required for log streaming
-- `CMD` calls `uvicorn` directly via activated venv. No `uv run` wrapper in production.
+- `CMD` uses gunicorn with `uvicorn.workers.UvicornWorker` for process management. Pass `--worker-tmp-dir /dev/shm` - DigitalOcean App Platform's container runtime can break gunicorn's default worker temp dir ([Dockerfile build reference](https://docs.digitalocean.com/products/app-platform/reference/dockerfile/)). No `uv run` wrapper in production.
 - `devtools/` never copied into image
+
+## CI/CD
+
+- GitHub Actions CI (`.github/workflows/ci.yml`) runs lint + test on every push/PR to main/dev. Backend tests use `supabase start` + `supabase db reset --local` (same migration + seed path as local `pixi run tests backend`), not a bare Postgres service.
+- Deploy workflow (`.github/workflows/deploy.yml`) triggers on push to `main` for backend paths only
+- Deploy pipeline: CI test gate → Docker build → push to GHCR → trigger App Platform redeploy
+- Image is pushed to `ghcr.io/albus-consulting/sku-ops-backend` with SHA and `latest` tags
+- App Platform spec lives in `.do/app.yaml` — update with `doctl apps update <id> --spec .do/app.yaml`
+- Required GitHub secrets: `DIGITALOCEAN_ACCESS_TOKEN`, `DIGITALOCEAN_APP_ID`
 
 ## CORS
 

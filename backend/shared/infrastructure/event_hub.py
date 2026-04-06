@@ -68,7 +68,7 @@ class _Hub:
         self._loop: asyncio.AbstractEventLoop | None = None
 
     # ------------------------------------------------------------------
-    # Lifecycle — called once from server.py lifespan after init_redis()
+    # Lifecycle — called once from main.py lifespan after init_redis()
     # ------------------------------------------------------------------
 
     def activate_redis(self) -> None:

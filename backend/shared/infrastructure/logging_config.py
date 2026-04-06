@@ -1,6 +1,6 @@
 """Structured logging — JSON in deployed environments, pretty in development.
 
-Usage in server.py:
+Usage in main.py:
     from shared.infrastructure.logging_config import setup_logging
     setup_logging()
 

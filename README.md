@@ -102,7 +102,7 @@ Configuration is environment-aware (`ENV=development|test|production`). See `bac
 
 ```
 backend/
-├── server.py         # App composition root (middleware, exception handlers)
+├── main.py           # App composition root (middleware, exception handlers)
 ├── routes.py         # Router aggregation — all context routers wired here
 ├── startup.py        # Lifespan: init, warm-up, seeding, shutdown
 ├── scheduler.py      # Background jobs (Xero nightly sync)

@@ -26,7 +26,7 @@ BOUNDED_CONTEXTS = frozenset(
         "reports",
     }
 )
-COMPOSITION_ROOTS = frozenset({"server.py", "routes.py", "startup.py", "scheduler.py"})
+COMPOSITION_ROOTS = frozenset({"main.py", "routes.py", "startup.py", "scheduler.py"})
 KNOWN_CROSS_INFRA_VIOLATIONS: frozenset[str] = frozenset()
 SHARED_DB_SERVICE_PREFIX = "shared/infrastructure/db/services/"
 

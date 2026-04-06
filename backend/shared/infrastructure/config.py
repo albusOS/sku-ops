@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 # Project root = backend/ (walk up from this file to find it)
 def _find_backend_root() -> Path:
-    """Locate the backend root by finding the directory containing server.py."""
+    """Locate the backend root by finding the directory containing main.py."""
     d = Path(__file__).resolve().parent
     for _ in range(10):
-        if (d / "server.py").exists():
+        if (d / "main.py").exists():
             return d
         d = d.parent
     return Path.cwd()

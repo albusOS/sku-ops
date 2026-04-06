@@ -56,7 +56,7 @@ def _app_client():
     """
     from starlette.testclient import TestClient
 
-    from server import app
+    from main import app
 
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client

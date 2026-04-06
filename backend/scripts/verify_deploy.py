@@ -274,7 +274,7 @@ def check_cors_config() -> None:
             ", ".join(origins),
         )
 
-    # Simulate what server.py does: CORS_ORIGINS.split(",")
+    # Simulate what main.py does: CORS_ORIGINS.split(",")
     test_cases = [
         ("https://app.vercel.app", ["https://app.vercel.app"]),
         (
@@ -303,7 +303,7 @@ def check_websocket_routes() -> None:
     try:
         from starlette.routing import WebSocketRoute
 
-        from server import app
+        from main import app
 
         ws_paths = {r.path for r in app.routes if isinstance(r, WebSocketRoute)}
         for expected in ("/api/beta/shared/ws", "/api/beta/assistant/ws/chat"):
@@ -315,7 +315,7 @@ def check_websocket_routes() -> None:
                     "Check routes.py",
                 )
     except Exception as e:
-        _fail("Could not import server app", str(e))
+        _fail("Could not import main app", str(e))
 
 
 def check_production_flags() -> None:

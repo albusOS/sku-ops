@@ -28,15 +28,15 @@ pixi run import -- --vendors --products    # real Hike POS data
 
 ## Optional Docker stack
 
-`docker compose up` from the repo root runs Postgres + Redis + backend inside containers (see `docker-compose.yml`). Use when you want to validate the Docker image against real services locally. `devtools/` scripts are intentionally excluded from the Docker image — run seeds in native dev (`pixi run dev`) instead. Docker build context: `docker build -f backend/Dockerfile .`
+`docker compose up` from the repo root runs Redis + backend inside containers (see `docker-compose.yml`). Database is always Supabase (start local Supabase first with `pixi run supabase start`). Set `DATABASE_URL` in your `.env` to point at local Supabase (`postgresql://postgres:postgres@host.docker.internal:54322/postgres`). `devtools/` scripts are intentionally excluded from the Docker image — run seeds in native dev (`pixi run dev`) instead. Docker build context: `docker build -f backend/Dockerfile .`
 
 ## Key ports
 
-| Service  | Native dev | Docker compose (override) |
-|----------|------------|---------------------------|
-| Backend  | :8000      | :8000                     |
-| Frontend | :3000      | —                         |
-| Postgres | :54322     | :5433 (host → container)  |
+| Service  | Native dev | Docker compose |
+|----------|------------|----------------|
+| Backend  | :8000      | :8000          |
+| Frontend | :3000      | —              |
+| Postgres | :54322     | :54322 (Supabase local)  |
 
 ## Common dev commands
 

@@ -46,6 +46,6 @@ cleanup() {
 trap cleanup INT TERM
 trap cleanup EXIT
 
-uv run --directory backend uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir . &
+uv run --directory backend uvicorn main:app --reload --host 0.0.0.0 --port 8000 --app-dir . &
 pnpm --dir frontend run dev &
 wait
