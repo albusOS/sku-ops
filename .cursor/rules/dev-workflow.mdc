@@ -10,14 +10,15 @@ alwaysApply: true
 Use this for all feature work. Hot-reload, local Supabase, and seed scripts work.
 
 ```bash
-pixi run db               # start local Supabase stack
-pixi run dev              # backend + frontend together (from repo root)
+pixi run start            # doctor + local Supabase + backend + frontend (from repo root)
 ```
+
+Equivalent step-by-step: `pixi run doctor`, then `pixi run db`, then `pixi run dev`. Or skip doctor and run `pixi run db` then `pixi run dev` when the toolchain is already known good.
 
 - Backend: uvicorn with `--reload` on http://localhost:8000
 - Frontend: Vite dev server on http://localhost:3000
 - DB: Supabase local Postgres on localhost:54322
-- `pixi run backend` auto-starts local Supabase if not running (via task dependency)
+- Tasks `backend`, `frontend`, and `dev` depend on `_is_supabase_running`, which starts local Supabase if it is not already up
 - Provision data (run once after first start):
 
 ```bash
@@ -47,6 +48,7 @@ All commands below run from the **project root** via `pixi run <task>` (`pixi ta
 
 ```bash
 pixi run doctor                  # toolchain check (pixi python, uv, node, pnpm)
+pixi run start                   # doctor + db + dev (daily stack)
 pixi run tests                    # all tests (backend then frontend then e2e)
 pixi run tests backend -- …       # backend only; … = pytest args (one -- separates them from pixi task args)
 pixi run tests frontend           # frontend tests only (vitest)

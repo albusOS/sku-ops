@@ -16,9 +16,9 @@ env = { UV_PYTHON_DOWNLOADS = "never", UV_PYTHON_PREFERENCE = "only-system" }
 cmd = "bash devtools/scripts/pixi_toolchain_doctor.sh"
 description = "Verify python, uv, node, pnpm resolve from pixi and uv targets pixi Python"
 
-[tasks._ensure-db]
-cmd = "bash devtools/scripts/ensure_supabase_running.sh"
-description = "Ensure local Supabase stack is running"
+[tasks._is_supabase_running]
+cmd = "bash devtools/scripts/is_supabase_running.sh"
+description = "Ensure local Supabase stack is running (start if not)"
 
 [tasks.db]
 cmd = "supabase start && echo 'Supabase started. Run supabase status for URLs.'"
@@ -29,31 +29,36 @@ cmd = "supabase stop"
 description = "Stop local Supabase stack"
 
 [tasks.db-reset]
-depends-on = ["_ensure-db"]
+depends-on = ["_is_supabase_running"]
 cmd = "supabase db reset --local --yes"
 description = "Reset local DB from migrations and seeds"
 
 [tasks.backend]
-depends-on = ["_ensure-db"]
+depends-on = ["_is_supabase_running"]
 cmd = "uv run --directory backend uvicorn server:app --reload --host 0.0.0.0 --port 8000 --app-dir ."
 env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
 description = "Start backend dev server (FastAPI)"
 
 [tasks.frontend]
-depends-on = ["_ensure-db"]
+depends-on = ["_is_supabase_running"]
 cmd = "bash devtools/scripts/run_frontend_dev.sh"
 description = "Start frontend dev server (Vite)"
 
 [tasks.dev]
-depends-on = ["_ensure-db"]
+depends-on = ["_is_supabase_running"]
 cmd = "bash devtools/scripts/run_dev_stack.sh"
 description = "Start backend and frontend dev servers together"
+
+[tasks.start]
+depends-on = ["doctor", "db", "dev"]
+cmd = "true"
+description = "Verify toolchain, start local Supabase, then backend + frontend dev servers"
 
 [tasks.tests]
 description = "Tests: all (default: backend + frontend + e2e), or backend | frontend | e2e. Pytest-only: pixi run tests backend -- -- … (not with target all). Playwright: pixi run tests e2e -- -- …"
 args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend", "e2e"] }]
 env = { PYTHONPATH = ".:..", DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
-cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run db-reset && uv run --directory backend pytest{% elif target == \"e2e\" %}pixi run _ensure-db && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% else %}pixi run db-reset && uv run --directory backend pytest && pnpm --dir frontend run test:run && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% endif %}"
+cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run db-reset && uv run --directory backend pytest{% elif target == \"e2e\" %}pixi run _is_supabase_running && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% else %}pixi run db-reset && uv run --directory backend pytest && pnpm --dir frontend run test:run && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% endif %}"
 
 [tasks.lint]
 description = "Lint: all (default), backend (ruff), or frontend (ESLint). Usage: pixi run lint [all|backend|frontend]"
@@ -84,13 +89,13 @@ cwd = ".devcontainer"
 description = "Start devcontainer (docker-compose)"
 
 [tasks.provision]
-depends-on = ["_ensure-db"]
+depends-on = ["_is_supabase_running"]
 cmd = "uv run --directory backend python -m devtools.scripts.provision"
 env = { PYTHONPATH = ".:.." }
 description = "Provision hint / devtools provision entrypoint"
 
 [tasks.import]
-depends-on = ["_ensure-db"]
+depends-on = ["_is_supabase_running"]
 cmd = "uv run --directory backend python -m devtools.scripts.import_hike"
 env = { PYTHONPATH = ".:.." }
 description = "Import Hike POS data (e.g. --vendors --products)"

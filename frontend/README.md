@@ -10,6 +10,7 @@ From the **repo root**, use Pixi so Node and pnpm come from `.pixi/envs/default/
 pixi install
 pixi run pnpm --dir frontend install --frozen-lockfile
 pixi run frontend              # Vite on http://localhost:3000 (proxies API to :8000)
+pixi run start                 # from repo root: doctor + Supabase + backend + this app
 ```
 
 Or from `frontend/` with pnpm on your PATH (should be pixi's):

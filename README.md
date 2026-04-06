@@ -12,7 +12,7 @@ pixi run doctor                              # assert tools resolve from .pixi/e
 pixi run uv sync --dev --directory backend   # backend/.venv from pixi Python + uv.lock
 pixi run pnpm --dir frontend install --frozen-lockfile   # frontend deps (pnpm-lock.yaml)
 cp backend/.env.example backend/.env         # edit with your keys
-pixi run dev                                 # backend + frontend together
+pixi run start                               # doctor + local Supabase + backend + frontend together
 ```
 
 - **Backend:** http://localhost:8000
@@ -69,7 +69,8 @@ Install [Pixi](https://pixi.sh), then from the project root:
 
 ```bash
 pixi run doctor               # verify python, uv, node, pnpm come from pixi (and backend/.venv uses pixi Python)
-pixi run dev                  # start backend + frontend
+pixi run start                # doctor, then local Supabase, then backend + frontend (daily default)
+pixi run dev                  # backend + frontend (Supabase started first if needed)
 pixi run tests                     # backend, frontend, then e2e (Playwright)
 pixi run tests backend -- -- …    # backend only; pytest paths/flags after -- (not for target all)
 pixi run tests frontend           # frontend unit tests (vitest run)

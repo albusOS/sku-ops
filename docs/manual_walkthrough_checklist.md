@@ -11,8 +11,7 @@
 ### 1. Start the Live App
 
 ```bash
-pixi run db     # start dev Postgres (first time)
-pixi run dev      # starts backend + frontend
+pixi run start    # doctor + local Supabase + backend + frontend
 ```
 
 - **Backend:** http://localhost:8000  
