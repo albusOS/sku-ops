@@ -17,14 +17,14 @@ def _apply_env_overrides(agent_id: str, data: dict) -> dict:
     """Apply env-var overrides to raw agent config data.
 
     Supported patterns (all case-insensitive after the prefix):
-        AGENT_CONFIG_<ID>_MAX_OUTPUT_TOKENS=<int>
-        AGENT_CONFIG_<ID>_TEMPERATURE=<float>
-        AGENT_CONFIG_<ID>_MODEL=<model_string>
-        AGENT_CONFIG_<ID>_RETRY_MAX_RETRIES=<int>
-        AGENT_CONFIG_<ID>_RETRY_TIMEOUT_SECONDS=<int>
-        AGENT_CONFIG_<ID>_RETRY_BACKOFF_BASE=<float>
+        PUBLIC_AGENT_CONFIG_<ID>_MAX_OUTPUT_TOKENS=<int>
+        PUBLIC_AGENT_CONFIG_<ID>_TEMPERATURE=<float>
+        PUBLIC_AGENT_CONFIG_<ID>_MODEL=<model_string>
+        PUBLIC_AGENT_CONFIG_<ID>_RETRY_MAX_RETRIES=<int>
+        PUBLIC_AGENT_CONFIG_<ID>_RETRY_TIMEOUT_SECONDS=<int>
+        PUBLIC_AGENT_CONFIG_<ID>_RETRY_BACKOFF_BASE=<float>
     """
-    prefix = f"AGENT_CONFIG_{agent_id.upper()}_"
+    prefix = f"PUBLIC_AGENT_CONFIG_{agent_id.upper()}_"
     for key, value in os.environ.items():
         if not key.startswith(prefix):
             continue

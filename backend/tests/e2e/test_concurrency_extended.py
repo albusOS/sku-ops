@@ -24,7 +24,7 @@ from tests.e2e.helpers import (
 )
 from tests.helpers.auth import admin_headers
 
-_is_sqlite = "sqlite" in os.environ.get("DATABASE_URL", "sqlite")
+_is_sqlite = "sqlite" in os.environ.get("PRIVATE_DATABASE_URL", "sqlite")
 pytestmark = pytest.mark.skipif(_is_sqlite, reason="Requires Postgres for transaction isolation")
 
 

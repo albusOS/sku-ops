@@ -15,30 +15,30 @@ Target stack: **DigitalOcean** (or equivalent for the FastAPI backend) + **Verce
 ```
 
 - **Frontend** (Vercel) — static React SPA; API calls go to `VITE_BACKEND_URL`.
-- **Backend** — FastAPI in Docker; connects to Supabase Postgres via `DATABASE_URL`.
-- **Auth** (Supabase) — issues JWTs. Backend validates with Supabase `JWT_SECRET`.
+- **Backend** — FastAPI in Docker; connects to Supabase Postgres via `PRIVATE_DATABASE_URL` (or composed `PUBLIC_DB_*` + `PRIVATE_DB_PASSWORD`).
+- **Auth** (Supabase) — issues JWTs. Backend validates with Supabase `PRIVATE_JWT_SECRET`.
 - **Database** — Supabase Postgres on port **5432 (direct)**, NOT 6543 (pooler). asyncpg uses prepared statements incompatible with pgbouncer.
 
 ---
 
 ## Environments
 
-| Environment | `ENV` value | Where | Purpose |
+| Environment | `PUBLIC_ENV` value | Where | Purpose |
 |---|---|---|---|
 | Local dev | `development` | Your machine | Local Supabase stack, permissive defaults |
 | Test | `test` | CI / local pytest | Test Postgres DB, conftest sets this |
 | Production | `production` | Hosted API + Vercel + Supabase | Strict config, Supabase Auth required |
 
-There is no staging environment. `config.py` accepts exactly three values: `development`, `test`, `production`.
+There is no staging environment. `config.py` accepts exactly three values: `development`, `test`, `production` (legacy `ENV` is still read as a fallback).
 
 ### Production guards (hard startup errors, not warnings)
 
 | Guard | What happens |
 |---|---|
-| `JWT_SECRET` missing or dev default | `RuntimeError` — app refuses to start |
-| `CORS_ORIGINS` is `*` or empty | `RuntimeError` — app refuses to start |
-| `ALLOW_PUBLIC_AUTH=true` | `RuntimeError` — local login/register would be exposed |
-| `DATABASE_URL` not PostgreSQL | `RuntimeError` |
+| `PRIVATE_JWT_SECRET` missing or dev default | `RuntimeError` — app refuses to start |
+| `PUBLIC_CORS_ORIGINS` is `*` or empty | `RuntimeError` — app refuses to start |
+| `PUBLIC_ALLOW_PUBLIC_AUTH=true` | `RuntimeError` — local login/register would be exposed |
+| `PRIVATE_DATABASE_URL` not PostgreSQL | `RuntimeError` |
 
 ---
 
@@ -61,23 +61,23 @@ Run the same image built from [backend/Dockerfile](../backend/Dockerfile) on you
 
 | Variable | Notes |
 |---|---|
-| `ENV` | `production` |
-| `DATABASE_URL` | Supabase direct, port 5432 |
-| `SUPABASE_URL` | Same project URL as frontend; JWKS |
-| `JWT_SECRET` | Supabase JWT secret from dashboard |
-| `CORS_ORIGINS` | Comma-separated; include all stable Vercel origins |
+| `PUBLIC_ENV` | `production` |
+| `PRIVATE_DATABASE_URL` | Supabase direct, port 5432 |
+| `PUBLIC_SUPABASE_URL` | Same project URL as frontend; JWKS |
+| `PRIVATE_JWT_SECRET` | Supabase JWT secret from dashboard |
+| `PUBLIC_CORS_ORIGINS` | Comma-separated; include all stable Vercel origins |
 
 **Recommended:**
 
 | Variable | Notes |
 |---|---|
-| `REDIS_URL` | Required for `WORKERS > 1` |
-| `WORKERS` | `2` or more with Redis for AI chat concurrency |
-| `FRONTEND_URL` | Vercel production URL — Xero OAuth redirects |
-| `SENTRY_DSN` | Error tracking |
-| `CORS_ORIGIN_REGEX` | e.g. Vercel preview URLs |
+| `PUBLIC_REDIS_URL` | Required for `PUBLIC_WORKERS > 1` |
+| `PUBLIC_WORKERS` | `2` or more with Redis for AI chat concurrency |
+| `PUBLIC_FRONTEND_URL` | Vercel production URL — Xero OAuth redirects |
+| `PRIVATE_SENTRY_DSN` | Error tracking |
+| `PUBLIC_CORS_ORIGIN_REGEX` | e.g. Vercel preview URLs |
 
-**Optional:** AI keys (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`), Xero (`XERO_*`), pool tuning (`PG_POOL_MAX`).
+**Optional:** AI keys (`PRIVATE_ANTHROPIC_API_KEY`, `PRIVATE_OPENROUTER_API_KEY`, `PRIVATE_OPENAI_API_KEY`), Xero (`PUBLIC_XERO_*`, `PRIVATE_XERO_CLIENT_SECRET`), pool tuning (`PUBLIC_PG_POOL_MAX`).
 
 The process listens on `$PORT` if the platform sets it (see Dockerfile `CMD`).
 
@@ -92,7 +92,7 @@ The process listens on `$PORT` if the platform sets it (see Dockerfile `CMD`).
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Publishable key |
 
-3. After deploy, add every stable Vercel origin to backend `CORS_ORIGINS` (production domain, `*.vercel.app` project URL, etc.).
+3. After deploy, add every stable Vercel origin to backend `PUBLIC_CORS_ORIGINS` (production domain, `*.vercel.app` project URL, etc.).
 
 ### 4. Create the organization
 
@@ -144,7 +144,7 @@ Check:
 |---|---|
 | **Organization** | Tenancy boundary; `organization_id` on business data |
 | **User** | `users` table; `role` is `admin` or `contractor` |
-| **Production** | Supabase JWT; `JWT_SECRET` must match project; claims from `app_metadata` via `auth_provider.py` |
+| **Production** | Supabase JWT; `PRIVATE_JWT_SECRET` must match project; claims from `app_metadata` via `auth_provider.py` |
 
 ---
 
@@ -163,7 +163,7 @@ Automated deploy to Vercel / your API host is configured in your CI provider, no
 | `GET /api/beta/shared/ws?token=...` | Domain events |
 | `GET /api/beta/assistant/ws/chat?token=...` | AI assistant streaming |
 
-With `WORKERS > 1`, `REDIS_URL` is required (Redis pub/sub for events).
+With `PUBLIC_WORKERS > 1`, `PUBLIC_REDIS_URL` is required (Redis pub/sub for events).
 
 ---
 
@@ -171,11 +171,11 @@ With `WORKERS > 1`, `REDIS_URL` is required (Redis pub/sub for events).
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| 401 on all API calls | `JWT_SECRET` not Supabase secret | Set backend `JWT_SECRET` from Supabase JWT settings |
+| 401 on all API calls | `PRIVATE_JWT_SECRET` not Supabase secret | Set backend `PRIVATE_JWT_SECRET` from Supabase JWT settings |
 | missing `organization_id` claim | `raw_app_meta_data` not set | SQL update on `auth.users` |
-| CORS errors | Origin not in `CORS_ORIGINS` | Add Vercel URLs; use `CORS_ORIGIN_REGEX` for previews |
+| CORS errors | Origin not in `PUBLIC_CORS_ORIGINS` | Add Vercel URLs; use `PUBLIC_CORS_ORIGIN_REGEX` for previews |
 | Frontend cannot reach API | Wrong `VITE_BACKEND_URL` | Fix Vercel env, redeploy |
-| DB connection fails | Using pooler port 6543 | Use direct 5432 `DATABASE_URL` |
+| DB connection fails | Using pooler port 6543 | Use direct 5432 `PRIVATE_DATABASE_URL` |
 
 ---
 

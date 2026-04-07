@@ -44,7 +44,9 @@ def _resolve_db_url() -> str:
                 if k not in os.environ:
                     os.environ[k] = v
 
-    return os.environ.get("DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops")
+    return os.environ.get(
+        "PRIVATE_DATABASE_URL", "postgresql://sku_ops:localdev@localhost:5433/sku_ops"
+    )
 
 
 async def get_conn(url: str) -> asyncpg.Connection:
@@ -681,7 +683,7 @@ def main():
         "org_id", nargs="?", default=None, help="Organization ID or slug (optional)"
     )
     parser.add_argument("--limit", type=int, default=20, help="Row limit for tx:recent")
-    parser.add_argument("--db-url", default=None, help="Override DATABASE_URL")
+    parser.add_argument("--db-url", default=None, help="Override PRIVATE_DATABASE_URL")
 
     args = parser.parse_args()
 

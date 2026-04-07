@@ -1,9 +1,9 @@
 """Execute SQL batch files against Supabase production DB.
 
 Usage:
-    SUPABASE_DATABASE_URL=postgresql://... PYTHONPATH=backend:. uv run python -m devtools.scripts.push_to_supabase
+    PRIVATE_DATABASE_URL=postgresql://... PYTHONPATH=backend:. uv run python -m devtools.scripts.push_to_supabase
 
-Reads SUPABASE_DATABASE_URL from environment or backend/.env.
+Reads PRIVATE_DATABASE_URL from environment or backend/.env.
 """
 
 import asyncio
@@ -24,15 +24,15 @@ FILE_ORDER = (
 
 
 def _get_db_url() -> str:
-    url = os.environ.get("SUPABASE_DATABASE_URL")
+    url = os.environ.get("PRIVATE_DATABASE_URL")
     if url:
         return url
     env_path = Path(__file__).resolve().parent.parent.parent / "backend" / ".env"
     if env_path.exists():
         for line in env_path.read_text().splitlines():
-            if line.startswith("SUPABASE_DATABASE_URL="):
+            if line.startswith("PRIVATE_DATABASE_URL="):
                 return line.split("=", 1)[1].strip()
-    print("Error: set SUPABASE_DATABASE_URL in env or backend/.env")
+    print("Error: set PRIVATE_DATABASE_URL in env or backend/.env")
     sys.exit(1)
 
 

@@ -97,9 +97,9 @@ jobs:
 
       - name: Run tests
         env:
-          ENV: test
-          DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-          JWT_SECRET: ci-test-secret
+          PUBLIC_ENV: test
+          PRIVATE_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          PRIVATE_JWT_SECRET: ci-test-secret
         run: pixi run uv run --directory backend pytest --tb=short -q --timeout=60
 
       - name: Stop Supabase

@@ -71,9 +71,9 @@ def get_model_pricing(model_id: str) -> dict[str, float] | None:
 def resolve_tier_model(tier_name: str) -> str | None:
     """Return the default model_id for a tier.
 
-    Checks env override: LLM_TIER_<NAME>_MODEL=<model_id>
+    Checks env override: PUBLIC_LLM_TIER_<NAME>_MODEL=<model_id>
     """
-    env_key = f"LLM_TIER_{tier_name.upper()}_MODEL"
+    env_key = f"PUBLIC_LLM_TIER_{tier_name.upper()}_MODEL"
     override = os.environ.get(env_key, "").strip()
     if override:
         return override

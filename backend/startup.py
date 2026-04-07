@@ -61,15 +61,16 @@ async def lifespan(app: FastAPI):
             )
     elif worker_count > 1:
         _redis_workers_msg = (
-            f"WORKERS={worker_count} but REDIS_URL is not set. "
+            f"PUBLIC_WORKERS={worker_count} but PUBLIC_REDIS_URL is not set. "
             "Multi-worker mode requires Redis for event hub, sessions, and sync locks. "
-            "Set REDIS_URL or use WORKERS=1."
+            "Set PUBLIC_REDIS_URL or use PUBLIC_WORKERS=1."
         )
         raise RuntimeError(_redis_workers_msg)
 
     if config.cors_warn_in_deployed:
         logger.warning(
-            "CORS_ORIGINS is permissive (*). Set CORS_ORIGINS explicitly for production."
+            "PUBLIC_CORS_ORIGINS is permissive (*). "
+            "Set PUBLIC_CORS_ORIGINS explicitly for production."
         )
 
     await init_db()
@@ -77,10 +78,10 @@ async def lifespan(app: FastAPI):
 
     if config.is_development and not config.db_is_local:
         logger.warning(
-            "DB_HOST is non-local ('%s') while ENV=development. "
+            "PUBLIC_DB_HOST is non-local ('%s') while PUBLIC_ENV=development. "
             "Database endpoint: %s. "
             "Development mode uses permissive settings; production hardening is stricter. "
-            "If this is intentional, set ENV=production instead.",
+            "If this is intentional, set PUBLIC_ENV=production instead.",
             config.DB_HOST,
             config.DATABASE_URL_DISPLAY,
         )
@@ -126,7 +127,7 @@ async def lifespan(app: FastAPI):
         )
     if config.is_deployed:
         logger.info(
-            "AUTH: JWT_SECRET is configured. If using Supabase Auth, verify this "
+            "AUTH: PRIVATE_JWT_SECRET is configured. If using Supabase Auth, verify this "
             "matches your Supabase project's JWT secret (Dashboard > Settings > API)."
         )
 

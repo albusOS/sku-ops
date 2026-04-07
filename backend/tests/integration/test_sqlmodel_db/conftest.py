@@ -15,7 +15,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 @pytest.fixture(scope="session")
 def database_url():
-    url = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres")
+    url = os.environ.get(
+        "PRIVATE_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+    )
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     elif url.startswith("postgres://"):

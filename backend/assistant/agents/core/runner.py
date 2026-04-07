@@ -468,7 +468,9 @@ async def run_specialist(
     """
     if not app_config.ANTHROPIC_AVAILABLE and not app_config.OPENROUTER_AVAILABLE:
         return {
-            "response": f"{agent_name} requires ANTHROPIC_API_KEY or OPENROUTER_API_KEY.",
+            "response": (
+                f"{agent_name} requires PRIVATE_ANTHROPIC_API_KEY or PRIVATE_OPENROUTER_API_KEY."
+            ),
             "tool_calls": [],
             "history": [],
             "thinking": [],

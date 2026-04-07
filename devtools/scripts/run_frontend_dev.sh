@@ -10,21 +10,21 @@ _load_supabase_env() {
     value="${value#\"}"
     case "$key" in
       API_URL)
-        export SUPABASE_URL="${SUPABASE_URL:-$value}"
+        export PUBLIC_SUPABASE_URL="${PUBLIC_SUPABASE_URL:-$value}"
         export VITE_SUPABASE_URL="${VITE_SUPABASE_URL:-$value}"
         ;;
       DB_URL)
-        export DATABASE_URL="${DATABASE_URL:-$value}"
+        export PRIVATE_DATABASE_URL="${PRIVATE_DATABASE_URL:-$value}"
         ;;
       PUBLISHABLE_KEY)
         export PUBLIC_SUPABASE_PUBLISHABLE_KEY="${PUBLIC_SUPABASE_PUBLISHABLE_KEY:-$value}"
         export VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY:-$value}"
         ;;
       SECRET_KEY)
-        export SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-$value}"
+        export PRIVATE_SUPABASE_SECRET_KEY="${PRIVATE_SUPABASE_SECRET_KEY:-$value}"
         ;;
       JWT_SECRET)
-        export JWT_SECRET="${JWT_SECRET:-$value}"
+        export PRIVATE_JWT_SECRET="${PRIVATE_JWT_SECRET:-$value}"
         ;;
     esac
   done < <(supabase status -o env)

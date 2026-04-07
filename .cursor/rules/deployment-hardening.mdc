@@ -19,10 +19,10 @@ There are three environments: `development`, `test`, `production`. There is no s
 ## Backend host (production)
 
 - Ship the same `backend/Dockerfile` image; the host sets listen `PORT` (e.g. `${PORT:-8000}` in CMD).
-- Postgres must use Supabase **direct** connection (port 5432), NOT the transaction pooler (port 6543). Prefer `DB_USER` and `DB_NAME` in committed `backend/.env`, `DB_HOST` + `DB_PORT=5432` + `DB_SSL_MODE=require` in `backend/.env.production`, with `DB_PASSWORD` from secrets only. A single `DATABASE_URL` secret is still supported for hosts that inject one URI; config normalizes it to `postgresql+asyncpg://`. asyncpg prepared statements are incompatible with pgbouncer transaction mode.
-- `JWT_SECRET` must be the Supabase project's JWT secret — not a random value.
-- `CORS_ORIGINS` must include all stable Vercel domains. `CORS_ORIGIN_REGEX` can match preview deploys.
-- `FRONTEND_URL` needed for Xero OAuth redirects.
+- Postgres must use Supabase **direct** connection (port 5432), NOT the transaction pooler (port 6543). Prefer `PUBLIC_DB_USER` and `PUBLIC_DB_NAME` in committed `backend/.env`, `PUBLIC_DB_HOST` + `PUBLIC_DB_PORT=5432` + `PUBLIC_DB_SSL_MODE=require` in `backend/.env.production`, with `PRIVATE_DB_PASSWORD` from secrets only. A single `PRIVATE_DATABASE_URL` secret is still supported for hosts that inject one URI; config normalizes it to `postgresql+asyncpg://`. asyncpg prepared statements are incompatible with pgbouncer transaction mode.
+- `PRIVATE_JWT_SECRET` must be the Supabase project's JWT secret — not a random value.
+- `PUBLIC_CORS_ORIGINS` must include all stable Vercel domains. `PUBLIC_CORS_ORIGIN_REGEX` can match preview deploys.
+- `PUBLIC_FRONTEND_URL` needed for Xero OAuth redirects.
 - Health check path used in CI smoke tests: `GET /api/beta/shared/health`.
 
 ## Vercel
@@ -56,18 +56,18 @@ There are three environments: `development`, `test`, `production`. There is no s
 
 ## CORS
 
-`_enforce_cors()` in `config.py` hard-crashes at startup if `CORS_ORIGINS` is `"*"` or empty in production. Not a warning.
-`CORS_ORIGIN_REGEX` is applied in addition to `CORS_ORIGINS` — useful for Vercel preview deploy URLs.
+`_enforce_cors()` in `config.py` hard-crashes at startup if `PUBLIC_CORS_ORIGINS` is `"*"` or empty in production. Not a warning.
+`PUBLIC_CORS_ORIGIN_REGEX` is applied in addition to `PUBLIC_CORS_ORIGINS` — useful for Vercel preview deploy URLs.
 
 ## Connection pool
 
-`PG_POOL_MAX` per worker × `WORKERS` = total Postgres connections. Size accordingly. `PG_ACQUIRE_TIMEOUT` (default 10s) is the starvation circuit-breaker — requests 503 rather than queue. `PG_COMMAND_TIMEOUT` (default 30s) kills runaway queries.
+`PUBLIC_PG_POOL_MAX` per worker × `PUBLIC_WORKERS` = total Postgres connections. Size accordingly. `PUBLIC_PG_ACQUIRE_TIMEOUT` (default 10s) is the starvation circuit-breaker — requests 503 rather than queue. `PUBLIC_PG_COMMAND_TIMEOUT` (default 30s) kills runaway queries.
 
 ## Auth
 
 - Tokens without `organization_id` → 401/4001 at transport layer in production
-- `JWT_SECRET` must be set and not the dev default in production — startup crashes otherwise
-- For Supabase: `JWT_SECRET` must be the Supabase project's JWT secret (Dashboard > Settings > API)
+- `PRIVATE_JWT_SECRET` must be set and not the dev default in production — startup crashes otherwise
+- For Supabase: `PRIVATE_JWT_SECRET` must be the Supabase project's JWT secret (Dashboard > Settings > API)
 - Provider is auto-selected: supabase in production, internal in dev/test. Claim extraction lives only in `shared/api/auth_provider.py`
 
 ## Health probes
@@ -77,23 +77,23 @@ There are three environments: `development`, `test`, `production`. There is no s
 
 ## Observability
 
-- `SENTRY_DSN` should be set in production. Do not suppress exceptions to reduce Sentry noise — fix the underlying issue.
+- `PRIVATE_SENTRY_DSN` should be set in production. Do not suppress exceptions to reduce Sentry noise — fix the underlying issue.
 - Application logs are JSON (configured in `shared/infrastructure/logging_config.py`). Every log line within a request carries `request_id` from the `X-Request-ID` propagation middleware.
 
 ## Required production env vars (backend)
 
 ```
-ENV=production
-# Postgres: `DB_USER` + `DB_NAME` in `backend/.env`; `DB_HOST` + pool/SSL in `backend/.env.production`.
-# Set `DB_PASSWORD` only via secrets (`backend/.env.local` or GHA / App Platform), or set DATABASE_URL.
-DB_PASSWORD=<supabase-db-password>
-# Optional legacy: DATABASE_URL=postgresql://... (direct, port 5432; config adds +asyncpg)
-SUPABASE_URL=https://xxx.supabase.co   # Same project URL; JWKS / auth
-JWT_SECRET=<supabase-jwt-secret>       # Must match Supabase project
-CORS_ORIGINS=https://your.vercel.app   # All stable Vercel domains
-REDIS_URL=redis://...                  # Required for WORKERS > 1 (production: bind DO Managed Valkey in `.do/app.yaml`)
-FRONTEND_URL=https://your.vercel.app   # For OAuth redirects
-WORKERS=2                              # Recommended. Requires Redis.
+PUBLIC_ENV=production
+# Postgres: `PUBLIC_DB_USER` + `PUBLIC_DB_NAME` in `backend/.env`; `PUBLIC_DB_HOST` + pool/SSL in `backend/.env.production`.
+# Set `PRIVATE_DB_PASSWORD` via secrets (`backend/.env.local` or GHA / App Platform), or set PRIVATE_DATABASE_URL.
+PRIVATE_DB_PASSWORD=<supabase-db-password>
+# Optional: PRIVATE_DATABASE_URL=postgresql://... (direct, port 5432; config adds +asyncpg)
+PUBLIC_SUPABASE_URL=https://xxx.supabase.co   # Same project URL; JWKS / auth
+PRIVATE_JWT_SECRET=<supabase-jwt-secret>       # Must match Supabase project
+PUBLIC_CORS_ORIGINS=https://your.vercel.app   # All stable Vercel domains
+PUBLIC_REDIS_URL=redis://...                  # Required for PUBLIC_WORKERS > 1 (production: bind DO Managed Valkey in `.do/app.yaml`)
+PUBLIC_FRONTEND_URL=https://your.vercel.app   # For OAuth redirects
+PUBLIC_WORKERS=2                              # Recommended. Requires Redis.
 ```
 
 ## Required production env vars (Vercel)

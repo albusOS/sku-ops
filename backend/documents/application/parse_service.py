@@ -67,7 +67,7 @@ async def parse_document_with_ai(
     """
     if not config.ANTHROPIC_AVAILABLE:
         raise RuntimeError(
-            "AI not configured. Add ANTHROPIC_API_KEY to backend/.env — "
+            "AI not configured. Add PRIVATE_ANTHROPIC_API_KEY to backend/.env.local — "
             f"get a key at {config.LLM_SETUP_URL}"
         )
 

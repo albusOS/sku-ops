@@ -87,16 +87,16 @@ pixi task list                # all tasks + descriptions
 
 ## Environment
 
-Configuration is environment-aware (`ENV=development|test|production`). See `backend/.env.example` for all available settings.
+Configuration is environment-aware (`PUBLIC_ENV=development|test|production`; legacy `ENV` still works). See `backend/.env.example` for all available settings.
 
 | | Development | Test | Production |
 |---|---|---|---|
-| JWT_SECRET | default | default | required |
+| PRIVATE_JWT_SECRET | default | default | required |
 | CORS | permissive (*) | permissive (*) | required |
 | Provisioning | `supabase/seeds/` + `pixi run supabase reset` | `pytest_minimal.sql` + UOM SQL | Supabase SQL seeds |
 | Database | Postgres (Docker) | Postgres | Postgres |
 | Redis | optional | required | required |
-| WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |
+| PUBLIC_WORKERS | 1 | 1+ (with Redis) | 2+ (with Redis) |
 
 ## Architecture
 
@@ -143,12 +143,12 @@ Frontend: useRealtimeSync() -> invalidates TanStack Query cache -> UI re-renders
           useChatSocket()   -> streams AI responses (delta, tool_start, done)
 ```
 
-Events are org-scoped and role-filtered. Contractors only receive events relevant to their role. With `REDIS_URL` set, events propagate across all workers via Redis Pub/Sub. Chat sessions are stored in Redis hashes with TTL expiry. The Xero sync lock uses a distributed Redis key.
+Events are org-scoped and role-filtered. Contractors only receive events relevant to their role. With `PUBLIC_REDIS_URL` set, events propagate across all workers via Redis Pub/Sub. Chat sessions are stored in Redis hashes with TTL expiry. The Xero sync lock uses a distributed Redis key.
 
 ## Docker (optional local stack)
 
 ```bash
-cp .env.production.example .env   # set JWT_SECRET, CORS_ORIGINS, POSTGRES_PASSWORD, etc.
+cp .env.production.example .env   # set PRIVATE_JWT_SECRET, PUBLIC_CORS_ORIGINS, PRIVATE_DATABASE_URL, etc.
 docker compose up -d
 ```
 

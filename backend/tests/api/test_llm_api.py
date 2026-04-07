@@ -32,7 +32,7 @@ class TestHealthAI:
         assert response.status_code == 503
         data = response.json()
         assert data["status"] == "unavailable"
-        assert "ANTHROPIC_API_KEY" in data["detail"]
+        assert "PRIVATE_ANTHROPIC_API_KEY" in data["detail"]
         assert "anthropic.com" in data["detail"]
 
 
@@ -116,5 +116,7 @@ class TestAssistant:
             ),
         ):
             result = await chat("How many products?", history=None)
-        assert "ANTHROPIC_API_KEY" in result["response"] or "Anthropic" in result["response"]
+        assert (
+            "PRIVATE_ANTHROPIC_API_KEY" in result["response"] or "Anthropic" in result["response"]
+        )
         assert result["tool_calls"] == []

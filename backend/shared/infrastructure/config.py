@@ -4,17 +4,19 @@ Central configuration - environment-aware settings.
 Use the singleton:
 
     from shared.infrastructure.config import config
-    config.DATABASE_URL  # postgresql+asyncpg://... built from DB_* or DATABASE_URL override
+    config.DATABASE_URL  # postgresql+asyncpg://... from PUBLIC_DB_* or PRIVATE_DATABASE_URL
 
-``ENV`` controls behavior: ``development`` | ``test`` | ``production``.
-When unset before layered dotenv load, defaults to ``development``.
+``PUBLIC_ENV`` controls behavior: ``development`` | ``test`` | ``production``.
+Legacy ``ENV`` is still read as a fallback until removed. When unset before
+layered dotenv load, defaults to ``development``.
 
 Layered env files (see ``docs/environment.md``): ``backend/.env``,
 ``backend/.env.{development|production}``, ``backend/.env.local``.
 
-Hot reload: with ``ENV=development``, dotenv files are re-applied on a debounced
-timer when accessing settings (no extra dependencies). ``ENV=test`` and
-``ENV=production`` do not reload files; production caches reads.
+Hot reload: with ``PUBLIC_ENV=development``, dotenv files are re-applied on a
+debounced timer when accessing settings (no extra dependencies).
+``PUBLIC_ENV=test`` and ``PUBLIC_ENV=production`` do not reload files;
+production caches reads.
 """
 
 from __future__ import annotations
@@ -38,17 +40,31 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = find_backend_root()
 
-_pre_load_env = os.environ.get("ENV", "").strip().lower() or "development"
+
+def _runtime_env_from_process() -> str:
+    """Process env only, before layered dotenv merge (used to pick .env.<profile>)."""
+    return (
+        os.environ.get("PUBLIC_ENV", "").strip().lower()
+        or os.environ.get("ENV", "").strip().lower()
+        or "development"
+    )
+
+
+_pre_load_env = _runtime_env_from_process()
 load_backend_dotenv_initial(PROJECT_ROOT, env_name=_pre_load_env)
 
-_REQUESTED_ENV = os.environ.get("ENV", "").strip().lower() or "development"
+_REQUESTED_ENV = (
+    os.environ.get("PUBLIC_ENV", "").strip().lower()
+    or os.environ.get("ENV", "").strip().lower()
+    or "development"
+)
 _ENV = _REQUESTED_ENV
 
 _VALID_ENVS = frozenset({"development", "test", "production"})
 if _ENV not in _VALID_ENVS:
     raise RuntimeError(
-        f"ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. "
-        "Check your .env file or environment variable."
+        f"PUBLIC_ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. "
+        "Check backend/.env or set PUBLIC_ENV (legacy ENV is still accepted)."
     )
 
 _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
@@ -137,31 +153,37 @@ class Config:
 
     @property
     def DB_USER(self) -> str:
-        return self._get_str("DB_USER", "postgres")
+        return self._get_str("PUBLIC_DB_USER", "postgres")
 
     @property
     def DB_PASSWORD(self) -> str:
-        return self._get_str("DB_PASSWORD", "postgres")
+        private = self._get_str("PRIVATE_DB_PASSWORD", "").strip()
+        if private:
+            return private
+        public_pw = self._get_str("PUBLIC_DB_PASSWORD", "").strip()
+        if public_pw:
+            return public_pw
+        return "postgres"
 
     @property
     def DB_HOST(self) -> str:
-        return self._get_str("DB_HOST", "127.0.0.1")
+        return self._get_str("PUBLIC_DB_HOST", "127.0.0.1")
 
     @property
     def DB_PORT(self) -> int:
-        return int(self._get_str("DB_PORT", "54322"))
+        return int(self._get_str("PUBLIC_DB_PORT", "54322"))
 
     @property
     def DB_NAME(self) -> str:
-        return self._get_str("DB_NAME", "postgres")
+        return self._get_str("PUBLIC_DB_NAME", "postgres")
 
     @property
     def DB_SSL_MODE(self) -> str:
-        return self._get_str("DB_SSL_MODE", "").strip()
+        return self._get_str("PUBLIC_DB_SSL_MODE", "").strip()
 
     @property
     def DATABASE_URL(self) -> str:
-        raw = self._get_str("DATABASE_URL", "").strip()
+        raw = self._get_str("PRIVATE_DATABASE_URL", "").strip()
         if raw:
             url = self._normalize_legacy_database_url(raw)
             self._reject_transaction_pooler_url(url)
@@ -201,53 +223,53 @@ class Config:
 
     @property
     def PG_POOL_MIN(self) -> int:
-        return int(self._get_str("PG_POOL_MIN", "2"))
+        return int(self._get_str("PUBLIC_PG_POOL_MIN", "2"))
 
     @property
     def PG_POOL_MAX(self) -> int:
-        return int(self._get_str("PG_POOL_MAX", "10"))
+        return int(self._get_str("PUBLIC_PG_POOL_MAX", "10"))
 
     @property
     def PG_ACQUIRE_TIMEOUT(self) -> float:
-        return float(self._get_str("PG_ACQUIRE_TIMEOUT", "10"))
+        return float(self._get_str("PUBLIC_PG_ACQUIRE_TIMEOUT", "10"))
 
     @property
     def PG_COMMAND_TIMEOUT(self) -> int:
-        return int(self._get_str("PG_COMMAND_TIMEOUT", "30"))
+        return int(self._get_str("PUBLIC_PG_COMMAND_TIMEOUT", "30"))
 
     @property
     def REDIS_URL(self) -> str:
-        return self._get_str("REDIS_URL", "").strip()
+        return self._get_str("PUBLIC_REDIS_URL", "").strip()
 
     @property
     def JWT_SECRET(self) -> str:
-        raw = self._get_str("JWT_SECRET", "").strip()
+        raw = self._get_str("PRIVATE_JWT_SECRET", "").strip()
         if self.is_production and (not raw or raw == _DEV_JWT_FALLBACK):
-            raise RuntimeError("JWT_SECRET must be set in production. Do not use default.")
+            raise RuntimeError("PRIVATE_JWT_SECRET must be set in production. Do not use default.")
         return raw or _DEV_JWT_FALLBACK
 
     @property
     def JWT_ALGORITHM(self) -> str:
-        return self._get_str("JWT_ALGORITHM", "HS256").strip() or "HS256"
+        return self._get_str("PUBLIC_JWT_ALGORITHM", "HS256").strip() or "HS256"
 
     @property
     def JWT_ACCESS_EXPIRATION_MINUTES(self) -> int:
-        raw = self._get_str("JWT_ACCESS_EXPIRATION_MINUTES", "").strip()
+        raw = self._get_str("PUBLIC_JWT_ACCESS_EXPIRATION_MINUTES", "").strip()
         if raw:
             return int(raw)
         return 15 if self.is_production else 480
 
     @property
     def REFRESH_TOKEN_EXPIRATION_DAYS(self) -> int:
-        return int(self._get_str("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
+        return int(self._get_str("PUBLIC_REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
 
     @property
     def SUPABASE_URL(self) -> str:
         default = "http://127.0.0.1:54321" if self.is_development or self.is_test else ""
-        url = self._get_str("SUPABASE_URL", default).strip().rstrip("/")
+        url = self._get_str("PUBLIC_SUPABASE_URL", default).strip().rstrip("/")
         if self.is_production and not url:
             raise RuntimeError(
-                "SUPABASE_URL must be set in production. "
+                "PUBLIC_SUPABASE_URL must be set in production. "
                 "Supabase is the sole auth provider in deployed environments."
             )
         return url
@@ -266,15 +288,15 @@ class Config:
 
     @property
     def SUPABASE_SECRET_KEY(self) -> str:
-        return self._get_str("SUPABASE_SECRET_KEY", "").strip()
+        return self._get_str("PRIVATE_SUPABASE_SECRET_KEY", "").strip()
 
     @property
     def CORS_ORIGINS(self) -> str:
-        return self._get_str("CORS_ORIGINS", "*")
+        return self._get_str("PUBLIC_CORS_ORIGINS", "*")
 
     @property
     def CORS_ORIGIN_REGEX(self) -> str:
-        return self._get_str("CORS_ORIGIN_REGEX", "").strip()
+        return self._get_str("PUBLIC_CORS_ORIGIN_REGEX", "").strip()
 
     @property
     def cors_is_permissive(self) -> bool:
@@ -288,18 +310,22 @@ class Config:
     def _enforce_cors(self) -> None:
         if self.is_production and self.cors_is_permissive:
             raise RuntimeError(
-                "CORS_ORIGINS must not be '*' or empty in production. Set CORS_ORIGINS=https://your-vercel-app.vercel.app"
+                "PUBLIC_CORS_ORIGINS must not be '*' or empty in production. "
+                "Set PUBLIC_CORS_ORIGINS=https://your-vercel-app.vercel.app"
             )
 
     @property
     def SENTRY_DSN(self) -> str:
-        return self._get_str("SENTRY_DSN", "").strip()
+        return self._get_str("PRIVATE_SENTRY_DSN", "").strip()
 
-    ALLOW_PUBLIC_AUTH: bool = False
+    @property
+    def ALLOW_PUBLIC_AUTH(self) -> bool:
+        raw = self._get_str("PUBLIC_ALLOW_PUBLIC_AUTH", "").strip().lower()
+        return raw in ("1", "true", "yes")
 
     @property
     def ANTHROPIC_API_KEY(self) -> str:
-        return self._get_str("ANTHROPIC_API_KEY", "").strip()
+        return self._get_str("PRIVATE_ANTHROPIC_API_KEY", "").strip()
 
     @property
     def ANTHROPIC_AVAILABLE(self) -> bool:
@@ -307,18 +333,21 @@ class Config:
 
     @property
     def ANTHROPIC_MODEL(self) -> str:
-        return self._get_str("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip() or "claude-sonnet-4-6"
+        return (
+            self._get_str("PUBLIC_ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+            or "claude-sonnet-4-6"
+        )
 
     @property
     def ANTHROPIC_FAST_MODEL(self) -> str:
         return (
-            self._get_str("ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip()
+            self._get_str("PUBLIC_ANTHROPIC_FAST_MODEL", "claude-sonnet-4-6").strip()
             or "claude-sonnet-4-6"
         )
 
     @property
     def OPENAI_API_KEY(self) -> str:
-        return self._get_str("OPENAI_API_KEY", "").strip()
+        return self._get_str("PRIVATE_OPENAI_API_KEY", "").strip()
 
     @property
     def OPENAI_AVAILABLE(self) -> bool:
@@ -326,12 +355,12 @@ class Config:
 
     @property
     def OPENROUTER_API_KEY(self) -> str:
-        return self._get_str("OPENROUTER_API_KEY", "").strip()
+        return self._get_str("PRIVATE_OPENROUTER_API_KEY", "").strip()
 
     @property
     def OPENROUTER_BASE_URL(self) -> str:
         return (
-            self._get_str("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
+            self._get_str("PUBLIC_OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
             or "https://openrouter.ai/api/v1"
         )
 
@@ -342,12 +371,12 @@ class Config:
     @property
     def EMBEDDING_MODEL(self) -> str:
         return (
-            self._get_str("EMBEDDING_MODEL", "text-embedding-3-small").strip()
+            self._get_str("PUBLIC_EMBEDDING_MODEL", "text-embedding-3-small").strip()
             or "text-embedding-3-small"
         )
 
     def _load_agent_model(self) -> str:
-        env_override = self._get_str("AGENT_PRIMARY_MODEL", "").strip()
+        env_override = self._get_str("PUBLIC_AGENT_PRIMARY_MODEL", "").strip()
         if env_override:
             return env_override
         try:
@@ -370,7 +399,7 @@ class Config:
         return self._load_agent_model()
 
     def _load_synthesis_model(self) -> str:
-        env_override = self._get_str("MODEL_REGISTRY_INFRA_SYNTHESIS", "").strip()
+        env_override = self._get_str("PUBLIC_MODEL_REGISTRY_INFRA_SYNTHESIS", "").strip()
         if env_override:
             return env_override
         try:
@@ -393,7 +422,7 @@ class Config:
         return self._load_synthesis_model()
 
     def _load_classifier_model(self) -> str:
-        env_override = self._get_str("MODEL_REGISTRY_INFRA_CLASSIFIER", "").strip()
+        env_override = self._get_str("PUBLIC_MODEL_REGISTRY_INFRA_CLASSIFIER", "").strip()
         if env_override:
             return env_override
         try:
@@ -419,55 +448,55 @@ class Config:
 
     @property
     def SESSION_COST_CAP(self) -> float:
-        return float(self._get_str("SESSION_COST_CAP", "2.00"))
+        return float(self._get_str("PUBLIC_SESSION_COST_CAP", "2.00"))
 
     @property
     def FRONTEND_URL(self) -> str:
-        return self._get_str("FRONTEND_URL", "").strip().rstrip("/")
+        return self._get_str("PUBLIC_FRONTEND_URL", "").strip().rstrip("/")
 
     @property
     def XERO_CLIENT_ID(self) -> str:
-        return self._get_str("XERO_CLIENT_ID", "").strip()
+        return self._get_str("PUBLIC_XERO_CLIENT_ID", "").strip()
 
     @property
     def XERO_CLIENT_SECRET(self) -> str:
-        return self._get_str("XERO_CLIENT_SECRET", "").strip()
+        return self._get_str("PRIVATE_XERO_CLIENT_SECRET", "").strip()
 
     @property
     def XERO_REDIRECT_URI(self) -> str:
-        return self._get_str("XERO_REDIRECT_URI", "").strip()
+        return self._get_str("PUBLIC_XERO_REDIRECT_URI", "").strip()
 
     @property
     def XERO_SYNC_HOUR(self) -> int:
-        return int(self._get_str("XERO_SYNC_HOUR", "2"))
+        return int(self._get_str("PUBLIC_XERO_SYNC_HOUR", "2"))
 
     @property
     def WORKERS(self) -> int:
-        return int(self._get_str("WORKERS", "1"))
+        return int(self._get_str("PUBLIC_WORKERS", "1"))
 
     @property
     def LOG_LEVEL(self) -> str:
-        return self._get_str("LOG_LEVEL", "INFO").upper() or "INFO"
+        return self._get_str("PUBLIC_LOG_LEVEL", "INFO").upper() or "INFO"
 
     @property
     def METRICS_TOKEN(self) -> str:
-        return self._get_str("METRICS_TOKEN", "").strip()
+        return self._get_str("PRIVATE_METRICS_TOKEN", "").strip()
 
     @property
     def REQUEST_TIMEOUT(self) -> int:
-        return int(self._get_str("REQUEST_TIMEOUT", "30"))
+        return int(self._get_str("PUBLIC_REQUEST_TIMEOUT", "30"))
 
     @property
     def AI_REQUEST_TIMEOUT(self) -> int:
-        return int(self._get_str("AI_REQUEST_TIMEOUT", "120"))
+        return int(self._get_str("PUBLIC_AI_REQUEST_TIMEOUT", "120"))
 
     @property
     def MAX_CONCURRENT_GENERATIONS(self) -> int:
-        return int(self._get_str("MAX_CONCURRENT_GENERATIONS", "4"))
+        return int(self._get_str("PUBLIC_MAX_CONCURRENT_GENERATIONS", "4"))
 
     @property
     def GENERATION_QUEUE_TIMEOUT(self) -> float:
-        return float(self._get_str("GENERATION_QUEUE_TIMEOUT", "10"))
+        return float(self._get_str("PUBLIC_GENERATION_QUEUE_TIMEOUT", "10"))
 
     def _get_jwks_client(self) -> jwt.PyJWKClient | None:
         key = self.supabase_jwks_url

@@ -102,8 +102,8 @@ async def ai_health():
     """AI availability probe."""
     if not config.ANTHROPIC_AVAILABLE and not config.OPENROUTER_AVAILABLE:
         detail_msg = (
-            f"No LLM API key configured. Set ANTHROPIC_API_KEY or OPENROUTER_API_KEY. "
-            f"Get a key at {config.LLM_SETUP_URL}"
+            f"No LLM API key configured. Set PRIVATE_ANTHROPIC_API_KEY or "
+            f"PRIVATE_OPENROUTER_API_KEY. Get a key at {config.LLM_SETUP_URL}"
         )
         return JSONResponse(
             status_code=503,

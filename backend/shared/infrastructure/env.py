@@ -4,14 +4,15 @@ File merge order (later files override earlier **for keys not set by the process
 
 1. Repo root ``.env`` (optional)
 2. ``backend/.env``
-3. ``backend/.env.development`` or ``backend/.env.production`` (from runtime ``ENV``)
+3. ``backend/.env.development`` or ``backend/.env.production``
+   (from runtime ``PUBLIC_ENV``, with legacy ``ENV`` fallback for the profile)
 4. ``backend/.env.local``
 
 Keys already present in ``os.environ`` when this module is first imported (platform,
 shell, CI, Docker, ``pixi``) are never overwritten by dotenv files.
 
-``ENV=test`` uses the same filename bundle as development (``.env.development``) so CI
-``os.environ`` wins when set before import.
+``PUBLIC_ENV=test`` (or legacy ``ENV=test``) uses the same filename bundle as development
+(``.env.development``) so CI ``os.environ`` wins when set before import.
 
 See ``docs/environment.md`` in the repo root.
 """

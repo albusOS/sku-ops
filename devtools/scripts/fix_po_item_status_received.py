@@ -4,7 +4,7 @@ One-time fix: update purchase_order_items with status='received' to status='arri
 POItemStatus allows: ordered, pending, arrived. 'received' is invalid for items
 (PO-level status only). Old or bad data causes Pydantic validation errors.
 
-Run against demo DB (DATABASE_URL in backend/.env or env):
+Run against demo DB (PRIVATE_DATABASE_URL in backend/.env or env):
     uv run python -m devtools.scripts.fix_po_item_status_received
 """
 
@@ -18,7 +18,7 @@ import asyncpg
 _root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_root))
 
-# Load .env from backend/ so DATABASE_URL is available when run against demo
+# Load .env from backend/ so PRIVATE_DATABASE_URL is available when run against demo
 for env_path in (_root / "backend" / ".env", _root / ".env"):
     if env_path.exists():
         from dotenv import load_dotenv
@@ -28,9 +28,9 @@ for env_path in (_root / "backend" / ".env", _root / ".env"):
 
 
 async def main():
-    url = os.environ.get("DATABASE_URL")
+    url = os.environ.get("PRIVATE_DATABASE_URL")
     if not url:
-        raise SystemExit("DATABASE_URL not set")
+        raise SystemExit("PRIVATE_DATABASE_URL not set")
     conn = await asyncpg.connect(url)
     result = await conn.execute(
         """UPDATE purchase_order_items SET status = 'arrived' WHERE status = 'received'"""

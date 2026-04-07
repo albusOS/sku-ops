@@ -28,7 +28,7 @@ async def parse_document(
 ):
     """Parse image or PDF.
 
-    use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR.
+    use_ai=true uses Claude (requires PRIVATE_ANTHROPIC_API_KEY); default uses free OCR.
     """
     contents = await file.read()
     content_type = (file.content_type or "").lower()

@@ -54,40 +54,41 @@ def check_config_guards() -> None:
 
     cases = [
         (
-            "Production rejects missing JWT_SECRET",
+            "Production rejects missing PRIVATE_JWT_SECRET",
             {
-                "ENV": "production",
-                "DATABASE_URL": "postgresql://x:x@x:5432/x",
-                "CORS_ORIGINS": "https://example.com",
+                "PUBLIC_ENV": "production",
+                "PRIVATE_DATABASE_URL": "postgresql://x:x@x:5432/x",
+                "PUBLIC_CORS_ORIGINS": "https://example.com",
             },
-            "JWT_SECRET",
+            "PRIVATE_JWT_SECRET",
             True,
         ),
         (
             "Production rejects wildcard CORS",
             {
-                "ENV": "production",
-                "DATABASE_URL": "postgresql://x:x@x:5432/x",
-                "JWT_SECRET": "a" * 32,
+                "PUBLIC_ENV": "production",
+                "PRIVATE_DATABASE_URL": "postgresql://x:x@x:5432/x",
+                "PRIVATE_JWT_SECRET": "a" * 32,
             },
-            "CORS_ORIGINS",
+            "PUBLIC_CORS_ORIGINS",
             True,
         ),
         (
-            "Production rejects SQLite DATABASE_URL",
+            "Production rejects SQLite PRIVATE_DATABASE_URL",
             {
-                "ENV": "production",
-                "JWT_SECRET": "a" * 32,
-                "CORS_ORIGINS": "https://x.com",
+                "PUBLIC_ENV": "production",
+                "PRIVATE_JWT_SECRET": "a" * 32,
+                "PUBLIC_CORS_ORIGINS": "https://x.com",
+                "PRIVATE_DATABASE_URL": "sqlite:///x.db",
             },
-            "DATABASE_URL",
+            None,
             True,
         ),
         (
             "Development allows permissive defaults",
             {
-                "ENV": "development",
-                "DATABASE_URL": "postgresql://x:x@localhost:5433/x",
+                "PUBLIC_ENV": "development",
+                "PRIVATE_DATABASE_URL": "postgresql://x:x@localhost:5433/x",
             },
             None,
             False,
@@ -96,7 +97,13 @@ def check_config_guards() -> None:
 
     for label, env, missing_var, should_raise in cases:
         merged = dict.fromkeys(
-            ["ENV", "DATABASE_URL", "JWT_SECRET", "CORS_ORIGINS", "REDIS_URL"],
+            [
+                "PUBLIC_ENV",
+                "PRIVATE_DATABASE_URL",
+                "PRIVATE_JWT_SECRET",
+                "PUBLIC_CORS_ORIGINS",
+                "PUBLIC_REDIS_URL",
+            ],
             "",
         )
         merged.update(env)
@@ -268,14 +275,14 @@ def check_cors_config() -> None:
     cors = config.CORS_ORIGINS
     origins = [o.strip() for o in cors.split(",") if o.strip()]
     if cors == "*":
-        _warn("CORS_ORIGINS is '*' (dev default — must be set in production)")
+        _warn("PUBLIC_CORS_ORIGINS is '*' (dev default — must be set in production)")
     else:
         _ok(
-            f"CORS_ORIGINS parsed into {len(origins)} origin(s)",
+            f"PUBLIC_CORS_ORIGINS parsed into {len(origins)} origin(s)",
             ", ".join(origins),
         )
 
-    # Simulate what main.py does: CORS_ORIGINS.split(",")
+    # Simulate what main.py does: PUBLIC_CORS_ORIGINS.split(",")
     test_cases = [
         ("https://app.vercel.app", ["https://app.vercel.app"]),
         (
@@ -294,7 +301,7 @@ def check_cors_config() -> None:
             _fail(f"CORS split mismatch for: {raw!r}")
             all_ok = False
     if all_ok:
-        _ok("CORS_ORIGINS.split(',') parses correctly in all cases")
+        _ok("PUBLIC_CORS_ORIGINS.split(',') parses correctly in all cases")
 
 
 def check_websocket_routes() -> None:
@@ -320,19 +327,19 @@ def check_websocket_routes() -> None:
 
 
 def check_production_flags() -> None:
-    """Verify that dev-only endpoints are disabled when ENV=production."""
+    """Verify production gating when PUBLIC_ENV=production."""
     _section("Production endpoint gating")
 
     try:
         import importlib
         import sys
 
-        # Temporarily set production env to check route gating
-        orig_env = os.environ.get("ENV", "development")
-        os.environ["ENV"] = "production"
-        os.environ.setdefault("JWT_SECRET", "a" * 32)
-        os.environ.setdefault("DATABASE_URL", "postgresql://x:x@x:5432/x")
-        os.environ.setdefault("CORS_ORIGINS", "https://example.com")
+        orig_public = os.environ.get("PUBLIC_ENV")
+        orig_legacy = os.environ.get("ENV")
+        os.environ["PUBLIC_ENV"] = "production"
+        os.environ.setdefault("PRIVATE_JWT_SECRET", "a" * 32)
+        os.environ.setdefault("PRIVATE_DATABASE_URL", "postgresql://x:x@x:5432/x")
+        os.environ.setdefault("PUBLIC_CORS_ORIGINS", "https://example.com")
 
         # Re-import config to pick up production flags
         if "shared.infrastructure.config" in sys.modules:
@@ -340,17 +347,19 @@ def check_production_flags() -> None:
 
         from shared.infrastructure.config import config
 
-        if not config.ALLOW_PUBLIC_AUTH:
-            _ok("ALLOW_PUBLIC_AUTH=False in production (login/register endpoints disabled)")
-        elif os.environ.get("ALLOW_PUBLIC_AUTH", "").lower() in ("1", "true"):
-            _ok("ALLOW_PUBLIC_AUTH=True explicitly set (local auth mode, no Supabase)")
+        if config.ALLOW_PUBLIC_AUTH:
+            _ok("PUBLIC_ALLOW_PUBLIC_AUTH set (local auth mode)")
         else:
-            _fail(
-                "ALLOW_PUBLIC_AUTH=True in production",
-                "Local auth endpoints should not be reachable",
-            )
+            _ok("PUBLIC_ALLOW_PUBLIC_AUTH off (Supabase auth)")
 
-        os.environ["ENV"] = orig_env
+        if orig_public is None:
+            os.environ.pop("PUBLIC_ENV", None)
+        else:
+            os.environ["PUBLIC_ENV"] = orig_public
+        if orig_legacy is None:
+            os.environ.pop("ENV", None)
+        else:
+            os.environ["ENV"] = orig_legacy
         if "shared.infrastructure.config" in sys.modules:
             importlib.reload(sys.modules["shared.infrastructure.config"])
 

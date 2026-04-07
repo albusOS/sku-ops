@@ -10,12 +10,14 @@ import os
 
 from catalog.application.uom_seed import uom_seed_sql
 
-os.environ["ENV"] = "test"
-os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres")
-os.environ.setdefault("REDIS_URL", "")
-os.environ.setdefault("JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
-os.environ["ANTHROPIC_API_KEY"] = ""
-os.environ["OPENAI_API_KEY"] = ""
+os.environ["PUBLIC_ENV"] = "test"
+os.environ.setdefault(
+    "PRIVATE_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+)
+os.environ.setdefault("PUBLIC_REDIS_URL", "")
+os.environ.setdefault("PRIVATE_JWT_SECRET", "test-" + "secret-key-for-pytest-32bytes!")
+os.environ["PRIVATE_ANTHROPIC_API_KEY"] = ""
+os.environ["PRIVATE_OPENAI_API_KEY"] = ""
 from pathlib import Path
 
 import pytest

@@ -13,7 +13,7 @@ Usage:
     # Show stats from an existing classification file
     uv run --with openpyxl python -m devtools.scripts.classify_products --stats
 
-Requires ANTHROPIC_API_KEY in environment.
+Requires PRIVATE_ANTHROPIC_API_KEY in environment.
 """
 
 import argparse
@@ -330,9 +330,9 @@ def main():
         return
 
     # Classification mode
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    api_key = os.environ.get("PRIVATE_ANTHROPIC_API_KEY", "")
     if not api_key:
-        print("Error: ANTHROPIC_API_KEY not set")
+        print("Error: PRIVATE_ANTHROPIC_API_KEY not set")
         sys.exit(1)
 
     # Retry-failed mode: re-classify only failed products from previous run

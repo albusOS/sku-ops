@@ -175,7 +175,7 @@ def generate_with_image(
 
     client = _get_anthropic_client()
     if not client:
-        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
+        raise ValueError("LLM not configured. Set PRIVATE_ANTHROPIC_API_KEY in backend/.env.local")
     return _anthropic_image(client, prompt, image_data, media_type, system_instruction)
 
 
@@ -203,7 +203,7 @@ def generate_with_pdf(
 
     client = _get_anthropic_client()
     if not client:
-        raise ValueError("LLM not configured. Set ANTHROPIC_API_KEY in backend/.env")
+        raise ValueError("LLM not configured. Set PRIVATE_ANTHROPIC_API_KEY in backend/.env.local")
     return _anthropic_pdf(client, prompt, pdf_data, system_instruction)
 
 

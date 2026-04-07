@@ -8,19 +8,19 @@ Production readiness checklist for sku-ops. Work through each section before goi
 
 - [ ] Provision managed Postgres (Supabase direct connection, port 5432 — not pooler)
 - [ ] Provision Redis (managed add-on or Upstash) and note the URL
-- [ ] Set `REDIS_URL` and `WORKERS=2` (or more) in production environment
+- [ ] Set `PUBLIC_REDIS_URL` and `PUBLIC_WORKERS=2` (or more) in production environment
 - [ ] Verify multi-worker startup succeeds with Redis (logs show Redis connected and safe fan-out)
 - [ ] Configure automated Postgres backups (Supabase project backups or provider snapshots)
-- [ ] Set up Sentry project and configure `SENTRY_DSN`
-- [ ] Set `METRICS_TOKEN` and configure Prometheus scraping or platform metrics dashboard
+- [ ] Set up Sentry project and configure `PRIVATE_SENTRY_DSN`
+- [ ] Set `PRIVATE_METRICS_TOKEN` and configure Prometheus scraping or platform metrics dashboard
 - [ ] Configure uptime monitoring on `/api/health` and `/api/ready` (UptimeRobot, Better Stack, or similar)
 - [ ] Point DNS for frontend and API to Vercel and your API host
 - [ ] TLS is platform-managed (Vercel + API host); confirm HTTPS on both origins
 
 ## Security
 
-- [ ] Set backend `JWT_SECRET` to the **Supabase project JWT secret** (not a random hex string)
-- [ ] Set `CORS_ORIGINS` to exact production domain(s) — no wildcards
+- [ ] Set backend `PRIVATE_JWT_SECRET` to the **Supabase project JWT secret** (not a random hex string)
+- [ ] Set `PUBLIC_CORS_ORIGINS` to exact production domain(s) — no wildcards
 - [ ] Verify security headers with [securityheaders.com](https://securityheaders.com): `X-Frame-Options`, `CSP`, `HSTS`, `X-Content-Type-Options`
 - [ ] Confirm API rate limiting strategy (platform WAF / edge rules / app config) matches your threat model
 - [ ] Audit git history for committed secrets: `git log --all -p -- '*.env' '*.pem' '*.key'`
@@ -64,7 +64,7 @@ Production readiness checklist for sku-ops. Work through each section before goi
 
 ## Observability
 
-- [ ] Verify JSON structured logging in production: deploy with `LOG_LEVEL=INFO`, check logs contain `request_id`, `user_id`, `org_id` fields
+- [ ] Verify JSON structured logging in production: deploy with `PUBLIC_LOG_LEVEL=INFO`, check logs contain `request_id`, `user_id`, `org_id` fields
 - [ ] Confirm `X-Request-ID` response header is present on all API responses
 - [ ] Trigger a test error in Sentry and verify it arrives with `org_id` and `request_id` tags
 - [ ] Set up log aggregation (platform logs or ship to Datadog/Loki/CloudWatch)

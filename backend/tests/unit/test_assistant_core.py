@@ -27,7 +27,10 @@ class TestModelRegistry:
     def test_env_override_takes_precedence(self):
         from assistant.agents.core.model_registry import get_model_name
 
-        with patch.dict("os.environ", {"MODEL_REGISTRY_AGENT_UNIFIED": "openrouter:test/model"}):
+        with patch.dict(
+            "os.environ",
+            {"PUBLIC_MODEL_REGISTRY_AGENT_UNIFIED": "openrouter:test/model"},
+        ):
             result = get_model_name("agent:unified")
         assert result == "openrouter:test/model"
 
@@ -35,7 +38,10 @@ class TestModelRegistry:
         """Dots and colons in task names are normalised to underscores for env lookup."""
         from assistant.agents.core.model_registry import get_model_name
 
-        with patch.dict("os.environ", {"MODEL_REGISTRY_INFRA_SYNTHESIS": "openrouter:cheap/llm"}):
+        with patch.dict(
+            "os.environ",
+            {"PUBLIC_MODEL_REGISTRY_INFRA_SYNTHESIS": "openrouter:cheap/llm"},
+        ):
             result = get_model_name("infra:synthesis")
         assert result == "openrouter:cheap/llm"
 
@@ -185,7 +191,7 @@ class TestAgentConfig:
         import assistant.agents.core.config as cfg_mod
 
         cfg_mod._load_cached.cache_clear()
-        with patch.dict("os.environ", {"AGENT_CONFIG_UNIFIED_MAX_OUTPUT_TOKENS": "1234"}):
+        with patch.dict("os.environ", {"PUBLIC_AGENT_CONFIG_UNIFIED_MAX_OUTPUT_TOKENS": "1234"}):
             cfg = cfg_mod._load_cached("unified")
         assert cfg.max_output_tokens == 1234
         cfg_mod._load_cached.cache_clear()
@@ -195,7 +201,7 @@ class TestAgentConfig:
 
         cfg_mod._load_cached.cache_clear()
         with patch.dict(
-            "os.environ", {"AGENT_CONFIG_ANALYST_MODEL": "openrouter:meta-llama/llama"}
+            "os.environ", {"PUBLIC_AGENT_CONFIG_ANALYST_MODEL": "openrouter:meta-llama/llama"}
         ):
             cfg = cfg_mod._load_cached("analyst")
         assert cfg.model == "openrouter:meta-llama/llama"
@@ -212,7 +218,7 @@ class TestAgentConfig:
         import assistant.agents.core.config as cfg_mod
 
         cfg_mod._load_cached.cache_clear()
-        with patch.dict("os.environ", {"AGENT_CONFIG_UNIFIED_RETRY_MAX_RETRIES": "7"}):
+        with patch.dict("os.environ", {"PUBLIC_AGENT_CONFIG_UNIFIED_RETRY_MAX_RETRIES": "7"}):
             cfg = cfg_mod._load_cached("unified")
         assert cfg.retry.max_retries == 7
         cfg_mod._load_cached.cache_clear()
@@ -221,7 +227,7 @@ class TestAgentConfig:
         import assistant.agents.core.config as cfg_mod
 
         cfg_mod._load_cached.cache_clear()
-        with patch.dict("os.environ", {"AGENT_CONFIG_ANALYST_RETRY_TIMEOUT_SECONDS": "120"}):
+        with patch.dict("os.environ", {"PUBLIC_AGENT_CONFIG_ANALYST_RETRY_TIMEOUT_SECONDS": "120"}):
             cfg = cfg_mod._load_cached("analyst")
         assert cfg.retry.timeout_seconds == 120
         cfg_mod._load_cached.cache_clear()
@@ -230,7 +236,7 @@ class TestAgentConfig:
         import assistant.agents.core.config as cfg_mod
 
         cfg_mod._load_cached.cache_clear()
-        with patch.dict("os.environ", {"AGENT_CONFIG_UNIFIED_RETRY_BACKOFF_BASE": "2.5"}):
+        with patch.dict("os.environ", {"PUBLIC_AGENT_CONFIG_UNIFIED_RETRY_BACKOFF_BASE": "2.5"}):
             cfg = cfg_mod._load_cached("unified")
         assert abs(cfg.retry.backoff_base - 2.5) < 0.001
         cfg_mod._load_cached.cache_clear()
@@ -240,7 +246,7 @@ class TestAgentConfig:
         import assistant.agents.core.config as cfg_mod
 
         cfg_mod._load_cached.cache_clear()
-        with patch.dict("os.environ", {"AGENT_CONFIG_ANALYST_RETRY_MAX_RETRIES": "5"}):
+        with patch.dict("os.environ", {"PUBLIC_AGENT_CONFIG_ANALYST_RETRY_MAX_RETRIES": "5"}):
             cfg = cfg_mod._load_cached("analyst")
         assert cfg.retry.max_retries == 5
         assert cfg.temperature == 0.0
@@ -463,23 +469,27 @@ class TestInfraModelRouting:
         assert len(classifier) > 0
 
     def test_infra_classifier_env_override(self):
-        """MODEL_REGISTRY_INFRA_CLASSIFIER overrides the classifier model."""
+        """PUBLIC_MODEL_REGISTRY_INFRA_CLASSIFIER overrides the classifier model."""
         from assistant.agents.core.model_registry import get_model_name
 
         with patch.dict(
             "os.environ",
-            {"MODEL_REGISTRY_INFRA_CLASSIFIER": "openrouter:meta-llama/llama-3.3-70b-instruct"},
+            {
+                "PUBLIC_MODEL_REGISTRY_INFRA_CLASSIFIER": (
+                    "openrouter:meta-llama/llama-3.3-70b-instruct"
+                ),
+            },
         ):
             result = get_model_name("infra:classifier")
         assert result == "openrouter:meta-llama/llama-3.3-70b-instruct"
 
     def test_infra_synthesis_env_override(self):
-        """MODEL_REGISTRY_INFRA_SYNTHESIS overrides the synthesis model."""
+        """PUBLIC_MODEL_REGISTRY_INFRA_SYNTHESIS overrides the synthesis model."""
         from assistant.agents.core.model_registry import get_model_name
 
         with patch.dict(
             "os.environ",
-            {"MODEL_REGISTRY_INFRA_SYNTHESIS": "openrouter:google/gemini-2.0-flash-001"},
+            {"PUBLIC_MODEL_REGISTRY_INFRA_SYNTHESIS": "openrouter:google/gemini-2.0-flash-001"},
         ):
             result = get_model_name("infra:synthesis")
         assert result == "openrouter:google/gemini-2.0-flash-001"

@@ -32,8 +32,8 @@ def _db_assistant():
 
 
 LLM_NOT_CONFIGURED_MSG = (
-    "Chat assistant requires an API key. Set OPENROUTER_API_KEY (preferred) or "
-    f"ANTHROPIC_API_KEY in backend/.env.  Get a key at {config.LLM_SETUP_URL}"
+    "Chat assistant requires an API key. Set PRIVATE_OPENROUTER_API_KEY (preferred) or "
+    f"PRIVATE_ANTHROPIC_API_KEY in backend/.env.local. Get a key at {config.LLM_SETUP_URL}"
 )
 
 

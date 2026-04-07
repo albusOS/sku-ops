@@ -2,16 +2,16 @@
 # Uses pydantic-ai model strings: "anthropic:<model>", "openrouter:<provider>/<model>", "openai:<model>", etc.
 #
 # Env overrides:
-#   AGENT_PRIMARY_MODEL              — overrides primary (all agent tasks)
-#   MODEL_REGISTRY_INFRA_SYNTHESIS   — overrides synthesis (history compression)
-#   MODEL_REGISTRY_INFRA_CLASSIFIER  — overrides classifier (intent classification)
+#   PUBLIC_AGENT_PRIMARY_MODEL              — overrides primary (all agent tasks)
+#   PUBLIC_MODEL_REGISTRY_INFRA_SYNTHESIS   — overrides synthesis (history compression)
+#   PUBLIC_MODEL_REGISTRY_INFRA_CLASSIFIER  — overrides classifier (intent classification)
 #
 # Switching to OpenRouter: change prefix to "openrouter:anthropic/claude-sonnet-4-6"
-# and add OPENROUTER_API_KEY to your .env.
+# and add PRIVATE_OPENROUTER_API_KEY to your .env.local.
 #
 # When Anthropic is overloaded, the runner automatically falls back to the
 # OpenRouter equivalent (e.g. anthropic:claude-sonnet-4-6 → openrouter:anthropic/claude-sonnet-4-6)
-# if OPENROUTER_API_KEY is set. No config change needed.
+# if PRIVATE_OPENROUTER_API_KEY is set. No config change needed.
 #
 # Cost profile:
 #   primary    — Sonnet ($3 in / $15 out per M tokens) for all agent work

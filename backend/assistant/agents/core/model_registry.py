@@ -1,12 +1,12 @@
 """Model registry — maps task types to models.
 
 Resolution order (first non-empty wins):
-  1. Environment variable: MODEL_REGISTRY_<TASK_KEY>
+  1. Environment variable: PUBLIC_MODEL_REGISTRY_<TASK_KEY>
   2. Per-agent config.yaml `model` field
-  3. Global defaults from models.yaml (AGENT_PRIMARY_MODEL / INFRA_SYNTHESIS_MODEL)
+  3. Global defaults from models.yaml (PUBLIC_AGENT_PRIMARY_MODEL / INFRA_SYNTHESIS_MODEL)
 
 Env-var overrides still work:
-    MODEL_REGISTRY_AGENT_INVENTORY=anthropic:claude-opus-4-6
+    PUBLIC_MODEL_REGISTRY_AGENT_INVENTORY=anthropic:claude-opus-4-6
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _resolve(task: str) -> str:
 
     Checks env override -> per-agent config.yaml -> global default.
     """
-    env_key = "MODEL_REGISTRY_" + task.replace(":", "_").replace(".", "_").upper()
+    env_key = "PUBLIC_MODEL_REGISTRY_" + task.replace(":", "_").replace(".", "_").upper()
     override = os.environ.get(env_key, "").strip()
     if override:
         return override

@@ -30,7 +30,7 @@ import sys
 import httpx
 
 # Bootstrap Django-style: must happen before any app imports
-os.environ.setdefault("ENV", "development")
+os.environ.setdefault("PUBLIC_ENV", "development")
 
 logging.basicConfig(
     level=logging.INFO,
