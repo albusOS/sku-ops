@@ -8,10 +8,13 @@
 #   doctl apps create --spec .do/app.yaml
 #   doctl apps update <app-id> --spec .do/app.yaml
 #
-# GHCR pull auth: public packages often pull without credentials. For a private
-# package, set registry_credentials in the DO dashboard (username: PAT with
-# read:packages) or pass once to doctl; DO encrypts it and you must not commit
-# real tokens here. If deploy fails with image pull errors, add credentials via UI.
+# GHCR pull auth: if the package is private, App Platform needs
+# registry_credentials (see image.registry_credentials in App spec reference).
+# From repo root (PAT must include read:packages; gh auth token often lacks it):
+#   export GHCR_REGISTRY_CREDS='github_username:ghp_xxx'
+#   pixi run uv run --directory backend python devtools/scripts/do_apps_create_ghcr.py
+# Or make ghcr.io/<owner>/sku-ops-backend public in GitHub Package settings, then
+# plain doctl create works without credentials. DO encrypts credentials on first apply.
 #
 # Secret env values (DATABASE_URL, JWT_SECRET, etc.): set real values in the DO
 # dashboard or doctl after first apply — do not commit secrets.
@@ -31,7 +34,8 @@ services:
   - name: api
     image:
       registry_type: GHCR
-      registry: albus-consulting
+      # Must match GitHub org/user that owns the GHCR package (lowercase), same as github.repository_owner in deploy.yml.
+      registry: albusos
       repository: sku-ops-backend
       tag: latest
     instance_count: 1
