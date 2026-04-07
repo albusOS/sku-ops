@@ -1,4 +1,7 @@
-"""Catalog context router - departments, product_families, products, vendor_items, sku, vendors, units."""
+"""Catalog context router.
+
+Departments, product_families, products, vendor_items, sku, vendors, units.
+"""
 
 from fastapi import APIRouter
 

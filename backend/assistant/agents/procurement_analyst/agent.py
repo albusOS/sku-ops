@@ -63,7 +63,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def get_reorder_with_vendor_context(ctx: RunContext[AgentDeps], limit: int = 30) -> str:
-        """Use when you need the raw low-stock list and vendor options per SKU for ordering decisions."""
+        """Use when you need the raw low-stock list and vendor options per SKU.
+
+        For ordering decisions.
+        """
         return budget_tool_result(await _get_reorder_with_vendor_context(limit=limit))
 
     @_agent.tool
@@ -79,21 +82,30 @@ def _get_agent() -> Agent[AgentDeps, str]:
     async def get_vendor_lead_times(
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 180
     ) -> str:
-        """Use for vendor delivery-risk questions. Returns actual lead times from PO history plus drift detection."""
+        """Use for vendor delivery-risk questions.
+
+        Returns actual lead times from PO history plus drift detection.
+        """
         return budget_tool_result(
             await _get_vendor_lead_times(vendor_id=vendor_id, name=name, days=days)
         )
 
     @_agent.tool
     async def forecast_stockout(ctx: RunContext[AgentDeps], limit: int = 20) -> str:
-        """Use for urgency questions. Returns SKUs predicted to run out soonest based on normalized demand velocity."""
+        """Use for urgency questions.
+
+        Returns SKUs predicted to run out soonest based on normalized demand velocity.
+        """
         return budget_tool_result(await _forecast_stockout(limit=limit))
 
     @_agent.tool
     async def get_vendor_performance(
         ctx: RunContext[AgentDeps], vendor_id: str = "", name: str = "", days: int = 90
     ) -> str:
-        """Use for vendor scorecard questions. Returns PO count, spend, average lead time, and fill rate."""
+        """Use for vendor scorecard questions.
+
+        Returns PO count, spend, average lead time, and fill rate.
+        """
         return budget_tool_result(
             await _get_vendor_performance(vendor_id=vendor_id, name=name, days=days)
         )
@@ -125,7 +137,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
         days: int = 90,
         limit: int = 20,
     ) -> str:
-        """Use only when you need supporting evidence. Returns recent POs for a vendor with item summaries."""
+        """Use only when you need supporting evidence.
+
+        Returns recent POs for a vendor with item summaries.
+        """
         return budget_tool_result(
             await _get_purchase_history(vendor_id=vendor_id, name=name, days=days, limit=limit)
         )

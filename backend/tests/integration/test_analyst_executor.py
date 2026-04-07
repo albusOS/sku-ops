@@ -66,7 +66,8 @@ class TestSandboxedExecution:
         async def _body():
             with pytest.raises(AnalystQueryError, match="Only SELECT"):
                 await execute_sandboxed(
-                    "INSERT INTO departments (id, name, code, organization_id, created_at) VALUES ('evil', 'Evil', 'EVL', $1, NOW())"
+                    "INSERT INTO departments (id, name, code, organization_id, created_at) "
+                    "VALUES ('evil', 'Evil', 'EVL', $1, NOW())"
                 )
 
         call(_body)
@@ -76,7 +77,8 @@ class TestSandboxedExecution:
 
         async def _body():
             result = await execute_sandboxed(
-                "WITH depts AS (SELECT id, name FROM departments WHERE organization_id = $1) SELECT * FROM depts LIMIT 10"
+                "WITH depts AS (SELECT id, name FROM departments "
+                "WHERE organization_id = $1) SELECT * FROM depts LIMIT 10"
             )
             assert result.columns is not None
 

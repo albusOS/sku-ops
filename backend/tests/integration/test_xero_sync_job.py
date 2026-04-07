@@ -143,7 +143,10 @@ class TestSyncJobIdempotency:
             await _run_sync_with_stub()
             inv_after_2 = await _get_invoice(inv_id)
             xero_id_2 = inv_after_2.xero_invoice_id
-            _xid_msg = f"xero_invoice_id changed between syncs: {xero_id_1!r} -> {xero_id_2!r}. This would create a duplicate invoice in Xero."
+            _xid_msg = (
+                f"xero_invoice_id changed between syncs: {xero_id_1!r} -> {xero_id_2!r}. "
+                f"This would create a duplicate invoice in Xero."
+            )
             assert xero_id_1 == xero_id_2, _xid_msg
 
         call(_body)
@@ -188,7 +191,10 @@ class TestSyncJobIdempotency:
                 await run_sync(reconcile=False)
 
             call(_body)
-        _sync_cnt_msg = f"sync_invoice called {call_count} times — should be called exactly once. A second call would create a duplicate Xero invoice."
+        _sync_cnt_msg = (
+            f"sync_invoice called {call_count} times - should be called exactly once. "
+            f"A second call would create a duplicate Xero invoice."
+        )
         assert call_count == 1, _sync_cnt_msg
 
     def test_sync_sets_status_to_synced(self, call):
@@ -263,7 +269,8 @@ class TestSyncStatusGating:
                 inv = await _make_approved_invoice()
                 inv_id = inv.id
                 await sql_execute(
-                    "UPDATE invoices SET xero_invoice_id = 'already-synced', xero_sync_status = 'synced', status = 'paid' WHERE id = $1",
+                    "UPDATE invoices SET xero_invoice_id = 'already-synced', "
+                    "xero_sync_status = 'synced', status = 'paid' WHERE id = $1",
                     (inv_id,),
                 )
                 await run_sync(reconcile=False)
@@ -308,12 +315,19 @@ class TestAdjustmentIdempotencyFix:
                 user_name="Test",
             )
             cursor = await sql_execute(
-                "SELECT COUNT(*) FROM financial_ledger\n                   WHERE reference_type = 'adjustment' AND sku_id = $1",
+                """
+                SELECT COUNT(*) FROM financial_ledger
+                WHERE reference_type = 'adjustment' AND sku_id = $1
+                """,
                 (product.id,),
             )
             row = cursor.rows[0] if cursor.rows else None
             count = row[0]
-            _adj_msg = f"Expected 4 ledger entries for 2 adjustments, got {count}. The adjustment idempotency bug is likely re-introduced — adjustment_ref_id must be a unique ID per adjustment, not sku_id."
+            _adj_msg = (
+                f"Expected 4 ledger entries for 2 adjustments, got {count}. "
+                f"The adjustment idempotency bug is likely re-introduced - "
+                f"adjustment_ref_id must be a unique ID per adjustment, not sku_id."
+            )
             assert count == 4, _adj_msg
 
         call(_body)
@@ -342,12 +356,19 @@ class TestAdjustmentIdempotencyFix:
                     user_name="Test",
                 )
             cursor = await sql_execute(
-                "SELECT DISTINCT reference_id FROM financial_ledger\n                   WHERE reference_type = 'adjustment' AND sku_id = $1",
+                """
+                SELECT DISTINCT reference_id FROM financial_ledger
+                WHERE reference_type = 'adjustment' AND sku_id = $1
+                """,
                 (product.id,),
             )
             rows = cursor.rows
             distinct_ref_ids = [r[0] for r in rows]
-            _ref_msg = f"Expected 3 distinct adjustment reference_ids, got {len(distinct_ref_ids)}: {distinct_ref_ids}. Each adjustment must have its own unique reference_id for correct idempotency."
+            _ref_msg = (
+                f"Expected 3 distinct adjustment reference_ids, got {len(distinct_ref_ids)}: "
+                f"{distinct_ref_ids}. Each adjustment must have its own unique reference_id "
+                f"for correct idempotency."
+            )
             assert len(distinct_ref_ids) == 3, _ref_msg
 
         call(_body)
@@ -476,11 +497,23 @@ class TestCreditNoteSync:
             cn_number = "CN-00001"
             now = datetime(2025, 1, 1, tzinfo=UTC)
             await sql_execute(
-                "INSERT INTO credit_notes\n                   (id, credit_note_number, invoice_id, return_id, billing_entity,\n                    status, subtotal, tax, total, notes, xero_credit_note_id,\n                    xero_sync_status, organization_id, created_at, updated_at)\n                   VALUES ($1, $2, NULL, NULL, 'On Point LLC',\n                           'applied', 30.0, 0.0, 30.0, NULL, NULL,\n                           'pending', $3, $4, $5)",
+                """
+                INSERT INTO credit_notes
+                    (id, credit_note_number, invoice_id, return_id, billing_entity,
+                     status, subtotal, tax, total, notes, xero_credit_note_id,
+                     xero_sync_status, organization_id, created_at, updated_at)
+                VALUES ($1, $2, NULL, NULL, 'On Point LLC',
+                        'applied', 30.0, 0.0, 30.0, NULL, NULL,
+                        'pending', $3, $4, $5)
+                """,
                 (cn_id, cn_number, DEFAULT_ORG_ID, now, now),
             )
             await sql_execute(
-                "INSERT INTO credit_note_line_items\n                   (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)\n                   VALUES ($1, $2, 'Returned lumber', 3, 10.0, 30.0, 6.0, NULL)",
+                """
+                INSERT INTO credit_note_line_items
+                    (id, credit_note_id, description, quantity, unit_price, amount, cost, sku_id)
+                VALUES ($1, $2, 'Returned lumber', 3, 10.0, 30.0, 6.0, NULL)
+                """,
                 (str(uuid4()), cn_id),
             )
             await _run_sync_with_stub()
@@ -499,7 +532,15 @@ class TestCreditNoteSync:
             cn_id = str(uuid4())
             now = datetime(2025, 1, 1, tzinfo=UTC)
             await sql_execute(
-                "INSERT INTO credit_notes\n                   (id, credit_note_number, invoice_id, return_id, billing_entity,\n                    status, subtotal, tax, total, notes, xero_credit_note_id,\n                    xero_sync_status, organization_id, created_at, updated_at)\n                   VALUES ($1, 'CN-DRAFT', NULL, NULL, 'On Point LLC',\n                           'draft', 30.0, 0.0, 30.0, NULL, NULL,\n                           'pending', $2, $3, $4)",
+                """
+                INSERT INTO credit_notes
+                    (id, credit_note_number, invoice_id, return_id, billing_entity,
+                     status, subtotal, tax, total, notes, xero_credit_note_id,
+                     xero_sync_status, organization_id, created_at, updated_at)
+                VALUES ($1, 'CN-DRAFT', NULL, NULL, 'On Point LLC',
+                        'draft', 30.0, 0.0, 30.0, NULL, NULL,
+                        'pending', $2, $3, $4)
+                """,
                 (cn_id, DEFAULT_ORG_ID, now, now),
             )
             await _run_sync_with_stub()
@@ -515,7 +556,11 @@ class TestPOQueuing:
         async def _body():
             pdb = get_database_manager().purchasing
             await sql_execute(
-                "INSERT INTO vendors (id, name, organization_id, created_at)\n                   VALUES ($1, $2, $3, NOW())\n                   ON CONFLICT (id) DO NOTHING",
+                """
+                INSERT INTO vendors (id, name, organization_id, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (id) DO NOTHING
+                """,
                 (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
             )
             po = PurchaseOrder(
@@ -552,7 +597,11 @@ class TestPOQueuing:
             async def _body():
                 pdb = get_database_manager().purchasing
                 await sql_execute(
-                    "INSERT INTO vendors (id, name, organization_id, created_at)\n                       VALUES ($1, $2, $3, NOW())\n                       ON CONFLICT (id) DO NOTHING",
+                    """
+                    INSERT INTO vendors (id, name, organization_id, created_at)
+                    VALUES ($1, $2, $3, NOW())
+                    ON CONFLICT (id) DO NOTHING
+                    """,
                     (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
                 )
                 po = PurchaseOrder(
@@ -608,7 +657,11 @@ class TestPOQueuing:
             async def _body():
                 pdb = get_database_manager().purchasing
                 await sql_execute(
-                    "INSERT INTO vendors (id, name, organization_id, created_at)\n                       VALUES ($1, $2, $3, NOW())\n                       ON CONFLICT (id) DO NOTHING",
+                    """
+                    INSERT INTO vendors (id, name, organization_id, created_at)
+                    VALUES ($1, $2, $3, NOW())
+                    ON CONFLICT (id) DO NOTHING
+                    """,
                     (SEEDED_VENDOR_ID, "Acme Corp", DEFAULT_ORG_ID),
                 )
                 po = PurchaseOrder(
@@ -728,13 +781,16 @@ class TestCogsRepost:
             ]
             await update_invoice(inv_id, line_items=new_items)
             inv_after_edit = await _get_invoice(inv_id)
-            _cogs_msg = f"Expected 'cogs_stale' after line item edit, got {inv_after_edit.xero_sync_status!r}"
+            _cogs_msg = (
+                f"Expected 'cogs_stale' after line item edit, "
+                f"got {inv_after_edit.xero_sync_status!r}"
+            )
             assert inv_after_edit.xero_sync_status == "cogs_stale", _cogs_msg
 
         call(_body)
 
     def test_editing_line_items_on_unsynced_invoice_does_not_set_cogs_stale(self, call):
-        """Editing a draft/unsynced invoice must NOT set cogs_stale — it was never in Xero."""
+        """Editing a draft/unsynced invoice must NOT set cogs_stale - it was never in Xero."""
 
         async def _body():
             wid = await _make_withdrawal()
@@ -754,7 +810,7 @@ class TestCogsRepost:
             await update_invoice(inv.id, line_items=new_items)
             inv_after = await _get_invoice(inv.id)
             assert inv_after.xero_sync_status != "cogs_stale", (
-                "Unsynced invoice must not be marked cogs_stale — it was never sent to Xero"
+                "Unsynced invoice must not be marked cogs_stale - it was never sent to Xero"
             )
 
         call(_body)
@@ -819,7 +875,10 @@ class TestCogsRepost:
                 assert summary.cogs_reposted == 1
                 assert summary.cogs_repost_failed == 0
                 inv_final = await _get_invoice(inv_id)
-                _final_msg = f"After COGS re-post, status must be 'synced', got {inv_final.xero_sync_status!r}"
+                _final_msg = (
+                    f"After COGS re-post, status must be 'synced', "
+                    f"got {inv_final.xero_sync_status!r}"
+                )
                 assert inv_final.xero_sync_status == "synced", _final_msg
                 assert inv_final.xero_cogs_journal_id is not None
 

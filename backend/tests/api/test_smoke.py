@@ -29,7 +29,8 @@ def test_endpoint_requires_auth(client, method, path):
     """Every protected endpoint must reject unauthenticated requests with 401 or 403."""
     response = client.request(method, path, json={})
     assert response.status_code in (401, 403), (
-        f"{method} {path} returned {response.status_code} — expected 401/403 for unauthenticated request"
+        f"{method} {path} returned {response.status_code} "
+        f"- expected 401/403 for unauthenticated request"
     )
 
 

@@ -57,14 +57,16 @@ async def _bootstrap() -> dict[str, list[str]]:
     conn = await asyncpg.connect(config.DATABASE_URL)
     try:
         rows = await conn.fetch(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name",
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = $1 ORDER BY table_name",
             "public",
         )
         tables = [r["table_name"] for r in rows]
         schema: dict[str, list[str]] = {}
         for table in tables:
             col_rows = await conn.fetch(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position",
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position",
                 "public",
                 table,
             )
@@ -99,10 +101,11 @@ async def test_live_schema_tables_have_columns():
 
 @pytest.mark.asyncio
 async def test_invoices_has_xero_sync_status_column():
-    """invoices.xero_sync_status must exist — the sync job reads and writes it."""
+    """invoices.xero_sync_status must exist - the sync job reads and writes it."""
     schema = await _bootstrap()
     assert "xero_sync_status" in schema["invoices"], (
-        "invoices table is missing xero_sync_status column. This will break the Xero sync job at runtime."
+        "invoices table is missing xero_sync_status column. "
+        "This will break the Xero sync job at runtime."
     )
 
 

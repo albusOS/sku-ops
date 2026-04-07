@@ -82,7 +82,8 @@ Classify the user message and respond with ONLY a JSON object — no markdown, n
 Schema:
 {
   "needs_tools": <bool>,       // true if answering requires fetching live data
-  "domains": <string[]>,       // subset of: ["inventory","ops","finance","finance_analytics","purchasing"]
+  "domains": <string[]>,       // subset of:
+                                // ["inventory","ops","finance","finance_analytics","purchasing"]
   "expects_table": <bool>,     // true if user expects a list/table in response
   "is_conversational": <bool>  // true for greetings, acks, clarifications, capability questions
 }

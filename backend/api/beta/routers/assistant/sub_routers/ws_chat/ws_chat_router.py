@@ -214,7 +214,10 @@ async def _run_generation(
             {
                 "type": "chat.error",
                 "error_type": "busy",
-                "detail": "The AI assistant is handling several requests right now. Please try again in a moment.",
+                "detail": (
+                    "The AI assistant is handling several requests right now. "
+                    "Please try again in a moment."
+                ),
             },
         )
         return
@@ -358,7 +361,10 @@ async def _run_generation(
 
                             if not validation.passed:
                                 logger.warning(
-                                    "Validation failures: session=%s agent=%s failures=%s scores=%s",
+                                    (
+                                        "Validation failures: session=%s agent=%s "
+                                        "failures=%s scores=%s"
+                                    ),
                                     session_id,
                                     agent_label,
                                     validation.failures,
@@ -366,7 +372,10 @@ async def _run_generation(
                                 )
 
                             logger.info(
-                                "Generation done: job=%s session=%s agent=%s cost=%.4f tokens=%d+%d",
+                                (
+                                    "Generation done: job=%s session=%s agent=%s "
+                                    "cost=%.4f tokens=%d+%d"
+                                ),
                                 job_id,
                                 session_id,
                                 agent_label,
@@ -460,7 +469,10 @@ async def _run_generation(
                     fallback = get_fallback_model(primary)
                     if fallback:
                         logger.warning(
-                            "Stream overloaded after %d attempts, falling back to %s: job=%s session=%s",
+                            (
+                                "Stream overloaded after %d attempts, falling back to %s: "
+                                "job=%s session=%s"
+                            ),
                             overload_attempts,
                             fallback,
                             job_id,
@@ -801,7 +813,9 @@ async def _submit_chat(
             ws,
             {
                 "type": "chat.done",
-                "response": f"This session has reached the ${cap:.2f} AI spend limit. Start a new chat.",
+                "response": (
+                    f"This session has reached the ${cap:.2f} AI spend limit. Start a new chat."
+                ),
                 "tool_calls": [],
                 "thinking": [],
                 "agent": None,

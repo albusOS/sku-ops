@@ -155,7 +155,7 @@ select = [
 # Long assertion data and mock payloads routinely exceed the code line cap.
 # Tests white-box private helpers and SQLAlchemy/SQLModel rows (_mapping, etc.).
 # S106/S603: factory fixtures use placeholder password hashes; subprocess runs generated code under pytest.
-"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002", "E501", "SLF001", "S106", "S603"]
+"tests/**" = ["S101", "PLC0415", "ARG001", "ARG002", "SLF001", "S106", "S603"]
 # HTTP handlers keep auth deps in signature for Depends() even when the body only
 # delegates to services that read org from contextvars.
 "api/beta/routers/**/*.py" = ["ARG001", "ARG002"]
@@ -172,13 +172,13 @@ select = [
 "shared/infrastructure/db/services/_base.py" = ["SLF001"]
 "shared/infrastructure/db/services/raw_sql.py" = ["SLF001"]
 # Env-var shaped property names (UPPER_SASE) + singleton __new__ touches private init.
-"shared/infrastructure/config.py" = ["N802", "PYI034", "SLF001", "TRY300", "E501"]
+"shared/infrastructure/config.py" = ["N802", "PYI034", "SLF001", "TRY300"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.pycodestyle]
-max-doc-length = 120
+max-doc-length = 100
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

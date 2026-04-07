@@ -43,8 +43,11 @@ def _format_markdown(data: dict) -> str:
             "| --- | --- | --- | --- |",
         ]
         lines.extend(
-            f"| {d.get('name', '')} | {d.get('sku_count', 0)} | {d.get('low_stock', 0)} | {d.get('out_of_stock', 0)} |"
-            for d in depts[:15]
+            [
+                f"| {d.get('name', '')} | {d.get('sku_count', 0)} | "
+                f"{d.get('low_stock', 0)} | {d.get('out_of_stock', 0)} |"
+                for d in depts[:15]
+            ]
         )
         parts.append("\n".join(lines))
     low = data.get("low_stock", [])

@@ -45,9 +45,8 @@ def _format_markdown(data: dict) -> str:
         lines.append("")
         lines.append("### PO Pipeline")
         for status, summary in by_status.items():
-            lines.append(
-                f"- **{status}**: {summary.get('count', 0)} POs, ${float(summary.get('total', 0) or 0):,.2f}"
-            )
+            total = float(summary.get("total", 0) or 0)
+            lines.append(f"- **{status}**: {summary.get('count', 0)} POs, ${total:,.2f}")
     return "\n".join(lines)
 
 

@@ -108,7 +108,8 @@ async def create_return(
             max_returnable = original.quantity - already_returned.get(item.sku_id, 0)
             if item.quantity > max_returnable:
                 raise DomainError(
-                    f"Cannot return {item.quantity} of {item.name} — max returnable is {max_returnable}"
+                    f"Cannot return {item.quantity} of {item.name} — "
+                    f"max returnable is {max_returnable}"
                 )
 
             enriched_items.append(

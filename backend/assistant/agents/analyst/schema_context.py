@@ -278,7 +278,8 @@ _RELATIONSHIPS = """
 - returns.withdrawal_id -> withdrawals.id
 - return_items.return_id -> returns.id
 - material_request_items.material_request_id -> material_requests.id
-- skus.product_family_id -> products.id (the `products` table stores product families, not individual SKUs)
+- skus.product_family_id -> products.id
+  (the `products` table stores product families, not individual SKUs)
 - skus.category_id -> departments.id (department)
 - products.category_id -> departments.id
 - vendor_items.vendor_id -> vendors.id
@@ -287,7 +288,8 @@ _RELATIONSHIPS = """
 - purchase_order_items.po_id -> purchase_orders.id
 - purchase_order_items.sku_id -> skus.id
 - jobs.billing_entity_id -> billing_entities.id
-- financial_ledger: dimensions are department, job_id, billing_entity_id, contractor_id, sku_id, vendor_name
+- financial_ledger: dimensions are department, job_id, billing_entity_id, contractor_id, sku_id,
+  vendor_name
 - stock_transactions.sku_id -> skus.id (reference_id + reference_type for traceability)
 """
 
@@ -355,9 +357,9 @@ def format_detail(table_names: list[str]) -> str:
         for col in info.columns:
             fk = fk_map.get(col.name)
             fk_str = f"{fk.ref_table}({fk.ref_column})" if fk else ""
-            lines.append(
-                f"| {col.name} | {col.type} | {'Y' if col.is_pk else ''} | {'Y' if col.nullable else ''} | {fk_str} |"
-            )
+            pk = "Y" if col.is_pk else ""
+            null = "Y" if col.nullable else ""
+            lines.append(f"| {col.name} | {col.type} | {pk} | {null} | {fk_str} |")
 
         if info.has_org_id:
             lines.append("\n*Org-scoped: filter by organization_id = $1*")

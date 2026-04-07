@@ -26,11 +26,27 @@ async def _seed_sku(
 ):
     pf_id = str(uuid.uuid4())
     await sql_execute(
-        "INSERT INTO products\n           (id, name, category_id, category_name, organization_id, created_at, updated_at)\n           VALUES ($1, $2, $3, 'Hardware', $4, NOW(), NOW())\n           ON CONFLICT (id) DO NOTHING",
+        """
+        INSERT INTO products
+            (id, name, category_id, category_name, organization_id, created_at, updated_at)
+        VALUES ($1, $2, $3, 'Hardware', $4, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+        """,
         (pf_id, name, dept_id, DEFAULT_ORG_ID),
     )
     await sql_execute(
-        "INSERT INTO skus\n           (id, sku, product_family_id, name, quantity, cost, price, min_stock,\n            category_id, category_name,\n            base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,\n            organization_id, created_at, updated_at)\n           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Hardware','each','each',1,'each',1,$10,NOW(),NOW())\n           ON CONFLICT (id) DO UPDATE SET quantity=EXCLUDED.quantity, cost=EXCLUDED.cost",
+        """
+        INSERT INTO skus
+            (id, sku, product_family_id, name, quantity, cost, price, min_stock,
+             category_id, category_name,
+             base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
+             organization_id, created_at, updated_at)
+        VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, 'Hardware',
+            'each', 'each', 1, 'each', 1, $10, NOW(), NOW()
+        )
+        ON CONFLICT (id) DO UPDATE SET quantity=EXCLUDED.quantity, cost=EXCLUDED.cost
+        """,
         (sku_id, sku_code, pf_id, name, quantity, cost, price, min_stock, dept_id, DEFAULT_ORG_ID),
     )
     return sku_id
@@ -42,21 +58,51 @@ async def _seed_withdrawal_txns(sku_id: str, daily_qtys: list[float], start_days
         if qty <= 0:
             continue
         await sql_execute(
-            "INSERT INTO stock_transactions\n               (id, sku_id, sku, product_name, quantity_delta,\n                quantity_before, quantity_after, unit,\n                transaction_type, reference_type, reference_id,\n                user_id, user_name, organization_id, created_at)\n               VALUES (gen_random_uuid(), $1, 'HDW-TEST-01', 'Test Widget', $2,\n                       50, 50, 'each',\n                       'WITHDRAWAL', 'withdrawal', gen_random_uuid(),\n                       $4, 'Test', $5,\n                       NOW() - make_interval(days => $3))",
+            """
+            INSERT INTO stock_transactions
+                (id, sku_id, sku, product_name, quantity_delta,
+                 quantity_before, quantity_after, unit,
+                 transaction_type, reference_type, reference_id,
+                 user_id, user_name, organization_id, created_at)
+            VALUES (
+                gen_random_uuid(), $1, 'HDW-TEST-01', 'Test Widget', $2,
+                50, 50, 'each',
+                'WITHDRAWAL', 'withdrawal', gen_random_uuid(),
+                $4, 'Test', $5,
+                NOW() - make_interval(days => $3)
+            )
+            """,
             (sku_id, -qty, start_days_ago - i, ADMIN_USER_ID, DEFAULT_ORG_ID),
         )
 
 
 async def _seed_receiving_txn(sku_id: str, qty: float, days_ago: int = 10):
     await sql_execute(
-        "INSERT INTO stock_transactions\n           (id, sku_id, sku, product_name, quantity_delta,\n            quantity_before, quantity_after, unit,\n            transaction_type, reference_type, reference_id,\n            user_id, user_name, organization_id, created_at)\n           VALUES (gen_random_uuid(), $1, 'HDW-TEST-01', 'Test Widget', $2,\n                   0, $2, 'each',\n                   'receiving', 'purchase_order', gen_random_uuid(),\n                   $4, 'Test', $5,\n                   NOW() - make_interval(days => $3))",
+        """
+        INSERT INTO stock_transactions
+            (id, sku_id, sku, product_name, quantity_delta,
+             quantity_before, quantity_after, unit,
+             transaction_type, reference_type, reference_id,
+             user_id, user_name, organization_id, created_at)
+        VALUES (
+            gen_random_uuid(), $1, 'HDW-TEST-01', 'Test Widget', $2,
+            0, $2, 'each',
+            'receiving', 'purchase_order', gen_random_uuid(),
+            $4, 'Test', $5,
+            NOW() - make_interval(days => $3)
+        )
+        """,
         (sku_id, qty, days_ago, ADMIN_USER_ID, DEFAULT_ORG_ID),
     )
 
 
 async def _seed_vendor(vendor_id: str = SEEDED_VENDOR_ID, name: str = "Acme Supplies"):
     await sql_execute(
-        "INSERT INTO vendors (id, name, organization_id, created_at)\n           VALUES ($1, $2, $3, NOW())\n           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name",
+        """
+        INSERT INTO vendors (id, name, organization_id, created_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+        """,
         (vendor_id, name, DEFAULT_ORG_ID),
     )
     return vendor_id
@@ -70,11 +116,32 @@ async def _seed_received_po(
 ):
     po_id = str(uuid.uuid4())
     await sql_execute(
-        "INSERT INTO purchase_orders\n           (id, vendor_id, vendor_name, status, created_by_id, created_by_name,\n            organization_id, created_at, received_at)\n           VALUES ($1, $2, 'Acme', 'received', $3, 'Test',\n                   $4,\n                   NOW() - make_interval(days => $5),\n                   NOW() - make_interval(days => $6))\n           ON CONFLICT (id) DO UPDATE SET received_at = EXCLUDED.received_at",
+        """
+        INSERT INTO purchase_orders
+            (id, vendor_id, vendor_name, status, created_by_id, created_by_name,
+             organization_id, created_at, received_at)
+        VALUES (
+            $1, $2, 'Acme', 'received', $3, 'Test',
+            $4,
+            NOW() - make_interval(days => $5),
+            NOW() - make_interval(days => $6)
+        )
+        ON CONFLICT (id) DO UPDATE SET received_at = EXCLUDED.received_at
+        """,
         (po_id, vendor_id, ADMIN_USER_ID, DEFAULT_ORG_ID, created_days_ago, received_days_ago),
     )
     await sql_execute(
-        "INSERT INTO purchase_order_items\n           (id, po_id, name, ordered_qty, delivered_qty, unit_price, cost,\n            base_unit, sell_uom, pack_qty, suggested_department, status, sku_id,\n            organization_id)\n           VALUES (gen_random_uuid(), $1, 'Widget', 50, 50, 10.0, 10.0,\n                   'each', 'each', 1, 'HDW', 'received', $2, $3)\n           ON CONFLICT DO NOTHING",
+        """
+        INSERT INTO purchase_order_items
+            (id, po_id, name, ordered_qty, delivered_qty, unit_price, cost,
+             base_unit, sell_uom, pack_qty, suggested_department, status, sku_id,
+             organization_id)
+        VALUES (
+            gen_random_uuid(), $1, 'Widget', 50, 50, 10.0, 10.0,
+            'each', 'each', 1, 'HDW', 'received', $2, $3
+        )
+        ON CONFLICT DO NOTHING
+        """,
         (po_id, sku_id, DEFAULT_ORG_ID),
     )
     return po_id

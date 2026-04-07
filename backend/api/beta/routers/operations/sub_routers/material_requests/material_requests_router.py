@@ -27,7 +27,10 @@ router = APIRouter(prefix="/material-requests", tags=["material-requests"])
 
 @router.post("")
 async def create_material_request_route(data: MaterialRequestCreate, current_user: CurrentUserDep):
-    """Contractor creates a material request (pick list). Staff will process it into a withdrawal."""
+    """Contractor creates a material request (pick list).
+
+    Staff will process it into a withdrawal.
+    """
     try:
         result = await create_material_request(data, current_user)
     except MaterialRequestError as e:
@@ -62,7 +65,10 @@ async def process_material_request_route(
     data: MaterialRequestProcess,
     current_user: AdminDep,
 ):
-    """Convert a pending material request into a withdrawal. Staff supplies job_id and service_address."""
+    """Convert a pending material request into a withdrawal.
+
+    Staff supplies job_id and service_address.
+    """
     try:
         withdrawal = await _process_request(
             request_id=request_id,

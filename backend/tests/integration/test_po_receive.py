@@ -63,7 +63,11 @@ async def _create_po_with_item(
     status=POItemStatus.PENDING,
 ):
     await sql_execute(
-        "INSERT INTO vendors (id, name, organization_id, created_at)\n           VALUES ($1, $2, $3, NOW())\n           ON CONFLICT (id) DO NOTHING",
+        """
+        INSERT INTO vendors (id, name, organization_id, created_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (id) DO NOTHING
+        """,
         ("0195f2c0-89af-7000-8000-000000000041", "Acme Corp", DEFAULT_ORG_ID),
     )
     po = PurchaseOrder(
@@ -227,7 +231,8 @@ def test_receive_cost_fallback_from_unit_price(call):
         assert result.cost_total > 0, "cost_total should use unit_price fallback"
         assert result.cost_total == pytest.approx(7.0 * 50)
         cursor = await sql_execute(
-            "SELECT SUM(amount) FROM financial_ledger WHERE reference_id = $1 AND account = 'inventory'",
+            "SELECT SUM(amount) FROM financial_ledger "
+            "WHERE reference_id = $1 AND account = 'inventory'",
             (po.id,),
         )
         row = cursor.rows[0] if cursor.rows else None
@@ -274,7 +279,8 @@ def test_receive_creates_ledger_entries(call):
             current_user=_user(),
         )
         cursor = await sql_execute(
-            "SELECT account, ROUND(CAST(SUM(amount) AS NUMERIC), 2) FROM financial_ledger WHERE reference_id = $1 GROUP BY account",
+            "SELECT account, ROUND(CAST(SUM(amount) AS NUMERIC), 2) "
+            "FROM financial_ledger WHERE reference_id = $1 GROUP BY account",
             (po.id,),
         )
         rows = {r[0]: r[1] for r in cursor.rows}
@@ -371,7 +377,8 @@ def test_receive_creates_product_with_overridden_name(call):
         assert result.received == 1
         assert result.errors == 0
         cursor = await sql_execute(
-            "SELECT name FROM skus WHERE id = (SELECT sku_id FROM purchase_order_items WHERE id = $1)",
+            "SELECT name FROM skus WHERE id = "
+            "(SELECT sku_id FROM purchase_order_items WHERE id = $1)",
             (item.id,),
         )
         row = cursor.rows[0] if cursor.rows else None

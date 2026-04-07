@@ -179,10 +179,9 @@ async def export_financials(
 
     output.seek(0)
 
+    stamp = datetime.now(UTC).strftime("%Y%m%d")
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename=financials_{datetime.now(UTC).strftime('%Y%m%d')}.csv"
-        },
+        headers={"Content-Disposition": f"attachment; filename=financials_{stamp}.csv"},
     )

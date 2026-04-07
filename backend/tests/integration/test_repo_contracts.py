@@ -118,7 +118,8 @@ class TestStockRepoContract:
             assert tx.unit is not None
             for field in ("quantity_delta", "quantity_before", "quantity_after"):
                 assert isinstance(getattr(tx, field), float), (
-                    f"stock_transaction.{field} is {type(getattr(tx, field)).__name__}, expected float"
+                    f"stock_transaction.{field} is {type(getattr(tx, field)).__name__}, "
+                    f"expected float"
                 )
             assert isinstance(tx.unit, str)
 
@@ -131,7 +132,11 @@ class TestPORepoContract:
 
         async def _body():
             await sql_execute(
-                "INSERT INTO vendors (id, name, organization_id, created_at)\n                   VALUES ($1, $2, $3, NOW())\n                   ON CONFLICT (id) DO NOTHING",
+                """
+                INSERT INTO vendors (id, name, organization_id, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (id) DO NOTHING
+                """,
                 (SEEDED_VENDOR_ID, "Acme", DEFAULT_ORG_ID),
             )
             po = PurchaseOrder(
@@ -163,7 +168,7 @@ class TestPORepoContract:
             assert len(items) == 1
             read_item = items[0]
             assert hasattr(read_item, "unit_price"), (
-                f"PO item missing 'unit_price' — got fields: {list(read_item.model_fields)}"
+                f"PO item missing 'unit_price' - got fields: {list(read_item.model_fields)}"
             )
             assert read_item.unit_price == pytest.approx(12.99)
             assert read_item.ordered_qty == pytest.approx(5.5)
@@ -176,7 +181,11 @@ class TestPORepoContract:
 
         async def _body():
             await sql_execute(
-                "INSERT INTO vendors (id, name, organization_id, created_at)\n                   VALUES ($1, $2, $3, NOW())\n                   ON CONFLICT (id) DO NOTHING",
+                """
+                INSERT INTO vendors (id, name, organization_id, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (id) DO NOTHING
+                """,
                 (SEEDED_VENDOR_ID, "Acme", DEFAULT_ORG_ID),
             )
             po = PurchaseOrder(
@@ -244,7 +253,8 @@ class TestCreditNoteRepoContract:
             li = cn_read.line_items[0]
             for field in ("quantity", "unit_price", "amount", "cost"):
                 assert isinstance(getattr(li, field), float), (
-                    f"credit_note line_item.{field} is {type(getattr(li, field)).__name__}, expected float"
+                    f"credit_note line_item.{field} is {type(getattr(li, field)).__name__}, "
+                    f"expected float"
                 )
             assert li.quantity == pytest.approx(2.5)
             assert li.unit_price == pytest.approx(10.0)
@@ -259,7 +269,15 @@ class TestInvoiceRepoContract:
         async def _body():
             withdrawal_id = "0195f2c0-89af-7000-8000-000000000001"
             await sql_execute(
-                "INSERT INTO withdrawals\n                   (id, items, job_id, service_address, subtotal, tax, total, cost_total,\n                    contractor_id, contractor_name, contractor_company, billing_entity,\n                    payment_status, processed_by_id, processed_by_name,\n                    organization_id, created_at, invoice_id, paid_at)\n                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NULL, NULL)",
+                """
+                INSERT INTO withdrawals
+                    (id, items, job_id, service_address, subtotal, tax, total, cost_total,
+                     contractor_id, contractor_name, contractor_company, billing_entity,
+                     payment_status, processed_by_id, processed_by_name,
+                     organization_id, created_at, invoice_id, paid_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                        $16, NOW(), NULL, NULL)
+                """,
                 (
                     withdrawal_id,
                     None,
@@ -280,7 +298,12 @@ class TestInvoiceRepoContract:
                 ),
             )
             await sql_execute(
-                "INSERT INTO withdrawal_items\n                   (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost, unit, amount, cost_total)\n                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+                """
+                INSERT INTO withdrawal_items
+                    (id, withdrawal_id, sku_id, sku, name, quantity, unit_price, cost,
+                     unit, amount, cost_total)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                """,
                 (
                     "0195f2c0-89af-7000-8000-000000000002",
                     withdrawal_id,
@@ -301,7 +324,8 @@ class TestInvoiceRepoContract:
             li = inv.line_items[0]
             for field in ("quantity", "unit_price", "amount"):
                 assert isinstance(getattr(li, field), float), (
-                    f"invoice line_item.{field} is {type(getattr(li, field)).__name__}, expected float"
+                    f"invoice line_item.{field} is {type(getattr(li, field)).__name__}, "
+                    f"expected float"
                 )
 
         call(_body)

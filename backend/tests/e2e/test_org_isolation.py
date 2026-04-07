@@ -29,7 +29,12 @@ def org_b_headers(app_client):
         cursor = await sql_execute("SELECT id FROM users WHERE id = $1", (ORG_B_USER,))
         if not (cursor.rows[0] if cursor.rows else None):
             await sql_execute(
-                "INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at) VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())",
+                """
+                INSERT INTO users (
+                    id, email, password, name, role, is_active,
+                    organization_id, created_at
+                ) VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())
+                """,
                 (ORG_B_USER, "orgb@test.com", "unused", "Org B Admin", "admin", ORG_B_ID),
             )
 

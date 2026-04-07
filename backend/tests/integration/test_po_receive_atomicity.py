@@ -79,7 +79,11 @@ async def _create_po_with_item(
     from shared.infrastructure.db import sql_execute
 
     await sql_execute(
-        "INSERT INTO vendors (id, name, organization_id, created_at)\n           VALUES ($1, $2, $3, NOW())\n           ON CONFLICT (id) DO NOTHING",
+        """
+        INSERT INTO vendors (id, name, organization_id, created_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (id) DO NOTHING
+        """,
         ("0195f2c0-89af-7000-8000-000000000051", "Acme Corp", DEFAULT_ORG_ID),
     )
     po = PurchaseOrder(
@@ -206,7 +210,11 @@ def test_po_receive_vendor_item_failure_reports_error_item_stays_pending(call):
 
     async def _body():
         await sql_execute(
-            "INSERT INTO vendors (id, name, organization_id, created_at)\n               VALUES ($1, $2, $3, NOW())\n               ON CONFLICT (id) DO NOTHING",
+            """
+            INSERT INTO vendors (id, name, organization_id, created_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (id) DO NOTHING
+            """,
             ("0195f2c0-89af-7000-8000-000000000052", "Acme Corp", DEFAULT_ORG_ID),
         )
         po = PurchaseOrder(

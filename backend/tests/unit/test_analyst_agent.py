@@ -19,7 +19,8 @@ class TestSQLValidation:
 
     def test_with_cte_allowed(self):
         validate_sql(
-            "WITH recent AS (SELECT * FROM withdrawals WHERE organization_id = $1) SELECT * FROM recent LIMIT 100"
+            "WITH recent AS (SELECT * FROM withdrawals WHERE organization_id = $1) "
+            "SELECT * FROM recent LIMIT 100"
         )
 
     def test_empty_rejected(self):
@@ -104,7 +105,14 @@ class TestDDLParsing:
     """Validates that DDL strings are correctly parsed into TableInfo."""
 
     def test_simple_table(self):
-        ddl = "CREATE TABLE IF NOT EXISTS skus (\n            id TEXT PRIMARY KEY,\n            name TEXT NOT NULL,\n            price REAL NOT NULL,\n            organization_id TEXT\n        )"
+        ddl = """
+        CREATE TABLE IF NOT EXISTS skus (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            price REAL NOT NULL,
+            organization_id TEXT
+        )
+        """
         info = _parse_ddl(ddl, "catalog")
         assert info is not None
         assert info.name == "skus"
@@ -116,7 +124,15 @@ class TestDDLParsing:
         assert "price" in col_names
 
     def test_foreign_keys_parsed(self):
-        ddl = "CREATE TABLE IF NOT EXISTS vendor_items (\n            id TEXT PRIMARY KEY,\n            vendor_id TEXT NOT NULL REFERENCES vendors(id),\n            sku_id TEXT NOT NULL REFERENCES skus(id),\n            cost REAL NOT NULL DEFAULT 0,\n            organization_id TEXT\n        )"
+        ddl = """
+        CREATE TABLE IF NOT EXISTS vendor_items (
+            id TEXT PRIMARY KEY,
+            vendor_id TEXT NOT NULL REFERENCES vendors(id),
+            sku_id TEXT NOT NULL REFERENCES skus(id),
+            cost REAL NOT NULL DEFAULT 0,
+            organization_id TEXT
+        )
+        """
         info = _parse_ddl(ddl, "catalog")
         assert info is not None
         fk_cols = [fk.column for fk in info.foreign_keys]
@@ -127,7 +143,12 @@ class TestDDLParsing:
         assert vendor_fk.ref_column == "id"
 
     def test_no_org_id(self):
-        ddl = "CREATE TABLE IF NOT EXISTS sku_counters (\n            department_code TEXT PRIMARY KEY,\n            counter INTEGER NOT NULL DEFAULT 0\n        )"
+        ddl = """
+        CREATE TABLE IF NOT EXISTS sku_counters (
+            department_code TEXT PRIMARY KEY,
+            counter INTEGER NOT NULL DEFAULT 0
+        )
+        """
         info = _parse_ddl(ddl, "catalog")
         assert info is not None
         assert info.has_org_id is False

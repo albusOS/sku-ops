@@ -429,12 +429,14 @@ class TestInfraModelRouting:
         primary = get_model_name("agent:unified")
         synthesis = get_model_name("infra:synthesis")
         assert primary != synthesis, (
-            "infra:synthesis resolves to the same model as agent:unified — set a cheaper model in models.yaml synthesis field"
+            "infra:synthesis resolves to the same model as agent:unified - "
+            "set a cheaper model in models.yaml synthesis field"
         )
         primary_cost = calc_cost(primary, 1000000, 1000000)
         synthesis_cost = calc_cost(synthesis, 1000000, 1000000)
         assert synthesis_cost < primary_cost, (
-            f"synthesis ({synthesis}, ${synthesis_cost:.2f}/M) is not cheaper than primary ({primary}, ${primary_cost:.2f}/M)"
+            f"synthesis ({synthesis}, ${synthesis_cost:.2f}/M) is not cheaper than "
+            f"primary ({primary}, ${primary_cost:.2f}/M)"
         )
 
     def test_classifier_model_is_cheaper_than_primary(self):
@@ -526,7 +528,9 @@ class TestConfigYamlTools:
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("analyst")
         assert configured == registered, (
-            f"analyst config.yaml tools don't match @_agent.tool decorators.\n  In YAML only: {configured - registered}\n  In code only: {registered - configured}"
+            f"analyst config.yaml tools don't match @_agent.tool decorators.\n"
+            f"  In YAML only: {configured - registered}\n"
+            f"  In code only: {registered - configured}"
         )
 
     def test_product_analyst_tools_match(self):
@@ -538,7 +542,9 @@ class TestConfigYamlTools:
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("product_analyst")
         assert configured == registered, (
-            f"product_analyst config.yaml tools don't match @_agent.tool decorators.\n  In YAML only: {configured - registered}\n  In code only: {registered - configured}"
+            f"product_analyst config.yaml tools don't match @_agent.tool decorators.\n"
+            f"  In YAML only: {configured - registered}\n"
+            f"  In code only: {registered - configured}"
         )
 
     def test_trend_analyst_tools_match(self):
@@ -550,7 +556,9 @@ class TestConfigYamlTools:
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("trend_analyst")
         assert configured == registered, (
-            f"trend_analyst config.yaml tools don't match @_agent.tool decorators.\n  In YAML only: {configured - registered}\n  In code only: {registered - configured}"
+            f"trend_analyst config.yaml tools don't match @_agent.tool decorators.\n"
+            f"  In YAML only: {configured - registered}\n"
+            f"  In code only: {registered - configured}"
         )
 
     def test_procurement_analyst_tools_match(self):
@@ -562,7 +570,9 @@ class TestConfigYamlTools:
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("procurement_analyst")
         assert configured == registered, (
-            f"procurement_analyst config.yaml tools don't match @_agent.tool decorators.\n  In YAML only: {configured - registered}\n  In code only: {registered - configured}"
+            f"procurement_analyst config.yaml tools don't match @_agent.tool decorators.\n"
+            f"  In YAML only: {configured - registered}\n"
+            f"  In code only: {registered - configured}"
         )
 
     def test_health_analyst_tools_match(self):
@@ -574,7 +584,9 @@ class TestConfigYamlTools:
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("health_analyst")
         assert configured == registered, (
-            f"health_analyst config.yaml tools don't match @_agent.tool decorators.\n  In YAML only: {configured - registered}\n  In code only: {registered - configured}"
+            f"health_analyst config.yaml tools don't match @_agent.tool decorators.\n"
+            f"  In YAML only: {configured - registered}\n"
+            f"  In code only: {registered - configured}"
         )
 
     def test_unified_tools_match(self):
@@ -584,7 +596,9 @@ class TestConfigYamlTools:
         registered = self._get_registered_tools(agent_file)
         configured = self._get_config_tools("unified")
         assert configured == registered, (
-            f"unified config.yaml tools don't match @_agent.tool decorators.\n  In YAML only: {configured - registered}\n  In code only: {registered - configured}"
+            f"unified config.yaml tools don't match @_agent.tool decorators.\n"
+            f"  In YAML only: {configured - registered}\n"
+            f"  In code only: {registered - configured}"
         )
 
 

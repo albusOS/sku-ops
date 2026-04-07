@@ -241,7 +241,9 @@ async def _load_invoice(entity_id: str) -> GraphNode | None:
     org_id = get_org_id()
     res = await sql_execute(
         "SELECT id, invoice_number, contact_name, status, total, amount_credited "
-        "FROM invoices WHERE (id::text = $1 OR invoice_number = $1) AND organization_id::text = $2 LIMIT 1",
+        "FROM invoices "
+        "WHERE (id::text = $1 OR invoice_number = $1) AND organization_id::text = $2 "
+        "LIMIT 1",
         (entity_id, org_id),
         read_only=True,
         max_rows=2,
@@ -437,7 +439,8 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
             "WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "vendor": (
-            "SELECT id::text AS id, name AS label FROM vendors WHERE id::text = ANY($1) AND organization_id::text = $2"
+            "SELECT id::text AS id, name AS label FROM vendors "
+            "WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "department": (
             "SELECT id::text AS id, name AS label FROM departments "
@@ -456,7 +459,8 @@ async def _batch_labels(entity_type: str, ids: list[str]) -> dict[str, str]:
             "FROM invoices WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "withdrawal": (
-            "SELECT id::text AS id, 'Withdrawal — ' || COALESCE(contractor_name, 'unknown') AS label "
+            "SELECT id::text AS id, "
+            "'Withdrawal — ' || COALESCE(contractor_name, 'unknown') AS label "
             "FROM withdrawals WHERE id::text = ANY($1) AND organization_id::text = $2"
         ),
         "billing_entity": (

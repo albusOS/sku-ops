@@ -90,12 +90,14 @@ def _query_ledger_entries(client, reference_id, account, reference_type=None):
     async def _query():
         if reference_type:
             cursor = await sql_execute(
-                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND account = $2 AND reference_type = $3",
+                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger "
+                "WHERE reference_id = $1 AND account = $2 AND reference_type = $3",
                 (reference_id, account, reference_type),
             )
         else:
             cursor = await sql_execute(
-                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger WHERE reference_id = $1 AND account = $2",
+                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM financial_ledger "
+                "WHERE reference_id = $1 AND account = $2",
                 (reference_id, account),
             )
         row = cursor.rows[0] if cursor.rows else None

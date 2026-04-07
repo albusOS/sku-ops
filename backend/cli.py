@@ -242,7 +242,8 @@ async def cmd_db_check(conn: asyncpg.Connection, args: argparse.Namespace):
                 passed += 1
             else:
                 console.print(
-                    f"  [red]✗[/] {check['name']} — found [red]{result}[/] (expected {check['expect']})"
+                    f"  [red]✗[/] {check['name']} — found [red]{result}[/] "
+                    f"(expected {check['expect']})"
                 )
                 failed += 1
         except Exception as e:
@@ -363,11 +364,13 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
 
     # SKU health
     zero_qty = await conn.fetchval(
-        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL AND quantity = 0",
+        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL "
+        "AND quantity = 0",
         oid,
     )
     negative_qty = await conn.fetchval(
-        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL AND quantity < 0",
+        "SELECT count(*) FROM skus WHERE organization_id = $1 AND deleted_at IS NULL "
+        "AND quantity < 0",
         oid,
     )
     below_min = await conn.fetchval(
@@ -379,7 +382,10 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         """
         SELECT count(*) FROM skus s
         WHERE s.organization_id = $1 AND s.deleted_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM vendor_items vi WHERE vi.sku_id = s.id AND vi.deleted_at IS NULL)
+        AND NOT EXISTS (
+            SELECT 1 FROM vendor_items vi
+            WHERE vi.sku_id = s.id AND vi.deleted_at IS NULL
+        )
     """,
         oid,
     )
@@ -399,7 +405,8 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         oid,
     )
     invoiced = await conn.fetchval(
-        "SELECT count(*) FROM withdrawals WHERE organization_id = $1 AND payment_status = 'invoiced'",
+        "SELECT count(*) FROM withdrawals WHERE organization_id = $1 "
+        "AND payment_status = 'invoiced'",
         oid,
     )
     paid = await conn.fetchval(
@@ -416,29 +423,35 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
     # Finance stats
     console.print("\n[bold]Finance[/]")
     inv_draft = await conn.fetchval(
-        "SELECT count(*) FROM invoices WHERE organization_id = $1 AND status = 'draft' AND deleted_at IS NULL",
+        "SELECT count(*) FROM invoices WHERE organization_id = $1 "
+        "AND status = 'draft' AND deleted_at IS NULL",
         oid,
     )
     inv_final = await conn.fetchval(
-        "SELECT count(*) FROM invoices WHERE organization_id = $1 AND status = 'finalized' AND deleted_at IS NULL",
+        "SELECT count(*) FROM invoices WHERE organization_id = $1 "
+        "AND status = 'finalized' AND deleted_at IS NULL",
         oid,
     )
     inv_paid = await conn.fetchval(
-        "SELECT count(*) FROM invoices WHERE organization_id = $1 AND status = 'paid' AND deleted_at IS NULL",
+        "SELECT count(*) FROM invoices WHERE organization_id = $1 "
+        "AND status = 'paid' AND deleted_at IS NULL",
         oid,
     )
     total_invoiced = await conn.fetchval(
-        "SELECT COALESCE(SUM(total), 0) FROM invoices WHERE organization_id = $1 AND deleted_at IS NULL",
+        "SELECT COALESCE(SUM(total), 0) FROM invoices "
+        "WHERE organization_id = $1 AND deleted_at IS NULL",
         oid,
     )
     total_paid_amt = await conn.fetchval(
         "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE organization_id = $1", oid
     )
     console.print(
-        f"  Invoices: draft [yellow]{inv_draft}[/], finalized [cyan]{inv_final}[/], paid [green]{inv_paid}[/]"
+        f"  Invoices: draft [yellow]{inv_draft}[/], finalized [cyan]{inv_final}[/], "
+        f"paid [green]{inv_paid}[/]"
     )
     console.print(
-        f"  Total invoiced: [cyan]${total_invoiced:,.2f}[/]  Total paid: [green]${total_paid_amt:,.2f}[/]"
+        f"  Total invoiced: [cyan]${total_invoiced:,.2f}[/]  "
+        f"Total paid: [green]${total_paid_amt:,.2f}[/]"
     )
 
     overdue = await conn.fetch(
@@ -457,7 +470,8 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         for inv in overdue:
             days = (datetime.now(tz=UTC).date() - inv["due_date"]).days
             console.print(
-                f"    {inv['invoice_number']} — {inv['billing_entity']} — ${inv['total']:,.2f} — {days}d overdue"
+                f"    {inv['invoice_number']} — {inv['billing_entity']} — "
+                f"${inv['total']:,.2f} — {days}d overdue"
             )
 
     # Purchasing
@@ -474,7 +488,8 @@ async def cmd_tenant_health(conn: asyncpg.Connection, args: argparse.Namespace):
         "SELECT count(*) FROM purchase_orders WHERE organization_id = $1 AND status = 'closed'", oid
     )
     console.print(
-        f"  POs: ordered [yellow]{po_ordered}[/], received [cyan]{po_received}[/], closed [green]{po_closed}[/]"
+        f"  POs: ordered [yellow]{po_ordered}[/], received [cyan]{po_received}[/], "
+        f"closed [green]{po_closed}[/]"
     )
 
     # Stock transaction volume (last 7 days)

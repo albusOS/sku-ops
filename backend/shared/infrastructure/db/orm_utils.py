@@ -25,8 +25,9 @@ def uuid_str(value: uuid.UUID | str | None) -> str | None:
 
 
 def parse_date_param(value: str | None) -> datetime | None:
-    """Parse ISO-8601 query params (e.g. ``2026-03-27T04:00:00.000Z``) for ORM ``timestamptz`` compares.
+    """Parse ISO-8601 query params for ORM ``timestamptz`` compares.
 
+    Example: ``2026-03-27T04:00:00.000Z``.
     Raw strings bound as VARCHAR break Postgres: ``timestamptz >= varchar``."""
     if not value or not value.strip():
         return None

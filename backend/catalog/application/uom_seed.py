@@ -1,4 +1,7 @@
-"""Load default units of measure seed SQL (single source: supabase/seeds/02_units_of_measure.sql)."""
+"""Load default units of measure seed SQL.
+
+Single source: supabase/seeds/02_units_of_measure.sql.
+"""
 
 from pathlib import Path
 

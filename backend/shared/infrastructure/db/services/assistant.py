@@ -388,8 +388,9 @@ class AssistantDatabaseService(DomainDatabaseService):
                     ins = text(
                         "INSERT INTO embeddings (id, org_id, entity_type, entity_id, "
                         "content, content_hash, embedding, updated_at) "
-                        "VALUES (CAST(:id AS uuid), :org_id, :entity_type, CAST(:entity_id AS uuid), "
-                        ":content, :content_hash, CAST(:embedding AS vector), :updated_at)"
+                        "VALUES (CAST(:id AS uuid), :org_id, :entity_type, "
+                        "CAST(:entity_id AS uuid), :content, :content_hash, "
+                        "CAST(:embedding AS vector), :updated_at)"
                     )
                     await session.execute(
                         ins,

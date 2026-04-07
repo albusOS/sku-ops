@@ -67,7 +67,8 @@ async def parse_document_with_ai(
     """
     if not config.ANTHROPIC_AVAILABLE:
         raise RuntimeError(
-            f"AI not configured. Add ANTHROPIC_API_KEY to backend/.env — get a key at {config.LLM_SETUP_URL}"
+            "AI not configured. Add ANTHROPIC_API_KEY to backend/.env — "
+            f"get a key at {config.LLM_SETUP_URL}"
         )
 
     system_prompt = _get_parse_system_prompt()
@@ -275,5 +276,6 @@ async def _match_single_product(product: dict, vendor_id: str | None) -> None:
     else:
         product["_recommendation"] = "create_new"
         product["_recommendation_reason"] = (
-            f"No existing match found for '{product.get('name', '')}'. Will create as a new product."
+            f"No existing match found for '{product.get('name', '')}'. "
+            "Will create as a new product."
         )

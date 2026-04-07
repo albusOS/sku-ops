@@ -153,7 +153,10 @@ async def get_pl(
     department: str | None = None,
     billing_entity: str | None = None,
 ):
-    """Unified P&L endpoint. group_by: overall | job | contractor | department | entity | product."""
+    """Unified P&L endpoint.
+
+    group_by: overall | job | contractor | department | entity | product.
+    """
     try:
         return await pl_report(
             group_by=group_by,

@@ -546,7 +546,10 @@ class VendorLeadTimesResult(ToolModel):
 class SmartReorderResult(ToolModel):
     count: int
     items: list[dict[str, Any]]
-    _note: str = "recommended_min_stock = normalized_daily_velocity * actual_vendor_lead_days * 1.5 safety factor"
+    _note: str = (
+        "recommended_min_stock = normalized_daily_velocity * actual_vendor_lead_days "
+        "* 1.5 safety factor"
+    )
 
 
 @dataclass(frozen=True)
@@ -555,7 +558,8 @@ class ProcurementSnapshotResult(ToolModel):
     items: list[dict[str, Any]]
     _note: str = (
         "Bundled procurement view for broad ordering questions. "
-        "Combines reorder deficit, smart min_stock gap, stockout timing, and preferred vendor context."
+        "Combines reorder deficit, smart min_stock gap, stockout timing, "
+        "and preferred vendor context."
     )
 
 

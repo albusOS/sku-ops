@@ -116,9 +116,12 @@ async def trend_series(
     )
     sql = (
         f"SELECT {period_expr} AS period,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END) AS NUMERIC), 2) AS shrinkage,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS cost,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS shrinkage,"
         " COUNT(DISTINCT reference_id) AS transaction_count"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
@@ -212,8 +215,10 @@ async def product_margins(
     )
     sql = (
         "SELECT sku_id::text AS sku_id,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost"
+        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS cost"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
         " AND account IN ('revenue', 'cogs')"
@@ -321,9 +326,12 @@ async def summary_by_department(
     date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT department,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END) AS NUMERIC), 2) AS shrinkage"
+        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS cost,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'shrinkage' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS shrinkage"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"
         " AND account IN ('revenue', 'cogs', 'shrinkage')"
@@ -344,9 +352,10 @@ async def summary_by_billing_entity(
     date_sql = _ledger_date_sql(params, start_date=start_date, end_date=end_date)
     sql = (
         "SELECT billing_entity,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2)"
-        " AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS cost,"
         " ROUND(CAST(SUM(CASE WHEN account = 'accounts_receivable' THEN amount ELSE 0 END) "
         "AS NUMERIC), 2) AS ar_balance,"
         " COUNT(DISTINCT reference_id) AS transaction_count"
@@ -374,8 +383,8 @@ async def summary_by_contractor_raw(
     )
     sql = (
         "SELECT fl.contractor_id::text AS contractor_id,"
-        " ROUND(CAST(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END) AS NUMERIC),"
-        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN fl.account = 'revenue' THEN fl.amount ELSE 0 END)"
+        " AS NUMERIC), 2) AS revenue,"
         " ROUND(CAST(SUM(CASE WHEN fl.account = 'accounts_receivable' THEN fl.amount ELSE 0 END) "
         "AS NUMERIC), 2) AS ar_balance,"
         " COUNT(DISTINCT fl.reference_id) AS transaction_count"
@@ -403,8 +412,10 @@ async def summary_by_job_aggregate(
     base = (
         "SELECT job_id::text AS job_id,"
         " billing_entity,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC), 2) AS revenue,"
-        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC), 2) AS cost,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'revenue' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS revenue,"
+        " ROUND(CAST(SUM(CASE WHEN account = 'cogs' THEN amount ELSE 0 END) AS NUMERIC),"
+        " 2) AS cost,"
         " COUNT(DISTINCT reference_id) AS transaction_count"
         " FROM financial_ledger"
         " WHERE organization_id = :org_id"

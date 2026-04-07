@@ -190,17 +190,19 @@ class TestCatalogIntegrity:
         sku_count_hdw_final = _db_dept_sku_count(client, seed_dept_id)
         sku_count_plmb_final = _db_dept_sku_count(client, plmb_id)
         assert sku_count_hdw_final == sku_count_hdw_before, (
-            f"HDW counter should be back to {sku_count_hdw_before} after transfer out, got {sku_count_hdw_final}"
+            f"HDW counter should be back to {sku_count_hdw_before} "
+            f"after transfer out, got {sku_count_hdw_final}"
         )
         assert sku_count_plmb_final == sku_count_plmb_before + 1, (
-            f"PLM counter should be {sku_count_plmb_before + 1} after transfer in, got {sku_count_plmb_final}"
+            f"PLM counter should be {sku_count_plmb_before + 1} "
+            f"after transfer in, got {sku_count_plmb_final}"
         )
 
     def test_variant_attrs_create_read_update_read(
         self, client: TestClient, seed_dept_id: str
     ) -> None:
-        """variant_attrs must survive the full create → read → update → read cycle
-        with exact fidelity — no JSON parse errors, no data loss, no coercion.
+        """variant_attrs must survive the full create -> read -> update -> read cycle
+        with exact fidelity - no JSON parse errors, no data loss, no coercion.
         """
         headers = admin_headers()
         initial_attrs = {
@@ -246,13 +248,15 @@ class TestCatalogIntegrity:
         assert resp.status_code == 200, f"Update failed: {resp.text}"
         db_attrs_after_update = _db_variant_attrs(client, sku_id)
         assert db_attrs_after_update == updated_attrs, (
-            f"DB variant_attrs mismatch after update: expected {updated_attrs}, got {db_attrs_after_update}"
+            f"DB variant_attrs mismatch after update: expected {updated_attrs}, "
+            f"got {db_attrs_after_update}"
         )
         resp = client.get(f"/api/beta/catalog/skus/{sku_id}", headers=headers)
         assert resp.status_code == 200
         http_attrs_after_update = resp.json().get("variant_attrs", {})
         assert http_attrs_after_update == updated_attrs, (
-            f"HTTP variant_attrs mismatch after update: expected {updated_attrs}, got {http_attrs_after_update}"
+            f"HTTP variant_attrs mismatch after update: expected {updated_attrs}, "
+            f"got {http_attrs_after_update}"
         )
 
     def test_product_family_multi_variant_sku_count(
@@ -425,7 +429,8 @@ class TestCatalogIntegrity:
             f"Stock should be {qty_before - withdraw_qty}, got {qty_after}"
         )
         assert tx_after == tx_before + 1, (
-            f"stock_transactions should have 1 new withdrawal row, before={tx_before} after={tx_after}"
+            f"stock_transactions should have 1 new withdrawal row, "
+            f"before={tx_before} after={tx_after}"
         )
 
     def test_concurrent_withdrawals_no_overdraw_exact_ledger(
@@ -484,18 +489,21 @@ class TestCatalogIntegrity:
         failures = sum(1 for s in status_codes if s != 200)
         max_possible = initial_stock // withdraw_qty
         assert successes <= max_possible, (
-            f"At most {max_possible} withdrawals of {withdraw_qty} can succeed from stock={initial_stock}, but {successes} succeeded"
+            f"At most {max_possible} withdrawals of {withdraw_qty} can succeed "
+            f"from stock={initial_stock}, but {successes} succeeded"
         )
         assert successes + failures == n_workers, "All attempts must have a definitive outcome"
         final_qty = _db_qty(client, sku_id)
         expected_qty = initial_stock - successes * withdraw_qty
         assert final_qty == expected_qty, (
-            f"Final stock should be {expected_qty} ({initial_stock} - {successes}x{withdraw_qty}), got {final_qty}"
+            f"Final stock should be {expected_qty} "
+            f"({initial_stock} - {successes}x{withdraw_qty}), got {final_qty}"
         )
         assert final_qty >= 0, f"Stock went negative: {final_qty}"
         tx_count = _db_count_inventory_transactions(client, sku_id, "withdrawal")
         assert tx_count == successes, (
-            f"stock_transactions must have exactly {successes} withdrawal rows (one per success), found {tx_count}"
+            f"stock_transactions must have exactly {successes} withdrawal rows "
+            f"(one per success), found {tx_count}"
         )
 
     def test_sku_edit_cannot_directly_overwrite_stock_quantity(
@@ -583,7 +591,8 @@ class TestCatalogIntegrity:
         qty_after = _db_qty(client, sku_id)
         expected = qty_before - 18
         assert qty_after == expected, (
-            f"Stock should be {expected} (3 packs x 6 = 18 deducted from {qty_before}), got {qty_after}"
+            f"Stock should be {expected} (3 packs x 6 = 18 deducted "
+            f"from {qty_before}), got {qty_after}"
         )
 
     def test_receive_cases_sell_packs_round_trip(
@@ -621,13 +630,15 @@ class TestCatalogIntegrity:
         receive_po(client, headers, po["id"])
         qty_after_receive = _db_qty(client, sku_id)
         assert qty_after_receive == initial_qty + 60, (
-            f"After receiving 5 cases of 12, stock should be {initial_qty + 60}, got {qty_after_receive}"
+            f"After receiving 5 cases of 12, stock should be "
+            f"{initial_qty + 60}, got {qty_after_receive}"
         )
         create_withdrawal(client, headers, sku, quantity=3, contractor_id=seed_contractor_id)
         qty_final = _db_qty(client, sku_id)
         expected_final = initial_qty + 60 - 18
         assert qty_final == expected_final, (
-            f"After receive 5 cases + sell 3 packs, stock should be {expected_final}, got {qty_final}"
+            f"After receive 5 cases + sell 3 packs, stock should be "
+            f"{expected_final}, got {qty_final}"
         )
 
     def test_simple_each_withdrawal_unchanged(

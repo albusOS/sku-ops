@@ -420,10 +420,12 @@ def _generate_relationships(
             foreign_keys = f"{class_name}.{fk.source_columns[0]}"
             remote_side = f"{target_class}.{fk.target_columns[0]}"
 
-        lines.append(
-            f"{rel_name}: {_optional_relationship_annotation(target_class)} = "
-            f"{_relationship_call(back_populates=back_name, foreign_keys=foreign_keys, remote_side=remote_side)}"
+        rel_call = _relationship_call(
+            back_populates=back_name,
+            foreign_keys=foreign_keys,
+            remote_side=remote_side,
         )
+        lines.append(f"{rel_name}: {_optional_relationship_annotation(target_class)} = {rel_call}")
 
     used_names: set[str] = set()
     for fk in fk_by_target.get(table, []):

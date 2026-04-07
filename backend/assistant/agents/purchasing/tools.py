@@ -43,7 +43,10 @@ def _db_catalog():
 
 
 async def _resolve_vendor_id(vendor_id: str, name: str) -> tuple[str | None, str | None]:
-    """Resolve vendor_id from name if needed. Returns (vendor_id, error_json) — one is always None."""
+    """Resolve vendor_id from name if needed.
+
+    Returns (vendor_id, error_json) — one is always None.
+    """
     vendor_id = vendor_id.strip()
     if vendor_id:
         return vendor_id, None
@@ -114,7 +117,10 @@ async def _get_sku_vendor_options(sku_id: str = "") -> str:
 async def _get_purchase_history(
     vendor_id: str = "", name: str = "", days: int = 90, limit: int = 20
 ) -> str:
-    """Vendor evidence lookup. Use only when recent PO examples are needed to support a conclusion."""
+    """Vendor evidence lookup.
+
+    Use only when recent PO examples are needed to support a conclusion.
+    """
     days = min(days, 365)
     limit = min(limit, 50)
     vid, err = await _resolve_vendor_id(vendor_id, name)
@@ -144,7 +150,10 @@ async def _get_po_summary() -> str:
 
 
 async def _get_reorder_with_vendor_context(limit: int = 30) -> str:
-    """Raw reorder list. Use when the agent needs the low-stock items plus vendor options per SKU."""
+    """Raw reorder list.
+
+    Use when the agent needs the low-stock items plus vendor options per SKU.
+    """
     limit = min(limit, 50)
     items = await reorder_with_vendor_context(limit)
     return ReorderContextResult(count=len(items), items=items).serialize()
@@ -186,7 +195,10 @@ async def _get_smart_reorder_points(limit: int = 30) -> str:
 
 
 async def _get_procurement_snapshot(limit: int = 20) -> str:
-    """Broad procurement snapshot. Start here for weekly buy-plan and "what needs attention" questions."""
+    """Broad procurement snapshot.
+
+    Start here for weekly buy-plan and "what needs attention" questions.
+    """
     limit = min(limit, 50)
     reorder_raw, smart_raw, stockout_raw = await asyncio.gather(
         _get_reorder_with_vendor_context(limit=limit),

@@ -72,9 +72,11 @@ Rules:
 - Fasteners (screws, nails, bolts): base_unit=box.
 - Sheet goods (drywall, plywood): base_unit=sqft.
 - Bulk (concrete, mortar, soil): base_unit=bag or pound.
-- Use "each" ONLY for discrete items that are individual units (fixtures, faucets, tools, valves, individual fittings).
+- Use "each" ONLY for discrete items that are individual units (fixtures, faucets, tools, valves,
+  individual fittings).
 - pack_qty = embedded quantity in name (e.g. "5 Gal Paint" -> 5, "PEX 100ft" -> 100).
-- sell_uom can differ from base_unit. E.g. pipe bought by the foot but sold by the inch: base_unit=foot, sell_uom=inch.
+- sell_uom can differ from base_unit. E.g. pipe bought by the foot but sold by the inch:
+  base_unit=foot, sell_uom=inch.
 
 Examples:
   "5 Gal Paint" -> gallon/gallon/5; "2x4x8 Stud" -> foot/foot/8; "1/2 PEX 100ft" -> foot/foot/100
@@ -143,7 +145,8 @@ Products:
 {chr(10).join(f'- "{n}"' for n in names)}
 
 Rules:
-- Linear goods (pipe, wire, cable, lumber, conduit, trim, rebar): base_unit=foot. sell_uom=foot or inch.
+- Linear goods (pipe, wire, cable, lumber, conduit, trim, rebar): base_unit=foot.
+  sell_uom=foot or inch.
 - Liquids (paint, stain, primer, sealer): base_unit=gallon (or quart/pint for smaller).
 - Fasteners (screws, nails, bolts): base_unit=box.
 - Sheet goods (drywall, plywood): base_unit=sqft.

@@ -41,7 +41,10 @@ def test_by_barcode_not_found_returns_structured_error(db, client, auth_headers)
 
 
 def test_by_barcode_invalid_upc_check_digit_returns_structured_error(db, client, auth_headers):
-    """Scanning a 12-digit UPC with a wrong check digit returns 422 with code: invalid_check_digit."""
+    """Scanning a 12-digit UPC with a wrong check digit returns 422.
+
+    Response uses code: invalid_check_digit.
+    """
     resp = client.get(
         "/api/beta/catalog/skus/by-barcode?barcode=042100005265", headers=auth_headers
     )
@@ -52,7 +55,10 @@ def test_by_barcode_invalid_upc_check_digit_returns_structured_error(db, client,
 
 
 def test_by_barcode_invalid_ean13_check_digit_returns_structured_error(db, client, auth_headers):
-    """Scanning a 13-digit EAN-13 with a wrong check digit returns 422 with code: invalid_check_digit."""
+    """Scanning a 13-digit EAN-13 with a wrong check digit returns 422.
+
+    Response uses code: invalid_check_digit.
+    """
     resp = client.get(
         "/api/beta/catalog/skus/by-barcode?barcode=5901234123458", headers=auth_headers
     )

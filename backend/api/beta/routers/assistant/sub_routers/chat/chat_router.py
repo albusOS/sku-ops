@@ -73,7 +73,8 @@ async def chat_assistant(
     if cap > 0 and await session_store.get_cost(session_id) >= cap:
         return {
             "response": (
-                f"This session has reached the ${cap:.2f} AI spend limit. Start a new chat to continue."
+                f"This session has reached the ${cap:.2f} AI spend limit. "
+                "Start a new chat to continue."
             ),
             "tool_calls": [],
             "thinking": [],

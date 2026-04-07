@@ -46,7 +46,8 @@ _ENV = _REQUESTED_ENV
 _VALID_ENVS = frozenset({"development", "test", "production"})
 if _ENV not in _VALID_ENVS:
     raise RuntimeError(
-        f"ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. Check your .env file or environment variable."
+        f"ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. "
+        "Check your .env file or environment variable."
     )
 
 _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"
@@ -173,7 +174,8 @@ class Config:
         url = self._get_str("SUPABASE_URL", default).strip().rstrip("/")
         if self.is_production and not url:
             raise RuntimeError(
-                "SUPABASE_URL must be set in production. Supabase is the sole auth provider in deployed environments."
+                "SUPABASE_URL must be set in production. "
+                "Supabase is the sole auth provider in deployed environments."
             )
         return url
 

@@ -32,7 +32,12 @@ class TestEntityGraph:
 
         async def _body():
             await sql_execute(
-                "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) VALUES ($1, 'Graph Vendor', 'Contact', 'v@test.com', '555', $2, NOW()) ON CONFLICT DO NOTHING",
+                """
+                INSERT INTO vendors (
+                    id, name, contact_name, email, phone, organization_id, created_at
+                ) VALUES ($1, 'Graph Vendor', 'Contact', 'v@test.com', '555', $2, NOW())
+                ON CONFLICT DO NOTHING
+                """,
                 (VENDOR_ID_1, DEFAULT_ORG_ID),
             )
             sku = await create_product_with_sku(
@@ -49,7 +54,13 @@ class TestEntityGraph:
                 on_stock_import=process_import_stock_changes,
             )
             await sql_execute(
-                "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) VALUES ($1, $2, $3, 'VND-BOLT', 1.40, 1, TRUE, $4, NOW(), NOW()) ON CONFLICT DO NOTHING",
+                """
+                INSERT INTO vendor_items (
+                    id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty,
+                    is_preferred, organization_id, created_at, updated_at
+                ) VALUES ($1, $2, $3, 'VND-BOLT', 1.40, 1, TRUE, $4, NOW(), NOW())
+                ON CONFLICT DO NOTHING
+                """,
                 (VENDOR_ITEM_ID_1, VENDOR_ID_1, sku.id, DEFAULT_ORG_ID),
             )
             import assistant.application.entity_graph as eg
@@ -74,7 +85,12 @@ class TestEntityGraph:
 
         async def _body():
             await sql_execute(
-                "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) VALUES ($1, 'Reverse Vendor', 'C', 'rv@test.com', '555', $2, NOW()) ON CONFLICT DO NOTHING",
+                """
+                INSERT INTO vendors (
+                    id, name, contact_name, email, phone, organization_id, created_at
+                ) VALUES ($1, 'Reverse Vendor', 'C', 'rv@test.com', '555', $2, NOW())
+                ON CONFLICT DO NOTHING
+                """,
                 (VENDOR_ID_2, DEFAULT_ORG_ID),
             )
             sku = await create_product_with_sku(
@@ -91,7 +107,13 @@ class TestEntityGraph:
                 on_stock_import=process_import_stock_changes,
             )
             await sql_execute(
-                "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) VALUES ($1, $2, $3, 'VND-NUT', 0.45, 1, TRUE, $4, NOW(), NOW()) ON CONFLICT DO NOTHING",
+                """
+                INSERT INTO vendor_items (
+                    id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty,
+                    is_preferred, organization_id, created_at, updated_at
+                ) VALUES ($1, $2, $3, 'VND-NUT', 0.45, 1, TRUE, $4, NOW(), NOW())
+                ON CONFLICT DO NOTHING
+                """,
                 (VENDOR_ITEM_ID_2, VENDOR_ID_2, sku.id, DEFAULT_ORG_ID),
             )
             import assistant.application.entity_graph as eg
@@ -153,7 +175,12 @@ class TestEntityGraph:
 
         async def _body():
             await sql_execute(
-                "INSERT INTO vendors (id, name, contact_name, email, phone, organization_id, created_at) VALUES ($1, 'Format Vendor', 'C', 'fmt@test.com', '555', $2, NOW()) ON CONFLICT DO NOTHING",
+                """
+                INSERT INTO vendors (
+                    id, name, contact_name, email, phone, organization_id, created_at
+                ) VALUES ($1, 'Format Vendor', 'C', 'fmt@test.com', '555', $2, NOW())
+                ON CONFLICT DO NOTHING
+                """,
                 (VENDOR_ID_FMT, DEFAULT_ORG_ID),
             )
             sku = await create_product_with_sku(
@@ -170,7 +197,13 @@ class TestEntityGraph:
                 on_stock_import=process_import_stock_changes,
             )
             await sql_execute(
-                "INSERT INTO vendor_items (id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty, is_preferred, organization_id, created_at, updated_at) VALUES ($1, $2, $3, 'VND-FMT', 0.90, 1, TRUE, $4, NOW(), NOW()) ON CONFLICT DO NOTHING",
+                """
+                INSERT INTO vendor_items (
+                    id, vendor_id, sku_id, vendor_sku, cost, purchase_pack_qty,
+                    is_preferred, organization_id, created_at, updated_at
+                ) VALUES ($1, $2, $3, 'VND-FMT', 0.90, 1, TRUE, $4, NOW(), NOW())
+                ON CONFLICT DO NOTHING
+                """,
                 (VENDOR_ITEM_ID_FMT, VENDOR_ID_FMT, sku.id, DEFAULT_ORG_ID),
             )
             import assistant.application.entity_graph as eg

@@ -46,7 +46,10 @@ def _db_with_bcrypt_user(db, _app_client):
     async def _seed():
         hashed = bcrypt.hashpw(b"secret123", bcrypt.gensalt()).decode("utf-8")
         await sql_execute(
-            f"INSERT INTO users (id, email, password, name, role, is_active, organization_id, created_at) VALUES ('{BCRYPT_USER_ID}', 'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, $2, NOW()) ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password",
+            f"INSERT INTO users (id, email, password, name, role, is_active, "
+            f"organization_id, created_at) VALUES ('{BCRYPT_USER_ID}', "
+            f"'bcrypt@test.com', $1, 'Bcrypt User', 'admin', TRUE, $2, NOW()) "
+            f"ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password",
             (hashed, DEFAULT_ORG_ID),
         )
 

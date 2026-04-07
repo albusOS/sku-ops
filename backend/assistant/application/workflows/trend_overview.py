@@ -39,18 +39,17 @@ def _format_markdown(data: dict) -> str:
     top_skus = data.get("top_skus", [])
     if top_skus:
         lines = ["### Top SKUs by Revenue\n| SKU | Name | Revenue |", "| --- | --- | --- |"]
-        lines.extend(
-            f"| {item.get('sku', '')} | {item.get('name', '')} | ${float(item.get('total_revenue', 0) or 0):,.2f} |"
-            for item in top_skus[:10]
-        )
+        for item in top_skus[:10]:
+            rev = float(item.get("total_revenue", 0) or 0)
+            lines.append(f"| {item.get('sku', '')} | {item.get('name', '')} | ${rev:,.2f} |")
         parts.append("\n".join(lines))
     depts = data.get("department_profitability", [])
     if depts:
         lines = ["### Department Performance\n| Department | Profit |", "| --- | --- |"]
-        lines.extend(
-            f"| {item.get('department', item.get('name', 'Unknown'))} | ${float(item.get('profit', 0) or 0):,.2f} |"
-            for item in depts[:10]
-        )
+        for item in depts[:10]:
+            dept = item.get("department", item.get("name", "Unknown"))
+            profit = float(item.get("profit", 0) or 0)
+            lines.append(f"| {dept} | ${profit:,.2f} |")
         parts.append("\n".join(lines))
     activity = data.get("daily_withdrawal_activity", [])
     if activity:

@@ -95,7 +95,10 @@ def _row_to_model(row) -> Contractor | None:
     return Contractor.model_validate(d)
 
 
-_SELECT_COLS = "id, email, name, role, company, billing_entity, billing_entity_id, phone, is_active, organization_id, created_at"
+_SELECT_COLS = (
+    "id, email, name, role, company, billing_entity, billing_entity_id, "
+    "phone, is_active, organization_id, created_at"
+)
 
 
 def _hash_password(password: str) -> str:
@@ -123,8 +126,10 @@ async def get_users_by_ids(user_ids: list[str]) -> dict[str, Contractor]:
         return {}
     org_id = get_org_id()
     placeholders = ",".join(f"${i}" for i in range(1, 1 + len(user_ids)))
+    org_ph = 1 + len(user_ids)
     cursor = await sql_execute(
-        f"SELECT {_SELECT_COLS} FROM users WHERE id IN ({placeholders}) AND organization_id = ${1 + len(user_ids)}",
+        f"SELECT {_SELECT_COLS} FROM users WHERE id IN ({placeholders}) "
+        f"AND organization_id = ${org_ph}",
         (*user_ids, org_id),
     )
     rows = cursor.rows
@@ -142,7 +147,10 @@ async def list_contractors(search: str | None = None) -> list[Contractor]:
     params: list = [org_id]
     if search and search.strip():
         term = f"%{search.strip()}%"
-        base += " AND (name LIKE $2 OR email LIKE $3 OR company LIKE $4 OR billing_entity LIKE $5 OR phone LIKE $6)"
+        base += (
+            " AND (name LIKE $2 OR email LIKE $3 OR company LIKE $4 OR "
+            "billing_entity LIKE $5 OR phone LIKE $6)"
+        )
         params.extend([term, term, term, term, term])
     base += " ORDER BY name"
     cursor = await sql_execute(base, params)
@@ -198,7 +206,8 @@ async def create_contractor(
             "phone, is_active, organization_id, created_at"
         )
         await sql_execute(
-            f"INSERT INTO users ({cols}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+            f"INSERT INTO users ({cols}) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
             (
                 contractor_id,
                 email,
@@ -267,8 +276,10 @@ async def update_contractor(
             n += 1
 
         values.extend([contractor_id, org_id])
+        next_n = n + 1
         await sql_execute(
-            f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ${n} AND organization_id = ${n + 1}",
+            f"UPDATE users SET {', '.join(set_clauses)} "
+            f"WHERE id = ${n} AND organization_id = ${next_n}",
             values,
         )
 

@@ -58,9 +58,8 @@ async def open_cycle_count(
         products = [p for p in products if p.category_name == scope]
 
     if not products:
-        raise ValueError(
-            f"No products found{f' in department {scope!r}' if scope else ''}. Cannot open an empty cycle count."
-        )
+        suffix = f" in department {scope!r}" if scope else ""
+        raise ValueError(f"No products found{suffix}. Cannot open an empty cycle count.")
 
     count = CycleCount(
         organization_id=get_org_id(),

@@ -73,7 +73,18 @@ async def _truncate_and_seed():
 
     async with transaction():
         await sql_execute(
-            "DO $$\n            DECLARE r RECORD;\n            BEGIN\n                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP\n                    EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';\n                END LOOP;\n            END $$",
+            """
+            DO $$
+            DECLARE r RECORD;
+            BEGIN
+                FOR r IN (
+                    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+                ) LOOP
+                    EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename)
+                        || ' CASCADE';
+                END LOOP;
+            END $$
+            """,
             read_only=False,
         )
         for stmt in _seed_sql_statements("supabase/seeds/pytest_minimal.sql"):

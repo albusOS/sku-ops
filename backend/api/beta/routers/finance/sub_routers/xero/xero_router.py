@@ -48,7 +48,10 @@ def _require_xero_configured():
     if not config.XERO_CLIENT_ID or not config.XERO_CLIENT_SECRET or not config.XERO_REDIRECT_URI:
         raise HTTPException(
             status_code=503,
-            detail="Xero OAuth not configured. Set XERO_CLIENT_ID, XERO_CLIENT_SECRET, and XERO_REDIRECT_URI.",
+            detail=(
+                "Xero OAuth not configured. Set XERO_CLIENT_ID, XERO_CLIENT_SECRET, "
+                "and XERO_REDIRECT_URI."
+            ),
         )
 
 

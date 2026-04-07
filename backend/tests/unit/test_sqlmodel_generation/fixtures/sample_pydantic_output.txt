@@ -1,0 +1,28 @@
+
+from __future__ import annotations
+import datetime
+from pydantic import BaseModel, Field
+
+class PublicDepartments(BaseModel):
+    id: str = Field(alias="id")
+    name: str = Field(alias="name")
+    organization_id: str | None = Field(alias="organization_id")
+
+class PublicDepartmentsInsert(TypedDict):
+    id: str
+    name: str
+
+class PublicDepartmentsUpdate(TypedDict):
+    id: str
+
+class PublicProducts(BaseModel):
+    category_id: str = Field(alias="category_id")
+    id: str = Field(alias="id")
+    name: str = Field(alias="name")
+
+class PublicProductsInsert(TypedDict):
+    category_id: str
+    id: str
+
+class PublicProductsUpdate(TypedDict):
+    category_id: str

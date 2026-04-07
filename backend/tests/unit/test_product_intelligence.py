@@ -236,7 +236,10 @@ class TestBatchPipeline:
             return json.dumps(
                 [
                     {
-                        "raw_text": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line",
+                        "raw_text": (
+                            "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. "
+                            "Braided Polymer Faucet Supply Line"
+                        ),
                         "clean_name": "Braided Polymer Faucet Supply Line",
                         "brand": "BrassCraft",
                         "product_type": "faucet supply line",
@@ -278,7 +281,10 @@ class TestBatchPipeline:
     async def test_pipeline_with_llm(self, mock_llm_response):
         items = [
             {
-                "name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line"
+                "name": (
+                    "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. "
+                    "Braided Polymer Faucet Supply Line"
+                )
             },
             {"name": "HDX 16 in. x 16 in. Multi-Purpose Microfiber Towel (24-Pack)"},
         ]
@@ -459,10 +465,16 @@ class TestRealWorldExamples:
     async def test_supply_line_not_misclassified_as_inch(self, home_depot_llm):
         items = [
             {
-                "name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. Braided Polymer Faucet Supply Line"
+                "name": (
+                    "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 16 in. "
+                    "Braided Polymer Faucet Supply Line"
+                )
             },
             {
-                "name": "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 20 in. Braided Polymer Faucet Supply Line"
+                "name": (
+                    "BrassCraft 3/8 in. Compression x 1/2 in. FIP x 20 in. "
+                    "Braided Polymer Faucet Supply Line"
+                )
             },
             {"name": "HDX 16 in. x 16 in. Multi-Purpose Microfiber Towel (24-Pack)"},
         ]
@@ -483,7 +495,9 @@ class TestRealWorldExamples:
             return json.dumps(
                 [
                     {
-                        "clean_name": "Code One Hardwired Interconnectable Smoke and Carbon Monoxide Detector",
+                        "clean_name": (
+                            "Code One Hardwired Interconnectable Smoke and Carbon Monoxide Detector"
+                        ),
                         "brand": "Kidde",
                         "product_type": "smoke and CO detector",
                         "specifications": {"power": "hardwired", "backup": "AA battery"},
@@ -500,7 +514,10 @@ class TestRealWorldExamples:
 
         items = [
             {
-                "name": "Kidde Code One Hardwired Interconnectable Smoke and Carbon Monoxide Detector, AA Battery Backup"
+                "name": (
+                    "Kidde Code One Hardwired Interconnectable Smoke and "
+                    "Carbon Monoxide Detector, AA Battery Backup"
+                )
             }
         ]
         results = await analyze_products(items, generate_text=llm)

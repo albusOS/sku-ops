@@ -26,7 +26,10 @@ async def parse_document(
     current_user: AdminDep,
     use_ai: bool = False,
 ):
-    """Parse image or PDF. use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR."""
+    """Parse image or PDF.
+
+    use_ai=true uses Claude (requires ANTHROPIC_API_KEY); default uses free OCR.
+    """
     contents = await file.read()
     content_type = (file.content_type or "").lower()
     filename = file.filename or ""

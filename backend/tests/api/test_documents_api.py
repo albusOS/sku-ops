@@ -19,7 +19,15 @@ def _seed_one_document(portal_client):
 
     async def _go():
         await sql_execute(
-            "\n            INSERT INTO documents (\n              id, filename, document_type, file_hash, file_size, mime_type,\n              status, uploaded_by_id, organization_id, created_at, updated_at\n            ) VALUES (\n              $1, 'pytest-doc.pdf', 'other', 'abc', 0, 'application/pdf',\n              'parsed', $2, $3, NOW(), NOW()\n            )\n            ",
+            """
+            INSERT INTO documents (
+              id, filename, document_type, file_hash, file_size, mime_type,
+              status, uploaded_by_id, organization_id, created_at, updated_at
+            ) VALUES (
+              $1, 'pytest-doc.pdf', 'other', 'abc', 0, 'application/pdf',
+              'parsed', $2, $3, NOW(), NOW()
+            )
+            """,
             (DOC_FIXTURE_ID, ADMIN_USER_ID, DEFAULT_ORG_ID),
             read_only=False,
         )

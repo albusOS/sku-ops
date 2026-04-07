@@ -18,6 +18,130 @@ from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models 
     parse_pydantic_types,
 )
 
+_PYDANTIC_M2M_MODELS = textwrap.dedent("""
+    from pydantic import BaseModel, Field
+
+    class PublicInvoices(BaseModel):
+        id: str = Field(alias="id")
+        total: float = Field(alias="total")
+
+    class PublicWithdrawals(BaseModel):
+        id: str = Field(alias="id")
+        amount: float = Field(alias="amount")
+
+    class PublicInvoiceWithdrawals(BaseModel):
+        invoice_id: str = Field(alias="invoice_id")
+        withdrawal_id: str = Field(alias="withdrawal_id")
+""").strip()
+
+_PYDANTIC_BILLING_MODELS = textwrap.dedent("""
+    from pydantic import BaseModel, Field
+
+    class PublicBillingEntities(BaseModel):
+        id: str = Field(alias="id")
+        name: str = Field(alias="name")
+
+    class PublicCreditNotes(BaseModel):
+        id: str = Field(alias="id")
+        billing_entity: str = Field(alias="billing_entity")
+        billing_entity_id: str = Field(alias="billing_entity_id")
+""").strip()
+
+_TS_BILLING_CREDIT_NOTES = textwrap.dedent("""
+    export type Database = {
+      public: {
+        Tables: {
+          billing_entities: {
+            Row: { id: string, name: string }
+            Relationships: []
+          }
+          credit_notes: {
+            Row: { id: string, billing_entity: string, billing_entity_id: string }
+            Relationships: [
+              {
+                foreignKeyName: "credit_notes_billing_entity_id_fkey"
+                columns: ["billing_entity_id"]
+                isOneToOne: false
+                referencedRelation: "billing_entities"
+                referencedColumns: ["id"]
+              }
+            ]
+          }
+        }
+        Views: {}
+        Functions: {}
+        Enums: {}
+        CompositeTypes: {}
+      }
+    }
+""").strip()
+
+_PYDANTIC_USERS_WITHDRAWALS = textwrap.dedent("""
+    from pydantic import BaseModel, Field
+
+    class PublicUsers(BaseModel):
+        id: str = Field(alias="id")
+        name: str = Field(alias="name")
+
+    class PublicWithdrawals(BaseModel):
+        id: str = Field(alias="id")
+        contractor_id: str = Field(alias="contractor_id")
+        processed_by_id: str = Field(alias="processed_by_id")
+""").strip()
+
+_TS_USERS_WITHDRAWALS = textwrap.dedent("""
+    export type Database = {
+      public: {
+        Tables: {
+          users: {
+            Row: { id: string, name: string }
+            Relationships: []
+          }
+          withdrawals: {
+            Row: { id: string, contractor_id: string, processed_by_id: string }
+            Relationships: [
+              {
+                foreignKeyName: "withdrawals_contractor_id_fkey"
+                columns: ["contractor_id"]
+                isOneToOne: false
+                referencedRelation: "users"
+                referencedColumns: ["id"]
+              },
+              {
+                foreignKeyName: "withdrawals_processed_by_id_fkey"
+                columns: ["processed_by_id"]
+                isOneToOne: false
+                referencedRelation: "users"
+                referencedColumns: ["id"]
+              }
+            ]
+          }
+        }
+        Views: {}
+        Functions: {}
+        Enums: {}
+        CompositeTypes: {}
+      }
+    }
+""").strip()
+
+_PYDANTIC_M2M_PLUS_MODELS = textwrap.dedent("""
+    from pydantic import BaseModel, Field
+
+    class PublicInvoices(BaseModel):
+        id: str = Field(alias="id")
+        total: float = Field(alias="total")
+
+    class PublicWithdrawals(BaseModel):
+        id: str = Field(alias="id")
+        amount: float = Field(alias="amount")
+        invoice_id: str | None = Field(alias="invoice_id")
+
+    class PublicInvoiceWithdrawals(BaseModel):
+        invoice_id: str = Field(alias="invoice_id")
+        withdrawal_id: str = Field(alias="withdrawal_id")
+""").strip()
+
 
 class TestSimpleModelGeneration:
     def test_generates_valid_python(self, sample_pydantic_output, sample_ts_empty_rels):
@@ -92,9 +216,7 @@ class TestOneToManyGeneration:
 
 class TestM2MGeneration:
     def test_generates_link_model(self, sample_ts_m2m):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicInvoices(BaseModel):\n                id: str = Field(alias="id")\n                total: float = Field(alias="total")\n\n            class PublicWithdrawals(BaseModel):\n                id: str = Field(alias="id")\n                amount: float = Field(alias="amount")\n\n            class PublicInvoiceWithdrawals(BaseModel):\n                invoice_id: str = Field(alias="invoice_id")\n                withdrawal_id: str = Field(alias="withdrawal_id")\n        '
-        )
+        pydantic_content = _PYDANTIC_M2M_MODELS
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(sample_ts_m2m, "public")
         pk_map = {
@@ -107,9 +229,7 @@ class TestM2MGeneration:
         assert "link_model=InvoiceWithdrawals" in code
 
     def test_m2m_bidirectional(self, sample_ts_m2m):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicInvoices(BaseModel):\n                id: str = Field(alias="id")\n                total: float = Field(alias="total")\n\n            class PublicWithdrawals(BaseModel):\n                id: str = Field(alias="id")\n                amount: float = Field(alias="amount")\n\n            class PublicInvoiceWithdrawals(BaseModel):\n                invoice_id: str = Field(alias="invoice_id")\n                withdrawal_id: str = Field(alias="withdrawal_id")\n        '
-        )
+        pydantic_content = _PYDANTIC_M2M_MODELS
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(sample_ts_m2m, "public")
         pk_map = {
@@ -124,12 +244,8 @@ class TestM2MGeneration:
 
 class TestRelationshipDisambiguation:
     def test_deduped_relationship_name_stays_in_sync_for_back_populates(self):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicBillingEntities(BaseModel):\n                id: str = Field(alias="id")\n                name: str = Field(alias="name")\n\n            class PublicCreditNotes(BaseModel):\n                id: str = Field(alias="id")\n                billing_entity: str = Field(alias="billing_entity")\n                billing_entity_id: str = Field(alias="billing_entity_id")\n        '
-        )
-        ts_content = textwrap.dedent(
-            '\n            export type Database = {\n              public: {\n                Tables: {\n                  billing_entities: {\n                    Row: { id: string, name: string }\n                    Relationships: []\n                  }\n                  credit_notes: {\n                    Row: { id: string, billing_entity: string, billing_entity_id: string }\n                    Relationships: [\n                      {\n                        foreignKeyName: "credit_notes_billing_entity_id_fkey"\n                        columns: ["billing_entity_id"]\n                        isOneToOne: false\n                        referencedRelation: "billing_entities"\n                        referencedColumns: ["id"]\n                      }\n                    ]\n                  }\n                }\n                Views: {}\n                Functions: {}\n                Enums: {}\n                CompositeTypes: {}\n              }\n            }\n        '
-        )
+        pydantic_content = _PYDANTIC_BILLING_MODELS
+        ts_content = _TS_BILLING_CREDIT_NOTES
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(ts_content, "public")
         pk_map = {("public", "billing_entities"): ["id"], ("public", "credit_notes"): ["id"]}
@@ -143,12 +259,8 @@ class TestRelationshipDisambiguation:
         assert result.returncode == 0, result.stderr
 
     def test_multiple_foreign_keys_emit_disambiguated_relationships(self):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicUsers(BaseModel):\n                id: str = Field(alias="id")\n                name: str = Field(alias="name")\n\n            class PublicWithdrawals(BaseModel):\n                id: str = Field(alias="id")\n                contractor_id: str = Field(alias="contractor_id")\n                processed_by_id: str = Field(alias="processed_by_id")\n        '
-        )
-        ts_content = textwrap.dedent(
-            '\n            export type Database = {\n              public: {\n                Tables: {\n                  users: {\n                    Row: { id: string, name: string }\n                    Relationships: []\n                  }\n                  withdrawals: {\n                    Row: { id: string, contractor_id: string, processed_by_id: string }\n                    Relationships: [\n                      {\n                        foreignKeyName: "withdrawals_contractor_id_fkey"\n                        columns: ["contractor_id"]\n                        isOneToOne: false\n                        referencedRelation: "users"\n                        referencedColumns: ["id"]\n                      },\n                      {\n                        foreignKeyName: "withdrawals_processed_by_id_fkey"\n                        columns: ["processed_by_id"]\n                        isOneToOne: false\n                        referencedRelation: "users"\n                        referencedColumns: ["id"]\n                      }\n                    ]\n                  }\n                }\n                Views: {}\n                Functions: {}\n                Enums: {}\n                CompositeTypes: {}\n              }\n            }\n        '
-        )
+        pydantic_content = _PYDANTIC_USERS_WITHDRAWALS
+        ts_content = _TS_USERS_WITHDRAWALS
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(ts_content, "public")
         pk_map = {("public", "users"): ["id"], ("public", "withdrawals"): ["id"]}
@@ -173,9 +285,7 @@ class TestModelOrdering:
         assert dept_pos < prod_pos
 
     def test_link_tables_before_referencing_models(self, sample_ts_m2m):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicInvoices(BaseModel):\n                id: str = Field(alias="id")\n                total: float = Field(alias="total")\n\n            class PublicWithdrawals(BaseModel):\n                id: str = Field(alias="id")\n                amount: float = Field(alias="amount")\n\n            class PublicInvoiceWithdrawals(BaseModel):\n                invoice_id: str = Field(alias="invoice_id")\n                withdrawal_id: str = Field(alias="withdrawal_id")\n        '
-        )
+        pydantic_content = _PYDANTIC_M2M_MODELS
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(sample_ts_m2m, "public")
         pk_map = {
@@ -194,9 +304,7 @@ class TestM2MPlusDirectFK:
     the generated relationship names must not collide."""
 
     def test_no_duplicate_attribute_names(self, sample_ts_m2m_plus_direct_fk):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicInvoices(BaseModel):\n                id: str = Field(alias="id")\n                total: float = Field(alias="total")\n\n            class PublicWithdrawals(BaseModel):\n                id: str = Field(alias="id")\n                amount: float = Field(alias="amount")\n                invoice_id: str | None = Field(alias="invoice_id")\n\n            class PublicInvoiceWithdrawals(BaseModel):\n                invoice_id: str = Field(alias="invoice_id")\n                withdrawal_id: str = Field(alias="withdrawal_id")\n        '
-        )
+        pydantic_content = _PYDANTIC_M2M_PLUS_MODELS
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(sample_ts_m2m_plus_direct_fk, "public")
         pk_map = {
@@ -216,9 +324,7 @@ class TestM2MPlusDirectFK:
         )
 
     def test_back_populates_symmetric(self, sample_ts_m2m_plus_direct_fk):
-        pydantic_content = textwrap.dedent(
-            '\n            from pydantic import BaseModel, Field\n\n            class PublicInvoices(BaseModel):\n                id: str = Field(alias="id")\n                total: float = Field(alias="total")\n\n            class PublicWithdrawals(BaseModel):\n                id: str = Field(alias="id")\n                amount: float = Field(alias="amount")\n                invoice_id: str | None = Field(alias="invoice_id")\n\n            class PublicInvoiceWithdrawals(BaseModel):\n                invoice_id: str = Field(alias="invoice_id")\n                withdrawal_id: str = Field(alias="withdrawal_id")\n        '
-        )
+        pydantic_content = _PYDANTIC_M2M_PLUS_MODELS
         models = parse_pydantic_types(pydantic_content, "public", "Public")
         rels = parse_ts_relationships(sample_ts_m2m_plus_direct_fk, "public")
         pk_map = {

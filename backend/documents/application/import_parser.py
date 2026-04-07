@@ -32,7 +32,8 @@ def parse_csv_products(content: bytes) -> list:
     """
     Parse Supply Yard inventory CSV format.
     Columns: Product, SKU, Barcode, On hand, Reorder qty, Reorder point,
-             Unit cost, Total cost, Retail price, Retail (Ex. Tax), Retail (Inc. Tax), Department/Category
+             Unit cost, Total cost, Retail price, Retail (Ex. Tax),
+             Retail (Inc. Tax), Department/Category
     """
     decoded = content.decode("utf-8", errors="replace")
     reader = csv.reader(io.StringIO(decoded))

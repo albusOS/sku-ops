@@ -219,7 +219,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def run_procurement_overview(ctx: RunContext[AgentDeps]) -> str:
-        """Full procurement overview: what to order now, urgency, vendor grouping, and PO pipeline."""
+        """Full procurement overview.
+
+        What to order now, urgency, vendor grouping, and PO pipeline.
+        """
         trace_id = ctx.deps.trace_id or None
         deps = WorkflowDeps(
             org_id=get_org_id(),
@@ -232,7 +235,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def run_trend_overview(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Full trend overview: broad demand shifts, top SKUs, department movement, and activity patterns."""
+        """Full trend overview.
+
+        Broad demand shifts, top SKUs, department movement, and activity patterns.
+        """
         trace_id = ctx.deps.trace_id or None
         deps = WorkflowDeps(
             org_id=get_org_id(),
@@ -245,7 +251,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def run_health_overview(ctx: RunContext[AgentDeps], days: int = 30) -> str:
-        """Full health overview: urgent risks, cash/inventory drag, pending requests, and prioritized actions."""
+        """Full health overview.
+
+        Urgent risks, cash/inventory drag, pending requests, and prioritized actions.
+        """
         trace_id = ctx.deps.trace_id or None
         deps = WorkflowDeps(
             org_id=get_org_id(),
@@ -295,7 +304,10 @@ def _get_agent() -> Agent[AgentDeps, str]:
 
     @_agent.tool
     async def analyze_trends(ctx: RunContext[AgentDeps], question: str) -> str:
-        """Delegate to trend analyst for demand patterns, anomaly detection, seasonality, and period comparison."""
+        """Delegate to trend analyst.
+
+        For demand patterns, anomaly detection, seasonality, and period comparison.
+        """
         try:
             result = await asyncio.wait_for(
                 _trend_agent_mod.run(question, deps=ctx.deps, usage=ctx.usage),

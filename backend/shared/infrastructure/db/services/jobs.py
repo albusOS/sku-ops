@@ -145,7 +145,10 @@ class JobsDatabaseService(DomainDatabaseService):
             return [self._row_to_job(r) for r in rows]
 
     async def ensure_job(self, code: str, org_id: str) -> Job:
-        """Resolve an existing job by UUID or human code; otherwise create a stub keyed by ``code``."""
+        """Resolve an existing job by UUID or human code.
+
+        Otherwise create a stub keyed by ``code``.
+        """
         key = str(code).strip()
         try:
             uuid.UUID(key)

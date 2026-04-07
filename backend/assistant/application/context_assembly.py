@@ -63,10 +63,11 @@ class AssembledContext:
 
         # Semantic entity hits without graph (fallback)
         elif self.entity_hits:
-            hit_lines = [
-                f"- [{h['entity_type']}] {h.get('content', h['entity_id'])} (relevance: {h.get('similarity', 0):.2f})"
-                for h in self.entity_hits[:5]
-            ]
+            hit_lines = []
+            for h in self.entity_hits[:5]:
+                label = h.get("content", h["entity_id"])
+                rel = h.get("similarity", 0)
+                hit_lines.append(f"- [{h['entity_type']}] {label} (relevance: {rel:.2f})")
             sections.append("[Potentially relevant entities]\n" + "\n".join(hit_lines))
 
         # Memory context

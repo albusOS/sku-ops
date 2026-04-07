@@ -1,0 +1,55 @@
+
+export type Database = {
+  public: {
+    Tables: {
+      departments: {
+        Row: {
+          id: string
+          name: string
+          organization_id: string | null
+        }
+        Insert: {
+          id: string
+          name: string
+          organization_id?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          organization_id?: string | null
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          id: string
+          name: string
+          category_id: string
+        }
+        Insert: {
+          id: string
+          name: string
+          category_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          category_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {}
+    Functions: {}
+    Enums: {}
+    CompositeTypes: {}
+  }
+}

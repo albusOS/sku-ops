@@ -100,7 +100,10 @@ def _dept_row_to_domain(row: Departments) -> Department:
 class CatalogDatabaseService(DomainDatabaseService):
     # --- Departments ---
     async def list_departments(self, org_id: str) -> list[Department]:
-        """List departments with live sku_count from skus (denormalized column can be stale after bulk import)."""
+        """List departments with live sku_count from skus.
+
+        The denormalized column can be stale after bulk import.
+        """
         oid = as_uuid_required(org_id)
         live_sku_count = (
             select(func.count())
@@ -202,13 +205,15 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             await session.execute(
                 text(
-                    "UPDATE skus SET category_name = :name WHERE category_id = :did AND organization_id = :oid"
+                    "UPDATE skus SET category_name = :name "
+                    "WHERE category_id = :did AND organization_id = :oid"
                 ),
                 {"name": name, "did": did, "oid": oid},
             )
             await session.execute(
                 text(
-                    "UPDATE products SET category_name = :name WHERE category_id = :did AND organization_id = :oid"
+                    "UPDATE products SET category_name = :name "
+                    "WHERE category_id = :did AND organization_id = :oid"
                 ),
                 {"name": name, "did": did, "oid": oid},
             )
@@ -246,7 +251,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    "UPDATE departments SET sku_count = sku_count + :delta WHERE id = :did AND organization_id = :oid"
+                    "UPDATE departments SET sku_count = sku_count + :delta "
+                    "WHERE id = :did AND organization_id = :oid"
                 ),
                 {"delta": delta, "did": did, "oid": oid},
             )
@@ -302,7 +308,8 @@ class CatalogDatabaseService(DomainDatabaseService):
             " v.name AS preferred_vendor_name"
             " FROM skus s"
             " LEFT JOIN products p ON p.id = s.product_family_id"
-            " LEFT JOIN vendor_items vi ON vi.sku_id = s.id AND vi.is_preferred = true AND vi.deleted_at IS NULL"
+            " LEFT JOIN vendor_items vi ON vi.sku_id = s.id"
+            " AND vi.is_preferred = true AND vi.deleted_at IS NULL"
             " LEFT JOIN vendors v ON v.id = vi.vendor_id AND v.deleted_at IS NULL"
             " WHERE s.organization_id = :org_id AND s.deleted_at IS NULL"
         )
@@ -366,7 +373,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    "SELECT * FROM skus WHERE id = :sid AND organization_id = :oid AND deleted_at IS NULL"
+                    "SELECT * FROM skus WHERE id = :sid AND organization_id = :oid "
+                    "AND deleted_at IS NULL"
                 ),
                 {"sid": sid, "oid": oid},
             )
@@ -381,7 +389,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    "SELECT * FROM skus WHERE UPPER(sku) = :s AND organization_id = :oid AND deleted_at IS NULL"
+                    "SELECT * FROM skus WHERE UPPER(sku) = :s AND organization_id = :oid "
+                    "AND deleted_at IS NULL"
                 ),
                 {"s": s, "oid": oid},
             )
@@ -402,7 +411,8 @@ class CatalogDatabaseService(DomainDatabaseService):
             if exclude_sku_id:
                 result = await session.execute(
                     text(
-                        "SELECT * FROM skus WHERE (barcode = :b OR sku = :b OR vendor_barcode = :b) "
+                        "SELECT * FROM skus WHERE (barcode = :b OR sku = :b OR "
+                        "vendor_barcode = :b) "
                         "AND id != :ex AND organization_id = :oid AND deleted_at IS NULL"
                     ),
                     {
@@ -414,7 +424,8 @@ class CatalogDatabaseService(DomainDatabaseService):
             else:
                 result = await session.execute(
                     text(
-                        "SELECT * FROM skus WHERE (barcode = :b OR sku = :b OR vendor_barcode = :b) "
+                        "SELECT * FROM skus WHERE (barcode = :b OR sku = :b OR "
+                        "vendor_barcode = :b) "
                         "AND organization_id = :oid AND deleted_at IS NULL"
                     ),
                     {"b": b, "oid": oid},
@@ -499,17 +510,20 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    """INSERT INTO skus (id, sku, product_family_id, name, description, price, cost,
+                    """
+                    INSERT INTO skus (id, sku, product_family_id, name, description, price, cost,
                     quantity, min_stock,
                     category_id, category_name, barcode, vendor_barcode,
                     base_unit, sell_uom, pack_qty, purchase_uom, purchase_pack_qty,
                     variant_label, spec, grade, variant_attrs,
                     organization_id, created_at, updated_at)
-                    VALUES (:id, :sku, :product_family_id, :name, :description, :price, :cost, :quantity, :min_stock,
+                    VALUES (:id, :sku, :product_family_id, :name, :description, :price, :cost,
+                    :quantity, :min_stock,
                     :category_id, :category_name, :barcode, :vendor_barcode,
                     :base_unit, :sell_uom, :pack_qty, :purchase_uom, :purchase_pack_qty,
                     :variant_label, :spec, :grade, :variant_attrs,
-                    :organization_id, :created_at, :updated_at)"""
+                    :organization_id, :created_at, :updated_at)
+                    """
                 ),
                 {
                     "id": as_uuid_required(sku_dict["id"]),
@@ -705,7 +719,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    "SELECT * FROM products WHERE id = :pid AND organization_id = :oid AND deleted_at IS NULL"
+                    "SELECT * FROM products WHERE id = :pid AND organization_id = :oid "
+                    "AND deleted_at IS NULL"
                 ),
                 {"pid": pid, "oid": oid},
             )
@@ -811,7 +826,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    "UPDATE products SET sku_count = sku_count + :delta WHERE id = :pid AND organization_id = :oid"
+                    "UPDATE products SET sku_count = sku_count + :delta "
+                    "WHERE id = :pid AND organization_id = :oid"
                 ),
                 {"delta": delta, "pid": pid, "oid": oid},
             )
@@ -822,8 +838,12 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
-               WHERE organization_id = :oid AND deleted_at IS NULL"""
+                    """
+                    SELECT id, name, contact_name, email, phone, address,
+                    organization_id, created_at
+                    FROM vendors
+                    WHERE organization_id = :oid AND deleted_at IS NULL
+                    """
                 ),
                 {"oid": oid},
             )
@@ -836,8 +856,12 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
-               WHERE id = :vid AND organization_id = :oid AND deleted_at IS NULL"""
+                    """
+                    SELECT id, name, contact_name, email, phone, address,
+                    organization_id, created_at
+                    FROM vendors
+                    WHERE id = :vid AND organization_id = :oid AND deleted_at IS NULL
+                    """
                 ),
                 {"vid": vid, "oid": oid},
             )
@@ -852,8 +876,13 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    """SELECT id, name, contact_name, email, phone, address, organization_id, created_at FROM vendors
-               WHERE TRIM(LOWER(name)) = :norm AND organization_id = :oid AND deleted_at IS NULL"""
+                    """
+                    SELECT id, name, contact_name, email, phone, address,
+                    organization_id, created_at
+                    FROM vendors
+                    WHERE TRIM(LOWER(name)) = :norm AND organization_id = :oid
+                    AND deleted_at IS NULL
+                    """
                 ),
                 {"norm": norm, "oid": oid},
             )
@@ -866,8 +895,16 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    """INSERT INTO vendors (id, name, contact_name, email, phone, address, organization_id, created_at)
-               VALUES (:id, :name, :contact_name, :email, :phone, :address, :organization_id, :created_at)"""
+                    """
+                    INSERT INTO vendors (
+                        id, name, contact_name, email, phone, address,
+                        organization_id, created_at
+                    )
+                    VALUES (
+                        :id, :name, :contact_name, :email, :phone, :address,
+                        :organization_id, :created_at
+                    )
+                    """
                 ),
                 {
                     "id": as_uuid_required(vd["id"]),
@@ -888,7 +925,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    "UPDATE vendors SET name = :name, contact_name = :cn, email = :em, phone = :ph, address = :ad "
+                    "UPDATE vendors SET name = :name, contact_name = :cn, email = :em, "
+                    "phone = :ph, address = :ad "
                     "WHERE id = :vid AND organization_id = :oid"
                 ),
                 {
@@ -903,7 +941,8 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             await session.execute(
                 text(
-                    "UPDATE vendor_items SET vendor_name = :vname WHERE vendor_id = :vid AND organization_id = :oid"
+                    "UPDATE vendor_items SET vendor_name = :vname "
+                    "WHERE vendor_id = :vid AND organization_id = :oid"
                 ),
                 {"vname": new_name, "vid": vid, "oid": oid},
             )
@@ -929,7 +968,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             r = await session.execute(
                 text(
-                    "SELECT COUNT(*) FROM vendors WHERE organization_id = :oid AND deleted_at IS NULL"
+                    "SELECT COUNT(*) FROM vendors WHERE organization_id = :oid "
+                    "AND deleted_at IS NULL"
                 ),
                 {"oid": oid},
             )
@@ -982,8 +1022,14 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             await session.execute(
                 text(
-                    """INSERT INTO units_of_measure (id, code, name, family, organization_id, created_at)
-           VALUES (:id, :code, :name, :family, :organization_id, :created_at)"""
+                    """
+                    INSERT INTO units_of_measure (
+                        id, code, name, family, organization_id, created_at
+                    )
+                    VALUES (
+                        :id, :code, :name, :family, :organization_id, :created_at
+                    )
+                    """
                 ),
                 {
                     "id": as_uuid_required(d["id"]),
@@ -1016,7 +1062,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             r = await session.execute(
                 text(
-                    "SELECT counter FROM sku_counters WHERE organization_id = :oid AND product_family_id = :pid"
+                    "SELECT counter FROM sku_counters "
+                    "WHERE organization_id = :oid AND product_family_id = :pid"
                 ),
                 {"oid": oid, "pid": pid},
             )
@@ -1028,7 +1075,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    "SELECT product_family_id, counter FROM sku_counters WHERE organization_id = :oid"
+                    "SELECT product_family_id, counter FROM sku_counters "
+                    "WHERE organization_id = :oid"
                 ),
                 {"oid": oid},
             )
@@ -1050,7 +1098,8 @@ class CatalogDatabaseService(DomainDatabaseService):
             )
             r = await session.execute(
                 text(
-                    "SELECT counter FROM sku_counters WHERE organization_id = :oid AND product_family_id = :pid"
+                    "SELECT counter FROM sku_counters "
+                    "WHERE organization_id = :oid AND product_family_id = :pid"
                 ),
                 {"oid": oid, "pid": pid},
             )
@@ -1199,7 +1248,8 @@ class CatalogDatabaseService(DomainDatabaseService):
         async with self.session() as session:
             result = await session.execute(
                 text(
-                    "SELECT * FROM vendor_items WHERE id = :iid AND organization_id = :oid AND deleted_at IS NULL"
+                    "SELECT * FROM vendor_items WHERE id = :iid AND organization_id = :oid "
+                    "AND deleted_at IS NULL"
                 ),
                 {"iid": iid, "oid": oid},
             )

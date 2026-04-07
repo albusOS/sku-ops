@@ -375,7 +375,8 @@ class InventoryDatabaseService(DomainDatabaseService):
            i.mean_daily,
            i.total_days,
            i.q1, i.q3,
-           COALESCE(SUM(CASE WHEN d.qty <= i.q3 + 1.5 * (i.q3 - i.q1) THEN d.qty END), 0) AS normalized_total,
+           COALESCE(SUM(CASE WHEN d.qty <= i.q3 + 1.5 * (i.q3 - i.q1) THEN d.qty END), 0)
+               AS normalized_total,
            COUNT(CASE WHEN d.qty > i.q3 + 1.5 * (i.q3 - i.q1) THEN 1 END) AS outlier_days
     FROM iqr i
     JOIN daily d ON d.sku_id = i.sku_id

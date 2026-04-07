@@ -106,7 +106,10 @@ def budget_tool_result(raw_json: str, max_tokens: int = 2000) -> str:
     return json.dumps(
         {
             "_truncated": True,
-            "_note": f"Result exceeded {max_tokens} token budget after trimming. Ask for a more specific query.",
+            "_note": (
+                f"Result exceeded {max_tokens} token budget after trimming. "
+                "Ask for a more specific query."
+            ),
         }
     )
 

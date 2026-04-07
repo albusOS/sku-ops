@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import textwrap
+
 from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
     parse_ts_relationships,
 )
@@ -52,7 +54,41 @@ class TestM2MLinkTable:
 
 class TestMultipleFKs:
     def test_table_with_two_fks(self):
-        ts_content = '\nexport type Database = {\n  public: {\n    Tables: {\n      skus: {\n        Row: {\n          id: string\n          category_id: string\n          product_family_id: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "skus_category_id_fkey"\n            columns: ["category_id"]\n            isOneToOne: false\n            referencedRelation: "departments"\n            referencedColumns: ["id"]\n          },\n          {\n            foreignKeyName: "skus_product_family_id_fkey"\n            columns: ["product_family_id"]\n            isOneToOne: false\n            referencedRelation: "products"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
+        ts_content = textwrap.dedent("""
+            export type Database = {
+              public: {
+                Tables: {
+                  skus: {
+                    Row: {
+                      id: string
+                      category_id: string
+                      product_family_id: string
+                    }
+                    Relationships: [
+                      {
+                        foreignKeyName: "skus_category_id_fkey"
+                        columns: ["category_id"]
+                        isOneToOne: false
+                        referencedRelation: "departments"
+                        referencedColumns: ["id"]
+                      },
+                      {
+                        foreignKeyName: "skus_product_family_id_fkey"
+                        columns: ["product_family_id"]
+                        isOneToOne: false
+                        referencedRelation: "products"
+                        referencedColumns: ["id"]
+                      },
+                    ]
+                  }
+                }
+                Views: {}
+                Functions: {}
+                Enums: {}
+                CompositeTypes: {}
+              }
+            }
+        """).strip()
         result = parse_ts_relationships(ts_content, "public")
         assert len(result.foreign_keys) == 2
         targets = {fk.target_table for fk in result.foreign_keys}
@@ -61,7 +97,33 @@ class TestMultipleFKs:
 
 class TestIsOneToOne:
     def test_propagates_one_to_one_flag(self):
-        ts_content = '\nexport type Database = {\n  public: {\n    Tables: {\n      user_profiles: {\n        Row: {\n          user_id: string\n          bio: string\n        }\n        Relationships: [\n          {\n            foreignKeyName: "user_profiles_user_id_fkey"\n            columns: ["user_id"]\n            isOneToOne: true\n            referencedRelation: "users"\n            referencedColumns: ["id"]\n          },\n        ]\n      }\n    }\n    Views: {}\n    Functions: {}\n    Enums: {}\n    CompositeTypes: {}\n  }\n}\n'
+        ts_content = textwrap.dedent("""
+            export type Database = {
+              public: {
+                Tables: {
+                  user_profiles: {
+                    Row: {
+                      user_id: string
+                      bio: string
+                    }
+                    Relationships: [
+                      {
+                        foreignKeyName: "user_profiles_user_id_fkey"
+                        columns: ["user_id"]
+                        isOneToOne: true
+                        referencedRelation: "users"
+                        referencedColumns: ["id"]
+                      },
+                    ]
+                  }
+                }
+                Views: {}
+                Functions: {}
+                Enums: {}
+                CompositeTypes: {}
+              }
+            }
+        """).strip()
         result = parse_ts_relationships(ts_content, "public")
         assert len(result.foreign_keys) == 1
         assert result.foreign_keys[0].is_one_to_one is True

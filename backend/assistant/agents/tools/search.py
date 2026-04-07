@@ -224,7 +224,9 @@ class DomainSearchIndex:
         data_list = []
         for po in pos[:500]:
             doc_date = po.document_date or ""
-            text = f"{po.vendor_name} PO {po.id[:8]} {doc_date} {po.notes or ''} status:{po.status}".strip()
+            text = (
+                f"{po.vendor_name} PO {po.id[:8]} {doc_date} {po.notes or ''} status:{po.status}"
+            ).strip()
             texts.append(text)
             ids.append(po.id)
             data_list.append(
@@ -289,7 +291,10 @@ class DomainSearchIndex:
         ids = []
         data_list = []
         for jid, jdata in list(job_map.items())[:500]:
-            text = f"Job {jid} {jdata['service_address']} {jdata['contractor']} {jdata['items_sample']}".strip()
+            text = (
+                f"Job {jid} {jdata['service_address']} {jdata['contractor']} "
+                f"{jdata['items_sample']}"
+            ).strip()
             texts.append(text)
             ids.append(jid)
             data_list.append(jdata)
