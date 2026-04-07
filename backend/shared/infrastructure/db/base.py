@@ -1,4 +1,7 @@
-"""Central database services for SQLModel plus raw-SQL compatibility."""
+"""Central database services for SQLModel plus raw-SQL compatibility.
+
+All DB interactions should use the get_database_manager() function.
+"""
 
 from __future__ import annotations
 

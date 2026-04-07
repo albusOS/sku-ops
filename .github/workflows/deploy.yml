@@ -40,9 +40,7 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          # Push: compare parent commit to HEAD. base: ref would diff the same SHA (empty -> all false).
-          base: ${{ github.event.before }}
-          ref: ${{ github.sha }}
+          base: ${{ github.ref }}
           filters: |
             backend_build:
               - 'backend/**'
