@@ -48,4 +48,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('PORT','8000') + '/api/beta/shared/health')" || exit 1
 
-CMD ["sh", "-c", "gunicorn main:app --bind 0.0.0.0:${PORT:-8000} --workers ${WORKERS:-1} --worker-class uvicorn.workers.UvicornWorker --worker-tmp-dir /dev/shm --timeout 120 --graceful-timeout 30 --keep-alive 5 --access-logfile -"]
+CMD ["sh", "-c", "python -m gunicorn main:app --bind 0.0.0.0:${PORT:-8000} --workers ${WORKERS:-1} --worker-class uvicorn.workers.UvicornWorker --worker-tmp-dir /dev/shm --timeout 120 --graceful-timeout 30 --keep-alive 5 --access-logfile -"]
