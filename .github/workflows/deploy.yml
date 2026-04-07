@@ -8,6 +8,8 @@ on:
       - "frontend/**"
       - ".do/**"
       - ".github/workflows/deploy.yml"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
 
 # Reusable ci.yml needs pull-requests:read (paths-filter). Callers cap child permissions.
 permissions:
