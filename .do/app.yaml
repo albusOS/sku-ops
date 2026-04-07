@@ -7,8 +7,9 @@
 # Non-secrets live in backend/.env.production (baked into the Docker image). This file
 # only injects secrets and PUBLIC_REDIS_URL from the Valkey database binding.
 #
-# GHCR pull auth for private packages: devtools/scripts/do_apps_create_ghcr.py
-# or make ghcr.io/<owner>/sku-ops-backend public.
+# GHCR pull auth: registry_credentials is templated from $GHCR_REGISTRY_CREDS
+# (username:PAT) on every deploy. Omitting it from a spec update clears saved creds.
+# Bootstrap: devtools/scripts/do_apps_create_ghcr.py or set the secret in GitHub.
 #
 # Valkey: production managed DBaaS — `cluster_name` must be an existing DO Valkey cluster
 # (App Platform does not provision production Valkey from spec alone). See databases valkey-cache.
@@ -38,6 +39,7 @@ services:
       registry: albusos
       repository: sku-ops-backend
       tag: "$IMAGE_TAG"
+      registry_credentials: "$GHCR_REGISTRY_CREDS"
     instance_count: 1
     instance_size_slug: basic-xxs
     http_port: 8000
