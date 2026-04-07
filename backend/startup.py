@@ -7,7 +7,6 @@ and between last response and process exit.
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
-from urllib.parse import urlparse
 
 from fastapi import FastAPI
 
@@ -77,12 +76,13 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
 
     if config.is_development and not config.db_is_local:
-        _host = urlparse(config.DATABASE_URL).hostname or "<unknown>"
         logger.warning(
-            "DATABASE_URL points at a non-local host ('%s') while ENV=development. "
+            "DB_HOST is non-local ('%s') while ENV=development. "
+            "Database endpoint: %s. "
             "Development mode uses permissive settings; production hardening is stricter. "
             "If this is intentional, set ENV=production instead.",
-            _host,
+            config.DB_HOST,
+            config.DATABASE_URL_DISPLAY,
         )
 
     logger.info("Domain event handlers registered")

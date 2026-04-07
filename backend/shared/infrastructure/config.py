@@ -4,7 +4,7 @@ Central configuration - environment-aware settings.
 Use the singleton:
 
     from shared.infrastructure.config import config
-    config.DATABASE_URL
+    config.DATABASE_URL  # postgresql+asyncpg://... built from DB_* or DATABASE_URL override
 
 ``ENV`` controls behavior: ``development`` | ``test`` | ``production``.
 When unset before layered dotenv load, defaults to ``development``.
@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 
 import jwt
 import yaml
+from sqlalchemy.engine import URL
 
 from shared.infrastructure.env import (
     find_backend_root,
@@ -107,24 +108,96 @@ class Config:
             return val
         return os.environ.get(key, default)
 
+    def _normalize_legacy_database_url(self, raw: str) -> str:
+        stripped = raw.strip()
+        if not stripped:
+            return ""
+        if stripped.startswith("postgresql+asyncpg://"):
+            return stripped
+        if stripped.startswith("postgresql://"):
+            return stripped.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if stripped.startswith("postgres://"):
+            return stripped.replace("postgres://", "postgresql+asyncpg://", 1)
+        raise RuntimeError(
+            "DATABASE_URL must be a PostgreSQL URI. "
+            "Use postgresql://user:pass@host:port/db, or set DB_HOST and related keys."
+        )
+
+    def _reject_transaction_pooler_url(self, url: str) -> None:
+        if ":6543" not in url:
+            return
+        msg = (
+            "DATABASE_URL targets port 6543 (Supabase transaction pooler). "
+            "Use direct Postgres (port 5432). "
+            "asyncpg prepared statements are incompatible with transaction pooling."
+        )
+        if self.is_deployed:
+            raise RuntimeError(msg)
+        logger.warning(msg)
+
+    @property
+    def DB_USER(self) -> str:
+        return self._get_str("DB_USER", "postgres")
+
+    @property
+    def DB_PASSWORD(self) -> str:
+        return self._get_str("DB_PASSWORD", "postgres")
+
+    @property
+    def DB_HOST(self) -> str:
+        return self._get_str("DB_HOST", "127.0.0.1")
+
+    @property
+    def DB_PORT(self) -> int:
+        return int(self._get_str("DB_PORT", "54322"))
+
+    @property
+    def DB_NAME(self) -> str:
+        return self._get_str("DB_NAME", "postgres")
+
+    @property
+    def DB_SSL_MODE(self) -> str:
+        return self._get_str("DB_SSL_MODE", "").strip()
+
     @property
     def DATABASE_URL(self) -> str:
-        default = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-        url = self._get_str("DATABASE_URL", default)
-        if not url.startswith(("postgresql://", "postgres://")):
-            raise RuntimeError(
-                "DATABASE_URL must be a PostgreSQL connection string. "
-                "Set DATABASE_URL=postgresql://user:pass@host:5432/db"
-            )
+        raw = self._get_str("DATABASE_URL", "").strip()
+        if raw:
+            url = self._normalize_legacy_database_url(raw)
+            self._reject_transaction_pooler_url(url)
+            return url
+
+        query: dict[str, str] = {}
+        if self.DB_SSL_MODE:
+            query["sslmode"] = self.DB_SSL_MODE
+
+        url_obj = URL.create(
+            drivername="postgresql+asyncpg",
+            username=self.DB_USER,
+            password=self.DB_PASSWORD,
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
+            query=query,
+        )
+        url = str(url_obj)
+        self._reject_transaction_pooler_url(url)
         return url
 
     @property
-    def db_is_local(self) -> bool:
+    def DATABASE_URL_DISPLAY(self) -> str:
         try:
-            host = urlparse(self.DATABASE_URL).hostname or ""
-            return host in ("localhost", "127.0.0.1", "::1", "db")
+            parsed = urlparse(self.DATABASE_URL)
+            host = parsed.hostname or ""
+            port = parsed.port or 5432
+            path = parsed.path or ""
+            return f"{host}:{port}{path}"
         except Exception:
-            return True
+            return "<unparseable>"
+
+    @property
+    def db_is_local(self) -> bool:
+        return self.DB_HOST in ("localhost", "127.0.0.1", "::1", "db")
 
     @property
     def PG_POOL_MIN(self) -> int:
@@ -449,11 +522,7 @@ class Config:
         return jwt.decode(token, self.JWT_SECRET, algorithms=[self.JWT_ALGORITHM])
 
     def startup_summary(self) -> dict[str, Any]:
-        try:
-            parsed = urlparse(self.DATABASE_URL)
-            db_display = f"{parsed.hostname}:{parsed.port or 5432}{parsed.path}"
-        except Exception:
-            db_display = "<unparseable>"
+        db_display = self.DATABASE_URL_DISPLAY
 
         flags: list[str] = []
         if self.cors_is_permissive:

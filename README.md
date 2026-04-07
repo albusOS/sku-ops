@@ -152,6 +152,6 @@ cp .env.production.example .env   # set JWT_SECRET, CORS_ORIGINS, POSTGRES_PASSW
 docker compose up -d
 ```
 
-Runs PostgreSQL, Redis, and the backend only. Production uses hosted Supabase, Vercel, and your API host — see [Deploy playbook](docs/deploy.md).
+Runs Redis and the backend only (Postgres stays on Supabase). Optional local container smoke check, not how production is deployed. Production: build `backend/Dockerfile` for the API host, Vercel for the frontend, Supabase for the database — see [Deploy playbook](docs/deploy.md).
 
 See [Documentation](docs/README.md) for the full index. Quick links: [Deploy playbook](docs/deploy.md), [Launch Checklist](docs/launch_checklist.md), and [Testing](docs/testing.md).

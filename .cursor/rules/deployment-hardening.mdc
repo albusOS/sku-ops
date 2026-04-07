@@ -19,7 +19,7 @@ There are three environments: `development`, `test`, `production`. There is no s
 ## Backend host (production)
 
 - Ship the same `backend/Dockerfile` image; the host sets listen `PORT` (e.g. `${PORT:-8000}` in CMD).
-- `DATABASE_URL` must use Supabase **direct** connection (port 5432), NOT the pooler (port 6543). asyncpg prepared statements are incompatible with pgbouncer.
+- Postgres must use Supabase **direct** connection (port 5432), NOT the transaction pooler (port 6543). Prefer `DB_USER` and `DB_NAME` in committed `backend/.env`, `DB_HOST` + `DB_PORT=5432` + `DB_SSL_MODE=require` in `backend/.env.production`, with `DB_PASSWORD` from secrets only. A single `DATABASE_URL` secret is still supported for hosts that inject one URI; config normalizes it to `postgresql+asyncpg://`. asyncpg prepared statements are incompatible with pgbouncer transaction mode.
 - `JWT_SECRET` must be the Supabase project's JWT secret — not a random value.
 - `CORS_ORIGINS` must include all stable Vercel domains. `CORS_ORIGIN_REGEX` can match preview deploys.
 - `FRONTEND_URL` needed for Xero OAuth redirects.
@@ -84,11 +84,14 @@ There are three environments: `development`, `test`, `production`. There is no s
 
 ```
 ENV=production
-DATABASE_URL=postgresql://...          # Supabase direct, port 5432
+# Postgres: `DB_USER` + `DB_NAME` in `backend/.env`; `DB_HOST` + pool/SSL in `backend/.env.production`.
+# Set `DB_PASSWORD` only via secrets (`backend/.env.local` or GHA / App Platform), or set DATABASE_URL.
+DB_PASSWORD=<supabase-db-password>
+# Optional legacy: DATABASE_URL=postgresql://... (direct, port 5432; config adds +asyncpg)
 SUPABASE_URL=https://xxx.supabase.co   # Same project URL; JWKS / auth
 JWT_SECRET=<supabase-jwt-secret>       # Must match Supabase project
 CORS_ORIGINS=https://your.vercel.app   # All stable Vercel domains
-REDIS_URL=redis://...                  # Required for WORKERS > 1
+REDIS_URL=redis://...                  # Required for WORKERS > 1 (production: bind DO Managed Valkey in `.do/app.yaml`)
 FRONTEND_URL=https://your.vercel.app   # For OAuth redirects
 WORKERS=2                              # Recommended. Requires Redis.
 ```

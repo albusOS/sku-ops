@@ -8,10 +8,10 @@ All paths are relative to `backend/` unless noted.
 
 | File | Committed | Purpose |
 |------|-----------|---------|
-| `.env` | Yes | Shared non-secret defaults (pool sizes, model names, timeouts). |
-| `.env.development` | Yes | Overrides for local dev (`ENV`, local `DATABASE_URL`, `SUPABASE_URL`, permissive CORS). |
+| `.env` | Yes | Shared non-secret defaults (pool sizes, model names, `DB_USER`, `DB_NAME`, timeouts). |
+| `.env.development` | Yes | Overrides for local dev (`ENV`, `DB_*` Postgres parts, `SUPABASE_URL`, permissive CORS). |
 | `.env.production` | Yes | Non-secret production defaults (e.g. worker count, pool size hints). Hosts still inject real secrets. |
-| `.env.local` | No (gitignored) | Secrets: API keys, JWT secret, publishable Supabase key, etc. Copy from `.env.local.example`. |
+| `.env.local` | No (gitignored) | Secrets: `DB_PASSWORD` (production DB), API keys, JWT secret, Supabase keys, etc. Copy from `.env.local.example`. |
 | `.env.example` | Yes | Documentation template listing all variables. |
 
 Optional **repo root** `.env` (legacy Docker / shared defaults) participates in the same merge as `backend/` files: lowest precedence among files.
@@ -41,6 +41,24 @@ from shared.infrastructure.config import config
 
 db_url = config.DATABASE_URL
 ```
+
+### Database connection (Postgres)
+
+The app uses **SQLAlchemy + asyncpg** only. `config.DATABASE_URL` is always a `postgresql+asyncpg://...` URI suitable for `create_async_engine`.
+
+**Default (recommended):** set the parts in env files or the host platform:
+
+- `DB_USER` and `DB_NAME` in `backend/.env` (shared across dev and production for typical Supabase projects)
+- `DB_HOST`, `DB_PORT`, `DB_SSL_MODE` in `backend/.env.development` / `backend/.env.production` (and local dev `DB_PASSWORD` for the bundled Postgres password)
+- `DB_PASSWORD` in `backend/.env.local` (gitignored) or the deployment platform for hosted Supabase, when it must stay secret
+
+`config.py` builds the URL with `sqlalchemy.engine.URL.create()` so userinfo and query params are escaped correctly.
+
+**Legacy override:** if `DATABASE_URL` is set in the process environment (Docker Compose, CI, or a single secret string on App Platform), it wins. Values may use `postgresql://` or `postgres://`; config rewrites them to `postgresql+asyncpg://`. Do not use port **6543** (Supabase transaction pooler) with asyncpg.
+
+`config.DATABASE_URL_DISPLAY` is a password-safe `host:port/dbname` string for logs and `startup_summary`.
+
+Development “non-local DB” warnings use `config.DB_HOST` (not only the parsed URL), so keep `DB_HOST` aligned with the real server when you rely on the composed URL.
 
 Implementation lives in:
 
@@ -95,7 +113,7 @@ Only variables prefixed with `VITE_` are exposed to the client bundle.
 ## Troubleshooting
 
 - **Wrong DB or ENV in tests:** Ensure [`backend/tests/conftest.py`](../backend/tests/conftest.py) sets `ENV=test` before imports that load `config` (it does).
-- **Expected key missing / wrong value:** If `DATABASE_URL` (or anything else) is set in your shell or `pixi` task env before Python starts, dotenv files cannot override it; unset the shell copy or rely on platform-only injection in deploy.
+- **Expected key missing / wrong value:** If `DATABASE_URL`, `DB_HOST`, or any other key is set in your shell or `pixi` task env before Python starts, dotenv files cannot override it; unset the shell copy or rely on platform-only injection in deploy.
 - **Production CORS crash:** Empty or `*` `CORS_ORIGINS` in production raises at `Config` init; set explicit origins on the host.
 - **Supabase JWKS errors after URL change:** `Config` resets the JWKS client when `SUPABASE_URL` changes between reads (development).
 

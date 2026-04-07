@@ -18,9 +18,26 @@
 #
 # Secret env values (DATABASE_URL, JWT_SECRET, etc.): set real values in the DO
 # dashboard or doctl after first apply — do not commit secrets.
+#
+# Valkey (Redis protocol): provision a DO Managed Valkey cluster in the same region
+# (Valkey 8), then set cluster_name below to that cluster's name (see
+# `doctl databases list`). App Platform injects ${valkey-cache.*} at runtime.
+# If `${valkey-cache.REDIS_URL}` is not offered for Valkey in the UI, use
+# `${valkey-cache.DATABASE_URL}` for REDIS_URL instead (same connection string).
+#
+# Local dev: Redis/Valkey-compatible server is the `redis` service in repo-root
+# `docker-compose.yml` (REDIS_URL=redis://redis:6379). Native dev without Compose
+# can leave REDIS_URL empty (single-worker in-process fallbacks).
 
 name: sku-ops-backend
 region: nyc1
+
+databases:
+  - name: valkey-cache
+    engine: VALKEY
+    version: "8"
+    production: true
+    cluster_name: REPLACE_WITH_VALKEY_CLUSTER_NAME
 
 ingress:
   rules:
@@ -55,6 +72,10 @@ services:
       - key: PORT
         scope: RUN_TIME
         value: "8000"
+      - key: WORKERS
+        scope: RUN_TIME
+        type: GENERAL
+        value: "2"
       - key: DATABASE_URL
         scope: RUN_TIME
         type: SECRET
@@ -78,7 +99,8 @@ services:
         value: REPLACE_WITH_VERCEL_URL
       - key: REDIS_URL
         scope: RUN_TIME
-        value: ""
+        type: GENERAL
+        value: "${valkey-cache.REDIS_URL}"
       - key: SENTRY_DSN
         scope: RUN_TIME
         type: SECRET
