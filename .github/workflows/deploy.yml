@@ -32,28 +32,43 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      backend_build: ${{ steps.filter.outputs.backend_build }}
-      backend_deploy: ${{ steps.filter.outputs.backend_deploy }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      backend_build: ${{ steps.resolve.outputs.backend_build }}
+      backend_deploy: ${{ steps.resolve.outputs.backend_deploy }}
+      frontend: ${{ steps.resolve.outputs.frontend }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@v4
         id: filter
+        if: github.event_name == 'push'
         with:
           base: ${{ github.ref }}
           filters: |
             backend_build:
               - 'backend/**'
+              - '.dockerignore'
               - '.github/workflows/deploy.yml'
             backend_deploy:
               - 'backend/**'
               - '.do/**'
+              - '.dockerignore'
               - '.github/workflows/deploy.yml'
             frontend:
               - 'frontend/**'
               - '.github/workflows/deploy.yml'
+      - name: Resolve outputs
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "backend_build=true" >> "$GITHUB_OUTPUT"
+            echo "backend_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend_build=${{ steps.filter.outputs.backend_build }}" >> "$GITHUB_OUTPUT"
+            echo "backend_deploy=${{ steps.filter.outputs.backend_deploy }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+          fi
 
   ci:
     name: CI gate
