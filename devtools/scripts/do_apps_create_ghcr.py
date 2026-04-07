@@ -6,8 +6,8 @@ App Platform needs pull credentials on the image: ``username:token`` where
 Packages read for the org/user that owns the GHCR package.
 
   export GHCR_REGISTRY_CREDS='your_github_username:ghp_xxxxxxxx'
-  # from repo root, with doctl authenticated (doctl auth init)
-  pixi run uv run --directory backend python devtools/scripts/do_apps_create_ghcr.py
+  # from repo root; uv --directory backend uses backend/ as cwd, so use ../devtools/...
+  pixi run uv run --directory backend python ../devtools/scripts/do_apps_create_ghcr.py
 
 Or make the ``ghcr.io/<owner>/sku-ops-backend`` package public in GitHub
 (Package settings) and run ``doctl apps create --spec .do/app.yaml`` with no
