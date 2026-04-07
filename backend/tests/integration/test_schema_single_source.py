@@ -7,6 +7,14 @@ import pytest
 
 from shared.infrastructure.config import config
 
+
+def _asyncpg_dsn(url: str) -> str:
+    """asyncpg accepts postgres:// or postgresql:// only, not SQLAlchemy's postgresql+asyncpg://."""
+    if url.startswith("postgresql+asyncpg://"):
+        return "postgresql://" + url.removeprefix("postgresql+asyncpg://")
+    return url
+
+
 EXPECTED_TABLES = {
     "organizations",
     "users",
@@ -54,7 +62,7 @@ EXPECTED_TABLES = {
 
 async def _bootstrap() -> dict[str, list[str]]:
     """Inspect the live schema created by the Supabase migration."""
-    conn = await asyncpg.connect(config.DATABASE_URL)
+    conn = await asyncpg.connect(_asyncpg_dsn(config.DATABASE_URL))
     try:
         rows = await conn.fetch(
             "SELECT table_name FROM information_schema.tables "
