@@ -41,9 +41,9 @@ class TestModelRegistry:
 
     def test_all_task_keys_resolve(self):
         """Every known task key must resolve to a non-empty string."""
-        from assistant.agents.core.model_registry import _DEFAULTS, get_model_name
+        from assistant.agents.core.model_registry import KNOWN_MODEL_TASK_KEYS, get_model_name
 
-        for task in _DEFAULTS:
+        for task in KNOWN_MODEL_TASK_KEYS:
             assert get_model_name(task), f"Task {task!r} resolved to empty string"
 
     def test_calc_cost_returns_zero_for_unknown_model(self):

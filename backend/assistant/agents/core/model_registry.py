@@ -30,6 +30,10 @@ _TASK_TO_AGENT_ID: dict[str, str] = {
     "agent:product_analyst": "product_analyst",
 }
 
+KNOWN_MODEL_TASK_KEYS: frozenset[str] = frozenset(_TASK_TO_AGENT_ID) | frozenset(
+    ("infra:synthesis", "infra:classifier")
+)
+
 
 def _default_model_for_task(task: str) -> str:
     if task == "infra:synthesis":

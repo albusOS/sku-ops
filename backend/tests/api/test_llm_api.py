@@ -1,10 +1,11 @@
 """API tests for LLM health, chat status, and assistant endpoints."""
 
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 
 from assistant.application.assistant import chat
+from shared.infrastructure.config import Config
 from tests.helpers.auth import admin_headers
 
 
@@ -13,14 +14,19 @@ class TestHealthAI:
 
     def test_ai_health_unavailable_without_key(self, client):
         with (
-            patch(
-                "api.beta.routers.shared.sub_routers.health.health_router.ANTHROPIC_AVAILABLE",
-                False,
+            patch.object(
+                Config,
+                "ANTHROPIC_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
             ),
-            patch(
-                "api.beta.routers.shared.sub_routers.health.health_router.LLM_SETUP_URL",
-                "https://console.anthropic.com/",
+            patch.object(
+                Config,
+                "OPENROUTER_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
             ),
+            patch.object(Config, "LLM_SETUP_URL", "https://console.anthropic.com/"),
         ):
             response = client.get("/api/beta/shared/health/ai")
         assert response.status_code == 503
@@ -42,13 +48,19 @@ class TestChatStatus:
     async def test_chat_status_unavailable_without_key(self, client):
         headers = admin_headers()
         with (
-            patch(
-                "api.beta.routers.assistant.sub_routers.chat.chat_router.ANTHROPIC_AVAILABLE", False
+            patch.object(
+                Config,
+                "ANTHROPIC_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
             ),
-            patch(
-                "api.beta.routers.assistant.sub_routers.chat.chat_router.LLM_SETUP_URL",
-                "https://console.anthropic.com/",
+            patch.object(
+                Config,
+                "OPENROUTER_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
             ),
+            patch.object(Config, "LLM_SETUP_URL", "https://console.anthropic.com/"),
         ):
             response = client.get("/api/beta/assistant/chat/status", headers=headers)
         assert response.status_code == 200
@@ -61,8 +73,19 @@ class TestChatStatus:
     @pytest.mark.asyncio
     async def test_chat_status_available_when_configured(self, client):
         headers = admin_headers()
-        with patch(
-            "api.beta.routers.assistant.sub_routers.chat.chat_router.ANTHROPIC_AVAILABLE", True
+        with (
+            patch.object(
+                Config,
+                "ANTHROPIC_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                Config,
+                "OPENROUTER_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
+            ),
         ):
             response = client.get("/api/beta/assistant/chat/status", headers=headers)
         assert response.status_code == 200
@@ -78,7 +101,20 @@ class TestAssistant:
 
     @pytest.mark.usefixtures("_db")
     async def test_chat_returns_setup_message_without_key(self):
-        with patch("assistant.application.assistant.ANTHROPIC_AVAILABLE", False):
+        with (
+            patch.object(
+                Config,
+                "ANTHROPIC_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
+            ),
+            patch.object(
+                Config,
+                "OPENROUTER_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
+            ),
+        ):
             result = await chat("How many products?", history=None)
         assert "ANTHROPIC_API_KEY" in result["response"] or "Anthropic" in result["response"]
         assert result["tool_calls"] == []

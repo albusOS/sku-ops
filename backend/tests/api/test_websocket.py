@@ -6,13 +6,14 @@ Tests cover:
 """
 
 import threading
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from shared.infrastructure import event_hub
+from shared.infrastructure.config import Config
 from shared.infrastructure.event_hub import _Hub
 from shared.kernel import events
 from shared.kernel.constants import DEFAULT_ORG_ID
@@ -83,13 +84,17 @@ class TestChatWebSocket:
     def test_chat_without_llm_returns_error(self, client: TestClient):
         token = _make_token()
         with (
-            patch(
-                "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.ANTHROPIC_AVAILABLE",
-                False,
+            patch.object(
+                Config,
+                "ANTHROPIC_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
             ),
-            patch(
-                "api.beta.routers.assistant.sub_routers.ws_chat.ws_chat_router.OPENROUTER_AVAILABLE",
-                False,
+            patch.object(
+                Config,
+                "OPENROUTER_AVAILABLE",
+                new_callable=PropertyMock,
+                return_value=False,
             ),
             client.websocket_connect(f"/api/beta/assistant/ws/chat?token={token}") as ws,
         ):
