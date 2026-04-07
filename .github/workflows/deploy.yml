@@ -6,6 +6,7 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - ".do/**"
       - ".github/workflows/deploy.yml"
 
 # Reusable ci.yml needs pull-requests:read (paths-filter). Callers cap child permissions.
@@ -29,7 +30,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
+      backend_build: ${{ steps.filter.outputs.backend_build }}
+      backend_deploy: ${{ steps.filter.outputs.backend_deploy }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v6
@@ -40,8 +42,12 @@ jobs:
         with:
           base: ${{ github.ref }}
           filters: |
-            backend:
+            backend_build:
               - 'backend/**'
+              - '.github/workflows/deploy.yml'
+            backend_deploy:
+              - 'backend/**'
+              - '.do/**'
               - '.github/workflows/deploy.yml'
             frontend:
               - 'frontend/**'
@@ -56,14 +62,20 @@ jobs:
   build-backend:
     name: Build & push backend image
     needs: [changes, ci]
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend_build == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.sha.outputs.short }}
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Image tag (short SHA)
+        id: sha
+        run: echo "short=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -97,19 +109,56 @@ jobs:
 
   deploy-backend:
     name: Deploy backend (App Platform)
-    needs: [build-backend]
+    needs: [changes, ci, build-backend]
+    if: |
+      needs.changes.outputs.backend_deploy == 'true'
+      && needs.ci.result == 'success'
+      && (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped')
     runs-on: ubuntu-latest
     environment: backend_digital_ocean_deployment
+    env:
+      PRIVATE_DB_PASSWORD: ${{ secrets.PRIVATE_DB_PASSWORD }}
+      PRIVATE_JWT_SECRET: ${{ secrets.PRIVATE_JWT_SECRET }}
+      PRIVATE_SENTRY_DSN: ${{ secrets.PRIVATE_SENTRY_DSN }}
+      PRIVATE_ANTHROPIC_API_KEY: ${{ secrets.PRIVATE_ANTHROPIC_API_KEY }}
+      PRIVATE_OPENROUTER_API_KEY: ${{ secrets.PRIVATE_OPENROUTER_API_KEY }}
+      PRIVATE_OPENAI_API_KEY: ${{ secrets.PRIVATE_OPENAI_API_KEY }}
+      PRIVATE_XERO_CLIENT_SECRET: ${{ secrets.PRIVATE_XERO_CLIENT_SECRET }}
 
     steps:
+      - uses: actions/checkout@v6
+
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Trigger App Platform deploy
+      - name: Resolve image tag
+        id: resolve_tag
         run: |
-          doctl apps create-deployment ${{ secrets.DIGITALOCEAN_APP_ID }} --force-rebuild --wait
+          if [ "${{ needs.build-backend.result }}" = "success" ] && [ -n "$IMAGE_TAG" ]; then
+            echo "tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          IMAGE_TAG: ${{ needs.build-backend.outputs.image_tag }}
+
+      - name: Render App Platform spec
+        env:
+          IMAGE_TAG: ${{ steps.resolve_tag.outputs.tag }}
+        run: |
+          export IMAGE_TAG
+          export PRIVATE_DB_PASSWORD PRIVATE_JWT_SECRET PRIVATE_SENTRY_DSN
+          export PRIVATE_ANTHROPIC_API_KEY PRIVATE_OPENROUTER_API_KEY PRIVATE_OPENAI_API_KEY
+          export PRIVATE_XERO_CLIENT_SECRET
+          envsubst '$IMAGE_TAG $PRIVATE_DB_PASSWORD $PRIVATE_JWT_SECRET $PRIVATE_SENTRY_DSN $PRIVATE_ANTHROPIC_API_KEY $PRIVATE_OPENROUTER_API_KEY $PRIVATE_OPENAI_API_KEY $PRIVATE_XERO_CLIENT_SECRET' \
+            < .do/app.yaml > .do/app.rendered.yaml
+
+      - name: Apply spec and deploy
+        run: |
+          doctl apps update "${{ secrets.DIGITALOCEAN_APP_ID }}" --spec .do/app.rendered.yaml
+          doctl apps create-deployment "${{ secrets.DIGITALOCEAN_APP_ID }}" --wait
 
   deploy-frontend:
     name: Deploy frontend (Vercel)

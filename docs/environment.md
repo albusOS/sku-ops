@@ -12,8 +12,8 @@ All paths are relative to `backend/` unless noted.
 |------|-----------|---------|
 | `.env` | Yes | Shared non-secret defaults (`PUBLIC_DB_USER`, `PUBLIC_DB_NAME`, pool sizes, model names, timeouts). |
 | `.env.development` | Yes | Local dev (`PUBLIC_ENV`, `PUBLIC_DB_*`, `PUBLIC_SUPABASE_URL`, permissive `PUBLIC_CORS_ORIGINS`). |
-| `.env.production` | Yes | Production non-secret hints (workers, pool sizes). Hosts inject secrets separately. |
-| `.env.local` | No (gitignored) | Secrets (`PRIVATE_*`): DB password, API keys, `PRIVATE_JWT_SECRET`, etc. Copy from `.env.local.example`. |
+| `.env.production` | Yes | Production **non-secrets** only (`PUBLIC_*`): DB host/port/SSL, Supabase URL, CORS, frontend URL, Xero client id / redirect, workers, pool sizes. Baked into the DigitalOcean image. |
+| `.env.local` | No (gitignored) | Local secrets (`PRIVATE_*`). On App Platform, the same keys are set in GitHub Environment `backend_digital_ocean_deployment` and merged into the deploy spec. |
 | `.env.example` | Yes | Documentation template listing all variables. |
 
 Optional **repo root** `.env` (legacy Docker / shared defaults) participates in the same merge as `backend/` files: lowest precedence among files.
@@ -85,6 +85,16 @@ using the same rules as startup (merge with later files winning; **never** overw
 ### Production caching
 
 When `PUBLIC_ENV=production`, string lookups from `os.environ` are **cached** on first read per key inside `Config` for performance. Mutating `os.environ` at runtime in production will not be visible through cached keys.
+
+## Production (DigitalOcean App Platform)
+
+1. **Non-secrets** live in committed [`backend/.env.production`](../backend/.env.production). They are **copied into the Docker image** with the rest of `backend/` (`backend/Dockerfile` copies the tree). Edit that file for production URLs, CORS, Supabase project host, Xero app id / redirect URI, pool sizes, etc., then merge to `main` so CI rebuilds the image.
+2. **Secrets** (`PRIVATE_*`) are **not** in the image. They are stored in the GitHub Environment **`backend_digital_ocean_deployment`** and injected at deploy time: the workflow runs `envsubst` on [`.do/app.yaml`](../.do/app.yaml) and applies the result with `doctl apps update --spec`.
+3. **`PUBLIC_REDIS_URL`** for production comes from the **Valkey database component** in the app spec (bindable `${valkey-cache.DATABASE_URL}`), not from `.env.production`.
+4. **Changing a non-secret:** update `backend/.env.production`, push; backend path filters trigger a new image and deploy.
+5. **Changing a secret:** update the GitHub Environment secret, push (or re-run the deploy workflow); the rendered spec picks up the new value on the next `apps update`.
+
+Initial app creation with a **private** GHCR image still uses [`devtools/scripts/do_apps_create_ghcr.py`](../devtools/scripts/do_apps_create_ghcr.py); if the committed file is still a template, render it first (same `envsubst` variable list as in `.github/workflows/deploy.yml`) or substitute `IMAGE_TAG` / secrets manually.
 
 ## Frontend (Vite)
 

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Create a DigitalOcean App from `.do/app.yaml` when GHCR image is private.
+"""Create a DigitalOcean App from the App Platform spec when GHCR image is private.
+
+The committed ``.do/app.yaml`` is a **deploy template**: it contains ``$IMAGE_TAG``
+and ``$PRIVATE_*`` placeholders for CI. For a one-off ``doctl apps create``, render
+first (same ``envsubst`` variable list as ``.github/workflows/deploy.yml``) or
+replace placeholders with literal values, then point ``--spec`` at the rendered file.
 
 App Platform needs pull credentials on the image: ``username:token`` where
 ``token`` is a GitHub PAT with ``read:packages`` (classic) or fine-grained with
@@ -11,7 +16,7 @@ Packages read for the org/user that owns the GHCR package.
 
 Or make the ``ghcr.io/<owner>/sku-ops-backend`` package public in GitHub
 (Package settings) and run ``doctl apps create --spec .do/app.yaml`` with no
-registry_credentials.
+registry_credentials (still requires a renderable spec without ``$`` placeholders).
 """
 
 from __future__ import annotations

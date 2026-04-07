@@ -1,33 +1,17 @@
-# DigitalOcean App Platform spec
+# DigitalOcean App Platform spec (template for CI).
 # Docs: https://docs.digitalocean.com/products/app-platform/reference/app-spec/
 #
-# The backend image is built by GitHub Actions and pushed to GHCR.
-# App Platform pulls the image and deploys it.
+# Deploy: GitHub Actions renders this file with envsubst (PRIVATE_* + IMAGE_TAG only),
+# then: doctl apps update <app-id> --spec .do/app.rendered.yaml
 #
-# Create / update the app:
-#   doctl apps create --spec .do/app.yaml
-#   doctl apps update <app-id> --spec .do/app.yaml
+# Non-secrets live in backend/.env.production (baked into the Docker image). This file
+# only injects secrets and PUBLIC_REDIS_URL from the Valkey database binding.
 #
-# GHCR pull auth: if the package is private, App Platform needs
-# registry_credentials (see image.registry_credentials in App spec reference).
-# From repo root (PAT must include read:packages; gh auth token often lacks it):
-#   export GHCR_REGISTRY_CREDS='github_username:ghp_xxx'
-#   pixi run uv run --directory backend python devtools/scripts/do_apps_create_ghcr.py
-# Or make ghcr.io/<owner>/sku-ops-backend public in GitHub Package settings, then
-# plain doctl create works without credentials. DO encrypts credentials on first apply.
+# GHCR pull auth for private packages: devtools/scripts/do_apps_create_ghcr.py
+# or make ghcr.io/<owner>/sku-ops-backend public.
 #
-# Secret env values (PRIVATE_DATABASE_URL, PRIVATE_JWT_SECRET, etc.): set real values
-# in the DO dashboard or doctl after first apply — do not commit secrets.
-#
-# Valkey (Redis protocol): provision a DO Managed Valkey cluster in the same region
-# (Valkey 8), then set cluster_name below to that cluster's name (see
-# `doctl databases list`). App Platform injects ${valkey-cache.*} at runtime.
-# If `${valkey-cache.REDIS_URL}` is not offered for Valkey in the UI, use
-# `${valkey-cache.DATABASE_URL}` for PUBLIC_REDIS_URL instead (same connection string).
-#
-# Local dev: Redis/Valkey-compatible server is the `redis` service in repo-root
-# `docker-compose.yml` (PUBLIC_REDIS_URL=redis://redis:6379). Native dev without Compose
-# can leave PUBLIC_REDIS_URL empty (single-worker in-process fallbacks).
+# Valkey: DO dev-tier (`production: false`) — App Platform provisions the cluster.
+# Later: use `production: true` and `cluster_name: <doctl-databases-list-name>` for managed Valkey.
 
 name: sku-ops-backend
 region: nyc1
@@ -36,8 +20,7 @@ databases:
   - name: valkey-cache
     engine: VALKEY
     version: "8"
-    production: true
-    cluster_name: REPLACE_WITH_VALKEY_CLUSTER_NAME
+    production: false
 
 ingress:
   rules:
@@ -51,10 +34,9 @@ services:
   - name: api
     image:
       registry_type: GHCR
-      # Must match GitHub org/user that owns the GHCR package (lowercase), same as github.repository_owner in deploy.yml.
       registry: albusos
       repository: sku-ops-backend
-      tag: latest
+      tag: "$IMAGE_TAG"
     instance_count: 1
     instance_size_slug: basic-xxs
     http_port: 8000
@@ -66,65 +48,35 @@ services:
       success_threshold: 1
       failure_threshold: 3
     envs:
-      - key: PUBLIC_ENV
-        scope: RUN_TIME
-        value: production
-      - key: PORT
-        scope: RUN_TIME
-        value: "8000"
-      - key: PUBLIC_WORKERS
-        scope: RUN_TIME
-        type: GENERAL
-        value: "2"
-      - key: PRIVATE_DATABASE_URL
+      - key: PRIVATE_DB_PASSWORD
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
-      - key: PUBLIC_SUPABASE_URL
-        scope: RUN_TIME
-        type: GENERAL
-        value: REPLACE_VIA_DASHBOARD
+        value: "$PRIVATE_DB_PASSWORD"
       - key: PRIVATE_JWT_SECRET
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
-      - key: PUBLIC_CORS_ORIGINS
-        scope: RUN_TIME
-        value: REPLACE_WITH_VERCEL_DOMAINS
-      - key: PUBLIC_CORS_ORIGIN_REGEX
-        scope: RUN_TIME
-        value: ""
-      - key: PUBLIC_FRONTEND_URL
-        scope: RUN_TIME
-        value: REPLACE_WITH_VERCEL_URL
-      - key: PUBLIC_REDIS_URL
-        scope: RUN_TIME
-        type: GENERAL
-        value: "${valkey-cache.REDIS_URL}"
+        value: "$PRIVATE_JWT_SECRET"
       - key: PRIVATE_SENTRY_DSN
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
+        value: "$PRIVATE_SENTRY_DSN"
       - key: PRIVATE_ANTHROPIC_API_KEY
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
+        value: "$PRIVATE_ANTHROPIC_API_KEY"
       - key: PRIVATE_OPENROUTER_API_KEY
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
+        value: "$PRIVATE_OPENROUTER_API_KEY"
       - key: PRIVATE_OPENAI_API_KEY
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
-      - key: PUBLIC_XERO_CLIENT_ID
-        scope: RUN_TIME
-        type: GENERAL
-        value: REPLACE_VIA_DASHBOARD
+        value: "$PRIVATE_OPENAI_API_KEY"
       - key: PRIVATE_XERO_CLIENT_SECRET
         scope: RUN_TIME
         type: SECRET
-        value: REPLACE_VIA_DASHBOARD
-      - key: PUBLIC_XERO_REDIRECT_URI
+        value: "$PRIVATE_XERO_CLIENT_SECRET"
+      - key: PUBLIC_REDIS_URL
         scope: RUN_TIME
-        value: REPLACE_WITH_CALLBACK_URL
+        type: GENERAL
+        value: "${valkey-cache.DATABASE_URL}"
