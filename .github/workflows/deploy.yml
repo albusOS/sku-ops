@@ -8,6 +8,12 @@ on:
       - "frontend/**"
       - ".github/workflows/deploy.yml"
 
+# Reusable ci.yml needs pull-requests:read (paths-filter). Callers cap child permissions.
+permissions:
+  contents: read
+  pull-requests: read
+  packages: write
+
 concurrency:
   group: deploy-prod
   cancel-in-progress: false
