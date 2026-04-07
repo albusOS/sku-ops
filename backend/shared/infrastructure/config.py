@@ -191,7 +191,7 @@ class Config:
 
         query: dict[str, str] = {}
         if self.DB_SSL_MODE:
-            query["sslmode"] = self.DB_SSL_MODE
+            query["ssl"] = self.DB_SSL_MODE
 
         url_obj = URL.create(
             drivername="postgresql+asyncpg",
