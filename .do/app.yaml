@@ -10,8 +10,8 @@
 # GHCR pull auth for private packages: devtools/scripts/do_apps_create_ghcr.py
 # or make ghcr.io/<owner>/sku-ops-backend public.
 #
-# Valkey: DO dev-tier (`production: false`) — App Platform provisions the cluster.
-# Later: use `production: true` and `cluster_name: <doctl-databases-list-name>` for managed Valkey.
+# Valkey: production managed DBaaS — `cluster_name` must be an existing DO Valkey cluster
+# (App Platform does not provision production Valkey from spec alone). See databases valkey-cache.
 
 name: sku-ops-backend
 region: nyc1
@@ -20,7 +20,8 @@ databases:
   - name: valkey-cache
     engine: VALKEY
     version: "8"
-    production: false
+    production: true
+    cluster_name: sku-ops-backend-valkey
 
 ingress:
   rules:
