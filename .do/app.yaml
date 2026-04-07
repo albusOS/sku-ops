@@ -51,6 +51,10 @@ services:
       success_threshold: 1
       failure_threshold: 3
     envs:
+      - key: PUBLIC_ENV
+        scope: RUN_TIME
+        type: GENERAL
+        value: "production"
       - key: PRIVATE_DB_PASSWORD
         scope: RUN_TIME
         type: SECRET
