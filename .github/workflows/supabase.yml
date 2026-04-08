@@ -106,8 +106,8 @@ jobs:
       - name: Run SQLModel generation and DB tests
         run: >
           pixi run uv run --directory backend pytest
-          backend/tests/unit/test_sqlmodel_generation/
-          backend/tests/integration/test_sqlmodel_db/
+          tests/unit/test_sqlmodel_generation/
+          tests/integration/test_sqlmodel_db/
           -v
 
       - name: Stop Supabase
