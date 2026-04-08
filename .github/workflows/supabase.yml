@@ -117,11 +117,12 @@ jobs:
       github.ref == 'refs/heads/main'
       && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    environment: supabase_production
+    environment: supabase_deployment
 
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+      # Supabase CLI expects these names; values come from GitHub Environment secrets.
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.PRIVATE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PRIVATE_DB_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v6
@@ -132,5 +133,5 @@ jobs:
 
       - name: Link and push migrations
         run: |
-          supabase link --project-ref "${{ secrets.PRODUCTION_PROJECT_ID }}"
+          supabase link --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}"
           supabase db push

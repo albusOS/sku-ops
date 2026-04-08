@@ -84,13 +84,13 @@ The workflow **starts** on push / PR when any of these paths change:
 
 ### Supabase production secrets
 
-Configure GitHub Environment **`supabase_production`** with:
+Configure GitHub Environment **`supabase_deployment`** (same as `environment:` in [`.github/workflows/supabase.yml`](../../../.github/workflows/supabase.yml)). Secrets (see [`docs/environment.md` - Supabase migrations](../../../docs/environment.md#github-actions-supabase-migrations)):
 
-- `SUPABASE_ACCESS_TOKEN`
-- `PRODUCTION_DB_PASSWORD` (Supabase CLI maps this to `SUPABASE_DB_PASSWORD` in the workflow)
-- `PRODUCTION_PROJECT_ID` (project ref passed to `supabase link --project-ref`)
+- `PRIVATE_ACCESS_TOKEN` (Supabase account access token for the CLI; workflow sets `SUPABASE_ACCESS_TOKEN`)
+- `PRIVATE_DB_PASSWORD` (production database password; workflow sets `SUPABASE_DB_PASSWORD`)
+- `PUBLIC_PROJECT_ID` (project ref for `supabase link --project-ref`; safe as a variable but stored as a secret for one place to configure)
 
-Until this environment exists, `db-push` will fail at approval or secret resolution; `typegen-check` and `db-test` still run.
+Until this environment and secrets exist, `db-push` will fail at approval or secret resolution; `typegen-check` and `db-test` still run.
 
 ## Flow diagrams
 

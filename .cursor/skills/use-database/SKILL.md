@@ -116,7 +116,7 @@ When a Supabase migration adds/changes tables or columns, the SQLModel types mus
 
 - After adding or modifying a file in `supabase/migrations/`.
 - After changing `schema_config.py` (adding a new Postgres schema).
-- **Supabase** workflow ([`supabase.yml`](../../../.github/workflows/supabase.yml)) checks for drift on push/PR to `main`/`dev` and runs SQLModel tests; on `main` it can push migrations when the `supabase_production` environment is configured.
+- **Supabase** workflow ([`supabase.yml`](../../../.github/workflows/supabase.yml)) checks for drift on push/PR to `main`/`dev` and runs SQLModel tests; on `main` it can push migrations when the **`supabase_deployment`** environment has `PRIVATE_ACCESS_TOKEN`, `PRIVATE_DB_PASSWORD`, and `PUBLIC_PROJECT_ID` (workflow maps the first two to `SUPABASE_*` for the CLI).
 
 ### How to regenerate
 

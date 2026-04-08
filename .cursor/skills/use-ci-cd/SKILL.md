@@ -39,7 +39,7 @@ On `workflow_dispatch`, all deploy flags forced `true` (full pipeline).
 
 `typegen-check` -> `db-test` -> `db-push` (only on `main` via `push` or `workflow_dispatch`, not on PRs)
 
-Does not gate CD; runs in parallel when paths match. Production migration push requires GitHub Environment `supabase_production` secrets (see overview).
+Does not gate CD; runs in parallel when paths match. Production migration push requires GitHub Environment **`supabase_deployment`** secrets (`PRIVATE_ACCESS_TOKEN`, `PRIVATE_DB_PASSWORD`, `PUBLIC_PROJECT_ID`; see overview).
 
 ## Commands
 

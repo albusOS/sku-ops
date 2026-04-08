@@ -98,6 +98,20 @@ When `PUBLIC_ENV=production`, string lookups from `os.environ` are **cached** on
 
 Initial app creation with a **private** GHCR image still uses [`devtools/scripts/do_apps_create_ghcr.py`](../devtools/scripts/do_apps_create_ghcr.py); if the committed file is still a template, render it first (same `envsubst` variable list as in `.github/workflows/cd.yml`) or substitute `IMAGE_TAG` / secrets manually.
 
+## GitHub Actions: Supabase migrations
+
+The workflow [`.github/workflows/supabase.yml`](../.github/workflows/supabase.yml) validates SQLModel codegen, runs SQLModel-focused tests, and (on `refs/heads/main` only) runs `supabase link` + `supabase db push` against your hosted Supabase project.
+
+These values are **not** loaded by the backend `Config` / dotenv stack at runtime. They live only in a dedicated GitHub **Environment** so `db-push` can authenticate the Supabase CLI.
+
+| GitHub Environment | Secret name | Meaning |
+|--------------------|------------|---------|
+| **`supabase_deployment`** | `PRIVATE_ACCESS_TOKEN` | Supabase **account** access token (dashboard: account / access tokens). Used by the workflow as `SUPABASE_ACCESS_TOKEN` for the CLI. Not the project publishable key or `service_role` JWT. |
+| | `PRIVATE_DB_PASSWORD` | Hosted Postgres **database password** for that project (same kind of secret as production `PRIVATE_DB_PASSWORD` for the app). Workflow sets `SUPABASE_DB_PASSWORD` for the CLI. |
+| | `PUBLIC_PROJECT_ID` | Supabase **project ref** (from the project URL: `https://supabase.com/dashboard/project/<ref>`). Passed to `supabase link --project-ref`. Naming matches the app’s `PUBLIC_*` convention for non-JWT config; stored as an environment **secret** so deploy credentials stay in one place. |
+
+Until `supabase_deployment` exists with all three secrets, earlier jobs in that workflow (`typegen-check`, `db-test`) still run; the **`db-push`** job fails when secrets are missing or wrong.
+
 ## Frontend (Vite)
 
 Vite loads, in order (see [Vite env docs](https://vitejs.dev/guide/env-and-mode)):
