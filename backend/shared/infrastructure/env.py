@@ -1,15 +1,16 @@
 """Layered dotenv loading for backend processes.
 
-File merge order (later files override earlier **for keys not set by the process**):
+**File precedence (lowest to highest, each step overwrites duplicate keys):**
+``repo/.env`` < ``backend/.env`` < ``backend/.env.development|production`` <
+``backend/.env.local``. So **``.env.local`` beats the profile file, which beats
+``backend/.env``** (repo ``.env`` is optional and below ``backend/.env``).
 
-1. Repo root ``.env`` (optional)
-2. ``backend/.env``
-3. ``backend/.env.development`` or ``backend/.env.production``
-   (which file is chosen from process ``PUBLIC_ENV`` in ``config`` before the first dotenv merge)
-4. ``backend/.env.local``
+The profile filename (``development`` vs ``production``) is chosen from process
+``PUBLIC_ENV`` before the first merge (see ``load_backend_dotenv_initial`` caller
+in ``shared.infrastructure.config``).
 
-Keys already present in ``os.environ`` when this module is first imported (platform,
-shell, CI, Docker, ``pixi``) are never overwritten by dotenv files.
+Keys already in ``os.environ`` when this module is first imported (platform, shell,
+CI, Docker, ``pixi``) are never overwritten by any dotenv file (``PROCESS_ENV_KEYS``).
 
 ``PUBLIC_ENV=test`` uses the same filename bundle as development (``.env.development``)
 so CI ``os.environ`` wins when set before import.

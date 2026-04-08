@@ -11,7 +11,7 @@ All paths are relative to `backend/` unless noted.
 | File | Committed | Purpose |
 |------|-----------|---------|
 | `.env` | Yes | Shared non-secret defaults (`PUBLIC_DB_USER`, `PUBLIC_DB_NAME`, pool sizes, model names, timeouts). |
-| `.env.development` | Yes | Local dev (`PUBLIC_ENV`, `PUBLIC_DB_*`, `PUBLIC_SUPABASE_URL`, permissive `PUBLIC_CORS_ORIGINS`). |
+| `.env.development` | Yes | Local dev overrides (`PUBLIC_DB_*`, `PUBLIC_SUPABASE_URL`, permissive `PUBLIC_CORS_ORIGINS`). |
 | `.env.production` | Yes | Production **non-secrets** only (`PUBLIC_*`): DB host/port/SSL, Supabase URL, CORS, frontend URL, Xero client id / redirect, workers, pool sizes. Baked into the DigitalOcean image. |
 | `.env.local` | No (gitignored) | Local secrets (`PRIVATE_*`). On App Platform, the same keys are set in GitHub Environment `backend_digital_ocean_deployment` and merged into the deploy spec. |
 | `.env.example` | Yes | Documentation template listing all variables. |
@@ -20,17 +20,19 @@ Optional **repo root** `.env` (legacy Docker / shared defaults) participates in 
 
 ### Load order and precedence
 
-On import, `shared.infrastructure.env` snapshots **process** keys (`PROCESS_ENV_KEYS`: whatever is already in `os.environ` before that module body runs). Dotenv files are **merged in memory** in this order (each step overwrites the same key from earlier files):
+**Among dotenv files only (highest wins):** `backend/.env.local` > `backend/.env.development` or `backend/.env.production` > `backend/.env` > repo root `.env` (optional legacy layer).
+
+On import, `shared.infrastructure.env` snapshots **process** keys (`PROCESS_ENV_KEYS`: whatever is already in `os.environ` before that module body runs). Files are **merged in memory** low-to-high (each step overwrites the same key from earlier files):
 
 1. Repo root `.env` (if present)
 2. `backend/.env`
-3. `backend/.env.development` or `backend/.env.production` (from runtime `PUBLIC_ENV` when `load_backend_dotenv_initial` runs)
+3. `backend/.env.development` or `backend/.env.production` (which file is loaded depends on process `PUBLIC_ENV` when `load_backend_dotenv_initial` runs)
 4. `backend/.env.local`
 
 Only keys **not** in `PROCESS_ENV_KEYS` are written to `os.environ`. So:
 
 - **Platform / shell / CI / `pixi` / Docker** entries present before the interpreter loads `env.py` always win; no dotenv file can replace them.
-- Among files only, **later wins**: `.env.local` overrides `.env.development` / `.env.production`, which overrides `backend/.env`, which overrides repo `.env`.
+- Among files only, **later wins**, matching the priority above.
 
 `PUBLIC_ENV=test` (pytest) uses the **same dotenv profile as development** (`.env.development`) for file names, but `PUBLIC_ENV` stays `test` if it was already set in the environment before import.
 
