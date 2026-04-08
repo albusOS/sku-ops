@@ -1,6 +1,6 @@
 # CI / CD / Supabase
 
-This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)), **CD** ([`.github/workflows/cd.yml`](../../../.github/workflows/cd.yml)), and **Supabase** ([`.github/workflows/supabase.yml`](../../../.github/workflows/supabase.yml)). Operational deploy details (secrets, infra) stay in [deploy.md](../../../docs/deploy.md) and [environment.md](../../../docs/environment.md).
+This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)), **CD** ([`.github/workflows/cd.yml`](../../../.github/workflows/cd.yml)), and **Supabase** ([`.github/workflows/supabase.yml`](../../../.github/workflows/supabase.yml)). Operational deploy details (secrets, infra) stay in [deploy.md](../../../docs/deploy.md) and [environment configuration](../../use-environment/references/overview.md).
 
 ## Goals
 
@@ -84,7 +84,7 @@ The workflow **starts** on push / PR when any of these paths change:
 
 ### Supabase production secrets
 
-Configure GitHub Environment **`supabase_deployment`** (same as `environment:` in [`.github/workflows/supabase.yml`](../../../.github/workflows/supabase.yml)). Secrets (see [`docs/environment.md` - Supabase migrations](../../../docs/environment.md#github-actions-supabase-migrations)):
+Configure GitHub Environment **`supabase_deployment`** (same as `environment:` in [`.github/workflows/supabase.yml`](../../../.github/workflows/supabase.yml)). Secrets (see [use-environment: Supabase migrations](../../use-environment/references/overview.md#github-actions-supabase-migrations)):
 
 - `PRIVATE_ACCESS_TOKEN` (Supabase account access token for the CLI; workflow sets `SUPABASE_ACCESS_TOKEN`)
 - `PRIVATE_DB_PASSWORD` (production database password; workflow sets `SUPABASE_DB_PASSWORD`)

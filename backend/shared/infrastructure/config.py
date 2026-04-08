@@ -9,7 +9,7 @@ Use the singleton:
 ``PUBLIC_ENV`` controls behavior: ``development`` | ``test`` | ``production``.
 When unset before layered dotenv load, defaults to ``development``.
 
-Layered env files (see ``docs/environment.md``): ``backend/.env``,
+Layered env files (see ``.cursor/skills/use-environment/references/overview.md``): ``backend/.env``,
 ``backend/.env.{development|production}``, ``backend/.env.local``.
 
 Hot reload: with ``PUBLIC_ENV=development``, dotenv files are re-applied on a

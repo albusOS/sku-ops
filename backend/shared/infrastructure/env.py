@@ -15,7 +15,7 @@ CI, Docker, ``pixi``) are never overwritten by any dotenv file (``PROCESS_ENV_KE
 ``PUBLIC_ENV=test`` uses the same filename bundle as development (``.env.development``)
 so CI ``os.environ`` wins when set before import.
 
-See ``docs/environment.md`` in the repo root.
+See ``.cursor/skills/use-environment/references/overview.md``.
 """
 
 from __future__ import annotations

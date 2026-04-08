@@ -69,8 +69,8 @@ Development “non-local DB” warnings use `config.DB_HOST` (not only the parse
 
 Implementation lives in:
 
-- [`backend/shared/infrastructure/env.py`](../backend/shared/infrastructure/env.py) - finding `backend/`, layered `dotenv` merge + `PROCESS_ENV_KEYS`, debounced dev reload.
-- [`backend/shared/infrastructure/config.py`](../backend/shared/infrastructure/config.py) - `Config` class, validation, JWT decode, `startup_summary`.
+- [`backend/shared/infrastructure/env.py`](../../../../backend/shared/infrastructure/env.py) - finding `backend/`, layered `dotenv` merge + `PROCESS_ENV_KEYS`, debounced dev reload.
+- [`backend/shared/infrastructure/config.py`](../../../../backend/shared/infrastructure/config.py) - `Config` class, validation, JWT decode, `startup_summary`.
 
 ### Hot reload (development only)
 
@@ -92,17 +92,17 @@ When `PUBLIC_ENV=production`, string lookups from `os.environ` are **cached** on
 
 ## Production (DigitalOcean App Platform)
 
-1. **Non-secrets** live in committed [`backend/.env.production`](../backend/.env.production). They are **copied into the Docker image** with the rest of `backend/` (`backend/Dockerfile` copies the tree). Edit that file for production URLs, CORS, Supabase project host, Xero app id / redirect URI, pool sizes, etc., then merge to `main` so CI rebuilds the image.
-2. **Secrets** (`PRIVATE_*`) are **not** in the image. They are stored in the GitHub Environment **`backend_digital_ocean_deployment`** and injected at deploy time: the workflow runs `envsubst` on [`.do/app.yaml`](../.do/app.yaml) and applies the result with `doctl apps update --spec`. Names and meanings for that environment (and the Vercel deploy environment) are in [GitHub Actions: CD deployments](#github-actions-cd-deployments) below.
+1. **Non-secrets** live in committed [`backend/.env.production`](../../../../backend/.env.production). They are **copied into the Docker image** with the rest of `backend/` (`backend/Dockerfile` copies the tree). Edit that file for production URLs, CORS, Supabase project host, Xero app id / redirect URI, pool sizes, etc., then merge to `main` so CI rebuilds the image.
+2. **Secrets** (`PRIVATE_*`) are **not** in the image. They are stored in the GitHub Environment **`backend_digital_ocean_deployment`** and injected at deploy time: the workflow runs `envsubst` on [`.do/app.yaml`](../../../../.do/app.yaml) and applies the result with `doctl apps update --spec`. Names and meanings for that environment (and the Vercel deploy environment) are in [GitHub Actions: CD deployments](#github-actions-cd-deployments) below.
 3. **`PUBLIC_REDIS_URL`** for production comes from the **Valkey database component** in the app spec (bindable `${valkey-cache.DATABASE_URL}`), not from `.env.production`.
 4. **Changing a non-secret:** update `backend/.env.production`, push; backend path filters trigger a new image and deploy.
 5. **Changing a secret:** update the GitHub Environment secret, push (or re-run the deploy workflow); the rendered spec picks up the new value on the next `apps update`.
 
-Initial app creation with a **private** GHCR image still uses [`devtools/scripts/do_apps_create_ghcr.py`](../devtools/scripts/do_apps_create_ghcr.py); if the committed file is still a template, render it first (same `envsubst` variable list as in `.github/workflows/cd.yml`) or substitute `IMAGE_TAG` / secrets manually.
+Initial app creation with a **private** GHCR image still uses [`devtools/scripts/do_apps_create_ghcr.py`](../../../../devtools/scripts/do_apps_create_ghcr.py); if the committed file is still a template, render it first (same `envsubst` variable list as in `.github/workflows/cd.yml`) or substitute `IMAGE_TAG` / secrets manually.
 
 ## GitHub Actions: Supabase migrations
 
-The workflow [`.github/workflows/supabase.yml`](../.github/workflows/supabase.yml) validates SQLModel codegen, runs SQLModel-focused tests, and (on `refs/heads/main` only) runs `supabase link` + `supabase db push` against your hosted Supabase project.
+The workflow [`.github/workflows/supabase.yml`](../../../../.github/workflows/supabase.yml) validates SQLModel codegen, runs SQLModel-focused tests, and (on `refs/heads/main` only) runs `supabase link` + `supabase db push` against your hosted Supabase project.
 
 These values are **not** loaded by the backend `Config` / dotenv stack at runtime. They live only in a dedicated GitHub **Environment** so `db-push` can authenticate the Supabase CLI.
 
@@ -116,11 +116,11 @@ Until `supabase_deployment` exists with all three secrets, earlier jobs in that 
 
 ## GitHub Actions: CD deployments
 
-The workflow [`.github/workflows/cd.yml`](../.github/workflows/cd.yml) runs on `main` (path-filtered) after the reusable CI gate. Deploy jobs read secrets only from GitHub **Environments**; those values are not part of the backend dotenv stack on developer machines.
+The workflow [`.github/workflows/cd.yml`](../../../../.github/workflows/cd.yml) runs on `main` (path-filtered) after the reusable CI gate. Deploy jobs read secrets only from GitHub **Environments**; those values are not part of the backend dotenv stack on developer machines.
 
 ### `backend_digital_ocean_deployment`
 
-Used by **Deploy backend (App Platform)**: `doctl` auth, target app id, and `envsubst` placeholders when rendering [`.do/app.yaml`](../.do/app.yaml) before `doctl apps update --spec`.
+Used by **Deploy backend (App Platform)**: `doctl` auth, target app id, and `envsubst` placeholders when rendering [`.do/app.yaml`](../../../../.do/app.yaml) before `doctl apps update --spec`.
 
 | Secret name | Meaning |
 |-------------|---------|
@@ -173,12 +173,12 @@ Only variables prefixed with `VITE_` are exposed to the client bundle.
 
 1. Add the key with `PUBLIC_` or `PRIVATE_` to the appropriate file (`backend/.env` for shared non-secrets, `.env.development` / `.env.production` for mode-specific non-secrets, `.env.local` / platform for secrets).
 2. Add a `@property` on `Config` in `config.py`.
-3. Update [`backend/.env.example`](../backend/.env.example).
-4. Document security and production requirements here or in [`deployment-hardening.mdc`](../.cursor/rules/deployment-hardening.mdc).
+3. Update [`backend/.env.example`](../../../../backend/.env.example).
+4. Document security and production requirements here or in [`deployment-hardening.mdc`](../../../../.cursor/rules/deployment-hardening.mdc).
 
 ## Troubleshooting
 
-- **Wrong DB or mode in tests:** Ensure [`backend/tests/conftest.py`](../backend/tests/conftest.py) sets `PUBLIC_ENV=test` before imports that load `config` (it does).
+- **Wrong DB or mode in tests:** Ensure [`backend/tests/conftest.py`](../../../../backend/tests/conftest.py) sets `PUBLIC_ENV=test` before imports that load `config` (it does).
 - **Expected key missing / wrong value:** If `PRIVATE_DATABASE_URL`, `PUBLIC_DB_HOST`, or any other key is set in your shell or `pixi` task env before Python starts, dotenv files cannot override it; unset the shell copy or rely on platform-only injection in deploy.
 - **Production CORS crash:** Empty or `*` `PUBLIC_CORS_ORIGINS` in production raises at `Config` init; set explicit origins on the host.
 - **Supabase JWKS errors after URL change:** `Config` resets the JWKS client when `PUBLIC_SUPABASE_URL` changes between reads (development).
