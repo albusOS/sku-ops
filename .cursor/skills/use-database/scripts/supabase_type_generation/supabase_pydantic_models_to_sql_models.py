@@ -14,16 +14,16 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backend.scripts.supabase_type_generation.pydantic_to_sql_model_type_mapping import (
+from supabase_type_generation.pydantic_to_sql_model_type_mapping import (
     map_pydantic_type,
 )
 
 if TYPE_CHECKING:
-    from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
+    from supabase_type_generation.supabase_ts_relationship_parser import (
         ForeignKeyInfo,
         RelationshipMetadata,
     )
-    from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models import (
+    from supabase_type_generation.supabase_types_to_pydantic_models import (
         ParsedField,
         ParsedModel,
     )
@@ -525,7 +525,7 @@ def _generate_header(
         f'Auto-generated SQLModel models for schema "{schema}".',
         "",
         "DO NOT EDIT - regenerate with:",
-        "  python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models",
+        "  pixi run supabase typegen",
         '"""',
         "import datetime",
         "import uuid",

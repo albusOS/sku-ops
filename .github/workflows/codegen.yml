@@ -5,12 +5,12 @@ on:
     branches: [main, dev]
     paths:
       - "supabase/**"
-      - "backend/scripts/supabase_type_generation/**"
+      - ".cursor/skills/use-database/scripts/supabase_type_generation/**"
   pull_request:
     branches: [main, dev]
     paths:
       - "supabase/**"
-      - "backend/scripts/supabase_type_generation/**"
+      - ".cursor/skills/use-database/scripts/supabase_type_generation/**"
 
 concurrency:
   group: codegen-${{ github.ref }}
@@ -44,9 +44,7 @@ jobs:
         run: supabase start
 
       - name: Generate types and models
-        run: pixi run uv run --directory backend python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local
-        env:
-          PYTHONPATH: ".:.."
+        run: pixi run supabase typegen
 
       - name: Check for uncommitted changes
         run: |
@@ -54,8 +52,8 @@ jobs:
             echo "::error::Generated types are out of date. Run the codegen pipeline locally and commit the changes."
             echo ""
             echo "To fix:"
-            echo "  pixi run uv sync --dev --directory backend"
-            echo "  PYTHONPATH=.:.. pixi run uv run --directory backend python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models --local"
+            echo "  pixi run supabase start"
+            echo "  pixi run supabase typegen"
             echo "  git add backend/shared/infrastructure/types/"
             echo "  git commit -m 'chore: regenerate SQLModel types'"
             exit 1

@@ -21,9 +21,9 @@ cmd = "bash devtools/scripts/is_supabase_running.sh"
 description = "Ensure local Supabase stack is running (start if not)"
 
 [tasks.supabase]
-description = "Local Supabase CLI: start (default), stop, or reset. Usage: pixi run supabase [start|stop|reset]"
-args = [{ arg = "action", default = "start", choices = ["start", "stop", "reset"] }]
-cmd = "{% if action == \"start\" %}supabase start && echo 'Supabase started. Run supabase status for URLs.'{% elif action == \"stop\" %}supabase stop{% elif action == \"reset\" %}bash devtools/scripts/is_supabase_running.sh && supabase db reset --local --yes{% endif %}"
+description = "Local Supabase CLI: start (default), stop, reset, or typegen. Usage: pixi run supabase [start|stop|reset|typegen]"
+args = [{ arg = "action", default = "start", choices = ["start", "stop", "reset", "typegen"] }]
+cmd = "{% if action == \"start\" %}supabase start && echo 'Supabase started. Run supabase status for URLs.'{% elif action == \"stop\" %}supabase stop{% elif action == \"reset\" %}bash devtools/scripts/is_supabase_running.sh && supabase db reset --local --yes{% elif action == \"typegen\" %}bash devtools/scripts/is_supabase_running.sh && PYTHONPATH=.cursor/skills/use-database/scripts:.:.. uv run --directory backend python -m supabase_type_generation.supabase_db_to_sql_models --local{% endif %}"
 
 [tasks.backend]
 depends-on = ["_is_supabase_running"]
@@ -49,7 +49,7 @@ description = "Verify toolchain, start local Supabase, then backend + frontend d
 [tasks.tests]
 description = "Tests: all (default: backend + frontend + e2e), or backend | frontend | e2e. Backend/all run supabase reset before pytest. Pytest-only: pixi run tests backend -- -- … (not with target all). Playwright: pixi run tests e2e -- -- …"
 args = [{ arg = "target", default = "all", choices = ["all", "backend", "frontend", "e2e"] }]
-env = { PYTHONPATH = ".:..", PRIVATE_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
+env = { PYTHONPATH = ".cursor/skills/use-database/scripts:.:..", PRIVATE_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres" }
 cmd = "{% if target == \"frontend\" %}pnpm --dir frontend run test:run{% elif target == \"backend\" %}pixi run supabase reset && uv run --directory backend pytest{% elif target == \"e2e\" %}pixi run _is_supabase_running && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% else %}pixi run supabase reset && uv run --directory backend pytest && pnpm --dir frontend run test:run && cd e2e && pnpm install --frozen-lockfile && pnpx playwright test{% endif %}"
 
 [tasks.lint]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 
-from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
+from supabase_type_generation.supabase_ts_relationship_parser import (
     parse_ts_relationships,
 )
 

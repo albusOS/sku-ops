@@ -63,6 +63,7 @@ pixi run eval -- …               # extra args for evals
 pixi run supabase                # start local Supabase stack (default action)
 pixi run supabase stop           # stop local Supabase stack
 pixi run supabase reset          # reset local DB from migrations + seeds
+pixi run supabase typegen        # regenerate SQLModel types from local Supabase schema
 pixi run clean                   # wipe backend venv + Python caches (see devtools/scripts/clean_repo.sh)
 ```
 

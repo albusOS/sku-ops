@@ -15,24 +15,24 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from backend.scripts.supabase_type_generation.schema_config import (
+from supabase_type_generation.schema_config import (
     SCHEMA_CLASS_PREFIX,
     SCHEMAS,
 )
-from backend.scripts.supabase_type_generation.supabase_pydantic_models_to_sql_models import (
+from supabase_type_generation.supabase_pydantic_models_to_sql_models import (
     generate_sqlmodel_code,
 )
-from backend.scripts.supabase_type_generation.supabase_sql_migration_pk_parser import (
+from supabase_type_generation.supabase_sql_migration_pk_parser import (
     extract_primary_keys,
 )
-from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
+from supabase_type_generation.supabase_ts_relationship_parser import (
     parse_ts_relationships,
 )
-from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models import (
+from supabase_type_generation.supabase_types_to_pydantic_models import (
     parse_pydantic_types,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 TYPES_DIR = BACKEND_ROOT / "shared" / "infrastructure" / "types"
 MIGRATIONS_DIR = PROJECT_ROOT / "supabase" / "migrations"

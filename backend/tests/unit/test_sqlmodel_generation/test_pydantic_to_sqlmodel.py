@@ -8,13 +8,13 @@ import subprocess
 import sys
 import textwrap
 
-from backend.scripts.supabase_type_generation.supabase_pydantic_models_to_sql_models import (
+from supabase_type_generation.supabase_pydantic_models_to_sql_models import (
     generate_sqlmodel_code,
 )
-from backend.scripts.supabase_type_generation.supabase_ts_relationship_parser import (
+from supabase_type_generation.supabase_ts_relationship_parser import (
     parse_ts_relationships,
 )
-from backend.scripts.supabase_type_generation.supabase_types_to_pydantic_models import (
+from supabase_type_generation.supabase_types_to_pydantic_models import (
     parse_pydantic_types,
 )
 

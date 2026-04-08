@@ -103,6 +103,7 @@ jobs:
           PUBLIC_ENV: test
           PRIVATE_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
           PRIVATE_JWT_SECRET: ci-test-secret
+          PYTHONPATH: ".cursor/skills/use-database/scripts:.:.."
         run: pixi run uv run --directory backend pytest --tb=short -q --timeout=60
 
       - name: Stop Supabase

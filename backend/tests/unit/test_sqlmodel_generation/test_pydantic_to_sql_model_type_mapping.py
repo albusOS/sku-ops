@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from backend.scripts.supabase_type_generation.pydantic_to_sql_model_type_mapping import (
+from supabase_type_generation.pydantic_to_sql_model_type_mapping import (
     map_pydantic_type,
 )
 
