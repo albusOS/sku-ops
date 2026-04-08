@@ -17,7 +17,22 @@ Target stack: **DigitalOcean** (or equivalent for the FastAPI backend) + **Verce
 - **Frontend** (Vercel) — static React SPA; API calls go to `VITE_BACKEND_URL`.
 - **Backend** — FastAPI in Docker; connects to Supabase Postgres via `PRIVATE_DATABASE_URL` (or composed `PUBLIC_DB_*` + `PRIVATE_DB_PASSWORD`).
 - **Auth** (Supabase) — issues JWTs. Backend validates with Supabase `PRIVATE_JWT_SECRET`.
-- **Database** — Supabase Postgres on port **5432 (direct)**, NOT 6543 (pooler). asyncpg uses prepared statements incompatible with pgbouncer.
+- **Database** — Supabase Postgres. Use **port 5432** with either the **direct** host or the **session** pooler (see [DigitalOcean App Platform and Supabase (IPv4)](#digitalocean-app-platform-and-supabase-ipv4)). **Do not** use the **transaction** pooler on **6543** here: asyncpg uses prepared statements that do not match transaction-pooled PgBouncer.
+
+### DigitalOcean App Platform and Supabase (IPv4)
+
+**App Platform egress is IPv4-centric.** Under **Networking limits**, DigitalOcean states they **do not offer dedicated egress IPv6 addresses**, that App Platform apps **do not support connecting to IPv6 services or hosts**, and that IPv6-oriented client config can produce **`ETIMEDOUT`** (bind to IPv4 / `0.0.0.0` in examples; see [App Platform limits](https://docs.digitalocean.com/products/app-platform/details/limits)). Plan Postgres outbound as **IPv4**.
+
+**Supabase direct** hostnames (`db.<project_ref>.supabase.co`) often resolve in ways that are **not reachable from IPv4-only clients**, so a backend on App Platform may see **`No route to host`** or similar even though the password and SSL are correct.
+
+**Two practical fixes:**
+
+1. **Session pooler (session mode, port 5432)** — Supabase documents that session mode connects to Postgres **via a proxy** and is **only recommended as an alternative to a direct connection when connecting via an IPv4 network** (see [Connecting to Postgres](https://supabase.com/docs/guides/database/connecting-to-postgres)). Copy the **Session pooler** string from the project dashboard (**Connect**). It looks like:
+   `postgres://postgres.<project_ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres`
+   (Your shard may be `aws-0` or `aws-1`; it must match what the dashboard shows for the project.) **This repo uses the session pooler for production on App Platform.**
+2. **Supabase IPv4 add-on** — Paid option (about **$4/month**; confirm current price in Supabase billing) that exposes **IPv4** for the **direct** connection if you want to avoid the pooler.
+
+**Still avoid port 6543 (transaction pooling)** for this stack: that mode is not the same as session mode and remains a poor fit for asyncpg prepared statements.
 
 ---
 
@@ -51,7 +66,7 @@ There is no staging environment. `config.py` accepts exactly three values: `deve
    - **Project URL** — `https://xxxx.supabase.co`
    - **Publishable key** — `sb_publishable_...` (public, safe for frontend)
    - **JWT Secret** — under **JWT Settings** (backend validates tokens; not the publishable key)
-3. From **Settings > Database**, collect the **direct** connection string (port **5432**), not the pooler (6543).
+3. From **Settings > Database** or the **Connect** dialog: for **IPv4-only** API hosts (e.g. DigitalOcean App Platform), use the **Session pooler** connection string (**port 5432**, user like `postgres.<project_ref>`). For environments that can reach the direct hostname over IPv4, use the **direct** connection (**port 5432**). Do not use the **transaction** pooler on **6543** for this backend.
 
 ### 2. Deploy the backend
 
@@ -62,7 +77,7 @@ Run the same image built from [backend/Dockerfile](../backend/Dockerfile) on you
 | Variable | Notes |
 |---|---|
 | `PUBLIC_ENV` | `production` |
-| `PRIVATE_DATABASE_URL` | Supabase direct, port 5432 |
+| `PRIVATE_DATABASE_URL` | Supabase **5432**: direct URL where IPv4 works; on App Platform prefer **session pooler** URL from **Connect** (not **6543** transaction pooler) |
 | `PUBLIC_SUPABASE_URL` | Same project URL as frontend; JWKS |
 | `PRIVATE_JWT_SECRET` | Supabase JWT secret from dashboard |
 | `PUBLIC_CORS_ORIGINS` | Comma-separated; include all stable Vercel origins |
@@ -154,6 +169,20 @@ GitHub Actions: [.github/workflows/ci.yml](../.github/workflows/ci.yml) — back
 
 Automated deploy to Vercel / your API host is configured in your CI provider, not duplicated here.
 
+### DigitalOcean App Platform + GHCR + Supabase: root cause chain
+
+Short statements of what broke and what fixed it (same order as the failure chain we hit):
+
+| # | Root cause | Fix |
+|---|------------|-----|
+| 1 | Private GHCR image: each `doctl apps update --spec` replaced the app spec **without** registry credentials, so pulls failed with "Image does not exist or is private". | Put `registry_credentials: "$GHCR_REGISTRY_CREDS"` in `.do/app.yaml` and substitute it in the deploy workflow (`envsubst`) from a GitHub secret every deploy. |
+| 2 | **`PUBLIC_ENV` unset** on the component: app defaulted to **development**, wrong `.env` profile, and hard-failed on production CORS rules. | Declare `PUBLIC_ENV=production` as a runtime env in the App Platform spec (not only in the image). |
+| 3 | **Deploy skipped** `build-backend` / `deploy-backend`: reusable **CI** workflow shared one **concurrency group** with push CI, so runs cancelled each other and `needs: [ci]` left deploy jobs skipped. | Use a workflow-scoped concurrency group, e.g. `ci-${{ github.workflow }}-${{ github.ref }}`. |
+| 4 | **`sslmode` in the DB URL** for asyncpg: SQLAlchemy/asyncpg does not accept that as a connect kwarg, causing `unexpected keyword argument 'sslmode'`. | Build the URL without `sslmode`; pass SSL via `connect_args["ssl"]` on `create_async_engine` (e.g. `require`). |
+| 5 | **`No route to host`** to `db.<ref>.supabase.co`: App Platform **does not support reaching IPv6-only hosts**; Supabase direct DB may be IPv6-only from the app’s perspective. | Use Supabase **session** pooler on port **5432** (dashboard **Connect**), or Supabase **IPv4 add-on** (~**$4/mo**, confirm in billing) for direct. Pooler host uses `aws-0-` or `aws-1-` plus region per dashboard; user `postgres.<project_ref>`. Wrong shard yields tenant/user errors. |
+| 6 | **Production defaults missing inside the image**: `.dockerignore` had `backend/.env.*`, so **`backend/.env.production` was never copied** into the image (wrong or empty non-secret prod defaults). | Ignore only **`.env.local`** (repo root and `backend/`); keep `.env`, `.env.development`, and `.env.production` in the build context. |
+| 7 | **`InvalidPasswordError` for user `postgres`**: **`str(SQLAlchemy URL)` masks the password** as literal `***` in the string passed to the engine. | Use `url_obj.render_as_string(hide_password=False)` when materializing `DATABASE_URL` for the engine. |
+
 ---
 
 ## WebSocket support
@@ -175,7 +204,8 @@ With `PUBLIC_WORKERS > 1`, `PUBLIC_REDIS_URL` is required (Redis pub/sub for eve
 | missing `organization_id` claim | `raw_app_meta_data` not set | SQL update on `auth.users` |
 | CORS errors | Origin not in `PUBLIC_CORS_ORIGINS` | Add Vercel URLs; use `PUBLIC_CORS_ORIGIN_REGEX` for previews |
 | Frontend cannot reach API | Wrong `VITE_BACKEND_URL` | Fix Vercel env, redeploy |
-| DB connection fails | Using pooler port 6543 | Use direct 5432 `PRIVATE_DATABASE_URL` |
+| DB connection fails / prepared statement errors | **Transaction** pooler port **6543** | Use **5432** only: direct URL or **session** pooler, not transaction mode |
+| DB timeout / no route from App Platform | **IPv4-only** egress vs IPv6-only Supabase direct host | **Session pooler** (5432) or Supabase **IPv4 add-on**; see [IPv4 section](#digitalocean-app-platform-and-supabase-ipv4) |
 
 ---
 
