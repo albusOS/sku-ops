@@ -5,16 +5,16 @@ description: Operate the CI/CD pipeline - trigger CI or CD workflows, interpret 
 
 # CI/CD Pipeline
 
-Two GitHub Actions workflows: **CI** (`ci.yml`) and **CD** (`cd.yml`). For full details see [references/overview.md](references/overview.md).
+Three GitHub Actions workflows: **CI** (`ci.yml`), **CD** (`cd.yml`), and **Supabase** (`supabase.yml`). For full details see [references/overview.md](references/overview.md).
 
 ## What fires when
 
-| Event | CI | CD |
-|-------|----|----|
-| Push to `dev` | Yes | No |
-| Push to `main` | No (called by CD) | Yes |
-| PR to `main`/`dev` | Yes | No |
-| `workflow_dispatch` | Yes | Yes |
+| Event | CI | CD | Supabase |
+|-------|----|----|----------|
+| Push to `dev` | Yes | No | Yes, when [path filters](references/overview.md#supabase-behavior-supabaseyml) match |
+| Push to `main` | No (called by CD) | Yes, when CD path filters match | Yes, when Supabase path filters match |
+| PR to `main`/`dev` | Yes | No | Yes, when Supabase path filters match |
+| `workflow_dispatch` | Yes | Yes | Yes |
 
 **Key rule:** pushes to `main` never trigger standalone CI - CD calls `ci.yml` as its gate. No duplicate runs.
 
@@ -35,6 +35,12 @@ If nothing in `backend/`, `supabase/`, or `frontend/` changed, all four jobs are
 
 On `workflow_dispatch`, all deploy flags forced `true` (full pipeline).
 
+## Supabase jobs
+
+`typegen-check` -> `db-test` -> `db-push` (only on `main` via `push` or `workflow_dispatch`, not on PRs)
+
+Does not gate CD; runs in parallel when paths match. Production migration push requires GitHub Environment `supabase_production` secrets (see overview).
+
 ## Commands
 
 ```bash
@@ -44,6 +50,9 @@ gh workflow run ci.yml --ref main
 
 # Deploy everything (CI gate + full deploy)
 gh workflow run cd.yml --ref main
+
+# Supabase: typegen check, SQLModel tests, push migrations (if main)
+gh workflow run supabase.yml --ref main
 
 # List recent runs
 gh run list --branch "$(git branch --show-current)" --limit 5
@@ -59,12 +68,13 @@ gh run view <run-id> --log-failed
 
 - **CI**: `ci-$workflow-$ref`, cancel-in-progress. Rapid pushes cancel stale runs.
 - **CD**: `deploy-prod`, never cancels in-flight deploys. Queues behind running deploy.
+- **Supabase**: `supabase-$ref`, cancel-in-progress.
 
 ## Companion skills
 
 When CI/CD needs monitoring or fixing, use these:
 
-- **`/ci-watcher`**: Delegate to watch pipeline status, report pass/fail with logs. Use when waiting for CI results or when CI has failed and you need details.
+- **`/ci-watcher`**: Delegate to watch pipeline status, report pass/fail with logs. Use when waiting on CI results or when CI has failed and you need details.
 - **`/fix-ci`**: Identify the failing job, extract the root error, apply the smallest fix. Use when a specific CI check is red.
 - **`/loop-on-ci`**: Watch CI, fix failures, commit, push, repeat until green. Use when iterating to get a branch green.
 
@@ -76,5 +86,6 @@ When CI/CD needs monitoring or fixing, use these:
 | Need to verify a fix passes CI before PR | `gh workflow run ci.yml --ref <branch>`, then `/ci-watcher` |
 | CI is red, need to fix it | Use `/fix-ci` |
 | Want to iterate until green | Use `/loop-on-ci` |
-| Ready to deploy to production | Merge to `main` (CD auto-fires) or `gh workflow run cd.yml --ref main` |
+| Ready to deploy app to production | Merge to `main` (CD auto-fires when backend/frontend paths match) or `gh workflow run cd.yml --ref main` |
+| DB migrations merged to `main`, need prod schema updated | `supabase.yml` auto-fires when `supabase/**` (or typegen paths) changed, or `gh workflow run supabase.yml --ref main` |
 | Deploy failed | Use `/ci-watcher` to get logs, then `/fix-ci` on the failure |

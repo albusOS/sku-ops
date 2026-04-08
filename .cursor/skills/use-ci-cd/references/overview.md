@@ -1,21 +1,22 @@
-# CI / CD
+# CI / CD / Supabase
 
-This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)) and **CD** ([`.github/workflows/cd.yml`](../../../.github/workflows/cd.yml)). Operational deploy details (secrets, infra) stay in [deploy.md](../../../docs/deploy.md) and [environment.md](../../../docs/environment.md).
+This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)), **CD** ([`.github/workflows/cd.yml`](../../../.github/workflows/cd.yml)), and **Supabase** ([`.github/workflows/supabase.yml`](../../../.github/workflows/supabase.yml)). Operational deploy details (secrets, infra) stay in [deploy.md](../../../docs/deploy.md) and [environment.md](../../../docs/environment.md).
 
 ## Goals
 
 - **No duplicate test runs on `main`**: pushes to `main` only run **CD**, which calls `ci.yml` once as the CI gate. Standalone **CI** does not run on `main` pushes.
 - **Integration branch `dev`**: every push runs full **CI** (lint where paths match, both test suites always).
 - **Path-scoped deploy**: only rebuild / redeploy what changed, except manual CD (see below).
+- **Database migrations**: **Supabase** workflow validates SQLModel codegen, runs SQLModel-focused tests, and can push migrations to production on `main` without coupling to the app CD pipeline.
 
 ## When workflows run
 
-| Event | CI (`ci.yml`) | CD (`cd.yml`) |
-|-------|---------------|---------------|
-| Push to `dev` | Yes (standalone) | No |
-| Push to `main` | No (only via CD `workflow_call`) | Yes, when [path filters](#cd-path-filters) match |
-| PR to `main` or `dev` | Yes | No |
-| `workflow_dispatch` | Yes | Yes |
+| Event | CI (`ci.yml`) | CD (`cd.yml`) | Supabase (`supabase.yml`) |
+|-------|---------------|---------------|---------------------------|
+| Push to `dev` | Yes (standalone) | No | Yes, when [Supabase path filters](#supabase-path-filters) match |
+| Push to `main` | No (only via CD `workflow_call`) | Yes, when [CD path filters](#cd-path-filters) match | Yes, when Supabase path filters match |
+| PR to `main` or `dev` | Yes | No | Yes, when Supabase path filters match |
+| `workflow_dispatch` | Yes | Yes | Yes (always runs; use `--ref main` for production `db-push`) |
 
 ## CI behavior (`ci.yml`)
 
@@ -61,6 +62,36 @@ CD itself only **starts** on `main` when these paths change:
 
 Inside the workflow, `changes` further splits **backend build** vs **backend deploy** (e.g. `.do/**` can trigger deploy without a Docker rebuild).
 
+## Supabase behavior (`supabase.yml`)
+
+Independent workflow for database-first checks and production migration push. Does **not** call `ci.yml` or `cd.yml`.
+
+1. **`typegen-check`**: start local Supabase, `pixi run supabase typegen`, fail if `backend/shared/infrastructure/types/` drifts vs generated output.
+2. **`db-test`**: reset local DB (`pixi run supabase reset`), run `backend/tests/unit/test_sqlmodel_generation/` and `backend/tests/integration/test_sqlmodel_db/` only.
+3. **`db-push`**: `supabase link` + `supabase db push` to production, only when `github.ref` is `refs/heads/main` and the event is `push` or `workflow_dispatch` (not `pull_request`).
+
+**Concurrency:** `supabase-${{ github.ref }}` with `cancel-in-progress: true`.
+
+### Supabase path filters
+
+The workflow **starts** on push / PR when any of these paths change:
+
+- `supabase/**`
+- `.cursor/skills/use-database/scripts/supabase_type_generation/**`
+- `backend/shared/infrastructure/types/**`
+
+`workflow_dispatch` ignores path filters (full workflow runs for the selected ref).
+
+### Supabase production secrets
+
+Configure GitHub Environment **`supabase_production`** with:
+
+- `SUPABASE_ACCESS_TOKEN`
+- `PRODUCTION_DB_PASSWORD` (Supabase CLI maps this to `SUPABASE_DB_PASSWORD` in the workflow)
+- `PRODUCTION_PROJECT_ID` (project ref passed to `supabase link --project-ref`)
+
+Until this environment exists, `db-push` will fail at approval or secret resolution; `typegen-check` and `db-test` still run.
+
 ## Flow diagrams
 
 ### Push to `dev`
@@ -83,8 +114,18 @@ flowchart LR
   cd --> ch[changes]
   cd --> gate[ci.yml gate]
   gate --> bb[build-backend maybe]
-  bb --> db[deploy-backend maybe]
+  bb --> dbNode[deploy-backend maybe]
   gate --> df[deploy-frontend maybe]
+```
+
+### Push to `main` (Supabase-eligible paths)
+
+```mermaid
+flowchart LR
+  pushMain[Push main] --> supa[supabase.yml]
+  supa --> tg[typegen-check]
+  tg --> dt[db-test]
+  dt --> dp[db-push]
 ```
 
 ## Manual runs (CLI / agents)
@@ -98,6 +139,9 @@ gh workflow run ci.yml --ref main
 
 # Run full CD: CI gate + build/deploy backend + deploy frontend (dispatch forces all deploy flags)
 gh workflow run cd.yml --ref main
+
+# Run Supabase pipeline (typegen, SQLModel tests, db-push if ref is main)
+gh workflow run supabase.yml --ref main
 ```
 
 Watch a run:
@@ -108,9 +152,9 @@ gh run watch
 
 ## Related workflows
 
-- **Codegen** ([`.github/workflows/codegen.yml`](../../../.github/workflows/codegen.yml)): separate Supabase / SQLModel generation checks; not part of CI/CD gating described here.
+**Codegen** (`.github/workflows/codegen.yml`) was renamed to **Supabase** (`supabase.yml`); behavior is documented in [Supabase behavior](#supabase-behavior-supabaseyml) above.
 
 ## Naming
 
-- Workflow **names** in GitHub UI: **CI** and **CD**.
-- Files: `ci.yml`, `cd.yml`.
+- Workflow **names** in GitHub UI: **CI**, **CD**, and **Supabase**.
+- Files: `ci.yml`, `cd.yml`, `supabase.yml`.

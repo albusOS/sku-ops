@@ -14,7 +14,7 @@ pixi run supabase typegen
 - **`--schemas public,other`** - Override schemas (default: `schema_config.SCHEMAS`).
 - **`--types-dir /path`** - Override output directory (default: `backend/shared/infrastructure/types`).
 
-CI runs the same entrypoint after `supabase start` and fails if generated files drift; see `.github/workflows/codegen.yml`.
+CI runs the same entrypoint after `supabase start` and fails if generated files drift; see `.github/workflows/supabase.yml`.
 
 ## Execution order (what runs when)
 
