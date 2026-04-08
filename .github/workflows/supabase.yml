@@ -36,7 +36,9 @@ jobs:
       - name: Verify dev tools resolve from pixi
         run: pixi run doctor
 
-      - uses: supabase/setup-cli@v1.6.0
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
       - name: Install backend virtualenv (uv + pixi Python)
         run: pixi run uv sync --dev --directory backend
@@ -88,7 +90,9 @@ jobs:
       - name: Verify dev tools resolve from pixi
         run: pixi run doctor
 
-      - uses: supabase/setup-cli@v1.6.0
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
       - name: Install backend virtualenv (uv + pixi Python)
         run: pixi run uv sync --dev --directory backend
@@ -129,7 +133,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: supabase/setup-cli@v1.6.0
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
       - name: Link and push migrations
         run: |
