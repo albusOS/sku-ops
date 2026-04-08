@@ -44,9 +44,13 @@ class PostgresBackend:
         pool_size = max(config.PG_POOL_MIN, 1)
         max_overflow = max(config.PG_POOL_MAX - pool_size, 0)
 
+        connect_args: dict[str, Any] = {"command_timeout": config.PG_COMMAND_TIMEOUT}
+        if config.DB_SSL_MODE:
+            connect_args["ssl"] = config.DB_SSL_MODE
+
         engine_kwargs: dict[str, Any] = {
             "pool_pre_ping": True,
-            "connect_args": {"command_timeout": config.PG_COMMAND_TIMEOUT},
+            "connect_args": connect_args,
         }
         if config.is_test:
             engine_kwargs["poolclass"] = NullPool
