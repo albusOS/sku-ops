@@ -7,7 +7,7 @@
   },
   "buildCommand": "cd frontend && pnpm install --frozen-lockfile && pnpm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "echo skip",
+  "installCommand": "corepack enable && corepack prepare pnpm@10.12.4 --activate",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
