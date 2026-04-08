@@ -141,6 +141,8 @@ select = [
     "W",      # pycodestyle warnings
     "YTT",    # flake8-2020
 ]
+# ``supabase gen types`` Pydantic output; formatted for line length but not hand-maintained for lint.
+exclude = ["shared/infrastructure/types/*_database_types.py"]
 
 [tool.ruff.lint.per-file-ignores]
 # Former [tool.ruff.lint].ignore — all suppressions use per-file keys only.

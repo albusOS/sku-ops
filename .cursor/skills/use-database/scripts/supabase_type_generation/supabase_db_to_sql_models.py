@@ -113,35 +113,54 @@ def main(
 
 
 def _format_with_ruff(types_dir: Path, schemas: list[str]) -> None:
-    files_to_format = []
-    for schema in schemas:
-        model_file = types_dir / f"{schema}_sql_model_models.py"
-        if model_file.exists():
-            files_to_format.append(str(model_file))
+    """Normalize generated Python with backend Ruff settings.
 
-    if not files_to_format:
+    - ``*_database_types.py``: from ``supabase gen types``; ``ruff format`` only. Lint excludes
+      these paths in ``backend/pyproject.toml`` (``[tool.ruff.lint] exclude``).
+    - ``*_sql_model_models.py``: our generator output; ``ruff format`` then ``ruff check --fix``
+      (import order, etc.).
+    """
+    sqlmodel_paths: list[Path] = []
+    supabase_dump_paths: list[Path] = []
+    for schema in schemas:
+        sm = types_dir / f"{schema}_sql_model_models.py"
+        if sm.exists():
+            sqlmodel_paths.append(sm)
+        dt = types_dir / f"{schema}_database_types.py"
+        if dt.exists():
+            supabase_dump_paths.append(dt)
+
+    if not sqlmodel_paths and not supabase_dump_paths:
         return
 
-    try:
-        result = subprocess.run(
-            ["uv", "run", "ruff", "format", *files_to_format],
+    def rel(paths: list[Path]) -> list[str]:
+        try:
+            return [str(p.relative_to(BACKEND_ROOT)) for p in paths]
+        except ValueError as e:
+            raise RuntimeError(
+                "types_dir must live under backend/ so Ruff uses backend/pyproject.toml",
+            ) from e
+
+    cwd = str(BACKEND_ROOT)
+
+    def run_ruff(argv: list[str]) -> None:
+        proc = subprocess.run(
+            argv,
+            cwd=cwd,
             capture_output=True,
             text=True,
-            cwd=str(PROJECT_ROOT),
+            check=False,
         )
-        if result.returncode != 0:
-            pass
-    except FileNotFoundError:
-        try:
-            result = subprocess.run(
-                ["ruff", "format", *files_to_format],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                pass
-        except FileNotFoundError:
-            pass
+        if proc.returncode != 0:
+            msg = proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}"
+            raise RuntimeError(f"Ruff failed: {' '.join(argv)}\n{msg}")
+
+    if supabase_dump_paths:
+        run_ruff(["uv", "run", "ruff", "format", *rel(supabase_dump_paths)])
+    if sqlmodel_paths:
+        rel_sm = rel(sqlmodel_paths)
+        run_ruff(["uv", "run", "ruff", "format", *rel_sm])
+        run_ruff(["uv", "run", "ruff", "check", "--fix", *rel_sm])
 
 
 if __name__ == "__main__":

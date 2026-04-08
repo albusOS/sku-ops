@@ -2,7 +2,7 @@
 Auto-generated SQLModel models for schema "public".
 
 DO NOT EDIT - regenerate with:
-  python -m backend.scripts.supabase_type_generation.supabase_db_to_sql_models
+  pixi run supabase typegen
 """
 
 import datetime
