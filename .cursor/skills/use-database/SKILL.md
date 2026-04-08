@@ -1,13 +1,14 @@
 ---
 name: use-database
-description: Add and access lazy-loaded database services on DatabaseManager, and regenerate SQLModel types after schema changes. Use when adding a service, accessing get_database_manager() sub-services, modifying Supabase migrations, or regenerating types.
+description: Add and access lazy-loaded database services on DatabaseManager, edit the database schema via declarative schemas, and regenerate SQLModel types after schema changes. Use when adding a service, accessing get_database_manager() sub-services, modifying Supabase schema or migrations, or regenerating types.
 ---
 
 # Use the database layer (SKU-Ops)
 
-Three topics: **adding** a database service, **accessing** services in application/API code, and **regenerating types** after schema changes.
+Four topics: **adding** a database service, **accessing** services in application/API code, **regenerating types** after schema changes, and **editing the database** via declarative schemas.
 
 For background on how database services work internally, see [references/database-services.md](references/database-services.md).
+For the full declarative schema reference, see [references/declarative-schema.md](references/declarative-schema.md).
 
 ---
 
@@ -152,8 +153,68 @@ The pipeline lives at `.cursor/skills/use-database/scripts/supabase_type_generat
 
 ---
 
+## 4. Edit the database (declarative schema workflow)
+
+This project uses **Supabase declarative schemas**. Schema files in `supabase/schemas/` are the source of truth. You **never** hand-write migration files from scratch. You edit schemas, then generate migrations from the diff.
+
+For the full reference (rollbacks, deployment, dependency ordering), see [references/declarative-schema.md](references/declarative-schema.md).
+
+### The workflow
+
+1. **Edit the schema file** - modify the relevant `supabase/schemas/<NN>-<context>-schema.sql`, or create a new numbered file if adding a new table group.
+2. **Generate the migration** - `supabase db diff -f "descriptive_name"` creates a shadow DB from existing migrations, compares it against the declared schema, and writes `supabase/migrations/<timestamp>_descriptive_name.sql`.
+3. **Review and tweak** - always inspect the generated migration. Tweak as needed (add DML, reorder, remove no-ops).
+4. **Apply locally** - `supabase migration up` (or `supabase db reset --local` to replay everything).
+5. **Regenerate types** - `pixi run supabase typegen` (see section 3).
+
+```bash
+# Example: add a due_date column to invoices
+# 1. Edit supabase/schemas/05-finance-schema.sql (append the column)
+# 2. Generate
+supabase db diff -f "add_invoice_due_date"
+# 3. Review supabase/migrations/<timestamp>_add_invoice_due_date.sql
+# 4. Apply
+supabase migration up --local
+# 5. Regenerate types
+pixi run supabase typegen
+```
+
+### Forbidden patterns
+
+| Pattern | Why | What to do instead |
+|---------|-----|--------------------|
+| Hand-write a migration without editing schema files | Schema files drift from actual DB state | Edit the schema file first, then generate |
+| Edit only the migration file | Future diffs will try to revert your change | Always keep schema files in sync |
+| Run `supabase db diff` without reviewing output | Generated SQL can have no-ops or wrong ordering | Always review before applying |
+
+### Key caveats (diff tool gaps)
+
+The `migra` diff tool does **not** capture these - add them manually to the generated migration:
+
+- **DML** (`INSERT`, `UPDATE`, `DELETE`) - never generated
+- **RLS policies** - `ALTER POLICY` not generated; only `CREATE`/`DROP`
+- **View ownership** - owner, grants, `SECURITY INVOKER` not tracked
+- **Materialized views** - tracking issues
+- **Comments, partitions, domains, publications** - not tracked
+
+Always note what you have added manually in your response to the user.
+
+See [references/declarative-schema.md](references/declarative-schema.md) for the full list with issue links.
+
+### Creating a new schema file
+
+Pick the next available number prefix (e.g. `12-new-context-schema.sql`), write your `CREATE TABLE` statements, then follow the standard workflow above.
+
+### Appending columns
+
+Always append new columns to the **end** of table definitions. Views and enums are order-sensitive, and mid-table inserts produce messy diffs.
+
+---
+
 ## Trigger this skill when
 
 - Wiring a new bounded-context database service.
 - Refactoring code that calls `get_database_manager()` repeatedly or uses ad hoc helpers.
 - Adding or modifying Supabase migrations and needing to regenerate types.
+- Editing, creating, or modifying database tables, columns, views, or functions.
+- Needing to understand the declarative schema workflow or its caveats.
