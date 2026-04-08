@@ -92,15 +92,3 @@ def maybe_reload_backend_dotenv_development(backend_root: Path) -> None:
         backend_root / ".env.local",
     ]
     _apply_merged_to_environ(_merge_dotenv_paths(paths))
-
-
-class Env:
-    """Base type for documentation / typing; loading is procedural (see module functions)."""
-
-
-class DevelopmentEnv(Env):
-    """Marker: development-layer files apply."""
-
-
-class ProductionEnv(Env):
-    """Marker: production-layer files apply."""
