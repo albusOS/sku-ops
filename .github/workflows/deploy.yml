@@ -78,7 +78,7 @@ jobs:
 
   build-backend:
     name: Build & push backend image
-    needs: [changes]  # TODO: restore ci gate: [changes, ci]
+    needs: [changes, ci]
     if: needs.changes.outputs.backend_build == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -126,9 +126,10 @@ jobs:
 
   deploy-backend:
     name: Deploy backend (App Platform)
-    needs: [changes, build-backend]  # TODO: restore ci gate: [changes, ci, build-backend]
+    needs: [changes, ci, build-backend]
     if: |
       needs.changes.outputs.backend_deploy == 'true'
+      && needs.ci.result == 'success'
       && (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped')
     runs-on: ubuntu-latest
     environment: backend_digital_ocean_deployment
