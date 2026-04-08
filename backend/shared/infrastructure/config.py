@@ -561,6 +561,8 @@ class Config:
             "env": self.ENV,
             "auth_provider": "supabase",
             "db": db_display,
+            "db_user": self.DB_USER,
+            "db_pw_len": len(self.DB_PASSWORD),
             "cors": self.CORS_ORIGINS if not self.cors_is_permissive else "*",
             "redis": "yes" if self.REDIS_URL else "no",
             "sentry": "yes" if self.SENTRY_DSN else "no",
