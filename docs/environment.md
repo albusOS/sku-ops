@@ -4,6 +4,8 @@ This document describes how SKU-Ops loads configuration for the **backend** (Fas
 
 Backend keys use a **`PUBLIC_` / `PRIVATE_` prefix**: non-secrets vs secrets. Runtime mode and the dotenv profile file (`.env.development` vs `.env.production`) are chosen from **`PUBLIC_ENV`** only.
 
+**Precedence vs files:** Values already in the **process environment** when Python starts (shell exports, `pixi run` / task `env`, Docker `ENV`, CI runners, App Platform, etc.) are **left unchanged** for the whole process. They **always beat** merged `.env*` layers; dotenv only supplies defaults for keys that are still missing after the snapshot in `shared.infrastructure.env`.
+
 ## Backend file hierarchy
 
 All paths are relative to `backend/` unless noted.
@@ -29,10 +31,10 @@ On import, `shared.infrastructure.env` snapshots **process** keys (`PROCESS_ENV_
 3. `backend/.env.development` or `backend/.env.production` (which file is loaded depends on process `PUBLIC_ENV` when `load_backend_dotenv_initial` runs)
 4. `backend/.env.local`
 
-Only keys **not** in `PROCESS_ENV_KEYS` are written to `os.environ`. So:
+Only keys **not** in `PROCESS_ENV_KEYS` are written to `os.environ`. Those process-provided values are **maintained**; the dotenv merge never overwrites them. So:
 
-- **Platform / shell / CI / `pixi` / Docker** entries present before the interpreter loads `env.py` always win; no dotenv file can replace them.
-- Among files only, **later wins**, matching the priority above.
+- **Shell / Pixi / platform / Docker / CI:** whatever is already set before `env.py` runs stays authoritative.
+- Among **file-only** keys, **later** files in the merge order **win**, matching the priority above.
 
 `PUBLIC_ENV=test` (pytest) uses the **same dotenv profile as development** (`.env.development`) for file names, but `PUBLIC_ENV` stays `test` if it was already set in the environment before import.
 
@@ -91,7 +93,7 @@ When `PUBLIC_ENV=production`, string lookups from `os.environ` are **cached** on
 ## Production (DigitalOcean App Platform)
 
 1. **Non-secrets** live in committed [`backend/.env.production`](../backend/.env.production). They are **copied into the Docker image** with the rest of `backend/` (`backend/Dockerfile` copies the tree). Edit that file for production URLs, CORS, Supabase project host, Xero app id / redirect URI, pool sizes, etc., then merge to `main` so CI rebuilds the image.
-2. **Secrets** (`PRIVATE_*`) are **not** in the image. They are stored in the GitHub Environment **`backend_digital_ocean_deployment`** and injected at deploy time: the workflow runs `envsubst` on [`.do/app.yaml`](../.do/app.yaml) and applies the result with `doctl apps update --spec`.
+2. **Secrets** (`PRIVATE_*`) are **not** in the image. They are stored in the GitHub Environment **`backend_digital_ocean_deployment`** and injected at deploy time: the workflow runs `envsubst` on [`.do/app.yaml`](../.do/app.yaml) and applies the result with `doctl apps update --spec`. Names and meanings for that environment (and the Vercel deploy environment) are in [GitHub Actions: CD deployments](#github-actions-cd-deployments) below.
 3. **`PUBLIC_REDIS_URL`** for production comes from the **Valkey database component** in the app spec (bindable `${valkey-cache.DATABASE_URL}`), not from `.env.production`.
 4. **Changing a non-secret:** update `backend/.env.production`, push; backend path filters trigger a new image and deploy.
 5. **Changing a secret:** update the GitHub Environment secret, push (or re-run the deploy workflow); the rendered spec picks up the new value on the next `apps update`.
@@ -111,6 +113,41 @@ These values are **not** loaded by the backend `Config` / dotenv stack at runtim
 | | `PUBLIC_PROJECT_ID` | Supabase **project ref** (from the project URL: `https://supabase.com/dashboard/project/<ref>`). Passed to `supabase link --project-ref`. Naming matches the app’s `PUBLIC_*` convention for non-JWT config; stored as an environment **secret** so deploy credentials stay in one place. |
 
 Until `supabase_deployment` exists with all three secrets, earlier jobs in that workflow (`typegen-check`, `db-test`) still run; the **`db-push`** job fails when secrets are missing or wrong.
+
+## GitHub Actions: CD deployments
+
+The workflow [`.github/workflows/cd.yml`](../.github/workflows/cd.yml) runs on `main` (path-filtered) after the reusable CI gate. Deploy jobs read secrets only from GitHub **Environments**; those values are not part of the backend dotenv stack on developer machines.
+
+### `backend_digital_ocean_deployment`
+
+Used by **Deploy backend (App Platform)**: `doctl` auth, target app id, and `envsubst` placeholders when rendering [`.do/app.yaml`](../.do/app.yaml) before `doctl apps update --spec`.
+
+| Secret name | Meaning |
+|-------------|---------|
+| `DIGITALOCEAN_ACCESS_TOKEN` | DigitalOcean API token for `doctl` (App Platform access). |
+| `DIGITALOCEAN_APP_ID` | App Platform app id (UUID) passed to `doctl apps update` / `create-deployment`. |
+| `GHCR_REGISTRY_CREDS` | Docker registry credentials for the private image, usually `github_username:personal_access_token` with `read:packages`; injected into the spec so the app can pull from GHCR on every deploy. |
+| `PRIVATE_DB_PASSWORD` | Hosted Postgres password (same kind of secret as runtime; config composes `DATABASE_URL` with committed `PUBLIC_DB_*` unless you use `PRIVATE_DATABASE_URL` on the platform). |
+| `PRIVATE_JWT_SECRET` | Supabase JWT secret for the project (not an arbitrary random string). |
+| `PRIVATE_SENTRY_DSN` | Sentry DSN for server-side error reporting. |
+| `PRIVATE_ANTHROPIC_API_KEY` | Anthropic API key for in-app assistant flows. |
+| `PRIVATE_OPENROUTER_API_KEY` | OpenRouter API key. |
+| `PRIVATE_OPENAI_API_KEY` | OpenAI API key. |
+| `PRIVATE_XERO_CLIENT_SECRET` | Xero OAuth client secret (pairs with committed `PUBLIC_XERO_*` in the image). |
+
+Missing secrets break the render step or produce an invalid spec; `GHCR_REGISTRY_CREDS` must be present on each deploy that updates the spec so registry credentials are not cleared.
+
+### `frontend_vercel_deployment`
+
+Used by **Deploy frontend (Vercel)** for `vercel pull --environment=production`, `vercel build --prod`, and `vercel deploy --prebuilt --prod`.
+
+| Secret name | Meaning |
+|-------------|---------|
+| `VERCEL_TOKEN` | Vercel account token with access to the project. |
+| `VERCEL_ORG_ID` | Team or personal org id (from `vercel link` / project settings). |
+| `VERCEL_PROJECT_ID` | Linked Vercel project id. |
+
+Client `VITE_*` values are still resolved at build time from the repo (`frontend/.env.production`, etc.) and from Vercel project env pulled by the CLI; these three secrets only authenticate and select the project in Actions.
 
 ## Frontend (Vite)
 
