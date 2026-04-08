@@ -197,7 +197,7 @@ class Config:
             port=self.DB_PORT,
             database=self.DB_NAME,
         )
-        url = str(url_obj)
+        url = url_obj.render_as_string(hide_password=False)
         self._reject_transaction_pooler_url(url)
         return url
 
