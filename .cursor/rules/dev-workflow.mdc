@@ -55,6 +55,7 @@ pixi run tests frontend           # frontend tests only (vitest)
 pixi run tests e2e -- …          # e2e only; … = extra args to Playwright after one --
 pixi run lint [all|backend|frontend]    # default all (ruff + ESLint)
 pixi run format [all|backend|frontend]  # default all (ruff + Prettier)
+pixi run format-check [all|backend|frontend] # verify formatting without modifying (default all)
 pixi run check [all|backend|frontend]   # lint then format (default all)
 pixi run commit                  # commitizen conventional commit
 pixi run backend                 # backend only

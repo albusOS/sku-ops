@@ -62,7 +62,7 @@ jobs:
         run: pixi run lint backend
 
       - name: Format check
-        run: pixi run uv run --directory backend ruff format --check .
+        run: pixi run format-check backend
 
       - name: Audit dependencies
         run: pixi run uv run --directory backend pip-audit
@@ -95,16 +95,11 @@ jobs:
       - name: Install backend virtualenv (uv + pixi Python)
         run: pixi run uv sync --dev --directory backend
 
-      - name: Apply migrations and seeds
-        run: supabase db reset --local --yes
-
       - name: Run tests
         env:
           PUBLIC_ENV: test
-          PRIVATE_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
           PRIVATE_JWT_SECRET: ci-test-secret
-          PYTHONPATH: ".cursor/skills/use-database/scripts:.:.."
-        run: pixi run uv run --directory backend pytest --tb=short -q --timeout=60
+        run: pixi run tests backend
 
       - name: Stop Supabase
         if: always()
@@ -132,10 +127,10 @@ jobs:
         run: pixi run pnpm --dir frontend install --frozen-lockfile
 
       - name: Lint
-        run: pixi run pnpm --dir frontend run lint
+        run: pixi run lint frontend
 
       - name: Format check
-        run: pixi run pnpm --dir frontend run format:check
+        run: pixi run format-check frontend
 
       - name: Build
         run: pixi run pnpm --dir frontend run build
@@ -162,4 +157,4 @@ jobs:
         run: pixi run pnpm --dir frontend install --frozen-lockfile
 
       - name: Run tests
-        run: pixi run pnpm --dir frontend run test:run
+        run: pixi run tests frontend
