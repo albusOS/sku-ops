@@ -1,6 +1,6 @@
 # CI / CD
 
-This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) and **CD** ([`.github/workflows/cd.yml`](../.github/workflows/cd.yml)). Operational deploy details (secrets, infra) stay in [deploy.md](./deploy.md) and [environment.md](./environment.md).
+This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)) and **CD** ([`.github/workflows/cd.yml`](../../../.github/workflows/cd.yml)). Operational deploy details (secrets, infra) stay in [deploy.md](../../../docs/deploy.md) and [environment.md](../../../docs/environment.md).
 
 ## Goals
 
@@ -19,10 +19,23 @@ This document describes GitHub Actions for **CI** ([`.github/workflows/ci.yml`](
 
 ## CI behavior (`ci.yml`)
 
-- **Lint** (`Backend (lint)`, `Frontend (lint)`): gated by `dorny/paths-filter` on the `changes` job.
-  - Backend paths: `backend/**`, `supabase/**`
-  - Frontend paths: `frontend/**`
-- **Tests** (`Backend (test)`, `Frontend (test)`): **always** run (backend uses local Supabase + migrations; frontend uses Vitest). This catches cross-stack regressions even when only one side changed.
+All jobs are gated by `dorny/paths-filter` on the `changes` job:
+
+- **Backend (lint)**: runs when `backend/**` or `supabase/**` changed.
+- **Backend (test)**: runs when `backend/**` or `supabase/**` changed (local Supabase + migrations).
+- **Frontend (lint)**: runs when `frontend/**` changed.
+- **Frontend (test)**: runs when `backend/**`, `supabase/**`, **or** `frontend/**` changed (Vitest). Backend changes trigger frontend tests to catch cross-stack regressions.
+
+If nothing in `backend/`, `supabase/`, or `frontend/` changed, all four jobs are skipped.
+
+### CI test matrix
+
+| Change | Backend lint | Backend test | Frontend lint | Frontend test |
+|--------|-------------|-------------|--------------|--------------|
+| `backend/**` or `supabase/**` | Yes | Yes | No | Yes |
+| `frontend/**` | No | No | Yes | Yes |
+| Both | Yes | Yes | Yes | Yes |
+| Neither | Skip | Skip | Skip | Skip |
 
 **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`. A new run on the same ref cancels an in-flight one (e.g. rapid pushes on `dev`).
 
@@ -95,7 +108,7 @@ gh run watch
 
 ## Related workflows
 
-- **Codegen** ([`.github/workflows/codegen.yml`](../.github/workflows/codegen.yml)): separate Supabase / SQLModel generation checks; not part of CI/CD gating described here.
+- **Codegen** ([`.github/workflows/codegen.yml`](../../../.github/workflows/codegen.yml)): separate Supabase / SQLModel generation checks; not part of CI/CD gating described here.
 
 ## Naming
 

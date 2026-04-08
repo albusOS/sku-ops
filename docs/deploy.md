@@ -165,10 +165,10 @@ Check:
 
 ## CI/CD
 
-See [ci-cd.md](./ci-cd.md) for triggers, path filters, and manual runs.
+Pipeline docs live in the [`use-ci-cd` skill](../.cursor/skills/use-ci-cd/SKILL.md) (triggers, path filters, manual runs).
 
-- [.github/workflows/ci.yml](../.github/workflows/ci.yml) — lint (path-gated), tests, reusable CI gate.
-- [.github/workflows/cd.yml](../.github/workflows/cd.yml) — production CD on `main` (CI gate, GHCR image, DigitalOcean App Platform, Vercel).
+- [.github/workflows/ci.yml](../.github/workflows/ci.yml) - lint (path-gated), tests, reusable CI gate.
+- [.github/workflows/cd.yml](../.github/workflows/cd.yml) - production CD on `main` (CI gate, GHCR image, DigitalOcean App Platform, Vercel).
 
 Automated deploy to Vercel / your API host is configured in GitHub Actions, not duplicated in this doc.
 
