@@ -94,7 +94,7 @@ When `PUBLIC_ENV=production`, string lookups from `os.environ` are **cached** on
 4. **Changing a non-secret:** update `backend/.env.production`, push; backend path filters trigger a new image and deploy.
 5. **Changing a secret:** update the GitHub Environment secret, push (or re-run the deploy workflow); the rendered spec picks up the new value on the next `apps update`.
 
-Initial app creation with a **private** GHCR image still uses [`devtools/scripts/do_apps_create_ghcr.py`](../devtools/scripts/do_apps_create_ghcr.py); if the committed file is still a template, render it first (same `envsubst` variable list as in `.github/workflows/deploy.yml`) or substitute `IMAGE_TAG` / secrets manually.
+Initial app creation with a **private** GHCR image still uses [`devtools/scripts/do_apps_create_ghcr.py`](../devtools/scripts/do_apps_create_ghcr.py); if the committed file is still a template, render it first (same `envsubst` variable list as in `.github/workflows/cd.yml`) or substitute `IMAGE_TAG` / secrets manually.
 
 ## Frontend (Vite)
 

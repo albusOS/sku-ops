@@ -165,9 +165,12 @@ Check:
 
 ## CI/CD
 
-GitHub Actions: [.github/workflows/ci.yml](../.github/workflows/ci.yml) — backend lint/test, frontend lint/build/test, Docker image build smoke.
+See [ci-cd.md](./ci-cd.md) for triggers, path filters, and manual runs.
 
-Automated deploy to Vercel / your API host is configured in your CI provider, not duplicated here.
+- [.github/workflows/ci.yml](../.github/workflows/ci.yml) — lint (path-gated), tests, reusable CI gate.
+- [.github/workflows/cd.yml](../.github/workflows/cd.yml) — production CD on `main` (CI gate, GHCR image, DigitalOcean App Platform, Vercel).
+
+Automated deploy to Vercel / your API host is configured in GitHub Actions, not duplicated in this doc.
 
 ### DigitalOcean App Platform + GHCR + Supabase: root cause chain
 
@@ -175,7 +178,7 @@ Short statements of what broke and what fixed it (same order as the failure chai
 
 | # | Root cause | Fix |
 |---|------------|-----|
-| 1 | Private GHCR image: each `doctl apps update --spec` replaced the app spec **without** registry credentials, so pulls failed with "Image does not exist or is private". | Put `registry_credentials: "$GHCR_REGISTRY_CREDS"` in `.do/app.yaml` and substitute it in the deploy workflow (`envsubst`) from a GitHub secret every deploy. |
+| 1 | Private GHCR image: each `doctl apps update --spec` replaced the app spec **without** registry credentials, so pulls failed with "Image does not exist or is private". | Put `registry_credentials: "$GHCR_REGISTRY_CREDS"` in `.do/app.yaml` and substitute it in the CD workflow (`envsubst`) from a GitHub secret every deploy. |
 | 2 | **`PUBLIC_ENV` unset** on the component: app defaulted to **development**, wrong `.env` profile, and hard-failed on production CORS rules. | Declare `PUBLIC_ENV=production` as a runtime env in the App Platform spec (not only in the image). |
 | 3 | **Deploy skipped** `build-backend` / `deploy-backend`: reusable **CI** workflow shared one **concurrency group** with push CI, so runs cancelled each other and `needs: [ci]` left deploy jobs skipped. | Use a workflow-scoped concurrency group, e.g. `ci-${{ github.workflow }}-${{ github.ref }}`. |
 | 4 | **`sslmode` in the DB URL** for asyncpg: SQLAlchemy/asyncpg does not accept that as a connect kwarg, causing `unexpected keyword argument 'sslmode'`. | Build the URL without `sslmode`; pass SSL via `connect_args["ssl"]` on `create_async_engine` (e.g. `require`). |

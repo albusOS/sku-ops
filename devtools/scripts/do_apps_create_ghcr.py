@@ -3,7 +3,7 @@
 
 The committed ``.do/app.yaml`` is a **deploy template**: it contains ``$IMAGE_TAG``
 and ``$PRIVATE_*`` placeholders for CI. For a one-off ``doctl apps create``, render
-first (same ``envsubst`` variable list as ``.github/workflows/deploy.yml``) or
+first (same ``envsubst`` variable list as ``.github/workflows/cd.yml``) or
 replace placeholders with literal values, then point ``--spec`` at the rendered file.
 
 App Platform needs pull credentials on the image: ``username:token`` where

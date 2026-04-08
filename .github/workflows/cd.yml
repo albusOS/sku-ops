@@ -1,4 +1,4 @@
-name: Deploy
+name: CD
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - ".do/**"
-      - ".github/workflows/deploy.yml"
+      - ".github/workflows/cd.yml"
       - ".github/workflows/ci.yml"
   workflow_dispatch:
 
@@ -48,15 +48,15 @@ jobs:
             backend_build:
               - 'backend/**'
               - '.dockerignore'
-              - '.github/workflows/deploy.yml'
+              - '.github/workflows/cd.yml'
             backend_deploy:
               - 'backend/**'
               - '.do/**'
               - '.dockerignore'
-              - '.github/workflows/deploy.yml'
+              - '.github/workflows/cd.yml'
             frontend:
               - 'frontend/**'
-              - '.github/workflows/deploy.yml'
+              - '.github/workflows/cd.yml'
       - name: Resolve outputs
         id: resolve
         run: |
