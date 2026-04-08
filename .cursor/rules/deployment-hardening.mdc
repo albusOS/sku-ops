@@ -19,7 +19,7 @@ There are three environments: `development`, `test`, `production`. There is no s
 ## Backend host (production)
 
 - Ship the same `backend/Dockerfile` image; the host sets listen `PORT` (e.g. `${PORT:-8000}` in CMD).
-- Postgres must use Supabase **direct** connection (port 5432), NOT the transaction pooler (port 6543). Prefer `PUBLIC_DB_USER` and `PUBLIC_DB_NAME` in committed `backend/.env`, `PUBLIC_DB_HOST` + `PUBLIC_DB_PORT=5432` + `PUBLIC_DB_SSL_MODE=require` in `backend/.env.production`, with `PRIVATE_DB_PASSWORD` from secrets only. A single `PRIVATE_DATABASE_URL` secret is still supported for hosts that inject one URI; config normalizes it to `postgresql+asyncpg://`. asyncpg prepared statements are incompatible with pgbouncer transaction mode.
+- Postgres uses Supavisor **session pooler** (port 5432, IPv4) in production. Direct connections (`db.xxx.supabase.co`) resolve to IPv6 only, which DO App Platform cannot route. Session mode preserves per-connection state and supports asyncpg prepared statements. Do NOT use the transaction pooler (port 6543) - asyncpg prepared statements are incompatible with transaction pooling. `PUBLIC_DB_USER=postgres.<project-ref>`, `PUBLIC_DB_HOST=aws-0-<region>.pooler.supabase.com`, `PUBLIC_DB_PORT=5432`, `PUBLIC_DB_SSL_MODE=require` are committed in `backend/.env.production`. `PRIVATE_DB_PASSWORD` comes from secrets. A single `PRIVATE_DATABASE_URL` secret is still supported; config normalizes it to `postgresql+asyncpg://`.
 - `PRIVATE_JWT_SECRET` must be the Supabase project's JWT secret — not a random value.
 - `PUBLIC_CORS_ORIGINS` must include all stable Vercel domains. `PUBLIC_CORS_ORIGIN_REGEX` can match preview deploys.
 - `PUBLIC_FRONTEND_URL` needed for Xero OAuth redirects.

@@ -8,15 +8,11 @@ __pycache__/
 # Git
 .git/
 
-# Environment - exclude secrets/local overrides, keep committed production defaults
-.env
+# Environment - only exclude .env.local (secrets/personal overrides).
+# backend/.env, backend/.env.development, backend/.env.production are all committed
+# and needed by the layered dotenv loader (env.py skips missing files gracefully).
 .env.local
-.env.development
-backend/.env
 backend/.env.local
-backend/.env.development
-# backend/.env.production is intentionally NOT excluded - it contains
-# committed non-secret production defaults (DB host, CORS origins, etc.)
 
 # Non-production directories
 backend/tests/
