@@ -18,7 +18,7 @@ Three GitHub Actions workflows: **CI** (`ci.yml`), **CD** (`cd.yml`), and **Supa
 
 **Key rule:** pushes to `main` never trigger standalone CI - CD calls `ci.yml` as its gate. No duplicate runs.
 
-## CI jobs
+## CI jobs (ci.yml)
 
 All jobs are gated by `dorny/paths-filter` on the `changes` job:
 
@@ -29,13 +29,13 @@ All jobs are gated by `dorny/paths-filter` on the `changes` job:
 
 If nothing in `backend/`, `supabase/`, or `frontend/` changed, all four jobs are skipped.
 
-## CD jobs
+## CD jobs (cd.yml)
 
 `changes` -> `ci` (gate) -> `build-backend` (if changed) -> `deploy-backend` (if changed) + `deploy-frontend` (if changed)
 
 On `workflow_dispatch`, all deploy flags forced `true` (full pipeline).
 
-## Supabase jobs
+## Supabase jobs (supabase.yml)
 
 `typegen-check` -> `db-test` -> `db-push` (only on `main` via `push` or `workflow_dispatch`, not on PRs)
 
