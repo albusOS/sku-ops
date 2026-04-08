@@ -44,7 +44,7 @@ Target stack: **DigitalOcean** (or equivalent for the FastAPI backend) + **Verce
 | Test | `test` | CI / local pytest | Test Postgres DB, conftest sets this |
 | Production | `production` | Hosted API + Vercel + Supabase | Strict config, Supabase Auth required |
 
-There is no staging environment. `config.py` accepts exactly three values: `development`, `test`, `production` (legacy `ENV` is still read as a fallback).
+There is no staging environment. `config.py` accepts exactly three values: `development`, `test`, `production` (via `PUBLIC_ENV`).
 
 ### Production guards (hard startup errors, not warnings)
 

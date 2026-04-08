@@ -2,7 +2,7 @@
 
 This document describes how SKU-Ops loads configuration for the **backend** (FastAPI) and **frontend** (Vite), and how the Python `Config` singleton behaves in development vs production.
 
-Backend keys use a **`PUBLIC_` / `PRIVATE_` prefix**: non-secrets vs secrets. Legacy `ENV` is still accepted alongside `PUBLIC_ENV` when choosing the dotenv profile and runtime mode.
+Backend keys use a **`PUBLIC_` / `PRIVATE_` prefix**: non-secrets vs secrets. Runtime mode and the dotenv profile file (`.env.development` vs `.env.production`) are chosen from **`PUBLIC_ENV`** only.
 
 ## Backend file hierarchy
 
@@ -24,7 +24,7 @@ On import, `shared.infrastructure.env` snapshots **process** keys (`PROCESS_ENV_
 
 1. Repo root `.env` (if present)
 2. `backend/.env`
-3. `backend/.env.development` or `backend/.env.production` (from runtime `PUBLIC_ENV`, with legacy `ENV` fallback, when `load_backend_dotenv_initial` runs)
+3. `backend/.env.development` or `backend/.env.production` (from runtime `PUBLIC_ENV` when `load_backend_dotenv_initial` runs)
 4. `backend/.env.local`
 
 Only keys **not** in `PROCESS_ENV_KEYS` are written to `os.environ`. So:

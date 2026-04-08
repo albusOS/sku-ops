@@ -335,7 +335,6 @@ def check_production_flags() -> None:
         import sys
 
         orig_public = os.environ.get("PUBLIC_ENV")
-        orig_legacy = os.environ.get("ENV")
         os.environ["PUBLIC_ENV"] = "production"
         os.environ.setdefault("PRIVATE_JWT_SECRET", "a" * 32)
         os.environ.setdefault("PRIVATE_DATABASE_URL", "postgresql://x:x@x:5432/x")
@@ -356,10 +355,6 @@ def check_production_flags() -> None:
             os.environ.pop("PUBLIC_ENV", None)
         else:
             os.environ["PUBLIC_ENV"] = orig_public
-        if orig_legacy is None:
-            os.environ.pop("ENV", None)
-        else:
-            os.environ["ENV"] = orig_legacy
         if "shared.infrastructure.config" in sys.modules:
             importlib.reload(sys.modules["shared.infrastructure.config"])
 

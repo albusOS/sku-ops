@@ -7,8 +7,7 @@ Use the singleton:
     config.DATABASE_URL  # postgresql+asyncpg://... from PUBLIC_DB_* or PRIVATE_DATABASE_URL
 
 ``PUBLIC_ENV`` controls behavior: ``development`` | ``test`` | ``production``.
-Legacy ``ENV`` is still read as a fallback until removed. When unset before
-layered dotenv load, defaults to ``development``.
+When unset before layered dotenv load, defaults to ``development``.
 
 Layered env files (see ``docs/environment.md``): ``backend/.env``,
 ``backend/.env.{development|production}``, ``backend/.env.local``.
@@ -43,28 +42,20 @@ PROJECT_ROOT = find_backend_root()
 
 def _runtime_env_from_process() -> str:
     """Process env only, before layered dotenv merge (used to pick .env.<profile>)."""
-    return (
-        os.environ.get("PUBLIC_ENV", "").strip().lower()
-        or os.environ.get("ENV", "").strip().lower()
-        or "development"
-    )
+    return os.environ.get("PUBLIC_ENV", "").strip().lower() or "development"
 
 
 _pre_load_env = _runtime_env_from_process()
 load_backend_dotenv_initial(PROJECT_ROOT, env_name=_pre_load_env)
 
-_REQUESTED_ENV = (
-    os.environ.get("PUBLIC_ENV", "").strip().lower()
-    or os.environ.get("ENV", "").strip().lower()
-    or "development"
-)
+_REQUESTED_ENV = os.environ.get("PUBLIC_ENV", "").strip().lower() or "development"
 _ENV = _REQUESTED_ENV
 
 _VALID_ENVS = frozenset({"development", "test", "production"})
 if _ENV not in _VALID_ENVS:
     raise RuntimeError(
         f"PUBLIC_ENV must be one of {sorted(_VALID_ENVS)}, got '{_ENV}'. "
-        "Check backend/.env or set PUBLIC_ENV (legacy ENV is still accepted)."
+        "Check backend/.env or set PUBLIC_ENV."
     )
 
 _DEV_JWT_FALLBACK = "hardware-store-" + "secret-key"

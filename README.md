@@ -87,7 +87,7 @@ pixi task list                # all tasks + descriptions
 
 ## Environment
 
-Configuration is environment-aware (`PUBLIC_ENV=development|test|production`; legacy `ENV` still works). See `backend/.env.example` for all available settings.
+Configuration is environment-aware (`PUBLIC_ENV=development|test|production`). See `backend/.env.example` for all available settings.
 
 | | Development | Test | Production |
 |---|---|---|---|

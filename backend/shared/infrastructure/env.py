@@ -5,14 +5,14 @@ File merge order (later files override earlier **for keys not set by the process
 1. Repo root ``.env`` (optional)
 2. ``backend/.env``
 3. ``backend/.env.development`` or ``backend/.env.production``
-   (from runtime ``PUBLIC_ENV``, with legacy ``ENV`` fallback for the profile)
+   (which file is chosen from process ``PUBLIC_ENV`` in ``config`` before the first dotenv merge)
 4. ``backend/.env.local``
 
 Keys already present in ``os.environ`` when this module is first imported (platform,
 shell, CI, Docker, ``pixi``) are never overwritten by dotenv files.
 
-``PUBLIC_ENV=test`` (or legacy ``ENV=test``) uses the same filename bundle as development
-(``.env.development``) so CI ``os.environ`` wins when set before import.
+``PUBLIC_ENV=test`` uses the same filename bundle as development (``.env.development``)
+so CI ``os.environ`` wins when set before import.
 
 See ``docs/environment.md`` in the repo root.
 """
@@ -80,7 +80,7 @@ def load_backend_dotenv_initial(backend_root: Path, *, env_name: str) -> None:
 
 
 def maybe_reload_backend_dotenv_development(backend_root: Path) -> None:
-    """Debounced reload for ``ENV=development``; same precedence rules as initial load."""
+    """Debounced reload for ``PUBLIC_ENV=development``; same precedence rules as initial load."""
     global _last_dev_reload_monotonic
     now = time.monotonic()
     if now - _last_dev_reload_monotonic < _DEV_RELOAD_DEBOUNCE_S:
