@@ -173,6 +173,11 @@ jobs:
           envsubst '$IMAGE_TAG $PRIVATE_DB_PASSWORD $PRIVATE_JWT_SECRET $PRIVATE_SENTRY_DSN $PRIVATE_ANTHROPIC_API_KEY $PRIVATE_OPENROUTER_API_KEY $PRIVATE_OPENAI_API_KEY $PRIVATE_XERO_CLIENT_SECRET $GHCR_REGISTRY_CREDS' \
             < .do/app.yaml > .do/app.rendered.yaml
 
+      - name: Verify secrets reached rendered spec
+        run: |
+          echo "PRIVATE_DB_PASSWORD length: ${#PRIVATE_DB_PASSWORD}"
+          echo "Rendered spec DB_PASSWORD placeholder resolved: $(grep -c 'PRIVATE_DB_PASSWORD' .do/app.rendered.yaml | grep -q '^0$' && echo 'yes' || echo 'NO - still has placeholder')"
+
       - name: Apply spec and deploy
         run: |
           doctl apps update "${{ secrets.DIGITALOCEAN_APP_ID }}" --spec .do/app.rendered.yaml
