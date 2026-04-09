@@ -84,11 +84,7 @@ export default function AuthCallback() {
         <p className="text-muted-foreground text-center max-w-sm">
           Your account has been confirmed. You can now access the app.
         </p>
-        <Button
-          onClick={handleContinue}
-          className="mt-2 px-6"
-          data-testid="auth-callback-continue"
-        >
+        <Button onClick={handleContinue} className="mt-2 px-6" data-testid="auth-callback-continue">
           Continue to app
         </Button>
       </div>

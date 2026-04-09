@@ -67,8 +67,7 @@ const Login = () => {
   const navigate = useNavigate();
 
   const { title, icon: Icon, accentClass, role } = ROLE_CONFIG[roleTab];
-  const showAdminSignupGate =
-    mode === "signup" && role === ROLES.ADMIN && !adminSignupUnlocked;
+  const showAdminSignupGate = mode === "signup" && role === ROLES.ADMIN && !adminSignupUnlocked;
 
   if (user) {
     return <Navigate to="/" replace />;
@@ -258,11 +257,7 @@ const Login = () => {
             <h2 className="text-base font-semibold text-foreground">{title}</h2>
           </div>
 
-          <form
-            data-testid="login-form"
-            onSubmit={handleSubmit}
-            className="space-y-4 flex-1"
-          >
+          <form data-testid="login-form" onSubmit={handleSubmit} className="space-y-4 flex-1">
             <div className="relative">
               {showAdminSignupGate && (
                 <div
@@ -281,8 +276,8 @@ const Login = () => {
                       Back
                     </button>
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                      Admin registration requires an invite code. Verify it here before entering your
-                      details.
+                      Admin registration requires an invite code. Verify it here before entering
+                      your details.
                     </p>
                     <div>
                       <Label
@@ -322,7 +317,10 @@ const Login = () => {
               >
                 {mode === "signup" && !showAdminSignupGate && (
                   <div>
-                    <Label htmlFor="signup-name" className="text-muted-foreground font-medium text-sm">
+                    <Label
+                      htmlFor="signup-name"
+                      className="text-muted-foreground font-medium text-sm"
+                    >
                       Name
                     </Label>
                     <Input
@@ -336,7 +334,10 @@ const Login = () => {
                   </div>
                 )}
                 <div>
-                  <Label htmlFor="login-email" className="text-muted-foreground font-medium text-sm">
+                  <Label
+                    htmlFor="login-email"
+                    className="text-muted-foreground font-medium text-sm"
+                  >
                     Email
                   </Label>
                   <Input
@@ -350,7 +351,10 @@ const Login = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="login-password" className="text-muted-foreground font-medium text-sm">
+                  <Label
+                    htmlFor="login-password"
+                    className="text-muted-foreground font-medium text-sm"
+                  >
                     Password
                   </Label>
                   <Input
@@ -366,8 +370,7 @@ const Login = () => {
                 <Button
                   type="submit"
                   disabled={
-                    loading ||
-                    (mode === "signup" && role === ROLES.ADMIN && !adminSignupUnlocked)
+                    loading || (mode === "signup" && role === ROLES.ADMIN && !adminSignupUnlocked)
                   }
                   className="w-full btn-primary h-11 text-sm mt-2"
                   data-testid="login-submit-btn"
@@ -428,8 +431,9 @@ const Login = () => {
               className="text-center text-foreground/90 text-base pt-1"
               data-testid="signup-email-hint"
             >
-              We sent a link to <span className="font-medium text-foreground">{pendingConfirmEmail}</span>
-              . Use it to activate your account, then you can sign in.
+              We sent a link to{" "}
+              <span className="font-medium text-foreground">{pendingConfirmEmail}</span>. Use it to
+              activate your account, then you can sign in.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm">
@@ -439,8 +443,8 @@ const Login = () => {
                 <li>Keep the app running (Vite on port 3000) before you click the email link.</li>
                 <li>
                   Links open{" "}
-                  <code className="text-xs bg-background/80 px-1 rounded">/auth/callback</code> so the
-                  session is saved in this browser.
+                  <code className="text-xs bg-background/80 px-1 rounded">/auth/callback</code> so
+                  the session is saved in this browser.
                 </li>
               </ul>
             </div>
