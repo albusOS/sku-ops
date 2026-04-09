@@ -107,7 +107,8 @@ async def complete_onboarding(cmd: CompleteOnboardingCommand) -> CompleteOnboard
                 org_id = new_uuid7_str()
                 slug = _slug_from_name(org_name)
                 await sql_execute(
-                    "INSERT INTO organizations (id, name, slug, created_at) VALUES ($1, $2, $3, NOW())",
+                    "INSERT INTO organizations (id, name, slug, created_at) "
+                    "VALUES ($1, $2, $3, NOW())",
                     (org_id, org_name, slug),
                     read_only=False,
                 )

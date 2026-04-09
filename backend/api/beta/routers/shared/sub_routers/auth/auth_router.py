@@ -104,7 +104,7 @@ async def me(current_user: CurrentUserOnboardingDep) -> UserResponse:
         raise HTTPException(
             status_code=503,
             detail="Database temporarily unavailable - please try again",
-        )
+        ) from None
     if not row:
         raise HTTPException(
             status_code=401,
