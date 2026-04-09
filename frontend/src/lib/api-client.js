@@ -277,6 +277,9 @@ const api = {
   // ── Auth ───────────────────────────────────────────────────────────
   auth: {
     me: () => axios.get(`${API}/shared/auth/me`).then((r) => r.data),
+    organizations: () => axios.get(`${API}/shared/auth/organizations`).then((r) => r.data),
+    completeProfile: (data) =>
+      axios.post(`${API}/shared/auth/complete-profile`, data).then((r) => r.data),
   },
 
   // ── Org Settings ────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import defer
+from sqlalchemy.orm import selectinload
 
 from shared.infrastructure.db.orm_utils import (
     as_uuid_required,
@@ -84,64 +84,46 @@ class SharedDatabaseService(DomainDatabaseService):
                 del _active_cache[k]
         return active
 
+    def _user_billing_label(self, u: Users) -> str:
+        if u.billing_entity is not None:
+            return u.billing_entity.name or ""
+        return ""
+
     async def fetch_user_by_email(self, email: str) -> dict | None:
         async with self.session() as session:
-            result = await session.execute(select(Users).where(Users.email == email))
+            result = await session.execute(
+                select(Users)
+                .options(selectinload(Users.billing_entity))
+                .where(Users.email == email)
+            )
             u = result.scalar_one_or_none()
             if u is None:
                 return None
-            return self._user_to_auth_dict(u, include_password=True)
+            return self._user_to_auth_dict(u)
 
     async def fetch_user_safe_by_id(self, user_id: str) -> dict | None:
         uid = as_uuid_required(user_id)
         async with self.session() as session:
             result = await session.execute(
-                select(Users).options(defer(Users.password)).where(Users.id == uid)
+                select(Users).options(selectinload(Users.billing_entity)).where(Users.id == uid)
             )
             u = result.scalar_one_or_none()
             if u is None:
                 return None
             return self._user_to_safe_dict(u)
 
-    async def insert_user(
-        self,
-        *,
-        user_id: str,
-        email: str,
-        password_hash: str,
-        name: str,
-        role: str = "admin",
-        organization_id: str,
-        created_at: datetime,
-    ) -> None:
-        row = Users(
-            id=as_uuid_required(user_id),
-            email=email,
-            password=password_hash,
-            name=name,
-            role=role,
-            is_active=True,
-            organization_id=as_uuid_required(organization_id),
-            created_at=created_at,
-        )
-        async with self.session() as session:
-            session.add(row)
-            await self.end_write_session(session)
-
-    def _user_to_auth_dict(self, u: Users, *, include_password: bool) -> dict:
+    def _user_to_auth_dict(self, u: Users) -> dict:
         d: dict = {
             "id": str(u.id),
             "email": u.email,
             "name": u.name,
             "role": u.role,
             "company": u.company,
-            "billing_entity": u.billing_entity,
+            "billing_entity": self._user_billing_label(u),
             "phone": u.phone,
             "is_active": u.is_active,
             "organization_id": uuid_str(u.organization_id),
         }
-        if include_password:
-            d["password"] = u.password
         if u.billing_entity_id is not None:
             d["billing_entity_id"] = str(u.billing_entity_id)
         return d
@@ -153,7 +135,7 @@ class SharedDatabaseService(DomainDatabaseService):
             "name": u.name,
             "role": u.role,
             "company": u.company,
-            "billing_entity": u.billing_entity,
+            "billing_entity": self._user_billing_label(u),
             "billing_entity_id": uuid_str(u.billing_entity_id),
             "phone": u.phone,
             "is_active": u.is_active,

@@ -28,6 +28,17 @@ export const AuthProvider = ({ children }) => {
     setToken(t || null);
   };
 
+  const refreshSessionAndProfile = async () => {
+    if (!isSupabaseConfigured) {
+      await _fetchProfile();
+      return;
+    }
+    const sb = await getSupabase();
+    const { error } = await sb.auth.refreshSession();
+    if (error) throw error;
+    await _fetchProfile();
+  };
+
   const _fetchProfile = async () => {
     try {
       const data = await api.auth.me();
@@ -157,7 +168,7 @@ export const AuthProvider = ({ children }) => {
     return profile;
   };
 
-  const register = async (email, password, name) => {
+  const register = async (email, password, name, role) => {
     if (!isSupabaseConfigured) {
       throw new Error("Supabase auth is not configured.");
     }
@@ -165,7 +176,7 @@ export const AuthProvider = ({ children }) => {
     const { data, error } = await sb.auth.signUp({
       email,
       password,
-      options: { data: { name } },
+      options: { data: { name, role } },
     });
     if (error) throw error;
     if (data.session?.access_token) {
@@ -187,7 +198,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, login, register, logout, refreshSessionAndProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

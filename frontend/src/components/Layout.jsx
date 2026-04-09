@@ -27,6 +27,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import ChatAssistant from "./ChatAssistant";
+import OnboardingDialog from "./OnboardingDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 
@@ -232,6 +233,7 @@ const Layout = ({ children }) => {
 
   return (
     <ChatProvider>
+      <OnboardingDialog />
       <div
         className="h-screen overflow-hidden bg-background text-foreground flex"
         data-testid="app-layout"

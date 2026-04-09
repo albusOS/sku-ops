@@ -34,17 +34,15 @@ def _seed_contractor(app_client: TestClient) -> str:
         await sql_execute(
             """
             INSERT INTO users (
-                id, email, password, name, role, company, billing_entity,
+                id, email, name, role, company,
                 is_active, organization_id, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, NOW())
+            ) VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())
             """,
             (
                 CONTRACTOR_USER_ID,
                 "contractor@test.com",
-                "unused",
                 "E2E Contractor",
                 "contractor",
-                "E2E Corp",
                 "E2E Corp",
                 DEFAULT_ORG_ID,
             ),

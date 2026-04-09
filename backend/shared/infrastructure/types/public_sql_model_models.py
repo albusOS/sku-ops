@@ -105,7 +105,7 @@ class BillingEntities(SQLModel, table=True):
     jobs: list["Jobs"] = Relationship(back_populates="billing_entity")
     payments: list["Payments"] = Relationship(back_populates="billing_entity")
     returns: list["Returns"] = Relationship(back_populates="billing_entity_rel")
-    users: list["Users"] = Relationship(back_populates="billing_entity_rel")
+    users: list["Users"] = Relationship(back_populates="billing_entity")
     withdrawals: list["Withdrawals"] = Relationship(back_populates="billing_entity_rel")
 
 
@@ -113,7 +113,6 @@ class Users(SQLModel, table=True):
     __tablename__ = "users"
     __table_args__ = {"schema": "public", "extend_existing": True}
 
-    billing_entity: str | None = Field(default=None)
     billing_entity_id: uuid.UUID | None = Field(
         foreign_key="public.billing_entities.id", default=None, sa_type=PG_UUID(as_uuid=True)
     )
@@ -126,11 +125,10 @@ class Users(SQLModel, table=True):
     organization_id: uuid.UUID | None = Field(
         foreign_key="public.organizations.id", default=None, sa_type=PG_UUID(as_uuid=True)
     )
-    password: str
     phone: str | None = Field(default=None)
     role: str
 
-    billing_entity_rel: Optional["BillingEntities"] = Relationship(back_populates="users")
+    billing_entity: Optional["BillingEntities"] = Relationship(back_populates="users")
     organization: Optional["Organizations"] = Relationship(back_populates="users")
     agent_runs: list["AgentRuns"] = Relationship(back_populates="user")
     audit_logs: list["AuditLog"] = Relationship(back_populates="user")
@@ -163,7 +161,6 @@ class Users(SQLModel, table=True):
         back_populates="received_by",
         sa_relationship_kwargs={"foreign_keys": "PurchaseOrders.received_by_id"},
     )
-    refresh_tokens: list["RefreshTokens"] = Relationship(back_populates="user")
     returns: list["Returns"] = Relationship(
         back_populates="contractor",
         sa_relationship_kwargs={"foreign_keys": "Returns.contractor_id"},
@@ -205,20 +202,6 @@ class OrgSettings(SQLModel, table=True):
     xero_tracking_category_id: str | None = Field(default=None)
 
     organization: Optional["Organizations"] = Relationship(back_populates="org_settings")
-
-
-class RefreshTokens(SQLModel, table=True):
-    __tablename__ = "refresh_tokens"
-    __table_args__ = {"schema": "public", "extend_existing": True}
-
-    created_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
-    expires_at: datetime.datetime = Field(sa_type=DateTime(timezone=True))
-    id: uuid.UUID = Field(primary_key=True, sa_type=PG_UUID(as_uuid=True))
-    revoked: bool
-    token_hash: str
-    user_id: uuid.UUID = Field(foreign_key="public.users.id", sa_type=PG_UUID(as_uuid=True))
-
-    user: Optional["Users"] = Relationship(back_populates="refresh_tokens")
 
 
 class OauthStates(SQLModel, table=True):

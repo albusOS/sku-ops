@@ -18,7 +18,6 @@ def _asyncpg_dsn(url: str) -> str:
 EXPECTED_TABLES = {
     "organizations",
     "users",
-    "refresh_tokens",
     "audit_log",
     "org_settings",
     "oauth_states",

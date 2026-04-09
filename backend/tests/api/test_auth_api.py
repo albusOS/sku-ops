@@ -23,6 +23,7 @@ class TestMe:
         assert data["email"] == "admin@supplyyard.com"
         assert data["role"] == "admin"
         assert "password" not in data
+        assert data.get("needs_onboarding") is False
 
     def test_me_with_invalid_token_returns_401(self, client):
         r = client.get(

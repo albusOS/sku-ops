@@ -1710,41 +1710,6 @@ export type Database = {
           },
         ]
       }
-      refresh_tokens: {
-        Row: {
-          created_at: string
-          expires_at: string
-          id: string
-          revoked: boolean
-          token_hash: string
-          user_id: string
-        }
-        Insert: {
-          created_at: string
-          expires_at: string
-          id: string
-          revoked?: boolean
-          token_hash: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string
-          id?: string
-          revoked?: boolean
-          token_hash?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "refresh_tokens_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       return_items: {
         Row: {
           amount: number
@@ -2170,7 +2135,6 @@ export type Database = {
       }
       users: {
         Row: {
-          billing_entity: string | null
           billing_entity_id: string | null
           company: string | null
           created_at: string
@@ -2179,12 +2143,10 @@ export type Database = {
           is_active: boolean
           name: string
           organization_id: string | null
-          password: string
           phone: string | null
           role: string
         }
         Insert: {
-          billing_entity?: string | null
           billing_entity_id?: string | null
           company?: string | null
           created_at: string
@@ -2193,12 +2155,10 @@ export type Database = {
           is_active?: boolean
           name: string
           organization_id?: string | null
-          password: string
           phone?: string | null
           role?: string
         }
         Update: {
-          billing_entity?: string | null
           billing_entity_id?: string | null
           company?: string | null
           created_at?: string
@@ -2207,7 +2167,6 @@ export type Database = {
           is_active?: boolean
           name?: string
           organization_id?: string | null
-          password?: string
           phone?: string | null
           role?: string
         }

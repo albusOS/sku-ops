@@ -44,9 +44,9 @@ def resolve_claims(payload: dict) -> ResolvedClaims:
         raise ValueError("missing user id")
     user_id = parse_uuid_str("user id", str(raw_user_id))
 
-    # Role: prefer app_metadata.role (Supabase custom claim), fall back to top-level.
+    # Role: app_metadata (Supabase admin), then sign-up user_metadata, then top-level.
     # Supabase sets a system role "authenticated" on every token — filter it out.
-    role = app_meta.get("role") or payload.get("role") or ""
+    role = app_meta.get("role") or user_meta.get("role") or payload.get("role") or ""
     if role == "authenticated":
         role = ""
     if not role:

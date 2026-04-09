@@ -31,11 +31,11 @@ def org_b_headers(app_client):
             await sql_execute(
                 """
                 INSERT INTO users (
-                    id, email, password, name, role, is_active,
+                    id, email, name, role, is_active,
                     organization_id, created_at
-                ) VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW())
+                ) VALUES ($1, $2, $3, $4, TRUE, $5, NOW())
                 """,
-                (ORG_B_USER, "orgb@test.com", "unused", "Org B Admin", "admin", ORG_B_ID),
+                (ORG_B_USER, "orgb@test.com", "Org B Admin", "admin", ORG_B_ID),
             )
 
     app_client.portal.call(_seed)

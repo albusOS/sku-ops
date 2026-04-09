@@ -37,6 +37,19 @@ security = HTTPBearer()
 BearerToken = Annotated[HTTPAuthorizationCredentials, Depends(security)]
 
 
+def _build_current_user(claims, *, org_fallback: str) -> CurrentUser:
+    org_id = claims.organization_id or org_fallback
+    user_id_var.set(claims.user_id)
+    org_id_var.set(org_id)
+    return CurrentUser(
+        id=claims.user_id,
+        email=claims.email,
+        name=claims.name,
+        role=claims.role,
+        organization_id=org_id,
+    )
+
+
 async def get_current_user(
     credentials: BearerToken,
 ) -> CurrentUser:
@@ -59,18 +72,28 @@ async def get_current_user(
     if not await _db_shared().is_user_active(claims.user_id):
         raise HTTPException(status_code=401, detail="Account deactivated")
 
-    org_id = claims.organization_id or DEFAULT_ORG_ID
+    return _build_current_user(claims, org_fallback=DEFAULT_ORG_ID)
 
-    user_id_var.set(claims.user_id)
-    org_id_var.set(org_id)
 
-    return CurrentUser(
-        id=claims.user_id,
-        email=claims.email,
-        name=claims.name,
-        role=claims.role,
-        organization_id=org_id,
-    )
+async def get_current_user_onboarding(
+    credentials: BearerToken,
+) -> CurrentUser:
+    """Like get_current_user but allows missing organization_id when deployed (signup flow)."""
+    try:
+        payload = config.decode_token(credentials.credentials)
+        claims = resolve_claims(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {e}") from e
+    except jwt.ExpiredSignatureError as e:
+        raise HTTPException(status_code=401, detail="Token expired") from e
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail="Invalid token") from e
+
+    if not await _db_shared().is_user_active(claims.user_id):
+        raise HTTPException(status_code=401, detail="Account deactivated")
+
+    # Empty org until onboarding completes; do not use DEFAULT_ORG_ID here (avoid wrong tenant).
+    return _build_current_user(claims, org_fallback="")
 
 
 def require_role(*roles):

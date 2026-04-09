@@ -20,7 +20,7 @@ def test_shared_schema_uses_uuid_for_internal_primary_keys():
     shared_schema = _read("supabase/schemas/01-shared-schema.sql")
     assert "id UUID PRIMARY KEY" in shared_schema
     assert "organization_id UUID REFERENCES organizations(id)" in shared_schema
-    assert "user_id UUID NOT NULL REFERENCES users(id)" in shared_schema
+    assert "user_id UUID REFERENCES users(id)" in shared_schema
 
 
 def test_rls_function_returns_uuid_tenant_key():

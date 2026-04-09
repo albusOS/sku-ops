@@ -40,7 +40,6 @@ async def main(
     name: str,
     role: str,
     org_id: str,
-    password: str = "",
 ) -> None:
     from shared.infrastructure.db import close_db, init_db, sql_execute
     from shared.kernel.constants import DEFAULT_ORG_ID
@@ -73,38 +72,23 @@ async def main(
                 pass
         else:
             user_id = user_id_arg or new_uuid7_str()
-            if not user_id_arg:
-                pass
             now = datetime.now(UTC)
-            if password:
-                import bcrypt
-
-                hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
-                    "utf-8"
-                )
-            else:
-                hashed_pw = "!supabase-managed"
             await sql_execute(
                 "INSERT INTO users "
-                "(id, email, password, name, role, company, billing_entity, phone, "
+                "(id, email, name, role, company, phone, "
                 "is_active, organization_id, created_at) "
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $10)",
+                "VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)",
                 (
                     user_id,
                     email,
-                    hashed_pw,
                     name,
                     role,
-                    "",
                     "",
                     "",
                     resolved_org,
                     now,
                 ),
             )
-
-        if not password:
-            pass
     finally:
         await close_db()
 
@@ -120,7 +104,6 @@ if __name__ == "__main__":
     parser.add_argument("--name", required=True, help="Display name")
     parser.add_argument("--role", default="admin", help="User role (default: admin)")
     parser.add_argument("--org-id", default="", help="Organization ID (default: DEFAULT_ORG_ID)")
-    parser.add_argument("--password", default="", help="Password for local auth (bcrypt hashed)")
     args = parser.parse_args()
 
     asyncio.run(
@@ -130,6 +113,5 @@ if __name__ == "__main__":
             args.name,
             args.role,
             args.org_id,
-            args.password,
         )
     )

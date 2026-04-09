@@ -160,7 +160,7 @@ exclude = ["shared/infrastructure/types/*_database_types.py"]
 "tests/**" = ["S101", "PLC0415", "ARG001", "ARG002", "SLF001", "S106", "S603"]
 # HTTP handlers keep auth deps in signature for Depends() even when the body only
 # delegates to services that read org from contextvars.
-"api/beta/routers/**/*.py" = ["ARG001", "ARG002"]
+"api/beta/routers/**/*.py" = ["ARG001", "ARG002", "TC001"]
 # PydanticAI injects RunContext on @agent.tool callables; many tools only use ctx when
 # writing deps — unused ctx on other tools is normal.
 "assistant/agents/**/agent.py" = ["ARG001", "ARG002"]

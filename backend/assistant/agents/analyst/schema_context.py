@@ -155,7 +155,6 @@ def _parse_ddl(ddl: str, context: str) -> TableInfo | None:
 _TABLE_CONTEXT = {
     "organizations": "shared",
     "users": "shared",
-    "refresh_tokens": "shared",
     "oauth_states": "shared",
     "audit_log": "shared",
     "billing_entities": "finance",
@@ -299,7 +298,6 @@ _RELATIONSHIPS = """
 # Tables not useful for business analysis
 _EXCLUDED_TABLES = frozenset(
     {
-        "refresh_tokens",
         "oauth_states",
         "processed_events",
         "sku_counters",

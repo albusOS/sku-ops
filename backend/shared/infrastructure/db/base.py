@@ -81,6 +81,14 @@ class BaseDatabaseService:
     def supabase_admin(self):
         return get_supabase(True)
 
+    async def get_async_supabase(self):
+        """Anon / publishable-key Supabase client (HTTP). Independent of the Postgres pool."""
+        return await get_async_supabase(False)
+
+    async def get_async_supabase_admin(self):
+        """Secret-key Supabase client for Auth admin APIs. Independent of the Postgres pool."""
+        return await get_async_supabase(True)
+
     @property
     def is_healthy(self) -> bool:
         return self._connected

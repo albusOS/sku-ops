@@ -14,11 +14,9 @@ CREATE TABLE IF NOT EXISTS organizations (
 CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
         name TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'admin',
         company TEXT,
-        billing_entity TEXT,
         billing_entity_id UUID,
         phone TEXT,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -41,15 +39,6 @@ CREATE TABLE IF NOT EXISTS org_settings (
         xero_tracking_category_id TEXT,
         xero_tax_type TEXT NOT NULL DEFAULT '',
         updated_at TIMESTAMPTZ
-    );
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-        id UUID PRIMARY KEY,
-        user_id UUID NOT NULL REFERENCES users(id),
-        token_hash TEXT NOT NULL UNIQUE,
-        expires_at TIMESTAMPTZ NOT NULL,
-        revoked BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at TIMESTAMPTZ NOT NULL
     );
 
 CREATE TABLE IF NOT EXISTS oauth_states (
@@ -123,10 +112,6 @@ CREATE TABLE IF NOT EXISTS processed_events (
 CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
 
 CREATE INDEX IF NOT EXISTS idx_users_org_role ON users(organization_id, role);
-
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id, created_at);
 

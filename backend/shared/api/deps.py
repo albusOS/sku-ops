@@ -17,8 +17,9 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from shared.api.auth_deps import get_current_user, require_role
+from shared.api.auth_deps import get_current_user, get_current_user_onboarding, require_role
 from shared.kernel.types import CurrentUser
 
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]
+CurrentUserOnboardingDep = Annotated[CurrentUser, Depends(get_current_user_onboarding)]
 AdminDep = Annotated[CurrentUser, Depends(require_role("admin"))]

@@ -24,6 +24,11 @@ CREATE POLICY tenant_isolation ON organizations
   USING (id = public.jwt_organization_id())
   WITH CHECK (id = public.jwt_organization_id());
 
+-- Lets contractors pick an org during onboarding (Supabase JWT without org claim yet).
+CREATE POLICY organizations_select_for_authenticated ON organizations
+  FOR SELECT TO authenticated
+  USING (true);
+
 -- users
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON users
@@ -38,26 +43,7 @@ CREATE POLICY tenant_isolation ON org_settings
   USING (organization_id = public.jwt_organization_id())
   WITH CHECK (organization_id = public.jwt_organization_id());
 
--- refresh_tokens
-ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON refresh_tokens
-  FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = refresh_tokens.user_id
-        AND u.organization_id = public.jwt_organization_id()
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = refresh_tokens.user_id
-        AND u.organization_id = public.jwt_organization_id()
-    )
-  );
-
--- oauth_states
+-- oauth_states (Xero OAuth CSRF / org binding)
 ALTER TABLE oauth_states ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON oauth_states
   FOR ALL TO authenticated

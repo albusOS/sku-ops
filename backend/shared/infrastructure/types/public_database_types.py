@@ -71,7 +71,6 @@ class PublicOrganizationsUpdate(TypedDict):
 
 
 class PublicUsers(BaseModel):
-    billing_entity: Optional[str] = Field(alias="billing_entity")
     billing_entity_id: Optional[uuid.UUID] = Field(alias="billing_entity_id")
     company: Optional[str] = Field(alias="company")
     created_at: datetime.datetime = Field(alias="created_at")
@@ -80,13 +79,11 @@ class PublicUsers(BaseModel):
     is_active: bool = Field(alias="is_active")
     name: str = Field(alias="name")
     organization_id: Optional[uuid.UUID] = Field(alias="organization_id")
-    password: str = Field(alias="password")
     phone: Optional[str] = Field(alias="phone")
     role: str = Field(alias="role")
 
 
 class PublicUsersInsert(TypedDict):
-    billing_entity: NotRequired[Annotated[Optional[str], Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[Optional[uuid.UUID], Field(alias="billing_entity_id")]]
     company: NotRequired[Annotated[Optional[str], Field(alias="company")]]
     created_at: Annotated[datetime.datetime, Field(alias="created_at")]
@@ -95,13 +92,11 @@ class PublicUsersInsert(TypedDict):
     is_active: NotRequired[Annotated[bool, Field(alias="is_active")]]
     name: Annotated[str, Field(alias="name")]
     organization_id: NotRequired[Annotated[Optional[uuid.UUID], Field(alias="organization_id")]]
-    password: Annotated[str, Field(alias="password")]
     phone: NotRequired[Annotated[Optional[str], Field(alias="phone")]]
     role: NotRequired[Annotated[str, Field(alias="role")]]
 
 
 class PublicUsersUpdate(TypedDict):
-    billing_entity: NotRequired[Annotated[Optional[str], Field(alias="billing_entity")]]
     billing_entity_id: NotRequired[Annotated[Optional[uuid.UUID], Field(alias="billing_entity_id")]]
     company: NotRequired[Annotated[Optional[str], Field(alias="company")]]
     created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
@@ -110,7 +105,6 @@ class PublicUsersUpdate(TypedDict):
     is_active: NotRequired[Annotated[bool, Field(alias="is_active")]]
     name: NotRequired[Annotated[str, Field(alias="name")]]
     organization_id: NotRequired[Annotated[Optional[uuid.UUID], Field(alias="organization_id")]]
-    password: NotRequired[Annotated[str, Field(alias="password")]]
     phone: NotRequired[Annotated[Optional[str], Field(alias="phone")]]
     role: NotRequired[Annotated[str, Field(alias="role")]]
 
@@ -172,33 +166,6 @@ class PublicOrgSettingsUpdate(TypedDict):
     xero_tracking_category_id: NotRequired[
         Annotated[Optional[str], Field(alias="xero_tracking_category_id")]
     ]
-
-
-class PublicRefreshTokens(BaseModel):
-    created_at: datetime.datetime = Field(alias="created_at")
-    expires_at: datetime.datetime = Field(alias="expires_at")
-    id: uuid.UUID = Field(alias="id")
-    revoked: bool = Field(alias="revoked")
-    token_hash: str = Field(alias="token_hash")
-    user_id: uuid.UUID = Field(alias="user_id")
-
-
-class PublicRefreshTokensInsert(TypedDict):
-    created_at: Annotated[datetime.datetime, Field(alias="created_at")]
-    expires_at: Annotated[datetime.datetime, Field(alias="expires_at")]
-    id: Annotated[uuid.UUID, Field(alias="id")]
-    revoked: NotRequired[Annotated[bool, Field(alias="revoked")]]
-    token_hash: Annotated[str, Field(alias="token_hash")]
-    user_id: Annotated[uuid.UUID, Field(alias="user_id")]
-
-
-class PublicRefreshTokensUpdate(TypedDict):
-    created_at: NotRequired[Annotated[datetime.datetime, Field(alias="created_at")]]
-    expires_at: NotRequired[Annotated[datetime.datetime, Field(alias="expires_at")]]
-    id: NotRequired[Annotated[uuid.UUID, Field(alias="id")]]
-    revoked: NotRequired[Annotated[bool, Field(alias="revoked")]]
-    token_hash: NotRequired[Annotated[str, Field(alias="token_hash")]]
-    user_id: NotRequired[Annotated[uuid.UUID, Field(alias="user_id")]]
 
 
 class PublicOauthStates(BaseModel):
