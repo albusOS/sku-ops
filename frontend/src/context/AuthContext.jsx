@@ -173,10 +173,14 @@ export const AuthProvider = ({ children }) => {
       throw new Error("Supabase auth is not configured.");
     }
     const sb = await getSupabase();
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
     const { data, error } = await sb.auth.signUp({
       email,
       password,
-      options: { data: { name, role } },
+      options: {
+        data: { name, role },
+        ...(origin ? { emailRedirectTo: `${origin}/auth/callback` } : {}),
+      },
     });
     if (error) throw error;
     if (data.session?.access_token) {

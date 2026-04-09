@@ -5,11 +5,30 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ShieldCheck, HardHat } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, ShieldCheck, HardHat, Mail } from "lucide-react";
 import { AuthLayout } from "@/components/AuthLayout";
 import { ArchExplorer } from "@/components/ArchExplorer";
 import { ROLES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { getSupabase } from "@/lib/supabase";
+
+const DEFAULT_INBUCKET_ORIGIN = "http://127.0.0.1:54324";
+
+function readInbucketOrigin() {
+  const raw = import.meta.env.VITE_INBUCKET_URL;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.replace(/\/$/, "");
+  }
+  return DEFAULT_INBUCKET_ORIGIN;
+}
 
 const ROLE_CONFIG = {
   admin: {
@@ -40,8 +59,11 @@ const Login = () => {
   const [adminCode, setAdminCode] = useState("");
   const [adminSignupUnlocked, setAdminSignupUnlocked] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [signupMessage, setSignupMessage] = useState("");
-  const { user, login, register } = useAuth();
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState(null);
+  const [confirmInstructionsOpen, setConfirmInstructionsOpen] = useState(false);
+  const [signupOtp, setSignupOtp] = useState("");
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const { user, login, register, refreshSessionAndProfile } = useAuth();
   const navigate = useNavigate();
 
   const { title, icon: Icon, accentClass, role } = ROLE_CONFIG[roleTab];
@@ -103,7 +125,9 @@ const Login = () => {
         toast.success("Welcome!");
         queueMicrotask(() => navigate("/"));
       } else {
-        setSignupMessage("Check your email to confirm your account, then sign in.");
+        setPendingConfirmEmail(email);
+        setConfirmInstructionsOpen(true);
+        setSignupOtp("");
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || error.message || "Sign up failed");
@@ -114,9 +138,67 @@ const Login = () => {
 
   const exitSignupToSignIn = () => {
     setMode("signin");
-    setSignupMessage("");
+    setPendingConfirmEmail(null);
+    setConfirmInstructionsOpen(false);
+    setSignupOtp("");
     setAdminSignupUnlocked(false);
     setAdminCode("");
+  };
+
+  const emailRedirectTo =
+    typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : "";
+
+  const handleResendConfirmation = async () => {
+    if (!pendingConfirmEmail) return;
+    setConfirmBusy(true);
+    try {
+      const sb = await getSupabase();
+      const { error } = await sb.auth.resend({
+        type: "signup",
+        email: pendingConfirmEmail,
+        ...(emailRedirectTo ? { options: { emailRedirectTo } } : {}),
+      });
+      if (error) throw error;
+      toast.success("Confirmation email sent again.");
+    } catch (e) {
+      const code = e?.code ?? e?.status;
+      if (code === "over_email_send_rate_limit" || e?.status === 429) {
+        toast.error(
+          "Email rate limit hit (local default was very strict). Restart Supabase after raising email_sent in supabase/config.toml under [auth.rate_limit], or wait an hour.",
+        );
+      } else {
+        toast.error(e?.message || String(e) || "Could not resend email");
+      }
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
+  const handleVerifySignupOtp = async () => {
+    if (!pendingConfirmEmail || !signupOtp.trim()) {
+      toast.error("Enter the code from your email");
+      return;
+    }
+    setConfirmBusy(true);
+    try {
+      const sb = await getSupabase();
+      const { error } = await sb.auth.verifyOtp({
+        email: pendingConfirmEmail,
+        token: signupOtp.trim(),
+        type: "signup",
+      });
+      if (error) throw error;
+      await refreshSessionAndProfile();
+      toast.success("Email confirmed. Welcome!");
+      setPendingConfirmEmail(null);
+      setConfirmInstructionsOpen(false);
+      setSignupOtp("");
+      queueMicrotask(() => navigate("/"));
+    } catch (e) {
+      toast.error(e?.message || "Invalid or expired code");
+    } finally {
+      setConfirmBusy(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -300,7 +382,9 @@ const Login = () => {
                     onClick={() => {
                       if (mode === "signin") {
                         setMode("signup");
-                        setSignupMessage("");
+                        setPendingConfirmEmail(null);
+                        setConfirmInstructionsOpen(false);
+                        setSignupOtp("");
                         setAdminSignupUnlocked(false);
                         setAdminCode("");
                       } else {
@@ -311,19 +395,112 @@ const Login = () => {
                     {mode === "signin" ? "Sign up" : "Sign in"}
                   </button>
                 </div>
-                {signupMessage && (
-                  <p
-                    className="text-sm text-muted-foreground text-center"
-                    data-testid="signup-email-hint"
+                {pendingConfirmEmail && !confirmInstructionsOpen && (
+                  <button
+                    type="button"
+                    className="w-full text-sm text-accent hover:underline text-center font-medium"
+                    data-testid="signup-email-hint-reopen"
+                    onClick={() => setConfirmInstructionsOpen(true)}
                   >
-                    {signupMessage}
-                  </p>
+                    Confirmation sent to {pendingConfirmEmail} - open instructions
+                  </button>
                 )}
               </div>
             </div>
           </form>
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(pendingConfirmEmail) && confirmInstructionsOpen}
+        onOpenChange={(open) => {
+          if (!pendingConfirmEmail) return;
+          setConfirmInstructionsOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-md border-border bg-surface shadow-soft-lg">
+          <DialogHeader>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent">
+              <Mail className="h-6 w-6" aria-hidden />
+            </div>
+            <DialogTitle className="text-center text-lg">Confirm your email</DialogTitle>
+            <DialogDescription
+              className="text-center text-foreground/90 text-base pt-1"
+              data-testid="signup-email-hint"
+            >
+              We sent a link to <span className="font-medium text-foreground">{pendingConfirmEmail}</span>
+              . Use it to activate your account, then you can sign in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div className="rounded-lg border border-border/80 bg-muted/40 px-3 py-2.5 text-muted-foreground">
+              <p className="font-medium text-foreground/90 mb-1">Local dev</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Keep the app running (Vite on port 3000) before you click the email link.</li>
+                <li>
+                  Links open{" "}
+                  <code className="text-xs bg-background/80 px-1 rounded">/auth/callback</code> so the
+                  session is saved in this browser.
+                </li>
+              </ul>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-accent border-accent/40"
+                asChild
+              >
+                <a href={readInbucketOrigin()} target="_blank" rel="noreferrer">
+                  Open mail (Inbucket)
+                </a>
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={confirmBusy || !pendingConfirmEmail}
+                onClick={() => void handleResendConfirmation()}
+                data-testid="signup-resend-email"
+              >
+                Resend email
+              </Button>
+            </div>
+            <div className="space-y-2 pt-1 border-t border-border/60">
+              <Label htmlFor="signup-otp" className="text-muted-foreground">
+                Code from email (optional)
+              </Label>
+              <Input
+                id="signup-otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6-digit code if your template includes one"
+                value={signupOtp}
+                onChange={(e) => setSignupOtp(e.target.value)}
+                className="input-field"
+                data-testid="signup-otp-input"
+              />
+              <Button
+                type="button"
+                className="w-full"
+                variant="default"
+                disabled={confirmBusy || !signupOtp.trim()}
+                onClick={() => void handleVerifySignupOtp()}
+                data-testid="signup-verify-otp"
+              >
+                Verify with code
+              </Button>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button type="button" variant="ghost" onClick={() => setConfirmInstructionsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ArchExplorer />
     </AuthLayout>
   );

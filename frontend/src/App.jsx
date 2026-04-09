@@ -10,6 +10,7 @@ import { ROLES } from "./lib/constants";
 import { useRealtimeSync } from "./hooks/useRealtimeSync";
 import { RealtimeSyncContext } from "./context/RealtimeSyncContext";
 import Login from "./pages/Login";
+import AuthCallback from "./pages/AuthCallback";
 import Layout from "./components/Layout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -64,6 +65,7 @@ function App() {
             <ErrorBoundary>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route
                   path="/*"
                   element={

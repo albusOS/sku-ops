@@ -13,7 +13,17 @@ export const getSupabase = async () => {
   }
   if (!_supabase) {
     const { createClient } = await import("@supabase/supabase-js");
-    _supabase = createClient(supabaseUrl, supabasePublishableKey);
+    // Use implicit for browser email confirmation + resend. PKCE confirmation links require the
+    // code verifier from the same tab that called signUp; resend() has historically emitted
+    // implicit-style verify links, so PKCE mode breaks "click link" and resend for many setups.
+    _supabase = createClient(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        flowType: "implicit",
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
   }
   return _supabase;
 };

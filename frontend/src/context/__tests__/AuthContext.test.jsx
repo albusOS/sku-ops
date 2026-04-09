@@ -69,7 +69,10 @@ describe("AuthProvider register", () => {
     expect(signUp).toHaveBeenCalledWith({
       email: "e@e.com",
       password: "secret12",
-      options: { data: { name: "Pat", role: "contractor" } },
+      options: {
+        data: { name: "Pat", role: "contractor" },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
   });
 });

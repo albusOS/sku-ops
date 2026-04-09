@@ -138,6 +138,7 @@ describe("Login", () => {
     fireEvent.input(screen.getByTestId("login-password-input"), { target: { value: "pw123456" } });
     fireEvent.submit(screen.getByTestId("login-form"));
     await vi.waitFor(() => expect(screen.getByTestId("signup-email-hint")).toBeInTheDocument());
-    expect(screen.getByTestId("signup-email-hint")).toHaveTextContent(/email/i);
+    expect(screen.getByTestId("signup-email-hint")).toHaveTextContent(/c@d\.co/);
+    expect(screen.getByTestId("signup-email-hint")).toHaveTextContent(/activate your account/i);
   });
 });
