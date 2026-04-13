@@ -159,7 +159,7 @@ jobs:
         run: |
           supabase link --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}"
           supabase db push
-          # Email templates and most auth keys; hosted site_url often stays stale (CLI reports "up to date" while API still has localhost).
+          # Root [auth] only; CLI does not merge [remotes.*] into config push payload (see supabase/config.toml comment).
           supabase config push --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}" --yes --workdir supabase
 
       - name: Force hosted Auth URL config (Management API)
