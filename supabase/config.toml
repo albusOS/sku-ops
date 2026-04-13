@@ -153,7 +153,8 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+# Hosted project: production app URL. Local CLI still allows localhost via additional_redirect_urls.
+site_url = "https://sku-ops-humblhumans.vercel.app"
 # Must include every origin you use in the browser so email confirmation links can redirect back.
 additional_redirect_urls = [
   "http://127.0.0.1:3000",
@@ -162,7 +163,16 @@ additional_redirect_urls = [
   "http://localhost:3000/auth/callback",
   "https://127.0.0.1:3000",
   "https://sku-ops-humblhumans.vercel.app",
+  "https://sku-ops-humblhumans.vercel.app/",
+  "https://sku-ops-humblhumans.vercel.app/**",
   "https://sku-ops-humblhumans.vercel.app/auth/callback",
+  "https://sku-*-ops-humblhumans.vercel.app",
+  "https://sku-*-ops-humblhumans.vercel.app/**",
+  "https://sku-ops-jjfantini-humblhumans.vercel.app",
+  "https://sku-ops-jjfantini-humblhumans.vercel.app/",
+  "https://sku-ops-jjfantini-humblhumans.vercel.app/**",
+  "https://sku-*-ops-jjfantini-humblhumans.vercel.app",
+  "https://sku-*-ops-jjfantini-humblhumans.vercel.app/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -304,8 +314,8 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
