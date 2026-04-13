@@ -160,7 +160,8 @@ jobs:
           supabase link --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}"
           supabase db push
           # Applies root [auth] (site_url, additional_redirect_urls, email templates, etc.) to hosted GoTrue.
-          supabase config push --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}" --yes --workdir supabase
+          # No --workdir: CLI looks for supabase/config.toml relative to cwd (repo root).
+          supabase config push --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}" --yes
 
       - name: Verify hosted Auth URL config (Management API)
         run: |
