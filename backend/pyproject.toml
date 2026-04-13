@@ -10,7 +10,7 @@ license = "MIT"
 dependencies = [
     # ── Core ──
     "fastapi>=0.110.1",
-    "uvicorn[standard]>=0.25.0",
+    "uvicorn[standard]>=0.44.0",
     "gunicorn>=23.0.0",
     "python-dotenv>=1.0.1",
     "pydantic>=2.6.4",
