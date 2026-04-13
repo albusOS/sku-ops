@@ -154,8 +154,8 @@ enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
 # Hosted project: production app URL. Local CLI still allows localhost via additional_redirect_urls.
-# Note: supabase config push uses the root [auth] block only; [remotes.*] is not merged into the
-# pushed Auth payload in current Supabase CLI (see internal/config/push GetRemoteByProjectRef).
+# supabase config push applies this root [auth] block to the linked project (hosted GoTrue).
+# [remotes.*] overrides are not merged into config push; use root [auth] for what you want on remote.
 site_url = "https://sku-ops-humblhumans.vercel.app"
 # Must include every origin you use in the browser so email confirmation links can redirect back.
 additional_redirect_urls = [

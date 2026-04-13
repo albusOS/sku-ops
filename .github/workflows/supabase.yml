@@ -159,56 +159,10 @@ jobs:
         run: |
           supabase link --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}"
           supabase db push
-          # Root [auth] only; CLI does not merge [remotes.*] into config push payload (see supabase/config.toml comment).
+          # Applies root [auth] (site_url, additional_redirect_urls, email templates, etc.) to hosted GoTrue.
           supabase config push --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}" --yes --workdir supabase
 
-      - name: Force hosted Auth URL config (Management API)
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRIVATE_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          REF="${{ secrets.PUBLIC_PROJECT_ID }}"
-          SITE_URL="https://sku-ops-humblhumans.vercel.app"
-          # GoTrue URI_ALLOW_LIST / dashboard "Redirect URLs": comma-separated (see supabase/config.toml additional_redirect_urls).
-          URLS=(
-            "http://127.0.0.1:3000"
-            "http://127.0.0.1:3000/auth/callback"
-            "http://localhost:3000"
-            "http://localhost:3000/auth/callback"
-            "https://127.0.0.1:3000"
-            "${SITE_URL}"
-            "${SITE_URL}/"
-            "${SITE_URL}/**"
-            "${SITE_URL}/auth/callback"
-            "https://sku-*-ops-humblhumans.vercel.app"
-            "https://sku-*-ops-humblhumans.vercel.app/**"
-            "https://sku-ops-jjfantini-humblhumans.vercel.app"
-            "https://sku-ops-jjfantini-humblhumans.vercel.app/"
-            "https://sku-ops-jjfantini-humblhumans.vercel.app/**"
-            "https://sku-*-ops-jjfantini-humblhumans.vercel.app"
-            "https://sku-*-ops-jjfantini-humblhumans.vercel.app/**"
-          )
-          IFS=,
-          URIS="${URLS[*]}"
-          unset IFS
-          BODY=$(jq -n --arg u "$SITE_URL" --arg uris "$URIS" '{site_url: $u, uri_allow_list: $uris}')
-          echo "PATCH /v1/projects/${REF}/config/auth (site_url + uri_allow_list)"
-          HTTP=$(curl -sS -o /tmp/auth_patch_body.json -w "%{http_code}" -X PATCH \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.supabase.com/v1/projects/${REF}/config/auth" \
-            -d "$BODY")
-          echo "HTTP ${HTTP}"
-          cat /tmp/auth_patch_body.json | head -c 2500
-          echo ""
-          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ] && [ "$HTTP" != "204" ]; then
-            echo "::error::Management API PATCH auth failed. Token needs auth_config_write / project_admin_write."
-            exit 1
-          fi
-
       - name: Verify hosted Auth URL config (Management API)
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRIVATE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           REF="${{ secrets.PUBLIC_PROJECT_ID }}"
@@ -225,11 +179,11 @@ jobs:
           fi
           case "${SITE}" in
             *127.0.0.1*|*localhost*)
-              echo "::error::site_url is still localhost after PATCH."
+              echo "::error::site_url is still localhost; check supabase/config.toml [auth] and config push logs."
               exit 1
               ;;
           esac
           if ! echo "$URIS" | grep -q 'sku-ops-humblhumans'; then
-            echo "::error::uri_allow_list does not include production Vercel host (check PATCH body / API field names)."
+            echo "::error::uri_allow_list missing production host; check supabase/config.toml additional_redirect_urls."
             exit 1
           fi
