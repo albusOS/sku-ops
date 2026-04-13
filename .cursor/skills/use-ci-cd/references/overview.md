@@ -89,7 +89,7 @@ Configure GitHub Environment **`supabase_deployment`** (same as `environment:` i
 - `PRIVATE_ACCESS_TOKEN` (Supabase account access token for the CLI; workflow sets `SUPABASE_ACCESS_TOKEN`)
 - `PRIVATE_DB_PASSWORD` (production database password; workflow sets `SUPABASE_DB_PASSWORD`)
 - `PUBLIC_PROJECT_ID` (project ref for `supabase link --project-ref`; **must match** the project in the dashboard URL and `PUBLIC_SUPABASE_URL` in `backend/.env.production`, e.g. `fjzacucejlieklmmhwsm`. If this secret points at another project, `supabase config push` updates the wrong project and hosted Auth URL settings stay on localhost.)
-- `PRIVATE_ACCESS_TOKEN` must allow **Management API** auth updates (fine-grained: `auth_config_write` or `project_admin_write`) so the workflow can `PATCH /v1/projects/{ref}/config/auth` to set `site_url`. The Supabase CLI `config push` alone can report "up to date" while the hosted `site_url` is still `http://127.0.0.1:3000`.
+- `PRIVATE_ACCESS_TOKEN` must allow **Management API** auth updates (fine-grained: `auth_config_write` or `project_admin_write`) so the workflow can `PATCH /v1/projects/{ref}/config/auth` with `site_url` and **`uri_allow_list`** (comma-separated redirect allow list; GoTrue `URI_ALLOW_LIST`). The Supabase CLI `config push` alone often does not match dashboard reality for URLs.
 
 Until this environment and secrets exist, `db-push` will fail at approval or secret resolution; `typegen-check` and `db-test` still run.
 
