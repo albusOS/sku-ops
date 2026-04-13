@@ -137,7 +137,9 @@ jobs:
         with:
           version: latest
 
-      - name: Link and push migrations
+      - name: Link, push migrations, and sync remote config
         run: |
           supabase link --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}"
           supabase db push
+          # Keeps hosted Auth URL settings and email templates aligned with supabase/config.toml
+          supabase config push --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}" --yes --workdir supabase
