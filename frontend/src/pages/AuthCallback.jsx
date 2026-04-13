@@ -126,9 +126,11 @@ export default function AuthCallback() {
     >
       <Loader2 className="h-8 w-8 animate-spin text-accent" aria-hidden />
       <p className="text-foreground font-medium">Confirming your email…</p>
-      <p className="text-sm text-muted-foreground text-center max-w-md">
-        If this hangs, ensure the frontend dev server is running before you open the email link.
-      </p>
+      {import.meta.env.DEV && (
+        <p className="text-sm text-muted-foreground text-center max-w-md">
+          If this hangs, ensure the frontend dev server is running before you open the email link.
+        </p>
+      )}
     </div>
   );
 }

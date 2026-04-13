@@ -437,43 +437,9 @@ const Login = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm">
-            <div className="rounded-lg border border-border/80 bg-muted/40 px-3 py-2.5 text-muted-foreground">
-              <p className="font-medium text-foreground/90 mb-1">Local dev</p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>Keep the app running (Vite on port 3000) before you click the email link.</li>
-                <li>
-                  Links open{" "}
-                  <code className="text-xs bg-background/80 px-1 rounded">/auth/callback</code> so
-                  the session is saved in this browser.
-                </li>
-              </ul>
-            </div>
-            <div className="flex flex-wrap gap-2 justify-center">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-accent border-accent/40"
-                asChild
-              >
-                <a href={readInbucketOrigin()} target="_blank" rel="noreferrer">
-                  Open mail (Inbucket)
-                </a>
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={confirmBusy || !pendingConfirmEmail}
-                onClick={() => void handleResendConfirmation()}
-                data-testid="signup-resend-email"
-              >
-                Resend email
-              </Button>
-            </div>
-            <div className="space-y-2 pt-1 border-t border-border/60">
+            <div className="space-y-2">
               <Label htmlFor="signup-otp" className="text-muted-foreground">
-                Code from email (optional)
+                Code from email
               </Label>
               <Input
                 id="signup-otp"
@@ -496,6 +462,44 @@ const Login = () => {
                 Verify with code
               </Button>
             </div>
+            <div className="flex justify-center pt-1 border-t border-border/60">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={confirmBusy || !pendingConfirmEmail}
+                onClick={() => void handleResendConfirmation()}
+                data-testid="signup-resend-email"
+              >
+                Resend email
+              </Button>
+            </div>
+            {import.meta.env.DEV && (
+              <details className="rounded-lg border border-border/80 bg-muted/40 px-3 py-2.5 text-muted-foreground">
+                <summary className="cursor-pointer font-medium text-foreground/90 text-xs list-none [&::-webkit-details-marker]:hidden">
+                  Dev tools
+                </summary>
+                <ul className="list-disc pl-4 space-y-1 mt-2">
+                  <li>Keep the app running (Vite on port 3000) before you click the email link.</li>
+                  <li>
+                    Links open{" "}
+                    <code className="text-xs bg-background/80 px-1 rounded">/auth/callback</code> so
+                    the session is saved in this browser.
+                  </li>
+                </ul>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-accent border-accent/40"
+                  asChild
+                >
+                  <a href={readInbucketOrigin()} target="_blank" rel="noreferrer">
+                    Open mail (Inbucket)
+                  </a>
+                </Button>
+              </details>
+            )}
           </div>
           <DialogFooter className="sm:justify-center">
             <Button type="button" variant="ghost" onClick={() => setConfirmInstructionsOpen(false)}>
