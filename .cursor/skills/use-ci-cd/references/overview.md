@@ -88,7 +88,7 @@ Configure GitHub Environment **`supabase_deployment`** (same as `environment:` i
 
 - `PRIVATE_ACCESS_TOKEN` (Supabase account access token for the CLI; workflow sets `SUPABASE_ACCESS_TOKEN`)
 - `PRIVATE_DB_PASSWORD` (production database password; workflow sets `SUPABASE_DB_PASSWORD`)
-- `PUBLIC_PROJECT_ID` (project ref for `supabase link --project-ref`; safe as a variable but stored as a secret for one place to configure)
+- `PUBLIC_PROJECT_ID` (project ref for `supabase link --project-ref`; **must match** the project in the dashboard URL and `PUBLIC_SUPABASE_URL` in `backend/.env.production`, e.g. `fjzacucejlieklmmhwsm`. If this secret points at another project, `supabase config push` updates the wrong project and hosted Auth URL settings stay on localhost.)
 
 Until this environment and secrets exist, `db-push` will fail at approval or secret resolution; `typegen-check` and `db-test` still run.
 

@@ -137,6 +137,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Assert GitHub targets production Supabase project
+        env:
+          EXPECTED_REF: fjzacucejlieklmmhwsm
+        run: |
+          ACTUAL="${{ secrets.PUBLIC_PROJECT_ID }}"
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::PUBLIC_PROJECT_ID is empty in Environment supabase_deployment."
+            exit 1
+          fi
+          if [ "$ACTUAL" != "$EXPECTED_REF" ]; then
+            echo "::error::PUBLIC_PROJECT_ID (${ACTUAL}) must equal ${EXPECTED_REF} so migrations and config push hit the same project as backend/.env.production and VITE_SUPABASE_URL."
+            exit 1
+          fi
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -147,3 +161,28 @@ jobs:
           supabase db push
           # Keeps hosted Auth URL settings and email templates aligned with supabase/config.toml
           supabase config push --project-ref "${{ secrets.PUBLIC_PROJECT_ID }}" --yes --workdir supabase
+
+      - name: Verify hosted Auth site_url (Management API)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRIVATE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          REF="${{ secrets.PUBLIC_PROJECT_ID }}"
+          echo "Checking GET /v1/projects/${REF}/config/auth (must match dashboard project ref)"
+          JSON=$(curl -sS -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${REF}/config/auth")
+          SITE=$(echo "$JSON" | jq -r '.site_url // empty')
+          echo "Hosted site_url from API: ${SITE}"
+          if [ -z "${SITE}" ]; then
+            echo "::error::Could not read site_url from Management API response. Check token scope."
+            echo "$JSON" | head -c 1200
+            exit 1
+          fi
+          case "${SITE}" in
+            *127.0.0.1*|*localhost*)
+              echo "::error::site_url is still localhost. CI is updating a different project than you expect, or config push did not apply."
+              echo "Fix: In GitHub Environment supabase_deployment, set secret PUBLIC_PROJECT_ID to the exact ref from the dashboard URL (e.g. fjzacucejlieklmmhwsm), then re-run this workflow."
+              echo "Or set Site URL manually: Authentication -> URL Configuration -> Site URL = https://sku-ops-humblhumans.vercel.app"
+              exit 1
+              ;;
+          esac
