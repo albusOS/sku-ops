@@ -5,12 +5,16 @@ on:
     branches: [main, dev]
     paths:
       - "supabase/**"
+      - "templates"
+      - ".github/workflows/supabase.yml"
       - ".cursor/skills/use-database/scripts/supabase_type_generation/**"
       - "backend/shared/infrastructure/types/**"
   pull_request:
     branches: [main, dev]
     paths:
       - "supabase/**"
+      - "templates"
+      - ".github/workflows/supabase.yml"
       - ".cursor/skills/use-database/scripts/supabase_type_generation/**"
       - "backend/shared/infrastructure/types/**"
   workflow_dispatch:
