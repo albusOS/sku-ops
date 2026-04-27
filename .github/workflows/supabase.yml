@@ -40,7 +40,7 @@ jobs:
       - name: Verify dev tools resolve from pixi
         run: pixi run doctor
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v2
         with:
           version: latest
 
@@ -94,7 +94,7 @@ jobs:
       - name: Verify dev tools resolve from pixi
         run: pixi run doctor
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v2
         with:
           version: latest
 
@@ -151,7 +151,7 @@ jobs:
             exit 1
           fi
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v2
         with:
           version: latest
 
