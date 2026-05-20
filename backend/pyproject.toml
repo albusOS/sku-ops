@@ -31,7 +31,7 @@ dependencies = [
     "numpy>=1.26.0",
     # ── Document processing ──
     "Pillow>=10.0.0",
-    "pytesseract>=0.3.10",
+    "pytesseract>=0.3.13",
     "pypdf>=6.9.1",
     "pdf2image>=1.17.0",
     # ── HTTP / OAuth ──
