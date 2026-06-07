@@ -65,7 +65,7 @@ dev = [
     "ruff>=0.15.0",
     "commitizen>=4.12.1",
     "cz-conventional-gitmoji>=0.7.0",
-    "rich>=14.0.0",
+    "rich>=14.3.4",
     "pip-audit>=2.7",
     "openpyxl>=3.1.5",
 ]
